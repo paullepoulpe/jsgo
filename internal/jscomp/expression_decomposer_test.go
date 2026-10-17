@@ -1,8 +1,25 @@
 // Port of com/google/javascript/jscomp/ExpressionDecomposerTest.java @ closure-compiler v20260415
 
+/*
+ * Copyright 2009 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,177 +27,62 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Unit tests for ExpressionDecomposer. Note: functions "foo" and "goo" are
-// external functions in the helper.
+// Unit tests for ExpressionDecomposer
+// Note: functions "foo" and "goo" are external functions in the helper.
 //
-// Every helper parses with Compiler.parseTestCode and
-// Normalize.NormalizeStatements, finds nodes and compares results through
-// Compiler.toSource (CodePrinter), type-checks with TypeCheck and validates
-// source positions with SourceInfoCheck: all of them are above the core, so
-// the helpers skip the test. The cases themselves are ported in full; the
-// helpers' Java bodies are summarized on each.
-const expressionDecomposerTest_skip = "needs Compiler.parseTestCode, Normalize.NormalizeStatements, " +
-	"CodePrinter (Compiler.toSource), TypeCheck, SourceInfoCheck"
+// The Java @Test methods not named test* get a "Test" prefix so that
+// RunJUnit4 runs them.
+//
+// Java: public final class ExpressionDecomposerTest
+type ExpressionDecomposerTest struct {
+	// Go-only: test-helper — the Go test running the current test method.
+	t *testing.T
 
-// expressionDecomposerTest is ExpressionDecomposerTest's fixture.
-type expressionDecomposerTest struct {
-	t              *testing.T
+	// Go-only: language-adapter — a HashSet<String> that is only copied
+	// into the decomposer's lookup set, so its order is not observable.
 	knownConstants *jutil.LinkedHashSet[string]
 
 	// The language out to set in the compiler options. If null, use the default.
-	languageOut *CompilerOptions_LanguageMode
+	languageOut *CompilerOptions_LanguageMode // @Nullable
 
 	// Whether we should run type checking and test the type information in the output expression
 	shouldTestTypes bool
 }
 
-// Java: ExpressionDecomposerTest.setUp()
-func newExpressionDecomposerTest(t *testing.T) *expressionDecomposerTest {
-	x := &expressionDecomposerTest{t: t, knownConstants: jutil.NewLinkedHashSet[string]()}
-	x.knownConstants.Clear()
-	x.shouldTestTypes = true
-	x.languageOut = nil
-	return x
+func TestExpressionDecomposerTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase {
+		return &ExpressionDecomposerTest{knownConstants: jutil.NewLinkedHashSet[string]()}
+	})
 }
 
-func (x *expressionDecomposerTest) setLanguageOut(languageOut CompilerOptions_LanguageMode) {
-	x.languageOut = &languageOut
+// JUnitSetT gives the instance the Go test running its test method.
+func (c *ExpressionDecomposerTest) JUnitSetT(t *testing.T) { c.t = t }
+
+// JUnitBefore runs the @Before method.
+func (c *ExpressionDecomposerTest) JUnitBefore() { c.SetUp() }
+
+// JUnitAfter: the class has no @After method.
+func (c *ExpressionDecomposerTest) JUnitAfter() {}
+
+// Java: ExpressionDecomposerTest.setUp()
+func (c *ExpressionDecomposerTest) SetUp() {
+	c.knownConstants.Clear()
+	c.shouldTestTypes = true
+	c.languageOut = nil
 }
 
 // expressionDecomposerTest_nodeFinder is the tests'
 // Function<AbstractCompiler, Function<Node, Node>>.
 type expressionDecomposerTest_nodeFinder func(compiler AbstractCompiler) func(root *rhino.Node) *rhino.Node
 
-// helperCanExposeExpression parses code (and the externs "function goo()
-// {} function foo() {}"), finds the expression and checks
-// decomposer.canExposeExpression(expression) == expectedResult.
-//
-// Java: ExpressionDecomposerTest.helperCanExposeExpression(DecompositionType, String, Function<AbstractCompiler, Function<Node, Node>>)
-func (x *expressionDecomposerTest) helperCanExposeExpression(
-	expectedResult ExpressionDecomposer_DecompositionType, code string, nodeFinderFn expressionDecomposerTest_nodeFinder) {
-	x.t.Skip(expressionDecomposerTest_skip)
-}
-
-// expressionDecomposerTest_nodeToSource is NodeToSource.toString(): the
-// source code a node represents where possible, or some explanatory text
-// when not possible.
-//
-// Java: ExpressionDecomposerTest.nodeToSource(AbstractCompiler, Node)
-func expressionDecomposerTest_nodeToSource(compiler AbstractCompiler, node *rhino.Node) string {
-	if node.IsTemplateLitString() {
-		// A string part of a template literal cannot be printed as code on its own.
-		return "[Template literal string: '" + node.GetRawString() + "']"
-	} else if node.IsTemplateLitSub() {
-		// The template literal substitution node cannot itself be turned into source code,
-		// but we can do that for the expression inside of it.
-		return "[Template literal substitution: '" + compiler.ToSourceOfNode(node.GetOnlyChild()) + "']"
-	} else {
-		return compiler.ToSourceOfNode(node)
-	}
-}
-
-// Java: ExpressionDecomposerTest.exprMatchesStr(String)
-func exprMatchesStr(exprString string) expressionDecomposerTest_nodeFinder {
-	return func(compiler AbstractCompiler) func(root *rhino.Node) *rhino.Node {
-		return func(root *rhino.Node) *rhino.Node {
-			// When matching trim off the trailing newline added by the compiler's pretty-print
-			// option.
-			isAMatch := func(node *rhino.Node) bool {
-				return exprString == jutil.StringTrim(expressionDecomposerTest_nodeToSource(compiler, node))
-			}
-			containsAMatch := func(node *rhino.Node) bool {
-				return strings.Contains(expressionDecomposerTest_nodeToSource(compiler, node), exprString)
-			}
-			matchingNode := NodeUtil_FindPreorder(root, isAMatch, containsAMatch)
-			if matchingNode == nil {
-				panic(jutil.NewAssertionError(
-					"Expected node `" + exprString + "` was not found in `" + compiler.ToSourceOfNode(root) + "`"))
-			}
-			return matchingNode
-		}
-	}
-}
-
-// helperExposeExpressionThenTypeCheck parses code, exposes the found
-// expression (temp prefix "temp", result prefix "result") and type-checks
-// the result.
-//
-// Java: ExpressionDecomposerTest.helperExposeExpressionThenTypeCheck(String, Function<Node, Node>)
-func (x *expressionDecomposerTest) helperExposeExpressionThenTypeCheck(
-	code string, nodeFinder func(*rhino.Node) *rhino.Node) *rhino.Node {
-	x.t.Skip(expressionDecomposerTest_skip)
-	return nil
-}
-
-// helperExposeExpression parses code (type-checking it when
-// shouldTestTypes), checks the found expression is DECOMPOSABLE, calls
-// maybeExposeExpression, validates source info and compares the result
-// with expectedResult as source; when shouldTestTypes, the types must match
-// those of decompose-then-type-check.
-//
-// Java: ExpressionDecomposerTest.helperExposeExpression(String, Function<AbstractCompiler, Function<Node, Node>>, String)
-func (x *expressionDecomposerTest) helperExposeExpression(
-	code string, compilerToNodeFinder expressionDecomposerTest_nodeFinder, expectedResult string) {
-	x.t.Skip(expressionDecomposerTest_skip)
-}
-
-// createDecomposer is compiler.createExpressionDecomposer(
-// compiler.getUniqueNameIdSupplier(), ImmutableSet.copyOf(knownConstants),
-// newScope()).
-//
-// Java: ExpressionDecomposerTest.createDecomposer(Compiler)
-func (x *expressionDecomposerTest) createDecomposer(compiler AbstractCompiler) *ExpressionDecomposer {
-	return compiler.CreateExpressionDecomposer(
-		compiler.GetUniqueNameIdSupplier(), jutil.NewLinkedHashSet(x.knownConstants.ToSlice()...), x.newScope())
-}
-
-// helperMoveExpression parses code (type-checking it when shouldTestTypes),
-// calls moveExpression on the found expression, validates source info and
-// compares the result with expectedResult as source; when shouldTestTypes,
-// the types must match those of move-then-type-check.
-//
-// Java: ExpressionDecomposerTest.helperMoveExpression(String, Function<AbstractCompiler, Function<Node, Node>>, String)
-func (x *expressionDecomposerTest) helperMoveExpression(
-	code string, compilerToNodeFinder expressionDecomposerTest_nodeFinder, expectedResult string) {
-	x.t.Skip(expressionDecomposerTest_skip)
-}
-
-// Java: ExpressionDecomposerTest.findClass(Node)
-func expressionDecomposerTest_findClass(n *rhino.Node) *rhino.Node {
-	if n.IsClass() {
-		return n
-	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
-		maybeClass := expressionDecomposerTest_findClass(child)
-		if maybeClass != nil {
-			return maybeClass
-		}
-	}
-	return nil
-}
-
-// expressionDecomposerTest_assertToken is assertNode(n).hasToken(token).
-func expressionDecomposerTest_assertToken(t *testing.T, n *rhino.Node, token rhino.Token) {
-	t.Helper()
-	if n.GetToken() != token {
-		t.Fatalf("%v: expected token %s", n, token)
-	}
-}
-
-// Java: ExpressionDecomposerTest.newScope()
-func (x *expressionDecomposerTest) newScope() *Scope {
-	return Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_ROOT))
-}
-
 // Java: ExpressionDecomposerTest.testWindowLocationAssign()
-func TestExpressionDecomposer_testWindowLocationAssign(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestWindowLocationAssign() {
 	// avoid decomposing `window.location.assign` when the output code could
 	// end up running on IE11. See more explanation in ExpressionDecomposer.java.
-	x.setLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
-	x.helperCanExposeExpression(
+	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT5.Ptr()
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "window.location.assign(foo())", exprMatchesStr("foo()"))
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"window.location.assign(foo())",
 		exprMatchesStr("foo()"),
 		`var result$jscomp$0 = foo();
@@ -189,10 +91,10 @@ window.location.assign(result$jscomp$0)
 
 	// confirm that the default behavior does not treat window.location.assign
 	// specially
-	x.languageOut = nil
-	x.helperCanExposeExpression(
+	c.languageOut = nil
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "window.location.assign(foo())", exprMatchesStr("foo()"))
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"window.location.assign(foo())",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$1 = window.location;
@@ -202,241 +104,238 @@ temp_const$jscomp$0.call(temp_const$jscomp$1, foo());
 }
 
 // Java: ExpressionDecomposerTest.testObjectDestructuring_withComputedKey_doesNotCrash()
-func TestExpressionDecomposer_testObjectDestructuring_withComputedKey_doesNotCrash(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestObjectDestructuring_withComputedKey_doesNotCrash() {
 	// computed prop is found to be decomposable
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "var a; ({ [foo()]: a} = obj);", exprMatchesStr("foo()"))
 
 	// TODO(b/339040894): Fix this crash.
-	ex := jsaThrows[*jutil.IllegalStateException](t, func() {
-		x.helperExposeExpression(
-			"var a; ({ [foo()]: a} = obj);", //
-			exprMatchesStr("foo()"),
-			`var a;
+	ex :=
+		AssertThrows[*jutil.IllegalStateException](func() {
+			c.helperExposeExpression(
+				"var a; ({ [foo()]: a} = obj);", //
+				exprMatchesStr("foo()"),
+				`var a;
 var temp_const$jscomp$0 = obj;
 var temp_const$jscomp$1 = foo();
 ({ [temp_const$jscomp$1]: a} = temp_const$jscomp$0);
 `)
-	})
-	if !strings.Contains(ex.GetMessage(), "exposeExpression exposed nothing") {
-		t.Errorf("message: %q", ex.GetMessage())
-	}
+		})
+	AssertThat(ex.GetMessage()).Contains("exposeExpression exposed nothing")
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression1()
-func TestExpressionDecomposer_testCannotExpose_expression1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression1() {
 	// Can't move or decompose some classes of expressions.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "while(foo());", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "while(x = goo()&&foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "while(x += goo()&&foo()){}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "do{}while(foo());", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "for(;foo(););", exprMatchesStr("foo()"))
 	// This case could be supported for loops without conditional continues
 	// by moving the increment into the loop body.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "for(;;foo());", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "for(foo();;);", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "for(foo();;);", exprMatchesStr("foo()"))
 
 	// This is potentially doable but a bit too complex currently.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "switch(1){case foo():;}", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression2()
-func TestExpressionDecomposer_testCanExposeExpression2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "var x = foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanExposeExpression2() {
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo()", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "var x = foo()", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "const x = foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "let x = foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "if(foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "let x = foo()", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "if(foo()){}", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "switch(foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "switch(foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "function f(){ return foo();}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() && 1", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() || 1", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() && 1", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() || 1", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() ? 0 : 1", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "(function(a){b = a})(foo())", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "function f(){ throw foo();}", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.nullishCoalesceMovable()
-func TestExpressionDecomposer_nullishCoalesceMovable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() ?? 1", exprMatchesStr("foo()"))
+func (c *ExpressionDecomposerTest) TestNullishCoalesceMovable() {
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "x = foo() ?? 1", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.nullishCoalesceDecomposable()
-func TestExpressionDecomposer_nullishCoalesceDecomposable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestNullishCoalesceDecomposable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "var x = null ?? foo()", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.nullishCoalesceUnDecomposable()
-func TestExpressionDecomposer_nullishCoalesceUnDecomposable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestNullishCoalesceUnDecomposable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "while(x = goo()??foo()){}", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.assignCoalesceMovable()
-func TestExpressionDecomposer_assignCoalesceMovable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestAssignCoalesceMovable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x ??= goo() + foo()", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.optChainMovable()
-func TestExpressionDecomposer_optChainMovable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.x", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.[x]", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.()", exprMatchesStr("foo()"))
+func (c *ExpressionDecomposerTest) TestOptChainMovable() {
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.x", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.[x]", exprMatchesStr("foo()"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo()?.()", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.optChainDecomposable()
-func TestExpressionDecomposer_optChainDecomposable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestOptChainDecomposable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x?.[foo()]", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x?.(foo())", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.optChainAllowMethodCallDecomposable()
-func TestExpressionDecomposer_optChainAllowMethodCallDecomposable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestOptChainAllowMethodCallDecomposable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x?.y(foo())", exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.optChainUnDecomposable()
-func TestExpressionDecomposer_optChainUnDecomposable(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestOptChainUnDecomposable() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "while(x = y?.[foo()]){}", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression3()
-func TestExpressionDecomposer_testCanExposeExpression3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanExposeExpression3() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x = 0 && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x = 1 || foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "var x = 1 ? foo() : 0", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "const x = 1 ? foo() : 0", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "let x = 1 ? foo() : 0", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x = goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x += goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "var x = goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "const x = goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "let x = goo() && foo()", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "if(goo() && foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "switch(goo() && foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "switch(goo() && foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "switch(x = goo() && foo()){}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"function f(){ return goo() && foo();}",
 		exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression_compoundDeclaration_inForInitializer_firstElement()
-func TestExpressionDecomposer_testCanExposeExpression_compoundDeclaration_inForInitializer_firstElement(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeExpression_compoundDeclaration_inForInitializer_firstElement() {
 	// VAR will already be hoisted by `Normalize`.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "for (var x = foo(), y = 5;;) {}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "for (let x = foo(), y = 5;;) {}", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "for (const x = foo(), y = 5;;) {}", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression_compoundDeclaration_inForInitializer_nthElement()
-func TestExpressionDecomposer_testCanExposeExpression_compoundDeclaration_inForInitializer_nthElement(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeExpression_compoundDeclaration_inForInitializer_nthElement() {
 	// TODO(b/121157467) FOR introduces complex scoping that isn't currently `Normalize`d.
 	// Since in some cases we'd effectively end up having to `Normalize` these, decomposition just
 	// bails for now.
 
 	// VAR will already be hoisted by `Normalize`.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "for (var x = 8, y = foo();;) {}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"for (let x = 8, y = foo();;) {}",
 		exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"for (const x = 8, y = foo();;) {}",
 		exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression4()
-func TestExpressionDecomposer_testCannotExpose_expression4(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression4() {
 	// 'this' must be preserved in call.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "if (goo.a(1, foo()));", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression5()
-func TestExpressionDecomposer_testCannotExpose_expression5(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression5() {
 	// 'this' must be preserved in call.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "if (goo['a'](foo()));", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression6()
-func TestExpressionDecomposer_testCannotExpose_expression6(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression6() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "z:if (goo.a(1, foo()));", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression7()
-func TestExpressionDecomposer_testCanExposeExpression7(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeExpression7() {
 	// Verify calls to function expressions are movable.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		`(function(map){descriptions_=map})(
   function(){
@@ -450,23 +349,22 @@ func TestExpressionDecomposer_testCanExposeExpression7(t *testing.T) {
 			return func(rootNode *rhino.Node) *rhino.Node {
 				// Dig out the inner IIFE call and return it as the expression we want to ensure is
 				// movable.
-				expressionDecomposerTest_assertToken(t, rootNode, rhino.Token_SCRIPT)
+				AssertNode(rootNode).HasToken(rhino.Token_SCRIPT)
 				exprResult := rootNode.GetOnlyChild()
-				expressionDecomposerTest_assertToken(t, exprResult, rhino.Token_EXPR_RESULT)
+				AssertNode(exprResult).HasToken(rhino.Token_EXPR_RESULT)
 				outerCall := exprResult.GetOnlyChild()
-				expressionDecomposerTest_assertToken(t, outerCall, rhino.Token_CALL)
+				AssertNode(outerCall).HasToken(rhino.Token_CALL)
 				innerIifeCall := outerCall.GetSecondChild()
-				expressionDecomposerTest_assertToken(t, innerIifeCall, rhino.Token_CALL)
+				AssertNode(innerIifeCall).HasToken(rhino.Token_CALL)
 				return innerIifeCall
 			}
 		})
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression8()
-func TestExpressionDecomposer_testCanExposeExpression8(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeExpression8() {
 	// Can it be decompose?
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		`HangoutStarter.prototype.launchHangout = function() {
   var self = a.b;
@@ -477,7 +375,7 @@ func TestExpressionDecomposer_testCanExposeExpression8(t *testing.T) {
 		exprMatchesStr("getDomServices_(self)"))
 
 	// Verify it is properly expose the target expression.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		`HangoutStarter.prototype.launchHangout = function() {
   var self = a.b;
   var myUrl =
@@ -494,7 +392,7 @@ func TestExpressionDecomposer_testCanExposeExpression8(t *testing.T) {
 `)
 
 	// Verify the results can be properly moved.
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		`HangoutStarter.prototype.launchHangout = function() {
   var self = a.b;
   var temp_const$jscomp$0 = goog.Uri;
@@ -514,104 +412,98 @@ func TestExpressionDecomposer_testCanExposeExpression8(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression9()
-func TestExpressionDecomposer_testCannotExpose_expression9(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression9() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"function *f() { for (let x of yield y) {} }",
 		exprMatchesStr("yield y"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_forAwaitOf()
-func TestExpressionDecomposer_testCannotExpose_forAwaitOf(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotExpose_forAwaitOf() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"async function *f() { for await (let x of yield y) {} }",
 		exprMatchesStr("yield y"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression10()
-func TestExpressionDecomposer_testCanExposeExpression10(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanExposeExpression10() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"function *f() { for (let x in yield y) {} }",
 		exprMatchesStr("yield y"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_expression11()
-func TestExpressionDecomposer_testCannotExpose_expression11(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCannotExpose_expression11() {
 	// expressions in parameter lists
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "function f(x = foo()) {}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "function f({[foo()]: x}) {}", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "(function (x = foo()) {})()", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"(function ({[foo()]: x}) {})()",
 		exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExpose_aCall_withSpreadSibling()
-func TestExpressionDecomposer_testCanExpose_aCall_withSpreadSibling(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanExpose_aCall_withSpreadSibling() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...x, y());", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(y(), ...x);", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "new D(...x, y());", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "new D(y(), ...x);", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "[...x, y()];", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "({...x, z: y()});", exprMatchesStr("y()"))
 
 	// Array- and object-literal instantiations cannot be side-effected.
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "[y(), ...x];", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "[y(), ...x];", exprMatchesStr("y()"))
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "({z: y(), ...x});", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...y());", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...y());", exprMatchesStr("y()"))
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...y(), x);", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(x, ...y());", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...x, x, y());", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(...x, ...x, y());", exprMatchesStr("y()"))
 }
 
 // Java: ExpressionDecomposerTest.testCanExpose_anExpression_withSpreadRelative_ifInDifferentFunction()
-func TestExpressionDecomposer_testCanExpose_anExpression_withSpreadRelative_ifInDifferentFunction(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExpose_anExpression_withSpreadRelative_ifInDifferentFunction() {
 	// TODO(b/121004488): There are potential decompositions that weren't implemented.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(function() { [...x]; }, y());", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(function() { ({...x}); }, y());", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(y(), () => [...x]);", exprMatchesStr("y()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "f(y(), () => ({...x}));", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "[() => f(...x), y()];", exprMatchesStr("y()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		`[
    class {
@@ -624,39 +516,38 @@ func TestExpressionDecomposer_testCanExpose_anExpression_withSpreadRelative_ifIn
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpression12()
-func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeExpression12() {
 	// Test destructuring rhs is evaluated before the lhs
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "const {a, b = goo()} = foo();", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "const [a, b = goo()] = foo();", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "({a, b = goo()} = foo());", exprMatchesStr("foo()"))
 
 	// Default value expressions are conditional, which would make the expressions complex.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		// default value inside array pattern
 		"[{ [foo()]: a } = goo()] = arr;",
 		exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, //
 		// computed property inside object pattern; decomposed
 		"({ [foo()]: a = goo()} = arr);",
 		exprMatchesStr("foo()"))
 
 	// default value expressions are conditional, which would make the expressions complex
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, //
 		// default value inside object pattern
 		"({ [foo()]: a = goo()} = arr);",
 		exprMatchesStr("goo()"))
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		`var Di = I(() => {
   function zv() {
     JSCOMPILER_PRESERVE(e), [getObj().propName] = CN();
@@ -683,7 +574,7 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 });
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		`var Di = I(() => {
   function zv() {
     JSCOMPILER_PRESERVE(e), ({x: getObj().propName} = CN());
@@ -710,7 +601,7 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 });
 `)
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		`var Di = I(() => {
   function zv() {
@@ -723,7 +614,7 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 `,
 		exprMatchesStr("CN()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		`var Di = I(() => {
   function zv() {
@@ -736,7 +627,7 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 `,
 		exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		`var Di = I(() => {
   function zv() {
@@ -749,7 +640,7 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 `,
 		exprMatchesStr("CN()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		`var Di = I(() => {
   function zv() {
@@ -764,9 +655,8 @@ func TestExpressionDecomposer_testCanExposeExpression12(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testObjectDestructuring_withDefaultValue_generatesValidAST()
-func TestExpressionDecomposer_testObjectDestructuring_withDefaultValue_generatesValidAST(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestObjectDestructuring_withDefaultValue_generatesValidAST() {
+	c.helperExposeExpression(
 		"var d; ({c: d = 4} = condition ? y() :  {c: 1});",
 		exprMatchesStr("y()"),
 		`var d;
@@ -781,29 +671,27 @@ if (condition) {
 }
 
 // Java: ExpressionDecomposerTest.testObjectDestructuring_withDefaultValue_withComputedKey()
-func TestExpressionDecomposer_testObjectDestructuring_withDefaultValue_withComputedKey(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestObjectDestructuring_withDefaultValue_withComputedKey() {
 	// default value expressions are conditional, which would make the expressions complex
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
 		"var a; ({ [foo()]: a = bar()} = baz());",
 		exprMatchesStr("bar()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		"var a; ({ [foo()]: a = bar()} = baz());",
 		exprMatchesStr("baz()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"var a; ({ [foo()]: a = bar()} = baz());",
 		exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.testArrayDestructuring_withDefaultValue_generatesValidAST()
-func TestExpressionDecomposer_testArrayDestructuring_withDefaultValue_generatesValidAST(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestArrayDestructuring_withDefaultValue_generatesValidAST() {
+	c.helperExposeExpression(
 		"var [c = 4] = condition ? y() :  [c = 2];",
 		exprMatchesStr("y()"),
 		`var c;
@@ -818,203 +706,181 @@ if (condition) {
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeExpressionInTemplateLiteralSubstitution()
-func TestExpressionDecomposer_testCanExposeExpressionInTemplateLiteralSubstitution(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanExposeExpressionInTemplateLiteralSubstitution() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "const result = `${foo()}`;", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"const obj = {f(x) {}}; obj.f(`${foo()}`);",
 		exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "const result = `${foo()} ${goo()}`;", exprMatchesStr("foo()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"const result = `${foo()} ${goo()}`;",
 		exprMatchesStr("goo()"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_defaultValueInParamList()
-func TestExpressionDecomposer_testCannotExpose_defaultValueInParamList(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotExpose_defaultValueInParamList() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "function fn(a = g()) {}", exprMatchesStr("g()"))
 }
 
 // Java: ExpressionDecomposerTest.testCannotExpose_defaultValueInDestructuring()
-func TestExpressionDecomposer_testCannotExpose_defaultValueInDestructuring(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotExpose_defaultValueInDestructuring() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "let {x = fn()} = y;", exprMatchesStr("fn()"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "let [x = fn()] = y;", exprMatchesStr("fn()"))
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression1()
-func TestExpressionDecomposer_testMoveExpression1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestMoveExpression1() {
 	// There isn't a reason to do this, but it works.
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"foo()", exprMatchesStr("foo()"), "var result$jscomp$0 = foo(); result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression2()
-func TestExpressionDecomposer_testMoveExpression2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression2() {
+	c.helperMoveExpression(
 		"x = foo()", exprMatchesStr("foo()"), "var result$jscomp$0 = foo(); x = result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression3()
-func TestExpressionDecomposer_testMoveExpression3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression3() {
+	c.helperMoveExpression(
 		"var x = foo()",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); var x = result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression4()
-func TestExpressionDecomposer_testMoveExpression4(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression4() {
+	c.helperMoveExpression(
 		"const x = foo()",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); const x = result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression5()
-func TestExpressionDecomposer_testMoveExpression5(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression5() {
+	c.helperMoveExpression(
 		"let x = foo()",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); let x = result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression6()
-func TestExpressionDecomposer_testMoveExpression6(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression6() {
+	c.helperMoveExpression(
 		"if(foo()){}",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); if (result$jscomp$0);")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression7()
-func TestExpressionDecomposer_testMoveExpression7(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression7() {
+	c.helperMoveExpression(
 		"switch(foo()){}",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); switch(result$jscomp$0){}")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression8()
-func TestExpressionDecomposer_testMoveExpression8(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression8() {
+	c.helperMoveExpression(
 		"switch(1 + foo()){}",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); switch(1 + result$jscomp$0){}")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression9()
-func TestExpressionDecomposer_testMoveExpression9(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression9() {
+	c.helperMoveExpression(
 		"function f(){ return foo();}",
 		exprMatchesStr("foo()"),
 		"function f(){ var result$jscomp$0 = foo(); return result$jscomp$0;}")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression10()
-func TestExpressionDecomposer_testMoveExpression10(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression10() {
+	c.helperMoveExpression(
 		"x = foo() && 1",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); x = result$jscomp$0 && 1")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression11()
-func TestExpressionDecomposer_testMoveExpression11(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression11() {
+	c.helperMoveExpression(
 		"x = foo() || 1",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); x = result$jscomp$0 || 1")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression12()
-func TestExpressionDecomposer_testMoveExpression12(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression12() {
+	c.helperMoveExpression(
 		"x = foo() ? 0 : 1",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); x = result$jscomp$0 ? 0 : 1")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpressionNullishCoalesce()
-func TestExpressionDecomposer_testMoveExpressionNullishCoalesce(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpressionNullishCoalesce() {
+	c.helperMoveExpression(
 		"x = foo() ?? 0",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); x = result$jscomp$0 ?? 0")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpressionOptionalChain()
-func TestExpressionDecomposer_testMoveExpressionOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpressionOptionalChain() {
+	c.helperMoveExpression(
 		"foo()?.x", exprMatchesStr("foo()"), "var result$jscomp$0 = foo(); result$jscomp$0?.x")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression13()
-func TestExpressionDecomposer_testMoveExpression13(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression13() {
+	c.helperMoveExpression(
 		"const {a, b} = foo();",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); const {a, b} = result$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpression14()
-func TestExpressionDecomposer_testMoveExpression14(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpression14() {
+	c.helperMoveExpression(
 		"({a, b} = foo());",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); ({a, b} = result$jscomp$0);")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression1()
-func TestExpressionDecomposer_testExposeExpression1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression1() {
+	c.helperExposeExpression(
 		"x = 0 && foo()",
 		exprMatchesStr("foo()"),
 		"var temp$jscomp$0; if (temp$jscomp$0 = 0) temp$jscomp$0 = foo(); x = temp$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression2()
-func TestExpressionDecomposer_testExposeExpression2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression2() {
+	c.helperExposeExpression(
 		"x = 1 || foo()",
 		exprMatchesStr("foo()"),
 		"var temp$jscomp$0; if (temp$jscomp$0 = 1); else temp$jscomp$0=foo(); x = temp$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression3()
-func TestExpressionDecomposer_testExposeExpression3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression3() {
+	c.helperExposeExpression(
 		"var x = 1 ? foo() : 0",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1024,9 +890,8 @@ var x = temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression4()
-func TestExpressionDecomposer_testExposeExpression4(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression4() {
+	c.helperExposeExpression(
 		"const x = 1 ? foo() : 0",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1036,9 +901,8 @@ const x = temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression5()
-func TestExpressionDecomposer_testExposeExpression5(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression5() {
+	c.helperExposeExpression(
 		"let x = 1 ? foo() : 0",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1048,15 +912,15 @@ let x = temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression6()
-func TestExpressionDecomposer_testExposeExpression6(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression("goo() && foo()", exprMatchesStr("foo()"), "if (goo()) foo();")
+func (c *ExpressionDecomposerTest) TestExposeExpression6() {
+	c.helperExposeExpression("goo() && foo()", exprMatchesStr("foo()"), "if (goo()) foo();")
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNullishCoalesceNoResult()
-func TestExpressionDecomposer_exposeExpressionNullishCoalesceNoResult(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNullishCoalesceNoResult() {
+	c.helperExposeExpression(
 		"goo() ?? foo()",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$1;
@@ -1065,10 +929,11 @@ else foo()
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetElem()
-func TestExpressionDecomposer_exposeExpressionOptionalGetElem(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetElem() {
+	c.helperExposeExpression(
 		"a = x?.[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1082,10 +947,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptChainCallChain()
-func TestExpressionDecomposer_exposeExpressionOptChainCallChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptChainCallChain() {
+	c.helperExposeExpression(
 		"a = x?.(a).y.z[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1100,10 +966,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptChainCallChainNoResult()
-func TestExpressionDecomposer_exposeExpressionOptChainCallChainNoResult(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptChainCallChainNoResult() {
+	c.helperExposeExpression(
 		"x?.(a)[y].z[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1116,10 +983,11 @@ if ((temp_const$jscomp$0 = x) == null) {
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetPropChain()
-func TestExpressionDecomposer_exposeExpressionOptionalGetPropChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetPropChain() {
+	c.helperExposeExpression(
 		"a = x?.y.z[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1134,10 +1002,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetPropChainNoResult()
-func TestExpressionDecomposer_exposeExpressionOptionalGetPropChainNoResult(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetPropChainNoResult() {
+	c.helperExposeExpression(
 		"x?.y.z[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1150,10 +1019,11 @@ if ((temp_const$jscomp$0 = x) == null) {
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetElemChain()
-func TestExpressionDecomposer_exposeExpressionOptionalGetElemChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetElemChain() {
+	c.helperExposeExpression(
 		"a = x?.[y].z[foo()];",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1168,10 +1038,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetElemChainNoResult()
-func TestExpressionDecomposer_exposeExpressionOptionalGetElemChainNoResult(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetElemChainNoResult() {
+	c.helperExposeExpression(
 		"x?.[y].z[foo()]",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1184,10 +1055,11 @@ if ((temp_const$jscomp$0 = x) == null) {
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetElemWithCall()
-func TestExpressionDecomposer_exposeExpressionOptionalGetElemWithCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetElemWithCall() {
+	c.helperExposeExpression(
 		"a = x.y?.[z](foo())",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1203,10 +1075,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionGetElemWithOptChainCall()
-func TestExpressionDecomposer_exposeExpressionGetElemWithOptChainCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionGetElemWithOptChainCall() {
+	c.helperExposeExpression(
 		"a = x.y[z]?.(foo(), d)",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1221,10 +1094,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetPropWithCall()
-func TestExpressionDecomposer_exposeExpressionOptionalGetPropWithCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetPropWithCall() {
+	c.helperExposeExpression(
 		"a = x.y?.z(foo(1))",
 		exprMatchesStr("foo(1)"),
 		`let temp_const$jscomp$0;
@@ -1240,10 +1114,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionOptionalGetPropWithCallTwiceRewriteCall()
-func TestExpressionDecomposer_exposeExpressionOptionalGetPropWithCallTwiceRewriteCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionOptionalGetPropWithCallTwiceRewriteCall() {
+	c.helperExposeExpression(
 		"a = x.y?.z(foo(1))",
 		exprMatchesStr("foo(1)"),
 		`let temp_const$jscomp$0;
@@ -1259,10 +1134,11 @@ a = temp$jscomp$1;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionGetPropWithOptChainCall()
-func TestExpressionDecomposer_exposeExpressionGetPropWithOptChainCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionGetPropWithOptChainCall() {
+	c.helperExposeExpression(
 		"a = x.y.z?.(foo())",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1277,10 +1153,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNewOptChainAfterRewriteCall()
-func TestExpressionDecomposer_exposeExpressionNewOptChainAfterRewriteCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNewOptChainAfterRewriteCall() {
+	c.helperExposeExpression(
 		"a = x?.y(foo())?.z.q",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1300,10 +1177,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNewOptChainAfter()
-func TestExpressionDecomposer_exposeExpressionNewOptChainAfter(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNewOptChainAfter() {
+	c.helperExposeExpression(
 		"a = x?.y[foo()]?.z.q",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1319,10 +1197,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNotImmediatelyFollowedByNewChain()
-func TestExpressionDecomposer_exposeExpressionNotImmediatelyFollowedByNewChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNotImmediatelyFollowedByNewChain() {
+	c.helperExposeExpression(
 		"a = x?.y[foo()].z.q?.b.c",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1339,10 +1218,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionBreakingOutOfOptionalChain()
-func TestExpressionDecomposer_exposeExpressionBreakingOutOfOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionBreakingOutOfOptionalChain() {
+	c.helperExposeExpression(
 		"a = (x?.y[foo()]).z.q",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1357,24 +1237,26 @@ a = temp$jscomp$1.z.q;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionCallBreakingOutOfOptionalChain()
-func TestExpressionDecomposer_exposeExpressionCallBreakingOutOfOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestExposeExpressionCallBreakingOutOfOptionalChain() {
+	c.shouldTestTypes = false
 	// Performing a non-optional call on an optional chain is not good coding, because you could
 	// end up trying to call `undefined` as a function, but it is allowed and must be supported.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"a = (x?.y.z)(foo())",
 		exprMatchesStr("foo()"),
 		"let temp_const$jscomp$0;\nlet temp_const$jscomp$1;\nvar temp_const$jscomp$3 =\n    (temp_const$jscomp$0 = x) == null\n        ? void 0 : (temp_const$jscomp$1 = temp_const$jscomp$0.y).z;\n// This double .call is unfortunate but not incorrect.\n// Maybe we should make the ExpressionDecomposer recognize `.call` and avoid creating\n// another one? We'd run the risk of breaking \"real\" methods called `.call`, which\n// are allowed.\nvar temp_const$jscomp$2 = temp_const$jscomp$3.call;\n// The temp_const$jscomp$1 argument gets type '?' when we decompose,\n// which is correct, but TypeInference on this expected code appears to give it\n// `undefined`. This is why we've set `shouldTestTypes = false;` above\na = temp_const$jscomp$2.call(temp_const$jscomp$3, temp_const$jscomp$1, foo());\n")
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionFreeCallBreakingOutOfOptionalChain()
-func TestExpressionDecomposer_exposeExpressionFreeCallBreakingOutOfOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeExpressionFreeCallBreakingOutOfOptionalChain() {
 	// Performing a non-optional call on an optional chain is not good coding, because you could
 	// end up trying to call `undefined` as a function, but it is allowed and must be supported.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"a = (x?.y.z())(foo())",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$0 = x?.y.z();
@@ -1382,10 +1264,11 @@ a = temp_const$jscomp$0(foo());
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionCallAtEndOfOptionalChain()
-func TestExpressionDecomposer_exposeExpressionCallAtEndOfOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionCallAtEndOfOptionalChain() {
+	c.helperExposeExpression(
 		"a = x?.y.z(foo())",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1402,9 +1285,8 @@ a = temp$jscomp$1;
 }
 
 // Java: ExpressionDecomposerTest.testBug117935266_expose_call_target()
-func TestExpressionDecomposer_testBug117935266_expose_call_target(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestBug117935266_expose_call_target() {
+	c.helperExposeExpression(
 		`function first() {
   alert('first');
   return '';
@@ -1424,9 +1306,8 @@ temp_const$jscomp$0(first().method(
 }
 
 // Java: ExpressionDecomposerTest.testBug117935266_move_call_target()
-func TestExpressionDecomposer_testBug117935266_move_call_target(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestBug117935266_move_call_target() {
+	c.helperMoveExpression(
 		`function first() {
   alert('first');
       return '';
@@ -1448,9 +1329,8 @@ temp_const$jscomp$0(result$jscomp$0.toString(
 }
 
 // Java: ExpressionDecomposerTest.testBug117935266_expose_call_parameters()
-func TestExpressionDecomposer_testBug117935266_expose_call_parameters(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestBug117935266_expose_call_parameters() {
+	c.helperExposeExpression(
 		"alert(fn(first(), second(), third()));",
 		exprMatchesStr("first()"),
 		`var temp_const$jscomp$1 = alert;
@@ -1458,7 +1338,7 @@ var temp_const$jscomp$0 = fn;
 temp_const$jscomp$1(temp_const$jscomp$0(first(), second(), third()));
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"alert(fn(first(), second(), third()));",
 		exprMatchesStr("second()"),
 		`var temp_const$jscomp$2 = alert;
@@ -1468,10 +1348,11 @@ temp_const$jscomp$2(temp_const$jscomp$1(temp_const$jscomp$0, second(), third()))
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionAfterTwoOptionalChains()
-func TestExpressionDecomposer_exposeExpressionAfterTwoOptionalChains(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionAfterTwoOptionalChains() {
+	c.helperExposeExpression(
 		"a = x?.y.z?.q(foo());",
 		exprMatchesStr("foo()"),
 		`let temp_const$jscomp$0;
@@ -1494,10 +1375,11 @@ a = temp$jscomp$2;
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeAnOptionalChain()
-func TestExpressionDecomposer_exposeAnOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeAnOptionalChain() {
+	c.helperExposeExpression(
 		"a = foo(arg1, opt?.chain())",
 		exprMatchesStr("opt?.chain()"),
 		`var temp_const$jscomp$1 = foo;
@@ -1506,53 +1388,55 @@ a = temp_const$jscomp$1(temp_const$jscomp$0, opt?.chain());
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposePartOfAnOptionalChain()
-func TestExpressionDecomposer_exposePartOfAnOptionalChain(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePartOfAnOptionalChain() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		// The non-optional part is fine to move.
 		"nonOptional.part?.optional.chain?.continues()",
 		exprMatchesStr("nonOptional.part"))
 
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"nonOptional.part?.optional.chain?.continues()",
 		// Cannot just move part of an optional chain.
 		exprMatchesStr("nonOptional.part?.optional"))
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"nonOptional.part?.optional.chain?.continues()",
 		exprMatchesStr("nonOptional.part?.optional"),
 		"let temp_const$jscomp$0;\nlet temp_const$jscomp$1;\nif ((temp_const$jscomp$0 = nonOptional.part) == null) {\n  void 0;\n} else {\n// `temp_const$jscomp$0.optional` is the expression we were trying to expose, and it\n// is now movable.\n  (temp_const$jscomp$1 = temp_const$jscomp$0.optional.chain) == null\n      ? void 0 : temp_const$jscomp$1.continues();\n}\n")
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.canExposeMethodCallee()
-func TestExpressionDecomposer_canExposeMethodCallee(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestCanExposeMethodCallee() {
 	// TODO(b/161802885): This should probably return DECOMPOSABLE, because it is not safe to
 	// replace `foo.bar` with a temporary variable containing its value.
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo.bar()", exprMatchesStr("foo.bar"))
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_MOVABLE, "foo.bar()", exprMatchesStr("foo.bar"))
 
 	// TODO(b/161802885): This should probably return DECOMPOSABLE, because it is not safe to
 	// replace `foo?.bar` with a temporary variable containing its value.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "(foo?.bar)()", exprMatchesStr("foo?.bar"))
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression7()
-func TestExpressionDecomposer_testExposeExpression7(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression7() {
+	c.helperExposeExpression(
 		"x = goo() && foo()",
 		exprMatchesStr("foo()"),
 		"var temp$jscomp$0; if (temp$jscomp$0 = goo()) temp$jscomp$0 = foo(); x = temp$jscomp$0;")
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNullishCoalesce()
-func TestExpressionDecomposer_exposeExpressionNullishCoalesce(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNullishCoalesce() {
+	c.helperExposeExpression(
 		"x = goo() ?? foo()",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$1;var temp$jscomp$0;
@@ -1562,9 +1446,8 @@ else temp$jscomp$0=foo(); x = temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression8()
-func TestExpressionDecomposer_testExposeExpression8(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression8() {
+	c.helperExposeExpression(
 		"var x = 1 + (goo() && foo())",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1574,9 +1457,8 @@ var x = 1 + temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression9()
-func TestExpressionDecomposer_testExposeExpression9(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression9() {
+	c.helperExposeExpression(
 		"const x = 1 + (goo() && foo())",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1586,9 +1468,8 @@ const x = 1 + temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression10()
-func TestExpressionDecomposer_testExposeExpression10(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression10() {
+	c.helperExposeExpression(
 		"let x = 1 + (goo() && foo())",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1598,9 +1479,8 @@ let x = 1 + temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression11()
-func TestExpressionDecomposer_testExposeExpression11(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression11() {
+	c.helperExposeExpression(
 		"if(goo() && foo());",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1610,9 +1490,8 @@ if(temp$jscomp$0);
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression12()
-func TestExpressionDecomposer_testExposeExpression12(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression12() {
+	c.helperExposeExpression(
 		"switch(goo() && foo()){}",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$0;
@@ -1621,10 +1500,11 @@ switch(temp$jscomp$0){}
 `)
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.exposeExpressionNullishCoalesceSwitch()
-func TestExpressionDecomposer_exposeExpressionNullishCoalesceSwitch(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionNullishCoalesceSwitch() {
+	c.helperExposeExpression(
 		"switch(goo() ?? foo()){}",
 		exprMatchesStr("foo()"),
 		`var temp$jscomp$1;var temp$jscomp$0;
@@ -1634,18 +1514,16 @@ else temp$jscomp$0 = foo(); switch(temp$jscomp$0){}
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression13()
-func TestExpressionDecomposer_testExposeExpression13(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression13() {
+	c.helperExposeExpression(
 		"switch(1 + goo() + foo()){}",
 		exprMatchesStr("foo()"),
 		"var temp_const$jscomp$0 = 1 + goo(); switch(temp_const$jscomp$0 + foo()){}")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression_inVanillaForInitializer_simpleExpression()
-func TestExpressionDecomposer_testExposeExpression_inVanillaForInitializer_simpleExpression(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression_inVanillaForInitializer_simpleExpression() {
+	c.helperExposeExpression(
 		"for (x = goo() + foo();;) {}",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$0 = goo();
@@ -1654,9 +1532,8 @@ for (x = temp_const$jscomp$0 + foo();;) {}
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression_inVanillaForInitializer_usingLabel()
-func TestExpressionDecomposer_testExposeExpression_inVanillaForInitializer_usingLabel(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression_inVanillaForInitializer_usingLabel() {
+	c.helperExposeExpression(
 		"LABEL: for (x = goo() + foo();;) {}",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$0 = goo();
@@ -1665,10 +1542,9 @@ LABEL: for (x = temp_const$jscomp$0 + foo();;) {}
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression_inVanillaForInitializer_singleDeclaration_withLetOrConst()
-func TestExpressionDecomposer_testExposeExpression_inVanillaForInitializer_singleDeclaration_withLetOrConst(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeExpression_inVanillaForInitializer_singleDeclaration_withLetOrConst() {
 	for _, declarationKeyword := range []string{"let", "const"} {
-		x.helperExposeExpression(
+		c.helperExposeExpression(
 			"for ("+declarationKeyword+" x = goo() + foo();;) {}",
 			exprMatchesStr("foo()"),
 			strings.ReplaceAll(`var temp_const$jscomp$0 = goo();
@@ -1678,10 +1554,9 @@ for (DECLATION_KEYWORD x = temp_const$jscomp$0 + foo();;) {}
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression_inVanillaForInitializer_firstDeclaration_withLetOrConst()
-func TestExpressionDecomposer_testExposeExpression_inVanillaForInitializer_firstDeclaration_withLetOrConst(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeExpression_inVanillaForInitializer_firstDeclaration_withLetOrConst() {
 	for _, declarationKeyword := range []string{"let", "const"} {
-		x.helperExposeExpression(
+		c.helperExposeExpression(
 			"for ("+declarationKeyword+" x = goo() + foo(), y = 5;;) {}",
 			exprMatchesStr("foo()"),
 			strings.ReplaceAll(`var temp_const$jscomp$0 = goo();
@@ -1691,9 +1566,8 @@ for (DECLATION_KEYWORD x = temp_const$jscomp$0 + foo(), y = 5;;) {}
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression14()
-func TestExpressionDecomposer_testExposeExpression14(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression14() {
+	c.helperExposeExpression(
 		"function f(){ return goo() && foo();}",
 		exprMatchesStr("foo()"),
 		`function f() {
@@ -1704,11 +1578,10 @@ func TestExpressionDecomposer_testExposeExpression14(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression15()
-func TestExpressionDecomposer_testExposeExpression15(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeExpression15() {
 	// TODO(johnlenz): We really want a constant marking pass.
 	// The value "goo" should be constant, but it isn't known to be so.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"if (goo(1, goo(2), (1 ? foo() : 0)));",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$1 = goo;
@@ -1720,18 +1593,16 @@ if (temp_const$jscomp$1(1, temp_const$jscomp$0, temp$jscomp$2));
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression16()
-func TestExpressionDecomposer_testExposeExpression16(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression16() {
+	c.helperExposeExpression(
 		"throw bar() && foo();",
 		exprMatchesStr("foo()"),
 		"var temp$jscomp$0; if (temp$jscomp$0 = bar()) temp$jscomp$0=foo(); throw temp$jscomp$0;")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression17()
-func TestExpressionDecomposer_testExposeExpression17(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression17() {
+	c.helperExposeExpression(
 		"x.foo(y())",
 		exprMatchesStr("y()"),
 		`var temp_const$jscomp$1 = x;
@@ -1741,9 +1612,8 @@ temp_const$jscomp$0.call(temp_const$jscomp$1, y());
 }
 
 // Java: ExpressionDecomposerTest.testExposeFreeCall()
-func TestExpressionDecomposer_testExposeFreeCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeFreeCall() {
+	c.helperExposeExpression(
 		"(0,x.foo)(y())",
 		exprMatchesStr("y()"),
 		`var temp_const$jscomp$0 = x.foo;
@@ -1752,27 +1622,24 @@ temp_const$jscomp$0(y());
 }
 
 // Java: ExpressionDecomposerTest.testExposeTemplateLiteralFreeCall()
-func TestExpressionDecomposer_testExposeTemplateLiteralFreeCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeTemplateLiteralFreeCall() {
+	c.helperExposeExpression(
 		"foo`${x()}${y()}`",
 		exprMatchesStr("y()"),
 		"var temp_const$jscomp$1 = foo;\nvar temp_const$jscomp$0 = x();\ntemp_const$jscomp$1`${temp_const$jscomp$0}${y()}`;\n")
 }
 
 // Java: ExpressionDecomposerTest.testCanExposeTaggedTemplateLiteralInterpolation()
-func TestExpressionDecomposer_testCanExposeTaggedTemplateLiteralInterpolation(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x`${y()}`", exprMatchesStr("y()"))
+func (c *ExpressionDecomposerTest) TestCanExposeTaggedTemplateLiteralInterpolation() {
+	c.helperCanExposeExpression(ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "x`${y()}`", exprMatchesStr("y()"))
 	// TODO(b/251958225): Implement decomposition for this case.
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE, "x.foo`${y()}`", exprMatchesStr("y()"))
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression18()
-func TestExpressionDecomposer_testExposeExpression18(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression18() {
+	c.helperExposeExpression(
 		`const {a, b, c} = condition ?
   y() :
   {a: 0, b: 0, c: 1};
@@ -1789,12 +1656,11 @@ const {a, b, c} = temp$jscomp$0;
 }
 
 // Java: ExpressionDecomposerTest.testMoveClass1()
-func TestExpressionDecomposer_testMoveClass1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestMoveClass1() {
+	c.shouldTestTypes = false
 	// types don't come out quite the same before and after decomposition
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"alert(class X {});",
 		func(compiler AbstractCompiler) func(*rhino.Node) *rhino.Node {
 			return expressionDecomposerTest_findClass
@@ -1803,12 +1669,11 @@ func TestExpressionDecomposer_testMoveClass1(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testMoveClass2()
-func TestExpressionDecomposer_testMoveClass2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestMoveClass2() {
+	c.shouldTestTypes = false
 	// types don't come out quite the same before and after decomposition
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"console.log(1, 2, class X {});",
 		func(compiler AbstractCompiler) func(*rhino.Node) *rhino.Node {
 			return expressionDecomposerTest_findClass
@@ -1817,9 +1682,8 @@ func TestExpressionDecomposer_testMoveClass2(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testMoveYieldExpression1()
-func TestExpressionDecomposer_testMoveYieldExpression1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveYieldExpression1() {
+	c.helperMoveExpression(
 		"function *f() { return { a: yield 1, c: foo(yield 2, yield 3) }; }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1828,7 +1692,7 @@ func TestExpressionDecomposer_testMoveYieldExpression1(t *testing.T) {
 }
 `)
 
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"function *f() { return { a: 0, c: foo(yield 2, yield 3) }; }",
 		exprMatchesStr("yield 2"),
 		`function *f() {
@@ -1837,7 +1701,7 @@ func TestExpressionDecomposer_testMoveYieldExpression1(t *testing.T) {
 }
 `)
 
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"function *f() { return { a: 0, c: foo(1, yield 3) }; }",
 		exprMatchesStr("yield 3"),
 		`function *f() {
@@ -1848,9 +1712,8 @@ func TestExpressionDecomposer_testMoveYieldExpression1(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testMoveYieldExpression2()
-func TestExpressionDecomposer_testMoveYieldExpression2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveYieldExpression2() {
+	c.helperMoveExpression(
 		"function *f() { return (yield 1) || (yield 2); }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1861,9 +1724,8 @@ func TestExpressionDecomposer_testMoveYieldExpression2(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testMoveYieldExpression3()
-func TestExpressionDecomposer_testMoveYieldExpression3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveYieldExpression3() {
+	c.helperMoveExpression(
 		"function *f() { return x.y(yield 1); }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1874,9 +1736,8 @@ func TestExpressionDecomposer_testMoveYieldExpression3(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeYieldExpression1()
-func TestExpressionDecomposer_testExposeYieldExpression1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeYieldExpression1() {
+	c.helperExposeExpression(
 		"function *f(x) { return x || (yield 2); }",
 		exprMatchesStr("yield 2"),
 		`function *f(x) {
@@ -1888,9 +1749,8 @@ func TestExpressionDecomposer_testExposeYieldExpression1(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeYieldExpression2()
-func TestExpressionDecomposer_testExposeYieldExpression2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeYieldExpression2() {
+	c.helperExposeExpression(
 		"function *f() { return x.y(yield 1); }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1902,9 +1762,8 @@ func TestExpressionDecomposer_testExposeYieldExpression2(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeYieldExpression3()
-func TestExpressionDecomposer_testExposeYieldExpression3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeYieldExpression3() {
+	c.helperExposeExpression(
 		"function *f() { return g.call(yield 1); }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1916,9 +1775,8 @@ func TestExpressionDecomposer_testExposeYieldExpression3(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeYieldExpression4()
-func TestExpressionDecomposer_testExposeYieldExpression4(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeYieldExpression4() {
+	c.helperExposeExpression(
 		"function *f() { return g.apply([yield 1, yield 2]); }",
 		exprMatchesStr("yield 1"),
 		`function *f() {
@@ -1930,23 +1788,21 @@ func TestExpressionDecomposer_testExposeYieldExpression4(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposePlusEquals1()
-func TestExpressionDecomposer_testExposePlusEquals1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePlusEquals1() {
+	c.helperExposeExpression(
 		"var x = 0; x += foo() + 1",
 		exprMatchesStr("foo()"),
 		"var x = 0; var temp_const$jscomp$0 = x; x = temp_const$jscomp$0 + (foo() + 1);")
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"var x = 0; y = (x += foo()) + x",
 		exprMatchesStr("foo()"),
 		"var x = 0; var temp_const$jscomp$0 = x; y = (x = temp_const$jscomp$0 + foo()) + x")
 }
 
 // Java: ExpressionDecomposerTest.testExposePlusEquals2()
-func TestExpressionDecomposer_testExposePlusEquals2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePlusEquals2() {
+	c.helperExposeExpression(
 		"var x = {}; x.a += foo() + 1",
 		exprMatchesStr("foo()"),
 		`var x = {}; var temp_const$jscomp$0 = x;
@@ -1954,7 +1810,7 @@ var temp_const$jscomp$1 = temp_const$jscomp$0.a;
 temp_const$jscomp$0.a = temp_const$jscomp$1 + (foo() + 1);
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"var x = {}; y = (x.a += foo()) + x.a",
 		exprMatchesStr("foo()"),
 		`var x = {}; var temp_const$jscomp$0 = x;
@@ -1964,9 +1820,8 @@ y = (temp_const$jscomp$0.a = temp_const$jscomp$1 + foo()) + x.a
 }
 
 // Java: ExpressionDecomposerTest.testExposePlusEquals3()
-func TestExpressionDecomposer_testExposePlusEquals3(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePlusEquals3() {
+	c.helperExposeExpression(
 		"/** @const */ var XX = {}; XX.a += foo() + 1",
 		exprMatchesStr("foo()"),
 		`var XX = {};
@@ -1974,7 +1829,7 @@ var temp_const$jscomp$0 = XX.a;
 XX.a = temp_const$jscomp$0 + (foo() + 1);
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"var XX = {}; y = (XX.a += foo()) + XX.a",
 		exprMatchesStr("foo()"),
 		`var XX = {};
@@ -1984,9 +1839,8 @@ y = (XX.a = temp_const$jscomp$0 + foo()) + XX.a
 }
 
 // Java: ExpressionDecomposerTest.testExposePlusEquals4()
-func TestExpressionDecomposer_testExposePlusEquals4(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePlusEquals4() {
+	c.helperExposeExpression(
 		"var x = {}; goo().a += foo() + 1",
 		exprMatchesStr("foo()"),
 		`var x = {};
@@ -1995,7 +1849,7 @@ var temp_const$jscomp$1 = temp_const$jscomp$0.a;
 temp_const$jscomp$0.a = temp_const$jscomp$1 + (foo() + 1);
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"var x = {}; y = (goo().a += foo()) + goo().a",
 		exprMatchesStr("foo()"),
 		`var x = {};
@@ -2006,9 +1860,8 @@ y = (temp_const$jscomp$0.a = temp_const$jscomp$1 + foo()) + goo().a
 }
 
 // Java: ExpressionDecomposerTest.testExposePlusEquals5()
-func TestExpressionDecomposer_testExposePlusEquals5(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposePlusEquals5() {
+	c.helperExposeExpression(
 		"var x = {}; goo().a.b += foo() + 1",
 		exprMatchesStr("foo()"),
 		`var x = {};
@@ -2017,7 +1870,7 @@ var temp_const$jscomp$1 = temp_const$jscomp$0.b;
 temp_const$jscomp$0.b = temp_const$jscomp$1 + (foo() + 1);
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"var x = {}; y = (goo().a.b += foo()) + goo().a",
 		exprMatchesStr("foo()"),
 		`var x = {};
@@ -2028,12 +1881,11 @@ y = (temp_const$jscomp$0.b = temp_const$jscomp$1 + foo()) + goo().a
 }
 
 // Java: ExpressionDecomposerTest.testExposeLogicalAssignment1()
-func TestExpressionDecomposer_testExposeLogicalAssignment1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeLogicalAssignment1() {
 	// Part of the work here is being done by Normalize, which converts all
 	// instances of logical assignment operators into an larger expression
 	// that separates the logical operation from the assignment.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"let x = 0; x ||= foo() + 1",
 		exprMatchesStr("foo()"),
 		`let x = 0;
@@ -2043,7 +1895,7 @@ if (x) {
 }
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"let x = 0; x &&= foo() + 1",
 		exprMatchesStr("foo()"),
 		`let x = 0;
@@ -2052,7 +1904,7 @@ if (x) {
 }
 `)
 
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"let x = 0; x ??= foo() + 1",
 		exprMatchesStr("foo()"),
 		`let x = 0;
@@ -2066,12 +1918,11 @@ if ((temp$jscomp$1 = x) != null) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeLogicalAssignment2()
-func TestExpressionDecomposer_testExposeLogicalAssignment2(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeLogicalAssignment2() {
 	// Part of the work here is being done by Normalize, which converts all
 	// instances of logical assignment operators into an larger expression
 	// that separates the logical operation from the assignment.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"let x = {}; x.a ||= foo() + 1",
 		exprMatchesStr("foo()"),
 		`let x = {};
@@ -2082,7 +1933,7 @@ if (($jscomp$logical$assign$tmpm1146332801$0 = x).a) {
    temp_const$jscomp$1.a = foo() + 1;
 }
 `)
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"let x = {}; x[a] &&= foo() + 1",
 		exprMatchesStr("foo()"),
 		`let x = {};
@@ -2098,30 +1949,28 @@ if (($jscomp$logical$assign$tmpm1146332801$0 = x)
 }
 
 // Java: ExpressionDecomposerTest.testExposeObjectLit1()
-func TestExpressionDecomposer_testExposeObjectLit1(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeObjectLit1() {
 	// Validate that getter and setters methods are seen as side-effect
 	// free and that values can move past them.  We don't need to be
 	// concerned with exposing the getter or setter here but the
 	// decomposer does not have a method of exposing properties, only variables.
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"var x = {get a() {}, b: foo()};",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0=foo();var x = {get a() {}, b: result$jscomp$0};")
 
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"var x = {set a(p) {}, b: foo()};",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0=foo();var x = {set a(p) {}, b: result$jscomp$0};")
 }
 
 // Java: ExpressionDecomposerTest.testMoveSpread_siblingOfCall_outOfArrayLiteral_usesTempArray()
-func TestExpressionDecomposer_testMoveSpread_siblingOfCall_outOfArrayLiteral_usesTempArray(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestMoveSpread_siblingOfCall_outOfArrayLiteral_usesTempArray() {
+	c.shouldTestTypes = false
 	// types don't come out quite the same before and after decomposition
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"[...x, foo()];",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$0 = [...x];
@@ -2130,12 +1979,11 @@ func TestExpressionDecomposer_testMoveSpread_siblingOfCall_outOfArrayLiteral_use
 }
 
 // Java: ExpressionDecomposerTest.testMoveSpread_siblingOfCall_outOfObjectLiteral_usesTempObject()
-func TestExpressionDecomposer_testMoveSpread_siblingOfCall_outOfObjectLiteral_usesTempObject(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestMoveSpread_siblingOfCall_outOfObjectLiteral_usesTempObject() {
+	c.shouldTestTypes = false
 	// types don't come out quite the same before and after decomposition
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"({...x, y: foo()});",
 		exprMatchesStr("foo()"),
 		`var temp_const$jscomp$0 = {...x};
@@ -2144,12 +1992,11 @@ func TestExpressionDecomposer_testMoveSpread_siblingOfCall_outOfObjectLiteral_us
 }
 
 // Java: ExpressionDecomposerTest.testMoveSpread_siblingOfCall_outOfFunctionCall_usesTempArray()
-func TestExpressionDecomposer_testMoveSpread_siblingOfCall_outOfFunctionCall_usesTempArray(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.shouldTestTypes = false
+func (c *ExpressionDecomposerTest) TestMoveSpread_siblingOfCall_outOfFunctionCall_usesTempArray() {
+	c.shouldTestTypes = false
 	// types don't come out quite the same before and after decomposition
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		`function f() { }
 f(...x, foo());
 `,
@@ -2162,9 +2009,8 @@ temp_const$jscomp$1(...temp_const$jscomp$0, foo());
 }
 
 // Java: ExpressionDecomposerTest.testMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempArray()
-func TestExpressionDecomposer_testMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempArray(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempArray() {
+	c.helperExposeExpression(
 		`function f() { }
 f([...x], foo());
 `,
@@ -2177,9 +2023,8 @@ temp_const$jscomp$1(temp_const$jscomp$0, foo());
 }
 
 // Java: ExpressionDecomposerTest.testMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempObject()
-func TestExpressionDecomposer_testMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempObject(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestMoveSpreadParent_siblingOfCall_outOfFunctionCall_usesNoTempObject() {
+	c.helperExposeExpression(
 		`function f() { }
 f({...x}, foo());
 `,
@@ -2192,36 +2037,32 @@ temp_const$jscomp$1(temp_const$jscomp$0, foo());
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpressionInTemplateLibSub()
-func TestExpressionDecomposer_testExposeExpressionInTemplateLibSub(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpressionInTemplateLibSub() {
+	c.helperExposeExpression(
 		"` ${ foo() }  ${ goo() } `;",
 		exprMatchesStr("goo()"),
 		"var temp_const$jscomp$0 = foo(); ` ${ temp_const$jscomp$0 }  ${ goo() } `;")
 }
 
 // Java: ExpressionDecomposerTest.testExposeSubExpressionInTemplateLibSub()
-func TestExpressionDecomposer_testExposeSubExpressionInTemplateLibSub(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeSubExpressionInTemplateLibSub() {
+	c.helperExposeExpression(
 		"` ${ foo() + goo() } `;",
 		exprMatchesStr("goo()"),
 		"var temp_const$jscomp$0 = foo(); ` ${ temp_const$jscomp$0 + goo() } `;")
 }
 
 // Java: ExpressionDecomposerTest.testMoveExpressionInTemplateLibSub()
-func TestExpressionDecomposer_testMoveExpressionInTemplateLibSub(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveExpressionInTemplateLibSub() {
+	c.helperMoveExpression(
 		"` ${ foo() }  ${ goo() } `;",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); ` ${ result$jscomp$0 }  ${ goo() } `;")
 }
 
 // Java: ExpressionDecomposerTest.testExposeExpression_computedProp_withPureKey()
-func TestExpressionDecomposer_testExposeExpression_computedProp_withPureKey(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeExpression_computedProp_withPureKey() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		`({
   ['a' + 'b']: foo(),
@@ -2231,9 +2072,8 @@ func TestExpressionDecomposer_testExposeExpression_computedProp_withPureKey(t *t
 }
 
 // Java: ExpressionDecomposerTest.testExposeObjectLitValue_computedProp_withImpureKey()
-func TestExpressionDecomposer_testExposeObjectLitValue_computedProp_withImpureKey(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeObjectLitValue_computedProp_withImpureKey() {
+	c.helperExposeExpression(
 		`({
   [goo()]: foo(),
 });
@@ -2247,9 +2087,8 @@ func TestExpressionDecomposer_testExposeObjectLitValue_computedProp_withImpureKe
 }
 
 // Java: ExpressionDecomposerTest.testExposeObjectLitValue_computedProp_asEarlierSibling_withImpureKeyAndValue()
-func TestExpressionDecomposer_testExposeObjectLitValue_computedProp_asEarlierSibling_withImpureKeyAndValue(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeObjectLitValue_computedProp_asEarlierSibling_withImpureKeyAndValue() {
+	c.helperExposeExpression(
 		`({
   [goo()]: qux(),
   bar: foo(),
@@ -2266,9 +2105,8 @@ var temp_const$jscomp$0 = qux();
 }
 
 // Java: ExpressionDecomposerTest.testExposeObjectLitValue_memberFunctions_asEarlierSiblings_arePure()
-func TestExpressionDecomposer_testExposeObjectLitValue_memberFunctions_asEarlierSiblings_arePure(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeObjectLitValue_memberFunctions_asEarlierSiblings_arePure() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE,
 		`({
   a() { },
@@ -2282,28 +2120,25 @@ func TestExpressionDecomposer_testExposeObjectLitValue_memberFunctions_asEarlier
 }
 
 // Java: ExpressionDecomposerTest.testMoveSuperCall()
-func TestExpressionDecomposer_testMoveSuperCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperMoveExpression(
+func (c *ExpressionDecomposerTest) TestMoveSuperCall() {
+	c.helperMoveExpression(
 		"class A { constructor() { super(foo()) } }",
 		exprMatchesStr("foo()"),
 		"class A{constructor(){var result$jscomp$0=foo();super(result$jscomp$0)}}")
 }
 
 // Java: ExpressionDecomposerTest.testMoveSuperCall_noSideEffects()
-func TestExpressionDecomposer_testMoveSuperCall_noSideEffects(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestMoveSuperCall_noSideEffects() {
 	// String() is being used since it's known to not have side-effects.
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"class A { constructor() { super(String()) } }",
 		exprMatchesStr("String()"),
 		"class A{constructor(){var result$jscomp$0=String();super(result$jscomp$0)}}")
 }
 
 // Java: ExpressionDecomposerTest.testExposeSuperCall()
-func TestExpressionDecomposer_testExposeSuperCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperExposeExpression(
+func (c *ExpressionDecomposerTest) TestExposeSuperCall() {
+	c.helperExposeExpression(
 		"class A { constructor() { super(goo(), foo()) } }",
 		exprMatchesStr("foo()"),
 		`class A{ constructor(){
@@ -2314,10 +2149,9 @@ func TestExpressionDecomposer_testExposeSuperCall(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testExposeSuperCall_noSideEffects()
-func TestExpressionDecomposer_testExposeSuperCall_noSideEffects(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
+func (c *ExpressionDecomposerTest) TestExposeSuperCall_noSideEffects() {
 	// String() is being used since it's known to not have side-effects.
-	x.helperExposeExpression(
+	c.helperExposeExpression(
 		"class A { constructor() { super(goo(), String()) } }",
 		exprMatchesStr("String()"),
 		`class A{ constructor(){
@@ -2328,28 +2162,294 @@ func TestExpressionDecomposer_testExposeSuperCall_noSideEffects(t *testing.T) {
 }
 
 // Java: ExpressionDecomposerTest.testCannotDecomposeSuperMethodCall()
-func TestExpressionDecomposer_testCannotDecomposeSuperMethodCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCannotDecomposeSuperMethodCall() {
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"class A extends B { fn() { super.method(foo()) } }",
 		exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
 		"class A extends B { fn() { super['method'](foo()) } }",
 		exprMatchesStr("foo()"))
 }
 
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
 // Java: ExpressionDecomposerTest.canMovePastFnDotCall()
-func TestExpressionDecomposer_canMovePastFnDotCall(t *testing.T) {
-	x := newExpressionDecomposerTest(t)
-	x.knownConstants.Add("fn")
-	x.helperCanExposeExpression(
+func (c *ExpressionDecomposerTest) TestCanMovePastFnDotCall() {
+	c.knownConstants.Add("fn")
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_MOVABLE, "fn.call(foo());", exprMatchesStr("foo()"))
-	x.helperCanExposeExpression(
+	c.helperCanExposeExpression(
 		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "unknownIfFn.call(foo());", exprMatchesStr("foo()"))
-	x.helperMoveExpression(
+	c.helperMoveExpression(
 		"fn.call(foo());",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); fn.call(result$jscomp$0);")
+}
+
+// Java: ExpressionDecomposerTest.helperCanExposeExpression(DecompositionType, String, Function<AbstractCompiler, Function<Node, Node>>)
+func (c *ExpressionDecomposerTest) helperCanExposeExpression(
+	expectedResult ExpressionDecomposer_DecompositionType,
+	code string,
+	nodeFinderFn expressionDecomposerTest_nodeFinder) {
+	compiler := c.getCompiler()
+	decomposer := c.createDecomposer(compiler)
+	tree := expressionDecomposerTest_parse(compiler, code)
+	AssertThat(tree).IsNotNull()
+
+	externsRoot := expressionDecomposerTest_parse(compiler, "function goo() {} function foo() {}")
+	AssertThat(externsRoot).IsNotNull()
+
+	expresionNode := nodeFinderFn(compiler)(tree)
+
+	result := decomposer.CanExposeExpression(expresionNode)
+	AssertThat(result).IsEqualTo(expectedResult)
+}
+
+// Provides a toString() method that contains the source code a node
+// represents where possible, or some explanatory text when not possible.
+//
+// Java: ExpressionDecomposerTest.NodeToSource
+type expressionDecomposerTest_NodeToSource struct {
+	compiler AbstractCompiler
+	node     *rhino.Node
+}
+
+// Java: ExpressionDecomposerTest.NodeToSource(AbstractCompiler, Node)
+func newExpressionDecomposerTest_NodeToSource(compiler AbstractCompiler, node *rhino.Node) *expressionDecomposerTest_NodeToSource {
+	return &expressionDecomposerTest_NodeToSource{compiler: compiler, node: node}
+}
+
+// Java: ExpressionDecomposerTest.NodeToSource.toString()
+func (n *expressionDecomposerTest_NodeToSource) String() string {
+	if n.node.IsTemplateLitString() {
+		// A string part of a template literal cannot be printed as code on its own.
+		return fmt.Sprintf("[Template literal string: '%s']", n.node.GetRawString())
+	} else if n.node.IsTemplateLitSub() {
+		// The template literal substitution node cannot itself be turned into source code,
+		// but we can do that for the expression inside of it.
+		return fmt.Sprintf(
+			"[Template literal substitution: '%s']", n.compiler.ToSourceOfNode(n.node.GetOnlyChild()))
+	} else {
+		return n.compiler.ToSourceOfNode(n.node)
+	}
+}
+
+// Java: ExpressionDecomposerTest.nodeToSource(AbstractCompiler, Node)
+func expressionDecomposerTest_nodeToSource(compiler AbstractCompiler, node *rhino.Node) string {
+	return newExpressionDecomposerTest_NodeToSource(compiler, node).String()
+}
+
+// Java: ExpressionDecomposerTest.exprMatchesStr(String)
+func exprMatchesStr(exprString string) expressionDecomposerTest_nodeFinder {
+	return func(compiler AbstractCompiler) func(root *rhino.Node) *rhino.Node {
+		return func(root *rhino.Node) *rhino.Node {
+			// When matching trim off the trailing newline added by the compiler's pretty-print
+			// option.
+			isAMatch := func(node *rhino.Node) bool {
+				return exprString == jutil.StringTrim(expressionDecomposerTest_nodeToSource(compiler, node))
+			}
+			containsAMatch := func(node *rhino.Node) bool {
+				return strings.Contains(expressionDecomposerTest_nodeToSource(compiler, node), exprString)
+			}
+			matchingNode := NodeUtil_FindPreorder(root, isAMatch, containsAMatch)
+			AssertWithMessage(
+				"Expected node `%s` was not found in `%s`", exprString, compiler.ToSourceOfNode(root)).
+				That(matchingNode).
+				IsNotNull()
+			return matchingNode
+		}
+	}
+}
+
+// Java: ExpressionDecomposerTest.helperExposeExpressionThenTypeCheck(String, Function<Node, Node>)
+func (c *ExpressionDecomposerTest) helperExposeExpressionThenTypeCheck(
+	code string, nodeFinder func(*rhino.Node) *rhino.Node) *rhino.Node {
+	compiler := c.getCompiler()
+	tree := expressionDecomposerTest_parse(compiler, code)
+	AssertThat(tree).IsNotNull()
+
+	decomposer := c.createDecomposer(compiler)
+	decomposer.SetTempNamePrefix("temp")
+	decomposer.SetResultNamePrefix("result")
+
+	expr := nodeFinder(tree)
+
+	decomposer.MaybeExposeExpression(expr)
+	c.processForTypecheck(compiler, tree)
+
+	return tree
+}
+
+// Java: ExpressionDecomposerTest.helperExposeExpression(String, Function<AbstractCompiler, Function<Node, Node>>, String)
+func (c *ExpressionDecomposerTest) helperExposeExpression(
+	code string, compilerToNodeFinder expressionDecomposerTest_nodeFinder, expectedResult string) {
+	compiler := c.getCompiler()
+
+	expectedRoot := expressionDecomposerTest_parse(compiler, expectedResult)
+	tree := expressionDecomposerTest_parse(compiler, code)
+	AssertThat(tree).IsNotNull()
+
+	if c.shouldTestTypes {
+		c.processForTypecheck(compiler, tree)
+	}
+
+	decomposer := c.createDecomposer(compiler)
+	decomposer.SetTempNamePrefix("temp")
+	decomposer.SetResultNamePrefix("result")
+
+	nodeFinder := compilerToNodeFinder(compiler)
+	expr := nodeFinder(tree)
+	AssertWithMessage("Expected node was not found.").That(expr).IsNotNull()
+
+	result := decomposer.CanExposeExpression(expr)
+	AssertThat(result).IsEqualTo(ExpressionDecomposer_DecompositionType_DECOMPOSABLE)
+
+	decomposer.MaybeExposeExpression(expr)
+	c.validateSourceInfo(compiler, tree)
+	AssertNode(tree).UsingSerializer(compiler.ToSourceOfNode).IsEqualTo(expectedRoot)
+
+	if c.shouldTestTypes {
+		decomposeThenTypeCheck := c.helperExposeExpressionThenTypeCheck(code, nodeFinder)
+		c.checkTypeStringsEqualAsTree(decomposeThenTypeCheck, tree)
+	}
+}
+
+// Java: ExpressionDecomposerTest.createDecomposer(Compiler)
+func (c *ExpressionDecomposerTest) createDecomposer(compiler *Compiler) *ExpressionDecomposer {
+	return compiler.CreateExpressionDecomposer(
+		compiler.GetUniqueNameIdSupplier(), jutil.NewLinkedHashSet(c.knownConstants.ToSlice()...), c.newScope())
+}
+
+// Java: ExpressionDecomposerTest.helperMoveExpression(String, Function<AbstractCompiler, Function<Node, Node>>, String)
+func (c *ExpressionDecomposerTest) helperMoveExpression(
+	code string, compilerToNodeFinder expressionDecomposerTest_nodeFinder, expectedResult string) {
+	compiler := c.getCompiler()
+	nodeFinder := compilerToNodeFinder(compiler)
+
+	expectedRoot := expressionDecomposerTest_parse(compiler, expectedResult)
+	tree := expressionDecomposerTest_parse(compiler, code)
+	originalTree := tree.CloneTree()
+	AssertThat(tree).IsNotNull()
+
+	if c.shouldTestTypes {
+		c.processForTypecheck(compiler, tree)
+	}
+
+	decomposer := c.createDecomposer(compiler)
+	decomposer.SetTempNamePrefix("temp")
+	decomposer.SetResultNamePrefix("result")
+
+	expr := nodeFinder(tree)
+	AssertWithMessage("Expected node was not found.").That(expr).IsNotNull()
+
+	decomposer.MoveExpression(expr)
+	c.validateSourceInfo(compiler, tree)
+	AssertNode(tree).UsingSerializer(compiler.ToSourceOfNode).IsEqualTo(expectedRoot)
+
+	if c.shouldTestTypes {
+		// find a basis for comparison:
+		originalExpr := nodeFinder(originalTree)
+
+		decomposer.MoveExpression(originalExpr)
+		c.processForTypecheck(compiler, originalTree)
+
+		// TODO(bradfordcsmith): Don't assume type check + decompose gives the same results as
+		// decompose + type check.
+		// There are legitimate cases where the types will be different from one order to another,
+		// but not actually wrong.
+		c.checkTypeStringsEqualAsTree(originalTree, tree)
+	}
+}
+
+// Java: ExpressionDecomposerTest.checkTypeStringsEqualAsTree(Node, Node)
+func (c *ExpressionDecomposerTest) checkTypeStringsEqualAsTree(rootExpected *rhino.Node, rootActual *rhino.Node) {
+	expectedType := rootExpected.GetJSType()
+	actualType := rootActual.GetJSType()
+
+	if expectedType == nil || actualType == nil {
+		AssertWithMessage("Expected %s but got %s", rootExpected, rootActual).
+			That(actualType).
+			IsEqualTo(expectedType)
+	} else if expectedType.IsUnknownType() && actualType.IsUnknownType() {
+		// continue
+	} else {
+		// we can't compare actual equality because the types are from different runs of the
+		// type inference, so we just compare the strings.
+		AssertWithMessage("Expected %s but got %s", rootExpected, rootActual).
+			That(actualType.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT)).
+			IsEqualTo(expectedType.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT))
+	}
+
+	child1 := rootExpected.GetFirstChild()
+	child2 := rootActual.GetFirstChild()
+	for child1 != nil {
+		c.checkTypeStringsEqualAsTree(child1, child2)
+		child1 = child1.GetNext()
+		child2 = child2.GetNext()
+	}
+}
+
+// Java: ExpressionDecomposerTest.getCompiler()
+func (c *ExpressionDecomposerTest) getCompiler() *Compiler {
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	// If the specific test case requested an output language level,
+	// use it. Otherwise, keep the default.
+	if c.languageOut != nil {
+		options.SetLanguageOut(*c.languageOut)
+	}
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	options.SetPrettyPrint(true)
+	// Don't prefix the compiler output with `"use strict";`.
+	// It's noise for these tests, and it interferes with tests that
+	// want to use compiler.toSource() to string match expressions.
+	options.SetEmitUseStrict(false)
+	options.SetLanguageIn(CompilerOptions_LanguageMode_UNSUPPORTED)
+	compiler.InitOptions(options)
+	return compiler
+}
+
+// Java: ExpressionDecomposerTest.processForTypecheck(AbstractCompiler, Node)
+func (c *ExpressionDecomposerTest) processForTypecheck(compiler AbstractCompiler, jsRoot *rhino.Node) {
+	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(jsRoot))
+	registry := compiler.GetTypeRegistry()
+	NewTypeCheck(compiler, NewSemanticReverseAbstractInterpreter(registry), registry).
+		ProcessForTesting(root.GetFirstChild(), root.GetSecondChild())
+	compiler.SetTypeCheckingHasRun(true)
+}
+
+// Java: ExpressionDecomposerTest.findClass(Node)
+func expressionDecomposerTest_findClass(n *rhino.Node) *rhino.Node {
+	if n.IsClass() {
+		return n
+	}
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		maybeClass := expressionDecomposerTest_findClass(child)
+		if maybeClass != nil {
+			return maybeClass
+		}
+	}
+	return nil
+}
+
+// Java: ExpressionDecomposerTest.validateSourceInfo(Compiler, Node)
+func (c *ExpressionDecomposerTest) validateSourceInfo(compiler *Compiler, subtree *rhino.Node) {
+	NewSourceInfoCheck(compiler).SetCheckSubTree(subtree)
+	// Source information problems are reported as compiler errors.
+	AssertThat(compiler.GetErrors()).IsEmpty()
+}
+
+// Java: ExpressionDecomposerTest.parse(Compiler, String)
+func expressionDecomposerTest_parse(compiler *Compiler, js string) *rhino.Node {
+	n := compiler.ParseTestCode(js)
+	NodeTraversal_Traverse(compiler, n, NewNormalize_NormalizeStatements(compiler, false, nil))
+	AssertThat(compiler.GetErrors()).IsEmpty()
+	return n
+}
+
+// Java: ExpressionDecomposerTest.newScope()
+func (c *ExpressionDecomposerTest) newScope() *Scope {
+	return Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_ROOT))
 }

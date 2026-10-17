@@ -1,8 +1,12 @@
 // Port of test/com/google/debugging/sourcemap/Base64Test.java @ closure-compiler v20260415
 
-package sourcemap
+package sourcemap_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
+)
 
 func TestBase64(t *testing.T) {
 	for i := int32(0); i < 64; i++ {
@@ -21,7 +25,7 @@ func TestBase64EncodeInt(t *testing.T) {
 		{-100, "////nA"},
 		{-1, "/////w"}, // 0xffffffff
 	} {
-		if got := Base64_Base64EncodeInt(tc.v); got != tc.want {
+		if got := sourcemap.Base64_Base64EncodeInt(tc.v); got != tc.want {
 			t.Errorf("base64EncodeInt(%d) = %q, want %q", tc.v, got, tc.want)
 		}
 	}
@@ -29,7 +33,7 @@ func TestBase64EncodeInt(t *testing.T) {
 
 func base64TestValue(t *testing.T, value int32) {
 	t.Helper()
-	if got := Base64_FromBase64(Base64_ToBase64(value)); got != value {
+	if got := sourcemap.Base64_FromBase64(sourcemap.Base64_ToBase64(value)); got != value {
 		t.Errorf("fromBase64(toBase64(%d)) = %d", value, got)
 	}
 }

@@ -49,10 +49,10 @@ import (
 )
 
 // newScopeDumpCompiler is ScopeDump.newCompiler.
-func newScopeDumpCompiler() *testCompiler {
+func newScopeDumpCompiler() *Compiler {
 	options := NewCompilerOptions()
 	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	return newTestCompiler(options).(*testCompiler)
+	return newTestCompiler(options)
 }
 
 // scopeDumpParserConfig is Compiler.getParserConfig(ConfigContext.DEFAULT)

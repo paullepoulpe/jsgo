@@ -489,10 +489,10 @@ dependencies are on main):
   Still running: Closure primitives and modules, messages/types/misc.
 - The harness: `Compiler`, `DefaultPassConfig`, `NestedCompilerRunner`,
   `TranspileAndOptimizeClosureUnaware`, and the `CompilerTestCase` test
-  base class. Classes that are not ported yet are declared by the
-  generated `internal/jscomp/pending_gen.go` (PORTING.md), which covers
-  every file of the package. It is committed and regenerated at each
-  merge, so main always builds.
+  base class. Until the port was complete, the classes not ported yet
+  were declared by the generated `internal/jscomp/pending_gen.go`, which
+  was committed and regenerated at each merge so that main always built;
+  that mechanism is now retired (PORTING.md §1).
 - jscomp levels 12–18 (wave 5, 13 clusters).
   - Finished: Normalize, PhaseOptimizer, PassConfig, DiagnosticGroups,
     warnings guards, coding conventions.

@@ -333,16 +333,18 @@ func gson_checkValidFloatingPoint(value float64) {
 // gson_javaInteger is a boxed Integer, Long, Short or Byte as a Number.
 type gson_javaInteger int64
 
-func (n gson_javaInteger) IntValue() int32  { return int32(n) }
-func (n gson_javaInteger) LongValue() int64 { return int64(n) }
-func (n gson_javaInteger) String() string   { return strconv.FormatInt(int64(n), 10) }
+func (n gson_javaInteger) IntValue() int32      { return int32(n) }
+func (n gson_javaInteger) LongValue() int64     { return int64(n) }
+func (n gson_javaInteger) DoubleValue() float64 { return float64(n) }
+func (n gson_javaInteger) String() string       { return strconv.FormatInt(int64(n), 10) }
 
 // gson_javaDouble is a boxed Double as a Number.
 type gson_javaDouble float64
 
-func (n gson_javaDouble) IntValue() int32  { return D2I(float64(n)) }
-func (n gson_javaDouble) LongValue() int64 { return D2L(float64(n)) }
-func (n gson_javaDouble) String() string   { return DoubleToString(float64(n)) }
+func (n gson_javaDouble) IntValue() int32      { return D2I(float64(n)) }
+func (n gson_javaDouble) LongValue() int64     { return D2L(float64(n)) }
+func (n gson_javaDouble) DoubleValue() float64 { return float64(n) }
+func (n gson_javaDouble) String() string       { return DoubleToString(float64(n)) }
 
 // gson_collection is implemented by the jutil types that model a
 // java.util.Collection: their elements in iteration order.

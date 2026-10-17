@@ -28,7 +28,7 @@ func lazyParsedDependencyInfoTest_assertMapContainsExactly(t *testing.T, got *ju
 func TestLazyParsedDependencyInfo_Delegation(t *testing.T) {
 	baz := DependencyInfo_Require_GoogRequireSymbol("baz")
 	qux := DependencyInfo_Require_GoogRequireSymbol("qux")
-	compiler := newTestCompilerUninitialized() // new Compiler()
+	compiler := NewCompiler() // new Compiler()
 	ast := NewCompilerInput(SourceFile_FromCode("file.js", "// nothing here"))
 	delegate := SimpleDependencyInfo_Builder_("path/to/1.js", "path/2.js").
 		SetProvidesArray("foo", "bar").

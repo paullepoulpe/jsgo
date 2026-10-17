@@ -27,9 +27,6 @@ func main() {
 		if r == nil {
 			return
 		}
-		if _, uncatchable := r.(jutil.Uncatchable); uncatchable {
-			panic(r)
-		}
 		t, ok := r.(jutil.Throwable)
 		if !ok {
 			t = jutil.AsThrowable(r)

@@ -28,9 +28,6 @@ package jscomp
 //     for every mismatching file. Use absolute paths: `go test` runs in the
 //     package directory.
 //
-// A run that reaches a declaration of pending_gen.go is reported as skipped
-// (SkipIfPendingPort).
-//
 // Known, accepted difference: Java catches StackOverflowError (the tool runs
 // with -Xss1g); a Go stack overflow is fatal, so such an input stops the run.
 
@@ -324,7 +321,6 @@ func typeCheckDump_externs(t *testing.T) string {
 }
 
 func TestTypeCheckDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	dir := filepath.Join("testdata", "typecheck")
 	files := typeCheckDump_readList(t, filepath.Join(dir, "files.txt"))
 	compared, mismatches := typeCheckDump_compare(t, typeCheckDump_externs(t),
@@ -350,7 +346,6 @@ func TestTypeCheckDumpOracle(t *testing.T) {
 		every = n
 	}
 	files := typeCheckDump_readList(t, list)
-	defer SkipIfPendingPort(t)
 	compared, mismatches := typeCheckDump_compare(t, typeCheckDump_externs(t), root, oracleDir, files, every, os.Getenv("TYPECHECK_DIFF_DIR"))
 	t.Logf("%d files compared, %d differ", compared, mismatches)
 	if mismatches > 0 {

@@ -66,7 +66,8 @@ Guava 33.4.6-jre -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
 
 
 Gson 2.9.1 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
-  Copyright Google Inc. Gson has no NOTICE file.
+  Copyright Google Inc.; LinkedTreeMap.java also Copyright The Android
+  Open Source Project. Gson has no NOTICE file.
   internal/jutil/gson.go, gson_builder.go, gson_exceptions.go,
   gson_from_json_reflective.go, gson_json_element.go,
   gson_json_reader.go, gson_json_writer.go, gson_json_writer_long.go,

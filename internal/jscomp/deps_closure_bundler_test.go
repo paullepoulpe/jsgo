@@ -119,7 +119,6 @@ func TestClosureBundler_Transpilation(t *testing.T) {
 }
 
 func TestClosureBundler_Es6Module(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	input := "import {x} from './other.js';\n" +
 		"export {x as y};\n" +
 		"let local;\n" +
@@ -159,7 +158,6 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 }
 
 func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER)
 	sb := jutil.NewStringBuilder()
@@ -168,7 +166,6 @@ func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
 }
 
 func TestClosureBundler_CommentsAndFormattingRemovedWithTranspilation(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)
 	sb := jutil.NewStringBuilder()
@@ -188,7 +185,6 @@ func TestClosureBundler_FullWidthLowLineWithDefaultTranspilerIsOkay(t *testing.T
 // TODO(johnplaisted): If / when the compiler can parse full width low line in
 // identifiers this should be okay to be transpiled.
 func TestClosureBundler_FullWidthLowLineInTranspiledCodeIsError(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// The last character is something the compiler doesn't handle correctly
 	input := "let ａｅｓｔｈｅｔｉｃ＿"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)

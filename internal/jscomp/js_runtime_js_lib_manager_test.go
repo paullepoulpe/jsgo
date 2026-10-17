@@ -3,6 +3,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,23 +11,22 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// stubResourceLoader is RuntimeJsLibManagerTest.StubResourceLoader. Its
-// parse() uses Compiler.parseSyntheticCode, which is not ported yet: a test
-// that needs a library parsed is skipped at that point.
+// stubResourceLoader is RuntimeJsLibManagerTest.StubResourceLoader.
 func stubResourceLoader(t *testing.T, resources map[string]string) RuntimeJsLibManager_ResourceProvider {
 	return func(resourceName string, unused string) *rhino.Node {
 		code, ok := resources[resourceName]
 		if !ok {
 			return nil
 		}
-		return runtimeJsLibManagerTestJs(t, code)
+		compiler := NewCompiler()
+		return compiler.ParseSyntheticCode("lib.js", code)
 	}
 }
 
 // runtimeJsLibManagerTestJs is RuntimeJsLibManagerTest.js(String).
 func runtimeJsLibManagerTestJs(t *testing.T, code string) *rhino.Node {
-	t.Skip("needs Compiler.parseSyntheticCode")
-	return nil
+	compiler := NewCompiler()
+	return compiler.ParseSyntheticCode("lib.js", code)
 }
 
 var runtimeJsLibManagerTest_JSCOMP_INHERITS = rhino.IR_Getprop(rhino.IR_Name("$jscomp"), "inherits")
@@ -169,7 +169,10 @@ func TestRuntimeJsLibManager_InjectsRequiredLibsOnlyOnce(t *testing.T) {
 	childA := manager.EnsureLibraryInjected("childA.js" /* force= */, false)
 	childB := manager.EnsureLibraryInjected("childB.js" /* force= */, false)
 
-	assertSliceEqual(t, "injected", manager.GetInjectedLibraries(), []string{"base.js", "childA.js", "childB.js"})
+	// containsExactly without inOrder(): the libraries are recorded as they
+	// are reached (childA.js before the base.js it requires).
+	assertSliceEqual(t, "injected", slices.Sorted(slices.Values(manager.GetInjectedLibraries())),
+		[]string{"base.js", "childA.js", "childB.js"})
 	assertEqual(t, "second child", script.GetSecondChild(), childA)
 	assertEqual(t, "last child", script.GetLastChild(), childB)
 	assertNodeEquivalent(t, script, runtimeJsLibManagerTestJs(t,
@@ -364,11 +367,39 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeDoesRecordAndInjectWithForceInj
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeInjectLibForFieldRecordsAndAddsExternDecl(t *testing.T) {
-	t.Skip("needs SourceFile.fromCode, Compiler.parseSyntheticCode")
+	externs := rhino.IR_Script()
+	externs.SetStaticSourceFile(SourceFile_FromCodeWithKind("ex.js", "", rhino.StaticSourceFile_SourceKind_EXTERN))
+	manager := RuntimeJsLibManager_Create(
+		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
+		stubResourceLoader(t, map[string]string{}),
+		NewChangeTracker(),
+		scriptSupplier(externs))
+
+	manager.InjectLibForField("$jscomp.inherits")
+
+	assertSliceEqual(t, "injected", manager.GetInjectedLibraries(), []string{"es6/util/inherits"})
+	externedFields := manager.GetExternedFields()
+	assertEqual(t, "externed fields", len(externedFields), 1)
+	assertEqual(t, "uncompiledName", externedFields[0].UncompiledName(), "$jscomp.inherits")
+	assertEqual(t, "qualifiedName", externedFields[0].QualifiedName(), "$jscomp_inherits")
+	assertNodeEquivalent(t, externs, runtimeJsLibManagerTestJs(t, "var $jscomp_inherits;"))
+	assertEqual(t, "IS_CONSTANT_NAME",
+		externs.GetOnlyChild().GetOnlyChild().GetBooleanProp(rhino.Node_IS_CONSTANT_NAME), true)
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeInjectLibForFieldTwiceDoesNotAddDuplicateExterns(t *testing.T) {
-	t.Skip("needs SourceFile.fromCode, Compiler.parseSyntheticCode")
+	externs := rhino.IR_Script()
+	externs.SetStaticSourceFile(SourceFile_FromCodeWithKind("ex.js", "", rhino.StaticSourceFile_SourceKind_EXTERN))
+	manager := RuntimeJsLibManager_Create(
+		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
+		stubResourceLoader(t, map[string]string{}),
+		NewChangeTracker(),
+		scriptSupplier(externs))
+
+	manager.InjectLibForField("$jscomp.inherits")
+	manager.InjectLibForField("$jscomp.inherits")
+
+	assertNodeEquivalent(t, externs, runtimeJsLibManagerTestJs(t, "var $jscomp_inherits;"))
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeNoinjectLibForFieldThenAssertInjectedFails(t *testing.T) {

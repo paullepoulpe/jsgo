@@ -394,9 +394,6 @@ func closureRewriteRunDump(full bool, header string, inputs []*SourceFile) strin
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if _, ok := r.(*PendingPort); ok {
-					panic(r) // a pass this dump runs is not ported yet: the test skips
-				}
 				d.sb.WriteString(fmt.Sprintf("GO PANIC: %v\n", r))
 			}
 		}()
@@ -408,7 +405,6 @@ func closureRewriteRunDump(full bool, header string, inputs []*SourceFile) strin
 // closureRewriteCompare dumps every file (or the program) and compares it with its Java section.
 func closureRewriteCompare(t *testing.T, root string, files []string, javaDump string, full bool, program bool, diffDir string) {
 	t.Helper()
-	defer SkipIfPendingPort(t)
 	java := closureRewriteSplit(javaDump)
 	var inputs []*SourceFile
 	for _, rel := range files {

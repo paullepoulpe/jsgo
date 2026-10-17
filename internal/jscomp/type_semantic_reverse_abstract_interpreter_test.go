@@ -1,5 +1,21 @@
 // Port of com/google/javascript/jscomp/SemanticReverseAbstractInterpreterTest.java @ closure-compiler v20260415
 
+/*
+ * Copyright 2007 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
@@ -8,554 +24,574 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Go-only: test adapter — the Java test builds its blind scope with
-// TypedScope.createGlobalScope / new TypedScope(...) and
-// LinkedFlowScope.createEntryLattice(compiler, functionScope), which are not
-// ported yet; newScope uses the copy-on-write test flow scope instead (the
-// one the reverse-interpreter oracle checks against Java), and the registry
-// is CompilerTypeTestCase's stand-in. When TypedScope and LinkedFlowScope
-// land, switch newScope/createVar back to them.
-type semanticRAITest struct {
-	*compilerTypeTestCase
-	interpreter ReverseAbstractInterpreter
+// Java: public final class SemanticReverseAbstractInterpreterTest extends CompilerTypeTestCase
+type SemanticReverseAbstractInterpreterTest struct {
+	CompilerTypeTestCaseBase
+
+	interpreter   ReverseAbstractInterpreter
+	functionScope *TypedScope
 }
 
-func newSemanticRAITest(t *testing.T) *semanticRAITest {
-	s := &semanticRAITest{compilerTypeTestCase: newCompilerTypeTestCase(t)}
-	s.interpreter = NewSemanticReverseAbstractInterpreter(s.registry)
-	return s
+// Java: SemanticReverseAbstractInterpreterTest()
+func NewSemanticReverseAbstractInterpreterTest() *SemanticReverseAbstractInterpreterTest {
+	c := &SemanticReverseAbstractInterpreterTest{}
+	c.InitCompilerTypeTestCaseBase(c)
+	return c
 }
 
-func (s *semanticRAITest) newScope() []FlowScope {
-	return []FlowScope{newTestFlowScope()}
+func TestSemanticReverseAbstractInterpreterTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return NewSemanticReverseAbstractInterpreterTest() })
 }
 
-type semanticRAITest_TypedName struct {
-	name  string
-	type_ rhino.JSType
+// Java: SemanticReverseAbstractInterpreterTest.setUp()
+func (c *SemanticReverseAbstractInterpreterTest) SetUp() {
+	c.CompilerTypeTestCaseBase.SetUp()
+
+	c.interpreter = NewSemanticReverseAbstractInterpreter(c.registry)
 }
 
-func typedName(name string, type_ rhino.JSType) semanticRAITest_TypedName {
-	return semanticRAITest_TypedName{name: name, type_: type_}
-}
-
-func (s *semanticRAITest) testBinop(
-	blind []FlowScope,
-	binop rhino.Token,
-	left *rhino.Node,
-	right *rhino.Node,
-	trueOutcome []semanticRAITest_TypedName,
-	falseOutcome []semanticRAITest_TypedName) {
-	s.t.Helper()
-	condition := rhino.NewNode(binop)
-	condition.AddChildToBack(left)
-	condition.AddChildToBack(right)
-
-	// true outcome.
-	informedTrue := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
-	for _, p := range trueOutcome {
-		s.assertTypeEqualsMsg(p.name, p.type_, s.getVarType(informedTrue, p.name))
-	}
-
-	// false outcome.
-	informedFalse := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
-	for _, p := range falseOutcome {
-		s.assertTypeEquals(p.type_, s.getVarType(informedFalse, p.name))
-	}
-}
-
-func (s *semanticRAITest) createNull() *rhino.Node {
-	n := rhino.NewNode(rhino.Token_NULL)
-	n.SetJSType(s.getNativeNullType())
-	return n
-}
-
-func (s *semanticRAITest) createNumber(n int) *rhino.Node {
-	number := s.createUntypedNumber(n)
-	number.SetJSType(s.getNativeNumberType())
-	return number
-}
-
-func (s *semanticRAITest) createUntypedNumber(n int) *rhino.Node {
-	return rhino.Node_NewNumber(float64(n))
-}
-
-func (s *semanticRAITest) getVarType(scope FlowScope, name string) rhino.JSType {
-	return scope.GetSlot(name).(rhino.StaticTypedSlot).GetType()
-}
-
-func (s *semanticRAITest) createVar(scope []FlowScope, name string, type_ rhino.JSType) *rhino.Node {
-	n := rhino.Node_NewStringWithToken(rhino.Token_NAME, name)
-	// Java: functionScope.declare(name, n, null, null, true)
-	scope[0] = scope[0].InferSlotType(name, type_)
-	n.SetJSType(type_)
-	return n
+// Java: SemanticReverseAbstractInterpreterTest.newScope()
+func (c *SemanticReverseAbstractInterpreterTest) newScope() []FlowScope {
+	globalScope := TypedScope_CreateGlobalScope(rhino.NewNode(rhino.Token_ROOT))
+	c.functionScope = NewTypedScope(globalScope, rhino.NewNode(rhino.Token_FUNCTION))
+	return []FlowScope{LinkedFlowScope_CreateEntryLattice(c.compiler, c.functionScope)}
 }
 
 // Tests reverse interpretation of a NAME expression.
-func TestSemanticReverseAbstractInterpreter_NameCondition(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	condition := s.createVar(blind, "a", s.createNullableType(s.getNativeStringType()))
+// Java: SemanticReverseAbstractInterpreterTest.testNameCondition()
+func (c *SemanticReverseAbstractInterpreterTest) TestNameCondition() {
+	blind := c.newScope()
+	condition := c.createVar(blind, "a", c.CreateNullableType(c.GetNativeStringType()))
 
 	// true outcome.
-	informedTrue := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
-	s.assertTypeEquals(s.getNativeStringType(), s.getVarType(informedTrue, "a"))
+	informedTrue := c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
+	c.AssertTypeEquals(c.GetNativeStringType(), c.getVarType(informedTrue, "a"))
 
 	// false outcome.
-	informedFalse := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
-	s.assertTypeEquals(s.createNullableType(s.getNativeStringType()), s.getVarType(informedFalse, "a"))
+	informedFalse := c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
+	c.AssertTypeEquals(c.CreateNullableType(c.GetNativeStringType()), c.getVarType(informedFalse, "a"))
 }
 
 // Tests reverse interpretation of a NOT(NAME) expression.
-func TestSemanticReverseAbstractInterpreter_NegatedNameCondition(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	a := s.createVar(blind, "a", s.createNullableType(s.getNativeStringType()))
+// Java: SemanticReverseAbstractInterpreterTest.testNegatedNameCondition()
+func (c *SemanticReverseAbstractInterpreterTest) TestNegatedNameCondition() {
+	blind := c.newScope()
+	a := c.createVar(blind, "a", c.CreateNullableType(c.GetNativeStringType()))
 	condition := rhino.NewNode(rhino.Token_NOT)
 	condition.AddChildToBack(a)
 
 	// true outcome.
-	informedTrue := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
-	s.assertTypeEquals(s.createNullableType(s.getNativeStringType()), s.getVarType(informedTrue, "a"))
+	informedTrue := c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
+	c.AssertTypeEquals(c.CreateNullableType(c.GetNativeStringType()), c.getVarType(informedTrue, "a"))
 
 	// false outcome.
-	informedFalse := s.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
-	s.assertTypeEquals(s.getNativeStringType(), s.getVarType(informedFalse, "a"))
+	informedFalse := c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
+	c.AssertTypeEquals(c.GetNativeStringType(), c.getVarType(informedFalse, "a"))
 }
 
 // Tests reverse interpretation of a ASSIGN expression.
-func TestSemanticReverseAbstractInterpreter_AssignCondition1(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testAssignCondition1()
+func (c *SemanticReverseAbstractInterpreterTest) TestAssignCondition1() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_ASSIGN,
-		s.createVar(blind, "a", s.createNullableType(s.getNativeObjectType())),
-		s.createVar(blind, "b", s.createNullableType(s.getNativeObjectType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeObjectType()), typedName("b", s.getNativeObjectType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeNullType()), typedName("b", s.getNativeNullType())})
+		c.createVar(blind, "a", c.CreateNullableType(c.GetNativeObjectType())),
+		c.createVar(blind, "b", c.CreateNullableType(c.GetNativeObjectType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeObjectType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeObjectType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNullType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeNullType())})
 }
 
 // Tests reverse interpretation of a SHEQ(NAME, NUMBER) expression.
-func TestSemanticReverseAbstractInterpreter_SheqCondition1(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition1()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition1() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		s.createNumber(56),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType()))})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		c.createNumber(56),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType()))})
 }
 
 // Tests reverse interpretation of a SHEQ(NUMBER, NAME) expression.
-func TestSemanticReverseAbstractInterpreter_SheqCondition2(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition2()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition2() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createNumber(56),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType()))})
+		c.createNumber(56),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType()))})
 }
 
 // Tests reverse interpretation of a SHEQ(NAME, NAME) expression.
-func TestSemanticReverseAbstractInterpreter_SheqCondition3(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition3()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition3() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createVar(blind, "b", s.createUnionType(s.getNativeStringType(), s.getNativeBooleanType())),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeStringType()), typedName("b", s.getNativeStringType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-			typedName("b", s.createUnionType(s.getNativeStringType(), s.getNativeBooleanType()))})
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeBooleanType())),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeStringType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+			newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeBooleanType()))})
 }
 
-func TestSemanticReverseAbstractInterpreter_SheqCondition4(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition4()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition4() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeStringType()), typedName("b", s.getNativeVoidType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_SheqCondition5(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition5()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition5() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeNullType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeNullType()), typedName("b", s.getNativeVoidType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeNullType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNullType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_SheqCondition6(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testSheqCondition6()
+func (c *SemanticReverseAbstractInterpreterTest) TestSheqCondition6() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHEQ,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-			typedName("b", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType()))})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+			newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType()))})
 }
 
 // Tests reverse interpretation of a SHNE(NAME, NUMBER) expression.
-func TestSemanticReverseAbstractInterpreter_ShneCondition1(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition1()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition1() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		s.createNumber(56),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType()))},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		c.createNumber(56),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType()))},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType())})
 }
 
 // Tests reverse interpretation of a SHNE(NUMBER, NAME) expression.
-func TestSemanticReverseAbstractInterpreter_ShneCondition2(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition2()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition2() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createNumber(56),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType()))},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberType())})
+		c.createNumber(56),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType()))},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType())})
 }
 
 // Tests reverse interpretation of a SHNE(NAME, NAME) expression.
-func TestSemanticReverseAbstractInterpreter_ShneCondition3(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition3()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition3() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createVar(blind, "b", s.createUnionType(s.getNativeStringType(), s.getNativeBooleanType())),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-			typedName("b", s.createUnionType(s.getNativeStringType(), s.getNativeBooleanType()))},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeStringType()), typedName("b", s.getNativeStringType())})
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeBooleanType())),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+			newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeBooleanType()))},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeStringType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_ShneCondition4(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition4()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition4() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeStringType()), typedName("b", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_ShneCondition5(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition5()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition5() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeNullType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeNullType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeNullType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeNullType()), typedName("b", s.getNativeNullType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeNullType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeNullType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeNullType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNullType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeNullType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_ShneCondition6(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testShneCondition6()
+func (c *SemanticReverseAbstractInterpreterTest) TestShneCondition6() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_SHNE,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-		s.createVar(blind, "b", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-			typedName("b", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType()))},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+			newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType()))},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())})
 }
 
 // Tests reverse interpretation of a EQ(NAME, NULL) expression.
-func TestSemanticReverseAbstractInterpreter_EqCondition1(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testEqCondition1()
+func (c *SemanticReverseAbstractInterpreterTest) TestEqCondition1() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		s.createVar(blind, "a", s.createUnionType(s.getNativeBooleanType(), s.getNativeVoidType())),
-		s.createNull(),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeBooleanType())})
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeBooleanType(), c.GetNativeVoidType())),
+		c.createNull(),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeBooleanType())})
 }
 
 // Tests reverse interpretation of a NE(NULL, NAME) expression.
-func TestSemanticReverseAbstractInterpreter_EqCondition2(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testEqCondition2()
+func (c *SemanticReverseAbstractInterpreterTest) TestEqCondition2() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_NE,
-		s.createNull(),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeBooleanType(), s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeBooleanType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeVoidType())})
+		c.createNull(),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeBooleanType(), c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeBooleanType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType())})
 }
 
 // Tests reverse interpretation of a EQ(NAME, NULL) expression.
-func TestSemanticReverseAbstractInterpreter_EqCondition3(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
+// Java: SemanticReverseAbstractInterpreterTest.testEqCondition3()
+func (c *SemanticReverseAbstractInterpreterTest) TestEqCondition3() {
+	blind := c.newScope()
 	// (number,undefined,null)
-	nullableOptionalNumber := s.createUnionType(s.getNativeNullType(), s.getNativeVoidType(), s.getNativeNumberType())
+	nullableOptionalNumber := c.CreateUnionType(c.GetNativeNullType(), c.GetNativeVoidType(), c.GetNativeNumberType())
 	// (null,undefined)
-	nullUndefined := s.createUnionType(s.getNativeVoidType(), s.getNativeNullType())
-	s.testBinop(
+	nullUndefined := c.CreateUnionType(c.GetNativeVoidType(), c.GetNativeNullType())
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		s.createVar(blind, "a", nullableOptionalNumber),
-		s.createNull(),
-		[]semanticRAITest_TypedName{typedName("a", nullUndefined)},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberType())})
+		c.createVar(blind, "a", nullableOptionalNumber),
+		c.createNull(),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", nullUndefined)},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType())})
 }
 
 // Tests reverse interpretation of two undefineds.
-func TestSemanticReverseAbstractInterpreter_EqCondition4(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testEqCondition4()
+func (c *SemanticReverseAbstractInterpreterTest) TestEqCondition4() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		s.createVar(blind, "a", s.getNativeVoidType()),
-		s.createVar(blind, "b", s.getNativeVoidType()),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeVoidType()), typedName("b", s.getNativeVoidType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeNoType()), typedName("b", s.getNativeNoType())})
+		c.createVar(blind, "a", c.GetNativeVoidType()),
+		c.createVar(blind, "b", c.GetNativeVoidType()),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeVoidType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeVoidType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNoType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeNoType())})
 }
 
 // Tests reverse interpretation of a COMPARE(NAME, NUMBER) expression, where
 // COMPARE can be LE, LT, GE or GT.
-func TestSemanticReverseAbstractInterpreter_InequalitiesCondition1(t *testing.T) {
-	s := newSemanticRAITest(t)
+// Java: SemanticReverseAbstractInterpreterTest.testInequalitiesCondition1()
+func (c *SemanticReverseAbstractInterpreterTest) TestInequalitiesCondition1() {
 	for _, op := range []rhino.Token{rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE} {
-		blind := s.newScope()
-		s.testBinop(
+		blind := c.newScope()
+		c.testBinop(
 			blind,
 			op,
-			s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-			s.createNumber(8),
-			[]semanticRAITest_TypedName{typedName("a", s.getNativeStringType())},
-			[]semanticRAITest_TypedName{
-				typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType()))})
+			c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+			c.createNumber(8),
+			[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType())},
+			[]*semanticReverseAbstractInterpreterTest_TypedName{
+				newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType()))})
 	}
 }
 
 // Tests reverse interpretation of a COMPARE(NAME, NAME) expression, where
 // COMPARE can be LE, LT, GE or GT.
-func TestSemanticReverseAbstractInterpreter_InequalitiesCondition2(t *testing.T) {
-	s := newSemanticRAITest(t)
+// Java: SemanticReverseAbstractInterpreterTest.testInequalitiesCondition2()
+func (c *SemanticReverseAbstractInterpreterTest) TestInequalitiesCondition2() {
 	for _, op := range []rhino.Token{rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE} {
-		blind := s.newScope()
-		s.testBinop(
+		blind := c.newScope()
+		c.testBinop(
 			blind,
 			op,
-			s.createVar(
+			c.createVar(
 				blind,
 				"a",
-				s.createUnionType(s.getNativeStringType(), s.getNativeNumberType(), s.getNativeVoidType())),
-			s.createVar(blind, "b", s.createUnionType(s.getNativeNumberType(), s.getNativeNullType())),
-			[]semanticRAITest_TypedName{
-				typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeNumberType())),
-				typedName("b", s.createUnionType(s.getNativeNumberType(), s.getNativeNullType()))},
-			[]semanticRAITest_TypedName{
-				typedName(
+				c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType(), c.GetNativeVoidType())),
+			c.createVar(blind, "b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeNullType())),
+			[]*semanticReverseAbstractInterpreterTest_TypedName{
+				newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNumberType())),
+				newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeNullType()))},
+			[]*semanticReverseAbstractInterpreterTest_TypedName{
+				newSemanticReverseAbstractInterpreterTest_TypedName(
 					"a",
-					s.createUnionType(
-						s.getNativeStringType(), s.getNativeNumberType(), s.getNativeVoidType())),
-				typedName("b", s.createUnionType(s.getNativeNumberType(), s.getNativeNullType()))})
+					c.CreateUnionType(
+						c.GetNativeStringType(), c.GetNativeNumberType(), c.GetNativeVoidType())),
+				newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeNullType()))})
 	}
 }
 
 // Tests reverse interpretation of a COMPARE(NUMBER-untyped, NAME) expression,
 // where COMPARE can be LE, LT, GE or GT.
-func TestSemanticReverseAbstractInterpreter_InequalitiesCondition3(t *testing.T) {
-	s := newSemanticRAITest(t)
+// Java: SemanticReverseAbstractInterpreterTest.testInequalitiesCondition3()
+func (c *SemanticReverseAbstractInterpreterTest) TestInequalitiesCondition3() {
 	for _, op := range []rhino.Token{rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE} {
-		blind := s.newScope()
-		s.testBinop(
+		blind := c.newScope()
+		c.testBinop(
 			blind,
 			op,
-			s.createUntypedNumber(8),
-			s.createVar(blind, "a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType())),
-			[]semanticRAITest_TypedName{typedName("a", s.getNativeStringType())},
-			[]semanticRAITest_TypedName{
-				typedName("a", s.createUnionType(s.getNativeStringType(), s.getNativeVoidType()))})
+			c.createUntypedNumber(8),
+			c.createVar(blind, "a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType())),
+			[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeStringType())},
+			[]*semanticReverseAbstractInterpreterTest_TypedName{
+				newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeVoidType()))})
 	}
 }
 
-func TestSemanticReverseAbstractInterpreter_And(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testAnd()
+func (c *SemanticReverseAbstractInterpreterTest) TestAnd() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_AND,
-		s.createVar(blind, "b", s.createUnionType(s.getNativeStringType(), s.getNativeNullType())),
-		s.createVar(blind, "a", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType())),
-		[]semanticRAITest_TypedName{
-			typedName("a", s.getNativeNumberType()), typedName("b", s.getNativeStringType())},
-		[]semanticRAITest_TypedName{
-			typedName("a", s.createUnionType(s.getNativeNumberType(), s.getNativeVoidType())),
-			typedName("b", s.createUnionType(s.getNativeStringType(), s.getNativeNullType()))})
+		c.createVar(blind, "b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNullType())),
+		c.createVar(blind, "a", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType())),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberType()), newSemanticReverseAbstractInterpreterTest_TypedName("b", c.GetNativeStringType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("a", c.CreateUnionType(c.GetNativeNumberType(), c.GetNativeVoidType())),
+			newSemanticReverseAbstractInterpreterTest_TypedName("b", c.CreateUnionType(c.GetNativeStringType(), c.GetNativeNullType()))})
 }
 
-func TestSemanticReverseAbstractInterpreter_Typeof1(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testTypeof1()
+func (c *SemanticReverseAbstractInterpreterTest) TestTypeof1() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		rhino.NewNodeWithChild(rhino.Token_TYPEOF, s.createVar(blind, "a", s.getNativeObjectType())),
+		rhino.NewNodeWithChild(rhino.Token_TYPEOF, c.createVar(blind, "a", c.GetNativeObjectType())),
 		rhino.Node_NewString("function"),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeFunctionType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeObjectType())})
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeFunctionType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeObjectType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_Typeof2(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testTypeof2()
+func (c *SemanticReverseAbstractInterpreterTest) TestTypeof2() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		rhino.NewNodeWithChild(rhino.Token_TYPEOF, s.createVar(blind, "a", s.getNativeAllType())),
+		rhino.NewNodeWithChild(rhino.Token_TYPEOF, c.createVar(blind, "a", c.GetNativeAllType())),
 		rhino.Node_NewString("function"),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeFunctionType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeAllType())})
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeFunctionType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeAllType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_Typeof3(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testTypeof3()
+func (c *SemanticReverseAbstractInterpreterTest) TestTypeof3() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
-		rhino.NewNodeWithChild(rhino.Token_TYPEOF, s.createVar(blind, "a", s.getNativeObjectNumberStringBooleanType())),
+		rhino.NewNodeWithChild(rhino.Token_TYPEOF, c.createVar(blind, "a", c.GetNativeObjectNumberStringBooleanType())),
 		rhino.Node_NewString("function"),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeFunctionType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeObjectNumberStringBooleanType())})
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeFunctionType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeObjectNumberStringBooleanType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_Typeof4(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testTypeof4()
+func (c *SemanticReverseAbstractInterpreterTest) TestTypeof4() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_EQ,
 		rhino.NewNodeWithChild(
 			rhino.Token_TYPEOF,
-			s.createVar(
+			c.createVar(
 				blind,
 				"a",
-				s.createUnionType(s.getNativeFunctionType(), s.getNativeNumberStringBooleanType()))),
+				c.CreateUnionType(c.GetNativeFunctionType(), c.GetNativeNumberStringBooleanType()))),
 		rhino.Node_NewString("function"),
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeFunctionType())},
-		[]semanticRAITest_TypedName{typedName("a", s.getNativeNumberStringBooleanType())})
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeFunctionType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("a", c.GetNativeNumberStringBooleanType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_InstanceOf(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testInstanceOf()
+func (c *SemanticReverseAbstractInterpreterTest) TestInstanceOf() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_INSTANCEOF,
-		s.createVar(blind, "x", s.getNativeUnknownType()),
-		s.createVar(blind, "s", s.getNativeStringObjectConstructorType()),
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeStringObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())},
-		[]semanticRAITest_TypedName{typedName("s", s.getNativeStringObjectConstructorType())})
+		c.createVar(blind, "x", c.GetNativeUnknownType()),
+		c.createVar(blind, "s", c.GetNativeStringObjectConstructorType()),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeStringObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_InstanceOf2(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testInstanceOf2()
+func (c *SemanticReverseAbstractInterpreterTest) TestInstanceOf2() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_INSTANCEOF,
-		s.createVar(
-			blind, "x", s.createUnionType(s.getNativeStringObjectType(), s.getNativeNumberObjectType())),
-		s.createVar(blind, "s", s.getNativeStringObjectConstructorType()),
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeStringObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())},
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeNumberObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())})
+		c.createVar(
+			blind, "x", c.CreateUnionType(c.GetNativeStringObjectType(), c.GetNativeNumberObjectType())),
+		c.createVar(blind, "s", c.GetNativeStringObjectConstructorType()),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeStringObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeNumberObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_InstanceOf3(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testInstanceOf3()
+func (c *SemanticReverseAbstractInterpreterTest) TestInstanceOf3() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_INSTANCEOF,
-		s.createVar(blind, "x", s.getNativeObjectType()),
-		s.createVar(blind, "s", s.getNativeStringObjectConstructorType()),
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeStringObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())},
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())})
+		c.createVar(blind, "x", c.GetNativeObjectType()),
+		c.createVar(blind, "s", c.GetNativeStringObjectConstructorType()),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeStringObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())})
 }
 
-func TestSemanticReverseAbstractInterpreter_InstanceOf4(t *testing.T) {
-	s := newSemanticRAITest(t)
-	blind := s.newScope()
-	s.testBinop(
+// Java: SemanticReverseAbstractInterpreterTest.testInstanceOf4()
+func (c *SemanticReverseAbstractInterpreterTest) TestInstanceOf4() {
+	blind := c.newScope()
+	c.testBinop(
 		blind,
 		rhino.Token_INSTANCEOF,
-		s.createVar(blind, "x", s.getNativeAllType()),
-		s.createVar(blind, "s", s.getNativeStringObjectConstructorType()),
-		[]semanticRAITest_TypedName{
-			typedName("x", s.getNativeStringObjectType()),
-			typedName("s", s.getNativeStringObjectConstructorType())},
-		[]semanticRAITest_TypedName{typedName("s", s.getNativeStringObjectConstructorType())})
+		c.createVar(blind, "x", c.GetNativeAllType()),
+		c.createVar(blind, "s", c.GetNativeStringObjectConstructorType()),
+		[]*semanticReverseAbstractInterpreterTest_TypedName{
+			newSemanticReverseAbstractInterpreterTest_TypedName("x", c.GetNativeStringObjectType()),
+			newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())},
+		[]*semanticReverseAbstractInterpreterTest_TypedName{newSemanticReverseAbstractInterpreterTest_TypedName("s", c.GetNativeStringObjectConstructorType())})
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.testBinop(FlowScope[], Token, Node, Node, Collection<TypedName>, Collection<TypedName>)
+func (c *SemanticReverseAbstractInterpreterTest) testBinop(
+	blind []FlowScope,
+	binop rhino.Token,
+	left *rhino.Node,
+	right *rhino.Node,
+	trueOutcome []*semanticReverseAbstractInterpreterTest_TypedName,
+	falseOutcome []*semanticReverseAbstractInterpreterTest_TypedName) {
+	condition := rhino.NewNode(binop)
+	condition.AddChildToBack(left)
+	condition.AddChildToBack(right)
+
+	// true outcome.
+	informedTrue :=
+		c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_TRUE)
+	for _, p := range trueOutcome {
+		c.AssertTypeEqualsMsg(p.name, p.type_, c.getVarType(informedTrue, p.name))
+	}
+
+	// false outcome.
+	informedFalse :=
+		c.interpreter.GetPreciserScopeKnowingConditionOutcome(condition, blind[0], rhino.Outcome_FALSE)
+	for _, p := range falseOutcome {
+		c.AssertTypeEquals(p.type_, c.getVarType(informedFalse, p.name))
+	}
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.createNull()
+func (c *SemanticReverseAbstractInterpreterTest) createNull() *rhino.Node {
+	n := rhino.NewNode(rhino.Token_NULL)
+	n.SetJSType(c.GetNativeNullType())
+	return n
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.createNumber(int)
+func (c *SemanticReverseAbstractInterpreterTest) createNumber(n int) *rhino.Node {
+	number := c.createUntypedNumber(n)
+	number.SetJSType(c.GetNativeNumberType())
+	return number
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.createUntypedNumber(int)
+func (c *SemanticReverseAbstractInterpreterTest) createUntypedNumber(n int) *rhino.Node {
+	return rhino.Node_NewNumber(float64(n))
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.getVarType(FlowScope, String)
+func (c *SemanticReverseAbstractInterpreterTest) getVarType(scope FlowScope, name string) rhino.JSType {
+	return scope.GetSlot(name).(rhino.StaticTypedSlot).GetType()
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.createVar(FlowScope[], String, JSType)
+func (c *SemanticReverseAbstractInterpreterTest) createVar(scope []FlowScope, name string, type_ rhino.JSType) *rhino.Node {
+	n := rhino.Node_NewStringWithToken(rhino.Token_NAME, name)
+	c.functionScope.Declare(name, n, nil, nil, true)
+	scope[0] = scope[0].InferSlotType(name, type_)
+	n.SetJSType(type_)
+	return n
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.TypedName
+type semanticReverseAbstractInterpreterTest_TypedName struct {
+	name  string
+	type_ rhino.JSType
+}
+
+// Java: SemanticReverseAbstractInterpreterTest.TypedName(String, JSType)
+func newSemanticReverseAbstractInterpreterTest_TypedName(name string, type_ rhino.JSType) *semanticReverseAbstractInterpreterTest_TypedName {
+	return &semanticReverseAbstractInterpreterTest_TypedName{name: name, type_: type_}
 }

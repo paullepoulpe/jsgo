@@ -5832,21 +5832,17 @@ func TestAllowlistedAnnotations(t *testing.T) {
 		"* @addon \n* @augments \n* @base \n* @borrows \n* @bug \n* @channel \n* @class \n* @config \n* @constructs \n* @default \n* @description \n* @enhance \n* @enhanceable \n* @event \n* @example \n* @exception \n* @exec \n* @externs \n* @field \n* @function \n* @delcall \n* @deltemplate \n* @hassoydelcall \n* @hassoydeltemplate \n* @id \n* @ignore \n* @jsx \n* @jsxFrag \n* @inner \n* @lends {string} \n* @link \n* @mayhaveextraedge \n* @member \n* @memberOf \n* @modName \n* @name \n* @namespace \n* @ngInject \n* @nocompile \n* @pintomodule \n* @property \n* @requirecss \n* @requires \n* @since \n* @soyTemplate \n* @soyModule \n* @static \n* @supported\n* @wizaction \n* @wizcallback \n*/\n")
 }
 
-func TestJsDocInfoPosition(t *testing.T) {
-	jt := newJsDocInfoParserTest(t)
-	// sourceFile is a jscomp SourceFile (not ported yet):
-	//   SourceFile sourceFile = SourceFile.fromCode("comment-position-test.js", code);
-	code := "   \n  /**\n   * A comment\n   */\n  function f(x) {}\n"
-	script := jt.parseFull(code)
-	jutil.CheckState(script.IsScript())
-	fn := script.GetFirstChild()
-	jutil.CheckState(fn.IsFunction())
-	jsdoc := fn.GetJSDocInfo()
+// TestJsDocInfoPosition (JsDocInfoParserTest.testJsDocInfoPosition) is in
+// js_doc_info_parser_position_test.go: it reads positions through a jscomp
+// SourceFile, so it is in the external test package parsing_test.
 
-	assertThat(t, jsdoc.GetOriginalCommentPosition()).IsEqualTo(6)
-	// Needs jscomp.SourceFile:
-	//   assertThat(sourceFile.getLineOfOffset(jsdoc.getOriginalCommentPosition())).isEqualTo(2);
-	//   assertThat(sourceFile.getColumnOfOffset(jsdoc.getOriginalCommentPosition())).isEqualTo(2);
+// JsDocInfoParserTest_ParseFull is parseFull(code) on a fresh test
+// instance, for the external test package.
+//
+// Go-only: test-helper — exported to parsing_test (see above).
+func JsDocInfoParserTest_ParseFull(t *testing.T, code string) *rhino.Node {
+	t.Helper()
+	return newJsDocInfoParserTest(t).parseFull(code)
 }
 
 func TestGetOriginalCommentString(t *testing.T) {

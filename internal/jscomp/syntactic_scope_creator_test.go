@@ -13,7 +13,7 @@ import (
 // newSyntacticScopeCreatorTest is its setUp.
 type syntacticScopeCreatorTest struct {
 	t              *testing.T
-	compiler       *testCompiler
+	compiler       *Compiler
 	scopeCreator   *SyntacticScopeCreator
 	redeclarations map[string]int // the HashMultiset<String>
 }

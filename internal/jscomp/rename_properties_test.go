@@ -324,7 +324,7 @@ var noo;noo.getC(noo);noo.zoo=noo;noo.cloo=noo;
 	compiler := c.CompileChunks("", chunks)
 
 	result := compiler.GetResult()
-	AssertThat(result.success).IsTrue()
+	AssertThat(result.Success).IsTrue()
 
 	AssertThat(compiler.ToSourceOfJSChunk(chunk1)).
 		IsEqualTo(

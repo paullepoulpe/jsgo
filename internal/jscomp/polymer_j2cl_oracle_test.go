@@ -152,14 +152,10 @@ func (d *polymerJ2clOracleDumper) exception(prefix string, r any) {
 	d.line(text)
 }
 
-// polymerJ2clOracleRun runs body, returning what it panicked with (a pending
-// port is not the pass's exception: it goes on, for SkipIfPendingPort).
+// polymerJ2clOracleRun runs body, returning what it panicked with.
 func polymerJ2clOracleRun(body func()) (exception any) {
 	defer func() {
 		if r := recover(); r != nil {
-			if _, ok := r.(*PendingPort); ok {
-				panic(r)
-			}
 			exception = r
 		}
 	}()
@@ -346,34 +342,18 @@ func TestPolymerJ2clGolden(t *testing.T) {
 	diffDir := os.Getenv("POLYMER_J2CL_DIFF_DIR")
 	for _, group := range []string{"polymer", "j2cl"} {
 		t.Run(group, func(t *testing.T) {
-			defer SkipIfPendingPort(t)
 			inputs := polymerJ2clOracleReadInputs(t, filepath.Join(polymerJ2clOracleDir, group+"-inputs.txt"))
 			want := polymerJ2clOracleReadBlocks(t, filepath.Join(polymerJ2clOracleDir, group+"-golden.txt.gz"))
 			if len(want) != len(inputs) {
 				t.Fatalf("%d golden blocks for %d inputs", len(want), len(inputs))
 			}
-			diffs, skipped := 0, 0
+			diffs := 0
 			for _, in := range inputs {
 				var got string
-				pending := func() (pending bool) {
-					defer func() {
-						if r := recover(); r != nil {
-							if _, ok := r.(*PendingPort); !ok {
-								panic(r)
-							}
-							pending = true
-						}
-					}()
-					if group == "polymer" {
-						got = polymerJ2clOracleDumpPolymer(in, string(externs))
-					} else {
-						got = polymerJ2clOracleDumpJ2cl(in)
-					}
-					return false
-				}()
-				if pending {
-					skipped++
-					continue
+				if group == "polymer" {
+					got = polymerJ2clOracleDumpPolymer(in, string(externs))
+				} else {
+					got = polymerJ2clOracleDumpJ2cl(in)
 				}
 				if got == want[in.name] {
 					continue
@@ -389,9 +369,7 @@ func TestPolymerJ2clGolden(t *testing.T) {
 				}
 			}
 			if diffs > 0 {
-				t.Errorf("%s: %d of %d inputs differ (%d reached a pending port)", group, diffs, len(inputs), skipped)
-			} else if skipped > 0 {
-				t.Logf("%s: %d inputs reached a pending port", group, skipped)
+				t.Errorf("%s: %d of %d inputs differ", group, diffs, len(inputs))
 			}
 		})
 	}

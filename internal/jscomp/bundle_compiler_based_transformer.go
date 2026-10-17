@@ -151,10 +151,10 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path
 		compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, SourceFile_FromCode(path.String(), code), s.self.Options())
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
-	if result.sourceMap != nil {
+	if result.SourceMap != nil {
 		jutil.Try(func() {
 			name := path.String()
-			result.sourceMap.AppendTo(&sourceMap, &name)
+			result.SourceMap.AppendTo(&sourceMap, &name)
 		}, func(e jutil.IIOException) {
 			// impossible, and not a big deal even if it did happen.
 		})
@@ -165,7 +165,7 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path
 		sm = sourceMap.String()
 	}
 	return NewCompilerBasedTransformer_CompileResult(
-		source, result.errors, transformed, sm)
+		source, result.Errors, transformed, sm)
 }
 
 // Java: CompilerSupplier.transformed(Result)

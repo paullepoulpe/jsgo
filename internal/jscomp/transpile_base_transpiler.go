@@ -180,17 +180,17 @@ func (s *BaseTranspiler_CompilerSupplierBase) Compile(path *jutil.URI, code stri
 			s.self.CreateTrivialExterns(), SourceFile_FromCode(path.String(), code), s.self.Options())
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
-	if result.sourceMap != nil {
+	if result.SourceMap != nil {
 		jutil.Try(func() {
 			name := path.String()
-			result.sourceMap.AppendTo(&sourceMap, &name)
+			result.SourceMap.AppendTo(&sourceMap, &name)
 		}, func(e jutil.IIOException) {
 			// impossible, and not a big deal even if it did happen.
 		})
 	}
 	transpiled := result.transpiledFiles
-	if len(result.errors) != 0 {
-		panic(NewTranspilationException(compiler, result.errors, result.warnings))
+	if len(result.Errors) != 0 {
+		panic(NewTranspilationException(compiler, result.Errors, result.Warnings))
 	}
 	sm := ""
 	if transpiled {

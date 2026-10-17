@@ -19,9 +19,6 @@ package jscomp
 //     the Java run's --sample and --full-every (RENAMING_FULL=1 for --full);
 //     RENAMING_DIFF_DIR, if set, receives <rel>.go.txt and <rel>.java.txt for
 //     every mismatching file. Use absolute paths.
-//
-// A run that reaches a declaration of pending_gen.go is reported as skipped
-// (SkipIfPendingPort).
 
 import (
 	"os"
@@ -161,7 +158,6 @@ func renamingDump_dumpTree(out []string, n *rhino.Node, level int) []string {
 }
 
 func TestRenamingDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	dir := filepath.Join("testdata", "renaming")
 	files := typeCheckDump_readList(t, filepath.Join(dir, "files.txt"))
 	oracleDump_compare(t, renamingDump_dumpFile, typeCheckDump_externs(t), filepath.Join(dir, "src"),
@@ -191,7 +187,6 @@ func TestRenamingDumpOracle(t *testing.T) {
 		sample = 1
 	}
 	files := typeCheckDump_readList(t, list)
-	defer SkipIfPendingPort(t)
 	oracleDump_compare(t, renamingDump_dumpFile, typeCheckDump_externs(t), root, oracle, files, sample,
 		atoi("RENAMING_FULL_EVERY", 0), os.Getenv("RENAMING_FULL") == "1", os.Getenv("RENAMING_DIFF_DIR"))
 }

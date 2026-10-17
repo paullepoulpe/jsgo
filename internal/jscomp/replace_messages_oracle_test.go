@@ -22,9 +22,6 @@ package jscomp
 //     Java run's --sample and --full-every (REPLACE_MESSAGES_FULL=1 for
 //     --full); REPLACE_MESSAGES_DIFF_DIR, if set, receives <rel>.go.txt and
 //     <rel>.java.txt for every mismatching file. Use absolute paths.
-//
-// A run that reaches a declaration of pending_gen.go is reported as skipped
-// (SkipIfPendingPort).
 
 import (
 	"iter"
@@ -203,7 +200,6 @@ func replaceMessagesDump_dumpVariant(
 }
 
 func TestReplaceMessagesDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	dir := filepath.Join("testdata", "replace_messages")
 	files := typeCheckDump_readList(t, filepath.Join(dir, "files.txt"))
 	oracleDump_compare(t, replaceMessagesDump_dumpFile, typeCheckDump_externs(t), filepath.Join(dir, "src"),
@@ -233,7 +229,6 @@ func TestReplaceMessagesDumpOracle(t *testing.T) {
 		sample = 1
 	}
 	files := typeCheckDump_readList(t, list)
-	defer SkipIfPendingPort(t)
 	oracleDump_compare(t, replaceMessagesDump_dumpFile, typeCheckDump_externs(t), root, oracle, files, sample,
 		atoi("REPLACE_MESSAGES_FULL_EVERY", 0), os.Getenv("REPLACE_MESSAGES_FULL") == "1",
 		os.Getenv("REPLACE_MESSAGES_DIFF_DIR"))

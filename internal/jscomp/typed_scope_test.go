@@ -81,7 +81,7 @@ func (v *typedScopeVectors) describe(tv *TypedVar) string {
 func (v *typedScopeVectors) run(t *testing.T) string {
 	options := NewCompilerOptions()
 	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	compiler := newTestCompiler(options).(*testCompiler)
+	compiler := newTestCompiler(options)
 	config := compiler.GetParserConfig(AbstractCompiler_ConfigContext_DEFAULT)
 	file := SourceFile_FromCode("typed.js", typedScopeVectors_SRC)
 	script := parsing.ParserRunner_Parse(file, typedScopeVectors_SRC, config, scopeDumpReporter{}).Ast

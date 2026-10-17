@@ -458,7 +458,6 @@ func TestChecksDumpGolden(t *testing.T) {
 	dir := filepath.Join("testdata", "checks")
 	files := checksDumpListDir(t, filepath.Join(dir, "src"))
 	t.Run("program", func(t *testing.T) {
-		defer SkipIfPendingPort(t) // Compiler.initOptions reaches passes not ported yet
 		checksDumpCompareProgram(t, filepath.Join(dir, "expected-program.txt"), filepath.Join(dir, "program"),
 			checksDumpListDir(t, filepath.Join(dir, "program")), "")
 	})
@@ -467,7 +466,6 @@ func TestChecksDumpGolden(t *testing.T) {
 		asExterns bool
 	}{{"code", false}, {"externs", true}} {
 		t.Run(mode.name, func(t *testing.T) {
-			defer SkipIfPendingPort(t) // Compiler.initOptions reaches passes not ported yet
 			if n := checksDumpCompare(t, filepath.Join(dir, "expected-"+mode.name+".txt"),
 				filepath.Join(dir, "src"), files, mode.asExterns, ""); n != 0 {
 				t.Errorf("%d of %d files differ", n, len(files))
@@ -481,7 +479,6 @@ func TestChecksDumpOracle(t *testing.T) {
 	if oracle == "" || root == "" || list == "" {
 		t.Skip("set CHECKS_ORACLE, CHECKS_ROOT and CHECKS_FILES to compare a ChecksDump run")
 	}
-	defer SkipIfPendingPort(t) // Compiler.initOptions reaches passes not ported yet
 	files := checksDumpReadList(t, list)
 	if os.Getenv("CHECKS_PROGRAM") == "1" {
 		checksDumpCompareProgram(t, oracle, root, files, os.Getenv("CHECKS_DIFF_DIR"))

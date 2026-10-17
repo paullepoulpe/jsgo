@@ -1,5 +1,21 @@
 // Port of com/google/javascript/jscomp/ClosureReverseAbstractInterpreterTest.java @ closure-compiler v20260415
 
+/*
+ * Copyright 2007 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
@@ -8,112 +24,117 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func TestClosureReverseAbstractInterpreter_GoogIsObjectOnNull(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c, "goog.isObject", nil, c.getNativeObjectType(), nil)
+// Java: public final class ClosureReverseAbstractInterpreterTest extends CompilerTypeTestCase
+type ClosureReverseAbstractInterpreterTest struct {
+	CompilerTypeTestCaseBase
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject1(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
-		"goog.isObject", c.getNativeAllType(), c.getNativeNoObjectType(), c.getNativeAllType())
+// Java: ClosureReverseAbstractInterpreterTest()
+func NewClosureReverseAbstractInterpreterTest() *ClosureReverseAbstractInterpreterTest {
+	c := &ClosureReverseAbstractInterpreterTest{}
+	c.InitCompilerTypeTestCaseBase(c)
+	return c
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject2a(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
+func TestClosureReverseAbstractInterpreterTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return NewClosureReverseAbstractInterpreterTest() })
+}
+
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObjectOnNull()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObjectOnNull() {
+	c.testClosureFunction("goog.isObject", nil, c.GetNativeObjectType(), nil)
+}
+
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject1()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject1() {
+	c.testClosureFunction(
+		"goog.isObject", c.GetNativeAllType(), c.GetNativeNoObjectType(), c.GetNativeAllType())
+}
+
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject2a()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject2a() {
+	c.testClosureFunction(
 		"goog.isObject",
-		c.createUnionType(c.getNativeObjectType(), c.getNativeNumberStringBooleanType()),
-		c.getNativeObjectType(),
-		c.getNativeNumberStringBooleanType())
+		c.CreateUnionType(c.GetNativeObjectType(), c.GetNativeNumberStringBooleanType()),
+		c.GetNativeObjectType(),
+		c.GetNativeNumberStringBooleanType())
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject2b(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject2b()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject2b() {
+	c.testClosureFunction(
 		"goog.isObject",
-		c.createUnionType(c.getNativeObjectType(), c.getNativeValueTypes()),
-		c.getNativeObjectType(),
-		c.getNativeValueTypes())
+		c.CreateUnionType(c.GetNativeObjectType(), c.GetNativeValueTypes()),
+		c.GetNativeObjectType(),
+		c.GetNativeValueTypes())
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject3a(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject3a()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject3a() {
+	c.testClosureFunction(
 		"goog.isObject",
-		c.createUnionType(
-			c.getNativeObjectType(),
-			c.getNativeNumberStringBooleanType(),
-			c.getNativeNullType(),
-			c.getNativeVoidType()),
-		c.getNativeObjectType(),
-		c.createUnionType(
-			c.getNativeNumberStringBooleanType(), c.getNativeNullType(), c.getNativeVoidType()))
+		c.CreateUnionType(
+			c.GetNativeObjectType(),
+			c.GetNativeNumberStringBooleanType(),
+			c.GetNativeNullType(),
+			c.GetNativeVoidType()),
+		c.GetNativeObjectType(),
+		c.CreateUnionType(
+			c.GetNativeNumberStringBooleanType(), c.GetNativeNullType(), c.GetNativeVoidType()))
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject3b(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject3b()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject3b() {
+	c.testClosureFunction(
 		"goog.isObject",
-		c.createUnionType(
-			c.getNativeObjectType(), c.getNativeValueTypes(), c.getNativeNullType(), c.getNativeVoidType()),
-		c.getNativeObjectType(),
-		c.createUnionType(c.getNativeValueTypes(), c.getNativeNullType(), c.getNativeVoidType()))
+		c.CreateUnionType(
+			c.GetNativeObjectType(), c.GetNativeValueTypes(), c.GetNativeNullType(), c.GetNativeVoidType()),
+		c.GetNativeObjectType(),
+		c.CreateUnionType(c.GetNativeValueTypes(), c.GetNativeNullType(), c.GetNativeVoidType()))
 }
 
-func TestClosureReverseAbstractInterpreter_GoogIsObject4(t *testing.T) {
-	c := newCompilerTypeTestCase(t)
-	testClosureFunction(c,
+// Java: ClosureReverseAbstractInterpreterTest.testGoogIsObject4()
+func (c *ClosureReverseAbstractInterpreterTest) TestGoogIsObject4() {
+	c.testClosureFunction(
 		"goog.isObject",
-		c.getNativeUnknownType(),
-		c.getNativeNoObjectType(), // ? Should this be CHECKED_UNKNOWN?
-		c.getNativeCheckedUnknownType())
+		c.GetNativeUnknownType(),
+		c.GetNativeNoObjectType(), // ? Should this be CHECKED_UNKNOWN?
+		c.GetNativeCheckedUnknownType())
 }
 
-// testClosureFunction checks `function(a)` where a : type.
-//
-// Go-only: test adapter — the Java test parses "var a; goog.isObject(a)"
-// with compiler.parseTestCode and builds the flow scope with
-// TypedScopeCreator and LinkedFlowScope.createEntryLattice, none of which is
-// ported yet. Here the CALL node is built with IR (the shape the parser
-// produces: a SCRIPT whose last statement is the call) and the flow scope is
-// the copy-on-write test scope; `a` is declared without a type, as `var a;`
-// declares it.
-func testClosureFunction(
-	c *compilerTypeTestCase, function string, type_ rhino.JSType, trueType rhino.JSType, falseType rhino.JSType) {
-	c.t.Helper()
+// Java: ClosureReverseAbstractInterpreterTest.testClosureFunction(String, JSType, JSType, JSType)
+func (c *ClosureReverseAbstractInterpreterTest) testClosureFunction(
+	function string, type_ rhino.JSType, trueType rhino.JSType, falseType rhino.JSType) {
 	// function(a) where a : type
-	parts := rhino.QualifiedName_Of(function)
-	n := rhino.IR_ScriptOfNodes(
-		rhino.IR_Var(rhino.IR_Name("a")),
-		rhino.IR_ExprResult(rhino.IR_Call(
-			rhino.IR_Getprop(rhino.IR_Name(parts.GetOwner().Join()), parts.GetComponent()),
-			rhino.IR_Name("a"))))
+	n := c.compiler.ParseTestCode("var a; " + function + "(a)")
 	call := n.GetLastChild().GetLastChild()
 	name := call.GetLastChild()
 
-	var flowScope FlowScope = newTestFlowScope()
+	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(n))
+	scope := NewTypedScopeCreator(c.compiler).CreateScope(root, nil).(*TypedScope)
+	var flowScope FlowScope = LinkedFlowScope_CreateEntryLattice(c.compiler, scope)
 
-	c.truth.AssertThat(call.GetToken()).IsEqualTo(rhino.Token_CALL)
-	c.truth.AssertThat(name.GetToken()).IsEqualTo(rhino.Token_NAME)
+	AssertThat(call.GetToken()).IsEqualTo(rhino.Token_CALL)
+	AssertThat(name.GetToken()).IsEqualTo(rhino.Token_NAME)
 
 	flowScope = flowScope.InferSlotType("a", type_)
 	rai := NewClosureReverseAbstractInterpreter(c.registry)
 
 	// trueScope
-	c.truth.AssertType(
+	TypeSubject_AssertType(
 		rai.GetPreciserScopeKnowingConditionOutcome(call, flowScope, rhino.Outcome_TRUE).
 			GetSlot("a").(rhino.StaticTypedSlot).
 			GetType()).
 		IsEqualTo(trueType)
 
 	// falseScope
-	aType := rai.GetPreciserScopeKnowingConditionOutcome(call, flowScope, rhino.Outcome_FALSE).
-		GetSlot("a").(rhino.StaticTypedSlot).
-		GetType()
+	aType :=
+		rai.GetPreciserScopeKnowingConditionOutcome(call, flowScope, rhino.Outcome_FALSE).
+			GetSlot("a").(rhino.StaticTypedSlot).
+			GetType()
 	if falseType == nil {
-		c.truth.AssertThat(aType).IsNull()
+		AssertThat(aType).IsNull()
 	} else {
-		c.truth.AssertType(aType).IsEqualTo(falseType)
+		TypeSubject_AssertType(aType).IsEqualTo(falseType)
 	}
 }

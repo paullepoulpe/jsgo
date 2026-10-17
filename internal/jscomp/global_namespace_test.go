@@ -1451,7 +1451,7 @@ func (c *GlobalNamespaceTest) ParseChunks(chunks []*JSChunk) *GlobalNamespace {
 	compiler := NewCompiler()
 	result := compiler.CompileChunks([]*SourceFile{}, slices.Clone(chunks), options)
 	AssertThat(compiler.GetErrors()).IsEmpty()
-	AssertThat(result.success).IsTrue()
+	AssertThat(result.Success).IsTrue()
 	c.lastCompiler = compiler
 	return NewGlobalNamespace(c.lastCompiler, c.lastCompiler.GetRoot())
 }

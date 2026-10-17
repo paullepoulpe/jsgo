@@ -308,9 +308,6 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 		if r == nil {
 			return
 		}
-		if _, uncatchable := r.(Uncatchable); uncatchable {
-			panic(r)
-		}
 		if e, match := r.(E); match {
 			caught, ok = e, true
 			return
@@ -325,17 +322,6 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 	}()
 	body()
 	return caught, false
-}
-
-// Uncatchable marks a panic value that no Java catch block catches: Try
-// re-panics it whatever its handler's type.
-//
-// Go-only: language-adapter — the declarations generated for not-yet-ported
-// Java members (internal/jscomp/pending_gen.go) panic with one, so that
-// ported catch blocks do not turn "not ported yet" into a Java exception.
-type Uncatchable interface {
-	error
-	Uncatchable()
 }
 
 // Throw panics with t. It exists so that call sites read like Java and so

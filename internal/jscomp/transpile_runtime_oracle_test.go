@@ -742,7 +742,6 @@ func trCompare(t *testing.T, root string, files []*trJavaFile, diffDir string) {
 }
 
 func TestTranspileRuntimeOracleGolden(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	dir := filepath.Join("testdata", "transpile_runtime")
 	for _, dump := range []string{"golden.txt.gz", "golden-inject.txt.gz"} {
 		files := trReadJavaDump(t, filepath.Join(dir, dump))
@@ -754,7 +753,6 @@ func TestTranspileRuntimeOracleGolden(t *testing.T) {
 }
 
 func TestTranspileRuntimeOracleCorpus(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	dumps := os.Getenv("TRANSPILE_RUNTIME_ORACLE")
 	if dumps == "" {
 		t.Skip("TRANSPILE_RUNTIME_ORACLE not set")

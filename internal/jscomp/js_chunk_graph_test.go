@@ -27,7 +27,7 @@ type jsChunkGraphTest struct {
 }
 
 func newJSChunkGraphTest(t *testing.T) *jsChunkGraphTest {
-	return &jsChunkGraphTest{t: t, compiler: newTestCompilerUninitialized()}
+	return &jsChunkGraphTest{t: t, compiler: NewCompiler()}
 }
 
 func (x *jsChunkGraphTest) makeDeps() {

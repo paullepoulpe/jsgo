@@ -150,19 +150,18 @@ func nuParse(t *testing.T, js string) *rhino.Node {
 }
 
 // nuParseWithCompiler is ParseHelper.parse, also returning ParseHelper.compiler.
-func nuParseWithCompiler(t *testing.T, js string) (*rhino.Node, *testCompiler) {
+func nuParseWithCompiler(t *testing.T, js string) (*rhino.Node, *Compiler) {
 	t.Helper()
 	options := NewCompilerOptions()
 
 	// To allow octal literals such as 0123 to be parsed.
 	options.SetStrictModeInput(false)
-	// Go-only: test-helper — options.setWarningLevel(DiagnosticGroups.ES5_STRICT, CheckLevel.OFF)
-	// needs DiagnosticGroups (above the core); it only turns warnings off, and only the errors
-	// are checked below.
+	options.SetWarningLevel(DiagnosticGroups_ES5_STRICT, CheckLevel_OFF)
 
 	options.SetLanguageIn(CompilerOptions_LanguageMode_UNSUPPORTED)
 
-	compiler := newTestCompiler(options).(*testCompiler)
+	compiler := NewCompiler()
+	compiler.InitOptions(options)
 	n := compiler.ParseTestCode(js)
 	nuAssertThat(t, compiler.GetErrors()).IsEmpty()
 	return n, compiler
@@ -473,25 +472,25 @@ func TestNodeUtil_BooleanValueTests_GetBooleanValue(t *testing.T) {
 // ==== IsPropertyTestTests public static final class IsPropertyTestTests {
 
 func TestNodeUtil_IsPropertyTestTests_OptChainGetPropIsPropertyTest(t *testing.T) {
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	getProp := nuParseExpr(t, "x.y?.z")
 	nuAssertThat(t, NodeUtil_IsPropertyTest(compiler, getProp.GetFirstChild())).IsTrue()
 }
 
 func TestNodeUtil_IsPropertyTestTests_OptChainGetElemIsPropertyTest(t *testing.T) {
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	getElem := nuParseExpr(t, "x.y?.[z]")
 	nuAssertThat(t, NodeUtil_IsPropertyTest(compiler, getElem.GetFirstChild())).IsTrue()
 }
 
 func TestNodeUtil_IsPropertyTestTests_OptChainCallIsPropertyTest(t *testing.T) {
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	call := nuParseExpr(t, "x.y?.(z)")
 	nuAssertThat(t, NodeUtil_IsPropertyTest(compiler, call.GetFirstChild())).IsTrue()
 }
 
 func TestNodeUtil_IsPropertyTestTests_OptChainNonStartOfChainIsPropertyTest(t *testing.T) {
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	getProp := nuParseExpr(t, "x.y?.z.foo.bar")
 	nuAssertThat(t, NodeUtil_IsPropertyTest(compiler, getProp.GetFirstChild())).IsTrue()
 }
@@ -3592,7 +3591,6 @@ func nuh_assertNotLhsByDestructuring(t *testing.T, n *rhino.Node) {
 }
 
 func TestNodeUtil_AssortedTests_TestNewQName1(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	compiler := NewCompiler()
 	options := NewCompilerOptions()
 	options.SetCodingConvention(NewGoogleCodingConvention())
@@ -3603,7 +3601,6 @@ func TestNodeUtil_AssortedTests_TestNewQName1(t *testing.T) {
 }
 
 func TestNodeUtil_AssortedTests_TestNewQualifiedNameNode2(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	compiler := NewCompiler()
 	options := NewCompilerOptions()
 	options.SetCodingConvention(NewGoogleCodingConvention())
@@ -3614,22 +3611,18 @@ func TestNodeUtil_AssortedTests_TestNewQualifiedNameNode2(t *testing.T) {
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithQualifiedName(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "ns.prop", rhino.IR_Number(0), rhino.Token_VAR)).IsEqualTo(rhino.IR_ExprResult(rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name("ns"), "prop"), rhino.IR_Number(0))))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithVar(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_VAR)).IsEqualTo(rhino.IR_VarWithValue(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithLet(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_LET)).IsEqualTo(rhino.IR_LetWithValue(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithConst(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_CONST)).IsEqualTo(rhino.IR_ConstNode(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
@@ -3909,7 +3902,7 @@ func TestNodeUtil_AssortedTests_TestIsObjectDefinePropertyDefinition(t *testing.
 func TestNodeUtil_AssortedTests_TestGetAllModuleVars(t *testing.T) {
 	js :=
 		"goog.module('m'); var h =2; function g(x, y) {var z; {let a; const b = 1} let c}"
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 
 	compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	scopeCreator := NewSyntacticScopeCreator(compiler)
@@ -3923,7 +3916,7 @@ func TestNodeUtil_AssortedTests_TestGetAllModuleVars(t *testing.T) {
 
 func TestNodeUtil_AssortedTests_TestGetAllModuleVars2(t *testing.T) {
 	js := "var glob = 3;"
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 
 	compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	scopeCreator := NewSyntacticScopeCreator(compiler)
@@ -3940,7 +3933,7 @@ func TestNodeUtil_AssortedTests_TestGetAllModuleVars2(t *testing.T) {
 
 func TestNodeUtil_AssortedTests_TestGetAllVars1(t *testing.T) {
 	fnString := "var h; function g(x, y) {var z; h = 2; {let a; const b = 1} let c}"
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	scopeCreator := NewSyntacticScopeCreator(compiler)
 
@@ -3961,7 +3954,7 @@ func TestNodeUtil_AssortedTests_TestGetAllVars2(t *testing.T) {
 	fnString :=
 		"function g(x, y)\n{var z;\n{let a = (no1, no2) => { let no6, no7; };\nconst b = 1}\nlet c}\nfunction u(h) {let e}\n"
 
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	scopeCreator := NewSyntacticScopeCreator(compiler)
 
@@ -4319,13 +4312,37 @@ func TestNodeUtil_GetEndOfOptChainTests_BreakingOutOfOptChain(t *testing.T) {
 
 // ==== CreateSynthesizedExternsSymbolTests (extends CompilerTestCase)
 
-func TestNodeUtil_CreateSynthesizedExternsSymbolTests_Test(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
-	t.Skip("needs CompilerTestCase")
-	// getProcessor(compiler) returns a CompilerPass whose process(externs, srcs) calls
-	// NodeUtil.createSynthesizedExternsSymbol(compiler, "TEST_NAME").
+// Java: NodeUtilTest.CreateSynthesizedExternsSymbolTests
+type NodeUtilTest_CreateSynthesizedExternsSymbolTests struct {
+	CompilerTestCaseBase
+}
+
+// Java: NodeUtilTest.CreateSynthesizedExternsSymbolTests()
+func NewNodeUtilTest_CreateSynthesizedExternsSymbolTests() *NodeUtilTest_CreateSynthesizedExternsSymbolTests {
+	c := &NodeUtilTest_CreateSynthesizedExternsSymbolTests{}
+	c.InitCompilerTestCaseBase(c)
+	return c
+}
+
+func TestNodeUtil_CreateSynthesizedExternsSymbolTests(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return NewNodeUtilTest_CreateSynthesizedExternsSymbolTests() })
+}
+
+// Java: NodeUtilTest.CreateSynthesizedExternsSymbolTests.getProcessor(Compiler)
+func (c *NodeUtilTest_CreateSynthesizedExternsSymbolTests) GetProcessor(compiler *Compiler) CompilerPass {
+	return CompilerPassFunc(func(externs *rhino.Node, srcs *rhino.Node) {
+		expectedExtern := "TEST_NAME"
+		NodeUtil_CreateSynthesizedExternsSymbol(compiler, expectedExtern)
+	})
+}
+
+// Go-only: test-helper — renamed: the Go name Test is CompilerTestCase's
+// test(...), which Java overloads.
+//
+// Java: NodeUtilTest.CreateSynthesizedExternsSymbolTests.test()
+func (c *NodeUtilTest_CreateSynthesizedExternsSymbolTests) TestTest() {
 	// setup a simple compilation job
-	// testExternChanges(externs(""), srcs(""), expected("var TEST_NAME"));
+	c.TestExternChanges(c.Externs(""), c.Srcs(""), c.Expected("var TEST_NAME"))
 }
 
 // ==== NodeTraversalTests public static class NodeTraversalTests {
@@ -4363,7 +4380,7 @@ func TestNodeUtil_NodeTraversalTests_TestIteratePreOrderWithPredicate(t *testing
 
 func TestNodeUtil_NodeTraversalTests_ProhibitAddingNonAllowableFeatureToScriptExceptModules(t *testing.T) {
 	scriptNode := nuParse(t, "")
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	compiler.SetAllowableFeatures(parser.FeatureSet_BARE_MINIMUM)
 	NodeUtil_AddFeatureToScript(scriptNode, parser.FeatureSet_Feature_MODULES, compiler)
 
@@ -4378,7 +4395,7 @@ func TestNodeUtil_NodeTraversalTests_ProhibitAddingNonAllowableFeatureToScriptEx
 func TestNodeUtil_NodeTraversalTests_RemoveFeatureFromAllScriptUpdatesCompilerFeatureSet(t *testing.T) {
 	rootNode := rhino.IR_Root()
 	rootNode.AddChildToFront(nuParse(t, ""))
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	compiler.SetAllowableFeatures(parser.FeatureSet_ES2020)
 	nuAssertFS(t, compiler.GetAllowableFeatures()).Equals(parser.FeatureSet_ES2020)
 
@@ -4389,7 +4406,7 @@ func TestNodeUtil_NodeTraversalTests_RemoveFeatureFromAllScriptUpdatesCompilerFe
 func TestNodeUtil_NodeTraversalTests_RemoveFeatureSetFromAllScriptUpdatesCompilerFeatureSet(t *testing.T) {
 	rootNode := rhino.IR_Root()
 	rootNode.AddChildToFront(nuParse(t, ""))
-	compiler := newTestCompiler(NewCompilerOptions()) // Java: new Compiler()
+	compiler := NewCompiler() // Java: new Compiler()
 	compiler.SetAllowableFeatures(parser.FeatureSet_ES2020)
 	nuAssertFS(t, compiler.GetAllowableFeatures()).Equals(parser.FeatureSet_ES2020)
 

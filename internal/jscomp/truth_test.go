@@ -883,6 +883,16 @@ func Correspondence_Transforming[A, E any](fn func(actual A) E, description stri
 	return Correspondence_From(func(a A, e E) bool { return truthEqual(fn(a), e) }, description)
 }
 
+// Correspondence_TransformingBoth is Correspondence.transforming(
+// actualTransform, expectedTransform, description): an actual element
+// matches if actualTransform(actual) equals expectedTransform(expected).
+func Correspondence_TransformingBoth[A, E, T any](
+	actualTransform func(actual A) T, expectedTransform func(expected E) T, description string) *Correspondence {
+	return Correspondence_From(func(a A, e E) bool {
+		return truthEqual(actualTransform(a), expectedTransform(e))
+	}, description)
+}
+
 // FormattingDiffsUsing is Correspondence.formattingDiffsUsing(formatter).
 func FormattingDiffsUsing[A, E any](c *Correspondence, formatter func(actual A, expected E) string) *Correspondence {
 	return &Correspondence{
@@ -982,6 +992,19 @@ func (u *UsingCorrespondence) DoesNotContain(excluded any) {
 	for _, a := range u.s.list() {
 		if u.c.compare(a, excluded) {
 			u.s.failf("expected not to contain any element that %s %s\nbut contained %s", u.c.description, show(excluded), show(a))
+		}
+	}
+}
+
+// ContainsNoneIn is UsingCorrespondence.containsNoneIn(excluded): no
+// actual element corresponds to any excluded element.
+func (u *UsingCorrespondence) ContainsNoneIn(excluded any) {
+	for _, e := range u.s.listOf(excluded) {
+		for _, a := range u.s.list() {
+			if u.c.compare(a, e) {
+				u.s.failf("expected not to contain any element that %s any of %s\nbut contained %s (corresponding to %s)",
+					u.c.description, show(excluded), show(a), show(e))
+			}
 		}
 	}
 }

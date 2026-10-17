@@ -1,11 +1,15 @@
 // Port of com/google/gson/JsonElement.java (Gson 2.9.1), with
 // com/google/gson/JsonObject.java, JsonArray.java, JsonPrimitive.java,
-// JsonNull.java and com/google/gson/internal/LazilyParsedNumber.java
+// JsonNull.java and com/google/gson/internal/LazilyParsedNumber.java, and
+// the LinkedTreeMap.Node.hashCode of com/google/gson/internal/LinkedTreeMap.java
+// (in JsonObject.hashCode)
 
 /*
  * Copyright (C) 2008 Google Inc. (JsonElement.java, JsonObject.java, JsonArray.java,
  *   JsonPrimitive.java, JsonNull.java)
  * Copyright (C) 2011 Google Inc. (LazilyParsedNumber.java)
+ * Copyright (C) 2010 The Android Open Source Project, Copyright (C) 2012 Google Inc.
+ *   (LinkedTreeMap.java)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +34,9 @@ import (
 // Go-only: language-adapter — Gson 2.9.1's JSON tree (com.google.gson.
 // JsonElement, JsonObject, JsonArray, JsonPrimitive, JsonNull and
 // com.google.gson.internal.LazilyParsedNumber), as shaded into the pinned
-// closure-compiler.jar. Ported from the Gson 2.9.1 sources; members that
-// need Java's floating-point parsing (getAsDouble, getAsFloat, ...),
-// BigInteger/BigDecimal results, or equals/hashCode are not provided.
+// closure-compiler.jar. Ported from the Gson 2.9.1 sources; the getters
+// with floating-point or BigInteger/BigDecimal results (getAsDouble,
+// getAsFloat, getAsBigDecimal, ...) are not provided.
 
 // JavaNumber is java.lang.Number as seen by Gson.
 type JavaNumber interface {
@@ -40,6 +44,8 @@ type JavaNumber interface {
 	IntValue() int32
 	// Java: Number.longValue()
 	LongValue() int64
+	// Java: Number.doubleValue()
+	DoubleValue() float64
 	// Java: Number.toString()
 	String() string
 }
@@ -76,6 +82,10 @@ type JsonElement interface {
 	GetAsInt() int32
 	// Java: JsonElement.toString()
 	String() string
+	// Java: Object.equals(Object), overridden by every JsonElement subclass
+	Equals(o any) bool
+	// Java: Object.hashCode(), overridden by every JsonElement subclass
+	HashCode() int32
 
 	// Go-only: language-adapter — field access through the interface.
 	GetJsonElementBase() *JsonElementBase
@@ -310,6 +320,47 @@ func (o *JsonObject) Get(memberName string) JsonElement {
 	return o.members.Get(memberName)
 }
 
+// Equals reports whether other is a JsonObject with equal members.
+//
+// Java: JsonObject.equals(Object)
+func (o *JsonObject) Equals(other any) bool {
+	if other == any(o) {
+		return true
+	}
+	if x, ok := other.(*JsonObject); ok && x != nil {
+		return jsonObject_membersEqual(x.members, o.members)
+	}
+	return false
+}
+
+// jsonObject_membersEqual is LinkedTreeMap.equals (Map.equals): the same
+// keys, each mapped to equal values.
+func jsonObject_membersEqual(a, b *LinkedHashMap[string, JsonElement]) bool {
+	if a.Size() != b.Size() {
+		return false
+	}
+	for k, v := range a.All() {
+		w, ok := b.Lookup(k)
+		if !ok || !v.Equals(w) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is the members' Map.hashCode(): the sum of the entries' hash
+// codes, each LinkedTreeMap.Node.hashCode(), key.hashCode() ^
+// value.hashCode().
+//
+// Java: JsonObject.hashCode()
+func (o *JsonObject) HashCode() int32 {
+	h := int32(0)
+	for k, v := range o.members.All() {
+		h += StringHashCode(k) ^ v.HashCode()
+	}
+	return h
+}
+
 // ---------------------------------------------------------------------------
 // JsonArray
 
@@ -424,6 +475,37 @@ func (a *JsonArray) GetAsBoolean() bool {
 		return a.elements.Get(0).GetAsBoolean()
 	}
 	panic(NewIllegalStateException())
+}
+
+// Equals reports whether other is a JsonArray with equal elements, in the
+// same order (ArrayList.equals).
+//
+// Java: JsonArray.equals(Object)
+func (a *JsonArray) Equals(o any) bool {
+	if o == any(a) {
+		return true
+	}
+	x, ok := o.(*JsonArray)
+	if !ok || x == nil || x.elements.Size() != a.elements.Size() {
+		return false
+	}
+	for i := 0; i < a.elements.Size(); i++ {
+		if !x.elements.Get(i).Equals(a.elements.Get(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is the elements' List.hashCode().
+//
+// Java: JsonArray.hashCode()
+func (a *JsonArray) HashCode() int32 {
+	h := int32(1)
+	for e := range a.elements.All() {
+		h = 31*h + e.HashCode()
+	}
+	return h
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +624,67 @@ func (p *JsonPrimitive) GetAsInt() int32 {
 	return IntegerParseInt(p.GetAsString(), 10)
 }
 
+// Java: JsonPrimitive.hashCode()
+func (p *JsonPrimitive) HashCode() int32 {
+	if p.value == nil {
+		return 31
+	}
+	// Using recommended hashing algorithm from Effective Java for longs and doubles
+	if jsonPrimitive_isIntegral(p) {
+		value := p.GetAsNumber().LongValue()
+		return int32(value ^ Ushr64(value, 32))
+	}
+	if _, ok := p.value.(JavaNumber); ok {
+		value := DoubleToLongBits(p.GetAsNumber().DoubleValue())
+		return int32(value ^ Ushr64(value, 32))
+	}
+	return ObjectHashCode(p.value)
+}
+
+// Java: JsonPrimitive.equals(Object)
+func (p *JsonPrimitive) Equals(obj any) bool {
+	if obj == any(p) {
+		return true
+	}
+	other, ok := obj.(*JsonPrimitive)
+	if !ok || other == nil {
+		return false
+	}
+	if p.value == nil {
+		return other.value == nil
+	}
+	if jsonPrimitive_isIntegral(p) && jsonPrimitive_isIntegral(other) {
+		return p.GetAsNumber().LongValue() == other.GetAsNumber().LongValue()
+	}
+	_, numberA := p.value.(JavaNumber)
+	_, numberB := other.value.(JavaNumber)
+	if numberA && numberB {
+		a := p.GetAsNumber().DoubleValue()
+		// Java standard types other than double return true for two NaN. So, need
+		// special handling for double.
+		b := other.GetAsNumber().DoubleValue()
+		return a == b || (a != a && b != b)
+	}
+	// value.equals(other.value): a String, a Boolean, or a Number that is
+	// not equal to the String or Boolean other.value.
+	if numberA {
+		return false
+	}
+	return p.value == other.value
+}
+
+// jsonPrimitive_isIntegral returns true if the specified number is an
+// integral type (Long, Integer, Short, Byte, BigInteger).
+//
+// Java: JsonPrimitive.isIntegral(JsonPrimitive)
+func jsonPrimitive_isIntegral(primitive *JsonPrimitive) bool {
+	switch primitive.value.(type) {
+	case Integer, gson_javaInteger:
+		return true
+	}
+	return false
+}
+
 // ---------------------------------------------------------------------------
 // JsonNull
 
@@ -562,6 +705,29 @@ func newJsonNull() *JsonNull {
 // Java: JsonNull.deepCopy()
 func (n *JsonNull) DeepCopy() JsonElement {
 	return JsonNull_INSTANCE
+}
+
+// HashCode is JsonNull.class.hashCode().
+//
+// Go-only: language-adapter — Java returns the identity hash of the
+// JsonNull class object, which is arbitrary; this is a fixed value (the
+// hash of the class name).
+//
+// Java: JsonNull.hashCode()
+func (n *JsonNull) HashCode() int32 {
+	return StringHashCode(jsonElementClassName(n))
+}
+
+// Equals reports whether other is a JsonNull: all instances of JsonNull
+// are the same.
+//
+// Java: JsonNull.equals(Object)
+func (n *JsonNull) Equals(other any) bool {
+	if other == any(n) {
+		return true
+	}
+	x, ok := other.(*JsonNull)
+	return ok && x != nil
 }
 
 // ---------------------------------------------------------------------------
@@ -604,7 +770,28 @@ func (n *LazilyParsedNumber) LongValue() (result int64) {
 	return result
 }
 
+// Java: LazilyParsedNumber.doubleValue()
+func (n *LazilyParsedNumber) DoubleValue() float64 {
+	return DoubleParseDouble(n.value)
+}
+
 // Java: LazilyParsedNumber.toString()
 func (n *LazilyParsedNumber) String() string {
 	return n.value
+}
+
+// Java: LazilyParsedNumber.hashCode()
+func (n *LazilyParsedNumber) HashCode() int32 {
+	return StringHashCode(n.value)
+}
+
+// Java: LazilyParsedNumber.equals(Object)
+func (n *LazilyParsedNumber) Equals(obj any) bool {
+	if obj == any(n) {
+		return true
+	}
+	if other, ok := obj.(*LazilyParsedNumber); ok && other != nil {
+		return n.value == other.value
+	}
+	return false
 }

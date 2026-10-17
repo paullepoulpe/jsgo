@@ -80,7 +80,6 @@ func TestTranspiler_Transpiler_noTranspilation(t *testing.T) {
 // Tests for CompilerSupplier
 
 func TestTranspiler_CompilerSupplier_compileChanged(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	compiler := Transpiler_CompilerSupplier()
 	result := compiler.Compile(transpilerTest_SOURCE_JS, "const x = () => 42;")
 	if result.source != "var x = function() {\n  return 42;\n};\n" || len(result.errors) != 0 || !result.transformed ||
@@ -90,7 +89,6 @@ func TestTranspiler_CompilerSupplier_compileChanged(t *testing.T) {
 }
 
 func TestTranspiler_CompilerSupplier_compileNoChange(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	compiler := Transpiler_CompilerSupplier()
 	result := compiler.Compile(transpilerTest_SOURCE_JS, "var x = 42;")
 	if result.source != "var x = 42;\n" || len(result.errors) != 0 || result.transformed || result.sourceMap != "" {
@@ -99,7 +97,6 @@ func TestTranspiler_CompilerSupplier_compileNoChange(t *testing.T) {
 }
 
 func TestTranspiler_CompilerSupplier_runtime(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	compiler := Transpiler_CompilerSupplier()
 	runtime := compiler.Runtime("es6_runtime")
 	for _, want := range []string{"$jscomp.polyfill(\"Map\"", "$jscomp.makeIterator", "$jscomp.inherits"} {

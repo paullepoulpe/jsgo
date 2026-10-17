@@ -25,8 +25,6 @@ package jscomp
 //     corpus under /home/user/jsgo/.cache/corpus). The held-out corpus
 //     (.cache/corpus-holdout, corpus-holdout-files.txt) is for a final check
 //     only.
-//
-// A dump that reaches a not-yet-ported member (PendingPort) skips the test.
 
 import (
 	"bufio"
@@ -226,13 +224,10 @@ func transpileBOracleRemoveFirst(list []string, s string) []string {
 }
 
 // runPass runs one pass; it returns the "exception ..." line if the pass
-// panicked with a Java exception. A PendingPort panic propagates.
+// panicked with a Java exception.
 func (d *transpileBOracleDumper) runPass(c *Compiler, pass *transpileBOracleNamedPass) (exception string) {
 	defer func() {
 		if r := recover(); r != nil {
-			if _, pending := r.(*PendingPort); pending {
-				panic(r)
-			}
 			exception = "exception " + transpileBOracleException(r)
 		}
 	}()
@@ -401,9 +396,6 @@ func transpileBOracleCompare(t *testing.T, path string, root string, onlyNames f
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, pending := r.(*PendingPort); pending {
-						panic(r)
-					}
 					d.line("go panic " + transpileBOracleException(r))
 				}
 			}()
@@ -442,7 +434,6 @@ func transpileBOracleFirstDiff(got, want string) string {
 }
 
 func TestTranspileBGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	golden := "testdata/transpileb/golden.txt.gz"
 	jsDir := "testdata/transpileb/js"
 	hand := map[string]bool{}
@@ -469,7 +460,6 @@ func TestTranspileBOracle(t *testing.T) {
 	if dump == "" {
 		t.Skip("set TRANSPILEB_ORACLE=<TranspileBDump output .gz> (and TRANSPILEB_ROOT) to run")
 	}
-	defer SkipIfPendingPort(t)
 	root := os.Getenv("TRANSPILEB_ROOT")
 	if root == "" {
 		root = "/home/user/jsgo/.cache/corpus"

@@ -400,11 +400,9 @@ func w5ChecksDump_compare(t *testing.T, setup *w5ChecksDump_setup, oraclePath st
 }
 
 func TestW5ChecksDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	setup := w5ChecksDump_loadSetup(t)
 	td := filepath.Join("testdata", "w5_checks")
 	t.Run("src", func(t *testing.T) {
-		defer SkipIfPendingPort(t)
 		var files []string
 		srcRoot := filepath.Join(td, "src")
 		err := filepath.WalkDir(srcRoot, func(p string, d os.DirEntry, err error) error {
@@ -422,7 +420,6 @@ func TestW5ChecksDumpGolden(t *testing.T) {
 		w5ChecksDump_compare(t, setup, filepath.Join(td, "expected-src.txt"), srcRoot, files, "")
 	})
 	t.Run("typecheck", func(t *testing.T) {
-		defer SkipIfPendingPort(t)
 		dir := filepath.Join("testdata", "typecheck")
 		w5ChecksDump_compare(t, setup, filepath.Join(td, "expected-typecheck.txt.gz"),
 			filepath.Join(dir, "src"), checksDumpReadList(t, filepath.Join(dir, "files.txt")), "")
@@ -430,7 +427,6 @@ func TestW5ChecksDumpGolden(t *testing.T) {
 }
 
 func TestW5ChecksDumpOracle(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	oracle, root, list := os.Getenv("W5CHECKS_ORACLE"), os.Getenv("W5CHECKS_ROOT"), os.Getenv("W5CHECKS_FILES")
 	if oracle == "" || root == "" || list == "" {
 		t.Skip("set W5CHECKS_ORACLE, W5CHECKS_ROOT and W5CHECKS_FILES to compare a W5ChecksDump run")

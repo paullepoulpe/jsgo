@@ -539,19 +539,9 @@ func tvCompare(t *testing.T, want string, pairs int) {
 			t.Fatal(err)
 		}
 	}
-	if got == want {
-		return
-	}
-	// Everything before the suppression scenario must match; that scenario
-	// needs SuppressDocWarningsGuard, which the test compiler does not have
-	// yet (see test_compiler_test.go).
-	wantHead, wantTail, _ := strings.Cut(want, tvSuppressionMarker+"\n")
-	gotHead, gotTail, _ := strings.Cut(got, tvSuppressionMarker+"\n")
-	if gotHead != wantHead {
+	if got != want {
 		t.Fatalf("differs from Java at %s", cfaFirstDiff(want, got))
 	}
-	t.Skipf("only the suppression scenario differs (needs SuppressDocWarningsGuard): %s",
-		cfaFirstDiff(wantTail, gotTail))
 }
 
 const tvSuppressionMarker = "suppression scenario (SuppressDocWarningsGuard)"

@@ -15,7 +15,7 @@ import (
 // scopeTestParse is the tests' parse(Compiler, String):
 // compiler.parseTestCode(js), checked to report no errors, put under a
 // ROOT.
-func scopeTestParse(t *testing.T, compiler *testCompiler, js string) *rhino.Node {
+func scopeTestParse(t *testing.T, compiler *Compiler, js string) *rhino.Node {
 	t.Helper()
 	n := compiler.ParseTestCode(js)
 	if errors := compiler.GetErrors(); len(errors) != 0 {
@@ -26,7 +26,7 @@ func scopeTestParse(t *testing.T, compiler *testCompiler, js string) *rhino.Node
 }
 
 // scopeTestParseRoots is NodeTraversalTest.parseRoots.
-func scopeTestParseRoots(t *testing.T, compiler *testCompiler, externs, js string) *rhino.Node {
+func scopeTestParseRoots(t *testing.T, compiler *Compiler, externs, js string) *rhino.Node {
 	t.Helper()
 	extern := scopeTestParse(t, compiler, externs).Detach()
 	main := scopeTestParse(t, compiler, js).Detach()
@@ -35,8 +35,8 @@ func scopeTestParseRoots(t *testing.T, compiler *testCompiler, externs, js strin
 
 // scopeTestNewCompiler is `new Compiler()` followed by
 // `initOptions(options)`.
-func scopeTestNewCompiler(options *CompilerOptions) *testCompiler {
-	return newTestCompiler(options).(*testCompiler)
+func scopeTestNewCompiler(options *CompilerOptions) *Compiler {
+	return newTestCompiler(options)
 }
 
 // scopeTestCatch runs body and returns what it throws (nil if nothing).

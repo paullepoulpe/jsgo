@@ -21,9 +21,6 @@ package jscomp
 //     run's --sample and --full-every (SERIALIZATION_FULL=1 for --full);
 //     SERIALIZATION_DIFF_DIR, if set, receives <rel>.go.txt and <rel>.java.txt
 //     for every mismatching file. Use absolute paths.
-//
-// A run that reaches a declaration of pending_gen.go is reported as skipped
-// (SkipIfPendingPort).
 
 import (
 	"bytes"
@@ -412,7 +409,6 @@ func oracleDump_compare(t *testing.T, dumpFile func(sb *strings.Builder, externs
 }
 
 func TestSerializationDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	dir := filepath.Join("testdata", "serialization")
 	files := typeCheckDump_readList(t, filepath.Join(dir, "files.txt"))
 	serializationDump_compare(t, typeCheckDump_externs(t), filepath.Join(dir, "src"),
@@ -442,7 +438,6 @@ func TestSerializationDumpOracle(t *testing.T) {
 		sample = 1
 	}
 	files := typeCheckDump_readList(t, list)
-	defer SkipIfPendingPort(t)
 	serializationDump_compare(t, typeCheckDump_externs(t), root, oracle, files, sample,
 		atoi("SERIALIZATION_FULL_EVERY", 0), os.Getenv("SERIALIZATION_FULL") == "1", os.Getenv("SERIALIZATION_DIFF_DIR"))
 }
