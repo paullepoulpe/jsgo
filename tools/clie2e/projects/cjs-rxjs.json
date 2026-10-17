@@ -1,0 +1,28 @@
+{
+  "description": "rxjs 7.8.2's CommonJS build (dist/cjs, 250 files) requiring tslib (bench inputs, through its package.json main), with --process_common_js_modules, NODE resolution and PRUNE from dist/cjs/index.js. Also down-levelled to ES5.",
+  "links": {
+    "node_modules/rxjs/dist/cjs": "cache:corpus/rxjs@7.8.2/package/dist/cjs",
+    "node_modules/tslib": "cache:bench-inputs/tslib@2.8.1"
+  },
+  "inputs": [
+    {"file": "node_modules/tslib/package.json"},
+    {"file": "node_modules/tslib/tslib.js"},
+    {"glob": "node_modules/rxjs/dist/cjs/**/*.js"}
+  ],
+  "flags": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+            "--entry_point=node_modules/rxjs/dist/cjs/index.js"],
+  "jobs": [
+    {
+      "name": "simple",
+      "args": ["--compilation_level=SIMPLE", "--js_output_file=out/rxjs.js"]
+    },
+    {
+      "name": "advanced",
+      "args": ["--compilation_level=ADVANCED", "--js_output_file=out/rxjs.js", "--create_source_map=out/rxjs.js.map"]
+    },
+    {
+      "name": "simple-es5",
+      "args": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT5", "--js_output_file=out/rxjs.js"]
+    }
+  ]
+}

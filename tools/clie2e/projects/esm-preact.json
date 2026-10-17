@@ -1,0 +1,54 @@
+{
+  "description": "preact 10.25.4 (src/, hooks/, compat/ and their dist/ builds) with package.json files written for the suite: bare 'preact' and 'preact/hooks' imports resolved by NODE resolution through --package_json_entry_names (source, module, or the default order), PRUNE from compat/src/index.js.",
+  "links": {
+    "node_modules/preact/src": "cache:corpus/preact@10.25.4/package/src",
+    "node_modules/preact/dist": "cache:corpus/preact@10.25.4/package/dist",
+    "node_modules/preact/hooks/src": "cache:corpus/preact@10.25.4/package/hooks/src",
+    "node_modules/preact/hooks/dist": "cache:corpus/preact@10.25.4/package/hooks/dist",
+    "node_modules/preact/compat/src": "cache:corpus/preact@10.25.4/package/compat/src",
+    "node_modules/preact/compat/dist": "cache:corpus/preact@10.25.4/package/compat/dist"
+  },
+  "files": {
+    "node_modules/preact/package.json": "{\n  \"name\": \"preact\",\n  \"version\": \"10.25.4\",\n  \"main\": \"dist/preact.js\",\n  \"module\": \"dist/preact.module.js\",\n  \"source\": \"src/index.js\"\n}\n",
+    "node_modules/preact/hooks/package.json": "{\n  \"name\": \"preact-hooks\",\n  \"main\": \"dist/hooks.js\",\n  \"module\": \"dist/hooks.module.js\",\n  \"source\": \"src/index.js\"\n}\n",
+    "node_modules/preact/compat/package.json": "{\n  \"name\": \"preact-compat\",\n  \"main\": \"dist/compat.js\",\n  \"module\": \"dist/compat.module.js\",\n  \"source\": \"src/index.js\"\n}\n"
+  },
+  "inputs": [
+    {"file": "node_modules/preact/package.json"},
+    {"file": "node_modules/preact/hooks/package.json"},
+    {"file": "node_modules/preact/compat/package.json"},
+    {"glob": "node_modules/preact/src/**/*.js"},
+    {"glob": "node_modules/preact/hooks/src/*.js"},
+    {"glob": "node_modules/preact/compat/src/*.js"},
+    {"glob": "node_modules/preact/dist/preact.module.js"},
+    {"glob": "node_modules/preact/hooks/dist/hooks.module.js"}
+  ],
+  "flags": ["--module_resolution=NODE", "--dependency_mode=PRUNE", "--entry_point=node_modules/preact/compat/src/index.js"],
+  "jobs": [
+    {
+      "name": "source-simple",
+      "args": ["--package_json_entry_names=source,module,main", "--compilation_level=SIMPLE",
+               "--js_output_file=out/compat.js", "--create_source_map=out/compat.js.map"]
+    },
+    {
+      "name": "source-advanced",
+      "args": ["--package_json_entry_names=source,module,main", "--compilation_level=ADVANCED", "--jscomp_warning=boundedGenerics",
+               "--js_output_file=out/compat.js", "--output_manifest=out/manifest.MF"]
+    },
+    {
+      "name": "module-simple",
+      "args": ["--package_json_entry_names=module,main", "--compilation_level=SIMPLE",
+               "--js_output_file=out/compat.js"]
+    },
+    {
+      "name": "default-entry-names",
+      "args": ["--compilation_level=WHITESPACE_ONLY", "--js_output_file=out/compat.js"]
+    },
+    {
+      "name": "source-es2015-no-polyfills",
+      "args": ["--package_json_entry_names=source,module,main", "--compilation_level=SIMPLE",
+               "--language_out=ECMASCRIPT_2015", "--rewrite_polyfills=false", "--inject_libraries=false",
+               "--js_output_file=out/compat.js"]
+    }
+  ]
+}

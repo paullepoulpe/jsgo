@@ -1,0 +1,46 @@
+{
+  "description": "moment 2.31.0's ES module sources (src/, 249 files: lib/ and the locales), imported without file extensions: NODE resolution with PRUNE from src/moment.js (and two locales), --js_module_root (entry points named relative to it), SORT_ONLY over everything, and BROWSER resolution, which cannot resolve extensionless imports. Also ADVANCED to ES5 with --isolate_polyfills.",
+  "links": {
+    "node_modules/moment/src": "cache:corpus/moment@2.31.0/package/src"
+  },
+  "inputs": [
+    {"glob": "node_modules/moment/src/**/*.js"}
+  ],
+  "flags": ["--module_resolution=NODE"],
+  "jobs": [
+    {
+      "name": "simple-prune",
+      "args": ["--compilation_level=SIMPLE", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/moment/src/moment.js",
+               "--js_output_file=out/moment.js", "--create_source_map=out/moment.js.map"]
+    },
+    {
+      "name": "advanced-prune-verbose",
+      "args": ["--compilation_level=ADVANCED", "--warning_level=VERBOSE", "--jscomp_warning=undefinedVars", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/moment/src/moment.js",
+               "--js_output_file=out/moment.js", "--output_manifest=out/manifest.MF"]
+    },
+    {
+      "name": "whitespace-es5-module-root",
+      "args": ["--compilation_level=WHITESPACE_ONLY", "--language_out=ECMASCRIPT5",
+               "--js_module_root=node_modules/moment/src", "--dependency_mode=PRUNE",
+               "--entry_point=moment.js", "--entry_point=locale/fr.js", "--entry_point=locale/de.js",
+               "--js_output_file=out/moment.js"]
+    },
+    {
+      "name": "simple-sort-only",
+      "args": ["--compilation_level=SIMPLE", "--dependency_mode=SORT_ONLY", "--js_output_file=out/all.js"]
+    },
+    {
+      "name": "browser-unresolved",
+      "args": ["--module_resolution=BROWSER", "--compilation_level=SIMPLE", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/moment/src/moment.js", "--js_output_file=out/moment.js"]
+    },
+    {
+      "name": "advanced-es5-isolate-polyfills",
+      "args": ["--compilation_level=ADVANCED", "--language_out=ECMASCRIPT5", "--isolate_polyfills", "--jscomp_warning=undefinedVars",
+               "--dependency_mode=PRUNE", "--entry_point=node_modules/moment/src/moment.js",
+               "--js_output_file=out/moment.js", "--create_source_map=out/moment.js.map"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "description": "A small ES module tree (src/prefixes) under BROWSER_WITH_TRANSFORMED_PREFIXES: bare prefixes that --browser_resolver_prefix_replacements maps to a directory, and one that it does not map.",
+  "links": {
+    "src": "repo:tools/clie2e/projects/src/prefixes"
+  },
+  "inputs": [
+    {"glob": "src/**/*.js", "exclude": ["unmapped.js"]}
+  ],
+  "flags": ["--module_resolution=BROWSER_WITH_TRANSFORMED_PREFIXES", "--browser_resolver_prefix_replacements=util/=/src/util/",
+            "--dependency_mode=PRUNE", "--entry_point=src/main.js"],
+  "jobs": [
+    {
+      "name": "advanced",
+      "args": ["--browser_resolver_prefix_replacements=~text/=/src/util/", "--compilation_level=ADVANCED",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "unmapped",
+      "inputs": [{"glob": "src/**/*.js"}],
+      "args": ["--entry_point=src/unmapped.js", "--compilation_level=SIMPLE", "--js_output_file=out/main.js"]
+    }
+  ]
+}

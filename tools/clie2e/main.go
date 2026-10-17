@@ -3,7 +3,7 @@
 // and the jsgo binary with identical argument vectors and compares stdout,
 // stderr, the exit status and every output file byte for byte.
 //
-// Two suites:
+// Four suites:
 //
 //	fixtures  testdata/fixtures, whose Java outputs are recorded in
 //	          testdata/oracle and testdata/oracle-strict (CliBatch format:
@@ -16,6 +16,11 @@
 //	          ADVANCED and --checks_only --jscomp_warning=checkTypes
 //	          (output on stdout), each job classified as identical, diff,
 //	          jsgo panic, jsgo hang (-timeout) or Java error; see sweep.go.
+//	projects  multi-file, project-level builds defined as data in
+//	          tools/clie2e/projects/*.json (the tools/bench tasks, Closure
+//	          Library apps, ES modules and CommonJS packages of the corpora,
+//	          chunked output, output options), every output file compared
+//	          too; classified like the sweep; see projects.go.
 //
 // Both sides run in the C/POSIX locale without JAVA_TOOL_OPTIONS (which
 // makes the JVM print a banner on stderr). In stderr, Java stack-frame
@@ -27,6 +32,7 @@
 //	go run ./tools/clie2e -suite fixtures [-jsgo BIN] [-n N]
 //	go run ./tools/clie2e -suite matrix -work DIR [-n N] [-seed S] [-shards K] [-jobs J]
 //	go run ./tools/clie2e -suite sweep -work DIR -corpus ROOT -list LIST [-configs C,...] [-timeout D] [-reuse-java] [-shards K] [-jobs J]
+//	go run ./tools/clie2e -suite projects -work DIR -javabuild DIR [-set dev|holdout|all] [-projects P[/JOB],...] [-timeout D] [-reuse-java|-skip-java|-skip-go|-classify-only] [-jobs J] [-v]
 //
 // A job whose jsgo run reached a not-yet-ported class (stderr contains
 // "pending port:") is counted as PENDING, not as a diff.
@@ -51,7 +57,7 @@ import (
 )
 
 var (
-	suite    = flag.String("suite", "matrix", "fixtures or matrix")
+	suite    = flag.String("suite", "matrix", "fixtures, matrix, sweep or projects")
 	jsgoBin  = flag.String("jsgo", "", "jsgo binary (default: build ./cmd/jsgo into the work dir)")
 	work     = flag.String("work", "", "work directory (matrix suite)")
 	n        = flag.Int("n", 0, "number of inputs to use (0: all fixtures / 20 corpus files)")
@@ -128,6 +134,8 @@ func main() {
 		os.Exit(runMatrix())
 	case "sweep":
 		os.Exit(runSweep())
+	case "projects":
+		os.Exit(runProjects())
 	}
 	fmt.Fprintln(os.Stderr, "unknown -suite", *suite)
 	os.Exit(2)

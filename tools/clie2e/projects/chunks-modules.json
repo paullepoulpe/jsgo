@@ -1,0 +1,49 @@
+{
+  "description": "Chunked builds of module code: underscore's ES modules split into a core chunk and an index chunk (GLOBAL_NAMESPACE and ES_MODULES chunk output), and lodash's CommonJS modules with the src/interop ES module entry in a chunk of its own; a source map per chunk; --chunk=auto (a chunk per CommonJS module) and a first chunk of size auto.",
+  "links": {
+    "lib/underscore": "cache:corpus/underscore@1.13.8/package/modules",
+    "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
+    "src": "repo:tools/clie2e/projects/src/interop"
+  },
+  "inputs": [
+    {"glob": "lib/underscore/*.js", "exclude": ["index*.js"], "group": "core"},
+    {"glob": "lib/underscore/index*.js", "group": "index"},
+    {"glob": "node_modules/lodash/*.js", "group": "lodash"},
+    {"glob": "src/*.js", "group": "app"}
+  ],
+  "jobs": [
+    {
+      "name": "underscore-advanced",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=lib/underscore/index-all.js",
+               "{inputs:core}", "--chunk=core:{count:core}", "{inputs:index}", "--chunk=index:{count:index}:core",
+               "--compilation_level=ADVANCED", "--chunk_output_path_prefix=out/", "--create_source_map=%outname%.map"]
+    },
+    {
+      "name": "underscore-es-modules",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=lib/underscore/index-all.js",
+               "{inputs:core}", "--chunk=core:{count:core}", "{inputs:index}", "--chunk=index:{count:index}:core",
+               "--compilation_level=SIMPLE", "--chunk_output_type=ES_MODULES", "--chunk_output_path_prefix=out/"]
+    },
+    {
+      "name": "lodash-interop-simple",
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=src/main.js",
+               "{inputs:lodash}", "--chunk=lodash:{count:lodash}", "{inputs:app}", "--chunk=app:{count:app}:lodash",
+               "--compilation_level=SIMPLE", "--chunk_output_path_prefix=out/", "--create_source_map=%outname%.map",
+               "--chunk_wrapper=lodash:var LODASH=1;%s"]
+    },
+    {
+      "name": "lodash-chunk-auto-commonjs",
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=src/main.js", "{inputs:lodash}", "{inputs:app}", "--chunk=auto",
+               "--compilation_level=SIMPLE", "--chunk_output_path_prefix=out/auto/",
+               "--output_chunk_dependencies=out/deps.json"]
+    },
+    {
+      "name": "lodash-first-chunk-auto-size",
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=src/main.js", "{inputs:lodash}", "{inputs:app}", "--chunk=base:auto",
+               "--chunk=app:{count:app}:base", "--compilation_level=SIMPLE", "--chunk_output_path_prefix=out/"]
+    }
+  ]
+}

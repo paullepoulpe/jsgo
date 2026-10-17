@@ -1,0 +1,86 @@
+{
+  "description": "Output options on a small multi-file build (src/interop on lodash's CommonJS modules, PRUNE from src/main.js): --output_wrapper (%output% and %output|jsstring%), --output_wrapper_file, --isolation_mode=IIFE, --assume_function_wrapper, source map content and location mappings, --json_streams IN, OUT and BOTH, manifests, and the --dependency_mode variants.",
+  "links": {
+    "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
+    "src": "repo:tools/clie2e/projects/src/interop"
+  },
+  "files": {
+    "wrapper.txt": "/** @license clie2e wrapper */\n(function(global) {\n%output%\n}).call(this, this);\n//# sourceURL=main.js\n",
+    "streams.json": "[{\"path\":\"in/a.js\",\"src\":\"/** @const */ var A = {x: 1};\\nfunction show(v) { console.log(v); }\\n\"},{\"path\":\"in/b.js\",\"src\":\"show(A.x + 2);\\n// a comment\\nshow('b');\\n\"}]\n"
+  },
+  "inputs": [
+    {"glob": "node_modules/lodash/*.js", "exclude": ["fp.js"]},
+    {"glob": "src/*.js"}
+  ],
+  "flags": ["--module_resolution=NODE", "--process_common_js_modules"],
+  "jobs": [
+    {
+      "name": "output-wrapper",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=SIMPLE",
+               "--output_wrapper=(function(){%output%}).call(this);",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "output-wrapper-jsstring",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=SIMPLE",
+               "--output_wrapper=/* %output% */ var code = %output|jsstring%;", "--js_output_file=out/main.js"]
+    },
+    {
+      "name": "output-wrapper-file",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=ADVANCED",
+               "--output_wrapper_file=wrapper.txt", "--js_output_file=out/main.js",
+               "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "isolation-iife",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=ADVANCED",
+               "--isolation_mode=IIFE", "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "assume-function-wrapper",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=ADVANCED",
+               "--assume_function_wrapper", "--output_wrapper=(function(){%output%})();",
+               "--js_output_file=out/main.js"]
+    },
+    {
+      "name": "source-map-content-mapping",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=SIMPLE",
+               "--source_map_include_content", "--source_map_location_mapping=src/|https://example.com/app/",
+               "--source_map_location_mapping=node_modules/|/vendor/", "--source_map_format=V3",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "json-streams-out",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=src/main.js", "--compilation_level=SIMPLE",
+               "--json_streams=OUT", "--create_source_map=main.js.map", "--js_output_file=main.js"]
+    },
+    {
+      "name": "json-streams-both",
+      "inputs": [],
+      "stdin": "streams.json",
+      "args": ["--json_streams=BOTH", "--compilation_level=SIMPLE", "--create_source_map=out.map",
+               "--js_output_file=compiled.js"]
+    },
+    {
+      "name": "json-streams-in",
+      "inputs": [],
+      "stdin": "streams.json",
+      "args": ["--json_streams=IN", "--compilation_level=ADVANCED", "--formatting=PRETTY_PRINT"]
+    },
+    {
+      "name": "manifest-prune-legacy",
+      "args": ["--dependency_mode=PRUNE_LEGACY", "--entry_point=src/main.js", "--compilation_level=SIMPLE",
+               "--js_output_file=out/main.js", "--output_manifest=out/manifest.MF",
+               "--output_chunk_dependencies=out/deps.json"]
+    },
+    {
+      "name": "dependency-sort-only",
+      "args": ["--dependency_mode=SORT_ONLY", "--compilation_level=WHITESPACE_ONLY",
+               "--js_output_file=out/all.js", "--output_manifest=out/manifest.MF"]
+    },
+    {
+      "name": "dependency-none",
+      "args": ["--dependency_mode=NONE", "--compilation_level=SIMPLE", "--js_output_file=out/all.js"]
+    }
+  ]
+}

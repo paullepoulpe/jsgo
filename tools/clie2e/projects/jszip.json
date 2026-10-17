@@ -1,0 +1,31 @@
+{
+  "description": "Inputs read from zip archives (--jszip; the archives are generated in the workspace from src/prefixes and src/closure-app, sorted, with a fixed time), mixed with plain --js inputs, with source maps naming the zip entries. The ES module build PRUNEs from prefixes.zip!/main.js; both compilers then throw the same NullPointerException in RemoveUnusedCode.getVarForNameNode.",
+  "links": {
+    "src": "repo:tools/clie2e/projects/src/prefixes",
+    "goog": "repo:tools/clie2e/projects/src/closure-app",
+    "inputs": "cache:bench-inputs"
+  },
+  "zips": {
+    "prefixes.zip": "src",
+    "closure-app.zip": "goog"
+  },
+  "jobs": [
+    {
+      "name": "es-modules-prune",
+      "inputs": [{"file": "prefixes.zip", "flag": "--jszip"}],
+      "args": ["--compilation_level=SIMPLE", "--module_resolution=BROWSER_WITH_TRANSFORMED_PREFIXES",
+               "--browser_resolver_prefix_replacements=util/=/util/", "--browser_resolver_prefix_replacements=~text/=/util/",
+               "--dependency_mode=PRUNE", "--entry_point=prefixes.zip!/main.js",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "closure-advanced",
+      "inputs": [
+        {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js", "exclude": ["*_test.js"]},
+        {"file": "closure-app.zip", "flag": "--jszip"}
+      ],
+      "args": ["--compilation_level=ADVANCED", "--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map", "--output_manifest=out/manifest.MF"]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "description": "Closure Library v20230802 (bench inputs, 971 files) with the bench's typed app and a goog.module / goog.provide / ES module trio using @export (src/closure-app): PRUNE and PRUNE_LEGACY from goog: entry points, --generate_exports, --export_local_property_definitions, ADVANCED with type checking at VERBOSE, manifests and renaming reports.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "app": "repo:tools/bench/app",
+    "src": "repo:tools/clie2e/projects/src/closure-app"
+  },
+  "inputs": [
+    {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js", "exclude": ["*_test.js"]},
+    {"glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js", "exclude": ["*_test.js"]},
+    {"glob": "app/*.js"},
+    {"glob": "src/*.js"}
+  ],
+  "jobs": [
+    {
+      "name": "advanced-verbose-exports",
+      "args": ["--compilation_level=ADVANCED", "--warning_level=VERBOSE", "--dependency_mode=PRUNE",
+               "--entry_point=goog:benchapp.main", "--entry_point=goog:clie2e.exported",
+               "--generate_exports", "--export_local_property_definitions",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map",
+               "--output_manifest=out/manifest.MF", "--output_chunk_dependencies=out/deps.json"]
+    },
+    {
+      "name": "advanced-no-exports",
+      "args": ["--compilation_level=ADVANCED", "--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported",
+               "--generate_exports=false", "--export_local_property_definitions=false",
+               "--define=goog.DEBUG=false", "--define=clie2e.legacy.ROUND=false",
+               "--formatting=PRETTY_PRINT", "--js_output_file=out/app.js",
+               "--variable_renaming_report=out/vars.txt", "--property_renaming_report=out/props.txt"]
+    },
+    {
+      "name": "advanced-strict-debug",
+      "args": ["--compilation_level=ADVANCED", "--warning_level=VERBOSE", "--jscomp_warning=strictCheckTypes",
+               "--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--debug",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map", "--source_map_include_content"]
+    },
+    {
+      "name": "simple-prune-legacy",
+      "args": ["--compilation_level=SIMPLE", "--dependency_mode=PRUNE_LEGACY",
+               "--entry_point=goog:clie2e.exported", "--entry_point=goog:goog.ui.Menu",
+               "--js_output_file=out/app.js", "--output_manifest=out/manifest.MF"]
+    },
+    {
+      "name": "whitespace-prune",
+      "args": ["--compilation_level=WHITESPACE_ONLY", "--dependency_mode=PRUNE",
+               "--entry_point=goog:clie2e.exported", "--js_output_file=out/app.js",
+               "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "checks-verbose",
+      "args": ["--checks_only", "--warning_level=VERBOSE", "--jscomp_warning=lintChecks",
+               "--jscomp_warning=reportUnknownTypes", "--dependency_mode=PRUNE",
+               "--entry_point=goog:benchapp.main", "--entry_point=goog:clie2e.exported"]
+    },
+    {
+      "name": "simple-sort-only-es5",
+      "args": ["--compilation_level=SIMPLE", "--dependency_mode=SORT_ONLY", "--language_out=ECMASCRIPT5",
+               "--rewrite_polyfills=false", "--js_output_file=out/all.js"]
+    }
+  ]
+}
