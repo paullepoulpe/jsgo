@@ -41,6 +41,31 @@ type Scanner struct {
 	index              int
 	commentRecorder    Scanner_CommentRecorder
 	typeParameterLevel int
+
+	// Go-only: performance — the plain and identifier tokens (see newToken).
+	tokens      jutil.Slab[TokenBase]
+	identifiers jutil.Slab[IdentifierToken]
+}
+
+// newToken is `new Token(type, location)` for the scanner's plain tokens.
+//
+// Go-only: performance — tokens come from a slab (jutil.Slab), like their
+// positions (see LineNumberScanner.getTokenSourcePosition): they become
+// garbage with the parse trees.
+func (s *Scanner) newToken(type_ TokenType, location *SourceRange) *TokenBase {
+	t := s.tokens.New()
+	t.InitTokenBase(t, type_, location)
+	return t
+}
+
+// newIdentifierToken is `new IdentifierToken(location, value)` for the
+// scanner's identifiers.
+//
+// Go-only: performance — see newToken.
+func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *IdentifierToken {
+	t := s.identifiers.New()
+	t.InitIdentifierToken(location, value)
+	return t
 }
 
 // NewScanner constructs a Scanner.
@@ -107,14 +132,16 @@ func (s *Scanner) GetPosition() *SourcePosition {
 //
 // Java: Scanner.getPosition(int)
 func (s *Scanner) GetPositionAt(offset int) *SourcePosition {
-	return s.lineNumberScanner.GetSourcePosition(offset)
+	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
+	return s.lineNumberScanner.getTokenSourcePosition(offset)
 }
 
 // GetTokenRange returns the range from startOffset to the current index.
 //
 // Java: Scanner.getTokenRange(int)
 func (s *Scanner) GetTokenRange(startOffset int) *SourceRange {
-	return s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
+	return s.lineNumberScanner.getTokenSourceRange(startOffset, s.index)
 }
 
 // GetTokenRangeFromPosition: prefer this to GetTokenRange(int) when the
@@ -123,7 +150,8 @@ func (s *Scanner) GetTokenRange(startOffset int) *SourceRange {
 // Java: Scanner.getTokenRange(SourcePosition)
 func (s *Scanner) GetTokenRangeFromPosition(position *SourcePosition) *SourceRange {
 	s.lineNumberScanner.RewindTo(position)
-	return s.lineNumberScanner.GetSourceRange(position.Offset, s.index)
+	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
+	return s.lineNumberScanner.getTokenSourceRange(position.Offset, s.index)
 }
 
 // NextToken consumes and returns the next token.
@@ -825,7 +853,7 @@ func bigIntOrNumber(isBigInt bool) TokenType {
 
 // Java: Scanner.createToken(TokenType, int)
 func (s *Scanner) CreateToken(type_ TokenType, beginToken int) Token {
-	return NewToken(type_, s.GetTokenRange(beginToken))
+	return s.newToken(type_, s.GetTokenRange(beginToken))
 }
 
 // Java: Scanner.scanIdentifierOrKeyword(int, char)
@@ -906,10 +934,10 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 
 	k := Keywords_Get(value)
 	if k != nil {
-		return NewToken(k.Type(), s.GetTokenRange(beginToken))
+		return s.newToken(k.Type(), s.GetTokenRange(beginToken))
 	}
 
-	return NewIdentifierToken(s.GetTokenRange(beginToken), value)
+	return s.newIdentifierToken(s.GetTokenRange(beginToken), value)
 }
 
 // Scanner_ProcessUnicodeEscapes converts unicode escapes in the given
