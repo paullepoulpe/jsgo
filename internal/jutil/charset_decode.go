@@ -86,11 +86,11 @@ func charsetUTF8MalformedLength(b []byte) int {
 			if !cont(1, lo, 0xBF) {
 				return 1
 			}
-			if b1 == 0xED && b[i+1] >= 0xA0 {
-				if cont(2, 0x80, 0xBF) {
-					return 3
-				}
-				return 1
+			// Observed behaviour (black-box): ED A0..BF, the prefix of an
+			// encoded surrogate, is malformed with length 3 when complete
+			// and 2 when cut short, as in REPLACE mode.
+			if b1 == 0xED && b[i+1] >= 0xA0 && cont(2, 0x80, 0xBF) {
+				return 3
 			}
 			return 2
 		case b1 >= 0xF0 && b1 <= 0xF4:
