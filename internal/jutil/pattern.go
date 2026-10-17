@@ -45,6 +45,8 @@ package jutil
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 // Pattern is a compiled java.util.regex.Pattern.
@@ -92,7 +94,39 @@ const javaVerticalSpaceChars = `\n\x0B\f\r\x{85}\x{2028}\x{2029}`
 const javaHorizontalSpaceChars = ` \t\x{A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}`
 
 // Pattern_Compile is Pattern.compile(String).
+//
+// Go-only: performance — translating a Java regex and compiling its RE2
+// variants costs far more than Pattern.compile does on the JVM, and ported
+// code compiles the same constant regexes again and again (for example the
+// CompilerOptions field initializer that every CodePrinter.Builder runs).
+// Successful compilations are cached by regex. A compiled Pattern is
+// immutable, so each call still returns a distinct Pattern (Java identity)
+// sharing the cached translation; a regex that fails to compile is not
+// cached and fails the same way every time.
 func Pattern_Compile(regex string) *Pattern {
+	if cached, ok := patternCache.Load(regex); ok {
+		p := *cached.(*Pattern)
+		return &p
+	}
+	p := patternCompile(regex)
+	if patternCacheSize.Add(1) <= patternCacheLimit {
+		cached := *p
+		patternCache.Store(regex, &cached)
+	}
+	return p
+}
+
+// patternCache maps a regex to its compiled Pattern (see Pattern_Compile).
+// It stops growing at patternCacheLimit entries, so that regexes built from
+// input cannot make it grow without bound.
+var patternCache sync.Map // string -> *Pattern
+
+var patternCacheSize atomic.Int64
+
+const patternCacheLimit = 4096
+
+// patternCompile compiles regex (Pattern_Compile without the cache).
+func patternCompile(regex string) *Pattern {
 	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true})
 	p := &Pattern{
 		pattern: regex,
