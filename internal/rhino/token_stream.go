@@ -68,7 +68,30 @@ type TokenStream struct{}
 func TokenStream_IsKeyword(name string) bool {
 	id := false
 	s := name
-	chars := jutil.StringToUTF16(s)
+	// Go-only: performance — the switch below reads chars only for lengths
+	// up to 12, the longest keyword's. An ASCII name (whose bytes are its
+	// UTF-16 chars) that short is copied into a stack buffer, and a longer
+	// one is not converted at all; any other name is converted as before.
+	// This ran for every NAME the IRFactory builds.
+	var buf [12]uint16
+	var chars []uint16
+	length := len(s)
+	ascii := true
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if !ascii {
+		chars = jutil.StringToUTF16(s)
+		length = len(chars)
+	} else if length <= len(buf) {
+		for i := 0; i < length; i++ {
+			buf[i] = uint16(s[i])
+		}
+		chars = buf[:length]
+	}
 	charAt := func(i int) uint16 { return chars[i] } // s.charAt(i)
 complete:
 	for {
@@ -76,7 +99,7 @@ complete:
 		var c uint16
 		set := func(x string) { X = &x; id = true }
 	partial:
-		switch len(chars) {
+		switch length {
 		case 2:
 			c = charAt(1)
 			if c == 'f' {
