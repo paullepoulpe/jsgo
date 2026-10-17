@@ -191,11 +191,16 @@ func l11msgDumpXtb(sb *strings.Builder, xtb []byte) {
 	}
 }
 
-// l11msgJavaClassName is the Java class name of an exception (the text
-// before ": " in Throwable.toString()).
+// l11msgJavaClassName is the Java class name of an exception: the start of
+// Throwable.toString(), up to ": " (or "; " for SAXParseException, whose
+// toString() goes on with "; lineNumber: ..."). Java class names contain
+// neither ':' nor ';'.
 func l11msgJavaClassName(e jutil.Throwable) string {
-	name, _, _ := strings.Cut(e.Error(), ": ")
-	return name
+	s := e.Error()
+	if i := strings.IndexAny(s, ":;"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // l11msgThrowableMessage is escape(e.getMessage()).
@@ -463,7 +468,6 @@ func l11msgSkipOnPending(t *testing.T) {
 // TestXtbMessageBundleOracle compares XtbMessageBundle on testdata/xtb with
 // the pinned Java class (testdata/xtb/expected.txt).
 func TestXtbMessageBundleOracle(t *testing.T) {
-	t.Skip("XtbMessageBundle needs jutil's SAX parser, which is not implemented (see internal/jutil/sax_parser.go)")
 	files, _ := filepath.Glob("testdata/xtb/*.xtb")
 	sort.Strings(files)
 	got := map[string]string{}
