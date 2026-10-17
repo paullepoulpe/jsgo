@@ -76,11 +76,26 @@ type JavaReader interface {
 type StringReader struct {
 	str  []uint16
 	next int
+
+	// Go-only: performance — the string is converted to UTF-16 on the first
+	// read (s holds it until then), so that CharStreams_ToString can return
+	// it as it is.
+	s         string
+	converted bool
 }
 
 // NewStringReader is new StringReader(String).
 func NewStringReader(s string) *StringReader {
-	return &StringReader{str: StringToUTF16(s)}
+	return &StringReader{s: s}
+}
+
+// convert makes str hold the string's UTF-16 units.
+func (r *StringReader) convert() {
+	if !r.converted {
+		r.str = StringToUTF16(r.s)
+		r.s = ""
+		r.converted = true
+	}
 }
 
 // Read is StringReader.read(char[], int, int).
@@ -91,6 +106,7 @@ func (r *StringReader) Read(cbuf []uint16, off, length int) int {
 	if length == 0 {
 		return 0
 	}
+	r.convert()
 	if r.next >= len(r.str) {
 		return -1
 	}
