@@ -319,9 +319,9 @@ console.log(MSG_HELLO);
 	AssertThat(compiledJs).IsEqualTo(`console.log("hola");
 `)
 	expectedSourceMap := jutil.NewJsonObject()
-	expectedSourceMap.Add("version", jutil.NewJsonPrimitiveNumber(commandLineRunnerTest_int(3)))
+	expectedSourceMap.Add("version", jutil.NewJsonPrimitiveNumber(jutil.Integer(3)))
 	expectedSourceMap.AddPropertyString("file", jutil.StringPtr(compiledFile.GetAbsolutePath()))
-	expectedSourceMap.Add("lineCount", jutil.NewJsonPrimitiveNumber(commandLineRunnerTest_int(1)))
+	expectedSourceMap.Add("lineCount", jutil.NewJsonPrimitiveNumber(jutil.Integer(1)))
 	expectedSourceMap.AddPropertyString("mappings", jutil.StringPtr("AAEAA,OAAQC,CAAAA,GAAR,CADkBC,MAClB;"))
 	expectedSourceMap.Add("sources", c.newJsonArrayOfStrings(srcFile.GetAbsolutePath()))
 	expectedSourceMap.Add(
@@ -3537,13 +3537,6 @@ func (c *CommandLineRunnerTest) getFilename(i int) string {
 func (c *CommandLineRunnerTest) concatStrings(strs ...string) string {
 	return strings.Join(strs, "")
 }
-
-// commandLineRunnerTest_int is a boxed Integer for JsonObject.addProperty(String, Number).
-type commandLineRunnerTest_int int32
-
-func (n commandLineRunnerTest_int) IntValue() int32  { return int32(n) }
-func (n commandLineRunnerTest_int) LongValue() int64 { return int64(n) }
-func (n commandLineRunnerTest_int) String() string   { return strconv.Itoa(int(n)) }
 
 // commandLineRunnerTest_createTempFile is File.createTempFile(prefix, suffix).
 func commandLineRunnerTest_createTempFile(prefix, suffix string) *jutil.File {
