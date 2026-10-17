@@ -8074,6 +8074,39 @@ func (c *TypedScopeCreatorTest) TestObjectLitWithDeclaredSymbolProperty() {
 	TypeSubject_AssertType(foo).WithTypeOfPropSymbol(symbolFooType).IsNumber()
 }
 
+// Java: TypedScopeCreatorTest.testForwardReferenceInUnion_extendedInterface_regressionTest()
+func (c *TypedScopeCreatorTest) TestForwardReferenceInUnion_extendedInterface_regressionTest() {
+	// Regression test for b/497046252#comment11.
+	c.TestSame(
+		c.Srcs(
+			`/** @record */
+class AtRecord {
+  /** @return {!AtRecord} */
+  getAtRecord() {}
+}
+
+/** @type {!Clazz} */
+let clazzInstance;
+
+/** @type {!AtRecord|!Clazz} */
+let union;
+
+/** @interface @extends {Parent} */
+class Child {}
+
+/** @implements {Child} */
+class Clazz {
+  /** @type {string} */
+  x = 'hi';
+}
+
+/** @interface */
+class Parent {}
+`))
+	unionType := c.FindNameType("union", c.globalScope)
+	TypeSubject_AssertType(unionType).ToStringIsEqualTo("(AtRecord|Clazz)")
+}
+
 // Java: TypedScopeCreatorTest.testMemoization()
 func (c *TypedScopeCreatorTest) TestMemoization() {
 	root1 := TypedScopeCreatorTest_CreateEmptyRoot()
@@ -8099,6 +8132,56 @@ func (c *TypedScopeCreatorTest) TestMemoizationPreconditionCheck() {
 		AssertWithMessage("Expected an IllegalStateException").Fail()
 	}, func(expected *jutil.IllegalStateException) {
 	})
+}
+
+// Java: TypedScopeCreatorTest.testFunctionPrototypeAssignmentType()
+func (c *TypedScopeCreatorTest) TestFunctionPrototypeAssignmentType() {
+	c.TestSame(
+		`/**
+ * @param {!Function} ctor
+ */
+function markImplementor(ctor) {
+  ctor.prototype.$implements__Foo = true;
+}
+`)
+
+	ctorPrototypeNode := c.FindQualifiedNameNode("ctor.prototype", c.globalScope.GetRootNode())
+	ctorPrototypeType := jutil.CheckNotNull(ctorPrototypeNode.GetJSType())
+	nativeFnInstancePrototype :=
+		c.GetNativeObjectType(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE)
+
+	AssertThat(ctorPrototypeType.ToObjectType().GetReferenceName()).IsEqualTo("?.prototype")
+	AssertThat(ctorPrototypeType).IsSameInstanceAs(nativeFnInstancePrototype)
+}
+
+// Java: TypedScopeCreatorTest.testFunctionPrototypeAssignmentPreserved_b253690550()
+func (c *TypedScopeCreatorTest) TestFunctionPrototypeAssignmentPreserved_b253690550() {
+	c.TestSame(
+		`/**
+ * @param {!Function} childCtor
+ * @param {!Function} parentCtor
+ */
+function inherits(childCtor, parentCtor) {
+  // see b/253690550 - this used to clobber Function.prototype. This is a regression test
+  // to make sure we preserve the native JSTypeRegistry prototype.
+  childCtor.prototype = Object.create(parentCtor.prototype);
+}
+
+/**
+ * @param {!Function} ctor
+ */
+function markImplementor(ctor) {
+  ctor.prototype.$implements__Foo = true;
+}
+`)
+
+	ctorPrototypeNode := c.FindQualifiedNameNode("ctor.prototype", c.globalScope.GetRootNode())
+	ctorPrototypeType := jutil.CheckNotNull(ctorPrototypeNode.GetJSType())
+	nativeFnInstancePrototype :=
+		c.GetNativeObjectType(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE)
+
+	AssertThat(ctorPrototypeType.ToObjectType().GetReferenceName()).IsEqualTo("?.prototype")
+	AssertThat(ctorPrototypeType).IsSameInstanceAs(nativeFnInstancePrototype)
 }
 
 // Java: TypedScopeCreatorTest.createEmptyRoot()

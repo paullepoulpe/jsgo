@@ -1083,3 +1083,28 @@ required: null
 `).
 		Run()
 }
+
+// Java: TypeCheckBugsAndIssuesTest.testRecursiveTemplatizedRecordUnion_b563430551()
+func (c *TypeCheckBugsAndIssuesTest) TestRecursiveTemplatizedRecordUnion_b563430551() {
+	// The union `Node` contains a subtype of `Container`, and `Container`'s own @extends
+	// instantiates `Container<Node>`, so resolving the union re-enters
+	// UnionType.getAlternates() on the same unresolved union during its own rebuild.
+	src := `/** @record @template P */
+class Base {}
+
+/** @typedef {(!Attribute|!Container)} */
+var Node;
+
+/**
+ * @record
+ * @extends {Base<!Container<!Node>>}
+ * @template C
+ */
+class Container {}
+
+/** @record @extends {Container<!Node>} */
+class Attribute {}
+`
+
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(src).Run()
+}

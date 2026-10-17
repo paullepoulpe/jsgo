@@ -112,6 +112,17 @@ function g(/** !Iterator<number> */ arr) {
 		Run()
 }
 
+// Java: TypeCheckCovarianceTest.testIteratorLikeCovariant()
+func (c *TypeCheckCovarianceTest) TestIteratorLikeCovariant() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !IteratorLike<(string|number)>*/ x){};
+function g(/** !IteratorLike<number> */ arr) {
+    f(arr);
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
 // Java: TypeCheckCovarianceTest.testIteratorIterableCovariant()
 func (c *TypeCheckCovarianceTest) TestIteratorIterableCovariant() {
 	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !IteratorIterable<(string|number)>*/ x){};
