@@ -50,6 +50,9 @@ type ReferenceCollector struct {
 	// hence the Object map.
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
 
+	// Go-only: opt-in native lookup; the ordered map remains authoritative.
+	nativeReferences map[referenceCollectorScopedKey]*ReferenceCollection
+
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
 	// Go-only: language-adapter — the ArrayDeque, first element first.
@@ -102,6 +105,7 @@ func NewReferenceCollectorWithVarFilter(
 	c.behavior = behavior
 	c.scopeCreator = creator
 	c.varFilter = varFilter
+	c.initNativeReferenceLookup()
 	return c
 }
 
@@ -170,6 +174,9 @@ func (c *ReferenceCollector) GetScope(var_ *Var) *Scope {
 //
 // Java: ReferenceCollector.getReferences(Var)
 func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
+	if c.nativeReferences != nil {
+		return c.nativeReferences[referenceCollectorKey(v)]
+	}
 	return c.referenceMap.Get(v)
 }
 
@@ -317,7 +324,7 @@ func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 	if t.IsHoistScope() {
 		cb.c.PopLastBlock(t.GetScopeRoot())
 	}
-	cb.c.behavior.AfterExitScope(t, NewReferenceCollector_ReferenceMapWrapper(cb.c.referenceMap))
+	cb.c.behavior.AfterExitScope(t, cb.c.referenceMapWrapper())
 }
 
 // Visit: for each node, update the block stack and reference collection as
@@ -411,10 +418,13 @@ func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversa
 	}
 
 	// Create collection if none already
-	collection := c.referenceMap.Get(v)
+	collection := c.GetReferences(v)
 	if collection == nil {
 		collection = NewReferenceCollection()
 		c.referenceMap.Put(v, collection)
+		if c.nativeReferences != nil {
+			c.nativeReferences[referenceCollectorKey(v)] = collection
+		}
 	}
 
 	// Add this particular reference
@@ -428,6 +438,9 @@ func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversa
 // Behavior.afterExitScope.
 type ReferenceCollector_ReferenceMapWrapper struct {
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
+	// A raw-map escape permanently retires the owner's private lookup index.
+	// The public constructor has no indexed owner and retains its old behavior.
+	owner *ReferenceCollector
 }
 
 // Java: ReferenceCollector.ReferenceMapWrapper(Map<Var, ReferenceCollection>)
@@ -438,11 +451,17 @@ func NewReferenceCollector_ReferenceMapWrapper(
 
 // Java: ReferenceCollector.ReferenceMapWrapper.getReferences(Var)
 func (w *ReferenceCollector_ReferenceMapWrapper) GetReferences(var_ *Var) *ReferenceCollection {
+	if w.owner != nil {
+		return w.owner.GetReferences(var_)
+	}
 	return w.referenceMap.Get(var_)
 }
 
 // Java: ReferenceCollector.ReferenceMapWrapper.getRawReferenceMap()
 func (w *ReferenceCollector_ReferenceMapWrapper) GetRawReferenceMap() *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection] {
+	if w.owner != nil {
+		w.owner.nativeReferences = nil
+	}
 	return w.referenceMap
 }
 
