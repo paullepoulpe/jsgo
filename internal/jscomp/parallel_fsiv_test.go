@@ -27,7 +27,11 @@ func newParallelFSIVTestCompiler(t *testing.T, workers int, programs ...string) 
 		t.Fatal("fixture failed parsing")
 	}
 	Normalize_CreateNormalizeForOptimizations(compiler).Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
+	NewGatherGetterAndSetterProperties(compiler).Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
 	NewPureFunctionIdentifier_Driver(compiler).Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
+	if compiler.GetErrorCount() != 0 {
+		t.Fatal("fixture failed normalization or side-effect setup")
+	}
 	compiler.changeTracker.GetChangedScopeNodesForPass("parallel-fsiv-test")
 	return compiler
 }
