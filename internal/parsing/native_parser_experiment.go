@@ -102,7 +102,8 @@ func nativeParserAttempt(sourceFile rhino.StaticSourceFile, source string, confi
 	diagnostics.InitErrorReporterBase(diagnostics)
 	p := &nativeParser{diagnostics: diagnostics}
 	p.scanner = parser.NewScanner(diagnostics, diagnostics, file, 0)
-	p.factory = NewIRFactory(sourceFile, config, diagnostics, nil, file, JsDocInfoParser_JsDocSourceKind_NORMAL)
+	p.factory = newIRFactoryWithNodeAllocator(sourceFile, config, diagnostics, nil, file,
+		JsDocInfoParser_JsDocSourceKind_NORMAL, &rhino.NodeAllocator{})
 	start := p.scanner.GetPosition()
 	p.advance()
 	root := p.factory.NewNode(rhino.Token_SCRIPT)

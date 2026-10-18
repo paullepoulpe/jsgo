@@ -47,12 +47,21 @@ intentionally does not attempt to approximate those rules with an incomplete
 stream of comments.
 
 This makes the boundary explicit and differential testing straightforward, but
-unsupported files pay for speculative work before fallback. Speculative nodes
-also currently use IRFactory's shared weak allocation chunks. A failed large
-prefix can share a chunk with a retained AST, extending the aborted graph's
-lifetime; a production sink should own its allocation group per parse, including
-under concurrent parsing. The parser-only benchmark starts an allocation group
-per iteration for both variants, matching a normal Compiler job. In particular,
+unsupported files pay for speculative work before fallback. Each native attempt
+now passes a private `rhino.NodeAllocator` into IRFactory before either template
+is created. Its node chunks grow from 8 to at most 128 nodes; chunks are never
+pooled or published globally, and nodes do not point back to the allocator. A
+rejected attempt therefore cannot share a chunk with another parser's accepted
+AST or its own original-parser fallback. This holds during parallel parsing and
+needs no global allocation-boundary changes. The ordinary parser keeps its
+existing allocation behavior.
+
+Ownership covers every allocation helper reachable by the accepted native
+grammar, including template cloning and literal subclasses. Other IRFactory
+paths still have direct Rhino allocations (for example closure-unaware wrapping,
+getter/setter construction and module transforms); adding those constructs to
+the native grammar requires another allocation audit. Private chunk tails also
+have a per-file space cost that needs end-to-end memory measurement. In particular,
 this prototype is not ready to replace the complete grammar or demonstrate a win on
 general bundles containing unsupported functions/modules/annotations. Production expansion should add
 full grammar support and whole-file comment discovery or a deferred attachment
@@ -89,7 +98,9 @@ with Go 1.27.2, two pinned CPUs, GOMAXPROCS=2 and default GC:
 The RSS row is the peak of the entire 200 ms adaptive benchmark process,
 including calibration. Allocated bytes/op is the more useful allocation measure
 for this component experiment; neither number is a full CLI compilation's peak.
-Both variants use the same test binary and no PGO profile. The final pair slowed
+These component samples predate the private per-attempt allocator; they need
+remeasurement for that implementation. Both variants use the same test binary
+and no PGO profile. The final pair slowed
 for both variants; all five pairs are retained in the raw results. The other
 four pairs showed approximately 1.96–2.05x time ratios.
 

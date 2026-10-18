@@ -35,7 +35,9 @@ import (
 //
 // Java: class IRFactory
 type IRFactory struct {
-	sourceFile rhino.StaticSourceFile
+	// Go-only: performance — non-nil only for an independently owned parse.
+	nodeAllocator *rhino.NodeAllocator
+	sourceFile    rhino.StaticSourceFile
 	// Go-only: language-adapter — rhino.ErrorReporter takes a Go string, so
 	// Java's null source name (no source file, in tests) is "".
 	sourceName string
@@ -221,7 +223,16 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
-	f := &IRFactory{}
+	return newIRFactoryWithNodeAllocator(sourceFile, config, errorReporter, comments,
+		fileWithContent, jsDocSourceKind, nil)
+}
+
+// Allocator ownership must be established before creating either template.
+func newIRFactoryWithNodeAllocator(
+	sourceFile rhino.StaticSourceFile, config *Config, errorReporter rhino.ErrorReporter,
+	comments []*parser.Comment, fileWithContent *parser.SourceFile,
+	jsDocSourceKind JsDocInfoParser_JsDocSourceKind, allocator *rhino.NodeAllocator) *IRFactory {
+	f := &IRFactory{nodeAllocator: allocator}
 	f.parsedComments = jutil.NewLinkedHashSet[*parser.Comment]()
 	f.licenseBuilder = jutil.NewLinkedHashSet[string]()
 	f.firstFileoverview = nil
@@ -326,7 +337,12 @@ func (t *IRFactory_CommentTracker) HasPendingCommentBefore(pos *parser.SourcePos
 // Java: IRFactory.createTemplateNode()
 func (f *IRFactory) CreateTemplateNode() *rhino.Node {
 	// The Node type choice is arbitrary.
-	templateNode := rhino.NewNode(rhino.Token_SCRIPT)
+	var templateNode *rhino.Node
+	if f.nodeAllocator == nil {
+		templateNode = rhino.NewNode(rhino.Token_SCRIPT)
+	} else {
+		templateNode = f.nodeAllocator.NewNode(rhino.Token_SCRIPT)
+	}
 	templateNode.SetStaticSourceFile(f.sourceFile)
 	return templateNode
 }
@@ -335,7 +351,12 @@ func (f *IRFactory) CreateTemplateNode() *rhino.Node {
 func (f *IRFactory) CreateClosureUnawareTemplateNode() *rhino.Node {
 	// We clone the default template node, so that the source file property,
 	// and other potential properties are shared
-	closureUnawareTemplateNode := f.defaultTemplateNode.CloneNode()
+	var closureUnawareTemplateNode *rhino.Node
+	if f.nodeAllocator == nil {
+		closureUnawareTemplateNode = f.defaultTemplateNode.CloneNode()
+	} else {
+		closureUnawareTemplateNode = f.nodeAllocator.CloneNode(f.defaultTemplateNode)
+	}
 
 	// We add the IS_IN_CLOSURE_UNAWARE_SUBTREE property to the head of the
 	// property list.
@@ -4707,31 +4728,58 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewNode(type_).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.NewNode(type_).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
+	if f.nodeAllocator != nil {
+		node := f.NewNode(type_)
+		node.AddChildToBack(child1)
+		return node
+	}
 	return rhino.NewNodeWithChild(type_, child1).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
+	if f.nodeAllocator != nil {
+		node := f.NewNode(type_)
+		node.AddChildToBack(child1)
+		node.AddChildToBack(child2)
+		return node
+	}
 	return rhino.NewNodeWith2Children(type_, child1, child2).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
+	if f.nodeAllocator != nil {
+		node := f.NewNode(type_)
+		node.AddChildToBack(child1)
+		node.AddChildToBack(child2)
+		node.AddChildToBack(child3)
+		return node
+	}
 	return rhino.NewNodeWith3Children(type_, child1, child2, child3).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewString(rhino.Token_STRINGLIT, value).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.IR_String(value).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewString(type_, value).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.Node_NewStringWithToken(type_, value).ClonePropsFrom(f.templateNode)
 }
 
@@ -4749,16 +4797,25 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.Sour
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewTemplateLiteral(cooked, raw).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.Node_NewTemplateLitString(cooked, raw).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewNumber(value).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.IR_Number(value).ClonePropsFrom(f.templateNode)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
+	if f.nodeAllocator != nil {
+		return f.nodeAllocator.NewBigInt(value).ClonePropsFrom(f.templateNode)
+	}
 	return rhino.Node_NewBigInt(value).ClonePropsFrom(f.templateNode)
 }
 
