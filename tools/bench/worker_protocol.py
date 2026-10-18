@@ -96,8 +96,10 @@ def main():
             'worker_protocol_median_ms': median,
             'java_warm_median_ms': statistics.median(java),
             'speed_vs_java_warm': statistics.median(java)/median,
+            'time_ratio_java_over_go': statistics.median(java)/median,
             'worker_peak_rss_mb': max(rss),
             'java_peak_rss_mb': warm['process']['rss_mb'],
+            'memory_ratio_java_over_go': warm['process']['rss_mb']/max(rss),
             'all_responses_match_java': True,
             'worker_warmup': a.warmup, 'worker_iters': a.iters,
             'measured_ms': rows, 'java_measure_ms': java,
@@ -106,6 +108,7 @@ def main():
         bench.save(str(root/'summary.json'), summary)
         print(f'{name}: worker {median:.3f}ms / {max(rss):.1f}MiB peak RSS, '
               f"Java {statistics.median(java):.3f}ms / {warm['process']['rss_mb']:.1f}MiB peak RSS; "
+              f"Java/Go time {statistics.median(java)/median:.3f}x, RSS {warm['process']['rss_mb']/max(rss):.3f}x; "
               f'all {a.warmup+a.iters} requests MATCH', flush=True)
     bench.save(str(root/'provenance.json'), {
         'binary_sha256': bench.sha256_file(binary),

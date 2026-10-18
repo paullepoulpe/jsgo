@@ -37,6 +37,8 @@ Keep the process open for subsequent requests. Closing stdin cleanly shuts it
 down. The normal CLI remains useful for one-off builds; the worker requires a
 client that sends requests and decodes responses.
 
-See the [performance report](performance.md) for the workload-specific comparison. A worker win
-on a small repeated WHITESPACE compilation does not imply a win on large builds
-or the other compilation levels.
+See the [performance report](performance.md) for the workload-specific comparison. Worker comparisons must give both runtimes equivalent extern reuse. The earlier
+small WHITESPACE comparison against stock Java used unequal cache policies;
+that result does not establish a win against a comparable Java worker. The
+benchmark-only Java worker and matched comparison are documented in
+[tools/bench/java/README.md](../tools/bench/java/README.md).

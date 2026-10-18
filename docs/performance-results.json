@@ -1538,7 +1538,9 @@
         859.0,
         860.0,
         860.0
-      ]
+      ],
+      "time_ratio_java_over_go": 0.5761516852558922,
+      "memory_ratio_java_over_go": 3.8959240766316086
     },
     "small-simple": {
       "worker_protocol_median_ms": 286.5912820006997,
@@ -1745,7 +1747,9 @@
         563.0,
         563.0,
         563.0
-      ]
+      ],
+      "time_ratio_java_over_go": 0.8126555643078891,
+      "memory_ratio_java_over_go": 4.424501686599203
     },
     "small-whitespace": {
       "worker_protocol_median_ms": 45.64491399924009,
@@ -1952,7 +1956,9 @@
         636.0,
         636.0,
         636.0
-      ]
+      ],
+      "time_ratio_java_over_go": 1.268487437635745,
+      "memory_ratio_java_over_go": 6.177824981982324
     },
     "small-checks": {
       "worker_protocol_median_ms": 516.4691580002909,
@@ -2159,7 +2165,9 @@
         781.0,
         781.0,
         781.0
-      ]
+      ],
+      "time_ratio_java_over_go": 0.6919096609439721,
+      "memory_ratio_java_over_go": 5.013138429907479
     }
   },
   "binaries": {
@@ -2239,6 +2247,29 @@
       "java": "peak RSS of each entire persistent JVM process from wait4 ru_maxrss, including startup, warmup, measured iterations and shutdown",
       "worker": "maximum /proc/PID/status VmHWM read after each of 40 requests, including 10 warmup requests; excludes the Python client",
       "interpretation": "resident process memory, not allocated bytes or live heap; persistent-process iteration counts differ as documented"
+    },
+    "worker_comparison_status": "Historical unequal-cache comparison; withdrawn as evidence of beating comparable Java. Go reuses extern parse templates, stock Java does not. Equivalent cached Java worker comparison pending."
+  },
+  "java_go_ratios": {
+    "typed-app": {
+      "time_ratio_java_over_go": 0.6969855706839168,
+      "memory_ratio_java_over_go": 4.742952223183265
+    },
+    "bundle": {
+      "time_ratio_java_over_go": 0.8940598938139817,
+      "memory_ratio_java_over_go": 3.327434588237117
+    },
+    "downlevel-whitespace": {
+      "time_ratio_java_over_go": 0.6583018324883324,
+      "memory_ratio_java_over_go": 5.717342928838597
+    },
+    "downlevel-simple": {
+      "time_ratio_java_over_go": 0.6586747656596802,
+      "memory_ratio_java_over_go": 7.127653552221908
+    },
+    "checks-only": {
+      "time_ratio_java_over_go": 0.7386162741096054,
+      "memory_ratio_java_over_go": 2.1864339593374966
     }
   }
 }

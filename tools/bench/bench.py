@@ -787,7 +787,7 @@ def report(out_dir, md_path, preliminary=True, notes=None):
         w_meas = [i for i in warm["iterations"] if i["kind"] == "measure"] if warm else []
         w_wall = stat([i["wall_ms"] / 1000 for i in w_meas])
         w_cpu = stat([i["cpu_ms"] / 1000 for i in w_meas])
-        w_rss = warm["peak_rss_mb"] if warm else None
+        w_rss = warm.get("process", {}).get("rss_mb", warm["peak_rss_mb"]) if warm else None
         status = (gate or {}).get("status") or ("not run" if not jsgo else "–")
         crashes = gate_crashes(gate, tdir, len(jobs)) if gate else {}
         crashed_all = status == "DIFF" and sum(crashes.values()) == len(jobs)
@@ -802,6 +802,8 @@ def report(out_dir, md_path, preliminary=True, notes=None):
             status_cell += f" ({c['MATCH']}/{c['DIFF']}/{c['PENDING']} match/diff/pending)"
         speed_cold = ratio(c_wall, g_wall) if status == "MATCH" else "–"
         speed_warm = ratio(w_wall, g_wall) if status == "MATCH" else "–"
+        memory_cold = ratio(c_rss, g_rss) if status == "MATCH" else "–"
+        memory_warm = ratio({"median": w_rss}, g_rss) if status == "MATCH" and w_rss else "–"
         subset = matching_subset(gate, cold, jsgo) if len(jobs) > 1 and status != "MATCH" else None
         if subset:
             speed_cold = f"{subset['java'] / subset['jsgo']:.2f}× (on the {subset['n']} matching)"
@@ -810,6 +812,7 @@ def report(out_dir, md_path, preliminary=True, notes=None):
             f"| {fmt_stat(w_wall, ' s')} | {fmt_stat(w_cpu, ' s')} | {fmt_s(w_rss)} MB "
             f"| {status_cell} | {fmt_stat(g_wall, ' s')} | {fmt_stat(g_cpu, ' s')} "
             f"| {fmt_s(g_rss and g_rss['median'])}{' MB' if g_rss else ''} | {speed_cold} | {speed_warm} "
+            f"| {memory_cold} | {memory_warm} "
             f"| {fmt_stat(c_load)} |")
 
         # Section per task.
@@ -892,11 +895,13 @@ def report(out_dir, md_path, preliminary=True, notes=None):
               "RSS is peak resident memory (Java warm: the JVM's peak over its whole life, warm-up included). "
               "Speed-ups are Java time ÷ jsgo time (above 1× means jsgo is faster) and only appear when jsgo's output, "
               "source map and diagnostics match Java's byte for byte. *load* is the 1-minute load average at the start "
-              "of each Java cold run.", "",
+              "of each Java cold run. RSS ratios are Java RSS ÷ jsgo RSS (above 1× means jsgo uses less resident memory); "
+              "they compare process peaks, not per-invocation live heaps. The legacy MB labels denote MiB.", "",
               "## Overall", "",
               "| Task | Java cold wall | Java cold CPU | Java cold RSS | Java warm wall | Java warm CPU | Java warm RSS "
-              "| jsgo | jsgo wall | jsgo CPU | jsgo RSS | jsgo speed-up vs cold | vs warm | load (1 min) |",
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"] + rows + [""]
+              "| jsgo | jsgo wall | jsgo CPU | jsgo RSS | jsgo speed-up vs cold | vs warm "
+              "| Java/jsgo RSS cold | warm | load (1 min) |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"] + rows + [""]
     lines += ["## Per task and per phase", "",
               "Per-phase times come from separate runs with `--tracer_mode=TIMING_ONLY` (milliseconds, median "
               "over the trace runs; for multi-invocation tasks, summed over the invocations of a run). Passes are "

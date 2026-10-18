@@ -1,9 +1,10 @@
 # Performance experiments, October 2026
 
 The retained CLI improves every workload in the existing five-task suite.
-Warm Java remains faster on those full builds. The persistent worker beats
-warm Java on the held-out small WHITESPACE workload; that is a specific
-workflow result, not a claim that Go generally outperforms HotSpot.
+Warm Java remains faster on those full builds. The earlier small-worker win
+compared Go with parsed-extern reuse against stock Java reparsing externs.
+That comparison does not establish a win over an equivalent Java worker;
+the claim is withdrawn. Matched worker and parallelism experiments are underway.
 
 ## Full compilations
 
@@ -12,13 +13,17 @@ Five interleaved runs per Go binary; medians below. Original is commit
 existing PGO profile. Both use default runtime GC settings. Each invocation
 recompiles the program and starts a new Go process.
 
-| Workload | Original Go (time / RSS) | Candidate Go (time / RSS) | Less elapsed time | Warm Java (time / RSS) |
-|---|---:|---:|---:|---:|
-| typed-app | 6.094s / 268.6MiB | 5.290s / 266.5MiB | 13.2% | 3.687s / 1263.8MiB |
-| bundle | 23.102s / 675.2MiB | 18.531s / 504.2MiB | 19.8% | 16.568s / 1677.6MiB |
-| downlevel-whitespace | 1.554s / 179.3MiB | 1.418s / 165.0MiB | 8.8% | 0.933s / 943.4MiB |
-| downlevel-simple | 4.762s / 220.4MiB | 4.038s / 207.0MiB | 15.2% | 2.660s / 1475.5MiB |
-| checks-only | 8.872s / 710.0MiB | 8.028s / 679.9MiB | 9.5% | 5.930s / 1486.7MiB |
+| Workload | Original Go (time / RSS) | Candidate Go (time / RSS) | Less elapsed time | Warm Java (time / RSS) | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| typed-app | 6.094s / 268.6MiB | 5.290s / 266.5MiB | 13.2% | 3.687s / 1263.8MiB | 0.70x | 4.74x |
+| bundle | 23.102s / 675.2MiB | 18.531s / 504.2MiB | 19.8% | 16.568s / 1677.6MiB | 0.89x | 3.33x |
+| downlevel-whitespace | 1.554s / 179.3MiB | 1.418s / 165.0MiB | 8.8% | 0.933s / 943.4MiB | 0.66x | 5.72x |
+| downlevel-simple | 4.762s / 220.4MiB | 4.038s / 207.0MiB | 15.2% | 2.660s / 1475.5MiB | 0.66x | 7.13x |
+| checks-only | 8.872s / 710.0MiB | 8.028s / 679.9MiB | 9.5% | 5.930s / 1486.7MiB | 0.74x | 2.19x |
+
+Both ratio columns divide Java by Go: above 1x means Go takes less time or
+uses less peak RSS, respectively. The time ratios compare median elapsed time;
+the memory ratios compare the documented process peaks.
 
 The candidate still needs roughly 11–34% less elapsed time, depending on the
 workload, to equal these warmed JVM medians. The largest retained gain is on the
@@ -43,7 +48,7 @@ These values describe resident process memory, including runtime overhead;
 they are not allocated bytes or live-heap size. The bundle's median Go peak
 RSS falls from 675.2 to 504.2 MiB (25.3%).
 
-## Repeated small applications
+## Historical small-worker results (unequal extern reuse)
 
 These small DOM-counter workloads were held out of PGO training. Java uses
 100 warm-up and 30 measured iterations. Go uses the production `jsgo-worker`
@@ -51,14 +56,17 @@ JSON protocol, 10 warm-up and 30 measured requests, including request/response
 transport and client decoding. All 40 responses and generated artifacts are
 checked against Java for each workload.
 
-| Workload | Go worker (time / RSS) | Warm Java (time / RSS) | Java time / Go time |
-|---|---:|---:|---:|
-| small-advanced | 948.45ms / 220.6MiB | 546.45ms / 859.5MiB | 0.58x |
-| small-simple | 286.59ms / 127.4MiB | 232.90ms / 563.6MiB | 0.81x |
-| small-whitespace | 45.64ms / 103.0MiB | 57.90ms / 636.2MiB | 1.27x |
-| small-checks | 516.47ms / 155.8MiB | 357.35ms / 781.0MiB | 0.69x |
+| Workload | Go worker (time / RSS) | Warm Java (time / RSS) | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|
+| small-advanced | 948.45ms / 220.6MiB | 546.45ms / 859.5MiB | 0.58x | 3.90x |
+| small-simple | 286.59ms / 127.4MiB | 232.90ms / 563.6MiB | 0.81x | 4.42x |
+| small-whitespace | 45.64ms / 103.0MiB | 57.90ms / 636.2MiB | 1.27x | 6.18x |
+| small-checks | 516.47ms / 155.8MiB | 357.35ms / 781.0MiB | 0.69x | 5.01x |
 
-Only the WHITESPACE row is a win over Java. User code is reread and compiled on
+These rows use unequal cache policies: Go reuses immutable extern parse
+templates, while stock Java creates fresh extern inputs and reparses them on
+every request. They are retained as historical measurements, not evidence of
+language speed or a win against an equivalent worker. User code is reread and compiled on
 every request; this is not compiled-output replay. The worker clones immutable
 built-in extern parse templates and creates a new compiler for each request.
 See [worker usage](worker.md).
@@ -142,8 +150,8 @@ There is no defensible language-level theoretical maximum. HotSpot compiles
 hot code to native code too. The remaining large-build gap calls for further
 algorithmic work and reducing repeated analysis, rather than assuming a newer
 Go compiler, smaller structs or disabling GC guarantees a win. This report
-records a limited worker win and measured CLI improvements without redefining
-the JVM baseline to make the other rows pass.
+records measured CLI improvements. The earlier unequal-cache worker win is
+withdrawn pending a matched Java implementation and thread-count comparison.
 
 Raw medians, iteration data, binary hashes, build settings and machine metadata
 are in [performance-results.json](performance-results.json).

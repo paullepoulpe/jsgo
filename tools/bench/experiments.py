@@ -27,6 +27,8 @@ def main():
     ap.add_argument('--reference', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--variant', action='append', required=True, help='NAME=BINARY; no compilation during measurement')
+    ap.add_argument('--variant-env', action='append', default=[],
+                    help='NAME=JSON_OBJECT; explicit experiment environment for one variant')
     ap.add_argument('--tasks', default='typed-app,bundle,downlevel-whitespace,downlevel-simple,checks-only')
     ap.add_argument('--runs', type=int, default=5)
     ap.add_argument('--seed', type=int, default=20261018)
@@ -46,16 +48,27 @@ def main():
         if not os.access(binary, os.X_OK):
             ap.error('binary is not executable: ' + binary)
         variants[name] = binary
+    variant_env = {name: {} for name in variants}
+    for value in a.variant_env:
+        name, settings = value.split('=', 1)
+        settings = json.loads(settings)
+        if name not in variants or not isinstance(settings, dict) or any(
+                not isinstance(k, str) or not isinstance(v, str) for k, v in settings.items()):
+            ap.error('variant-env must name a variant and map strings to strings')
+        variant_env[name].update(settings)
     root = Path(a.out).resolve()
     root.mkdir(parents=True, exist_ok=True)
     ref = Path(a.reference).resolve()
     runner = bench.Runner(a)
+    # A shell's experimental toggles must not silently affect the control.
+    base_env = {k: v for k, v in runner.go_env.items() if not k.startswith('JSGO_EXPERIMENT_')}
     metadata = bench.machine_info(runner, {'variants': {name: {'path': path, 'sha256': bench.sha256_file(path)}
                                                          for name, path in variants.items()}})
     metadata['cpu_affinity'] = sorted(os.sched_getaffinity(0))
     metadata['reference'] = str(ref)
     metadata['runs'] = a.runs
     metadata['seed'] = a.seed
+    metadata['variant_environment'] = variant_env
     bench.save(str(root/'machine.json'), metadata)
     summary = {}
     rng = random.Random(a.seed)
@@ -93,7 +106,8 @@ def main():
                 binary = variants[label]
                 print(f'== {name} / {label} / round {index}', flush=True)
                 run = runner.measure_cold(task, jobs, tdirs[label], 'jsgo', index,
-                                          lambda argv, binary=binary: [binary]+argv, runner.go_env)
+                                          lambda argv, binary=binary: [binary]+argv,
+                                          base_env | variant_env[label])
                 task_result[label].append(run)
                 if index==1:
                     status = bench.gate(task, jobs, tdirs[label])
@@ -102,7 +116,9 @@ def main():
                 if run['digests'] != expected:
                     sys.exit(f'artifact digests changed: {name} / {label} / round {index}')
                 bench.save(str(Path(tdirs[label])/'jsgo.json'), {'runs': task_result[label]})
-        summary[name] = {'java_warm_s': statistics.median(warm_values), 'variants': {}}
+        java_rss = warm['process']['rss_mb']
+        summary[name] = {'java_warm_s': statistics.median(warm_values),
+                         'java_peak_rss_mb': java_rss, 'variants': {}}
         first_label = next(iter(variants))
         baseline = statistics.median([r['wall_s'] for r in task_result[first_label]])
         for label, runs in task_result.items():
@@ -114,6 +130,7 @@ def main():
                 'median_peak_rss_mb': statistics.median([r['rss_mb'] for r in runs]),
                 'speed_vs_first_variant': baseline/median,
                 'speed_vs_java_warm': summary[name]['java_warm_s']/median,
+                'memory_ratio_java_over_go': java_rss/statistics.median([r['rss_mb'] for r in runs]),
                 'all_outputs_match': True,
             }
         bench.save(str(root/'summary.json'), summary)
