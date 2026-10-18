@@ -56,8 +56,8 @@ func parallelFSIVChangeSnapshot(c *Compiler) []string {
 
 func TestParallelFSIVDifferential(t *testing.T) {
 	fixtures := [][]string{
-		{`var shared = 1; function f(a) { var x; x = a + shared; return x; }`,
-			`function g(a) { var x = shared + a; return x; }`},
+		{`var shared = 1; function f(a) { var x; x = a + 1; return x + shared; }`,
+			`function g(a) { var x = a + 2; return x + shared; }`},
 		{`function f(a) { var fn = function(b) { var x = a + b; return x; }; return fn; }`,
 			`function g(a) { var fn = () => { let x = a + 2; return x; }; return fn; }`},
 		{`function f(a) { var x = a; if (a) { x = 2; } return x; }`,
