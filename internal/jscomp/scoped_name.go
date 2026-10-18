@@ -48,8 +48,6 @@ type ScopedName interface {
 
 	// Java: ScopedName.hashCode()
 	HashCode() int32
-
-	GetScopedNameBase() *ScopedNameBase
 }
 
 // ScopedNameBase holds the final equals/hashCode of ScopedName; subclasses

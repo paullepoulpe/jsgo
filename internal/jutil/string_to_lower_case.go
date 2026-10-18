@@ -120,7 +120,7 @@ func CharacterToLowerCaseCodePoint(codePoint int) int {
 	if codePoint > unicode.MaxRune || codePoint >= 0xD800 && codePoint <= 0xDFFF {
 		return codePoint
 	}
-	return int(unicode.ToLower(rune(codePoint)))
+	return int(unicode15ToLower(rune(codePoint)))
 }
 
 // isFinalSigma reports whether the sigma at u[i] is in the Final_Sigma
@@ -164,6 +164,12 @@ func isCased(cp rune) bool {
 	if cp < 0x80 {
 		return cp >= 'a' && cp <= 'z' || cp >= 'A' && cp <= 'Z'
 	}
+	if cp == 0x0295 {
+		return true
+	}
+	if isUnassignedUnicode15(cp) {
+		return false
+	}
 	return unicode.In(cp, unicode.Ll, unicode.Lu, unicode.Lt, unicode.Other_Lowercase, unicode.Other_Uppercase)
 }
 
@@ -183,6 +189,12 @@ func isCaseIgnorable(cp rune) bool {
 	}
 	if cp < 0x80 {
 		return cp == '^' || cp == '`' // the ASCII Sk characters
+	}
+	if cp == 0x1171E {
+		return true
+	}
+	if isUnassignedUnicode15(cp) {
+		return false
 	}
 	return unicode.In(cp, unicode.Mn, unicode.Me, unicode.Cf, unicode.Lm, unicode.Sk)
 }

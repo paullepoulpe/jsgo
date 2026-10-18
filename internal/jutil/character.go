@@ -81,7 +81,13 @@ var characterCategories = []struct {
 
 // CharacterGetType is Character.getType(char).
 func CharacterGetType(ch uint16) int {
+	if ch == 0x0295 {
+		return Character_LOWERCASE_LETTER
+	}
 	r := rune(ch)
+	if isUnassignedUnicode15(r) {
+		return Character_UNASSIGNED
+	}
 	for _, c := range characterCategories {
 		if unicode.Is(c.table, r) {
 			return c.typ
@@ -96,7 +102,8 @@ func CharacterIsLetter(ch uint16) bool {
 	if ch < 0x80 {
 		return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
 	}
-	return unicode.IsLetter(rune(ch)) && !isSurrogate(ch)
+	r := rune(ch)
+	return !isUnassignedUnicode15(r) && unicode.IsLetter(r) && !isSurrogate(ch)
 }
 
 // CharacterIsDigit is Character.isDigit(char): general category Nd.
@@ -104,7 +111,8 @@ func CharacterIsDigit(ch uint16) bool {
 	if ch < 0x80 {
 		return ch >= '0' && ch <= '9'
 	}
-	return unicode.Is(unicode.Nd, rune(ch))
+	r := rune(ch)
+	return !isUnassignedUnicode15(r) && unicode.Is(unicode.Nd, r)
 }
 
 // CharacterIsUpperCase is Character.isUpperCase(char): per its Javadoc,
@@ -113,7 +121,8 @@ func CharacterIsUpperCase(ch uint16) bool {
 	if ch < 0x80 {
 		return ch >= 'A' && ch <= 'Z'
 	}
-	return unicode.In(rune(ch), unicode.Lu, unicode.Other_Uppercase)
+	r := rune(ch)
+	return !isUnassignedUnicode15(r) && unicode.In(r, unicode.Lu, unicode.Other_Uppercase)
 }
 
 func isSurrogate(ch uint16) bool { return ch >= 0xD800 && ch <= 0xDFFF }

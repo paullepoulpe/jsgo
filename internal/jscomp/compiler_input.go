@@ -831,26 +831,37 @@ func (a *CompilerInput_JsAst) parse(compiler AbstractCompiler) {
 			sourceFile.GetCode(),
 			compiler.GetParserConfig(context),
 			compiler.GetDefaultErrorReporter())
-		a.root = result.Ast
-		a.features = result.Features
-
-		if compiler.GetOptions().PreservesDetailedSourceInfo() {
-			compiler.AddComments(sourceFile.GetName(), result.Comments)
-		}
-		if result.SourceMapURL != nil && compiler.GetOptions().GetResolveSourceMapAnnotations() {
-			parseInline := compiler.GetOptions().GetParseInlineSourceMaps()
-			sourceMapSourceFile :=
-				SourceMapResolver_ExtractSourceMap(sourceFile, *result.SourceMapURL, parseInline)
-			if sourceMapSourceFile != nil {
-				compiler.AddInputSourceMap(
-					sourceFile.GetName(), NewSourceMapInput(sourceMapSourceFile))
-			}
-		}
+		a.installParseResult(compiler, result)
 	}, func(e jutil.IIOException) {
 		compiler.Report(
 			JSError_Make(AbstractCompiler_READ_ERROR, sourceFile.GetName(), e.GetMessage()))
 	})
 
+	a.ensureScriptRoot()
+}
+
+// Go-only: language-adapter — serial publication after independent parsing.
+func (a *CompilerInput_JsAst) installParseResult(compiler AbstractCompiler, result *parsing.ParserRunner_ParseResult) {
+	sourceFile := a.outer.sourceFile
+	a.root = result.Ast
+	a.features = result.Features
+
+	if compiler.GetOptions().PreservesDetailedSourceInfo() {
+		compiler.AddComments(sourceFile.GetName(), result.Comments)
+	}
+	if result.SourceMapURL != nil && compiler.GetOptions().GetResolveSourceMapAnnotations() {
+		parseInline := compiler.GetOptions().GetParseInlineSourceMaps()
+		sourceMapSourceFile :=
+			SourceMapResolver_ExtractSourceMap(sourceFile, *result.SourceMapURL, parseInline)
+		if sourceMapSourceFile != nil {
+			compiler.AddInputSourceMap(
+				sourceFile.GetName(), NewSourceMapInput(sourceMapSourceFile))
+		}
+	}
+}
+
+func (a *CompilerInput_JsAst) ensureScriptRoot() {
+	sourceFile := a.outer.sourceFile
 	if a.root == nil {
 		a.root = rhino.IR_Script()
 	}

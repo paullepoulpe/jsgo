@@ -492,7 +492,7 @@ func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) *Node {
 		c := RhinoStringPool_AddOrGet(*cooked)
 		n.node_getExt().cooked = &c
 	}
-	n.str = RhinoStringPool_AddOrGet(raw) // raw
+	n.str = rhinoStringPoolCell(raw) // raw
 	return n
 }
 
@@ -510,7 +510,7 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 		c := stringPool.Get(cookedOffsetOrNegativeOne)
 		n.node_getExt().cooked = &c
 	}
-	n.str = stringPool.Get(rawOffset) // raw
+	n.str = rhinoStringPoolCell(stringPool.Get(rawOffset)) // raw
 	return n
 }
 
@@ -1589,13 +1589,13 @@ func (n *Node) SetBigInt(number *big.Int) {
 // Java: Node.getString()
 func (n *Node) GetString() string {
 	n.node_castKind(node_kindString)
-	return n.str
+	return n.nodeStringValue()
 }
 
 // Java: Node.setString(String)
 func (n *Node) SetString(str string) {
 	n.node_castKind(node_kindString)
-	n.str = RhinoStringPool_AddOrGet(str) // RhinoStringPool is null-hostile.
+	n.str = rhinoStringPoolCell(str) // RhinoStringPool is null-hostile.
 }
 
 // Java: Node.setStringFromStringPool(RhinoStringPool.LazyInternedStringList, int)
@@ -1605,13 +1605,13 @@ func (n *Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedS
 	// than RhinoStringPool.addOrGet because the LazyInternedStringList caches
 	// interning results.
 	n.node_castKind(node_kindString)
-	n.str = stringPool.Get(offset)
+	n.str = rhinoStringPoolCell(stringPool.Get(offset))
 }
 
 // Java: Node.getRawString()
 func (n *Node) GetRawString() string {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return n.str // raw
+	return n.nodeStringValue() // raw
 }
 
 // Java: Node.getCookedString()
@@ -1690,8 +1690,8 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 		}
 	}
 
-	if printType && n.jstypeOrColor != nil {
-		typeString := jutil.ToJavaString(n.jstypeOrColor)
+	if printType && n.typeOrColor != nil {
+		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.WriteString(" : ")
 		sb.WriteString(typeString)
 	}
@@ -1778,8 +1778,8 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		sb.append("}")
 	}
 
-	if n.jstypeOrColor != nil {
-		typeString := jutil.ToJavaString(n.jstypeOrColor)
+	if n.typeOrColor != nil {
+		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
 	}
@@ -1881,9 +1881,12 @@ type Node struct {
 
 	// Go-only: language-adapter — the folded subclass (see the Node doc
 	// comment); its payload is str and ext.
-	kind node_kind
+	kind        node_kind
+	typeIsColor bool
 
-	jstypeOrColor any
+	// Go-only: language-adapter — a GC-tracked tagged pointer. JSTypeBase
+	// already contains the concrete self interface, so nodes need not repeat it.
+	typeOrColor unsafe.Pointer
 
 	// Linked list of properties. Since vast majority of nodes would have no
 	// more than 2 properties, linked list saves memory and provides fast
@@ -1892,7 +1895,7 @@ type Node struct {
 
 	// StringNode.str, or TemplateLiteralSubstringNode.raw: the raw version of
 	// the template literal substring, is not null.
-	str string
+	str *string
 
 	// originalName and the NumberNode, BigIntNode and
 	// TemplateLiteralSubstringNode payloads; nil until one is set.
@@ -2747,7 +2750,7 @@ func (n *Node) IsEquivalentToWithModes(
 	case node_kindString:
 		// Java: StringNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
-			RhinoStringPool_UncheckedEquals(n.str, node.str)
+			RhinoStringPool_UncheckedEquals(n.nodeStringValue(), node.nodeStringValue())
 	case node_kindTemplateLiteralSubstring:
 		// Java: TemplateLiteralSubstringNode.isEquivalentTo
 		if !n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) {
@@ -2755,7 +2758,7 @@ func (n *Node) IsEquivalentToWithModes(
 		}
 
 		castNode := node
-		return RhinoStringPool_UncheckedEquals(n.str, castNode.str) && // raw
+		return RhinoStringPool_UncheckedEquals(n.nodeStringValue(), castNode.nodeStringValue()) && // raw
 			RhinoStringPool_UncheckedEqualsNullable(n.node_cooked(), castNode.node_cooked())
 	}
 	return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig)
@@ -2777,7 +2780,7 @@ func (n *Node) isEquivalentToBase(
 	}
 
 	if typeConfig == Node_TypeComparison_COMPARE &&
-		!jutil.ObjectsEquals(n.jstypeOrColor, node.jstypeOrColor) {
+		!jutil.ObjectsEquals(n.typeOrColorValue(), node.typeOrColorValue()) {
 		return false
 	}
 
@@ -3210,7 +3213,7 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 		return clone
 	case node_kindTemplateLiteralSubstring:
 		// Java: TemplateLiteralSubstringNode.cloneNode(boolean)
-		clone := newNode_TemplateLiteralSubstringNode(n.node_cooked(), n.str)
+		clone := newNode_TemplateLiteralSubstringNode(n.node_cooked(), n.nodeStringValue())
 		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 		return clone
 	}
@@ -3223,7 +3226,7 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.linenoCharno = source.linenoCharno
 	dest.length = source.length
-	dest.jstypeOrColor = source.jstypeOrColor
+	dest.typeOrColor, dest.typeIsColor = source.typeOrColor, source.typeIsColor
 	dest.node_setOriginalName(source.node_originalName())
 	dest.propListHead = source.propListHead
 
@@ -3339,10 +3342,10 @@ func (n *Node) SrcrefTreeIfMissing(other *Node) *Node {
 //
 // Java: Node.getJSType()
 func (n *Node) GetJSType() JSType {
-	if t, ok := n.jstypeOrColor.(JSType); ok {
-		return t
+	if n.typeOrColor == nil || n.typeIsColor {
+		return nil
 	}
-	return nil
+	return (*JSTypeBase)(n.typeOrColor).self
 }
 
 // GetJSTypeRequired returns the compiled inferred type on this node, or
@@ -3355,12 +3358,12 @@ func (n *Node) GetJSTypeRequired() JSType {
 
 // Java: Node.setJSType(JSType)
 func (n *Node) SetJSType(x JSType) *Node {
-	_, isJSType := n.jstypeOrColor.(JSType)
-	jutil.CheckStateMsg1(n.jstypeOrColor == nil || isJSType, "%s", n)
+	jutil.CheckStateMsg1(n.typeOrColor == nil || !n.typeIsColor, "%s", n)
+	n.typeIsColor = false
 	if jutil.IsNil(x) {
-		n.jstypeOrColor = nil
+		n.typeOrColor = nil
 	} else {
-		n.jstypeOrColor = x
+		n.typeOrColor = unsafe.Pointer(x.GetJSTypeBase())
 	}
 	return n
 }
@@ -3371,21 +3374,17 @@ func (n *Node) SetJSType(x JSType) *Node {
 //
 // Java: Node.getColor()
 func (n *Node) GetColor() *colors.Color {
-	if c, ok := n.jstypeOrColor.(*colors.Color); ok {
-		return c
+	if !n.typeIsColor {
+		return nil
 	}
-	return nil
+	return (*colors.Color)(n.typeOrColor)
 }
 
 // Java: Node.setColor(Color)
 func (n *Node) SetColor(x *colors.Color) *Node {
-	_, isColor := n.jstypeOrColor.(*colors.Color)
-	jutil.CheckStateMsg1(n.jstypeOrColor == nil || isColor, "%s", n)
-	if x == nil {
-		n.jstypeOrColor = nil
-	} else {
-		n.jstypeOrColor = x
-	}
+	jutil.CheckStateMsg1(n.typeOrColor == nil || n.typeIsColor, "%s", n)
+	n.typeOrColor = unsafe.Pointer(x)
+	n.typeIsColor = x != nil
 	return n
 }
 
@@ -3393,7 +3392,7 @@ func (n *Node) SetColor(x *colors.Color) *Node {
 //
 // Java: Node.copyTypeFrom(Node)
 func (n *Node) CopyTypeFrom(other *Node) *Node {
-	n.jstypeOrColor = other.jstypeOrColor
+	n.typeOrColor, n.typeIsColor = other.typeOrColor, other.typeIsColor
 	return n
 }
 
@@ -4658,4 +4657,23 @@ func (n *Node) IsYield() bool {
 // Java: Node.isDeclare()
 func (n *Node) IsDeclare() bool {
 	return n.token == Token_DECLARE
+}
+
+// Go-only: language-adapter — recover the Java Object field only for printing
+// and equality; hot getters use the tagged pointer directly.
+func (n *Node) typeOrColorValue() any {
+	if n.typeOrColor == nil {
+		return nil
+	}
+	if n.typeIsColor {
+		return (*colors.Color)(n.typeOrColor)
+	}
+	return (*JSTypeBase)(n.typeOrColor).self
+}
+
+func (n *Node) nodeStringValue() string {
+	if n.str == nil {
+		return ""
+	}
+	return *n.str
 }

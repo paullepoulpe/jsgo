@@ -15,7 +15,13 @@ func CharacterGetTypeOfCodePoint(codePoint int) int {
 	if codePoint <= 0xFFFF {
 		return CharacterGetType(uint16(codePoint))
 	}
+	if codePoint == 0x1171E {
+		return Character_NON_SPACING_MARK
+	}
 	r := rune(codePoint)
+	if isUnassignedUnicode15(r) {
+		return Character_UNASSIGNED
+	}
 	for _, c := range characterCategories {
 		if unicode.Is(c.table, r) {
 			return c.typ

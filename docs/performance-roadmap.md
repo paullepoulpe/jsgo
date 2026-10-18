@@ -139,6 +139,55 @@ wants it.
 10–15% of allocations left as "other"; heap profiles for
 downlevel-simple and checks-only.
 
+## Allocation, compact layout, and `--num_parallel_threads` (2026-10-18)
+
+Following the GC lab findings, a set of targeted allocation, struct-size,
+data-flow lattice, and opt-in parallel prebuild changes were integrated:
+
+- **Slab-batched collection entries (`internal/jutil/collections.go`):**
+  `LinkedHashMap` and `ObjectLinkedHashMap` batch entry nodes in 64-entry
+  slabs once a map grows past 8 entries, plus single-probe `LoadOrStore`.
+- **Indexed 64-var bitmask lattice (`internal/jscomp/must_def_map.go`):**
+  `MustBeReachingVariableDef` uses a dense indexed table and uint64 active
+  bitset for functions with $\le 64$ tracked variables, falling back to
+  `ObjectLinkedHashMap` only for larger functions.
+- **Compact `rhino.Node` (96 B → 80 B) and `jscomp.Var` (80 B → 64 B):**
+  pack `str` (`*string`) and `typeOrColor` (`unsafe.Pointer` with a 2-word
+  tagged wrapper when both JSType and Color are present on the same node) in
+  `rhino.Node`; pack boolean flags and lazy atomic `nameHash` on `AbstractVar`.
+- **Scanner & rename-conflict deduplication:** reuse consecutive identical
+  token `SourcePosition`s in `LineNumberScanner` and deduplicate conflict
+  recording in `MakeDeclaredNamesUnique` for scopes with $\ge 8$ declarations.
+- **Opt-in `--num_parallel_threads` prebuild:** bounded parallel AST parsing
+  (`prebuild_ast_parallel.go`) and dependency scanning
+  (`prebuild_dependency_info_parallel.go`) with deterministic pre-assigned
+  diagnostics and synchronized ZIP entry caching (`js_comp_zip_file_cache.go`).
+  Default sequential behavior (`--num_parallel_threads=1`) is unchanged.
+- **Unicode 15.0 delta wrapper (`internal/jutil/unicode15.go`):** lightweight
+  delta table over Go's `unicode` package so Go 1.27+ (Unicode 16+) remains
+  100% byte-identical with JDK 21 (Unicode 15.0) without vendoring Go 1.24's
+  `unicode` package.
+
+### Measured results (interleaved, N=5, PGO enabled)
+
+Measured on macOS arm64 (Go 1.27.1, `-pgo=cmd/jsgo/default.pgo`), interleaving
+`main` (`c9872522`) and the updated branch (`N=5` cold Go runs each, `N=3`
+cold Java, `N=5` warm Java, all 5 byte-equivalence gates `MATCH`, plus 48/48
+`-race` parallel equivalence gate cases across `--num_parallel_threads={1,2,4}`):
+
+| Task | Baseline (`main`) | Integrated (`threads=1`) | Speedup (`t=1`) | Peak RSS (`main` → new) | With `--num_parallel_threads=4` | vs Cold Java | vs Warm Java (`t=1` / `t=4`) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `typed-app` | 2.86 s | **2.74 s** | **−4.0%** | 234 → 242 MiB | **2.64 s** (−7.7% vs `main`) | 2.20× (6.02 s) | 0.76× / 0.79× (2.07 s) |
+| `bundle` (12.6 MB) | 11.82 s | **10.31 s** | **−12.8%** | 543 → **490 MiB** (−9.7%) | 10.31 s (single file) | **1.22×** (12.57 s) | **0.85×** (8.76 s) |
+| `downlevel-whitespace` | 0.86 s | **0.84 s** | **−2.5%** | 168 → **145 MiB** (−13.7%) | **0.70 s** (−18.2% vs `main`) | 2.92× (2.44 s) | 0.74× / 0.88× (0.62 s) |
+| `downlevel-simple` | 2.39 s | **2.25 s** | **−5.9%** | 203 → **190 MiB** (−6.6%) | **2.10 s** (−12.2% vs `main`) | 2.00× (4.51 s) | 0.72× / 0.77× (1.62 s) |
+| `checks-only` | 4.40 s | **4.29 s** | **−2.4%** | 693 → **618 MiB** (−10.7%) | **3.82 s** (−13.1% vs `main`) | 1.57× (6.75 s) | 0.76× / 0.85× (3.25 s) |
+
+Notably, on the 12.6 MB `bundle` task—previously the only whole-program task
+where `jsgo` trailed cold Java (0.94×)—wall time dropped by **12.8%** and peak
+RSS by **9.7%**, putting `jsgo` ahead of cold Java (**1.22×**) and closing the
+warm-JVM ratio from 0.67× to **0.85×**.
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
@@ -147,3 +196,4 @@ downlevel-simple and checks-only.
 - The released jar still cannot load its own XTB reader
   (`NoClassDefFoundError …jarjar/javax/xml/parsers/ParserConfigurationException`);
   `tools/clie2e/build-java.sh` works around it for the oracles.
+

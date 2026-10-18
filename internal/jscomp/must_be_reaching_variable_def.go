@@ -44,6 +44,8 @@ type MustBeReachingVariableDef struct {
 	// hence the Object set.
 	escaped     *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	// Go-only: performance — local variable IDs shared by lattice states.
+	layout *mustDefLayout
 }
 
 // Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
@@ -57,6 +59,7 @@ func NewMustBeReachingVariableDef(
 	d.compiler = compiler
 	d.escaped = escaped
 	d.allVarsInFn = allVarsInFn
+	d.layout = newMustDefLayout(allVarsInFn)
 	return d
 }
 
@@ -122,13 +125,13 @@ type MustBeReachingVariableDef_MustDef struct {
 	//
 	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
 	// hence the Object map.
-	reachingDef *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+	reachingDef mustDefMap
 }
 
 // Java: MustBeReachingVariableDef.MustDef()
 func NewMustBeReachingVariableDef_MustDef() *MustBeReachingVariableDef_MustDef {
 	return &MustBeReachingVariableDef_MustDef{
-		reachingDef: jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition](),
+		reachingDef: newMustDefMap(nil),
 	}
 }
 
@@ -147,17 +150,13 @@ func NewMustBeReachingVariableDef_MustDefWithVars(vars iter.Seq[*Var]) *MustBeRe
 //
 // Java: MustBeReachingVariableDef.MustDef(MustDef)
 func NewMustBeReachingVariableDef_MustDefCopy(other *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
-	m := NewMustBeReachingVariableDef_MustDef()
-	for k, v := range other.reachingDef.All() {
-		m.reachingDef.Put(k, v)
-	}
-	return m
+	return &MustBeReachingVariableDef_MustDef{reachingDef: other.reachingDef.clone()}
 }
 
 // Java: MustBeReachingVariableDef.MustDef.equals(Object)
 func (m *MustBeReachingVariableDef_MustDef) Equals(other any) bool {
 	mustDef, ok := other.(*MustBeReachingVariableDef_MustDef)
-	return ok && mustDef != nil && mustDef.reachingDef.Equals(m.reachingDef)
+	return ok && mustDef != nil && mustDef.reachingDef.equals(&m.reachingDef)
 }
 
 // Java: MustBeReachingVariableDef.MustDef.hashCode()
@@ -168,18 +167,34 @@ func (m *MustBeReachingVariableDef_MustDef) HashCode() int32 {
 // MustBeReachingVariableDef_MustDefJoin is the FlowJoiner of this analysis.
 type MustBeReachingVariableDef_MustDefJoin struct {
 	result    *MustBeReachingVariableDef_MustDef
-	resultMap *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+	resultMap *mustDefMap
 }
 
 // Java: MustBeReachingVariableDef.MustDefJoin()
 func NewMustBeReachingVariableDef_MustDefJoin() *MustBeReachingVariableDef_MustDefJoin {
 	j := &MustBeReachingVariableDef_MustDefJoin{result: NewMustBeReachingVariableDef_MustDef()}
-	j.resultMap = j.result.reachingDef
+	j.resultMap = &j.result.reachingDef
 	return j
 }
 
 // Java: MustBeReachingVariableDef.MustDefJoin.joinFlow(MustDef)
 func (j *MustBeReachingVariableDef_MustDefJoin) JoinFlow(input *MustBeReachingVariableDef_MustDef) {
+	// Go-only: performance — shared IDs avoid hashing every key in a join.
+	dst, src := j.resultMap, &input.reachingDef
+	if dst.layout != nil && dst.layout == src.layout {
+		for _, id := range src.order {
+			def := src.values[id]
+			if def != nil && dst.present&(uint64(1)<<id) != 0 {
+				previous := dst.values[id]
+				if previous != nil && previous.node == def.node {
+					continue
+				}
+				def = nil
+			}
+			dst.putID(id, def)
+		}
+		return
+	}
 	for var_, def := range input.reachingDef.All() {
 		j.MergeVarDef(var_, def)
 	}
@@ -212,17 +227,22 @@ func (d *MustBeReachingVariableDef) IsForward() bool {
 
 // Java: MustBeReachingVariableDef.createEntryLattice()
 func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariableDef_MustDef {
-	return NewMustBeReachingVariableDef_MustDefWithVars(d.allVarsInFn.Values())
+	m := &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
+	for var_ := range d.allVarsInFn.Values() {
+		m.reachingDef.Put(var_, NewMustBeReachingVariableDef_Definition(var_.GetScope().(*Scope).GetRootNode()))
+	}
+	return m
 }
 
 // Java: MustBeReachingVariableDef.createInitialEstimateLattice()
 func (d *MustBeReachingVariableDef) CreateInitialEstimateLattice() *MustBeReachingVariableDef_MustDef {
-	return NewMustBeReachingVariableDef_MustDef()
+	return &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
 }
 
 // Java: MustBeReachingVariableDef.createFlowJoiner()
 func (d *MustBeReachingVariableDef) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*MustBeReachingVariableDef_MustDef] {
-	return NewMustBeReachingVariableDef_MustDefJoin()
+	m := &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
+	return &MustBeReachingVariableDef_MustDefJoin{result: m, resultMap: &m.reachingDef}
 }
 
 // Java: MustBeReachingVariableDef.flowThrough(Node, MustDef)

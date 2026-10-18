@@ -208,9 +208,16 @@ func (e *lhmEntry[K, V]) removed() bool { return e.prev == e }
 // only built once the map holds more than lhmSmallSize entries; until then
 // lookups walk the entry list, comparing keys with == as the Go map does.
 type LinkedHashMap[K comparable, V any] struct {
-	m          map[K]*lhmEntry[K, V] // nil until size exceeds lhmSmallSize
+	m          *lhmLarge[K, V] // nil until size exceeds lhmSmallSize
 	head, tail *lhmEntry[K, V]
 	size       int
+}
+
+// Go-only: performance — allocate entries of larger maps in batches.
+// The many empty and tiny maps retain their original representation.
+type lhmLarge[K comparable, V any] struct {
+	index   map[K]*lhmEntry[K, V]
+	entries Slab[lhmEntry[K, V]]
 }
 
 // lhmSmallSize is the most entries a LinkedHashMap or ObjectLinkedHashMap
@@ -225,7 +232,7 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 // find returns k's entry, or nil.
 func (h *LinkedHashMap[K, V]) find(k K) *lhmEntry[K, V] {
 	if h.m != nil {
-		return h.m[k]
+		return h.m.index[k]
 	}
 	for e := h.head; e != nil; e = e.next {
 		if e.key == k {
@@ -296,7 +303,13 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 
 // add appends an entry for k, which must be absent.
 func (h *LinkedHashMap[K, V]) add(k K, v V) {
-	e := &lhmEntry[K, V]{key: k, value: v, prev: h.tail}
+	var e *lhmEntry[K, V]
+	if h.m == nil {
+		e = &lhmEntry[K, V]{}
+	} else {
+		e = h.m.entries.New()
+	}
+	*e = lhmEntry[K, V]{key: k, value: v, prev: h.tail}
 	if h.tail != nil {
 		h.tail.next = e
 	} else {
@@ -305,11 +318,11 @@ func (h *LinkedHashMap[K, V]) add(k K, v V) {
 	h.tail = e
 	h.size++
 	if h.m != nil {
-		h.m[k] = e
+		h.m.index[k] = e
 	} else if h.size > lhmSmallSize {
-		h.m = make(map[K]*lhmEntry[K, V], 2*h.size)
+		h.m = &lhmLarge[K, V]{index: make(map[K]*lhmEntry[K, V], 2*h.size)}
 		for x := h.head; x != nil; x = x.next {
-			h.m[x.key] = x
+			h.m.index[x.key] = x
 		}
 	}
 }
@@ -324,6 +337,17 @@ func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
 	h.Put(k, v)
 	var zero V
 	return zero
+}
+
+// LoadOrStore returns the existing value and true, or inserts v and returns
+// it with false. Unlike Java putIfAbsent it treats a present null as present.
+// Go-only: performance — one lookup for analysis bookkeeping, including misses.
+func (h *LinkedHashMap[K, V]) LoadOrStore(k K, v V) (V, bool) {
+	if e := h.find(k); e != nil {
+		return e.value, true
+	}
+	h.add(k, v)
+	return v, false
 }
 
 // ComputeIfAbsent is Map.computeIfAbsent (the mapping function must not
@@ -344,17 +368,21 @@ func (h *LinkedHashMap[K, V]) Remove(k K) V {
 		var zero V
 		return zero
 	}
+	old := e.value
 	h.removeEntry(e)
-	return e.value
+	return old
 }
 
 // removeEntry removes e, an entry of the map.
 func (h *LinkedHashMap[K, V]) removeEntry(e *lhmEntry[K, V]) {
 	if h.m != nil {
-		delete(h.m, e.key)
+		delete(h.m.index, e.key)
 	}
 	h.size--
 	h.unlink(e)
+	var key K
+	var value V
+	e.key, e.value = key, value
 }
 
 func (h *LinkedHashMap[K, V]) unlink(e *lhmEntry[K, V]) {
@@ -376,7 +404,10 @@ func (h *LinkedHashMap[K, V]) Clear() {
 	for e := h.head; e != nil; e = e.next {
 		e.prev = e // removed
 	}
-	clear(h.m)
+	if h.m != nil {
+		clear(h.m.index)
+		h.m.entries = Slab[lhmEntry[K, V]]{}
+	}
 	h.head, h.tail = nil, nil
 	h.size = 0
 }
@@ -760,9 +791,16 @@ type olhmEntry[K any, V any] struct {
 // same entries in the same order as the bucket. A bucket chains its
 // entries through hnext instead of a slice per hash.
 type ObjectLinkedHashMap[K any, V any] struct {
-	buckets    map[int32]*olhmEntry[K, V] // nil until size exceeds lhmSmallSize
+	buckets    *olhmLarge[K, V] // nil until size exceeds lhmSmallSize
 	size       int
 	head, tail *olhmEntry[K, V]
+}
+
+// Go-only: performance — the object-equality map uses the same batched
+// allocation after its small-map threshold.
+type olhmLarge[K any, V any] struct {
+	index   map[int32]*olhmEntry[K, V]
+	entries Slab[olhmEntry[K, V]]
 }
 
 // NewObjectLinkedHashMap returns an empty map.
@@ -777,7 +815,7 @@ func (h *ObjectLinkedHashMap[K, V]) find(k K) (*olhmEntry[K, V], int32) {
 		return nil, hash
 	}
 	if h.buckets != nil {
-		for e := h.buckets[hash]; e != nil; e = e.hnext {
+		for e := h.buckets.index[hash]; e != nil; e = e.hnext {
 			if ObjectsEqualsOf(e.key, k) {
 				return e, hash
 			}
@@ -794,9 +832,9 @@ func (h *ObjectLinkedHashMap[K, V]) find(k K) (*olhmEntry[K, V], int32) {
 
 // chain appends e to the bucket of its hash.
 func (h *ObjectLinkedHashMap[K, V]) chain(e *olhmEntry[K, V]) {
-	last := h.buckets[e.hash]
+	last := h.buckets.index[e.hash]
 	if last == nil {
-		h.buckets[e.hash] = e
+		h.buckets.index[e.hash] = e
 		return
 	}
 	for last.hnext != nil {
@@ -843,7 +881,12 @@ func (h *ObjectLinkedHashMap[K, V]) Put(k K, v V) V {
 		e.value = v
 		return old
 	}
-	e = &olhmEntry[K, V]{key: k, hash: hash, value: v, prev: h.tail}
+	if h.buckets == nil {
+		e = &olhmEntry[K, V]{}
+	} else {
+		e = h.buckets.entries.New()
+	}
+	*e = olhmEntry[K, V]{key: k, hash: hash, value: v, prev: h.tail}
 	if h.tail != nil {
 		h.tail.next = e
 	} else {
@@ -854,7 +897,7 @@ func (h *ObjectLinkedHashMap[K, V]) Put(k K, v V) V {
 	if h.buckets != nil {
 		h.chain(e)
 	} else if h.size > lhmSmallSize {
-		h.buckets = make(map[int32]*olhmEntry[K, V], 2*h.size)
+		h.buckets = &olhmLarge[K, V]{index: make(map[int32]*olhmEntry[K, V], 2*h.size)}
 		for x := h.head; x != nil; x = x.next {
 			h.chain(x)
 		}
@@ -871,11 +914,11 @@ func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
 		return zero
 	}
 	if h.buckets != nil {
-		if first := h.buckets[hash]; first == e {
+		if first := h.buckets.index[hash]; first == e {
 			if e.hnext != nil {
-				h.buckets[hash] = e.hnext
+				h.buckets.index[hash] = e.hnext
 			} else {
-				delete(h.buckets, hash)
+				delete(h.buckets.index, hash)
 			}
 		} else {
 			p := first
@@ -886,6 +929,7 @@ func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
 		}
 		e.hnext = nil
 	}
+	old := e.value
 	h.size--
 	e.removed = true
 	if e.prev != nil {
@@ -898,7 +942,10 @@ func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
 	} else {
 		h.tail = e.prev
 	}
-	return e.value
+	var key K
+	var value V
+	e.key, e.value = key, value
+	return old
 }
 
 // All iterates entries in insertion order.

@@ -128,13 +128,22 @@ func sigmaAgreesWithJava(cp rune) bool {
 	if cp > 0xFFFF {
 		return !cased && !ignorable
 	}
+	typ := CharacterGetType(uint16(cp))
 	switch {
 	case cased:
-		return unicode.In(cp, unicode.Lu, unicode.Ll, unicode.Lt)
+		return typ == Character_UPPERCASE_LETTER || typ == Character_LOWERCASE_LETTER || typ == Character_TITLECASE_LETTER
 	case ignorable:
-		return unicode.In(cp, unicode.Mn, unicode.Me, unicode.Cf)
+		return typ == Character_NON_SPACING_MARK || typ == Character_ENCLOSING_MARK || typ == Character_FORMAT
 	}
-	return cp != '"' && !unicode.In(cp, unicode.Lo, unicode.Mc, unicode.Nd, unicode.Nl, unicode.No, unicode.Pc, unicode.Pd)
+	if cp == '"' {
+		return false
+	}
+	switch typ {
+	case Character_OTHER_LETTER, Character_COMBINING_SPACING_MARK, Character_DECIMAL_DIGIT_NUMBER,
+		Character_LETTER_NUMBER, Character_OTHER_NUMBER, Character_CONNECTOR_PUNCTUATION, Character_DASH_PUNCTUATION:
+		return false
+	}
+	return true
 }
 
 // sigmaAgreesWithJavaInSequence is the subset of sigmaAgreesWithJava on

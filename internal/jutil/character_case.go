@@ -1,7 +1,5 @@
 package jutil
 
-import "unicode"
-
 // Go-only: language-adapter — java.lang.Character case mapping and
 // isSupplementaryCodePoint, and String.regionMatches on UTF-16 code units.
 // Java's Character.toUpperCase(char)/toLowerCase(char) are the simple
@@ -20,7 +18,7 @@ func CharacterToUpperCase(ch uint16) uint16 {
 	if isSurrogate(ch) {
 		return ch
 	}
-	u := unicode.ToUpper(rune(ch))
+	u := unicode15ToUpper(rune(ch))
 	if u > 0xFFFF {
 		return ch
 	}
@@ -38,7 +36,7 @@ func CharacterToLowerCase(ch uint16) uint16 {
 	if isSurrogate(ch) {
 		return ch
 	}
-	l := unicode.ToLower(rune(ch))
+	l := unicode15ToLower(rune(ch))
 	if l > 0xFFFF {
 		return ch
 	}
@@ -101,7 +99,7 @@ func caseKey(cp rune) rune {
 	if cp < 0x10000 {
 		return rune(CharacterToLowerCase(CharacterToUpperCase(uint16(cp))))
 	}
-	return unicode.ToLower(unicode.ToUpper(cp))
+	return unicode15ToLower(unicode15ToUpper(cp))
 }
 
 func isHighSurrogateUnit(c uint16) bool { return c >= 0xD800 && c <= 0xDBFF }

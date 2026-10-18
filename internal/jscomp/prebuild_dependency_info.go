@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -40,18 +41,21 @@ func NewPrebuildDependencyInfo(numParalleThreads int) *PrebuildDependencyInfo {
 
 // Prebuild gets the dependency info of every input.
 //
-// Go-only: language-adapter — the port is sequential (PORTING.md §5). Java
-// submits input::getDependencyInfo for every input to a pool of
-// numParallelThreads daemon threads ("jscompiler-PrebuildDependencyInfo",
-// with CompilerExecutor.COMPILER_STACK_SIZE stacks), shuts the pool down
-// (queued tasks still run) and waits with Futures.allAsList(futureList).get(),
-// which throws an ExecutionException wrapping the failure of a task;
-// prebuild rethrows it as new RuntimeException(e). Here the tasks run
-// inline in submission order, every task runs even after one fails (as in
-// the pool), and the first failure is rethrown the same way.
+// Go-only: language-adapter — dependency scans run in a bounded worker pool.
+// Per-file diagnostics and dependency caches are published in input order.
+// Unsupported compiler/source/resolver extensions retain the sequential path.
+// Every task runs even after one fails, and the first failure is wrapped as in
+// Java's Futures.allAsList(...).get().
 //
 // Java: PrebuildDependencyInfo.prebuild(Iterable<CompilerInput>)
 func (p *PrebuildDependencyInfo) Prebuild(allInputs iter.Seq[*CompilerInput]) {
+	if p.numParallelThreads > 1 {
+		inputs := slices.Collect(allInputs)
+		if p.prebuildParallel(inputs) {
+			return
+		}
+		allInputs = slices.Values(inputs)
+	}
 	var failure jutil.Throwable
 	// TODO(moz): Support canceling all parsing on the first halting error
 	for input := range allInputs {

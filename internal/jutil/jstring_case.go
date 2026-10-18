@@ -12,7 +12,6 @@ package jutil
 
 import (
 	"strings"
-	"unicode"
 )
 
 // StringToUpperCaseRoot is String.toUpperCase(Locale.ROOT).
@@ -29,7 +28,7 @@ func StringToUpperCaseRoot(s string) string {
 			sb.WriteString(special)
 			continue
 		}
-		appendWTF8(&sb, unicode.ToUpper(r))
+		appendWTF8(&sb, unicode15ToUpper(r))
 	}
 	return sb.String()
 }

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"sync/atomic"
 )
 
 // AbstractVar is used by Scope to store information about variables.
@@ -142,8 +143,6 @@ type abstractVarBound[S any, V any] interface {
 // AbstractVarBase holds the fields and the implementations of AbstractVar;
 // Var and TypedVar embed it and call InitAbstractVarBase with themselves.
 type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	ScopedNameBase
-
 	self V
 
 	name string
@@ -161,7 +160,9 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 
 	// The index at which the var is declared. e.g. if it's 0, it's the first
 	// declared variable in that scope
-	index int
+	index int32
+	// Go-only: performance — immutable name hash, sharing the index word.
+	nameHash int32
 
 	scope S
 }
@@ -186,7 +187,6 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) {
-	b.InitScopedNameBase(self)
 	b.self = self
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
 	b.name = name // Java: checkNotNull(name); a Go string is never null.
@@ -199,7 +199,8 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 		b.implicitGoogNamespaceStrength = nil
 	}
 	b.scope = scope
-	b.index = index
+	b.index = int32(index)
+	b.nameHash = 0
 	b.input = input
 }
 
@@ -211,6 +212,24 @@ func (b *AbstractVarBase[S, V]) GetName() string {
 // Java: AbstractVar.getScopeRoot()
 func (b *AbstractVarBase[S, V]) GetScopeRoot() *rhino.Node {
 	return b.scope.GetRootNode()
+}
+
+// HashCode preserves ScopedName's final hash while avoiding repeated name
+// hashing and virtual self calls. The scope root and name are immutable.
+// Go-only: performance — index is Java int, leaving room for the cached
+// name hash without increasing the size of Var or TypedVar.
+// Java: ScopedName.hashCode()
+func (b *AbstractVarBase[S, V]) HashCode() int32 {
+	root := b.scope.GetRootNode()
+	if root == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	hash := atomic.LoadInt32(&b.nameHash)
+	if hash == 0 {
+		hash = jutil.StringHashCode(b.name)
+		atomic.StoreInt32(&b.nameHash, hash)
+	}
+	return 31*(31+hash) + jutil.IdentityHashCodeOfPointer(root)
 }
 
 // Java: AbstractVar.getNode()
@@ -289,7 +308,7 @@ func (b *AbstractVarBase[S, V]) getScopeS() S {
 //
 // Java: AbstractVar.getIndex()
 func (b *AbstractVarBase[S, V]) GetIndex() int {
-	return b.index
+	return int(b.index)
 }
 
 // Java: AbstractVar.isGlobal()
@@ -516,4 +535,17 @@ func abstractVar_strongerOf(left, right rhino.StaticSourceFile_SourceKind) rhino
 		return rhino.StaticSourceFile_SourceKind_EXTERN
 	}
 	return rhino.StaticSourceFile_SourceKind_WEAK
+}
+
+// Equals is ScopedName's final equality applied to Var and TypedVar. They
+// already have a concrete self pointer; embedding a second interface-valued
+// self just to dispatch these final methods costs 16 bytes per variable.
+// Go-only: language-adapter — preserve name/root equality without that header.
+// Java: ScopedName.equals(Object)
+func (b *AbstractVarBase[S, V]) Equals(other any) bool {
+	scoped, ok := other.(ScopedName)
+	if !ok || jutil.IsNil(scoped) {
+		return false
+	}
+	return b.name == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
 }

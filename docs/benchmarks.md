@@ -267,6 +267,25 @@ python3 -I tools/bench/bench.py run --out /tmp/bench --report /tmp/bench/report.
 python3 -I tools/bench/bench.py report --out /tmp/bench --md report.md --final
 ```
 
+### Allocation, compact layout, and `--num_parallel_threads` pass
+
+After the v20261015 baseline above, slab-batched `jutil` map entries, a 64-var
+indexed bitmask lattice in `MustBeReachingVariableDef`, compact `rhino.Node`
+(96 B → 80 B) and `jscomp.Var` (80 B → 64 B), scanner `SourcePosition` reuse,
+rename-conflict deduplication, and opt-in `--num_parallel_threads` prebuild
+were integrated (see [performance-roadmap.md](performance-roadmap.md)).
+
+Interleaved comparison (`N=5` per Go build, `N=3` cold Java, `N=5` warm Java,
+all byte-identical; macOS arm64, Go 1.27.1 with `default.pgo`):
+
+| Task | Baseline (`c9872522`) | New (`threads=1`) | Δ Wall (`t=1`) | Peak RSS (`base` → `new`) | New (`threads=4`) | Δ Wall (`t=4` vs `base`) | vs Cold Java (`t=1`) | vs Warm Java (`t=1` / `t=4`) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `typed-app` | 2.86 s (2.84–3.48) | **2.74 s** (2.74–3.34) | **−4.0%** | 234 → 242 MiB | **2.64 s** | **−7.7%** | 2.20× | 0.76× / 0.79× |
+| `bundle` (12.6 MB) | 11.82 s (11.80–11.98) | **10.31 s** (10.27–10.34) | **−12.8%** | 543 → **490 MiB** (−9.7%) | 10.31 s | −12.8% | **1.22×** | **0.85×** |
+| `downlevel-whitespace` | 0.86 s (0.85–0.87) | **0.84 s** (0.83–0.84) | **−2.5%** | 168 → **145 MiB** (−13.7%) | **0.70 s** | **−18.2%** | 2.92× | 0.74× / 0.88× |
+| `downlevel-simple` | 2.39 s (2.38–2.41) | **2.25 s** (2.21–2.26) | **−5.9%** | 203 → **190 MiB** (−6.6%) | **2.10 s** | **−12.2%** | 2.00× | 0.72× / 0.77× |
+| `checks-only` | 4.40 s (4.39–4.42) | **4.29 s** (4.28–4.32) | **−2.4%** | 693 → **618 MiB** (−10.7%) | **3.82 s** | **−13.1%** | 1.57× | 0.76× / 0.85× |
+
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 
 Harnesses:

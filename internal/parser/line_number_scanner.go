@@ -36,8 +36,11 @@ type LineNumberScanner struct {
 
 	// Go-only: performance — the positions and ranges of the scanner's
 	// tokens (see getTokenSourcePosition).
-	tokenPositions jutil.Slab[SourcePosition]
-	tokenRanges    jutil.Slab[SourceRange]
+	// Last token position only: token/tree locations are immutable and nearby
+	// queries often repeat the same offset. Comments keep independent positions.
+	lastTokenPosition *SourcePosition
+	tokenPositions    jutil.Slab[SourcePosition]
+	tokenRanges       jutil.Slab[SourceRange]
 }
 
 // NewLineNumberScanner constructs a LineNumberScanner.
@@ -75,8 +78,12 @@ func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *Source
 		l.AdvanceLine()
 	}
 	if forToken {
+		if p := l.lastTokenPosition; p != nil && p.Offset == offset {
+			return p
+		}
 		p := l.tokenPositions.New()
 		p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
+		l.lastTokenPosition = p
 		return p
 	}
 	return NewSourcePosition(l.sourceFile, offset, l.lastLine, offset-l.lastLineStart)
