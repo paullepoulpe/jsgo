@@ -506,6 +506,8 @@ Done:
   - The remaining gap is mostly the optimization loop
     (`flowSensitiveInlineVariables`, `inlineVariables`,
     `removeUnusedCode`), parsing, and `inferTypes`.
+  - What we know about why, the experiments under way and the options
+    discussed with the owner: [docs/performance-roadmap.md](docs/performance-roadmap.md).
 
 In progress, in parallel (waves 4 and 5; each cluster translates against
 the predicted Go names of what it calls, and compiles once its
