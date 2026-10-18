@@ -442,12 +442,12 @@ func LinkedFlowScope_Join(
 				if scopeA != nil {
 					slotsA = scopeA.slots
 				} else {
-					slotsA = LinkedFlowScope_EMPTY_SLOTS
+					slotsA = emptyFlowSlots(scopeKey)
 				}
 				if scopeB != nil {
 					slotsB = scopeB.slots
 				} else {
-					slotsB = LinkedFlowScope_EMPTY_SLOTS
+					slotsB = emptyFlowSlots(scopeKey)
 				}
 				// TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
 				// for the purpose of (a) passing to the joined OverlayScope constructor, and
@@ -565,7 +565,7 @@ type LinkedFlowScope_OverlayScope struct {
 func NewLinkedFlowScope_OverlayScope(scope *TypedScope) *LinkedFlowScope_OverlayScope {
 	o := &LinkedFlowScope_OverlayScope{}
 	o.scope = jutil.CheckNotNull(scope)
-	o.slots = LinkedFlowScope_EMPTY_SLOTS
+	o.slots = emptyFlowSlots(scope)
 	return o
 }
 
@@ -574,7 +574,7 @@ func NewLinkedFlowScope_OverlayScopeWithSlots(
 	scope *TypedScope, slots rhino.PMap[string, *LinkedFlowScope_OverlaySlot]) *LinkedFlowScope_OverlayScope {
 	o := &LinkedFlowScope_OverlayScope{}
 	o.scope = jutil.CheckNotNull(scope)
-	o.slots = slots
+	o.slots = normalizeFlowSlots(scope, slots)
 	return o
 }
 

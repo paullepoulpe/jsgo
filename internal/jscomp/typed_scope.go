@@ -22,6 +22,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/flowstore"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -63,6 +64,9 @@ type TypedScope struct {
 	//
 	// Go-only: language-adapter — nil is the ImmutableSet.of() sentinel.
 	reservedNames *jutil.LinkedHashSet[string]
+
+	// Optional experiment: stable IDs shared by immutable inferred-slot versions.
+	indexedFlowSlots *flowstore.IDs
 
 	// Scope.java contains an arguments field.
 	// We haven't added it here because it's unused by the passes that need typed scopes.
