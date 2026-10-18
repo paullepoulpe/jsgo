@@ -161,7 +161,9 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 
 	// The index at which the var is declared. e.g. if it's 0, it's the first
 	// declared variable in that scope
-	index int
+	index int32
+	// Go-only: performance — immutable name hash, sharing the index word.
+	nameHash int32
 
 	scope S
 }
@@ -199,7 +201,8 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 		b.implicitGoogNamespaceStrength = nil
 	}
 	b.scope = scope
-	b.index = index
+	b.index = int32(index)
+	b.nameHash = jutil.StringHashCode(name)
 	b.input = input
 }
 
@@ -211,6 +214,19 @@ func (b *AbstractVarBase[S, V]) GetName() string {
 // Java: AbstractVar.getScopeRoot()
 func (b *AbstractVarBase[S, V]) GetScopeRoot() *rhino.Node {
 	return b.scope.GetRootNode()
+}
+
+// HashCode preserves ScopedName's final hash while avoiding repeated name
+// hashing and virtual self calls. The scope root and name are immutable.
+// Go-only: performance — index is Java int, leaving room for the cached
+// name hash without increasing the size of Var or TypedVar.
+// Java: ScopedName.hashCode()
+func (b *AbstractVarBase[S, V]) HashCode() int32 {
+	root := b.scope.GetRootNode()
+	if root == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	return 31*(31+b.nameHash) + jutil.IdentityHashCodeOfPointer(root)
 }
 
 // Java: AbstractVar.getNode()
@@ -289,7 +305,7 @@ func (b *AbstractVarBase[S, V]) getScopeS() S {
 //
 // Java: AbstractVar.getIndex()
 func (b *AbstractVarBase[S, V]) GetIndex() int {
-	return b.index
+	return int(b.index)
 }
 
 // Java: AbstractVar.isGlobal()

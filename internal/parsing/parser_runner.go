@@ -123,6 +123,18 @@ func ParserRunner_Parse(
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
+	if builtinExternCacheEligible(sourceFile, config) {
+		return parseBuiltinExternCached(sourceFile, sourceString, config, errorReporter)
+	}
+	return parserRunnerParseUncached(sourceFile, sourceString, config, errorReporter)
+}
+
+// parserRunnerParseUncached preserves ParserRunner.parse's original body.
+func parserRunnerParseUncached(
+	sourceFile rhino.StaticSourceFile,
+	sourceString string,
+	config *Config,
+	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
 	// TODO(johnlenz): unify "SourceFile", "Es6ErrorReporter" and "Config"
 
 	sourceName := sourceFile.GetName()
