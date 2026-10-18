@@ -1,7 +1,7 @@
 # Direct AST parser experiment
 
 This branch contains an opt-in architectural prototype. Set
-`JSGO_EXPERIMENT_NATIVE_PARSER=1` when starting the CLI or worker to try it.
+`JSGO_EXPERIMENT_NATIVE_PARSER=1` when starting the CLI to try it.
 The default compiler continues to use the original parser. This experiment has
 not established an end-to-end performance gain.
 
@@ -35,8 +35,7 @@ an attempt, including comments encountered late in the file. Therefore licenses,
 JSDoc, fileoverview, closure-unaware annotations and source-map URL comments
 retain the original whole-file discovery/attachment behavior. The prototype
 intentionally does not attempt to approximate those rules with an incomplete
-stream of comments. Existing builtin-extern cache behavior takes precedence over
-the experiment.
+stream of comments.
 
 This makes the boundary explicit and differential testing straightforward, but
 unsupported files pay for speculative work before fallback. Speculative nodes
@@ -55,7 +54,7 @@ Run `go test ./internal/parsing -run NativeParser` for AST/property/source-range
 and diagnostic comparisons against the original pipeline. The generated tests
 exercise many expression combinations. `BenchmarkNativeParserDataProgram`
 compares the same data program through both implementations and reports
-allocations. A useful parser microbenchmark win would still need full CLI/worker
+allocations. A useful parser microbenchmark win would still need full CLI
 byte comparisons, source-map checks, real coverage counts and end-to-end timing
 and peak-memory measurements before retention.
 
