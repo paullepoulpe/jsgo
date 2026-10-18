@@ -12,13 +12,13 @@ Five interleaved runs per Go binary; medians below. Original is commit
 existing PGO profile. Both use default runtime GC settings. Each invocation
 recompiles the program and starts a new Go process.
 
-| Workload | Original Go | Candidate Go | Less elapsed time | Fresh warm Java |
+| Workload | Original Go (time / RSS) | Candidate Go (time / RSS) | Less elapsed time | Warm Java (time / RSS) |
 |---|---:|---:|---:|---:|
-| typed-app | 6.094s | 5.290s | 13.2% | 3.687s |
-| bundle | 23.102s | 18.531s | 19.8% | 16.568s |
-| downlevel-whitespace | 1.554s | 1.418s | 8.8% | 0.933s |
-| downlevel-simple | 4.762s | 4.038s | 15.2% | 2.660s |
-| checks-only | 8.872s | 8.028s | 9.5% | 5.930s |
+| typed-app | 6.094s / 268.6MiB | 5.290s / 266.5MiB | 13.2% | 3.687s / 1263.8MiB |
+| bundle | 23.102s / 675.2MiB | 18.531s / 504.2MiB | 19.8% | 16.568s / 1677.6MiB |
+| downlevel-whitespace | 1.554s / 179.3MiB | 1.418s / 165.0MiB | 8.8% | 0.933s / 943.4MiB |
+| downlevel-simple | 4.762s / 220.4MiB | 4.038s / 207.0MiB | 15.2% | 2.660s / 1475.5MiB |
+| checks-only | 8.872s / 710.0MiB | 8.028s / 679.9MiB | 9.5% | 5.930s / 1486.7MiB |
 
 The candidate still needs roughly 11–34% less elapsed time, depending on the
 workload, to equal these warmed JVM medians. The largest retained gain is on the
@@ -35,6 +35,14 @@ Every measured Go invocation must match Java's stdout, stderr, exit status,
 JavaScript and source maps. Fresh Java reproduces its original reference.
 These are end-to-end results, not sums of isolated optimization percentages.
 
+Memory is peak resident set size (RSS), in MiB (2^20 bytes). Go CLI cells
+show the median of five per-invocation peaks. Java cells show the peak of the
+entire persistent JVM process, including startup, 12 warm-up iterations and
+10 measured iterations. Both are measured with Linux `wait4`/`ru_maxrss`.
+These values describe resident process memory, including runtime overhead;
+they are not allocated bytes or live-heap size. The bundle's median Go peak
+RSS falls from 675.2 to 504.2 MiB (25.3%).
+
 ## Repeated small applications
 
 These small DOM-counter workloads were held out of PGO training. Java uses
@@ -43,17 +51,24 @@ JSON protocol, 10 warm-up and 30 measured requests, including request/response
 transport and client decoding. All 40 responses and generated artifacts are
 checked against Java for each workload.
 
-| Workload | Go worker | Warm Java | Java time / Go time |
+| Workload | Go worker (time / RSS) | Warm Java (time / RSS) | Java time / Go time |
 |---|---:|---:|---:|
-| small-advanced | 948.45ms | 546.45ms | 0.58x |
-| small-simple | 286.59ms | 232.90ms | 0.81x |
-| small-whitespace | 45.64ms | 57.90ms | 1.27x |
-| small-checks | 516.47ms | 357.35ms | 0.69x |
+| small-advanced | 948.45ms / 220.6MiB | 546.45ms / 859.5MiB | 0.58x |
+| small-simple | 286.59ms / 127.4MiB | 232.90ms / 563.6MiB | 0.81x |
+| small-whitespace | 45.64ms / 103.0MiB | 57.90ms / 636.2MiB | 1.27x |
+| small-checks | 516.47ms / 155.8MiB | 357.35ms / 781.0MiB | 0.69x |
 
 Only the WHITESPACE row is a win over Java. User code is reread and compiled on
 every request; this is not compiled-output replay. The worker clones immutable
 built-in extern parse templates and creates a new compiler for each request.
 See [worker usage](worker.md).
+
+Worker memory is the maximum Linux `VmHWM` observed after each request across
+all 40 requests, including warm-up. It covers the worker process and excludes
+the Python client. Java memory is the whole JVM process peak from `ru_maxrss`
+across 100 warm-up and 30 measured iterations, including startup and shutdown.
+The two processes run different iteration counts; neither value is a per-request
+allocation cost or a bound on memory for an indefinitely running worker.
 
 ## Retained changes
 

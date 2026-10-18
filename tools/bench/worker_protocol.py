@@ -97,18 +97,24 @@ def main():
             'java_warm_median_ms': statistics.median(java),
             'speed_vs_java_warm': statistics.median(java)/median,
             'worker_peak_rss_mb': max(rss),
+            'java_peak_rss_mb': warm['process']['rss_mb'],
             'all_responses_match_java': True,
             'worker_warmup': a.warmup, 'worker_iters': a.iters,
             'measured_ms': rows, 'java_measure_ms': java,
             'java_warmup': warm['warmup'], 'java_iters': warm['iters'],
         }
         bench.save(str(root/'summary.json'), summary)
-        print(f'{name}: worker {median:.3f}ms, Java {statistics.median(java):.3f}ms; '
+        print(f'{name}: worker {median:.3f}ms / {max(rss):.1f}MiB peak RSS, '
+              f"Java {statistics.median(java):.3f}ms / {warm['process']['rss_mb']:.1f}MiB peak RSS; "
               f'all {a.warmup+a.iters} requests MATCH', flush=True)
     bench.save(str(root/'provenance.json'), {
         'binary_sha256': bench.sha256_file(binary),
         'cpu_affinity': sorted(os.sched_getaffinity(0)),
         'reference': str(reference),
+        'memory_unit': 'MiB (legacy _mb field names)',
+        'memory_method': 'worker: /proc/PID/status VmHWM after each request; '
+                         'Java: wait4 ru_maxrss for the full reference process; '
+                         'both include warmup',
     })
 
 
