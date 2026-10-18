@@ -52,7 +52,7 @@ package jutil
 // strings drawn from such characters about 13% of the sigmas differ, and on
 // random Greek words joined by - _ : ’ " digits and the like, about 19%.
 
-import "unicode"
+import unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 
 // StringToLowerCaseRoot is String.toLowerCase(Locale.ROOT).
 func StringToLowerCaseRoot(s string) string {

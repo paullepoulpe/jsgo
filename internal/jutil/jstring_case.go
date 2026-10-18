@@ -11,8 +11,8 @@ package jutil
 // the JDK by TestStringCaseRootMatchesJava.
 
 import (
+	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"strings"
-	"unicode"
 )
 
 // StringToUpperCaseRoot is String.toUpperCase(Locale.ROOT).

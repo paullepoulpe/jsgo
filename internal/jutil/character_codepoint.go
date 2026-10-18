@@ -1,6 +1,6 @@
 package jutil
 
-import "unicode"
+import unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 
 // Go-only: language-adapter — the java.lang.Character methods that take an
 // int code point (character.go has the char overloads), and the Java

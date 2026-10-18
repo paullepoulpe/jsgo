@@ -3,13 +3,13 @@ package jutil
 import (
 	"bufio"
 	"compress/gzip"
+	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"math"
 	"math/big"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 )
 
 // Vectors generated with tools/oracle/java/JutilPeepholeVectors.java (JDK 21

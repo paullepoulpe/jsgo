@@ -1,6 +1,6 @@
 package jutil
 
-import "unicode"
+import unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 
 // Go-only: language-adapter — java.lang.Character case mapping and
 // isSupplementaryCodePoint, and String.regionMatches on UTF-16 code units.

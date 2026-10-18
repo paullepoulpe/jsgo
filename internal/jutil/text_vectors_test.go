@@ -3,6 +3,7 @@ package jutil
 import (
 	"bufio"
 	"encoding/hex"
+	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"math"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 )
 
 // Vectors from tools/oracle/java/JutilTextVectors.java (random inputs, the

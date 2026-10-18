@@ -1,8 +1,8 @@
 package jutil
 
 import (
+	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"math"
-	"unicode"
 )
 
 // Go-only: language-adapter — java.lang.Character classification of UTF-16

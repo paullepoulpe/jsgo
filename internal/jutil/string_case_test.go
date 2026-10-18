@@ -1,11 +1,11 @@
 package jutil
 
 import (
+	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 )
 
 // Vectors from tools/oracle/java/JutilStringCaseVectors.java (JDK 21): the
