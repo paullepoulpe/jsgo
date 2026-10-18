@@ -1,9 +1,11 @@
 # Native source-cache locks
 
-The worker profile showed goroutine identity discovery (`runtime.Stack` through
-`jutil.Monitor`) taking substantial CPU while loading, clearing and rebuilding
-source files. This candidate changes only locks whose callback graph is known
-not to require Java monitor reentrancy. It does not change jutil.Monitor itself.
+An earlier profiling experiment showed goroutine identity discovery
+(`runtime.Stack` through `jutil.Monitor`) taking substantial CPU while loading,
+clearing and rebuilding source files. Ordinary CLI measurements must establish
+the benefit for the active workload. This candidate changes only locks whose
+callback graph is known not to require Java monitor reentrancy. It does not
+change jutil.Monitor itself.
 
 ## SourceFile boundary
 
@@ -54,5 +56,6 @@ New tests cover exact-loader selection, custom embedding-loader reentry while
 loading/opening, native IOException recovery, reloading and old-snapshot validity.
 Existing SourceFile concurrent invalidation/shared-position tests and ZIP-cache
 concurrent read/refresh tests remain applicable. Central package/race tests and
-paired CLI/worker output/time/RSS gates are required before retention; no timing
+paired ordinary CLI output/time/RSS gates against stock Java are required
+before retention; no timing
 claim follows from identifying a profile hotspot alone.
