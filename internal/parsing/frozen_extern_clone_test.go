@@ -32,7 +32,7 @@ func TestFrozenExternCloneDifferentialAndIsolation(t *testing.T) {
 	config := ParserRunner_CreateConfig(Config_LanguageMode_ES_NEXT, nil, Config_StrictMode_SLOPPY)
 	cases := []string{
 		`function f(/** number */ x) {} /** @type {string} */ var value;`,
-		`/** @constructor @template T */ function Box() {} /** @param {{x:!Array<string>, y:number=}} x @return {?string} */ Box.prototype.f = function(x) {};`,
+		`/** @constructor @template T */ function Box() {} /** @param {{x:!Array<string>, y:(number|undefined)}} x @return {?string} */ Box.prototype.f = function(x) {};`,
 		"/** @template T := 'string' =: */ function transform() {}",
 		`/** @interface */ function A() {} /** @interface */ function B() {} /** @constructor @implements {A} @implements {B} */ function C() {}`,
 		`/** @typedef {{x:number,y:(string|undefined)}} */ var Record; /** @enum {number} */ var Kind = {A:1, B:2};`,
