@@ -23,6 +23,27 @@ sys.dont_write_bytecode = True
 import bench
 
 
+def with_compiler_threads(argv, count):
+    """Replace both thread-flag spellings once; preserve all other argv bytes."""
+    result = []
+    index = 0
+    while index < len(argv):
+        value = argv[index]
+        if value == '--':
+            # Do not reinterpret positional values after the option terminator.
+            return result + [f'--num_parallel_threads={count}'] + argv[index:]
+        if value == '--num_parallel_threads':
+            if index+1 >= len(argv) or argv[index+1].startswith('--'):
+                raise ValueError('existing --num_parallel_threads is missing its value')
+            index += 2
+        elif value.startswith('--num_parallel_threads='):
+            index += 1
+        else:
+            result.append(value)
+            index += 1
+    return result + [f'--num_parallel_threads={count}']
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--binary', required=True)
@@ -48,11 +69,20 @@ def main():
     a.out, a.cache = str(root), a.cache or bench.default_cache()
     binary = str(Path(a.binary).resolve())
     runner = bench.Runner(a)
+    if bench.sha256_file(runner.jar) not in bench.read_pin()['CLOSURE_JAR_SHA256'].split():
+        ap.error('stock Java jar does not match the pinned SHA-256')
     runner.build_batch()
     machine = bench.machine_info(runner, {'binary': binary, 'sha256': bench.sha256_file(binary)})
     machine.update({'cpu_affinity': sorted(os.sched_getaffinity(0)), 'mode': 'cli',
                     'thread_counts': counts, 'reference': str(ref),
-                    'thread_control': '--num_parallel_threads; runtime CPU detection unchanged',
+                    'thread_control': '--num_parallel_threads; existing flags replaced; runtime CPU detection unchanged',
+                    'gomaxprocs': 'runtime default; inherited GOMAXPROCS removed; compiler flag does not change it',
+                    'java_compiler': 'pinned stock jar; fresh CommandLineRunner/compiler and normal extern parsing per invocation',
+                    'java_classpath': runner.batch_cp,
+                    'java_batch_source_sha256': bench.sha256_file(Path(bench.HERE)/'java/CliBatch.java'),
+                    'ratio_direction': 'Java / Go; above 1 favors Go for time and resident memory',
+                    'go_memory_window': 'median of fresh CLI process peak RSS values',
+                    'java_memory_window': 'peak RSS of warm JVM including all warmup and measured iterations',
                     'go_prebuild': 'depends on supplied binary; bounded parallel helpers in updated port',
                     'memory_unit': 'MiB; field names ending _mb are retained for compatibility'})
     for name in ['cpu.max', 'cpuset.cpus.effective']:
@@ -75,7 +105,7 @@ def main():
             td = root/f'threads-{n}'/name
             td.mkdir(parents=True)
             (td/'java-cold').symlink_to(ref/name/'java-cold', target_is_directory=True)
-            args = [job+[f'--num_parallel_threads={n}'] for job in jobs]
+            args = [with_compiler_threads(job, n) for job in jobs]
             bench.save(str(td/'jobs.json'), args)
             dirs[n] = (td, args)
         for i in range(1, a.runs+1):
@@ -97,20 +127,24 @@ def main():
             if warm['process']['exit'] != 0 or warm['mismatch_vs_cold']:
                 sys.exit(f'Java output mismatch: {name}, threads={n}')
             java_rows = [r for r in warm['iterations'] if r['kind'] == 'measure']
+            if len(java_rows) != a.warm_iters:
+                sys.exit(f'missing Java measured iterations: {name}, threads={n}')
             jtime = statistics.median(r['wall_ms'] for r in java_rows)/1000
             jmem = warm['process']['rss_mb']
             gtime = statistics.median(r['wall_s'] for r in go_runs[n])
             gmem = statistics.median(r['rss_mb'] for r in go_runs[n])
             raw = {'go_cli_runs': go_runs[n]}
             half = len(java_rows)//2
+            drift = (statistics.median(r['wall_ms'] for r in java_rows[half:]) /
+                     statistics.median(r['wall_ms'] for r in java_rows[:half])-1) if half else None
             summary[name][str(n)] = {
                 'go_median_s': gtime, 'java_warm_median_s': jtime,
                 'go_peak_rss_mb': gmem, 'java_peak_rss_mb': jmem,
                 'time_ratio_java_over_go': jtime/gtime,
                 'memory_ratio_java_over_go': jmem/gmem,
                 'java_warmup': a.warmup, 'java_measured': a.warm_iters,
-                'java_measured_half_drift': statistics.median(r['wall_ms'] for r in java_rows[half:]) /
-                                            statistics.median(r['wall_ms'] for r in java_rows[:half])-1,
+                'java_measured_half_drift': drift,
+                'java_measured_half_drift_pct': drift*100 if drift is not None else None,
                 'java_iterations': warm['iterations'], 'all_outputs_match': True, **raw,
             }
             bench.save(str(root/'summary.json'), summary)
