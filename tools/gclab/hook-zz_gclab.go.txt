@@ -1,0 +1,438 @@
+package jscomp
+
+// Go-only: an opt-in GC/heap profiling hook for the GC lab (gclab). It is
+// compiled in only through `go build -overlay` (gclab/build.py); the sources
+// are not changed. Every feature is off unless its environment variable is
+// set:
+//
+//	JSGO_GCLAB_STATS=file    at exit, runtime/metrics totals as JSON
+//	JSGO_GCLAB_PASSES=file   per tracer (pass): wall, alloc bytes/objects, GC cycles (TSV)
+//	JSGO_GCLAB_GCLOG=file    per GC cycle: time, pass, live/scan heap, goal (TSV)
+//	JSGO_GCLAB_LIVE=1        force a GC after every top-level tracer, record live/scan heap
+//	JSGO_GCLAB_HEAPDIR=dir   heap profiles (runtime.GC first) at JSGO_GCLAB_HEAPAT and at exit
+//	JSGO_GCLAB_HEAPAT=a,b#3  tracer names (and occurrence) after which to write a heap profile
+//	JSGO_GCLAB_CPUPROF=file  CPU profile of the whole run
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/metrics"
+	"runtime/pprof"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	gclabTracerStart func(t *Tracer)
+	gclabTracerStop  func(t *Tracer)
+)
+
+type gclabFrame struct {
+	name   string
+	t0     time.Time
+	bytes  uint64
+	objs   uint64
+	cycles uint64
+	gccpu  float64
+}
+
+type gclabRow struct {
+	idx       int
+	depth     int
+	name      string
+	startMs   float64
+	durMs     float64
+	bytes     uint64
+	objs      uint64
+	cycles    uint64
+	gccpu     float64
+	liveAfter uint64
+	scanAfter uint64
+	heapProf  string
+}
+
+type gclabGC struct {
+	tMs    float64
+	cycle  uint64
+	pass   string
+	live   uint64
+	scan   uint64
+	goal   uint64
+	gccpu  float64
+	allocs uint64
+}
+
+type gclabState struct {
+	start      time.Time
+	statsPath  string
+	passesPath string
+	gclogPath  string
+	heapDir    string
+	heapAt     map[string]int
+	seen       map[string]int
+	live       bool
+	stack      []gclabFrame
+	rows       []gclabRow
+	idx        int
+	cpuFile    *os.File
+	cur        atomic.Pointer[string]
+	gcmu       sync.Mutex
+	gcrows     []gclabGC
+	lastCycle  uint64
+	done       atomic.Bool
+	samples    []metrics.Sample
+}
+
+var gclab *gclabState
+
+const (
+	gmAllocBytes = iota
+	gmAllocObjs
+	gmCycles
+	gmGCCPU
+	gmLive
+	gmScanHeap
+	gmGoal
+	gmCount
+)
+
+var gclabNames = [gmCount]string{
+	"/gc/heap/allocs:bytes",
+	"/gc/heap/allocs:objects",
+	"/gc/cycles/total:gc-cycles",
+	"/cpu/classes/gc/total:cpu-seconds",
+	"/gc/heap/live:bytes",
+	"/gc/scan/heap:bytes",
+	"/gc/heap/goal:bytes",
+}
+
+func gclabRead() []metrics.Sample {
+	s := make([]metrics.Sample, gmCount)
+	for i, n := range gclabNames {
+		s[i].Name = n
+	}
+	metrics.Read(s)
+	return s
+}
+
+func u64(s []metrics.Sample, i int) uint64  { return s[i].Value.Uint64() }
+func f64(s []metrics.Sample, i int) float64 { return s[i].Value.Float64() }
+
+func init() {
+	g := &gclabState{
+		start:      time.Now(),
+		statsPath:  os.Getenv("JSGO_GCLAB_STATS"),
+		passesPath: os.Getenv("JSGO_GCLAB_PASSES"),
+		gclogPath:  os.Getenv("JSGO_GCLAB_GCLOG"),
+		heapDir:    os.Getenv("JSGO_GCLAB_HEAPDIR"),
+		live:       os.Getenv("JSGO_GCLAB_LIVE") == "1",
+		heapAt:     map[string]int{},
+		seen:       map[string]int{},
+	}
+	cpu := os.Getenv("JSGO_GCLAB_CPUPROF")
+	if g.statsPath == "" && g.passesPath == "" && g.gclogPath == "" && g.heapDir == "" && !g.live && cpu == "" {
+		return
+	}
+	gclab = g
+	if at := os.Getenv("JSGO_GCLAB_HEAPAT"); at != "" {
+		for _, x := range strings.Split(at, ",") {
+			k := 0
+			if i := strings.LastIndexByte(x, '#'); i >= 0 {
+				k, _ = strconv.Atoi(x[i+1:])
+				x = x[:i]
+			}
+			g.heapAt[x] = k
+		}
+	}
+	if cpu != "" {
+		f, err := os.Create(cpu)
+		if err != nil {
+			panic(err)
+		}
+		g.cpuFile = f
+		if err := pprof.StartCPUProfile(f); err != nil {
+			panic(err)
+		}
+	}
+	none := "startup"
+	g.cur.Store(&none)
+	if g.passesPath != "" || g.live || g.heapDir != "" {
+		gclabTracerStart = g.tracerStart
+		gclabTracerStop = g.tracerStop
+	}
+	if g.gclogPath != "" {
+		g.arm()
+	}
+	jutil.GclabExitHook = g.exit
+}
+
+type gclabSentinel struct {
+	p   *int
+	pad [3]uintptr
+}
+
+// arm registers a finalizer on a fresh unreachable object; it runs after the
+// next GC cycle, records it and re-arms.
+func (g *gclabState) arm() {
+	s := &gclabSentinel{}
+	runtime.SetFinalizer(s, func(*gclabSentinel) {
+		if g.done.Load() {
+			return
+		}
+		g.onGC()
+		g.arm()
+	})
+}
+
+func (g *gclabState) onGC() {
+	m := gclabRead()
+	g.gcmu.Lock()
+	defer g.gcmu.Unlock()
+	c := u64(m, gmCycles)
+	if c == g.lastCycle {
+		return
+	}
+	g.lastCycle = c
+	g.gcrows = append(g.gcrows, gclabGC{
+		tMs: float64(time.Since(g.start).Microseconds()) / 1000, cycle: c, pass: *g.cur.Load(),
+		live: u64(m, gmLive), scan: u64(m, gmScanHeap), goal: u64(m, gmGoal),
+		gccpu: f64(m, gmGCCPU), allocs: u64(m, gmAllocBytes),
+	})
+}
+
+func gclabName(t *Tracer) string {
+	return strings.TrimSuffix(t.comment, " on recently changed AST")
+}
+
+func (g *gclabState) tracerStart(t *Tracer) {
+	m := gclabRead()
+	name := gclabName(t)
+	g.stack = append(g.stack, gclabFrame{name: name, t0: time.Now(), bytes: u64(m, gmAllocBytes),
+		objs: u64(m, gmAllocObjs), cycles: u64(m, gmCycles), gccpu: f64(m, gmGCCPU)})
+	g.cur.Store(&name)
+}
+
+func (g *gclabState) tracerStop(t *Tracer) {
+	if len(g.stack) == 0 {
+		return
+	}
+	m := gclabRead()
+	f := g.stack[len(g.stack)-1]
+	g.stack = g.stack[:len(g.stack)-1]
+	now := time.Now()
+	r := gclabRow{idx: g.idx, depth: len(g.stack), name: f.name,
+		startMs: float64(f.t0.Sub(g.start).Microseconds()) / 1000,
+		durMs:   float64(now.Sub(f.t0).Microseconds()) / 1000,
+		bytes:   u64(m, gmAllocBytes) - f.bytes, objs: u64(m, gmAllocObjs) - f.objs,
+		cycles: u64(m, gmCycles) - f.cycles, gccpu: f64(m, gmGCCPU) - f.gccpu}
+	g.idx++
+	g.seen[f.name]++
+	want, ok := g.heapAt[f.name]
+	dump := g.heapDir != "" && ok && (want == 0 || want == g.seen[f.name])
+	if (g.live && r.depth == 0) || dump {
+		runtime.GC()
+		m2 := gclabRead()
+		r.liveAfter, r.scanAfter = u64(m2, gmLive), u64(m2, gmScanHeap)
+	}
+	if dump {
+		r.heapProf = fmt.Sprintf("heap-%04d-%s-%d.pb.gz", r.idx, f.name, g.seen[f.name])
+		g.writeHeap(r.heapProf)
+	}
+	g.rows = append(g.rows, r)
+	name := "-"
+	if len(g.stack) > 0 {
+		name = g.stack[len(g.stack)-1].name
+	}
+	g.cur.Store(&name)
+}
+
+func (g *gclabState) writeHeap(name string) {
+	f, err := os.Create(filepath.Join(g.heapDir, name))
+	if err != nil {
+		panic(err)
+	}
+	if err := pprof.Lookup("heap").WriteTo(f, 0); err != nil {
+		panic(err)
+	}
+	f.Close()
+}
+
+func (g *gclabState) exit() {
+	if !g.done.CompareAndSwap(false, true) {
+		return
+	}
+	if g.cpuFile != nil {
+		pprof.StopCPUProfile()
+		g.cpuFile.Close()
+	}
+	if g.heapDir != "" {
+		runtime.GC()
+		g.writeHeap("heap-exit.pb.gz")
+	}
+	if g.statsPath != "" {
+		all := metrics.All()
+		s := make([]metrics.Sample, len(all))
+		for i, d := range all {
+			s[i].Name = d.Name
+		}
+		metrics.Read(s)
+		out := map[string]any{"wall_in_process_s": time.Since(g.start).Seconds()}
+		for _, x := range s {
+			switch x.Value.Kind() {
+			case metrics.KindUint64:
+				out[x.Name] = x.Value.Uint64()
+			case metrics.KindFloat64:
+				out[x.Name] = x.Value.Float64()
+			case metrics.KindFloat64Histogram:
+				h := x.Value.Float64Histogram()
+				var n uint64
+				var sum, max float64
+				for i, c := range h.Counts {
+					if c == 0 {
+						continue
+					}
+					n += c
+					lo, hi := h.Buckets[i], h.Buckets[i+1]
+					mid := hi
+					if hi > 1e300 {
+						mid = lo
+					}
+					if lo < -1e300 {
+						mid = hi
+					}
+					sum += float64(c) * mid
+					max = mid
+				}
+				out[x.Name+"#count"] = n
+				out[x.Name+"#sum_upper"] = sum
+				out[x.Name+"#max_upper"] = max
+			}
+		}
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		out["memstats.NumGC"] = ms.NumGC
+		out["memstats.PauseTotalNs"] = ms.PauseTotalNs
+		out["memstats.GCCPUFraction"] = ms.GCCPUFraction
+		out["memstats.HeapSys"] = ms.HeapSys
+		out["memstats.Sys"] = ms.Sys
+		out["memstats.TotalAlloc"] = ms.TotalAlloc
+		out["memstats.Mallocs"] = ms.Mallocs
+		b, _ := json.MarshalIndent(out, "", " ")
+		os.WriteFile(g.statsPath, b, 0o644)
+	}
+	if g.passesPath != "" {
+		f, _ := os.Create(g.passesPath)
+		w := bufio.NewWriter(f)
+		fmt.Fprintln(w, "idx\tdepth\tname\tstart_ms\tdur_ms\talloc_bytes\talloc_objs\tgc_cycles\tgc_cpu_s\tlive_after\tscan_after\theap_prof")
+		for _, r := range g.rows {
+			fmt.Fprintf(w, "%d\t%d\t%s\t%.3f\t%.3f\t%d\t%d\t%d\t%.4f\t%d\t%d\t%s\n", r.idx, r.depth, r.name,
+				r.startMs, r.durMs, r.bytes, r.objs, r.cycles, r.gccpu, r.liveAfter, r.scanAfter, r.heapProf)
+		}
+		m := gclabRead()
+		fmt.Fprintf(w, "-1\t0\t#total\t0\t%.3f\t%d\t%d\t%d\t%.4f\t0\t0\t\n", float64(time.Since(g.start).Microseconds())/1000,
+			u64(m, gmAllocBytes), u64(m, gmAllocObjs), u64(m, gmCycles), f64(m, gmGCCPU))
+		w.Flush()
+		f.Close()
+	}
+	if g.gclogPath != "" {
+		g.gcmu.Lock()
+		f, _ := os.Create(g.gclogPath)
+		w := bufio.NewWriter(f)
+		fmt.Fprintln(w, "t_ms\tcycle\tpass\tlive\tscan_heap\tgoal\tgc_cpu_s\talloc_bytes")
+		for _, r := range g.gcrows {
+			fmt.Fprintf(w, "%.3f\t%d\t%s\t%d\t%d\t%d\t%.4f\t%d\n", r.tMs, r.cycle, r.pass, r.live, r.scan, r.goal, r.gccpu, r.allocs)
+		}
+		w.Flush()
+		f.Close()
+		g.gcmu.Unlock()
+	}
+}
+
+// gclabAfterPass runs after every named pass (PhaseOptimizer.NamedPass.process);
+// with JSGO_GCLAB_LOCALITY=name#k[,name#k] and JSGO_GCLAB_LOCALITY_OUT=file
+// it times pre-order walks of the real AST against copies laid out
+// contiguously, shuffled and freshly allocated.
+var gclabAfterPass func(name string, root *rhino.Node)
+
+var gclabLocSeen = map[string]int{}
+
+func init() {
+	spec, out := os.Getenv("JSGO_GCLAB_LOCALITY"), os.Getenv("JSGO_GCLAB_LOCALITY_OUT")
+	if spec == "" || out == "" {
+		return
+	}
+	want := map[string]int{}
+	for _, x := range strings.Split(spec, ",") {
+		k := 1
+		if i := strings.LastIndexByte(x, '#'); i >= 0 {
+			k, _ = strconv.Atoi(x[i+1:])
+			x = x[:i]
+		}
+		want[x] = k
+	}
+	gclabAfterPass = func(name string, root *rhino.Node) {
+		gclabLocSeen[name]++
+		if k, ok := want[name]; !ok || k != gclabLocSeen[name] {
+			return
+		}
+		gclabLocality(fmt.Sprintf("%s#%d", name, gclabLocSeen[name]), root, out)
+	}
+}
+
+func gclabTime(root *rhino.Node, reps int) ([]float64, int) {
+	var ns []float64
+	n := 0
+	for i := 0; i < reps; i++ {
+		t0 := time.Now()
+		k, _ := rhino.GclabWalk(root)
+		ns = append(ns, float64(time.Since(t0).Nanoseconds())/float64(k))
+		n = k
+	}
+	sort.Float64s(ns)
+	return ns, n
+}
+
+func gclabLocality(label string, root *rhino.Node, out string) {
+	const reps = 21
+	f, _ := os.OpenFile(out, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	defer f.Close()
+	st := rhino.GclabAddressStats(root)
+	keys := make([]string, 0, len(st))
+	for k := range st {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(f, "%s\tlayout\toriginal\t%s\t%.4f\n", label, k, st[k])
+	}
+	report := func(layout string, r *rhino.Node) {
+		ns, n := gclabTime(r, reps)
+		fmt.Fprintf(f, "%s\twalk\t%s\tnodes\t%d\n", label, layout, n)
+		fmt.Fprintf(f, "%s\twalk\t%s\tns_per_node_min\t%.3f\n", label, layout, ns[0])
+		fmt.Fprintf(f, "%s\twalk\t%s\tns_per_node_median\t%.3f\n", label, layout, ns[len(ns)/2])
+	}
+	// Interleave the layouts twice so drift hits them alike.
+	for round := 0; round < 2; round++ {
+		report("original", root)
+		for _, mode := range []string{"contiguous", "fresh", "shuffled"} {
+			c, keep := rhino.GclabCopy(root, mode)
+			if round == 0 && mode == "fresh" {
+				st := rhino.GclabAddressStats(c)
+				fmt.Fprintf(f, "%s\tlayout\tfresh\tadjacent\t%.4f\n", label, st["adjacent"])
+			}
+			report(mode, c)
+			runtime.KeepAlive(keep)
+		}
+	}
+}
