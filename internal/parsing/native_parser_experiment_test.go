@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -25,14 +26,29 @@ func nativeExperimentCompare(t *testing.T, source string, config *Config, requir
 	t.Helper()
 	file := rhino.NewSimpleSourceFile("native.js", rhino.StaticSourceFile_SourceKind_STRONG)
 	baselineReporter, experimentReporter := &nativeExperimentReporter{}, &nativeExperimentReporter{}
-	baseline := parserRunnerParseUncached(file, source, config, baselineReporter)
+	var baseline, experiment *ParserRunner_ParseResult
+	var baselineException, experimentException jutil.Throwable
+	jutil.Try(func() {
+		baseline = parserRunnerParseUncached(file, source, config, baselineReporter)
+	}, func(e jutil.Throwable) { baselineException = e })
 	_, accepted := tryNativeParser(file, source, config)
 	if accepted != requireNative {
 		t.Fatalf("native acceptance %v, want %v for %q", accepted, requireNative, source)
 	}
-	experiment := parserRunnerParseWithNativeFallback(file, source, config, experimentReporter)
+	jutil.Try(func() {
+		experiment = parserRunnerParseWithNativeFallback(file, source, config, experimentReporter)
+	}, func(e jutil.Throwable) { experimentException = e })
 	if !reflect.DeepEqual(experimentReporter.diagnostics, baselineReporter.diagnostics) {
 		t.Fatalf("diagnostics changed for %q: %v, want %v", source, experimentReporter.diagnostics, baselineReporter.diagnostics)
+	}
+	for original, replacement := baselineException, experimentException; original != nil || replacement != nil; {
+		if original == nil || replacement == nil || original.Error() != replacement.Error() {
+			t.Fatalf("exception changed for %q: %v, want %v", source, experimentException, baselineException)
+		}
+		original, replacement = original.GetCause(), replacement.GetCause()
+	}
+	if baselineException != nil {
+		return
 	}
 	if baseline.Ast == nil || experiment.Ast == nil {
 		if baseline.Ast != experiment.Ast {
