@@ -13,9 +13,10 @@ type parallelSource struct {
 }
 
 type parallelSourceLicenses struct {
-	scriptOnly bool
-	lastFile   string
-	nodes      []*rhino.Node
+	scriptOnly  bool
+	lastFile    string
+	hasLastFile bool
+	nodes       []*rhino.Node
 }
 
 func (l *parallelSourceLicenses) TrackLicensesForNode(node *rhino.Node) {
@@ -23,10 +24,15 @@ func (l *parallelSourceLicenses) TrackLicensesForNode(node *rhino.Node) {
 		return
 	}
 	file := node.GetStaticSourceFile()
-	if file == nil || file.GetName() == l.lastFile {
+	if file == nil {
 		return
 	}
-	l.lastFile = file.GetName()
+	name := file.GetName()
+	if l.hasLastFile && name == l.lastFile {
+		return
+	}
+	l.lastFile = name
+	l.hasLastFile = true
 	l.nodes = append(l.nodes, node)
 }
 
@@ -51,23 +57,32 @@ func (c *Compiler) toSourceRoots(roots []*rhino.Node, tracker CodePrinter_Licens
 	default:
 		eligible = false
 	}
-	if workers <= 1 || len(roots) <= 1 || !eligible || c.options.ShouldGenerateTypedExterns() {
+	if workers <= 1 || len(roots) <= 1 || !eligible || c.options.ShouldGenerateTypedExterns() || c.typedAstFilesystem != nil {
 		for i, root := range roots {
 			emit(i, root, nil)
 		}
 		return
 	}
-	results := make([]parallelSource, len(roots))
-	failures := parallelPrebuild(len(roots), workers, func(i int) {
-		result := &results[i]
-		result.licenses.scriptOnly = scriptOnly
-		result.code = c.toSourceAndMappings(roots[i], i == 0, &result.licenses)
-	})
-	for i, root := range roots {
-		if failures[i] != nil {
-			panic(failures[i])
+	// Bound private text/mapping buffers to one window, rather than retaining
+	// a second whole output for a many-file bundle. Publishing a window before
+	// starting the next also releases its AST/mapping references promptly.
+	workers = min(workers, len(roots))
+	results := make([]parallelSource, workers)
+	for start := 0; start < len(roots); start += workers {
+		count := min(workers, len(roots)-start)
+		failures := parallelPrebuild(count, workers, func(slot int) {
+			i := start + slot
+			result := &results[slot]
+			result.licenses.scriptOnly = scriptOnly
+			result.code = c.toSourceAndMappings(roots[i], i == 0, &result.licenses)
+		})
+		for slot := range count {
+			if failures[slot] != nil {
+				panic(failures[slot])
+			}
+			i := start + slot
+			emit(i, roots[i], &results[slot])
+			results[slot] = parallelSource{}
 		}
-		emit(i, root, &results[i])
-		results[i] = parallelSource{}
 	}
 }
