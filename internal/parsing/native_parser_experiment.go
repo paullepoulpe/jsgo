@@ -19,18 +19,33 @@ var nativeParserExperimentEnabled = os.Getenv("JSGO_EXPERIMENT_NATIVE_PARSER") =
 // produces the complete diagnostic sequence, with its original ordering.
 type nativeParserDiagnostics struct {
 	parser.ErrorReporterBase
-	failed bool
+	failed       bool
+	sourceMapURL *string
 }
 
 func (r *nativeParserDiagnostics) ReportError(*parser.SourcePosition, string)   { r.failed = true }
 func (r *nativeParserDiagnostics) ReportWarning(*parser.SourcePosition, string) { r.failed = true }
 func (r *nativeParserDiagnostics) Warning(string, string, int, int)             { r.failed = true }
 func (r *nativeParserDiagnostics) Error(string, string, int, int)               { r.failed = true }
-func (r *nativeParserDiagnostics) RecordComment(parser.Comment_Type, *parser.SourceRange, string) {
-	// Whole-file comments, JSDoc/fileoverview and closure-unaware annotations
-	// require the original comment discovery/attachment pipeline, even if the
-	// comment occurs after code that the native sink already constructed.
-	r.failed = true
+func (r *nativeParserDiagnostics) RecordComment(kind parser.Comment_Type, _ *parser.SourceRange, value string) {
+	if kind == parser.Comment_Type_JSDOC || kind == parser.Comment_Type_IMPORTANT {
+		// JSDoc, fileoverview, licenses and closure-unaware annotations retain
+		// the original whole-file discovery/attachment pipeline.
+		r.failed = true
+		return
+	}
+	// In TYPES_ONLY mode ordinary comments produce no attached nodes or
+	// returned comment metadata. Preserve the parser's one observable event:
+	// sourceMappingURL uses precisely its original trimming/prefix rule.
+	value = jutil.StringTrim(value)
+	if strings.HasPrefix(value, "<!--") || strings.HasPrefix(value, "-->") || strings.HasPrefix(value, "#!") {
+		r.failed = true
+		return
+	}
+	if strings.HasPrefix(value, parser.Parser_SOURCE_MAPPING_URL_PREFIX) {
+		url := value[len(parser.Parser_SOURCE_MAPPING_URL_PREFIX):]
+		r.sourceMapURL = &url
+	}
 }
 
 type nativeExpression struct {
@@ -40,18 +55,23 @@ type nativeExpression struct {
 
 // nativeParser has no intermediate per-expression objects. Its expression
 // frames are returned by value, and only final Rhino nodes survive acceptance.
-// Grammar: semicolon-terminated var/expression/empty statements; ordinary ES5
+// Grammar: plain functions, blocks, if/while/return/throw and semicolon-
+// terminated var/expression/empty statements; ordinary ES5
 // unary/binary/assignment/conditional expressions, calls and member accesses;
 // decimal numbers, unescaped strings, names/this/null/booleans; arrays without
 // holes/trailing commas; object literals with explicit non-keyword keys.
-// Functions, blocks, modules, ASI, patterns and extensions use the old parser.
+// JSDoc/important comments, modules, ASI, patterns and unsupported extensions
+// use the old parser. Ordinary comments are ignored only in TYPES_ONLY mode.
 type nativeParser struct {
-	scanner     *parser.Scanner
-	current     parser.Token
-	last        parser.Token
-	factory     *IRFactory
-	diagnostics *nativeParserDiagnostics
-	depth       int
+	scanner        *parser.Scanner
+	current        parser.Token
+	last           parser.Token
+	factory        *IRFactory
+	diagnostics    *nativeParserDiagnostics
+	depth          int
+	statementDepth int
+	functionDepth  int
+	suppressCalls  int
 }
 
 func parserRunnerParseWithNativeFallback(sourceFile rhino.StaticSourceFile, source string,
@@ -110,7 +130,7 @@ func nativeParserAttempt(sourceFile rhino.StaticSourceFile, source string, confi
 	}
 	features := p.factory.GetFeatures()
 	root.PutProp(rhino.Node_FEATURE_SET, features)
-	return NewParserRunner_ParseResultWithTopLevelStatementRanges(root, []*parser.Comment{}, []*parser.SourceRange{}, features, nil), true
+	return NewParserRunner_ParseResultWithTopLevelStatementRanges(root, []*parser.Comment{}, []*parser.SourceRange{}, features, diagnostics.sourceMapURL), true
 }
 
 func (p *nativeParser) failed() bool           { return p.diagnostics.failed }
@@ -124,7 +144,7 @@ func (p *nativeParser) advance() {
 		token := p.current.AsIdentifier()
 		name := token.GetMaybePrivateValue()
 		if token.IsPrivateIdentifier() || token.IsKeyword() || rhino.TokenStream_IsKeyword(name) ||
-			name == "await" || name == "eval" || name == "arguments" || IRFactory_ES5_STRICT_RESERVED_KEYWORDS.Contains(name) {
+			name == "await" || IRFactory_ES5_STRICT_RESERVED_KEYWORDS.Contains(name) {
 			p.reject()
 		}
 	case parser.TokenType_STRING:
@@ -152,7 +172,23 @@ func (p *nativeParser) located(node *rhino.Node, start, end *parser.SourcePositi
 	return nativeExpression{node, start, end}
 }
 func (p *nativeParser) statement() nativeExpression {
+	p.statementDepth++
+	defer func() { p.statementDepth-- }()
+	if p.statementDepth > 128 || p.failed() {
+		p.reject()
+		return nativeExpression{}
+	}
 	start := p.current.GetStart()
+	switch p.kind() {
+	case parser.TokenType_OPEN_CURLY:
+		return p.block()
+	case parser.TokenType_FUNCTION:
+		return p.function(true)
+	case parser.TokenType_RETURN, parser.TokenType_THROW:
+		return p.returnOrThrow()
+	case parser.TokenType_IF, parser.TokenType_WHILE:
+		return p.controlStatement()
+	}
 	if p.kind() == parser.TokenType_SEMI_COLON {
 		p.advance()
 		return p.located(p.factory.NewNode(rhino.Token_EMPTY), start, p.last.GetTokenBase().Location.End)
@@ -166,6 +202,10 @@ func (p *nativeParser) statement() nativeExpression {
 				break
 			}
 			token := p.current.AsIdentifier()
+			if !nativeBindingName(token) {
+				p.reject()
+				break
+			}
 			name := p.factory.transformDispatcher.ProcessNameWithInlineCommentsOfToken(token, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 			p.advance()
 			if p.kind() == parser.TokenType_EQUAL {
@@ -187,11 +227,6 @@ func (p *nativeParser) statement() nativeExpression {
 			return nativeExpression{}
 		}
 		return p.located(declaration, start, p.last.GetTokenBase().Location.End)
-	}
-	// At statement start, an object-looking brace denotes a block/label.
-	if p.kind() == parser.TokenType_OPEN_CURLY {
-		p.reject()
-		return nativeExpression{}
 	}
 	expr := p.expression(1)
 	if !p.take(parser.TokenType_SEMI_COLON) {
@@ -290,6 +325,18 @@ func (p *nativeParser) prefix() nativeExpression {
 	}
 	var result nativeExpression
 	switch kind {
+	case parser.TokenType_FUNCTION:
+		result = p.function(false)
+	case parser.TokenType_NEW:
+		result = p.newExpression()
+	case parser.TokenType_PLUS_PLUS, parser.TokenType_MINUS_MINUS:
+		p.advance()
+		operand := p.expression(13)
+		if p.failed() {
+			return nativeExpression{}
+		}
+		node := p.factory.transformDispatcher.CreateUpdateNode(IRFactory_TransformUpdateTokenType(kind), false, operand.node)
+		return p.located(node, start, operand.end)
 	case parser.TokenType_IDENTIFIER:
 		node := p.factory.transformDispatcher.ProcessNameOfToken(token.AsIdentifier(), rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 		p.advance()
@@ -351,7 +398,23 @@ func (p *nativeParser) prefix() nativeExpression {
 				return nativeExpression{}
 			}
 			result = p.located(p.factory.NewNodeWith2Children(rhino.Token_GETELEM, result.node, index.node), result.start, p.last.GetTokenBase().Location.End)
+		case parser.TokenType_PLUS_PLUS, parser.TokenType_MINUS_MINUS:
+			if p.suppressCalls != 0 {
+				return result
+			}
+			if p.current.GetStart().Line != result.end.Line {
+				p.reject()
+				return nativeExpression{}
+			}
+			kind := p.kind()
+			end := p.current.GetTokenBase().Location.End
+			p.advance()
+			node := p.factory.transformDispatcher.CreateUpdateNode(IRFactory_TransformUpdateTokenType(kind), true, result.node)
+			return p.located(node, result.start, end)
 		case parser.TokenType_OPEN_PAREN:
+			if p.suppressCalls != 0 {
+				return result
+			}
 			p.advance()
 			call := p.factory.NewNodeWithChild(rhino.Token_CALL, result.node)
 			for !p.failed() && p.kind() != parser.TokenType_CLOSE_PAREN {
@@ -427,4 +490,224 @@ func (p *nativeParser) literalContainer() nativeExpression {
 		return nativeExpression{}
 	}
 	return p.located(container, start, p.last.GetTokenBase().Location.End)
+}
+
+func nativeBindingName(token *parser.IdentifierToken) bool {
+	return !token.ValueEquals("eval") && !token.ValueEquals("arguments")
+}
+
+func (p *nativeParser) block() nativeExpression {
+	start := p.current.GetStart()
+	if !p.take(parser.TokenType_OPEN_CURLY) {
+		return nativeExpression{}
+	}
+	block := p.factory.NewNode(rhino.Token_BLOCK)
+	for !p.failed() && p.kind() != parser.TokenType_CLOSE_CURLY {
+		if p.kind() == parser.TokenType_END_OF_FILE {
+			p.reject()
+			return nativeExpression{}
+		}
+		statement := p.statement()
+		if p.failed() {
+			return nativeExpression{}
+		}
+		block.AddChildToBack(statement.node)
+	}
+	if !p.take(parser.TokenType_CLOSE_CURLY) {
+		return nativeExpression{}
+	}
+	return p.located(block, start, p.last.GetTokenBase().Location.End)
+}
+
+func (p *nativeParser) function(declaration bool) nativeExpression {
+	start := p.current.GetStart()
+	if !p.take(parser.TokenType_FUNCTION) {
+		return nativeExpression{}
+	}
+	var name *rhino.Node
+	anonymous := false
+	if p.kind() == parser.TokenType_IDENTIFIER {
+		token := p.current.AsIdentifier()
+		if !nativeBindingName(token) {
+			p.reject()
+			return nativeExpression{}
+		}
+		name = p.factory.transformDispatcher.ProcessNameWithInlineCommentsOfToken(token, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+		p.advance()
+	} else if declaration {
+		p.reject()
+		return nativeExpression{}
+	} else {
+		name = p.factory.NewStringNodeWithToken(rhino.Token_NAME, "")
+		anonymous = true
+	}
+	paramStart := p.current.GetStart()
+	if !p.take(parser.TokenType_OPEN_PAREN) {
+		return nativeExpression{}
+	}
+	params := p.factory.NewNode(rhino.Token_PARAM_LIST)
+	for !p.failed() && p.kind() != parser.TokenType_CLOSE_PAREN {
+		if p.kind() != parser.TokenType_IDENTIFIER || !nativeBindingName(p.current.AsIdentifier()) {
+			p.reject()
+			return nativeExpression{}
+		}
+		param := p.factory.transformDispatcher.ProcessNameWithInlineCommentsOfToken(p.current.AsIdentifier(), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+		params.AddChildToBack(param)
+		p.advance()
+		if p.kind() != parser.TokenType_COMMA {
+			break
+		}
+		p.advance()
+		if p.kind() == parser.TokenType_CLOSE_PAREN {
+			p.reject()
+			return nativeExpression{}
+		}
+	}
+	if !p.take(parser.TokenType_CLOSE_PAREN) {
+		return nativeExpression{}
+	}
+	p.located(params, paramStart, p.last.GetTokenBase().Location.End)
+	if p.kind() != parser.TokenType_OPEN_CURLY {
+		p.reject()
+		return nativeExpression{}
+	}
+	p.functionDepth++
+	body := p.block()
+	p.functionDepth--
+	if p.failed() {
+		return nativeExpression{}
+	}
+	p.factory.transformDispatcher.ParseDirectives(body.node)
+	function := p.factory.NewNodeWith3Children(rhino.Token_FUNCTION, name, params, body.node)
+	if anonymous {
+		p.factory.SetSourceInfoFromPositions(name, start, body.end)
+	}
+	return p.located(function, start, body.end)
+}
+
+func (p *nativeParser) returnOrThrow() nativeExpression {
+	token := p.current
+	isReturn := p.kind() == parser.TokenType_RETURN
+	if isReturn && p.functionDepth == 0 {
+		p.reject()
+		return nativeExpression{}
+	}
+	p.advance()
+	kind := rhino.Token_THROW
+	if isReturn {
+		kind = rhino.Token_RETURN
+	}
+	node := p.factory.NewNode(kind)
+	if !isReturn || p.kind() != parser.TokenType_SEMI_COLON {
+		// Implicit semicolons after return, and prohibited throw line breaks,
+		// remain owned by the original grammar and diagnostic pipeline.
+		if p.current.GetStart().Line != token.GetStart().Line {
+			p.reject()
+			return nativeExpression{}
+		}
+		value := p.expression(1)
+		if p.failed() {
+			return nativeExpression{}
+		}
+		node.AddChildToBack(value.node)
+	}
+	if !p.take(parser.TokenType_SEMI_COLON) {
+		return nativeExpression{}
+	}
+	return p.located(node, token.GetStart(), p.last.GetTokenBase().Location.End)
+}
+
+func (p *nativeParser) controlStatement() nativeExpression {
+	token := p.current
+	isIf := p.kind() == parser.TokenType_IF
+	p.advance()
+	if !p.take(parser.TokenType_OPEN_PAREN) {
+		return nativeExpression{}
+	}
+	condition := p.expression(1)
+	if !p.take(parser.TokenType_CLOSE_PAREN) {
+		return nativeExpression{}
+	}
+	body := p.controlBody()
+	if p.failed() {
+		return nativeExpression{}
+	}
+	kind := rhino.Token_WHILE
+	if isIf {
+		kind = rhino.Token_IF
+	}
+	node := p.factory.NewNodeWith2Children(kind, condition.node, body.node)
+	end := body.end
+	if isIf && p.kind() == parser.TokenType_ELSE {
+		p.advance()
+		other := p.controlBody()
+		if p.failed() {
+			return nativeExpression{}
+		}
+		node.AddChildToBack(other.node)
+		end = other.end
+	}
+	return p.located(node, token.GetStart(), end)
+}
+
+func (p *nativeParser) controlBody() nativeExpression {
+	// Legacy unbraced function declarations have extra contextual rules.
+	if p.kind() == parser.TokenType_FUNCTION {
+		p.reject()
+		return nativeExpression{}
+	}
+	body := p.statement()
+	if p.failed() || body.node.IsBlock() {
+		return body
+	}
+	block := p.factory.NewNode(rhino.Token_BLOCK)
+	if !body.node.IsEmpty() {
+		block.AddChildToBack(body.node)
+	}
+	p.factory.SetSourceInfoFromNode(block, body.node)
+	block.SetIsAddedBlock(true)
+	body.node = block
+	return body
+}
+
+func (p *nativeParser) newExpression() nativeExpression {
+	start := p.current.GetStart()
+	p.advance()
+	switch p.kind() {
+	case parser.TokenType_IDENTIFIER, parser.TokenType_THIS, parser.TokenType_FUNCTION, parser.TokenType_OPEN_PAREN:
+	default:
+		p.reject()
+		return nativeExpression{}
+	}
+	p.suppressCalls++
+	constructor := p.prefix()
+	p.suppressCalls--
+	if p.failed() {
+		return nativeExpression{}
+	}
+	node := p.factory.NewNodeWithChild(rhino.Token_NEW, constructor.node)
+	end := constructor.end
+	if p.kind() == parser.TokenType_OPEN_PAREN {
+		p.advance()
+		for !p.failed() && p.kind() != parser.TokenType_CLOSE_PAREN {
+			arg := p.expression(1)
+			if p.failed() {
+				return nativeExpression{}
+			}
+			node.AddChildToBack(arg.node)
+			if p.kind() != parser.TokenType_COMMA {
+				break
+			}
+			p.advance()
+			if p.kind() == parser.TokenType_CLOSE_PAREN {
+				p.reject()
+				return nativeExpression{}
+			}
+		}
+		if !p.take(parser.TokenType_CLOSE_PAREN) {
+			return nativeExpression{}
+		}
+		end = p.last.GetTokenBase().Location.End
+	}
+	return p.located(node, start, end)
 }

@@ -3,6 +3,8 @@ package parsing
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -64,6 +66,20 @@ func TestNativeParserExpressionSubset(t *testing.T) {
 		"var o={1e309:0,1e-9999:1,0.0:2,2.:3}; var zero=-0;",
 		"(obj.method)(); (obj['method'])(); 'custom';'use strict';x;",
 		"var o={__proto__:1,__proto__:2};",
+		"var x=1; // late comment", "/* ordinary */ var x=1; /* late */",
+		"var x=1;\n//# sourceMappingURL=test.map",
+		"function f(){return 1;}",
+		"function outer(){function inner(a){return a;} return inner(1);}",
+		"var f=(function(a){return a+1;}); f(2);",
+		"var f=function(a /* ordinary */, b){/* body */ return a+b;};",
+		"var x=1; //# sourceMappingURL=first.map\n/* ordinary */ var y=2; //# sourceMappingURL=last.map",
+		"function f(a,b){var x=a+b; if(x) return x; else return 0;} f(1,2);",
+		"var fn=function named(a){'use strict'; return a;}; fn(1);",
+		"var fn=function(a){return arguments[0];}; eval('code');",
+		"var x=new TypeError('message'); var y=new ns.Type(1, f(2));",
+		"function f(x){while(x>0){x--; ++x; x=x-2;} return x;}",
+		"function f(x){if(x) throw new TypeError('bad'); return;} var y=f(1);",
+		"function f(x){if(x) {if(x>2) return 2;} else if(x<0) return 0; return 1;}",
 		"var x=a||b&&c|d^e&f==g<h<<i+j*k;",
 		"var x=1e3 + .5 + 2.; var π='é'; π;",
 		"var s='😀';\r\nvar t = {\n key : s\n};\u2028t.key;\n",
@@ -81,15 +97,18 @@ func TestNativeParserExpressionSubset(t *testing.T) {
 func TestNativeParserFallsBackBeforePublishing(t *testing.T) {
 	config := ParserRunner_CreateConfig(Config_LanguageMode_ES_NEXT, nil, Config_StrictMode_STRICT)
 	for _, source := range []string{
-		"var x=1", "function f(){return 1;}", "{foo:1};", "let x=1;", "const {a}=b;",
+		"var x=1", "{foo:1};", "let x=1;", "const {a}=b;",
 		"var x=[1,,2];", "var x=[1,];", "var x={a:1,};", "f(1,);", "var x={a};",
 		"var x=0x10;", "var x=01;", "var x=1_000;", "var x=1n;", "var x='a\\n';",
-		"var x=/re/;", "var x=`template`;", "var x=a?.b;", "a++;", "var x=(a,b);",
+		"var x=/re/;", "var x=`template`;", "var x=a?.b;", "var x=(a,b);",
 		"var eval=1;", "var arguments=1;", "var x=#private;", "var x=(a?b:c)=d;",
-		"var x=1; // late comment", "var x=1; /** @fileoverview Late */",
-		"var x=1; /** @license License */", "var x=1;\n//# sourceMappingURL=test.map",
+		"var x=1; /** @fileoverview Late */",
+		"var x=1; /** @license License */",
 		"/** @closureUnaware */ var x=1;", "'use strict'; var x='\\1'; var y=;",
-		"var x='unterminated", "var x=1; function (", "goog.module('example');",
+		"var x='unterminated", "var x=1; function (", "return 1;", "function f(){return\n1;}", "function f(){throw\n1;}",
+		"function f(a,a){return a;}", "function f(a=1){return a;}",
+		"function f(...a){return a;}", "async function f(){return 1;}",
+		"function* f(){yield 1;}", "new Foo++;", "function f(){return /* newline\n*/ 1;}", "if (x) function f(){}", "a\n++;", "goog.module('example');",
 		"var \\u0063lass=1;", "obj.default;", "var x=1; /* unterminated",
 		"<!-- html comment\nvar x=1;", "#!/bin/node\nvar x=1;",
 		strings.Repeat("(", 150) + "x" + strings.Repeat(")", 150) + ";",
@@ -164,4 +183,44 @@ func BenchmarkNativeParserDataProgram(b *testing.B) {
 			}
 		})
 	}
+}
+
+// Optional real-input oracle gate. The corpus remains outside the source tree;
+// accepted files must match every AST/source/feature/diagnostic field, while
+// rejected files retain whole-file fallback. This reports coverage, not timing.
+func TestNativeParserCoreJSWorkloadCoverage(t *testing.T) {
+	root := os.Getenv("NATIVE_PARSER_CORPUS_ROOT")
+	if root == "" {
+		t.Skip("set NATIVE_PARSER_CORPUS_ROOT to a benchmark workspace")
+	}
+	config := ParserRunner_CreateConfig(Config_LanguageMode_ES_NEXT, nil, Config_StrictMode_STRICT)
+	var total, accepted int
+	var totalBytes, acceptedBytes int64
+	for _, directory := range []string{"internals", "modules"} {
+		files, err := filepath.Glob(filepath.Join(root, "node_modules", "core-js", directory, "*.js"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range files {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			total++
+			totalBytes += int64(len(data))
+			rhino.Node_AllocationBoundary()
+			file := rhino.NewSimpleSourceFile("native.js", rhino.StaticSourceFile_SourceKind_STRONG)
+			_, ok := tryNativeParser(file, string(data), config)
+			if !ok {
+				continue
+			}
+			accepted++
+			acceptedBytes += int64(len(data))
+			nativeExperimentCompare(t, string(data), config, true)
+		}
+	}
+	if total == 0 {
+		t.Fatal("no core-js workload files found")
+	}
+	t.Logf("native core-js coverage: %d/%d files; %d/%d source bytes", accepted, total, acceptedBytes, totalBytes)
 }
