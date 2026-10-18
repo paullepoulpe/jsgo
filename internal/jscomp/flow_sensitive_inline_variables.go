@@ -297,6 +297,13 @@ func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 // Java: FlowSensitiveInlineVariables.process(Node, Node)
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	f.nativeFactsEnabled = nativeFunctionFactsEnabled()
+	if parallelFSIVEnabled() && f.processScriptsParallel(externs, root) {
+		return
+	}
+	f.processSerial(externs, root)
+}
+
+func (f *FlowSensitiveInlineVariables) processSerial(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
 		SetCallback(f).
