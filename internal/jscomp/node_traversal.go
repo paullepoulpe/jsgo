@@ -813,6 +813,14 @@ func (t *NodeTraversal) FormatNodeContext(label string, n *rhino.Node) string {
 //
 // Java: NodeTraversal.traverse(Node)
 func (t *NodeTraversal) Traverse(root *rhino.Node) {
+	// concrete traversal experiment entry
+	if concreteTraversalExperimentEnabled {
+		if cb, ok := t.callback.(*ReferenceCollector_CollectorCallback); ok {
+			t.referenceConcreteTraverse(cb, root)
+			return
+		}
+	}
+	// end concrete traversal experiment entry
 	jutil.Try(func() {
 		t.InitTraversal(root)
 		t.currentNode = root
@@ -834,6 +842,14 @@ func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb Node
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
 func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
+	// concrete traversal experiment entry
+	if concreteTraversalExperimentEnabled {
+		if cb, ok := t.callback.(*ReferenceCollector_CollectorCallback); ok {
+			t.referenceConcreteTraverseRoots(cb, externs, root)
+			return
+		}
+	}
+	// end concrete traversal experiment entry
 	jutil.Try(func() {
 		scopeRoot := externs.GetParent()
 		jutil.CheckNotNull(scopeRoot)
@@ -883,6 +899,14 @@ func (t *NodeTraversal) FormatNodePosition(n *rhino.Node) string {
 //
 // Java: NodeTraversal.traverseWithScope(Node, AbstractScope<?, ?>)
 func (t *NodeTraversal) TraverseWithScope(root *rhino.Node, s AbstractScope) {
+	// concrete traversal experiment entry
+	if concreteTraversalExperimentEnabled {
+		if cb, ok := t.callback.(*ReferenceCollector_CollectorCallback); ok {
+			t.referenceConcreteTraverseWithScope(cb, root, s)
+			return
+		}
+	}
+	// end concrete traversal experiment entry
 	jutil.CheckStateMsg1(s.IsGlobal() || s.IsModuleScope(), "%s", s)
 	jutil.Try(func() {
 		t.InitTraversal(root)
@@ -913,6 +937,14 @@ func nodeTraversal_getParent(s AbstractScope) AbstractScope {
 //
 // Java: NodeTraversal.traverseAtScope(AbstractScope<?, ?>)
 func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
+	// concrete traversal experiment entry
+	if concreteTraversalExperimentEnabled {
+		if cb, ok := t.callback.(*ReferenceCollector_CollectorCallback); ok {
+			t.referenceConcreteTraverseAtScope(cb, s)
+			return
+		}
+	}
+	// end concrete traversal experiment entry
 	n := s.GetRootNode()
 	t.InitTraversal(n)
 	t.currentNode = n
@@ -1079,6 +1111,14 @@ func (c *nodeTraversal_TraverseScopeRootsCallback) ExitScope(t *NodeTraversal) {
 
 // Java: NodeTraversal.traverseScopeRoot(Node)
 func (t *NodeTraversal) TraverseScopeRoot(scopeRoot *rhino.Node) {
+	// concrete traversal experiment entry
+	if concreteTraversalExperimentEnabled {
+		if cb, ok := t.callback.(*ReferenceCollector_CollectorCallback); ok {
+			t.referenceConcreteTraverseScopeRoot(cb, scopeRoot)
+			return
+		}
+	}
+	// end concrete traversal experiment entry
 	jutil.Try(func() {
 		t.InitTraversal(scopeRoot)
 		t.currentNode = scopeRoot
