@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -58,7 +59,9 @@ func JSCompZipFileCache_GetEntryStream(zipName string, entryName string) io.Read
 
 // Go-only: language-adapter — protects the shared emulated cache, including
 // eviction callbacks that close a cached archive.
-var jSCompZipFileCache_monitor jutil.Monitor
+// Its fixed loader/removal listener calls only CachedZipFile operations, which
+// use a distinct lock. No callback can reenter this global cache.
+var jSCompZipFileCache_monitor sync.Mutex
 
 // Go-only: language-adapter — there are no Java system properties; the
 // "jscomp.zipfile.cachesize" property takes its default.
@@ -84,9 +87,9 @@ type JSCompZipFileCache_CachedZipFile struct {
 	zipFile      *zip.ReadCloser
 	lastModified *time.Time
 
-	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized block of refreshIfNeeded holds.
-	monitor jutil.Monitor
+	// Go-only: language-adapter — entry opening, refresh and closing use
+	// private Locked helpers, so no operation recursively takes this lock.
+	monitor sync.Mutex
 }
 
 func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_CachedZipFile {
@@ -156,7 +159,7 @@ func (z *JSCompZipFileCache_CachedZipFile) RefreshIfNeeded() {
 }
 
 // Go-only: language-adapter — caller holds z.monitor, avoiding a second
-// re-entrant monitor acquisition in GetEntryStream.
+// second lock acquisition in GetEntryStream.
 func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLocked() {
 	info, err := os.Stat(z.path.String())
 	if err != nil {

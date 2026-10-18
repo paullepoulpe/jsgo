@@ -63,10 +63,10 @@ type SourceFile struct {
 
 	isClosureUnawareCode bool
 
-	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized blocks of getCode and getCodeReader hold. It also
-	// serializes publication and invalidation of source/cache snapshots.
-	monitor jutil.Monitor
+	// Go-only: language-adapter — native loaders use a non-reentrant lock
+	// after the cache helpers have eliminated internal reacquisition. Custom
+	// loaders retain Java monitor semantics, including callback reentry.
+	monitor sourceFileCacheLock
 }
 
 // sourceFileCachedState keeps source text, metrics, UTF-16 offsets and byte
@@ -100,6 +100,7 @@ func newSourceFile(loader SourceFile_CodeLoader, fileName string, kind rhino.Sta
 	}
 
 	f := &SourceFile{loader: loader, fileName: fileName, kind: kind}
+	f.monitor.init(loader)
 	f.cached.Store(&sourceFileCachedState{numLines: -1, numBytes: -1})
 	return f
 }
