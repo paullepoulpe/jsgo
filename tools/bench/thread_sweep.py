@@ -79,6 +79,8 @@ def main():
                     'gomaxprocs': 'runtime default; inherited GOMAXPROCS removed; compiler flag does not change it',
                     'java_compiler': 'pinned stock jar; fresh CommandLineRunner/compiler and normal extern parsing per invocation',
                     'java_classpath': runner.batch_cp,
+                    'experiment_environment': {key: value for key, value in runner.go_env.items()
+                                               if key.startswith('JSGO_EXPERIMENT_')},
                     'java_batch_source_sha256': bench.sha256_file(Path(bench.HERE)/'java/CliBatch.java'),
                     'ratio_direction': 'Java / Go; above 1 favors Go for time and resident memory',
                     'go_memory_window': 'median of fresh CLI process peak RSS values',
