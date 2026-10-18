@@ -89,6 +89,8 @@ public final class BuiltinExternCache {
     for (Node child = node.getFirstChild(); child != null; child = child.getNext()) { bind(child, file); }
   }
 
+  static long hitsForTest() { return HITS.get(); }
+
   public static String statistics() { return "hits=" + HITS.get() + " misses=" + MISSES.get(); }
 
   private static final class RecordingReporter implements ErrorReporter {

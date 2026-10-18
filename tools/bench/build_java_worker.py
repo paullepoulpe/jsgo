@@ -6,9 +6,9 @@ archive. The original jar and stock Java benchmark remain unchanged. Put this
 build directory before the jar on the worker's classpath only.
 """
 import argparse
-import hashlib
 import json
-import os
+import shutil
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -29,9 +29,14 @@ if bench.sha256_file(archive) != pin['CLOSURE_SRC_SHA256']:
 jar = cache/pin['CLOSURE_JAR']
 if bench.sha256_file(jar) not in pin['CLOSURE_JAR_SHA256'].split():
     sys.exit('Closure jar SHA-256 does not match the pin')
-source = out/'src'
-classes = out/'classes'
-classes.mkdir(parents=True, exist_ok=True)
+out.mkdir(parents=True, exist_ok=True)
+# Failed builds must not leave either a manifest or runnable stale classes.
+(out/'build.json').unlink(missing_ok=True)
+if (out/'classes').exists(): shutil.rmtree(out/'classes')
+staging = tempfile.TemporaryDirectory(prefix='.build-', dir=out)
+source = Path(staging.name)/'src'
+classes = Path(staging.name)/'classes'
+classes.mkdir(parents=True)
 paths = ['com/google/javascript/jscomp/parsing/ParserRunner.java',
          'com/google/javascript/rhino/JSDocInfo.java']
 with zipfile.ZipFile(archive) as z:
@@ -81,6 +86,14 @@ files = [str(source/n) for n in paths]+[
     str(Path(bench.HERE)/'java/CliWorker.java'),
     str(Path(bench.HERE)/'java/extern-cache/BuiltinExternCacheTest.java')]
 subprocess.run(['javac', '-cp', str(jar), '-d', str(classes)]+files, check=True)
+# Install only the complete successfully compiled source/class tree.
+for directory in ['src', 'classes']:
+    target = out/directory
+    if target.exists(): shutil.rmtree(target)
+    shutil.move(str(Path(staging.name)/directory), target)
+files = [str(out/'src'/n) for n in paths]+files[len(paths):]
+source, classes = out/'src', out/'classes'
+staging.cleanup()
 metadata = {'jar_sha256': bench.sha256_file(jar),
             'source_archive_sha256': bench.sha256_file(archive),
             'source_sha256': {str(Path(f).relative_to(source)) if Path(f).is_relative_to(source)

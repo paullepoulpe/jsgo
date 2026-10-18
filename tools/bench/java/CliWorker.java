@@ -48,17 +48,27 @@ public final class CliWorker extends CommandLineRunner {
     var input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     for (String line; (line = input.readLine()) != null;) {
       JsonObject request;
-      try { request = JsonParser.parseString(line).getAsJsonObject(); }
-      catch (RuntimeException error) {
+      String[] flags;
+      byte[] stdin;
+      try {
+        request = JsonParser.parseString(line).getAsJsonObject();
+        var values = request.getAsJsonArray("args");
+        if (values == null) { throw new IllegalArgumentException("args is required"); }
+        flags = new String[values.size()];
+        for (int i = 0; i < flags.length; i++) {
+          var value = values.get(i);
+          if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+            throw new IllegalArgumentException("args must contain strings");
+          }
+          flags[i] = value.getAsString();
+        }
+        stdin = request.has("stdin_base64")
+            ? Base64.getDecoder().decode(request.get("stdin_base64").getAsString()) : new byte[0];
+      } catch (RuntimeException error) {
         System.err.println("java-worker: invalid request: " + error);
         System.exit(2);
         return;
       }
-      var values = request.getAsJsonArray("args");
-      String[] flags = new String[values.size()];
-      for (int i = 0; i < flags.length; i++) { flags[i] = values.get(i).getAsString(); }
-      byte[] stdin = request.has("stdin_base64")
-          ? Base64.getDecoder().decode(request.get("stdin_base64").getAsString()) : new byte[0];
       var outBytes = new ByteArrayOutputStream();
       var errBytes = new ByteArrayOutputStream();
       var out = new PrintStream(outBytes, true, outCharset);
