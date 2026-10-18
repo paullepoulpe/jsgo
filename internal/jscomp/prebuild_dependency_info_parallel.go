@@ -30,8 +30,9 @@ func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
 }
 
 type prebuildDependencyDiagnostic struct {
-	level *CheckLevel
-	error *JSError
+	target ErrorHandler
+	level  *CheckLevel
+	error  *JSError
 }
 
 type prebuildDependencyErrors struct {
@@ -40,7 +41,19 @@ type prebuildDependencyErrors struct {
 }
 
 func (r *prebuildDependencyErrors) Report(level *CheckLevel, error *JSError) {
-	r.events = append(r.events, prebuildDependencyDiagnostic{level, error})
+	r.events = append(r.events, prebuildDependencyDiagnostic{r.ErrorManager, level, error})
+}
+
+// Resolver diagnostics normally pass through the loader's ErrorHandler (often
+// Compiler.Report and its warning guards), not directly to the ErrorManager.
+// Retain that route while buffering both diagnostic sources in encounter order.
+type prebuildDependencyModuleErrors struct {
+	target ErrorHandler
+	events *[]prebuildDependencyDiagnostic
+}
+
+func (r *prebuildDependencyModuleErrors) Report(level *CheckLevel, error *JSError) {
+	*r.events = append(*r.events, prebuildDependencyDiagnostic{r.target, level, error})
 }
 
 // Each scan gets its own diagnostic target. Resolver tables are immutable
@@ -73,7 +86,7 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		return false
 	}
 	compiler, ok := inputs[0].compiler.(*Compiler)
-	if !ok || compiler.typedAstFilesystem != nil {
+	if !ok || compiler == nil || compiler.typedAstFilesystem != nil {
 		return false
 	}
 	seen := make(map[*SourceFile]bool, len(inputs))
@@ -84,36 +97,73 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		seen[input.sourceFile] = true
 	}
 	if !JsFileRegexParser_IsSupported() || !compiler.PreferRegexParser() {
+		type dependencyPath struct {
+			original     *ModuleLoader_ModulePath
+			private      ModuleLoader_ModulePath
+			errors       []prebuildDependencyDiagnostic
+			moduleErrors prebuildDependencyModuleErrors
+		}
+		paths := make([]dependencyPath, len(inputs))
+		for i, input := range inputs {
+			path := &paths[i]
+			path.original = input.GetPath()
+			path.moduleErrors = prebuildDependencyModuleErrors{
+				target: path.original.outer.GetErrorHandler(), events: &path.errors,
+			}
+			loader := prebuildCloneModuleLoader(path.original.outer, &path.moduleErrors)
+			if loader == nil {
+				return false
+			}
+			path.private = *path.original
+			path.private.outer = loader
+		}
 		// Parsing has shared compiler side effects, so first publish independent
 		// AST parses in order. Dependency tree walks then touch only their own
 		// CompilerInput and its AST.
 		if !NewPrebuildAst(compiler, p.numParallelThreads).prebuildParallel(inputs) {
 			return false
 		}
-		for _, input := range inputs {
-			input.GetPath()
-		}
 		failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(i int) {
+			input := inputs[i]
+			input.modulePath = &paths[i].private
+			defer func() { input.modulePath = paths[i].original }()
 			inputs[i].GetDependencyInfo()
 		})
-		for _, failure := range failures {
-			if failure != nil {
-				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))
-			}
+		var failure jutil.Throwable
+		for i := range inputs {
+			jutil.Try(func() {
+				for _, diagnostic := range paths[i].errors {
+					diagnostic.target.Report(diagnostic.level, diagnostic.error)
+				}
+				if failures[i] != nil {
+					panic(failures[i])
+				}
+			}, func(t jutil.Throwable) {
+				if failure == nil {
+					failure = t
+				}
+			})
+		}
+		if failure != nil {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))
 		}
 		return true
 	}
 
 	type outcome struct {
-		info        DependencyInfo
-		errors      prebuildDependencyErrors
-		loader      *ModuleLoader
-		readFailure bool
+		info         DependencyInfo
+		errors       prebuildDependencyErrors
+		loader       *ModuleLoader
+		readFailure  bool
+		moduleErrors prebuildDependencyModuleErrors
 	}
 	results := make([]outcome, len(inputs))
 	for i := range inputs {
 		results[i].errors.ErrorManager = compiler.GetErrorManager()
-		results[i].loader = prebuildCloneModuleLoader(compiler.GetModuleLoader(), &results[i].errors)
+		results[i].moduleErrors = prebuildDependencyModuleErrors{
+			target: compiler.GetModuleLoader().GetErrorHandler(), events: &results[i].errors.events,
+		}
+		results[i].loader = prebuildCloneModuleLoader(compiler.GetModuleLoader(), &results[i].moduleErrors)
 		if results[i].loader == nil {
 			return false
 		}
@@ -139,7 +189,7 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		result := &results[i]
 		jutil.Try(func() {
 			for _, diagnostic := range result.errors.events {
-				compiler.GetErrorManager().Report(diagnostic.level, diagnostic.error)
+				diagnostic.target.Report(diagnostic.level, diagnostic.error)
 			}
 			if failures[i] != nil {
 				panic(failures[i])

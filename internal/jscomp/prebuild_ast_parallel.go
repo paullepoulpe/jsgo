@@ -14,7 +14,7 @@ import (
 // and unusual/shared SourceFiles keep the original sequential path.
 func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	compiler, ok := p.compiler.(*Compiler)
-	if !ok || compiler.typedAstFilesystem != nil || len(inputs) < 2 {
+	if !ok || compiler == nil || compiler.typedAstFilesystem != nil || len(inputs) < 2 {
 		return false
 	}
 	seen := make(map[*SourceFile]bool, len(inputs))
