@@ -28,18 +28,39 @@ func TestParallelSourceSharedNumberOrigin(t *testing.T) {
 		roots[i] = rhino.IR_Script()
 		roots[i].AddChildToBack(rhino.IR_ExprResult(number))
 	}
+	// Use an independent source for the serial oracle, keeping the shared
+	// parallel source's lazy offsets cold until the worker printers run.
+	serialOrigin := SourceFile_FromCode("original.js", "'😀';\r\n0x2a;")
+	serialOptions := NewCompilerOptions()
+	serialOptions.SetPrettyPrint(true)
+	serialCompiler := newTestCompiler(serialOptions)
+	want := make([]string, len(roots))
+	for i := range want {
+		number := rhino.IR_Number(42)
+		number.SetStaticSourceFile(serialOrigin).SetLinenoCharno(2, 0).SetLength(4)
+		root := rhino.IR_Script()
+		root.AddChildToBack(rhino.IR_ExprResult(number))
+		want[i] = serialCompiler.toSourceAndMappings(root, i == 0,
+			newCompiler_SingleBinaryLicenseTracker(serialCompiler)).source
+	}
+	if origin.cached.Load().lineOffsets != nil {
+		t.Fatal("serial oracle warmed the shared parallel source")
+	}
 	count := 0
 	compiler.toSourceRoots(roots, newCompiler_SingleBinaryLicenseTracker(compiler), func(i int, root *rhino.Node, result *parallelSource) {
 		if result == nil {
 			t.Fatal("test requires the parallel printer path")
 		}
-		if got := result.code.source; got != "0x2a;\n" {
-			t.Errorf("root %d: pretty source %q, want original numeric spelling", i, got)
+		if got := result.code.source; got != want[i] {
+			t.Errorf("root %d: parallel pretty source %q, serial source %q", i, got, want[i])
 		}
 		count++
 	})
 	if count != len(roots) {
 		t.Fatalf("printed %d roots, want %d", count, len(roots))
+	}
+	if origin.cached.Load().lineOffsets == nil {
+		t.Fatal("parallel printers did not exercise the shared lazy line cache")
 	}
 	if got := origin.GetLineOffset(2); got != jutil.StringLength("'😀';\r\n") {
 		t.Errorf("line offset %d does not use UTF-16 positions", got)
