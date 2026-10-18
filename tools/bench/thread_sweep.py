@@ -6,8 +6,8 @@ total thread count or available CPU cores. Run under a fixed CPU affinity and
 quota. Historical Go binaries execute prebuild helpers sequentially even when this
 flag exceeds one. New binaries may execute bounded
 parallel prebuild helpers. This script compares fresh Go CLI processes with
-stock warm Java; use worker_compare.py for equivalent cached workers. No builds
-run during timing; the Java driver is compiled before the sweep. Every result
+stock warm Java. Both create fresh compilers and parse externs normally. No
+builds run during timing; the Java driver is compiled before the sweep. Every result
 must reproduce the stored Java reference, including generated artifacts.
 """
 import argparse
