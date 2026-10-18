@@ -241,7 +241,7 @@ type DataFlowAnalysis_FlowBrancher[L any] func(branch ControlFlowGraph_Branch) L
 //
 // Java: DataFlowAnalysis.analyze()
 func (b *DataFlowAnalysisBase[N, L]) Analyze() {
-	if dataFlowAnalysisUseIndexed() && dataFlowAnalysisSupportsIndexed(b.self) && b.AnalyzeIndexed() {
+	if dataFlowAnalysisUseIndexed() && dataFlowAnalysisSupportsIndexed(b.self, b.cfg) && b.AnalyzeIndexed() {
 		return
 	}
 	b.analyzeGeneric()

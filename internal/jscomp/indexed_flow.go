@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // Go-only: explicit experimental opt-in, checked once per analysis rather
@@ -18,10 +19,18 @@ func dataFlowAnalysisUseIndexed() bool {
 // Custom analysis callbacks may inspect live graph annotations during a
 // transfer. The shipped analyses below do not; preserve the generic engine for
 // other extensions rather than changing their annotation visibility contract.
-func dataFlowAnalysisSupportsIndexed(analysis any) bool {
+func dataFlowAnalysisSupportsIndexed(analysis, cfg any) bool {
 	switch analysis.(type) {
 	case *MustBeReachingVariableDef, *MaybeReachingVariableUse, *LiveVariablesAnalysis, *TypeInference:
-		return true
+		// Comparator factories on custom CFGs can have side effects. Restrict
+		// automatic dispatch to the shipped immutable-comparator CFG types;
+		// explicit sidecar users/tests can choose their own snapshot contract.
+		switch cfg.(type) {
+		case *ControlFlowAnalysis_AstControlFlowGraph, *ControlFlowGraphBase[*rhino.Node]:
+			return true
+		default:
+			return false
+		}
 	default:
 		return false
 	}

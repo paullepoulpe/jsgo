@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -23,6 +24,7 @@ type indexedFlowTestAnalysis struct {
 	DataFlowAnalysisBase[int, *indexedFlowTestLattice]
 	forward, branched bool
 	events            []string
+	failAt            int
 }
 
 func (a *indexedFlowTestAnalysis) IsForward() bool  { return a.forward }
@@ -37,6 +39,9 @@ func (a *indexedFlowTestAnalysis) CreateEntryLattice() *indexedFlowTestLattice {
 }
 func (a *indexedFlowTestAnalysis) FlowThrough(node int, input *indexedFlowTestLattice) *indexedFlowTestLattice {
 	a.events = append(a.events, fmt.Sprintf("flow:%d:%x", node, input.bits))
+	if a.failAt != 0 && node == a.failAt {
+		panic(jutil.NewIllegalStateExceptionMsg("transfer failure"))
+	}
 	return &indexedFlowTestLattice{bits: input.bits | 1<<uint(node%32)}
 }
 func (a *indexedFlowTestAnalysis) CreateFlowBrancher(node int, output *indexedFlowTestLattice) DataFlowAnalysis_FlowBrancher[*indexedFlowTestLattice] {
@@ -301,5 +306,85 @@ func TestIndexedFlowMaybeUseDifferential(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func indexedFlowCatch(run func()) (failure any) {
+	defer func() { failure = recover() }()
+	run()
+	return nil
+}
+
+func TestIndexedFlowDivergencePreservesPartialState(t *testing.T) {
+	counter := &dataFlowAnalysisTest_DivergentAnalysis_Counter{}
+	cfg := NewControlFlowGraph(counter, true, true)
+	cfg.Connect(counter, ControlFlowGraph_Branch_UNCOND, counter)
+	analysis := newDataFlowAnalysisTest_DivergentAnalysis(cfg)
+	genericFailure := indexedFlowCatch(analysis.analyzeGeneric)
+	if genericFailure == nil {
+		t.Fatal("generic fixture did not diverge")
+	}
+	wantCalls := counter.count
+	wantSteps := dataFlowAnalysis_linearFlowStateOf[*dataFlowAnalysisTest_DivergentAnalysis_Step](cfg.GetEntry()).stepCount
+	counter.count = 0
+	nativeFailure := indexedFlowCatch(func() { analysis.AnalyzeIndexed() })
+	if nativeFailure == nil || fmt.Sprint(nativeFailure) != fmt.Sprint(genericFailure) {
+		t.Fatalf("divergence got %v, want %v", nativeFailure, genericFailure)
+	}
+	if counter.count != wantCalls {
+		t.Errorf("transfer calls got %d, want %d", counter.count, wantCalls)
+	}
+	if got := dataFlowAnalysis_linearFlowStateOf[*dataFlowAnalysisTest_DivergentAnalysis_Step](cfg.GetEntry()).stepCount; got != wantSteps {
+		t.Errorf("published partial step count got %d, want %d", got, wantSteps)
+	}
+}
+
+func TestIndexedFlowTransferFailurePreservesPartialState(t *testing.T) {
+	cfg := NewControlFlowGraph(1, true, true)
+	cfg.Connect(1, ControlFlowGraph_Branch_UNCOND, 2)
+	cfg.Connect(2, ControlFlowGraph_Branch_UNCOND, 3)
+	cfg.Connect(3, ControlFlowGraph_Branch_UNCOND, 0)
+	generic := &indexedFlowTestAnalysis{forward: true, failAt: 2}
+	generic.InitDataFlowAnalysisBase(generic, cfg)
+	genericFailure := indexedFlowCatch(generic.analyzeGeneric)
+	if genericFailure == nil {
+		t.Fatal("generic fixture did not throw")
+	}
+	type snapshot struct {
+		in, out uint64
+		steps   int32
+	}
+	var want []snapshot
+	for _, node := range cfg.GetDiGraphNodes() {
+		state := dataFlowAnalysis_linearFlowStateOf[*indexedFlowTestLattice](node)
+		want = append(want, snapshot{state.in.bits, state.out.bits, state.stepCount})
+	}
+	native := &indexedFlowTestAnalysis{forward: true, failAt: 2}
+	native.InitDataFlowAnalysisBase(native, cfg)
+	nativeFailure := indexedFlowCatch(func() { native.AnalyzeIndexed() })
+	if nativeFailure == nil || fmt.Sprint(nativeFailure) != fmt.Sprint(genericFailure) {
+		t.Fatalf("transfer failure got %v, want %v", nativeFailure, genericFailure)
+	}
+	for id, node := range cfg.GetDiGraphNodes() {
+		state := dataFlowAnalysis_linearFlowStateOf[*indexedFlowTestLattice](node)
+		got := snapshot{state.in.bits, state.out.bits, state.stepCount}
+		if got != want[id] {
+			t.Errorf("node %d partial state got %+v, want %+v", id, got, want[id])
+		}
+	}
+}
+
+func TestIndexedFlowMalformedTopologyDoesNotPublish(t *testing.T) {
+	cfg := NewControlFlowGraph(1, true, true)
+	other := NewControlFlowGraph(9, true, true)
+	cfg.ConnectNodes(cfg.GetEntry(), ControlFlowGraph_Branch_UNCOND, other.GetEntry())
+	cfg.GetEntry().SetAnnotation("original annotation")
+	analysis := &indexedFlowTestAnalysis{forward: true}
+	analysis.InitDataFlowAnalysisBase(analysis, cfg)
+	if analysis.AnalyzeIndexed() {
+		t.Fatal("topology with an endpoint outside its node set did not fall back")
+	}
+	if got := cfg.GetEntry().GetAnnotation(); got != "original annotation" {
+		t.Fatalf("fallback replaced annotation with %v", got)
 	}
 }
