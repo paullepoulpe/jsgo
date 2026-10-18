@@ -978,9 +978,11 @@ def phase_table(trace, show_ratio):
     cols = [c for c in cols if c not in missing]
     if not cols:
         return ["(no per-phase data)", ""]
+    pm = load_phase_map()
+    rolled = {c: [rollup(r, pm) for r in trace[c]] for c in cols}
     med = {}
     for c in cols:
-        med[c] = {ph: statistics.median([r["phases"][ph] for r in trace[c]]) for ph in PHASES}
+        med[c] = {ph: statistics.median([r[ph] for r in rolled[c]]) for ph in PHASES}
     ratios = [c for c in ("java-cold", "java-warm") if c in cols] if show_ratio and "jsgo" in cols else []
     out = ["| Phase | " + " | ".join(label(c) + " ms" for c in cols)
            + "".join(f" | speed-up vs {label(c)}" for c in ratios) + " |",
@@ -1000,9 +1002,10 @@ def phase_table(trace, show_ratio):
         r0 = trace[c][0]
         traced = sum(v for k, v in med[c].items() if k not in ("startup", "code printing and source maps",
                                                                "untraced (inside tracker)"))
+        unmapped = sorted(p for p in r0["passes"] if p not in pm)
         notes.append(f"{label(c)}: {r0.get('reports', 0)}/{r0.get('jobs', 1)} report(s) parsed per run, "
                      f"{len(r0['passes'])} distinct passes, passes cover {100 * traced / tot[c] if tot[c] else 0:.0f}% of the time"
-                     + (f"; unmapped: {', '.join(r0['unmapped'])}" if r0["unmapped"] else ""))
+                     + (f"; unmapped: {', '.join(unmapped)}" if unmapped else ""))
     names = {c: {p: s["runs"] for p, s in trace[c][0]["passes"].items()} for c in cols}
     if "java-cold" in names and "jsgo" in names:
         a, b = names["java-cold"], names["jsgo"]
@@ -1021,13 +1024,12 @@ def phase_table(trace, show_ratio):
     allp = set()
     for c in cols:
         allp |= set(trace[c][0]["passes"])
-    pm = load_phase_map()
     def pmed(c, p):
         vals = [r["passes"].get(p, {}).get("ms") for r in trace[c]]
         vals = [v for v in vals if v is not None]
         return statistics.median(vals) if vals else None
     key = cols[0]
-    rows = sorted(allp, key=lambda p: -(pmed(key, p) or 0))
+    rows = sorted(allp, key=lambda p: (-(pmed(key, p) or 0), p))
     out += ["<details><summary>Per pass (ms, median; runs = times the pass ran in one run of the task)</summary>", "",
             "| Pass | Phase | Runs | " + " | ".join(label(c) for c in cols) + " |",
             "|---|---|---|" + "---|" * len(cols)]
@@ -1036,6 +1038,18 @@ def phase_table(trace, show_ratio):
         out.append(f"| {p} | {pm.get(p, 'other passes')} | {runs} | "
                    + " | ".join("–" if pmed(c, p) is None else f"{pmed(c, p):.0f}" for c in cols) + " |")
     out += ["", "</details>", ""]
+    return out
+
+
+def rollup(run, pm):
+    """A trace run's phase times, the passes rolled up again with the current phases.tsv (so a
+    completed phases.tsv applies to stored results); the rows that come from timestamps (startup,
+    untraced, code printing) are kept as stored, so the total is unchanged."""
+    timestamps = ("startup", "untraced (inside tracker)", "code printing and source maps")
+    out = {ph: (run["phases"][ph] if ph in timestamps else 0.0) for ph in PHASES}
+    for p, s in run["passes"].items():
+        ph = pm.get(p, "other passes")
+        out[ph if ph not in timestamps else "other passes"] += s["ms"]
     return out
 
 
