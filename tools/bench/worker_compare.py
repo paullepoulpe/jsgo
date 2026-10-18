@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import selectors
+import shutil
 import statistics
 import subprocess
 import sys
@@ -37,15 +38,83 @@ def thread_flags(args, count):
     return result + ['--num_parallel_threads=' + str(count)]
 
 
-def peak_rss_mb(pid):
+def process_status(pid):
+    values = {}
     for line in Path(f'/proc/{pid}/status').read_text().splitlines():
-        if line.startswith('VmHWM:'):
-            return int(line.split()[1]) / 1024
-    raise RuntimeError('worker VmHWM unavailable')
+        if line.startswith(('VmHWM:', 'Threads:')):
+            key, value, *_ = line.split()
+            values[key.rstrip(':')] = int(value)
+    if 'VmHWM' not in values or 'Threads' not in values:
+        raise RuntimeError('worker VmHWM/Threads unavailable')
+    return values['VmHWM']/1024, values['Threads']
 
 
-def measure(command, ws, jobs, expected_jobs, warmup, iters, env, timeout):
-    rows, peak = [], 0
+def percentile(samples, fraction):
+    values = sorted(samples)
+    index = (len(values)-1)*fraction
+    lower = int(index)
+    upper = min(lower+1, len(values)-1)
+    return values[lower] + (values[upper]-values[lower])*(index-lower)
+
+
+def sample_diagnostics(samples, drift_limit):
+    median = statistics.median(samples)
+    half = len(samples)//2
+    drift = ((statistics.median(samples[half:]) / statistics.median(samples[:half])-1)*100
+             if half else None)
+    quarters = [statistics.median(samples[len(samples)*i//4:len(samples)*(i+1)//4])
+                for i in range(4)] if len(samples) >= 4 else []
+    return {'p05_ms': percentile(samples, 0.05), 'p95_ms': percentile(samples, 0.95),
+            'median_absolute_deviation_ms': statistics.median(abs(value-median) for value in samples),
+            'measurement_quarter_medians_ms': quarters, 'measurement_half_drift_pct': drift,
+            # This is a visible diagnostic, not a proof of JVM convergence.
+            'drift_check_limit_pct': drift_limit,
+            'passes_drift_check': abs(drift) <= drift_limit if len(samples) >= 4 else None}
+
+
+def validated_java_build(build_dir, cache):
+    build = bench.load(str(build_dir/'build.json'))
+    classes = build_dir/'classes'
+    actual_names = {str(path.relative_to(classes)) for path in classes.rglob('*.class')}
+    if actual_names != set(build['class_sha256']):
+        raise RuntimeError('Java build contains missing or unexpected classes')
+    for name, digest in build['class_sha256'].items():
+        if bench.sha256_file(classes/name) != digest:
+            raise RuntimeError('Java build class hash mismatch: '+name)
+    pin = bench.read_pin()
+    jar = Path(cache).resolve()/pin['CLOSURE_JAR']
+    digest = bench.sha256_file(jar)
+    if digest != build['jar_sha256'] or digest not in pin['CLOSURE_JAR_SHA256'].split():
+        raise RuntimeError('Java build/reference jar hash mismatch')
+    command = build['command']
+    try:
+        cp_index = command.index('-cp')
+        classpath = [Path(entry).resolve() for entry in command[cp_index+1].split(os.pathsep)]
+    except (ValueError, IndexError, TypeError):
+        raise RuntimeError('Java build command lacks its expected classpath')
+    if classpath != [classes.resolve(), jar.resolve()]:
+        raise RuntimeError('Java build command does not execute the validated classes/jar')
+    cache_flags = [flag for flag in command if flag.startswith('-Djsgo.bench.externCache=')]
+    if cache_flags != ['-Djsgo.bench.externCache=true'] or command[-1] != 'CliWorker':
+        raise RuntimeError('Java build command is not the equivalent cached CLI worker')
+    if any(flag.startswith('-Djsgo.bench.verifyCache=') and flag != '-Djsgo.bench.verifyCache=false' for flag in command):
+        raise RuntimeError('Java cache counters must be disabled during timing')
+    launcher = shutil.which(command[0])
+    if not launcher:
+        raise RuntimeError('Java executable unavailable: '+command[0])
+    launcher = str(Path(launcher).resolve())
+    # Pin PATH resolution for the complete sweep, and record the native VM too.
+    command = [launcher]+command[1:]
+    runtime = {'executable': launcher, 'executable_sha256': bench.sha256_file(launcher)}
+    vm = Path(launcher).parent.parent/'lib/server/libjvm.so'
+    if vm.exists(): runtime['libjvm_sha256'] = bench.sha256_file(vm)
+    release = Path(launcher).parent.parent/'release'
+    if release.exists(): runtime['release'] = release.read_text()
+    return build, command, runtime
+
+
+def measure(command, ws, jobs, expected_jobs, warmup, iters, env, timeout, drift_limit):
+    rows, peak, warmup_peak, thread_counts = [], 0, 0, []
     with (ws/'protocol.stderr').open('wb') as err:
         process = subprocess.Popen(command, cwd=ws, env=env, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=err)
@@ -71,8 +140,8 @@ def measure(command, ws, jobs, expected_jobs, warmup, iters, env, timeout):
                     if not line:
                         raise RuntimeError(f'worker exited at request {request_id}; see {ws}/protocol.stderr')
                     response = json.loads(line)
-                    got = {'stdout': base64.b64decode(response['stdout_base64'] or ''),
-                           'stderr': base64.b64decode(response['stderr_base64'] or ''),
+                    got = {'stdout': base64.b64decode(response['stdout_base64'] or '', validate=True),
+                           'stderr': base64.b64decode(response['stderr_base64'] or '', validate=True),
                            'exit': (str(response['exit'])+'\n').encode()}
                     elapsed += (time.perf_counter_ns() - start) / 1e6
                     if response['id'] != request_id:
@@ -85,7 +154,10 @@ def measure(command, ws, jobs, expected_jobs, warmup, iters, env, timeout):
                             actual = path.read_bytes() if path.exists() else None
                         if actual != want:
                             raise AssertionError(f'byte mismatch: request {request_id}, {artifact}, {ws}')
-                    peak = max(peak, peak_rss_mb(process.pid))
+                    rss, threads = process_status(process.pid)
+                    thread_counts.append(threads)
+                    peak = max(peak, rss)
+                    if iteration < warmup: warmup_peak = peak
                 rows.append({'iter': iteration, 'kind': 'warmup' if iteration < warmup else 'measure',
                              'wall_ms': elapsed, 'peak_rss_mb': peak})
                 bench.save(str(ws/'iterations.json'), rows)
@@ -100,11 +172,11 @@ def measure(command, ws, jobs, expected_jobs, warmup, iters, env, timeout):
             process.stdin.close()
             process.stdout.close()
     samples = [row['wall_ms'] for row in rows if row['kind'] == 'measure']
-    half = len(samples)//2
     return {'median_ms': statistics.median(samples), 'peak_rss_mb': peak,
+            'warmup_peak_rss_mb': warmup_peak,
+            'os_threads_after_response_min_max': [min(thread_counts), max(thread_counts)],
             'measured_ms': samples, 'iterations': rows, 'requests_checked': len(rows)*len(jobs),
-            'measurement_half_drift_pct': ((statistics.median(samples[half:]) /
-                                          statistics.median(samples[:half]) - 1)*100) if half else None,
+            **sample_diagnostics(samples, drift_limit),
             'all_responses_and_artifacts_match_stock_java': True}
 
 
@@ -121,8 +193,12 @@ def main():
     ap.add_argument('--warmup', type=int, default=100)
     ap.add_argument('--iters', type=int, default=30)
     ap.add_argument('--timeout', type=float, default=300)
+    ap.add_argument('--stability-drift-pct', type=float, default=5,
+                    help='flag measured-half drift above this threshold; never changes either worker request count')
     ap.add_argument('--gomaxprocs', type=int, help='explicit independent Go runtime CPU limit')
     args = ap.parse_args()
+    if args.stability_drift_pct <= 0:
+        ap.error('stability drift threshold must be positive')
     if args.warmup < 0 or args.iters < 1:
         ap.error('warmup must be nonnegative and iters positive')
     counts = [int(value) for value in args.threads.split(',')]
@@ -136,23 +212,17 @@ def main():
     root.mkdir(parents=True)
     binary = Path(args.go_binary).resolve()
     java_build = Path(args.java_build).resolve()
-    build = bench.load(str(java_build/'build.json'))
-    for name, digest in build['class_sha256'].items():
-        if bench.sha256_file(java_build/'classes'/name) != digest:
-            raise RuntimeError('Java build class hash mismatch: '+name)
-    pin = bench.read_pin()
-    jar = Path(args.cache).resolve()/pin['CLOSURE_JAR']
-    if bench.sha256_file(jar) != build['jar_sha256']:
-        raise RuntimeError('Java build/reference jar hash mismatch')
+    build, java_command, java_runtime = validated_java_build(java_build, args.cache)
     env = {k: v for k, v in os.environ.items() if k not in bench.GO_ENV_DROP+bench.JAVA_ENV_DROP}
     env['LC_ALL'] = 'C.UTF-8'
     if args.gomaxprocs:
         env['GOMAXPROCS'] = str(args.gomaxprocs)
-    commands = {'go': [str(binary)], 'java': build['command']}
+    commands = {'go': [str(binary)], 'java': java_command}
     metadata = {'warmup': args.warmup, 'iters': args.iters, 'compiler_threads': counts,
                 'gomaxprocs': args.gomaxprocs or 'runtime default', 'commands': commands,
                 'affinity': sorted(os.sched_getaffinity(0)), 'go_binary_sha256': bench.sha256_file(binary),
-                'java_build': build, 'references': [str(Path(p).resolve()) for p in args.reference],
+                'java_build': build, 'java_runtime': java_runtime,
+                'stability_drift_limit_pct': args.stability_drift_pct, 'references': [str(Path(p).resolve()) for p in args.reference],
                 'memory_window': 'process high-water RSS through all warmup and measured requests; MiB',
                 'ratio_direction': 'Java / Go; >1 favors Go for both time and memory',
                 'timing_window': 'request JSON encoding, pipe write, response read/JSON/base64 decoding; artifact checks excluded'}
@@ -186,7 +256,11 @@ def main():
                 bench.save(str(ws/'jobs.json'), jobs)
                 print(f'{name}, compiler_threads={count}, {runtime}: {args.warmup}+{args.iters}', flush=True)
                 result[runtime] = measure(commands[runtime], ws, jobs, expected_jobs, args.warmup,
-                                          args.iters, env, args.timeout)
+                                          args.iters, env, args.timeout, args.stability_drift_pct)
+                if result[runtime]['passes_drift_check'] is False:
+                    print(f'  WARNING {runtime}: measured-half drift '
+                          f'{result[runtime]["measurement_half_drift_pct"]:+.1f}% exceeds '
+                          f'{args.stability_drift_pct}%; inspect raw samples before claiming steady state', flush=True)
             result['java_over_go_time'] = result['java']['median_ms']/result['go']['median_ms']
             result['java_over_go_peak_rss'] = result['java']['peak_rss_mb']/result['go']['peak_rss_mb']
             summary[name][str(count)] = result

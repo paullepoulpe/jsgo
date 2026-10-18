@@ -67,3 +67,17 @@ python3 tools/bench/worker_gate.py --command-json /tmp/java-worker/build.json \
 
 For Go, pass a JSON file containing `["/absolute/path/to/jsgo-worker"]` and omit
 `--require-cache-hits`.
+
+The matched harness verifies that the worker command executes exactly the
+hashed overlay classes and pinned jar, rejects unexpected classes/cache-counter
+instrumentation, and records the resolved Java launcher, VM library hash, and
+release metadata. It also records response-boundary OS thread counts separately
+from compiler worker counts and `GOMAXPROCS`.
+
+Steady-state diagnostics include p05/p95, median absolute deviation, quarter
+medians, and measured-half drift. Drift above `--stability-drift-pct` (default
+5%) is flagged; fewer than four measured iterations yield no drift-check result.
+Passing this diagnostic does not prove JVM convergence. The harness never adds
+extra work to one implementation. If samples are still warming up, repeat both
+workers with the same larger warm-up/measurement counts. RSS retains the full
+matching request window; warm-up-only high-water RSS is also recorded.
