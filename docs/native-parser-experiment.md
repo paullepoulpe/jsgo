@@ -64,3 +64,28 @@ conversion. Removing that directly attributed work entirely corresponds to about
 not included in that estimate. This prototype removes only part of front-end
 work and accepts only a subset of files, so it cannot by itself establish broad
 parity with Java.
+
+## Component measurement
+
+Five alternating original/native pairs on the supported 128-entry data program,
+with Go 1.27.2, two pinned CPUs, GOMAXPROCS=2 and default GC:
+
+| Measure | Original parser + IR | Direct AST | Original / direct |
+| --- | ---: | ---: | ---: |
+| Median time | 1.752 ms | 0.871 ms | 2.01x |
+| Allocated bytes/op | 1,093,121 | 829,637 | 1.32x |
+| Allocations/op | 7,523 | 4,026 | 1.87x |
+| Median benchmark-process peak RSS | 19,596 KiB | 18,480 KiB | 1.06x |
+
+The RSS row is the peak of the entire 200 ms adaptive benchmark process,
+including calibration. Allocated bytes/op is the more useful allocation measure
+for this component experiment; neither number is a full CLI compilation's peak.
+Both variants use the same test binary and no PGO profile. The final pair slowed
+for both variants; all five pairs are retained in the raw results. The other
+four pairs showed approximately 1.96–2.05x time ratios.
+
+The full parsing test suite passed with the experiment disabled and enabled,
+using the same compiled test binary. Dedicated generated-expression and fallback
+comparisons passed as well. These results establish a promising direction for
+accepted syntax. They do not establish a gain on general projects or a win over
+Java. See [raw samples and build provenance](native-parser-results.json).
