@@ -241,6 +241,15 @@ type DataFlowAnalysis_FlowBrancher[L any] func(branch ControlFlowGraph_Branch) L
 //
 // Java: DataFlowAnalysis.analyze()
 func (b *DataFlowAnalysisBase[N, L]) Analyze() {
+	if dataFlowAnalysisUseIndexed() && dataFlowAnalysisSupportsIndexed(b.self) && b.AnalyzeIndexed() {
+		return
+	}
+	b.analyzeGeneric()
+}
+
+// Go-only: experimental-backend oracle — retain the original generic graph
+// engine for differential testing and unsupported topology fallbacks.
+func (b *DataFlowAnalysisBase[N, L]) analyzeGeneric() {
 	b.Initialize()
 	for !b.workQueue.IsEmpty() {
 		curNode := b.workQueue.RemoveFirst()
