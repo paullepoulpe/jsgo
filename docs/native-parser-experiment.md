@@ -105,12 +105,24 @@ Source inspection found 897 core-js internals/modules files (889,310 bytes) in
 the downlevel benchmark workspace: 651 contain plain functions, 794 ordinary
 line comments, 176 block comments, and only one JSDoc opener. This motivated the
 function/statement/ordinary-comment extension rather than another data-only
-specialization. These are syntax observations, not measured acceptance or speed.
+specialization. These syntax observations motivated the implementation; coverage was then measured
+separately from speed.
 
 `TestNativeParserCoreJSWorkloadCoverage`, enabled with
 `NATIVE_PARSER_CORPUS_ROOT=<benchmark workspace>`, tries every internals/modules
 file and compares the complete AST/source metadata and diagnostics of each
 accepted file against the original pipeline. It reports both file and byte
 coverage. The downloaded inputs remain outside the repository; the production
-parser has no workload-specific paths or names. Extension validation and
-end-to-end timing are required separately from the earlier data-program results.
+parser has no workload-specific paths or names.
+
+With ES_NEXT/strict configuration, the extended sink accepted 671 of 897 files
+(74.8%), accounting for 358,983 of 889,310 source bytes (40.4%). Every accepted
+file matched the original complete AST dump, node/source properties, feature
+set, comments/statement ranges, source-map URL and ordered diagnostics. The
+focused suite also compares original exception/cause chains when malformed
+input falls back. This establishes syntax coverage and equivalence on that
+corpus, not a predicted time improvement: parsing cost is not proportional to
+file count or source bytes, and rejected files incur speculative overhead.
+The full original `internal/parsing` suite also passed with the extension
+explicitly disabled and enabled, using one compiled test binary for both runs.
+End-to-end timing is required separately from the earlier data-program results.
