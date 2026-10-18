@@ -81,6 +81,14 @@ func (r *ReachingUseDefTester) ComputeReachingUses(src string, async bool) {
 	DataFlowAnalysis_ComputeEscaped(
 		funcBlockScope.GetParent(), escaped, r.compiler, r.scopeCreator, allVarsInFn)
 	r.reachingUse = NewMaybeReachingVariableUse(cfg, escaped, allVarsInFn)
+	// Go-only: exercise the existing ported transfer fixtures under the same
+	// opt-in as the production pass. Queries below read published lattices,
+	// so the immutable generation can end immediately after Analyze.
+	if nativeFunctionFactsEnabled() {
+		facts := newFunctionTransferFacts(allVarsInFn, escaped)
+		r.reachingUse.nativeFacts = facts
+		defer facts.invalidate()
+	}
 	r.reachingUse.Analyze()
 }
 
@@ -102,6 +110,13 @@ func (r *ReachingUseDefTester) ComputeReachingDef(src string) {
 	DataFlowAnalysis_ComputeEscaped(
 		funcBlockScope.GetParent(), escaped, r.compiler, r.scopeCreator, allVarsInFn)
 	r.reachingDef = NewMustBeReachingVariableDef(cfg, r.compiler, escaped, allVarsInFn)
+	// Go-only: keep the default interpreted oracle, while opt-in runs execute
+	// every original fixture through native programs without changing vectors.
+	if nativeFunctionFactsEnabled() {
+		facts := newFunctionTransferFacts(allVarsInFn, escaped)
+		r.reachingDef.nativeFacts = facts
+		defer facts.invalidate()
+	}
 	r.reachingDef.Analyze()
 }
 
