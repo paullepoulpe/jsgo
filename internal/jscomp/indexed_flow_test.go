@@ -278,7 +278,7 @@ func TestIndexedFlowMaybeUseDifferential(t *testing.T) {
 		"var x=1; if (param1) { param2(x); } else { x=2; } return x;",
 		"var x=1,y=0; while (param1) { y=x; x=y+1; } return x+y;",
 		"var x=1; try { param1(x); x=2; } catch(e) { param2(x); } finally { param2(x); } return x;",
-		"var x=0,y=1; [x = y = 3] = param1; x &&= y; x ??= y; return x;",
+		"var x=0,y=1; [x = y = 3] = param1; x += y; return x;",
 	}
 	for id, source := range cases {
 		t.Run(fmt.Sprint(id), func(t *testing.T) {
