@@ -44,9 +44,11 @@ def end_of_body(source, start):
 
 
 def generate(source, callback, prefix):
-    methods = {}
+    methods, comments = {}, {}
     for match in re.finditer(r'^func \(t \*NodeTraversal\) (\w+)\(', source, re.M):
         body = source.index('{', match.end())
+        doc = source[source.rfind('\n\n', 0, match.start())+2:match.start()]
+        comments[match[1]] = doc if all(line.startswith('//') for line in doc.splitlines()) else ''
         methods[match[1]] = source[match.start():end_of_body(source, body)]
     calls = {name: set(re.findall(r'\bt\.(\w+)\(', text)) & methods.keys()
              for name, text in methods.items()}
@@ -75,7 +77,7 @@ def generate(source, callback, prefix):
         # This callback always implements ScopedCallback; no per-node interface
         # assertions or dictionary method calls are introduced.
         text = text.replace('t.scopeCallback != nil', 'true')
-        generated.append(text)
+        generated.append(comments[name]+text)
     return '\n\n'.join(generated)+'\n'
 
 

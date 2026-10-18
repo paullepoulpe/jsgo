@@ -24,6 +24,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// Traverse traverses a parse tree recursively.
+//
+// Java: NodeTraversal.traverse(Node)
 func (t *NodeTraversal) referenceConcreteTraverse(cb *ReferenceCollector_CollectorCallback, root *rhino.Node) {
 	jutil.Try(func() {
 		t.InitTraversal(root)
@@ -37,6 +40,7 @@ func (t *NodeTraversal) referenceConcreteTraverse(cb *ReferenceCollector_Collect
 	})
 }
 
+// Java: NodeTraversal.traverseRoots(Node, Node)
 func (t *NodeTraversal) referenceConcreteTraverseRoots(cb *ReferenceCollector_CollectorCallback, externs *rhino.Node, root *rhino.Node) {
 	jutil.Try(func() {
 		scopeRoot := externs.GetParent()
@@ -56,6 +60,11 @@ func (t *NodeTraversal) referenceConcreteTraverseRoots(cb *ReferenceCollector_Co
 	})
 }
 
+// TraverseWithScope traverses a parse tree recursively with a scope,
+// starting with the given root. This should only be used in the global
+// scope or module scopes. Otherwise, use TraverseAtScope.
+//
+// Java: NodeTraversal.traverseWithScope(Node, AbstractScope<?, ?>)
 func (t *NodeTraversal) referenceConcreteTraverseWithScope(cb *ReferenceCollector_CollectorCallback, root *rhino.Node, s AbstractScope) {
 	jutil.CheckStateMsg1(s.IsGlobal() || s.IsModuleScope(), "%s", s)
 	jutil.Try(func() {
@@ -69,6 +78,12 @@ func (t *NodeTraversal) referenceConcreteTraverseWithScope(cb *ReferenceCollecto
 	})
 }
 
+// TraverseAtScope traverses a parse tree recursively with a scope, starting
+// at that scope's root. Omits children of the scope root that are traversed
+// in the outer scope (specifically, non-bleeding function and class name
+// nodes, class extends clauses, and computed property keys).
+//
+// Java: NodeTraversal.traverseAtScope(AbstractScope<?, ?>)
 func (t *NodeTraversal) referenceConcreteTraverseAtScope(cb *ReferenceCollector_CollectorCallback, s AbstractScope) {
 	n := s.GetRootNode()
 	t.InitTraversal(n)
@@ -171,6 +186,7 @@ func (t *NodeTraversal) referenceConcreteTraverseAtScope(cb *ReferenceCollector_
 	}
 }
 
+// Java: NodeTraversal.traverseScopeRoot(Node)
 func (t *NodeTraversal) referenceConcreteTraverseScopeRoot(cb *ReferenceCollector_CollectorCallback, scopeRoot *rhino.Node) {
 	jutil.Try(func() {
 		t.InitTraversal(scopeRoot)
@@ -182,6 +198,7 @@ func (t *NodeTraversal) referenceConcreteTraverseScopeRoot(cb *ReferenceCollecto
 	})
 }
 
+// Java: NodeTraversal.handleScript(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleScript(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
@@ -199,6 +216,7 @@ func (t *NodeTraversal) referenceConcreteHandleScript(cb *ReferenceCollector_Col
 	t.SetChangeScope(nil)
 }
 
+// Java: NodeTraversal.handleFunction(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleFunction(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	changeScope := t.currentChangeScope
 	t.SetChangeScope(n)
@@ -211,6 +229,9 @@ func (t *NodeTraversal) referenceConcreteHandleFunction(cb *ReferenceCollector_C
 	t.SetChangeScope(changeScope)
 }
 
+// HandleModule traverses a module.
+//
+// Java: NodeTraversal.handleModule(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleModule(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	t.currentHoistScopeRoot = n
 	t.referenceConcretePushScope(cb, n)
@@ -225,6 +246,7 @@ func (t *NodeTraversal) referenceConcreteHandleModule(cb *ReferenceCollector_Col
 	t.currentHoistScopeRoot = nil
 }
 
+// Java: NodeTraversal.handleDestructuringOrDefaultValue(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleDestructuringOrDefaultValue(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	t.currentNode = n
 	if cb.ShouldTraverse(t, n, parent) {
@@ -242,6 +264,9 @@ func (t *NodeTraversal) referenceConcreteHandleDestructuringOrDefaultValue(cb *R
 	}
 }
 
+// TraverseBranch traverses a branch.
+//
+// Java: NodeTraversal.traverseBranch(Node, Node)
 func (t *NodeTraversal) referenceConcreteTraverseBranch(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
@@ -306,6 +331,9 @@ func (t *NodeTraversal) referenceConcreteTraverseBranch(cb *ReferenceCollector_C
 	cb.Visit(t, n, parent)
 }
 
+// TraverseFunction traverses a function.
+//
+// Java: NodeTraversal.traverseFunction(Node, Node)
 func (t *NodeTraversal) referenceConcreteTraverseFunction(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	fnName := n.GetFirstChild()
 	// NOTE: If a function declaration is the root of a traversal, then we will treat it as a
@@ -354,6 +382,16 @@ func (t *NodeTraversal) referenceConcreteTraverseFunction(cb *ReferenceCollector
 	t.currentHoistScopeRoot = previousHoistScopeRoot
 }
 
+// HandleClass traverses a class. Note that we traverse some of the child
+// nodes slightly out of order to ensure children are visited in the correct
+// scope. The following children are in the outer scope: (1) the 'extends'
+// clause, (2) any computed method keys, (3) the class name for class
+// declarations only (class expression names are traversed in the class
+// scope). This requires that we visit the extends node (second child) and
+// any computed member keys (grandchildren of the last, body, child) before
+// visiting the name (first child) or body (last child).
+//
+// Java: NodeTraversal.handleClass(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleClass(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	t.currentNode = n
 	if !cb.ShouldTraverse(t, n, parent) {
@@ -391,6 +429,10 @@ func (t *NodeTraversal) referenceConcreteHandleClass(cb *ReferenceCollector_Coll
 	cb.Visit(t, n, parent)
 }
 
+// HandleClassMembers traverses class members, excluding keys of computed
+// props.
+//
+// Java: NodeTraversal.handleClassMembers(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleClassMembers(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, parent *rhino.Node) {
 	t.currentNode = n
 	if !cb.ShouldTraverse(t, n, parent) {
@@ -449,6 +491,7 @@ func (t *NodeTraversal) referenceConcreteHandleClassMembers(cb *ReferenceCollect
 	cb.Visit(t, n, parent)
 }
 
+// Java: NodeTraversal.handleMemberFieldDef(Node, Node)
 func (t *NodeTraversal) referenceConcreteHandleMemberFieldDef(cb *ReferenceCollector_CollectorCallback, n *rhino.Node, child *rhino.Node) {
 	previousHoistScopeRoot := t.currentHoistScopeRoot
 	t.currentHoistScopeRoot = n
@@ -458,6 +501,7 @@ func (t *NodeTraversal) referenceConcreteHandleMemberFieldDef(cb *ReferenceColle
 	t.currentHoistScopeRoot = previousHoistScopeRoot
 }
 
+// Java: NodeTraversal.traverseChildren(Node)
 func (t *NodeTraversal) referenceConcreteTraverseChildren(cb *ReferenceCollector_CollectorCallback, n *rhino.Node) {
 	for child := n.GetFirstChild(); child != nil; {
 		// child could be replaced, in which case our child node
@@ -468,6 +512,9 @@ func (t *NodeTraversal) referenceConcreteTraverseChildren(cb *ReferenceCollector
 	}
 }
 
+// PushScope creates a new scope (e.g. when entering a function).
+//
+// Java: NodeTraversal.pushScope(Node)
 func (t *NodeTraversal) referenceConcretePushScope(cb *ReferenceCollector_CollectorCallback, node *rhino.Node) {
 	if t.currentNode == nil {
 		panic(jutil.NewNullPointerException()) // checkNotNull(currentNode)
@@ -481,10 +528,17 @@ func (t *NodeTraversal) referenceConcretePushScope(cb *ReferenceCollector_Collec
 	}
 }
 
+// PushScopeOfScope creates a new scope (e.g. when entering a function).
+//
+// Java: NodeTraversal.pushScope(AbstractScope<?, ?>)
 func (t *NodeTraversal) referenceConcretePushScopeOfScope(cb *ReferenceCollector_CollectorCallback, s AbstractScope) {
 	t.referenceConcretePushScopeOfScopeWithQuietly(cb, s, false)
 }
 
+// PushScopeOfScopeWithQuietly creates a new scope (e.g. when entering a
+// function); quietly means don't fire an enterScope callback.
+//
+// Java: NodeTraversal.pushScope(AbstractScope<?, ?>, boolean)
 func (t *NodeTraversal) referenceConcretePushScopeOfScopeWithQuietly(cb *ReferenceCollector_CollectorCallback, s AbstractScope, quietly bool) {
 	if t.currentNode == nil {
 		panic(jutil.NewNullPointerException()) // checkNotNull(currentNode)
@@ -495,10 +549,15 @@ func (t *NodeTraversal) referenceConcretePushScopeOfScopeWithQuietly(cb *Referen
 	}
 }
 
+// Java: NodeTraversal.popScope()
 func (t *NodeTraversal) referenceConcretePopScope(cb *ReferenceCollector_CollectorCallback) {
 	t.referenceConcretePopScopeWithQuietly(cb, false)
 }
 
+// PopScopeWithQuietly pops back to the previous scope (e.g. when leaving a
+// function); quietly means don't fire the exitScope callback.
+//
+// Java: NodeTraversal.popScope(boolean)
 func (t *NodeTraversal) referenceConcretePopScopeWithQuietly(cb *ReferenceCollector_CollectorCallback, quietly bool) {
 	if !quietly && true {
 		cb.ExitScope(t)
@@ -507,6 +566,11 @@ func (t *NodeTraversal) referenceConcretePopScopeWithQuietly(cb *ReferenceCollec
 	t.scopes = t.scopes[:len(t.scopes)-1]
 }
 
+// InitScopeRoots prefills the scopes stack up to a given spot in the AST.
+// Allows for starting traversal at any spot while still having correct scope
+// state.
+//
+// Java: NodeTraversal.initScopeRoots(Node)
 func (t *NodeTraversal) referenceConcreteInitScopeRoots(cb *ReferenceCollector_CollectorCallback, n *rhino.Node) {
 	// Go-only: language-adapter — the Deque filled with addFirst: roots are
 	// collected innermost first and pushed outermost first.
