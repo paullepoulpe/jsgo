@@ -1,10 +1,9 @@
 # Performance experiments, October 2026
 
 The retained CLI improves every workload in the existing five-task suite.
-Warm Java remains faster on those full builds. The earlier small-worker win
-compared Go with parsed-extern reuse against stock Java reparsing externs.
-That comparison does not establish a win over an equivalent Java worker;
-the claim is withdrawn. Matched worker and parallelism experiments are underway.
+Warm Java remains faster on those full builds. Worker and parsed-extern-cache experiments have been dropped. The active
+comparison uses ordinary Go CLI processes and stock warm Java, creating fresh
+compilers and parsing externs on both sides.
 
 ## Full compilations
 
@@ -48,36 +47,6 @@ These values describe resident process memory, including runtime overhead;
 they are not allocated bytes or live-heap size. The bundle's median Go peak
 RSS falls from 675.2 to 504.2 MiB (25.3%).
 
-## Historical small-worker results (unequal extern reuse)
-
-These small DOM-counter workloads were held out of PGO training. Java uses
-100 warm-up and 30 measured iterations. Go uses the production `jsgo-worker`
-JSON protocol, 10 warm-up and 30 measured requests, including request/response
-transport and client decoding. All 40 responses and generated artifacts are
-checked against Java for each workload.
-
-| Workload | Go worker (time / RSS) | Warm Java (time / RSS) | Java/Go time | Java/Go RSS |
-|---|---:|---:|---:|---:|
-| small-advanced | 948.45ms / 220.6MiB | 546.45ms / 859.5MiB | 0.58x | 3.90x |
-| small-simple | 286.59ms / 127.4MiB | 232.90ms / 563.6MiB | 0.81x | 4.42x |
-| small-whitespace | 45.64ms / 103.0MiB | 57.90ms / 636.2MiB | 1.27x | 6.18x |
-| small-checks | 516.47ms / 155.8MiB | 357.35ms / 781.0MiB | 0.69x | 5.01x |
-
-These rows use unequal cache policies: Go reuses immutable extern parse
-templates, while stock Java creates fresh extern inputs and reparses them on
-every request. They are retained as historical measurements, not evidence of
-language speed or a win against an equivalent worker. User code is reread and compiled on
-every request; this is not compiled-output replay. The worker clones immutable
-built-in extern parse templates and creates a new compiler for each request.
-See [worker usage](worker.md).
-
-Worker memory is the maximum Linux `VmHWM` observed after each request across
-all 40 requests, including warm-up. It covers the worker process and excludes
-the Python client. Java memory is the whole JVM process peak from `ru_maxrss`
-across 100 warm-up and 30 measured iterations, including startup and shutdown.
-The two processes run different iteration counts; neither value is a per-request
-allocation cost or a bound on memory for an indefinitely running worker.
-
 ## Retained changes
 
 - Allocate AST nodes and entries of larger ordered maps in batches, reducing
@@ -95,9 +64,6 @@ allocation cost or a bound on memory for an indefinitely running worker.
   retain independent allocation.
 - Avoid redundant rename-conflict recording in larger scopes. Small scopes
   retain the cheaper original walk; bookkeeping preserves encounter order.
-- Add a serialized persistent CLI worker with fresh compiler state and an
-  immutable, bounded built-in extern parse cache. Clone JSDoc type expressions
-  and transformations, preserve inline-type bits, and rebind source metadata.
 - Pin Unicode 15 classification/case data from Go 1.24's BSD-licensed package
   so newer Go toolchains retain JDK 21 behavior. No JDK implementation source
   is used.
@@ -136,8 +102,7 @@ valid deflate layouts, since newer Go versions may emit identical bytes for
 `BestSpeed` and `BestCompression`; its payload/header assertions remain intact.
 
 All ten held-out project builds matched Java, covering date-fns, highlight.js,
-axios, ajv and Monaco inputs. Thirteen mixed worker requests also matched Java
-and the ordinary CLI: source changes, output maps, warnings, parse errors, bad
+axios, ajv and Monaco inputs. and the ordinary CLI: source changes, output maps, warnings, parse errors, bad
 flags, stdin, JSON streams, custom extern settings and output encoding. JVM
 stack-frame differences use the repository's existing normalization rule.
 
@@ -150,8 +115,8 @@ There is no defensible language-level theoretical maximum. HotSpot compiles
 hot code to native code too. The remaining large-build gap calls for further
 algorithmic work and reducing repeated analysis, rather than assuming a newer
 Go compiler, smaller structs or disabling GC guarantees a win. This report
-records measured CLI improvements. The earlier unequal-cache worker win is
-withdrawn pending a matched Java implementation and thread-count comparison.
+records measured CLI improvements. The worker/extern-cache approach was dropped after the equivalent Java
+comparison showed no win; it is outside the active implementation and matrix.
 
 Raw medians, iteration data, binary hashes, build settings and machine metadata
 are in [performance-results.json](performance-results.json).
@@ -160,23 +125,18 @@ are in [performance-results.json](performance-results.json).
 
 Build the baseline and candidate separately, then use prebuilt binaries during
 measurement. The experiment harness refuses any run that changes Java's output.
-Use `tools/bench/bench.py` to establish a fresh Java reference, and
-`tools/bench/experiments.py` for interleaved Go variants. The worker benchmark
-uses the production JSON request/response protocol. To reproduce the small-app
-comparison separately, first prepare its warm Java reference and then run the
-protocol harness below. Pin both commands to the same CPU set (for example
-`taskset -c 0,1` on Linux) and keep heavy jobs off those CPUs.
+Use `tools/bench/bench.py` to establish a fresh Java reference and
+`tools/bench/experiments.py` for interleaved Go variants. Use
+`tools/bench/thread_sweep.py` for ordinary CLI comparisons at 1, 2, and 4
+compiler workers. Pin commands to the same CPU set and keep builds and tests
+outside timed runs.
 
 ```sh
 go build -o bin/jsgo ./cmd/jsgo
-go build -pgo=cmd/jsgo/default.pgo -o bin/jsgo-worker ./cmd/jsgo-worker
 python3 -I tools/bench/bench.py run --jsgo bin/jsgo --out /tmp/jsgo-reference \
   --tasks typed-app,bundle,downlevel-whitespace,downlevel-simple,checks-only \
   --runs 5 --warmup 12 --warm-iters 10 --skip-trace
-
-python3 -I tools/bench/bench.py run --skip-jsgo --out /tmp/jsgo-small-java \
-  --tasks small-advanced,small-simple,small-whitespace,small-checks \
-  --runs 1 --warmup 100 --warm-iters 30 --skip-trace
-python3 -I tools/bench/worker_protocol.py --binary bin/jsgo-worker \
-  --reference /tmp/jsgo-small-java --out /tmp/jsgo-small-worker
+python3 -I tools/bench/thread_sweep.py --binary bin/jsgo \
+  --reference /tmp/jsgo-reference --out /tmp/jsgo-threads \
+  --threads 1,2,4
 ```
