@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -40,18 +41,22 @@ func NewPrebuildAst(compiler AbstractCompiler, numParalleThreads int) *PrebuildA
 
 // Prebuild gets the AST root of every input.
 //
-// Go-only: language-adapter — the port is sequential (PORTING.md §5). Java
-// submits input.getAstRoot(compiler) for every input to a pool of
-// numParallelThreads daemon threads ("jscompiler-PrebuildAst", with
-// CompilerExecutor.COMPILER_STACK_SIZE stacks), shuts the pool down (queued
-// tasks still run) and waits with Futures.allAsList(futureList).get(),
-// which throws an ExecutionException wrapping the failure of a task;
-// prebuild rethrows it as new RuntimeException(e). Here the tasks run
-// inline in submission order, every task runs even after one fails (as in
-// the pool), and the first failure is rethrown the same way.
+// Go-only: language-adapter — independent files are parsed by a bounded worker
+// pool. Compiler state and diagnostics are published in input order after the
+// workers finish. Custom compilers, shared sources and TypedAST loading use the
+// sequential compatibility path. Every task completes even if another fails;
+// the first failure in input order has Java's ExecutionException wrapping.
 //
 // Java: PrebuildAst.prebuild(Iterable<CompilerInput>)
 func (p *PrebuildAst) Prebuild(allInputs iter.Seq[*CompilerInput]) {
+	if p.numParallelThreads > 1 {
+		inputs := slices.Collect(allInputs)
+		if p.prebuildParallel(inputs) {
+			return
+		}
+		allInputs = slices.Values(inputs)
+	}
+
 	var failure jutil.Throwable
 	// TODO(moz): Support canceling all parsing on the first halting error
 	for input := range allInputs {
