@@ -13,6 +13,19 @@ func nativeReferenceTestContext(scope *Scope, input *CompilerInput) *NodeTravers
 	return &NodeTraversal{scopes: []any{scope}, inputId: input.GetInputId(), compilerInput: input}
 }
 
+// ReferenceCollection.String classifies references through their AST parents.
+// Keep fixture names in real expression statements under a script/root.
+func nativeReferenceTestName(root *rhino.Node, name string) *rhino.Node {
+	script := root.GetFirstChild()
+	if script == nil {
+		script = rhino.IR_Script()
+		root.AddChildToBack(script)
+	}
+	node := rhino.IR_Name(name)
+	script.AddChildToBack(rhino.IR_ExprResult(node))
+	return node
+}
+
 func TestNativeReferenceLookupPreservesScopedEqualityAndIdentity(t *testing.T) {
 	t.Setenv("JSGO_EXPERIMENT_NATIVE_REFERENCES", "1")
 	root := rhino.IR_Root()
@@ -32,7 +45,7 @@ func TestNativeReferenceLookupPreservesScopedEqualityAndIdentity(t *testing.T) {
 	baseline.nativeReferences = nil
 	native.blockStack, baseline.blockStack = []*BasicBlock{block}, []*BasicBlock{block}
 	for index, variable := range vars {
-		node := rhino.IR_Name(fmt.Sprintf("reference%d", index))
+		node := nativeReferenceTestName(root, fmt.Sprintf("reference%d", index))
 		context := contexts[index%2]
 		native.AddReference(variable, node, context)
 		baseline.AddReference(variable, node, context)
@@ -76,7 +89,7 @@ func TestNativeReferenceLookupRawMapEscapeRetiresIndex(t *testing.T) {
 	context := nativeReferenceTestContext(scope, input)
 	collector := NewReferenceCollector(nil, ReferenceCollector_DO_NOTHING_BEHAVIOR, nil)
 	collector.blockStack = []*BasicBlock{NewBasicBlock(nil, root)}
-	collector.AddReference(variable, rhino.IR_Name("first"), context)
+	collector.AddReference(variable, nativeReferenceTestName(root, "first"), context)
 	retained := collector.referenceMapWrapper()
 	wrapper := collector.referenceMapWrapper()
 	raw := wrapper.GetRawReferenceMap()
@@ -85,18 +98,18 @@ func TestNativeReferenceLookupRawMapEscapeRetiresIndex(t *testing.T) {
 	}
 	replacement := NewReferenceCollection()
 	raw.Put(variable, replacement)
-	collector.AddReference(variable, rhino.IR_Name("second"), context)
+	collector.AddReference(variable, nativeReferenceTestName(root, "second"), context)
 	if collector.GetReferences(variable) != replacement || retained.GetReferences(variable) != replacement || replacement.references.Size() != 1 {
 		t.Fatal("replacement was hidden by a stale index or retained wrapper")
 	}
 	raw.Remove(variable)
-	collector.AddReference(variable, rhino.IR_Name("third"), context)
+	collector.AddReference(variable, nativeReferenceTestName(root, "third"), context)
 	if collector.GetReferences(variable) == replacement || collector.GetReferences(variable).references.Size() != 1 {
 		t.Fatal("removal was hidden by a stale index")
 	}
 	raw.Clear()
 	raw.Put(variable, nil)
-	collector.AddReference(variable, rhino.IR_Name("fourth"), context)
+	collector.AddReference(variable, nativeReferenceTestName(root, "fourth"), context)
 	if collector.GetReferences(variable) == nil || collector.GetReferences(variable).references.Size() != 1 || raw.Size() != 1 {
 		t.Fatal("clear/null replacement semantics changed")
 	}
