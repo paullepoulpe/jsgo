@@ -312,10 +312,11 @@ func dataFlowAnalysis_latticeOf[L any](a Annotatable) L {
 //
 // Java: DataFlowAnalysis.initialize()
 func (b *DataFlowAnalysisBase[N, L]) Initialize() {
-	// TODO(user): Calling clear doesn't deallocate the memory in a
-	// LinkedHashSet. Consider creating a new work set if we plan to
-	// repeatedly call analyze.
-	b.workQueue.Clear()
+	// Go-only: language-adapter — an interrupted analysis can leave queued
+	// nodes whose annotations have since been cleared or replaced by another
+	// analysis. Discard queue storage without consulting those annotations;
+	// every membership flag is recreated with its flow state below.
+	b.workQueue.clearStorage()
 	for _, node := range b.cfg.GetDiGraphNodes() {
 		node.SetAnnotation(
 			newDataFlowAnalysis_LinearFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice()))
@@ -666,6 +667,12 @@ func (q *dataFlowAnalysis_UniqueQueue[T]) Clear() {
 	} else {
 		q.seenSet.Clear()
 	}
+	q.clearStorage()
+}
+
+// Go-only: language-adapter — discard only the queue entries. The caller
+// must reset membership separately, or replace all analysis annotations.
+func (q *dataFlowAnalysis_UniqueQueue[T]) clearStorage() {
 	if q.priorityQueue != nil {
 		q.priorityQueue.Clear()
 	} else {

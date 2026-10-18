@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // A membership flag changes only the duplicate-detection representation. In
@@ -58,6 +60,53 @@ func TestDataFlowAnalysisAnnotationQueueDifferential(t *testing.T) {
 				}
 				if !optimized.IsEmpty() {
 					t.Fatal("optimized queue did not drain")
+				}
+			})
+		}
+	}
+}
+
+// Reinitialization must not read membership from annotations owned by an old
+// analysis. They may have been cleared or replaced after an interruption.
+func TestDataFlowAnalysisReinitializeAfterAnnotationReplacement(t *testing.T) {
+	for _, prioritized := range []bool{false, true} {
+		for _, replacement := range []string{"cleared", "other-lattice"} {
+			t.Run(fmt.Sprintf("priority=%t/%s", prioritized, replacement), func(t *testing.T) {
+				entry := &dataFlowAnalysisTest_DivergentAnalysis_Counter{}
+				cfg := NewControlFlowGraph(entry, true, true)
+				cfg.CreateDiGraphNode(&dataFlowAnalysisTest_DivergentAnalysis_Counter{})
+				analysis := newDataFlowAnalysisTest_DivergentAnalysis(cfg)
+				if prioritized {
+					// A tied comparator also checks the priority queue reset path.
+					analysis.workQueue.priorityQueue = jutil.NewPriorityQueue(func(a, b DiGraph_DiGraphNode[*dataFlowAnalysisTest_DivergentAnalysis_Counter, ControlFlowGraph_Branch]) int {
+						return 0
+					})
+				}
+				analysis.Initialize()
+				if analysis.workQueue.IsEmpty() {
+					t.Fatal("test requires interrupted work remaining")
+				}
+				cfg.ClearNodeAnnotations()
+				if replacement == "other-lattice" {
+					for _, node := range cfg.GetDiGraphNodes() {
+						node.SetAnnotation(newDataFlowAnalysis_LinearFlowState(1, 2))
+					}
+				}
+				analysis.Initialize()
+				seen := make(map[DiGraph_DiGraphNode[*dataFlowAnalysisTest_DivergentAnalysis_Counter, ControlFlowGraph_Branch]]bool)
+				for !analysis.workQueue.IsEmpty() {
+					node := analysis.workQueue.RemoveFirst()
+					if seen[node] || node == cfg.GetImplicitReturn() {
+						t.Fatal("invalid or duplicate queued node after reinitialization")
+					}
+					seen[node] = true
+					state := dataFlowAnalysis_linearFlowStateOf[*dataFlowAnalysisTest_DivergentAnalysis_Step](node)
+					if state == nil || state.queued || state.GetStepCount() != 0 {
+						t.Fatal("flow state was not replaced and dequeued correctly")
+					}
+				}
+				if len(seen) != 2 {
+					t.Fatalf("queued %d nodes, want 2", len(seen))
 				}
 			})
 		}
