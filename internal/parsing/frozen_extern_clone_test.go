@@ -52,9 +52,7 @@ func TestFrozenExternCloneDifferentialAndIsolation(t *testing.T) {
 			if builtinCacheFingerprint(got) != want {
 				t.Fatal("frozen clone differs from recursive clone")
 			}
-			var returnedNodes []*rhino.Node
 			frozenCloneWalk(got, func(n *rhino.Node) {
-				returnedNodes = append(returnedNodes, n)
 				if n.GetStaticSourceFile() != current {
 					t.Fatal("AST/type/TTL source metadata not rebound")
 				}
@@ -68,8 +66,6 @@ func TestFrozenExternCloneDifferentialAndIsolation(t *testing.T) {
 				if n.GetLastChild() != last {
 					t.Fatal("last-child relation corrupted")
 				}
-			})
-			for _, n := range returnedNodes {
 				// Every mutable returned node/property/JSDoc type subtree is
 				// disturbed before the next clone is requested.
 				n.SetLength(900 + iteration)
@@ -80,7 +76,7 @@ func TestFrozenExternCloneDifferentialAndIsolation(t *testing.T) {
 					}
 					d.GetTypeTransformations().Put("changed", rhino.IR_Name("changed"))
 				}
-			}
+			})
 			got.DetachChildren()
 			if builtinCacheFingerprint(template.Ast) != want {
 				t.Fatal("clone mutation reached private template")
