@@ -528,7 +528,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) ExitScope(t *NodeTrav
 	// Tell all the variables we referenced and the variables that might conflict with them
 	// about each other.
 	// This needs to happen before we start trying to rename the variables in this scope next.
-	for referencedVariable := range scopeContext.referencedVariables.All() {
+	for referencedVariable := range scopeContext.referencedVariables.Keys() {
 		scopeContext.RecordPotentialConflicts(referencedVariable)
 	}
 
@@ -594,7 +594,7 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext struct {
 	declaredVariableInfos []*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo
 
 	// Will be filled with objects for all variables we reference in this scope.
-	referencedVariables *jutil.LinkedHashSet[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]
+	referencedVariables *jutil.LinkedHashMap[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo, bool]
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext(Scope, ImmutableList<MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo>, MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext)
@@ -604,7 +604,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
 	parent *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext,
 ) *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext {
 	s := &MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext{}
-	s.referencedVariables = jutil.NewLinkedHashSet[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]()
+	s.referencedVariables = jutil.NewLinkedHashMap[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo, bool]()
 	s.scope = scope
 	s.declaredVariableInfos = declaredVariableInfos
 	s.parent = parent
@@ -614,7 +614,9 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.addReferencedVariableInfo(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
 func (s *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext) AddReferencedVariableInfo(
 	variableInfo MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo) {
-	s.referencedVariables.Add(variableInfo)
+	if !s.referencedVariables.ContainsKey(variableInfo) {
+		s.referencedVariables.Put(variableInfo, false)
+	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.recordPotentialConflicts(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
@@ -623,6 +625,15 @@ func (s *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext) RecordPo
 	thisScopeDepth := s.scope.GetDepth()
 	referencedVariableDeclarationDepth := referencedVariable.GetScopeDepth()
 	if thisScopeDepth >= referencedVariableDeclarationDepth {
+		// A scope's declaration list is fixed. Recording this same pair again
+		// can only re-add the same object identities to conflict sets. Remember
+		// completed pairs, including recursive visits from distinct child scopes.
+		// False values still represent this scope's queued own references; adding
+		// an already processed child reference preserves the original own order.
+		if s.referencedVariables.Get(referencedVariable) {
+			return
+		}
+		s.referencedVariables.Put(referencedVariable, true)
 		for _, declaredVariableInfo := range s.declaredVariableInfos {
 			// NOTE: No need to check whether the 2 variables are actually the same here.
 			// The logic in addPotentialConflict() can do that more efficiently.
