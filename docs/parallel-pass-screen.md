@@ -26,7 +26,18 @@ draft PR. RSS is median fresh-process peak, not live heap or allocated bytes.
 
 All measured artifacts match the pinned Java oracle. The enabled CLI candidate
 also matches fresh Java at two jobs on SIMPLE, ADVANCED and dependency-pruned
-fixtures. Source review finds no permanent CLI eligibility fallback; normal
+fixtures. A fresh two-job Java bundle also reproduces the stored artifact
+oracle; that correctness-only run overlapped compilation and supplies no valid
+performance measurement.
+
+The corrected race-enabled test binary passes all new inlining/reference
+fixtures, including actual type inspection, shared colors, raw-type and observer
+fallbacks, canonical global bindings and ordered failure publication. The
+existing flow-sensitive/ordinary inlining and reference-collection suites also
+pass with both experiments enabled, along with native CFG and source-lock checks.
+Initial failures were fixture setup errors; final validation excludes no cases.
+
+Source review finds no permanent CLI eligibility fallback; normal
 compiler, observers, colors and synthetic inputs qualify. Separate tracer-mode
 measurements intentionally use the serial path, so they cannot profile this
 parallel implementation's timing.
