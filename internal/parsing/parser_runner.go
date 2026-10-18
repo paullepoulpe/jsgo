@@ -123,9 +123,6 @@ func ParserRunner_Parse(
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
-	if builtinExternCacheEligible(sourceFile, config) {
-		return parseBuiltinExternCached(sourceFile, sourceString, config, errorReporter)
-	}
 	if nativeParserExperimentEnabled {
 		return parserRunnerParseWithNativeFallback(sourceFile, sourceString, config, errorReporter)
 	}
