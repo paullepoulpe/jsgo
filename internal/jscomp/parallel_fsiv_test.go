@@ -15,7 +15,6 @@ func newParallelFSIVTestCompiler(t *testing.T, workers int, programs ...string) 
 	options := NewCompilerOptions()
 	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	options.SetNumParallelThreads(workers)
-	options.SetUseTypesForLocalOptimization(true)
 	sources := make([]*SourceFile, len(programs))
 	for i, program := range programs {
 		sources[i] = SourceFile_FromCode(fmt.Sprintf("script%d.js", i), program)
@@ -170,6 +169,12 @@ func TestParallelFSIVUnsupportedObserversAndRawTypesFallBack(t *testing.T) {
 			case "observer":
 				c.changeTracker.AddChangeHandler(&parallelFSIVCustomObserver{})
 			case "rawtype":
+				// InitOptions disables local type inspection when typechecking is
+				// off. Enable the analyzer mode here, after fixture initialization.
+				c.GetOptions().SetUseTypesForLocalOptimization(true)
+				if !c.GetAstAnalyzer().useTypesForLocalOptimization {
+					t.Fatal("raw-type fixture did not enable unsafe analyzer mode")
+				}
 				c.GetJsRoot().GetFirstChild().GetFirstChild().SetJSType(c.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_STRING_TYPE))
 			case "debug":
 				c.GetOptions().SetCheckDeterminism(true)
@@ -191,6 +196,19 @@ func TestParallelFSIVUnsupportedObserversAndRawTypesFallBack(t *testing.T) {
 
 type parallelFSIVUnknownConvention struct{ CodingConvention }
 
+func TestParallelFSIVRawTypesWithoutTypeInspectionAreSupported(t *testing.T) {
+	c := newParallelFSIVTestCompiler(t, 2,
+		`function f(a) { let x = a + 1; return x; }`, `function g(a) { let y = a + 1; return y; }`)
+	c.GetOptions().SetUseTypesForLocalOptimization(false)
+	if c.GetAstAnalyzer().useTypesForLocalOptimization {
+		t.Fatal("disabled-type fixture enabled type inspection")
+	}
+	c.GetJsRoot().GetFirstChild().GetFirstChild().SetJSType(c.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_STRING_TYPE))
+	if !NewFlowSensitiveInlineVariables(c).processScriptsParallel(c.GetExternsRoot(), c.GetJsRoot()) {
+		t.Fatal("unused raw type unnecessarily forced serial execution")
+	}
+}
+
 func TestParallelFSIVColorEqualityAvoidsSharedLazyHash(t *testing.T) {
 	// These are the exact shared color sets consulted by AstAnalyzer. Empty
 	// primitive sets make equality against STRING read-only, even for a distinct
@@ -209,16 +227,29 @@ func TestParallelFSIVColorEqualityAvoidsSharedLazyHash(t *testing.T) {
 	}
 	withColors := func(workers int) *Compiler {
 		c := newParallelFSIVTestCompiler(t, workers, programs...)
-		var paint func(*rhino.Node)
-		paint = func(n *rhino.Node) {
-			if n.IsName() && n.GetString() == "a" {
-				n.SetColor(shared)
+		c.GetOptions().SetUseTypesForLocalOptimization(true)
+		if !c.GetAstAnalyzer().useTypesForLocalOptimization {
+			t.Fatal("color fixture did not enable type inspection")
+		}
+		for script := c.GetJsRoot().GetFirstChild(); script != nil; script = script.GetNext() {
+			// Normalization can rename each script's parameter differently.
+			parameter := script.GetFirstChild().GetSecondChild().GetFirstChild().GetString()
+			painted := 0
+			var paint func(*rhino.Node)
+			paint = func(n *rhino.Node) {
+				if n.IsName() && n.GetString() == parameter {
+					n.SetColor(shared)
+					painted++
+				}
+				for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+					paint(child)
+				}
 			}
-			for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
-				paint(child)
+			paint(script)
+			if painted < 2 {
+				t.Fatal("script did not share the tested parameter/receiver color")
 			}
 		}
-		paint(c.GetJsRoot())
 		return c
 	}
 	want := withColors(1)
