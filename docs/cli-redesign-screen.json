@@ -1,0 +1,267 @@
+{
+  "status": "single-run exploratory screen; no performance gain established; prototypes not enabled in draft PR",
+  "measurement": "fresh Go CLI processes, same2CPUaffinity, defaultGC, normal extern parsing; all outputs match stockJava",
+  "source": {
+    "source_commit": "3467f5a3",
+    "binary_sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22",
+    "build_info": "/workspace/jsgo/bin/jsgo-cli-owned: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-pgo=/workspace/jsgo-redesigns/cmd/jsgo/default.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n",
+    "scope": "ordinary CLI only; no worker or parsed-extern cache",
+    "runtime_gc": "default",
+    "later_changes": "documentation and deletion of unused worker benchmark fixtures only"
+  },
+  "machine": {
+    "date": "2026-10-18 18:44 UTC",
+    "host": "347f45b57e6a",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpus": 3,
+    "memory": "9.7 GiB",
+    "kernel": "6.18.55",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "java": [
+      "openjdk version \"21.0.12.1\" 2026-08-18",
+      "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+      "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+    ],
+    "go": "go version go1.27.2 linux/amd64",
+    "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+    "jsgo": {
+      "variants": {
+        "main": {
+          "path": "/workspace/jsgo/bin/jsgo-cli-main",
+          "sha256": "7c9f0ee143b73ee45a9bdd418636f77ee7d9afa2bf9ed9199e808788e600f017"
+        },
+        "architecture-control": {
+          "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+          "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+        },
+        "parser": {
+          "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+          "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+        },
+        "cfg": {
+          "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+          "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+        },
+        "parser-cfg": {
+          "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+          "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+        }
+      }
+    },
+    "nice": 10,
+    "locale": "C.UTF-8",
+    "loadavg_start": [
+      0.95,
+      1.79,
+      1.32
+    ],
+    "bench_commit": "08e44535de12e99a8fa25f0229a37e77ea41795e",
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "reference": "/workspace/jsgo-results/final-java",
+    "runs": 1,
+    "seed": 20261018,
+    "variant_environment": {
+      "main": {},
+      "architecture-control": {},
+      "parser": {
+        "JSGO_EXPERIMENT_NATIVE_PARSER": "1"
+      },
+      "cfg": {
+        "JSGO_EXPERIMENT_NATIVE_CFG": "1"
+      },
+      "parser-cfg": {
+        "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+        "JSGO_EXPERIMENT_NATIVE_CFG": "1"
+      }
+    },
+    "notes": "Machine metadata preserves exact original tool output and binary hashes."
+  },
+  "screen": {
+    "typed-app": {
+      "java_warm_s": 3.68735,
+      "java_peak_rss_mb": 1263.79296875,
+      "variants": {
+        "main": {
+          "median_s": 5.223826194000139,
+          "min_s": 5.223826194000139,
+          "max_s": 5.223826194000139,
+          "median_cpu_s": 6.068290999999999,
+          "median_peak_rss_mb": 268.1640625,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.7058714940085737,
+          "memory_ratio_java_over_go": 4.712760378732702,
+          "all_outputs_match": true
+        },
+        "architecture-control": {
+          "median_s": 5.303058320998389,
+          "min_s": 5.303058320998389,
+          "max_s": 5.303058320998389,
+          "median_cpu_s": 6.199603,
+          "median_peak_rss_mb": 266.43359375,
+          "speed_vs_first_variant": 0.9850591635614272,
+          "speed_vs_java_warm": 0.6953251834699407,
+          "memory_ratio_java_over_go": 4.743369448883546,
+          "all_outputs_match": true
+        },
+        "parser": {
+          "median_s": 5.202965012002096,
+          "min_s": 5.202965012002096,
+          "max_s": 5.202965012002096,
+          "median_cpu_s": 6.060857,
+          "median_peak_rss_mb": 277.7578125,
+          "speed_vs_first_variant": 1.0040094795851828,
+          "speed_vs_java_warm": 0.7087016713535637,
+          "memory_ratio_java_over_go": 4.549981717435941,
+          "all_outputs_match": true
+        },
+        "cfg": {
+          "median_s": 5.435195273999852,
+          "min_s": 5.435195273999852,
+          "max_s": 5.435195273999852,
+          "median_cpu_s": 6.289472999999999,
+          "median_peak_rss_mb": 262.953125,
+          "speed_vs_first_variant": 0.9611110421348003,
+          "speed_vs_java_warm": 0.6784208872198287,
+          "memory_ratio_java_over_go": 4.806153069106899,
+          "all_outputs_match": true
+        },
+        "parser-cfg": {
+          "median_s": 5.0927363769988006,
+          "min_s": 5.0927363769988006,
+          "max_s": 5.0927363769988006,
+          "median_cpu_s": 5.927697,
+          "median_peak_rss_mb": 267.53515625,
+          "speed_vs_first_variant": 1.0257405463972968,
+          "speed_vs_java_warm": 0.7240410119506306,
+          "memory_ratio_java_over_go": 4.723838864635197,
+          "all_outputs_match": true
+        }
+      }
+    },
+    "bundle": {
+      "java_warm_s": 16.5676,
+      "java_peak_rss_mb": 1677.5859375,
+      "variants": {
+        "main": {
+          "median_s": 18.609738359002222,
+          "min_s": 18.609738359002222,
+          "max_s": 18.609738359002222,
+          "median_cpu_s": 21.429648999999998,
+          "median_peak_rss_mb": 643.0078125,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.8902650687716754,
+          "memory_ratio_java_over_go": 2.6089666484417715,
+          "all_outputs_match": true
+        },
+        "architecture-control": {
+          "median_s": 18.73947487999976,
+          "min_s": 18.73947487999976,
+          "max_s": 18.73947487999976,
+          "median_cpu_s": 21.650371999999997,
+          "median_peak_rss_mb": 534.40234375,
+          "speed_vs_first_variant": 0.9930768326312065,
+          "speed_vs_java_warm": 0.8841016146979787,
+          "memory_ratio_java_over_go": 3.139181474632146,
+          "all_outputs_match": true
+        },
+        "parser": {
+          "median_s": 18.717528399000003,
+          "min_s": 18.717528399000003,
+          "max_s": 18.717528399000003,
+          "median_cpu_s": 21.780323,
+          "median_peak_rss_mb": 498.90234375,
+          "speed_vs_first_variant": 0.9942412247119369,
+          "speed_vs_java_warm": 0.8851382322938073,
+          "memory_ratio_java_over_go": 3.362553731238109,
+          "all_outputs_match": true
+        },
+        "cfg": {
+          "median_s": 18.81732299700161,
+          "min_s": 18.81732299700161,
+          "max_s": 18.81732299700161,
+          "median_cpu_s": 21.672876000000002,
+          "median_peak_rss_mb": 511.26171875,
+          "speed_vs_first_variant": 0.98896842882314,
+          "speed_vs_java_warm": 0.8804440462992484,
+          "memory_ratio_java_over_go": 3.2812664746376536,
+          "all_outputs_match": true
+        },
+        "parser-cfg": {
+          "median_s": 18.782450047001475,
+          "min_s": 18.782450047001475,
+          "max_s": 18.782450047001475,
+          "median_cpu_s": 21.734757,
+          "median_peak_rss_mb": 497.68359375,
+          "speed_vs_first_variant": 0.9908046241269346,
+          "speed_vs_java_warm": 0.8820787468376594,
+          "memory_ratio_java_over_go": 3.370788104264287,
+          "all_outputs_match": true
+        }
+      }
+    },
+    "downlevel-whitespace": {
+      "java_warm_s": 0.9332499999999999,
+      "java_peak_rss_mb": 943.40625,
+      "variants": {
+        "main": {
+          "median_s": 1.3407884199987166,
+          "min_s": 1.3407884199987166,
+          "max_s": 1.3407884199987166,
+          "median_cpu_s": 1.597394,
+          "median_peak_rss_mb": 158.90234375,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.696045689297416,
+          "memory_ratio_java_over_go": 5.937019100764522,
+          "all_outputs_match": true
+        },
+        "architecture-control": {
+          "median_s": 1.2380059440001787,
+          "min_s": 1.2380059440001787,
+          "max_s": 1.2380059440001787,
+          "median_cpu_s": 1.493385,
+          "median_peak_rss_mb": 171.7734375,
+          "speed_vs_first_variant": 1.0830226029985224,
+          "speed_vs_java_warm": 0.7538332142287882,
+          "memory_ratio_java_over_go": 5.4921544549051715,
+          "all_outputs_match": true
+        },
+        "parser": {
+          "median_s": 1.2891413409997767,
+          "min_s": 1.2891413409997767,
+          "max_s": 1.2891413409997767,
+          "median_cpu_s": 1.546662,
+          "median_peak_rss_mb": 153.203125,
+          "speed_vs_first_variant": 1.0400631624759513,
+          "speed_vs_java_warm": 0.7239314808384238,
+          "memory_ratio_java_over_go": 6.1578786333503315,
+          "all_outputs_match": true
+        },
+        "cfg": {
+          "median_s": 1.2843678030003502,
+          "min_s": 1.2843678030003502,
+          "max_s": 1.2843678030003502,
+          "median_cpu_s": 1.5204119999999999,
+          "median_peak_rss_mb": 166.39453125,
+          "speed_vs_first_variant": 1.0439287070779606,
+          "speed_vs_java_warm": 0.7266220764954394,
+          "memory_ratio_java_over_go": 5.6696950489471085,
+          "all_outputs_match": true
+        },
+        "parser-cfg": {
+          "median_s": 1.252237022999907,
+          "min_s": 1.252237022999907,
+          "max_s": 1.252237022999907,
+          "median_cpu_s": 1.506006,
+          "median_peak_rss_mb": 171.13671875,
+          "speed_vs_first_variant": 1.0707145655114656,
+          "speed_vs_java_warm": 0.7452662577922113,
+          "memory_ratio_java_over_go": 5.512588162790167,
+          "all_outputs_match": true
+        }
+      }
+    }
+  }
+}
