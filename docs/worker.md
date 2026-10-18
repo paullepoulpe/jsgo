@@ -37,6 +37,6 @@ Keep the process open for subsequent requests. Closing stdin cleanly shuts it
 down. The normal CLI remains useful for one-off builds; the worker requires a
 client that sends requests and decodes responses.
 
-See the performance report for the workload-specific comparison. A worker win
+See the [performance report](performance.md) for the workload-specific comparison. A worker win
 on a small repeated WHITESPACE compilation does not imply a win on large builds
 or the other compilation levels.
