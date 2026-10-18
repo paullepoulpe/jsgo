@@ -1,27 +1,34 @@
 # Performance roadmap and open explorations
 
-Status on 2026-10-18, after the upgrade to Closure Compiler v20261015. This
-file records what we know about jsgo's performance, the experiments under
-way and the options the repository owner has discussed, so that the work
-can be resumed from the repository alone.
+Updated 2026-10-18. The active goal is ordinary Go CLI performance against
+stock warmed Java, with a fresh compiler and normal extern parsing for every
+compilation. Worker processes, parsed-extern caches and embedded pre-parsed
+extern snapshots are outside scope. Parallel compiler work is authorized using
+the existing thread parameter; additional user-facing configurations are not a
+goal.
 
-## Where things stand
+[performance.md](performance.md) records the retained changes and measured CLI
+results. The baseline figures and GC lab below are earlier snapshots from the
+same date, before the current redesign experiments. Their measurements remain
+historical evidence, not performance claims for unmeasured prototypes.
 
-- **Parity.** jsgo is byte-identical with Java v20261015 on every
+## Earlier v20261015 baseline
+
+- **Parity at that baseline.** jsgo was byte-identical with Java v20261015 on every
   end-to-end suite: 40,005 fresh Java builds compared (projects 120/120,
   held-out sweep 7,077/7,077, development flag sweep 16,200/16,200,
   held-out flags 3,340/3,340, test262 7,947/7,947, development samples
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015)):
-  against `java -jar`, jsgo is 1.4–2.3× faster on whole-program builds
+- **Baseline speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015)):
+  against `java -jar`, jsgo was 1.4–2.3× faster on whole-program builds
   and 4.2× faster on 1,000 single-file compiles; the 27 s bundle is the
-  exception at 0.94×. Against a warm JVM it is at 0.65–0.74× of Java's
+  exception at 0.94×. Against a warm JVM it was at 0.65–0.74× of Java's
   speed, with 2–5× less memory. An interleaved control showed that the
   round-3 figure of 0.93× against warm Java was measured against a loaded
   JVM; on a quiet machine the round-3 code was also at about 0.65×.
-- **Where warm Java wins** (per-phase tables in
+- **Where warm Java won at that baseline** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): the
   optimization loop (`flowSensitiveInlineVariables` 2.4–2.8× Java's time,
   `inlineVariables` ~2×, `removeUnusedCode` 1.5–1.9×,
@@ -29,10 +36,10 @@ can be resumed from the repository alone.
   (155 ms per single-file compile against 61 ms, mostly the default
   externs), `inferTypes` (1.4–1.8×) and `checkAccessControls` (~2.1×).
 
-## Why: the CPU profile
+## Earlier CPU profile
 
-The profile behind `cmd/jsgo/default.pgo` (typed-app and friends, v20261015
-port) attributes:
+The earlier profile behind `cmd/jsgo/default.pgo` (typed-app and friends,
+v20261015 port) attributed:
 
 - **~37% of CPU samples to memory management** (CPU, not wall time:
   the GC lab below measured the wall-time cost at 3–7%): `runtime.gcDrain` 27%
@@ -47,38 +54,48 @@ port) attributes:
 - **~5% in Java emulation for byte-identity:** `jutil.StringHashCode`,
   `StringCompareTo`, `StringFromUTF16`, Java-ordered hash maps.
 
-## Options, in the order discussed with the owner
+## Active exploration priorities
 
-1. **GC setting** (`GOGC` / `GOMEMLIMIT`). jsgo uses 2–5× less memory than
-   Java, so trading some of it for fewer GC cycles is cheap and
-   reversible; estimated 10–25%. The owner chose Go's default for now
-   (PLAN.md §7). The GC lab (below) measures it; its main use is to size
-   option 3.
-2. **Incremental, inside the 1:1 structure:** cut allocation in the slow
-   passes named above; parse the default externs once (an embedded,
-   pre-parsed snapshot) for the single-file case. Expected: about parity
-   with warm Java, perhaps 1.2×.
-3. **Substrate redesign, passes kept 1:1:** a pointer-free AST (nodes in
-   arenas linked by int32 indices, so the GC skips them and traversal is
-   cache-friendly), side tables keyed by node index instead of maps keyed
-   by `*Node`, interned string ids instead of emulated Java strings,
-   scopes reused across passes; then the same treatment for the other
-   pointer-heavy structures (JSType graph, Var/Scope/Reference, CFG and
-   data-flow lattices, jutil collections). Upstream rarely changes this
-   substrate, so the ~1,200 ported files and upstream tracking stay
-   cheap. Estimated 2–3× warm Java on the large tasks. Once the AST is
-   pointer-free, option 1's gain shrinks to a few percent.
-4. **Parallelism** (parsing, per-function work): the biggest lever for
-   large builds; deferred by the owner (no goroutines for now).
+1. **Reduce allocations in ordinary compilations.** Parse directly from scanner
+   tokens into final Rhino nodes, avoiding intermediate parse trees where exact
+   semantics are implemented. Keep the original parser as the oracle/fallback.
+   Use compact native CFGs, indexed data-flow state and bounded persistent type
+   maps to reduce temporary graph/collection objects. Externs still follow the
+   normal per-compilation parsing path.
+2. **Avoid repeated pass work.** Reuse analysis only while its canonical scope,
+   AST position and enclosing change stamps remain valid. Specialize hot
+   traversal callbacks without changing visits, mutation order or diagnostics.
+   [Function analysis](experiments/function-analysis.md) and
+   [concrete traversal](../tools/bench/concrete-traversal.md) describe prototypes;
+   neither represents a measured gain until the CLI comparisons establish it.
+3. **Parallelize independent phases within `--num_parallel_threads`.** Bounded
+   parsing and dependency scanning are implemented; output and per-function
+   analysis candidates need deterministic publication and race/byte gates.
+   Analysis workers must finish reading before serial AST rewrites resume.
+   [Parallel analysis](experiments/parallel-analysis.md) records the boundaries.
+   The parameter controls compiler work items, not every goroutine or OS thread.
+   `GOMAXPROCS` remains an independent runtime CPU limit.
+4. **Improve storage/locality where profiles justify it.** AST traversal order,
+   collection storage and type-graph representation remain research targets.
+   A pointer-free indexed AST would require preserving pointer identity and
+   mutation semantics at existing interfaces; it is not a promised speedup.
+   [Indexed flow slots](experiments/indexed-flow-slots.md) and
+   [source locks](experiments/native-source-locks.md) are narrower experiments.
 
-**Byte-identical output stays.** Relaxing it would buy about 5% directly
-(the Java emulation above) and would remove the oracle that makes
-option 3 safe to do.
+Default GC behavior remains unchanged. The GC lab below bounds the measured
+benefit of increasing heap headroom; allocation and algorithmic work remain
+important even when collection costs are reduced.
 
-## Output quality: improving on Closure
+**Byte-identical output stays.** Each candidate must preserve the existing
+compatibility contract and pass differential checks before its timing matters.
+Measure candidates separately and together; isolated percentages cannot be
+added to predict compound improvements. There is no supported theoretical
+maximum or current 2–3× target against warm Java.
 
-Possible, as deliberate divergences after parity, behind an opt-in flag
-so that the default stays byte-identical with Java and every parity
+## Separate future topic: output quality
+
+Outside the current performance scope: deliberate divergences after parity,
+behind an opt-in flag so that the default stays byte-identical with Java and every parity
 suite keeps working. Candidates: ES-module tree-shaking, modern-syntax
 output, gzip-aware renaming, and fixing upstream crashes such as the
 one below. Prerequisites: an output-quality benchmark (gzip/brotli size
@@ -94,7 +111,7 @@ mathjs, svelte, axios, date-fns, prettier), plus 7
 `IllegalStateException: AST should not contain Dynamic module import`.
 v20260415 had none. jsgo reproduces Java's crash (PLAN.md §7).
 
-## GC lab (2026-10-18): measured, and it corrects the estimates above
+## GC lab (2026-10-18): historical measurements
 
 Full write-up: [gclab-2026-10-18.md](gclab-2026-10-18.md); scripts and
 the opt-in hook in [tools/gclab/](../tools/gclab/). All runs stayed
@@ -104,8 +121,7 @@ byte-identical.
   5%, bundle and checks-only 3%, single files 2%), i.e. 7–22% of the gap to
   warm Java. The GC takes 22–29% of CPU, but it runs mostly on otherwise
   idle cores: mark assists ~0.01 s, pauses under 10 ms. The profile's 27%
-  is CPU, not wall time; the estimates in options 1 and 3 above were too
-  high.
+  is CPU, not wall time; earlier GC/layout speedup estimates were too high.
 - **GOGC=200** cuts GC CPU to 13–17%, **GOGC=400** to 7–10%, at 1.3–2.6×
   the RSS (still below Java's). The wall gain is bounded by the 3–7% tax.
   `GOGC=off` without a limit is slower here (page faults: bundle +86%).
@@ -124,20 +140,19 @@ byte-identical.
   wall −3 to −6%, jutil only; (3) data-flow lattices as dense arrays;
   (4) arenas for scopes, vars and references; (5) types.
 
-**Revised view.** No single substrate change is worth 2–3×; each is worth
-single-digit percent. The gap to warm Java is spread over allocation
-cost, memory layout and the passes' own algorithms. Reaching and passing
-warm Java will take the combination (allocation-free collections,
-arena-allocated AST in traversal order, cheaper per-pass data
-structures, and per-pass work on the slowest passes), measured step by
-step; the "2–3×" estimate in option 3 is not supported by the data.
-Raising GOGC to 200–400 is a free 2–5% in the meantime, if the owner
-wants it.
+**What this established.** These GC/layout measurements did not support the
+earlier 2–3× predictions. The remaining gap spans allocation, memory locality,
+repeated analysis and pass algorithms. Larger changes require new measurements
+rather than extrapolation from GC CPU percentages. Increasing GOGC also raises
+memory use and remains an experiment, not the default recommendation.
 
-**Next measurements:** a prototype of the AST arena (noscan slab for
-`rhino.Node`, via an overlay) over 10 paired runs; hand-mapping the
-10–15% of allocations left as "other"; heap profiles for
-downlevel-simple and checks-only.
+**Current next checks:** finish differential and race tests for the CLI
+prototypes, compare prebuilt candidates individually and in combination, and
+measure stock warm Java versus Go at 1, 2 and 4 compiler workers under the same
+CPU affinity/quota. Report elapsed-time and peak-RSS ratios together, with JVM
+warm-up drift and measurement windows. The earlier plan to prototype AST arenas
+via an overlay is historical; current retention decisions follow the measured
+CLI report.
 
 ## Smaller open items
 
