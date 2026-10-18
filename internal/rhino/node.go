@@ -581,7 +581,7 @@ func (p *Node_PropListItem) Chain(next *Node_PropListItem) *Node_PropListItem {
 
 // Java: Node(Token)
 func NewNode(token Token) *Node {
-	return newNodeInChunk(token)
+	return &Node{token: token, linenoCharno: -1}
 }
 
 // Java: Node(Token, Node)

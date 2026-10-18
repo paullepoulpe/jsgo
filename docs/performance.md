@@ -1,10 +1,18 @@
-# Performance experiments, October 2026
+# Archived performance experiments, October 2026
 
-The retained CLI improves every workload in the existing five-task suite.
-Warm Java remains faster on those full builds. Worker and parsed-extern-cache
-experiments have been dropped. The active
-comparison uses ordinary Go CLI processes and stock warm Java, creating fresh
-compilers and parsing externs on both sides.
+These measurements describe the historical binaries and source revisions in
+[performance-results.json](performance-results.json), before the approved changes
+were integrated into `main` in `3fe3431a`. The measured branch included global
+AST-node batching and vendored Unicode tables; both have since been rejected.
+The current implementation uses direct node allocation and the compact Unicode
+delta wrapper from `main`. The numbers below do not measure that implementation.
+See [benchmarks.md](benchmarks.md) for the results retained on `main`.
+
+This PR now adds only this historical report, its raw data and two benchmark
+runners. Its compiler, Unicode and license files match `main`. Worker and
+extern-cache code and benchmark configurations are excluded. The archived CLI
+comparisons use fresh Go processes and stock warmed Java, with fresh compilers
+and normal extern parsing on both sides. Warm Java was faster on those builds.
 
 ## Full compilations
 
@@ -25,8 +33,8 @@ Both ratio columns divide Java by Go: above 1x means Go takes less time or
 uses less peak RSS, respectively. The time ratios compare median elapsed time;
 the memory ratios compare the documented process peaks.
 
-The candidate still needs roughly 11–34% less elapsed time, depending on the
-workload, to equal these warmed JVM medians. The largest retained gain is on the
+The measured candidate needed roughly 11–34% less elapsed time, depending on the
+workload, to equal these warmed JVM medians. Its largest measured gain is on the
 large SIMPLE bundle; the smallest is on full-build WHITESPACE.
 
 The JVM column is a separate fresh run with 12 warm-up and 10 measured
@@ -50,7 +58,7 @@ RSS falls from 675.2 to 504.2 MiB (25.3%).
 
 ## Ordinary CLI thread scaling
 
-The current draft PR CLI was rebuilt separately for this sweep. Each Go cell
+The historical CLI at `4a86d326` was rebuilt separately for this sweep. Each Go cell
 is the median of three fresh processes; each Java cell uses a separate stock
 JVM with 12 warm-up and 10 measured compilations. Both parse externs normally.
 The same two-CPU affinity and quota apply at every job count.
@@ -77,11 +85,13 @@ It does not cap all goroutines or OS threads and does not change `GOMAXPROCS`.
 The sweep removes inherited `GOMAXPROCS` and keeps the runtime CPU budget fixed
 through affinity. The default compiler job count remains one.
 
-## Retained changes
+## Changes in the measured historical branch
 
 - Allocate AST nodes and entries of larger ordered maps in batches, reducing
   per-object allocation and scan overhead. Break allocation groups between
-  independent compilations to avoid retaining earlier ASTs transitively.
+  independent compilations to avoid retaining earlier ASTs transitively. AST
+  batching and its boundary API are excluded from the current implementation;
+  the approved collection batching remains on `main`.
 - Use an indexed reaching-definition lattice for functions with at most 64
   canonical variables, preserving TOP/BOTTOM, encounter order and the sparse
   fallback for larger or noncanonical cases.
@@ -96,7 +106,8 @@ through affinity. The default compiler job count remains one.
   retain the cheaper original walk; bookkeeping preserves encounter order.
 - Pin Unicode 15 classification/case data from Go 1.24's BSD-licensed package
   so newer Go toolchains retain JDK 21 behavior. No JDK implementation source
-  is used.
+  is used. These vendored tables and their license entry are now removed;
+  `main` instead uses its compact Unicode delta wrapper.
 
 The normal one-shot CLI, flags and default GC settings remain unchanged.
 
@@ -116,13 +127,13 @@ The normal one-shot CLI, flags and default GC settings remain unchanged.
 | Process-lifetime arenas | Bundle slowed from about 19.1s to 21.4s and RSS grew from about 560MB to 4GB. Rejected. |
 | Parallel AST parsing | The existing thread flag now runs bounded prebuild jobs; 48 parallel compatibility/race cases passed in the experimental combined build. The CLI sweep above shows 6.6–8.0% less whitespace time and little typed-app scaling on two CPUs. |
 
-Compiler allocation boundaries keep partially filled batches from retaining
-successive compilations through shared object graphs. The boundary fix remains
-useful for library callers and introduces no additional CLI configuration.
+The measured AST batching required allocation boundaries to keep partial batches
+from retaining successive compilations. The global node chunks and their
+boundary API have both been removed; direct node allocation needs neither.
 
 ## Validation and limits
 
-The measured candidate above passed all package tests. The large jscomp test binary was compiled
+At the time of measurement, the candidate above passed all package tests. The large jscomp test binary was compiled
 separately with lower *build-time* GC headroom to fit the 8GB machine, then run
 with default runtime GC; the test itself passed. Vet and license checks passed.
 A compression comparison test now uses an explicit flush to guarantee different
@@ -159,6 +170,9 @@ are in [performance-results.json](performance-results.json).
 
 Build the baseline and candidate separately, then use prebuilt binaries during
 measurement. The experiment harness refuses any run that changes Java's output.
+Reproducing the archived tables requires their recorded source revisions and
+toolchains. Building the current tree measures the updated `main` implementation
+and must be reported as a new cohort.
 Use `tools/bench/bench.py` to establish a fresh Java reference and
 `tools/bench/experiments.py` for interleaved Go variants. Use
 `tools/bench/thread_sweep.py` for ordinary CLI comparisons at 1, 2, and 4

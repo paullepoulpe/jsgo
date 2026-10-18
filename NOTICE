@@ -158,11 +158,3 @@ Test data
   authors (three); Jeremy Ashkenas, Julian Gonggrijp, and DocumentCloud
   and Investigative Reporters & Editors (underscore); Yuxi (Evan) You
   (vue).
-
-
-Go standard library unicode package, Go 1.24.7 -- BSD 3-Clause
-  Copyright The Go Authors.
-  Copied with package/import renaming under internal/unicode15 to pin the
-  public Unicode 15.0 data and character operations used by JDK 21.
-  Sources: https://go.googlesource.com/go/+/refs/tags/go1.24.7/src/unicode/
-  Licence text: LICENSES/BSD-3-Clause-Go.txt.

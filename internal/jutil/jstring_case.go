@@ -11,7 +11,6 @@ package jutil
 // the JDK by TestStringCaseRootMatchesJava.
 
 import (
-	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"strings"
 )
 
@@ -29,7 +28,7 @@ func StringToUpperCaseRoot(s string) string {
 			sb.WriteString(special)
 			continue
 		}
-		appendWTF8(&sb, unicode.ToUpper(r))
+		appendWTF8(&sb, unicode15ToUpper(r))
 	}
 	return sb.String()
 }

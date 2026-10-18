@@ -3,13 +3,13 @@ package jutil
 import (
 	"bufio"
 	"compress/gzip"
-	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"math"
 	"math/big"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // Vectors generated with tools/oracle/java/JutilPeepholeVectors.java (JDK 21
@@ -232,8 +232,8 @@ func TestStringCaseRootMatchesJava(t *testing.T) {
 		if v, ok := simpleUpper[cp]; ok {
 			wantU, wantL = v, simpleLower[cp]
 		}
-		if unicode.ToUpper(cp) != wantU || unicode.ToLower(cp) != wantL {
-			t.Errorf("U+%04X: Go upper/lower %X/%X, Java %X/%X", cp, unicode.ToUpper(cp), unicode.ToLower(cp), wantU, wantL)
+		if unicode15ToUpper(cp) != wantU || unicode15ToLower(cp) != wantL {
+			t.Errorf("U+%04X: Go upper/lower %X/%X, Java %X/%X", cp, unicode15ToUpper(cp), unicode15ToLower(cp), wantU, wantL)
 		}
 		s := string(cp)
 		wantUS, ok := upper[cp]

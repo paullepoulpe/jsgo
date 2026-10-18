@@ -253,7 +253,7 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
   `--num_parallel_threads` prebuild helpers use bounded parallel file parsing
   and dependency scanning, with diagnostics and compiler state published in
   input order. Shared/custom sources and TypedAST loading retain serialized
-  fallbacks. Compilation requests within a persistent worker remain serialized.
+  fallbacks.
   Closure is deterministic regardless of threads.
 - `synchronized` methods and blocks, and `ReentrantLock` → `jutil.Monitor`,
   never `sync.Mutex`. Java's monitors are re-entrant and Go's mutexes are

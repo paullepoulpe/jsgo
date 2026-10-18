@@ -3397,5 +3397,11 @@
       }
     },
     "interpretation": "3 fresh Go CLI processes per setting;12 warmup+10 measured Java compilations per setting; no workers or parsed-extern caches; Java/Go ratios; peakRSS process lifetimes documented in performance.md; whitespace Java2job half drift -8.7% limits fine-grained scaling interpretation"
+  },
+  "archive_notice": {
+    "status": "historical pre-integration measurements, not measurements of current main",
+    "integration_commit": "3fe3431ae0a7d3bfe6b345f439d987a836b09919",
+    "main_synced_through": "123b46e8",
+    "measurement_difference": "Recorded binaries included global AST node chunks and vendored Go1.24 Unicode tables. Current main uses direct node allocation and a compact Unicode delta wrapper; both rejected mechanisms and their license additions are absent from this PR."
   }
 }

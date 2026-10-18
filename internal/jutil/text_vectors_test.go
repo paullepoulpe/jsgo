@@ -3,7 +3,6 @@ package jutil
 import (
 	"bufio"
 	"encoding/hex"
-	unicode "github.com/paullepoulpe/jsgo/internal/unicode15"
 	"math"
 	"os"
 	"path/filepath"
@@ -265,8 +264,8 @@ func TestCaseTextVectors(t *testing.T) {
 			cp, _ := strconv.ParseUint(r[1], 16, 32)
 			u, _ := strconv.ParseUint(r[2], 16, 32)
 			l, _ := strconv.ParseUint(r[3], 16, 32)
-			if unicode.ToUpper(rune(cp)) != rune(u) || unicode.ToLower(rune(cp)) != rune(l) {
-				t.Errorf("case mapping of U+%X: Go %X %X, Java %X %X", cp, unicode.ToUpper(rune(cp)), unicode.ToLower(rune(cp)), u, l)
+			if unicode15ToUpper(rune(cp)) != rune(u) || unicode15ToLower(rune(cp)) != rune(l) {
+				t.Errorf("case mapping of U+%X: Go %X %X, Java %X %X", cp, unicode15ToUpper(rune(cp)), unicode15ToLower(rune(cp)), u, l)
 			}
 		case "q":
 			s, _ := unescVector(t, r[1])

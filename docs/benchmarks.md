@@ -267,6 +267,32 @@ python3 -I tools/bench/bench.py run --out /tmp/bench --report /tmp/bench/report.
 python3 -I tools/bench/bench.py report --out /tmp/bench --md report.md --final
 ```
 
+### Allocation, compact layout, and `--num_parallel_threads` pass
+
+After the v20261015 baseline above, slab-batched `jutil` map entries, a 64-var
+indexed bitmask lattice in `MustBeReachingVariableDef`, compact `rhino.Node`
+(96 B → 80 B) and `jscomp.Var` (80 B → 64 B), scanner `SourcePosition` reuse,
+rename-conflict deduplication, and opt-in `--num_parallel_threads` prebuild
+were integrated (see [performance-roadmap.md](performance-roadmap.md)).
+
+Interleaved comparison (`N=5` per Go build, `N=3` cold Java, `N=5` warm Java,
+all byte-identical; macOS arm64, Go 1.27.1 with `default.pgo`):
+
+| Task | Baseline (`c9872522`) | New (`t=1` / `t=4`) | Δ Wall (`t=1` / `t=4`) | vs Cold / Warm Java Time (`t=1` / `t=4`) | Peak RSS: Go (`base` → `new`) | Peak RSS: Cold / Warm Java | Java / Go RSS (Cold / Warm) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `typed-app` | 2.86 s (2.84–3.48) | **2.74 s** / **2.64 s** | **−4.0%** / **−7.7%** | 2.20× / 0.76× (0.79× at `t=4`) | 234 → **242 MiB** | 758 / 1,871 MiB | **3.13× / 7.72×** |
+| `bundle` (12.6 MB) | 11.82 s (11.80–11.98) | **10.31 s** / 10.31 s | **−12.8%** | **1.22×** / **0.85×** | 543 → **490 MiB** (−9.7%) | 2,151 / 2,343 MiB | **4.39× / 4.78×** |
+| `downlevel-whitespace` | 0.86 s (0.85–0.87) | **0.84 s** / **0.70 s** | **−2.5%** / **−18.2%** | 2.92× / 0.74× (0.88× at `t=4`) | 168 → **145 MiB** (−13.7%) | 553 / 1,437 MiB | **3.82× / 9.92×** |
+| `downlevel-simple` | 2.39 s (2.38–2.41) | **2.25 s** / **2.10 s** | **−5.9%** / **−12.2%** | 2.00× / 0.72× (0.77× at `t=4`) | 203 → **190 MiB** (−6.6%) | 613 / 1,489 MiB | **3.23× / 7.84×** |
+| `checks-only` | 4.40 s (4.39–4.42) | **4.29 s** / **3.82 s** | **−2.4%** / **−13.1%** | 1.57× / 0.76× (0.85× at `t=4`) | 693 → **618 MiB** (−10.7%) | 1,591 / 3,562 MiB | **2.57× / 5.76×** |
+
+On a 2-vCPU Linux VM (AMD EPYC 9V74, JDK 21.0.12.1, 12 warm-up + 10 measured
+iterations), the same changes reduce Go elapsed time by 8.8–19.8% across the
+five tasks (`bundle` 23.10 s → 18.53 s, −19.8%; RSS 675 → 504 MiB, −25.3%),
+with warm Java / Go peak RSS ratios of **4.74×** (`typed-app`), **3.33×**
+(`bundle`), **5.72×** (`downlevel-whitespace`), **7.13×** (`downlevel-simple`),
+and **2.19×** (`checks-only`).
+
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 
 Harnesses:
