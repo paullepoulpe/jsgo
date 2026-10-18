@@ -48,6 +48,35 @@ These values describe resident process memory, including runtime overhead;
 they are not allocated bytes or live-heap size. The bundle's median Go peak
 RSS falls from 675.2 to 504.2 MiB (25.3%).
 
+## Ordinary CLI thread scaling
+
+The current draft PR CLI was rebuilt separately for this sweep. Each Go cell
+is the median of three fresh processes; each Java cell uses a separate stock
+JVM with 12 warm-up and 10 measured compilations. Both parse externs normally.
+The same two-CPU affinity and quota apply at every job count.
+
+| Workload | Compiler jobs | Go time / RSS | Warm Java time / RSS | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|---:|
+| typed-app | 1 | 5.244 s / 254.8 MiB | 3.726 s / 1000.3 MiB | 0.71x | 3.93x |
+| typed-app | 2 | 5.158 s / 268.9 MiB | 3.848 s / 1019.6 MiB | 0.75x | 3.79x |
+| typed-app | 4 | 5.162 s / 276.8 MiB | 3.557 s / 1086.0 MiB | 0.69x | 3.92x |
+| downlevel-whitespace | 1 | 1.386 s / 159.8 MiB | 0.855 s / 896.5 MiB | 0.62x | 5.61x |
+| downlevel-whitespace | 2 | 1.295 s / 153.4 MiB | 0.906 s / 947.8 MiB | 0.70x | 6.18x |
+| downlevel-whitespace | 4 | 1.275 s / 156.0 MiB | 0.894 s / 854.5 MiB | 0.70x | 5.48x |
+
+Go's whitespace median improves 6.6% at two jobs and 8.0% at four, compared
+with one. Typed-app improves only about 1.6%, with higher median RSS. Four jobs
+do not supply four CPUs on this machine. Java remains faster in every cell;
+there is no consistent Java speed trend with job count. Its two-job whitespace
+run has an 8.7% decrease between measured halves, so fine differences among
+Java settings are not evidence of steady-state scaling. Raw iterations and
+drift values are preserved in the results JSON.
+
+`--num_parallel_threads` bounds concurrent compiler jobs in supported phases.
+It does not cap all goroutines or OS threads and does not change `GOMAXPROCS`.
+The sweep removes inherited `GOMAXPROCS` and keeps the runtime CPU budget fixed
+through affinity. The default compiler job count remains one.
+
 ## Retained changes
 
 - Allocate AST nodes and entries of larger ordered maps in batches, reducing
