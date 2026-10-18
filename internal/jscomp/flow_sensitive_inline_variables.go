@@ -180,12 +180,10 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		SetIncludeEdgeAnnotations(true).
 		ComputeCfg()
 
-	escaped := jutil.NewObjectLinkedHashSet[*Var]()
 	scope := t.GetScope()
-	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, scope.GetParent())
+	allVarsDeclaredInFunction, escaped := flowSensitiveInlineVariables_collectFunctionFacts(
+		f.compiler, scopeCreator, scope.GetParent())
 	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
-	DataFlowAnalysis_ComputeEscaped(
-		scope.GetParent(), escaped, f.compiler, scopeCreator, allVarsInFn)
 
 	f.reachingDef = NewMustBeReachingVariableDef(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef.Analyze()
@@ -775,4 +773,79 @@ func FlowSensitiveInlineVariables_CheckPreExpressions(
 		}
 	}
 	return false
+}
+
+// Go-only: performance — variable declarations and escaping references are
+// immutable facts during this discovery step. Gather both in one traversal,
+// preserving the declaration order of NodeUtil_GetAllVarsDeclaredInFunction
+// and the reference order of DataFlowAnalysis_ComputeEscaped. The result belongs
+// to this function analysis only; it is not cached across AST mutations.
+func flowSensitiveInlineVariables_collectFunctionFacts(
+	compiler AbstractCompiler, creator *SyntacticScopeCreator, scope *Scope,
+) (*NodeUtil_AllVarsDeclaredInFunction, *jutil.ObjectLinkedHashSet[*Var]) {
+	// Custom redeclaration callbacks may have effects when a scope is scanned.
+	// Keep their original two-traversal behavior.
+	if creator.redeclarationHandler != SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER {
+		all := NodeUtil_GetAllVarsDeclaredInFunction(compiler, creator, scope)
+		escaped := jutil.NewObjectLinkedHashSet[*Var]()
+		DataFlowAnalysis_ComputeEscaped(scope, escaped, compiler, creator, all.GetAllVariables())
+		return all, escaped
+	}
+	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
+	facts := &flowSensitiveInlineVariables_functionFacts{
+		root: scope.GetRootNode(),
+		all:  jutil.NewLinkedHashMap[string, *Var](),
+		escaped: dataFlowAnalysis_escapedFinder{
+			jsScope: scope,
+			escaped: jutil.NewObjectLinkedHashSet[*Var](),
+		},
+	}
+	NodeTraversal_Builder_().SetCompiler(compiler).SetCallback(facts).
+		SetScopeCreator(creator).TraverseAtScope(scope)
+	// These conservative escape rules must run after references, exactly as
+	// in DataFlowAnalysis_ComputeEscaped, including insertion order.
+	for v := range facts.all.Values() {
+		if v.GetParentNode().IsCatch() || compiler.GetCodingConvention().IsExported(v.GetName()) {
+			facts.escaped.escaped.Add(v)
+		}
+	}
+	return NewNodeUtil_AllVarsDeclaredInFunction(facts.all, facts.ordered), facts.escaped.escaped
+}
+
+type flowSensitiveInlineVariables_functionFacts struct {
+	root            *rhino.Node
+	all             *jutil.LinkedHashMap[string, *Var]
+	ordered         []*Var
+	nestedFunctions int
+	escaped         dataFlowAnalysis_escapedFinder
+}
+
+func (f *flowSensitiveInlineVariables_functionFacts) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+	return true
+}
+
+func (f *flowSensitiveInlineVariables_functionFacts) EnterScope(t *NodeTraversal) {
+	root := t.GetScopeRoot()
+	if root.IsFunction() && root != f.root {
+		f.nestedFunctions++
+	}
+	// The declaration finder skips nested functions entirely, while escape
+	// discovery must visit their references to variables in this function.
+	if f.nestedFunctions == 0 {
+		for v := range t.GetScope().GetVarIterable() {
+			f.all.Put(v.GetName(), v)
+			f.ordered = append(f.ordered, v)
+		}
+	}
+}
+
+func (f *flowSensitiveInlineVariables_functionFacts) ExitScope(t *NodeTraversal) {
+	root := t.GetScopeRoot()
+	if root.IsFunction() && root != f.root {
+		f.nestedFunctions--
+	}
+}
+
+func (f *flowSensitiveInlineVariables_functionFacts) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+	f.escaped.Visit(t, n, parent)
 }
