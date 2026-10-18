@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -55,22 +56,28 @@ type SourceFile struct {
 
 	isStubSourceFileForAlreadyProvidedInput bool
 
-	// Source Line Information
-	lineOffsets     []int // nil is null
-	lineByteOffsets []int
-
-	code *string
-
-	// Code statistics used for metrics.
-	// For both of these, a negative value means we haven't counted yet.
-	numLines int
-	numBytes int
+	// Go-only: concurrency — immutable source/cache snapshots are published as
+	// one unit. Readers retain one version while another caller may invalidate
+	// or replace the cached source. The common read path needs one atomic load.
+	cached atomic.Pointer[sourceFileCachedState]
 
 	isClosureUnawareCode bool
 
 	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized blocks of getCode and getCodeReader hold.
+	// synchronized blocks of getCode and getCodeReader hold. It also
+	// serializes publication and invalidation of source/cache snapshots.
 	monitor jutil.Monitor
+}
+
+// sourceFileCachedState keeps source text, metrics, UTF-16 offsets and byte
+// offsets from the same cache generation. Neither it nor its arrays is mutated
+// after publication; writers hold SourceFile.monitor and publish a new copy.
+type sourceFileCachedState struct {
+	code            *string
+	numLines        int
+	numBytes        int
+	lineOffsets     []int
+	lineByteOffsets []int
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
@@ -92,13 +99,9 @@ func newSourceFile(loader SourceFile_CodeLoader, fileName string, kind rhino.Sta
 		fileName = strings.ReplaceAll(fileName, Platform_GetFileSeperator(), "/")
 	}
 
-	return &SourceFile{
-		loader:   loader,
-		fileName: fileName,
-		kind:     kind,
-		numLines: -1,
-		numBytes: -1,
-	}
+	f := &SourceFile{loader: loader, fileName: fileName, kind: kind}
+	f.cached.Store(&sourceFileCachedState{numLines: -1, numBytes: -1})
+	return f
 }
 
 // Java: SourceFile.isStubSourceFileForAlreadyProvidedInput()
@@ -112,12 +115,12 @@ func (f *SourceFile) SetIsStubSourceFileForAlreadyProvidedInput(isStubSourceFile
 
 // Java: SourceFile.getLineOffset(int)
 func (f *SourceFile) GetLineOffset(lineno int) int {
-	f.FindLineOffsets()
-	if lineno < 1 || lineno > len(f.lineOffsets) {
+	state := f.getLineOffsets()
+	if lineno < 1 || lineno > len(state.lineOffsets) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Expected line number between 1 and " + strconv.Itoa(len(f.lineOffsets)) + "\nActual: " + strconv.Itoa(lineno)))
+			"Expected line number between 1 and " + strconv.Itoa(len(state.lineOffsets)) + "\nActual: " + strconv.Itoa(lineno)))
 	}
-	return f.lineOffsets[lineno-1]
+	return state.lineOffsets[lineno-1]
 }
 
 // GetNumLines returns the number of lines in the source file.
@@ -128,22 +131,24 @@ func (f *SourceFile) GetLineOffset(lineno int) int {
 //
 // Java: SourceFile.getNumLines()
 func (f *SourceFile) GetNumLines() int {
-	if f.numLines < 0 {
-		// A negative value means we need to read in the code and calculate
-		// this information. Otherwise, assume the file hasn't changed since we
-		// read it.
-		failed := false
-		jutil.Try(func() {
-			_ = f.GetCode()
-		}, func(e jutil.IIOException) {
-			// this is consistent with old behavior of this method.
-			failed = true
-		})
-		if failed {
-			return 0
-		}
+	state := f.cached.Load()
+	if state.numLines >= 0 {
+		return state.numLines
 	}
-	return f.numLines
+	// A negative value means we need to read in the code and calculate
+	// this information. Otherwise, assume the file hasn't changed since we
+	// read it.
+	failed := false
+	jutil.Try(func() {
+		_ = f.GetCode()
+	}, func(e jutil.IIOException) {
+		// this is consistent with old behavior of this method.
+		failed = true
+	})
+	if failed {
+		return 0
+	}
+	return f.cached.Load().numLines
 }
 
 // GetNumBytes returns the number of bytes in the source file.
@@ -158,22 +163,24 @@ func (f *SourceFile) GetNumLines() int {
 //
 // Java: SourceFile.getNumBytes()
 func (f *SourceFile) GetNumBytes() int {
-	if f.numBytes < 0 {
-		// A negative value means we need to read in the code and calculate
-		// this information. Otherwise, assume the file hasn't changed since we
-		// read it.
-		failed := false
-		jutil.Try(func() {
-			_ = f.GetCode()
-		}, func(e jutil.IIOException) {
-			// this is consistent with old behavior of this method.
-			failed = true
-		})
-		if failed {
-			return 0
-		}
+	state := f.cached.Load()
+	if state.numBytes >= 0 {
+		return state.numBytes
 	}
-	return f.numBytes
+	// A negative value means we need to read in the code and calculate
+	// this information. Otherwise, assume the file hasn't changed since we
+	// read it.
+	failed := false
+	jutil.Try(func() {
+		_ = f.GetCode()
+	}, func(e jutil.IIOException) {
+		// this is consistent with old behavior of this method.
+		failed = true
+	})
+	if failed {
+		return 0
+	}
+	return f.cached.Load().numBytes
 }
 
 // Java: SourceFile.isLineTerminator(char)
@@ -238,30 +245,60 @@ func sourceFile_unitsOfByte(b byte) int {
 }
 
 func (f *SourceFile) FindLineOffsets() {
-	if f.lineOffsets != nil {
-		return
-	}
+	f.getLineOffsets()
+}
 
-	var localCode string
-	if f.code != nil {
-		localCode = *f.code
-	} else {
-		failed := false
-		jutil.Try(func() {
-			localCode = f.GetCode()
-		}, func(e jutil.IIOException) {
-			failed = true
-		})
-		if failed {
-			f.lineOffsets = make([]int, 1)
-			f.lineByteOffsets = make([]int, 1)
-			return
-		}
+// getLineOffsets publishes both offset arrays together. Unlike a lock around
+// initialization followed by unlocked mutable-field reads, the returned snapshot
+// also remains valid across ClearCachedSource and SetCodeDeprecated.
+func (f *SourceFile) getLineOffsets() *sourceFileCachedState {
+	state := f.cached.Load()
+	if state.lineOffsets != nil {
+		return state
 	}
+	f.monitor.Lock()
+	defer f.monitor.Unlock()
+	state = f.cached.Load()
+	if state.lineOffsets != nil {
+		return state
+	}
+	failed := false
+	jutil.Try(func() {
+		state = f.getCodeStateLocked()
+	}, func(e jutil.IIOException) {
+		failed = true
+	})
+	if failed {
+		fallback := *state
+		fallback.lineOffsets = []int{0}
+		fallback.lineByteOffsets = []int{0}
+		f.cached.Store(&fallback)
+		return &fallback
+	}
+	return f.findLineOffsetsLocked(state)
+}
 
+// getCodeAndLineOffsets differs from getLineOffsets only in its IOException
+// behavior: line/region APIs return nil when the source cannot be read, even if
+// a previous offset-only lookup cached the single-line IOException fallback.
+func (f *SourceFile) getCodeAndLineOffsets() *sourceFileCachedState {
+	state := f.cached.Load()
+	if state.code != nil && state.lineOffsets != nil {
+		return state
+	}
+	f.monitor.Lock()
+	defer f.monitor.Unlock()
+	return f.findLineOffsetsLocked(f.getCodeStateLocked())
+}
+
+func (f *SourceFile) findLineOffsetsLocked(state *sourceFileCachedState) *sourceFileCachedState {
+	if state.lineOffsets != nil {
+		return state
+	}
+	localCode := *state.code
 	// getCode() updates numLines, so this is always in sync with the code.
-	offsets := make([]int, f.numLines)
-	byteOffsets := make([]int, f.numLines)
+	offsets := make([]int, state.numLines)
+	byteOffsets := make([]int, state.numLines)
 	index := 1 // start at 1 since the offset for line 0 is always at byte 0
 	units := 0
 	for i := 0; i < len(localCode); i++ {
@@ -279,8 +316,11 @@ func (f *SourceFile) FindLineOffsets() {
 		}
 	}
 	jutil.CheckState(index == len(offsets))
-	f.lineOffsets = offsets
-	f.lineByteOffsets = byteOffsets
+	updated := *state
+	updated.lineOffsets = offsets
+	updated.lineByteOffsets = byteOffsets
+	f.cached.Store(&updated)
+	return &updated
 }
 
 // GetCode gets all the code in this source file. It panics with an
@@ -288,18 +328,22 @@ func (f *SourceFile) FindLineOffsets() {
 //
 // Java: SourceFile.getCode()
 func (f *SourceFile) GetCode() string {
-	if f.code == nil {
-		// Only synchronize if we need to
-		func() {
-			f.monitor.Lock()
-			defer f.monitor.Unlock()
-			// Make sure another thread hasn't loaded the code while we waited.
-			if f.code == nil {
-				f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
-			}
-		}()
+	state := f.cached.Load()
+	if state.code != nil {
+		return *state.code
 	}
-	return *f.code
+	f.monitor.Lock()
+	defer f.monitor.Unlock()
+	return *f.getCodeStateLocked().code
+}
+
+func (f *SourceFile) getCodeStateLocked() *sourceFileCachedState {
+	state := f.cached.Load()
+	if state.code == nil {
+		f.setCodeAndDoBookkeepingLocked(jutil.StringPtr(f.loader.LoadUncachedCode()))
+		state = f.cached.Load()
+	}
+	return state
 }
 
 // Java: SourceFile.setCodeDeprecated(String)
@@ -315,13 +359,13 @@ func (f *SourceFile) SetCodeDeprecated(code string) {
 // Java: SourceFile.getCodeReader()
 func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 	// Only synchronize if we need to
-	if f.code == nil {
+	if f.cached.Load().code == nil {
 		var uncachedReader jutil.JavaReader
 		func() {
 			f.monitor.Lock()
 			defer f.monitor.Unlock()
 			// Make sure another thread hasn't loaded the code while we waited.
-			if f.code == nil {
+			if f.cached.Load().code == nil {
 				uncachedReader = f.loader.OpenUncachedReader()
 			}
 		}()
@@ -333,18 +377,23 @@ func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 }
 
 func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
-	f.code = nil
-	// Force recalculation of all of these values when they are requested.
-	f.lineOffsets = nil
-	f.lineByteOffsets = nil
+	f.monitor.Lock()
+	defer f.monitor.Unlock()
+	f.setCodeAndDoBookkeepingLocked(sourceCode)
+}
 
+func (f *SourceFile) setCodeAndDoBookkeepingLocked(sourceCode *string) {
+	state := *f.cached.Load()
+	state.code = nil
+	state.lineOffsets = nil
+	state.lineByteOffsets = nil
 	if sourceCode != nil {
 		s := *sourceCode
 		if strings.HasPrefix(s, sourceFile_UTF8_BOM) {
 			s = s[len(sourceFile_UTF8_BOM):]
 		}
 
-		f.code = &s
+		state.code = &s
 		// Update numLines and numBytes
 		// NOTE: In some edit/refresh development workflows, we may end up
 		// re-reading the file and getting different numbers than we got last
@@ -352,7 +401,7 @@ func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 		// assert they have not changed.
 		// Misleading variable name. This really stores the 'number of utf16'
 		// code points which is not the same as number of bytes.
-		f.numBytes = jutil.StringLength(s)
+		state.numBytes = jutil.StringLength(s)
 		numLines := 1 // there is always at least one line
 		for i := 0; i < len(s); i++ {
 			if n := sourceFile_lineTerminatorAt(s, i); n != 0 {
@@ -364,8 +413,9 @@ func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 				numLines++
 			}
 		}
-		f.numLines = numLines
+		state.numLines = numLines
 	}
+	f.cached.Store(&state)
 }
 
 // GetOriginalPath is an alias of GetName().
@@ -391,7 +441,7 @@ func (f *SourceFile) ClearCachedSource() {
 
 // Java: SourceFile.hasSourceInMemory()
 func (f *SourceFile) HasSourceInMemory() bool {
-	return f.code != nil
+	return f.cached.Load().code != nil
 }
 
 // GetName returns a unique name for the source file.
@@ -429,19 +479,23 @@ func (f *SourceFile) MarkAsClosureUnawareCode() {
 
 // Java: SourceFile.getLineOfOffset(int)
 func (f *SourceFile) GetLineOfOffset(offset int) int {
-	f.FindLineOffsets()
-	search := jutil.ArraysBinarySearchInts(f.lineOffsets, offset)
+	return sourceFileLineOfOffset(f.getLineOffsets(), offset)
+}
+
+func sourceFileLineOfOffset(state *sourceFileCachedState, offset int) int {
+	search := jutil.ArraysBinarySearchInts(state.lineOffsets, offset)
 	if search >= 0 {
 		return search + 1 // lines are 1-based.
 	}
 	insertionPoint := -1 * (search + 1)
-	return min(insertionPoint-1, len(f.lineOffsets)-1) + 1
+	return min(insertionPoint-1, len(state.lineOffsets)-1) + 1
 }
 
 // Java: SourceFile.getColumnOfOffset(int)
 func (f *SourceFile) GetColumnOfOffset(offset int) int {
-	line := f.GetLineOfOffset(offset)
-	return offset - f.lineOffsets[line-1]
+	state := f.getLineOffsets()
+	line := sourceFileLineOfOffset(state, offset)
+	return offset - state.lineOffsets[line-1]
 }
 
 // GetLine gets the source line for the indicated line number (1 being the
@@ -451,18 +505,18 @@ func (f *SourceFile) GetColumnOfOffset(offset int) int {
 //
 // Java: SourceFile.getLine(int)
 func (f *SourceFile) GetLine(lineNumber int) *string {
-	var js string
+	var state *sourceFileCachedState
 	failed := false
 	jutil.Try(func() {
-		js = f.GetCode()
+		state = f.getCodeAndLineOffsets()
 	}, func(e jutil.IIOException) {
 		failed = true
 	})
 	if failed {
 		return nil
 	}
-	f.FindLineOffsets()
-	if lineNumber > len(f.lineOffsets) {
+	js := *state.code
+	if lineNumber > len(state.lineOffsets) {
 		return nil
 	}
 
@@ -470,10 +524,10 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 		lineNumber = 1
 	}
 
-	pos := f.lineByteOffsets[lineNumber-1]
+	pos := state.lineByteOffsets[lineNumber-1]
 
-	if lineNumber < len(f.lineOffsets) {
-		nextPos := f.lineByteOffsets[lineNumber]
+	if lineNumber < len(state.lineOffsets) {
+		nextPos := state.lineByteOffsets[lineNumber]
 		// The line terminator before nextPos.
 		endPos := nextPos - sourceFile_lineTerminatorBefore(js, nextPos)
 		if js[endPos] == '\n' && endPos > pos && js[endPos-1] == '\r' {
@@ -502,18 +556,18 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 //
 // Java: SourceFile.getLines(int, int)
 func (f *SourceFile) GetLines(lineNumber int, length int) Region {
-	var js string
+	var state *sourceFileCachedState
 	failed := false
 	jutil.Try(func() {
-		js = f.GetCode()
+		state = f.getCodeAndLineOffsets()
 	}, func(e jutil.IIOException) {
 		failed = true
 	})
 	if failed {
 		return nil
 	}
-	f.FindLineOffsets()
-	if lineNumber > len(f.lineOffsets) {
+	js := *state.code
+	if lineNumber > len(state.lineOffsets) {
 		return nil
 	}
 
@@ -524,9 +578,9 @@ func (f *SourceFile) GetLines(lineNumber int, length int) Region {
 		length = 1
 	}
 
-	jsLength := f.numBytes
-	pos := f.lineOffsets[lineNumber-1]
-	posByte := f.lineByteOffsets[lineNumber-1]
+	jsLength := state.numBytes
+	pos := state.lineOffsets[lineNumber-1]
+	posByte := state.lineByteOffsets[lineNumber-1]
 	if pos == jsLength {
 		return NewSimpleRegion(lineNumber, lineNumber, "") // Happens when asking for the last empty line in a file.
 	}
@@ -535,10 +589,10 @@ func (f *SourceFile) GetLines(lineNumber int, length int) Region {
 	endLine := lineNumber
 	// go through lines until we've reached the end of the file or met the
 	// specified length.
-	for ; endChar < pos+length && endLine <= len(f.lineOffsets); endLine++ {
-		if endLine < len(f.lineOffsets) {
-			endChar = f.lineOffsets[endLine]
-			endCharByte = f.lineByteOffsets[endLine]
+	for ; endChar < pos+length && endLine <= len(state.lineOffsets); endLine++ {
+		if endLine < len(state.lineOffsets) {
+			endChar = state.lineOffsets[endLine]
+			endCharByte = state.lineByteOffsets[endLine]
 		} else {
 			endChar = jsLength
 			endCharByte = len(js)
@@ -830,13 +884,21 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 	// this.numLines because this data is intended for metrics recording,
 	// which should care most about the size of a file when compilation began
 	// and parsing ran.
-	if protoNumLines != -1 {
-		f.numLines = protoNumLines
-	}
-	if protoNumBytes != -1 {
-		f.numBytes = protoNumBytes
-	}
+	f.restoreCachedCounts(protoNumLines, protoNumBytes)
 	f.isClosureUnawareCode = protoSourceFile.GetIsClosureUnawareCode()
+}
+
+func (f *SourceFile) restoreCachedCounts(numLines, numBytes int) {
+	f.monitor.Lock()
+	defer f.monitor.Unlock()
+	state := *f.cached.Load()
+	if numLines != -1 {
+		state.numLines = numLines
+	}
+	if numBytes != -1 {
+		state.numBytes = numBytes
+	}
+	f.cached.Store(&state)
 }
 
 // Java: SourceFile.fromProto(SourceFileProto)
@@ -844,8 +906,7 @@ func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
 	sourceKind := sourceFile_getSourceKindFromProto(protoSourceFile)
 	sourceFile := sourceFile_fromProtoWithKind(protoSourceFile, sourceKind)
 	// Restore the number of lines/bytes, which are offset by 1 in the proto.
-	sourceFile.numLines = int(protoSourceFile.GetNumLinesPlusOne()) - 1
-	sourceFile.numBytes = int(protoSourceFile.GetNumBytesPlusOne()) - 1
+	sourceFile.restoreCachedCounts(int(protoSourceFile.GetNumLinesPlusOne())-1, int(protoSourceFile.GetNumBytesPlusOne())-1)
 	if protoSourceFile.GetIsClosureUnawareCode() {
 		sourceFile.MarkAsClosureUnawareCode()
 	}
@@ -1261,13 +1322,15 @@ func (l *SourceFile_CodeLoader_AtZip) ToProtoLocationBuilder(fileName string) *S
 
 // Java: SourceFile.getProto()
 func (f *SourceFile) GetProto() *SourceFileProto {
-	return f.loader.
+	builder := f.loader.
 		ToProtoLocationBuilder(f.GetName()).
 		SetFilename(f.GetName()).
 		SetSourceKind(sourceFile_sourceKindToProto(f.GetKind())).
-		SetIsClosureUnawareCode(f.isClosureUnawareCode).
-		SetNumLinesPlusOne(int32(f.numLines + 1)).
-		SetNumBytesPlusOne(int32(f.numBytes + 1)).
+		SetIsClosureUnawareCode(f.isClosureUnawareCode)
+	state := f.cached.Load()
+	return builder.
+		SetNumLinesPlusOne(int32(state.numLines + 1)).
+		SetNumBytesPlusOne(int32(state.numBytes + 1)).
 		Build()
 }
 
