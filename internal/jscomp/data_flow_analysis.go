@@ -161,7 +161,15 @@ const DataFlowAnalysis_MAX_STEPS_PER_NODE = 20000
 func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
 	b.self = self
 	b.cfg = cfg
-	b.workQueue = newDataFlowAnalysis_UniqueQueue(cfg.GetOptionalNodeComparator(b.self.IsForward()))
+	// Go-only: language-adapter — each analysis owns the CFG annotations while
+	// it runs. Keep queue membership beside the existing per-node flow state
+	// instead of allocating a second pointer-keyed ordered set. The queue's
+	// comparator and encounter order are unchanged.
+	b.workQueue = newDataFlowAnalysis_UniqueQueueWithMembership(
+		cfg.GetOptionalNodeComparator(b.self.IsForward()),
+		func(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) *bool {
+			return &dataFlowAnalysis_linearFlowStateOf[L](node).queued
+		})
 
 	if b.self.IsBranched() {
 		jutil.CheckState(b.self.IsForward())
@@ -247,16 +255,23 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 		if b.Flow(curNode) {
 			// If there is a change in the current node, we want to grab the
 			// list of nodes that this node affects.
-			var nextNodes []DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+			// Go-only: language-adapter — the CFG's predecessor/successor
+			// lists are exactly its edge lists projected to their endpoints.
+			// Iterate those edges directly to avoid a temporary slice on each
+			// changed node, preserving duplicate edges and encounter order.
 			if b.self.IsForward() {
-				nextNodes = b.cfg.GetDirectedSuccNodes(curNode)
+				for _, edge := range curNode.GetOutEdges() {
+					nextNode := edge.GetDestination()
+					if nextNode != b.cfg.GetImplicitReturn() {
+						b.workQueue.Add(nextNode)
+					}
+				}
 			} else {
-				nextNodes = b.cfg.GetDirectedPredNodes(curNode)
-			}
-
-			for _, nextNode := range nextNodes {
-				if nextNode != b.cfg.GetImplicitReturn() {
-					b.workQueue.Add(nextNode)
+				for _, edge := range curNode.GetInEdges() {
+					nextNode := edge.GetSource()
+					if nextNode != b.cfg.GetImplicitReturn() {
+						b.workQueue.Add(nextNode)
+					}
 				}
 			}
 		}
@@ -405,7 +420,11 @@ func (b *DataFlowAnalysisBase[N, L]) GetInputFromEdge(edge DiGraph_DiGraphEdge[N
 
 // DataFlowAnalysis_LinearFlowState holds the in and out states of a node.
 type DataFlowAnalysis_LinearFlowState[L any] struct {
-	stepCount int
+	// Go-only: language-adapter — the divergence check stops at 20002, so
+	// int32 holds every observable count. queued uses the remaining padding
+	// of this word rather than increasing the per-node annotation size.
+	stepCount int32
+	queued    bool
 	in        L
 	out       L
 }
@@ -419,7 +438,7 @@ func newDataFlowAnalysis_LinearFlowState[L any](in L, out L) *DataFlowAnalysis_L
 
 // Java: DataFlowAnalysis.LinearFlowState.getStepCount()
 func (s *DataFlowAnalysis_LinearFlowState[L]) GetStepCount() int {
-	return s.stepCount
+	return int(s.stepCount)
 }
 
 // Java: DataFlowAnalysis.LinearFlowState.getIn()
@@ -549,6 +568,9 @@ func DataFlowAnalysis_IsReferencedInNonStaticClassField(refScope *Scope, targetS
 // most once.
 type dataFlowAnalysis_UniqueQueue[T comparable] struct {
 	seenSet *jutil.LinkedHashSet[T]
+	// membership returns an exclusively owned queue-membership flag. The
+	// standalone queue uses seenSet when no annotation storage is supplied.
+	membership func(T) *bool
 	// Go-only: language-adapter — the Queue<T> is an ArrayDeque (deque,
 	// polled at the front) without a priority, else a PriorityQueue
 	// (priorityQueue).
@@ -558,7 +580,16 @@ type dataFlowAnalysis_UniqueQueue[T comparable] struct {
 
 // Java: DataFlowAnalysis.UniqueQueue(Comparator<T>)
 func newDataFlowAnalysis_UniqueQueue[T comparable](priority func(a, b T) int) *dataFlowAnalysis_UniqueQueue[T] {
-	q := &dataFlowAnalysis_UniqueQueue[T]{seenSet: jutil.NewLinkedHashSet[T]()}
+	return newDataFlowAnalysis_UniqueQueueWithMembership(priority, nil)
+}
+
+// Go-only: language-adapter — reuse analysis-owned per-node membership
+// storage without changing the FIFO/priority queue's insertion rules.
+func newDataFlowAnalysis_UniqueQueueWithMembership[T comparable](priority func(a, b T) int, membership func(T) *bool) *dataFlowAnalysis_UniqueQueue[T] {
+	q := &dataFlowAnalysis_UniqueQueue[T]{membership: membership}
+	if membership == nil {
+		q.seenSet = jutil.NewLinkedHashSet[T]()
+	}
 	if priority != nil {
 		q.priorityQueue = jutil.NewPriorityQueue(priority)
 	}
@@ -576,22 +607,40 @@ func (q *dataFlowAnalysis_UniqueQueue[T]) IsEmpty() bool {
 // Java: DataFlowAnalysis.UniqueQueue.removeFirst()
 func (q *dataFlowAnalysis_UniqueQueue[T]) RemoveFirst() T {
 	var t T
+	removed := false
 	if q.priorityQueue != nil {
+		removed = !q.priorityQueue.IsEmpty()
 		t = q.priorityQueue.Poll()
 	} else if len(q.deque) > 0 {
+		removed = true
 		// ArrayDeque.poll(): null when empty.
 		t = q.deque[0]
 		var zero T
 		q.deque[0] = zero
 		q.deque = q.deque[1:]
 	}
-	q.seenSet.Remove(t)
+	if q.membership != nil {
+		if removed {
+			*q.membership(t) = false
+		}
+	} else {
+		q.seenSet.Remove(t)
+	}
 	return t
 }
 
 // Java: DataFlowAnalysis.UniqueQueue.add(T)
 func (q *dataFlowAnalysis_UniqueQueue[T]) Add(t T) {
-	if q.seenSet.Add(t) {
+	var added bool
+	if q.membership != nil {
+		jutil.CheckNotNull(t)
+		member := q.membership(t)
+		added = !*member
+		*member = true
+	} else {
+		added = q.seenSet.Add(t)
+	}
+	if added {
 		if q.priorityQueue != nil {
 			q.priorityQueue.Add(t)
 		} else {
@@ -604,7 +653,19 @@ func (q *dataFlowAnalysis_UniqueQueue[T]) Add(t T) {
 
 // Java: DataFlowAnalysis.UniqueQueue.clear()
 func (q *dataFlowAnalysis_UniqueQueue[T]) Clear() {
-	q.seenSet.Clear()
+	if q.membership != nil {
+		if q.priorityQueue != nil {
+			for node := range q.priorityQueue.All() {
+				*q.membership(node) = false
+			}
+		} else {
+			for _, node := range q.deque {
+				*q.membership(node) = false
+			}
+		}
+	} else {
+		q.seenSet.Clear()
+	}
 	if q.priorityQueue != nil {
 		q.priorityQueue.Clear()
 	} else {
