@@ -228,6 +228,9 @@ func TestParallelFSIVColorEqualityAvoidsSharedLazyHash(t *testing.T) {
 	withColors := func(workers int) *Compiler {
 		c := newParallelFSIVTestCompiler(t, workers, programs...)
 		c.GetOptions().SetUseTypesForLocalOptimization(true)
+		c.GetOptions().SetAssumePropertiesAreStaticallyAnalyzable(true)
+		c.SetHasRegExpGlobalReferences(false)
+		NewGatherGetterAndSetterProperties(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 		if !c.GetAstAnalyzer().useTypesForLocalOptimization {
 			t.Fatal("color fixture did not enable type inspection")
 		}
