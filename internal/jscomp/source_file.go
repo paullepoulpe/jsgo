@@ -270,7 +270,9 @@ func (f *SourceFile) getLineOffsets() *sourceFileCachedState {
 		failed = true
 	})
 	if failed {
-		fallback := *state
+		// A custom loader may publish code or metrics reentrantly before
+		// throwing. Preserve that state while installing the offset fallback.
+		fallback := *f.cached.Load()
 		fallback.lineOffsets = []int{0}
 		fallback.lineByteOffsets = []int{0}
 		f.cached.Store(&fallback)
