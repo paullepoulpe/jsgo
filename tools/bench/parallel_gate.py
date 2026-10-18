@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import zipfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -34,6 +35,9 @@ def fixtures(root):
                     f'function f{i}(value) {{ return value + {i}; }}\n'
                     f'var name{i}="é😀\\ud800";\n')
         sources += ['--js', name]
+    with zipfile.ZipFile(root / 'sources.zip', 'w', compression=zipfile.ZIP_STORED) as archive:
+        for i in range(24):
+            archive.writestr(f'part{i:02}.js', f'function zipped{i}(value) {{ return value + {i}; }}\n')
     for i, code in enumerate(['function syntaxA( {\n', 'let b = ;\n', 'const c = ;\n']):
         write(f'error-{i}.js', code)
     for i in range(3):
@@ -68,6 +72,7 @@ def fixtures(root):
     prune = ['--dependency_mode=PRUNE', '--entry_point=esm/main.js']
     return {
         'whitespace': ['--compilation_level=WHITESPACE_ONLY'] + sources,
+        'zipped-whitespace': ['--compilation_level=WHITESPACE_ONLY', '--jszip', 'sources.zip'],
         'simple': ['--compilation_level=SIMPLE'] + sources,
         'advanced': ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes'] + sources,
         'parse-errors-ordered': ['--compilation_level=SIMPLE'] + js('error-2.js', 'error-0.js', 'error-1.js'),
