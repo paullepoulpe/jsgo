@@ -67,6 +67,10 @@ type MaybeReachingVariableUse struct {
 	// hence the Object set.
 	escaped     *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+
+	// Go-only: opt-in immutable transfer programs owned by one analysis generation.
+	nativeFacts *functionTransferFacts
+	recording   *nativeUseProgram
 }
 
 // Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
@@ -250,6 +254,9 @@ func (u *MaybeReachingVariableUse) CreateFlowJoiner() DataFlowAnalysis_FlowJoine
 //
 // Java: MaybeReachingVariableUse.flowThrough(Node, ReachingUses)
 func (u *MaybeReachingVariableUse) FlowThrough(n *rhino.Node, input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
+	if u.nativeFacts != nil && u.nativeFacts.active {
+		return u.nativeFacts.flowUses(u, n, input)
+	}
 	output := NewMaybeReachingVariableUse_ReachingUsesCopy(input)
 
 	// If there's an ON_EX edge, this cfgNode may or may not get executed.
@@ -398,6 +405,10 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 //
 // Java: MaybeReachingVariableUse.addToUseIfLocal(String, Node, ReachingUses)
 func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node *rhino.Node, use *MaybeReachingVariableUse_ReachingUses) {
+	if u.recording != nil {
+		u.nativeFacts.recordUse(u, name, node, false)
+		return
+	}
 	var_ := u.allVarsInFn.Get(name)
 	if var_ == nil {
 		return
@@ -413,6 +424,10 @@ func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node *rhino.Node
 //
 // Java: MaybeReachingVariableUse.removeFromUseIfLocal(String, ReachingUses)
 func (u *MaybeReachingVariableUse) RemoveFromUseIfLocal(name string, use *MaybeReachingVariableUse_ReachingUses) {
+	if u.recording != nil {
+		u.nativeFacts.recordUse(u, name, nil, true)
+		return
+	}
 	var_ := u.allVarsInFn.Get(name)
 	if var_ == nil {
 		return

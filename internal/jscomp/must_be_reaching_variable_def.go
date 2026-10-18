@@ -46,6 +46,10 @@ type MustBeReachingVariableDef struct {
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	// Go-only: performance — local variable IDs shared by lattice states.
 	layout *mustDefLayout
+
+	// Go-only: opt-in immutable transfer programs owned by one analysis generation.
+	nativeFacts *functionTransferFacts
+	recording   *nativeMustProgram
 }
 
 // Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
@@ -247,6 +251,9 @@ func (d *MustBeReachingVariableDef) CreateFlowJoiner() DataFlowAnalysis_FlowJoin
 
 // Java: MustBeReachingVariableDef.flowThrough(Node, MustDef)
 func (d *MustBeReachingVariableDef) FlowThrough(n *rhino.Node, input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+	if d.nativeFacts != nil && d.nativeFacts.active {
+		return d.nativeFacts.flowMust(d, n, input)
+	}
 	// TODO(user): We are doing a straight copy from input to output. There
 	// might be some opportunities to cut down overhead.
 	output := NewMustBeReachingVariableDef_MustDefCopy(input)
@@ -406,6 +413,10 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n *rhino.Node, cfgNode *rhino
 // Java: MustBeReachingVariableDef.addToDefIfLocal(String, Node, Node, MustDef)
 func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 	name string, node *rhino.Node, rValue *rhino.Node, def *MustBeReachingVariableDef_MustDef) {
+	if d.recording != nil {
+		d.nativeFacts.recordDefinition(d, name, node, rValue)
+		return
+	}
 	var_ := d.allVarsInFn.Get(name)
 
 	// var might be null if the variable is defined in the externs
@@ -437,6 +448,10 @@ func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 
 // Java: MustBeReachingVariableDef.escapeParameters(MustDef)
 func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVariableDef_MustDef) {
+	if d.recording != nil {
+		*d.recording = append(*d.recording, nativeMustAction{escapeParameters: true})
+		return
+	}
 	for v := range d.allVarsInFn.Values() {
 		if MustBeReachingVariableDef_IsParameter(v) {
 			// Assume we no longer know where the parameter comes from

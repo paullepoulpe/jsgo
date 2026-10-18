@@ -50,6 +50,9 @@ type FlowSensitiveInlineVariables struct {
 	// need two separate dataflow result.
 	compiler AbstractCompiler
 
+	// Go-only: snapshot the experimental mode once per pass.
+	nativeFactsEnabled bool
+
 	sideEffectPredicate *FlowSensitiveInlineVariables_SideEffectPredicate
 
 	// These two pieces of data is persistent in the whole execution of enter
@@ -184,8 +187,16 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	allVarsDeclaredInFunction, escaped := flowSensitiveInlineVariables_collectFunctionFacts(
 		f.compiler, scopeCreator, scope.GetParent())
 	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
+	// Go-only: experimental immutable facts are scoped to this function's
+	// read-only analyses and discarded before candidate rewriting begins.
+	var nativeFacts *functionTransferFacts
+	if f.nativeFactsEnabled {
+		nativeFacts = newFunctionTransferFacts(allVarsInFn, escaped)
+		defer nativeFacts.invalidate()
+	}
 
 	f.reachingDef = NewMustBeReachingVariableDef(f.cfg, f.compiler, escaped, allVarsInFn)
+	f.reachingDef.nativeFacts = nativeFacts
 	f.reachingDef.Analyze()
 	f.candidates = jutil.NewLinkedHashSet[*FlowSensitiveInlineVariables_Candidate]()
 
@@ -195,7 +206,11 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 
 	// Compute the backward reaching use. The CFG and per-function variable info can be reused.
 	f.reachingUses = NewMaybeReachingVariableUse(f.cfg, escaped, allVarsInFn)
+	f.reachingUses.nativeFacts = nativeFacts
 	f.reachingUses.Analyze()
+	if nativeFacts != nil {
+		nativeFacts.invalidate()
+	}
 	for !f.candidates.IsEmpty() {
 		var c *FlowSensitiveInlineVariables_Candidate
 		for first := range f.candidates.All() {
@@ -281,6 +296,7 @@ func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 
 // Java: FlowSensitiveInlineVariables.process(Node, Node)
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
+	f.nativeFactsEnabled = nativeFunctionFactsEnabled()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
 		SetCallback(f).
