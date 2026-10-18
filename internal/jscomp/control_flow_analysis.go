@@ -50,6 +50,8 @@ type ControlFlowAnalysis struct {
 	compiler AbstractCompiler
 
 	cfg ControlFlowGraph[*rhino.Node]
+	// Go-only: experimental direct construction, without graph node/edge objects.
+	nativeCFG *nativeCFGBuilder
 
 	// Go-only: language-adapter — the Integer values are *int, so that an
 	// absent key (Java null) stays distinguishable from position 0.
@@ -145,10 +147,15 @@ func newControlFlowAnalysis(compiler AbstractCompiler, shouldTraverseFunctions b
 // astPositionOf is the key extractor of priorityComparator:
 // checkNotNull(astPosition.get(digraphNode.getValue()), digraphNode.getValue()).
 func (c *ControlFlowAnalysis) astPositionOf(digraphNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int {
-	p := c.astPosition.Get(digraphNode.GetValue())
+	return c.astPositionOfValue(digraphNode.GetValue())
+}
+
+// Go-only: share priority lookup and its failure message with native IDs.
+func (c *ControlFlowAnalysis) astPositionOfValue(value *rhino.Node) int {
+	p := c.astPosition.Get(value)
 	if p == nil {
 		// checkNotNull(T, Object errorMessage)
-		panic(jutil.NewNullPointerExceptionMsg(jutil.ToJavaString(digraphNode.GetValue())))
+		panic(jutil.NewNullPointerExceptionMsg(jutil.ToJavaString(value)))
 	}
 	return *p
 }
@@ -213,14 +220,19 @@ func (c *ControlFlowAnalysis) GetCfg() ControlFlowGraph[*rhino.Node] {
 	return c.cfg
 }
 
-// Java: ControlFlowAnalysis.computeCfg(Node)
-func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
+// Go-only: shared AST traversal for generic and direct-native construction.
+func (c *ControlFlowAnalysis) initializeCfgTraversal(root *rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
 	c.astPosition = base.NewLinkedIdentityHashMap[*rhino.Node, *int]()
 	c.astPositionCounter = 0
-	c.cfg = newControlFlowAnalysis_AstControlFlowGraph(ControlFlowAnalysis_ComputeFallThrough(root), c.edgeAnnotations)
+	entry := ControlFlowAnalysis_ComputeFallThrough(root)
+	if c.nativeCFG != nil {
+		c.nativeCFG.initialize(entry)
+	} else {
+		c.cfg = newControlFlowAnalysis_AstControlFlowGraph(entry, c.edgeAnnotations)
+	}
 
 	// Traverse the graph.
 	NodeTraversal_Traverse(c.compiler, root, c)
@@ -228,7 +240,11 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	// Insert an implicit return last.
 	c.astPositionCounter++
 	c.astPosition.Put(nil, newControlFlowAnalysis_Position(c.astPositionCounter))
+}
 
+// Java: ControlFlowAnalysis.computeCfg(Node)
+func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
+	c.initializeCfgTraversal(root)
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
 	c.priorityCounter = 0
@@ -339,7 +355,7 @@ func (c *ControlFlowAnalysis) exceptionHandlerPop() *rhino.Node {
 func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n *rhino.Node, parent *rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		if c.shouldTraverseFunctions || n == c.cfg.GetEntry().GetValue() {
+		if c.shouldTraverseFunctions || n == c.cfgEntryValue() {
 			c.exceptionHandlerPush(n)
 			return true
 		}
@@ -947,6 +963,10 @@ func ControlFlowAnalysis_ComputeFallThrough(n *rhino.Node) *rhino.Node {
 //
 // Java: ControlFlowAnalysis.createEdge(Node, ControlFlowGraph.Branch, Node)
 func (c *ControlFlowAnalysis) createEdge(fromNode *rhino.Node, branch ControlFlowGraph_Branch, toNode *rhino.Node) {
+	if c.nativeCFG != nil {
+		c.nativeCFG.connect(fromNode, branch, toNode)
+		return
+	}
 	c.cfg.CreateNode(fromNode)
 	c.cfg.CreateNode(toNode)
 	c.cfg.ConnectIfNotFound(fromNode, branch, toNode)

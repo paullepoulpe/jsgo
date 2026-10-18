@@ -150,7 +150,7 @@ type indexedFlowResult[N comparable, L LatticeElement] struct {
 
 func newIndexedFlowResult[N comparable, L LatticeElement](topology *indexedFlowTopology[N], analysis DataFlowAnalysis[N, L]) *indexedFlowResult[N, L] {
 	r := &indexedFlowResult[N, L]{topology: topology, analysis: analysis,
-		states:  make([]DataFlowAnalysis_LinearFlowState[L], len(topology.nodes)),
+		states:  make([]DataFlowAnalysis_LinearFlowState[L], len(topology.values)),
 		forward: analysis.IsForward(), branched: analysis.IsBranched()}
 	for id := range r.states {
 		in, out := analysis.CreateInitialEstimateLattice(), analysis.CreateInitialEstimateLattice()
@@ -281,7 +281,11 @@ func (r *indexedFlowResult[N, L]) compute() {
 		previous := state.stepCount
 		state.stepCount++
 		if previous > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(r.topology.nodes[id])))
+			var display any = r.topology.values[id]
+			if len(r.topology.nodes) != 0 {
+				display = r.topology.nodes[id]
+			}
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(display)))
 		}
 		r.joinInputs(id)
 		if r.flow(id) {

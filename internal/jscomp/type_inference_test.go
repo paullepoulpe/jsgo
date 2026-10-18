@@ -250,31 +250,37 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root *rhino.Node, cfg
 		scopeCreator.ResolveWeakImportsPreResolution()
 	}()
 	scopeCreator.FinishAndFreeze()
-	// Create the control graph.
-	cfg :=
-		ControlFlowAnalysis_Builder_().
-			SetCompiler(c.compiler).
-			SetCfgRoot(cfgRoot).
-			SetTraverseFunctions(true).
-			SetIncludeEdgeAnnotations(true).
-			ComputeCfg()
-	// Create a simple reverse abstract interpreter.
+	// Create the control graph, using a direct-native construction only when
+	// explicitly opted in. Both paths preserve the original fixture oracle.
+	builder := ControlFlowAnalysis_Builder_().
+		SetCompiler(c.compiler).SetCfgRoot(cfgRoot).
+		SetTraverseFunctions(true).SetIncludeEdgeAnnotations(true)
 	rai := c.compiler.GetReverseAbstractInterpreter()
-	// Do the type inference by data-flow analysis.
-	dfa :=
-		NewTypeInference(c.compiler, cfg, rai, assumedScope, scopeCreator, TypeInferenceTest_ASSERTION_FUNCTION_MAP)
-	typeInferenceTestAnalyze(dfa)
-	// Get the scope of the implicit return.
-	rtnState := cfg.GetImplicitReturn().GetAnnotation().(*DataFlowAnalysis_LinearFlowState[FlowScope])
+	var returnFlow FlowScope
+	if nativeCFGEnabled() {
+		topology := builder.ComputeIndexedCfg()
+		result := runNativeTypeInference(c.compiler, topology, rai, assumedScope,
+			scopeCreator, TypeInferenceTest_ASSERTION_FUNCTION_MAP)
+		AssertWithMessage("direct-native fixture retained generic CFG nodes").That(len(topology.nodes)).IsEqualTo(0)
+		AssertWithMessage("direct-native fixture retained generic CFG edges").That(len(topology.originalEdges)).IsEqualTo(0)
+		AssertWithMessage("direct-native inference constructed a placeholder graph").
+			That(result.analysis.GetDataFlowAnalysisBase().cfg).IsNull()
+		returnFlow = result.states[topology.implicit].GetIn()
+	} else {
+		cfg := builder.ComputeCfg()
+		dfa := NewTypeInference(c.compiler, cfg, rai, assumedScope, scopeCreator, TypeInferenceTest_ASSERTION_FUNCTION_MAP)
+		typeInferenceTestAnalyze(dfa)
+		returnFlow = cfg.GetImplicitReturn().GetAnnotation().(*DataFlowAnalysis_LinearFlowState[FlowScope]).GetIn()
+	}
 	if cfgRoot.IsFunction() {
 		// Reset the flow scope's syntactic scope to the function block, rather than the function
 		// node
 		// itself.  This allows pulling out local vars from the function by name to verify their
 		// types.
 		c.returnScope =
-			rtnState.GetIn().WithSyntacticScope(scopeCreator.CreateScopeOfNode(cfgRoot.GetLastChild()))
+			returnFlow.WithSyntacticScope(scopeCreator.CreateScopeOfNode(cfgRoot.GetLastChild()))
 	} else {
-		c.returnScope = rtnState.GetIn()
+		c.returnScope = returnFlow
 	}
 
 	c.closer = c.registry.GetResolver().OpenForDefinition()

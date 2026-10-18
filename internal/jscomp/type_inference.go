@@ -72,14 +72,25 @@ func NewTypeInference(
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) *TypeInference {
 	ti := &TypeInference{}
 	ti.InitDataFlowAnalysisBase(ti, cfg)
+	ti.initTypeInference(compiler, cfg.GetEntry().GetValue(), cfg.GetEntry(), reverseInterpreter,
+		syntacticScope, scopeCreator, assertionFunctionLookup)
+	return ti
+}
+
+// Go-only: share every original initializer/precondition with the direct-native
+// CFG runner. Only the representation-specific entry lookup lives at callers.
+func (ti *TypeInference) initTypeInference(
+	compiler AbstractCompiler, entryValue *rhino.Node, entryDisplay any,
+	reverseInterpreter ReverseAbstractInterpreter, syntacticScope *TypedScope,
+	scopeCreator *TypedScopeCreator, assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
 	// Field initializers.
 	ti.inferredUnboundVars = jutil.NewLinkedHashSet[*TypedScope]()
 	// Constructor body.
 	jutil.CheckArgumentMsg2(
-		syntacticScope.GetRootNode() == cfg.GetEntry().GetValue(),
+		syntacticScope.GetRootNode() == entryValue,
 		"Expected syntactic scope to be rooted at CFG root node of %s, but instead got syntactic"+
 			" scope root node of %s",
-		cfg.GetEntry(),
+		entryDisplay,
 		syntacticScope.GetRootNode())
 	ti.compiler = jutil.CheckNotNull(compiler)
 	ti.registry = jutil.CheckNotNull(compiler.GetTypeRegistry())
@@ -97,7 +108,6 @@ func NewTypeInference(
 	ti.bottomScope =
 		LinkedFlowScope_CreateEntryLattice(
 			compiler, TypedScope_CreateLatticeBottom(syntacticScope.GetRootNode()))
-	return ti
 }
 
 // Java: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(FlowScope)

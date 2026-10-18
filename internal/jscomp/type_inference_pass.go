@@ -164,6 +164,15 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 
 // Java: TypeInferencePass.inferScope(Node, TypedScope)
 func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
+	// Go-only: direct native CFG + array-owned analysis. Debug graph consumers
+	// keep the existing public graph path, including its histogram behavior.
+	if nativeCFGEnabled() && p.stepCountHistogram == nil {
+		topology := ControlFlowAnalysis_Builder_().SetCompiler(p.compiler).
+			SetCfgRoot(n).SetIncludeEdgeAnnotations(true).ComputeIndexedCfg()
+		runNativeTypeInference(p.compiler, topology, p.reverseInterpreter, scope,
+			p.scopeCreator, p.assertionFunctionLookup)
+		return
+	}
 	cfg := p.ComputeCfg(n)
 	typeInference :=
 		NewTypeInference(
