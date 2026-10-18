@@ -34,7 +34,8 @@ can be resumed from the repository alone.
 The profile behind `cmd/jsgo/default.pgo` (typed-app and friends, v20261015
 port) attributes:
 
-- **~37% of CPU samples to memory management:** `runtime.gcDrain` 27%
+- **~37% of CPU samples to memory management** (CPU, not wall time:
+  the GC lab below measured the wall-time cost at 3–7%): `runtime.gcDrain` 27%
   cumulative (`scanobject` 25%), `mallocgc` 11%. Go's collector is
   non-generational: every cycle re-traces the whole live heap (the AST,
   the type graph, scopes), while the translated passes allocate
@@ -93,15 +94,50 @@ mathjs, svelte, axios, date-fns, prettier), plus 7
 `IllegalStateException: AST should not contain Dynamic module import`.
 v20260415 had none. jsgo reproduces Java's crash (PLAN.md §7).
 
-## GC lab (2026-10-18, in progress)
+## GC lab (2026-10-18): measured, and it corrects the estimates above
 
-An experiment measuring the GC tax (`GOGC` 100/200/400/off, and off with
-Java's memory budget) on typed-app, bundle, downlevel-simple, checks-only
-and 100 single files, plus the live heap and allocation churn by
-component and a traversal-locality micro-benchmark. Results:
-[gclab-2026-10-18.md](gclab-2026-10-18.md) (added when available; if it
-is missing, the experiment was cut short and should be re-run as
-described here).
+Full write-up: [gclab-2026-10-18.md](gclab-2026-10-18.md); scripts and
+the opt-in hook in [tools/gclab/](../tools/gclab/). All runs stayed
+byte-identical.
+
+- **The GC's wall-time cost is small: 3–7%** (typed-app 7%, downlevel-simple
+  5%, bundle and checks-only 3%, single files 2%), i.e. 7–22% of the gap to
+  warm Java. The GC takes 22–29% of CPU, but it runs mostly on otherwise
+  idle cores: mark assists ~0.01 s, pauses under 10 ms. The profile's 27%
+  is CPU, not wall time; the estimates in options 1 and 3 above were too
+  high.
+- **GOGC=200** cuts GC CPU to 13–17%, **GOGC=400** to 7–10%, at 1.3–2.6×
+  the RSS (still below Java's). The wall gain is bounded by the 3–7% tax.
+  `GOGC=off` without a limit is slower here (page faults: bundle +86%).
+- **Allocation itself costs 12–15% of CPU** on the main thread, and no GC
+  setting removes it: allocation churn matters more than GC scanning.
+- **Heap:** 80–96% of the live heap holds pointers. AST nodes are 37–66%
+  of the live heap on typed-app and 76–89% on bundle; types are 21% at
+  typed-app's peak. Churn: jutil collection entries 31–40%, pass-local
+  scopes/references/graph nodes 17–19%, Var/Scope 9–11%;
+  `flowSensitiveInlineVariables` alone is 21% of bundle's allocation.
+- **Locality:** walking the real AST mid-optimization costs 26–33 ns per
+  node against 9–15 ns for a contiguous pre-order copy (~2.5×).
+- **Ranked candidates (estimates):** (1) AST in pointer-free arenas:
+  −50 to −80% of GC mark work, wall −2 to −5%, up to −5% more with
+  pre-order layout; (2) jutil hash maps/sets without per-entry objects:
+  wall −3 to −6%, jutil only; (3) data-flow lattices as dense arrays;
+  (4) arenas for scopes, vars and references; (5) types.
+
+**Revised view.** No single substrate change is worth 2–3×; each is worth
+single-digit percent. The gap to warm Java is spread over allocation
+cost, memory layout and the passes' own algorithms. Reaching and passing
+warm Java will take the combination (allocation-free collections,
+arena-allocated AST in traversal order, cheaper per-pass data
+structures, and per-pass work on the slowest passes), measured step by
+step; the "2–3×" estimate in option 3 is not supported by the data.
+Raising GOGC to 200–400 is a free 2–5% in the meantime, if the owner
+wants it.
+
+**Next measurements:** a prototype of the AST arena (noscan slab for
+`rhino.Node`, via an overlay) over 10 paired runs; hand-mapping the
+10–15% of allocations left as "other"; heap profiles for
+downlevel-simple and checks-only.
 
 ## Smaller open items
 

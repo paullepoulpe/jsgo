@@ -1,0 +1,129 @@
+package rhino
+
+// Go-only: gclab locality check (compiled in only through the gclab overlay).
+
+import (
+	"math/rand"
+	"sort"
+	"unsafe"
+)
+
+// GclabWalk visits the tree under n in pre-order through GetFirstChild and
+// GetNext, the way NodeTraversal does, and returns the node count and a
+// checksum of the tokens.
+func GclabWalk(n *Node) (int, int) {
+	count, sum := 1, int(n.GetToken())
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		k, s := GclabWalk(c)
+		count += k
+		sum += s
+	}
+	return count, sum
+}
+
+func gclabPreorder(root *Node) []*Node {
+	var order []*Node
+	var collect func(*Node)
+	collect = func(n *Node) {
+		order = append(order, n)
+		for c := n.first; c != nil; c = c.next {
+			collect(c)
+		}
+	}
+	collect(root)
+	return order
+}
+
+// GclabCopy returns a copy of the tree under root, its nodes laid out by
+// mode: "contiguous" (pre-order in one []Node), "shuffled" (one []Node, in
+// random order) or "fresh" (each node newly allocated, in pre-order). The
+// copy shares everything but the tree links with the original.
+func GclabCopy(root *Node, mode string) (*Node, any) {
+	order := gclabPreorder(root)
+	n := len(order)
+	slot := make(map[*Node]*Node, n)
+	var keep any
+	switch mode {
+	case "fresh":
+		ptrs := make([]*Node, n)
+		for i, x := range order {
+			c := new(Node)
+			*c = *x
+			ptrs[i] = c
+			slot[x] = c
+		}
+		keep = ptrs
+	default:
+		arr := make([]Node, n)
+		pos := make([]int, n)
+		for i := range pos {
+			pos[i] = i
+		}
+		if mode == "shuffled" {
+			rand.New(rand.NewSource(1)).Shuffle(n, func(i, j int) { pos[i], pos[j] = pos[j], pos[i] })
+		}
+		for i, x := range order {
+			arr[pos[i]] = *x
+			slot[x] = &arr[pos[i]]
+		}
+		keep = arr
+	}
+	m := func(x *Node) *Node {
+		if x == nil {
+			return nil
+		}
+		return slot[x]
+	}
+	for _, x := range order {
+		c := slot[x]
+		c.first, c.next, c.previous, c.parent = m(x.first), m(x.next), m(x.previous), m(x.parent)
+	}
+	return slot[root], keep
+}
+
+// GclabAddressStats describes the memory layout of the tree under root in
+// visiting order: the share of steps from one node to the next visited one
+// that land on the adjacent 96-byte slot (either direction), within 4 KiB,
+// within 2 MiB, or farther; and the number of distinct 4 KiB pages and 64 B
+// lines the nodes occupy.
+func GclabAddressStats(root *Node) map[string]float64 {
+	order := gclabPreorder(root)
+	size := int64(unsafe.Sizeof(Node{}))
+	var adj, page, huge, far int
+	pages := map[uintptr]struct{}{}
+	for i, x := range order {
+		a := uintptr(unsafe.Pointer(x))
+		pages[a>>12] = struct{}{}
+		if i == 0 {
+			continue
+		}
+		d := int64(a) - int64(uintptr(unsafe.Pointer(order[i-1])))
+		if d < 0 {
+			d = -d
+		}
+		switch {
+		case d == size:
+			adj++
+		case d < 4096:
+			page++
+		case d < 2<<20:
+			huge++
+		default:
+			far++
+		}
+	}
+	steps := float64(len(order) - 1)
+	addrs := make([]uintptr, len(order))
+	for i, x := range order {
+		addrs[i] = uintptr(unsafe.Pointer(x))
+	}
+	sort.Slice(addrs, func(i, j int) bool { return addrs[i] < addrs[j] })
+	span := float64(addrs[len(addrs)-1]-addrs[0]) / float64(1<<20)
+	return map[string]float64{
+		"nodes": float64(len(order)), "node_bytes": float64(size),
+		"adjacent": float64(adj) / steps, "within_4k": float64(page) / steps,
+		"within_2m": float64(huge) / steps, "farther": float64(far) / steps,
+		"pages_4k": float64(len(pages)), "min_pages_4k": float64(int64(len(order))*size) / 4096,
+		"address_span_mb": span,
+	}
+}
