@@ -1,7 +1,6 @@
 package parsing
 
 import (
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,15 +12,6 @@ import (
 // Go-only: performance experiment — a bounded immutable parse-template cache
 // for a persistent worker. It is disabled for the normal command-line binary.
 var builtinExternCacheEnabled atomic.Bool
-
-// Go-only: opt-in storage/clone experiment; parse-cache eligibility is unchanged.
-var builtinExternFrozenCloneEnabled = os.Getenv("JSGO_EXPERIMENT_FROZEN_EXTERN_CLONE") == "1"
-
-type builtinExternCacheTemplate struct {
-	result *ParserRunner_ParseResult
-	frozen *rhino.FrozenParseTree
-}
-
 var builtinExternCache struct {
 	sync.Mutex
 	groups []builtinExternCacheGroup
@@ -29,7 +19,7 @@ var builtinExternCache struct {
 
 type builtinExternCacheGroup struct {
 	config *Config
-	files  map[builtinExternCacheKey]*builtinExternCacheTemplate
+	files  map[builtinExternCacheKey]*ParserRunner_ParseResult
 }
 
 type builtinExternCacheKey struct{ name, source string }
@@ -57,7 +47,7 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 		if group.config.Equals(config) {
 			if template := group.files[key]; template != nil {
 				builtinExternCache.Unlock()
-				return cloneBuiltinExternTemplate(template, file)
+				return cloneBuiltinExternResult(template, file, false)
 			}
 			break
 		}
@@ -71,10 +61,7 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 		len(result.TopLevelStatementRanges) != 0 || result.SourceMapURL != nil {
 		return result
 	}
-	template := &builtinExternCacheTemplate{result: cloneBuiltinExternResult(result, file, true)}
-	if builtinExternFrozenCloneEnabled {
-		template.frozen = rhino.Node_FreezeParseTree(template.result.Ast)
-	}
+	template := cloneBuiltinExternResult(result, file, true)
 	builtinExternCache.Lock()
 	defer builtinExternCache.Unlock()
 	for _, group := range builtinExternCache.groups {
@@ -89,7 +76,7 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 		builtinExternCache.groups = builtinExternCache.groups[1:]
 	}
 	builtinExternCache.groups = append(builtinExternCache.groups, builtinExternCacheGroup{
-		config: config, files: map[builtinExternCacheKey]*builtinExternCacheTemplate{key: template},
+		config: config, files: map[builtinExternCacheKey]*ParserRunner_ParseResult{key: template},
 	})
 	return result
 }
@@ -150,13 +137,4 @@ func (r *builtinExternCacheReporter) Warning(message, source string, line, offse
 func (r *builtinExternCacheReporter) Error(message, source string, line, offset int) {
 	r.reported = true
 	r.target.Error(message, source, line, offset)
-}
-
-func cloneBuiltinExternTemplate(template *builtinExternCacheTemplate, file rhino.StaticSourceFile) *ParserRunner_ParseResult {
-	if template.frozen != nil {
-		result := *template.result
-		result.Ast = template.frozen.CloneWithSourceFile(file)
-		return &result
-	}
-	return cloneBuiltinExternResult(template.result, file, false)
 }
