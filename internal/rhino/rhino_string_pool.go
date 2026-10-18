@@ -68,7 +68,7 @@ type RhinoStringPool struct{}
 // strings interned before.
 var (
 	rhinoStringPool_mu      sync.Mutex
-	rhinoStringPool_strings = make(map[string]string)
+	rhinoStringPool_strings = make(map[string]*string)
 )
 
 const rhinoStringPool_MAX_SIZE = 1 << 20
@@ -107,7 +107,10 @@ func RhinoStringPool_UncheckedEqualsNullable(a *string, b *string) bool {
 }
 
 // Java: RhinoStringPool.addOrGet(String)
-func RhinoStringPool_AddOrGet(s string) string {
+func RhinoStringPool_AddOrGet(s string) string { return *rhinoStringPoolCell(s) }
+
+// Go-only: performance — immutable header shared by StringNodes.
+func rhinoStringPoolCell(s string) *string {
 	rhinoStringPool_mu.Lock()
 	interned, ok := rhinoStringPool_strings[s]
 	if !ok {
@@ -116,8 +119,9 @@ func RhinoStringPool_AddOrGet(s string) string {
 		}
 		// Like unique.Make, keep a copy rather than the larger string s may
 		// be a slice of.
-		interned = strings.Clone(s)
-		rhinoStringPool_strings[interned] = interned
+		value := strings.Clone(s)
+		interned = &value
+		rhinoStringPool_strings[value] = interned
 	}
 	rhinoStringPool_mu.Unlock()
 	return interned
