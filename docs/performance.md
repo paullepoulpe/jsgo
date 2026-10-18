@@ -114,7 +114,7 @@ The normal one-shot CLI, flags and default GC settings remain unchanged.
 | 64-byte packed AST | Passed pointer checks, clone/original-name/overflow tests and byte gates, but memory savings did not establish a useful elapsed-time gain. |
 | More GC headroom / GC disabled | Only a small remaining wall-time gain, sometimes slower. Bundle without GC used about 5.7GB. Defaults were retained. |
 | Process-lifetime arenas | Bundle slowed from about 19.1s to 21.4s and RSS grew from about 560MB to 4GB. Rejected. |
-| Parallel AST parsing | The existing thread flag now runs bounded prebuild jobs; 48 parallel compatibility/race cases passed in the experimental combined build. CLI scaling measurements are pending. |
+| Parallel AST parsing | The existing thread flag now runs bounded prebuild jobs; 48 parallel compatibility/race cases passed in the experimental combined build. The CLI sweep above shows 6.6–8.0% less whitespace time and little typed-app scaling on two CPUs. |
 
 Compiler allocation boundaries keep partially filled batches from retaining
 successive compilations through shared object graphs. The boundary fix remains
@@ -132,6 +132,13 @@ valid deflate layouts, since newer Go versions may emit identical bytes for
 All ten held-out project builds matched Java, covering date-fns, highlight.js,
 axios, ajv and Monaco inputs. Current CLI redesign prototypes are isolated
 from those measurements until their differential tests and timing runs complete.
+
+The isolated parser/CFG screen showed no demonstrated incremental full-build
+gain. A separate two-job Go screen found the native reference lookup slower;
+whole-script parallel inlining alone changed typed-app by about +0.6% elapsed
+time and bundle by about -1.0%, insufficient to establish a gain in two runs.
+These designs are not enabled in this PR. Experimental code, measurements and
+limitations are retained on the `perf/redesigns` branch for further research.
 
 For a fraction `f` of elapsed time accelerated by `k`, the ideal whole-build
 speedup is `1 / ((1 - f) + f/k)` with other costs fixed. Even making a 30%
