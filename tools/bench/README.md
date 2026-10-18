@@ -194,6 +194,10 @@ end time, then:
 A pass missing from `phases.tsv` is counted as "other passes" and listed as
 unmapped.
 
+`bench.py report` rolls the stored pass times up again with the current
+`phases.tsv`, so mapping a new pass name also corrects the reports of
+results measured before.
+
 Three rows do not come from passes. `PerformanceTracker` prints its report
 before the output is generated, so the timestamps cover what the passes do
 not:
@@ -264,21 +268,29 @@ minutes. `go build -pgo=off` builds jsgo without the profile.
 
 ## Cost
 
-Wall time per run on the shared 4-CPU development machine (load 5–17),
-from the first baseline:
+Wall time per run on the 4-CPU machine with nothing else running, from the
+v20261015 run (results in
+[docs/benchmarks.md](../../docs/benchmarks.md#end-to-end-v20261015)):
 
-| Task | Java cold, per run | Java warm, per iteration |
-|---|---|---|
-| typed-app | 17–37 s | 7–15 s |
-| bundle | 42–82 s (12.6 MB in, 1.6 GB RSS) | 20–29 s (3 GB RSS) |
-| downlevel-whitespace | 7–11 s | 1.2–2.4 s |
-| downlevel-simple | 14–20 s | ~4 s |
-| checks-only | 18–40 s | 8–9 s |
-| single-files | 1,000 JVM launches, 2.5–4.5 s each: 40–75 min | see the report |
+| Task | Java cold, per run | Java warm, per iteration | jsgo, per run |
+|---|---|---|---|
+| typed-app | 11–12 s | 4.5–5.1 s | 7.0–7.4 s |
+| bundle | 26–27 s (12.6 MB in, 1.7 GB RSS) | 18–20 s (1.7 GB RSS) | 28–29 s (0.55 GB RSS) |
+| downlevel-whitespace | 3.8–4.2 s | 1.0–1.5 s | 1.7–1.8 s |
+| downlevel-simple | 7.7–8.7 s | 3.1–4.0 s | 5.3–6.3 s |
+| checks-only | 13–14 s | 6.7–6.9 s | 9.8–10.2 s |
+| single-files | 1,000 JVM launches, 1.1–2.1 s each (p10–p90): 30 min | 4.6 min | 7 min |
 
-All tasks except single-files take about 35 minutes together (N=5, three
-trace runs). A full cold run of the single-file task is 1,000 JVM
-startups, so 5 runs take several hours. `--runs 1 --tasks single-files`
-gives one run, and the report then shows per-invocation median, p10 and p90
-from its 1,000 samples. Its cold per-phase runs are off (`"trace_cold":
-false` in the task file).
+A full `bench.py run` took 4 h 15 min:
+- the first five tasks together took 23 minutes (N=5, three trace runs);
+- single-files took 3 h 50 min, two thirds of it in the 5,000 cold
+  JVM launches.
+
+On a loaded machine everything takes longer, and Java's times grow the
+most: a cold JVM keeps about three cores busy. At load 5–17, the first
+baseline measured typed-app at 17–37 s cold and the single-file runs at
+40–75 min.
+
+`--runs 1 --tasks single-files` gives one run, and the report then shows
+per-invocation median, p10 and p90 from its 1,000 samples. Its cold
+per-phase runs are off (`"trace_cold": false` in the task file).

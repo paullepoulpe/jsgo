@@ -493,6 +493,19 @@ Done:
     fixtures suite (`tools/clie2e -suite fixtures`) matches 2,974 of
     2,976 recorded Java outputs; the other two are one fixture on which
     Java throws StackOverflowError, a fatal error in Go.
+- **End-to-end benchmark against v20261015 (§6, the M9 report):**
+  [docs/benchmarks.md](docs/benchmarks.md#end-to-end-v20261015). It ran
+  on a quiet machine.
+  - Every task passes the byte-for-byte gate. On the single files, 989 of
+    1,000 match; the other 11 differ only in Java's stack frames.
+  - Against `java -jar`, jsgo is 1.4–2.3× faster on the whole-program
+    tasks and 4.2× faster on single files. The 12.6 MB bundle is the
+    exception, at 0.94×.
+  - Against a warm JVM, jsgo is at 0.65–0.74× of Java's speed, with 2–5×
+    less memory.
+  - The remaining gap is mostly the optimization loop
+    (`flowSensitiveInlineVariables`, `inlineVariables`,
+    `removeUnusedCode`), parsing, and `inferTypes`.
 
 In progress, in parallel (waves 4 and 5; each cluster translates against
 the predicted Go names of what it calls, and compiles once its
