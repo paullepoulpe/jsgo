@@ -61,6 +61,9 @@ func TestNativeParserExpressionSubset(t *testing.T) {
 		"var x=a.b[2](1, b.c); obj.member=call(x);",
 		"(a).b(c)[d]; (a)=1; a?b=c:d=e; a=b=c;",
 		"var data={1:true, 'é':null}; var \\u0061=1; \\u0061;",
+		"var o={1e309:0,1e-9999:1,0.0:2,2.:3}; var zero=-0;",
+		"(obj.method)(); (obj['method'])(); 'custom';'use strict';x;",
+		"var o={__proto__:1,__proto__:2};",
 		"var x=a||b&&c|d^e&f==g<h<<i+j*k;",
 		"var x=1e3 + .5 + 2.; var π='é'; π;",
 		"var s='😀';\r\nvar t = {\n key : s\n};\u2028t.key;\n",
@@ -87,9 +90,13 @@ func TestNativeParserFallsBackBeforePublishing(t *testing.T) {
 		"var x=1; /** @license License */", "var x=1;\n//# sourceMappingURL=test.map",
 		"/** @closureUnaware */ var x=1;", "'use strict'; var x='\\1'; var y=;",
 		"var x='unterminated", "var x=1; function (", "goog.module('example');",
+		"var \\u0063lass=1;", "obj.default;", "var x=1; /* unterminated",
+		"<!-- html comment\nvar x=1;", "#!/bin/node\nvar x=1;",
 		strings.Repeat("(", 150) + "x" + strings.Repeat(")", 150) + ";",
 	} {
 		nativeExperimentCompare(t, source, config, false)
+		keepGoing := config.ToBuilder().SetRunMode(Config_RunMode_KEEP_GOING).Build()
+		nativeExperimentCompare(t, source, keepGoing, false)
 	}
 	withComments := config.ToBuilder().SetJsDocParsingMode(Config_JsDocParsing_INCLUDE_ALL_COMMENTS).Build()
 	nativeExperimentCompare(t, "var x=1;", withComments, false)
