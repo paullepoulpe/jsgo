@@ -24,6 +24,7 @@ type nativeCFGBuilder struct {
 type nativeCFGNode struct {
 	value                              *rhino.Node
 	inFirst, inLast, outFirst, outLast int32
+	inCount, outCount                  int32
 	priority                           int32
 }
 
@@ -52,9 +53,19 @@ func (g *nativeCFGBuilder) node(value *rhino.Node) int32 {
 
 func (g *nativeCFGBuilder) connect(fromValue *rhino.Node, branch ControlFlowGraph_Branch, toValue *rhino.Node) {
 	from, to := g.node(fromValue), g.node(toValue)
-	for edge := g.nodes[from].outFirst; edge >= 0; edge = g.edges[edge].nextOut {
-		if previous := g.edges[edge]; previous.to == to && previous.branch == branch {
-			return // ConnectIfNotFound preserves the first edge's position.
+	// Match the generic graph's smaller-adjacency search. Always scanning
+	// outgoing edges would make large switches quadratic during construction.
+	if g.nodes[from].outCount < g.nodes[to].inCount {
+		for edge := g.nodes[from].outFirst; edge >= 0; edge = g.edges[edge].nextOut {
+			if previous := g.edges[edge]; previous.to == to && previous.branch == branch {
+				return
+			}
+		}
+	} else {
+		for edge := g.nodes[to].inFirst; edge >= 0; edge = g.edges[edge].nextIn {
+			if previous := g.edges[edge]; previous.from == from && previous.branch == branch {
+				return
+			}
 		}
 	}
 	id := int32(len(g.edges))
@@ -71,6 +82,8 @@ func (g *nativeCFGBuilder) connect(fromValue *rhino.Node, branch ControlFlowGrap
 		g.nodes[to].inFirst = id
 	}
 	g.nodes[to].inLast = id
+	g.nodes[from].outCount++
+	g.nodes[to].inCount++
 }
 
 func (c *ControlFlowAnalysis) cfgEntryValue() *rhino.Node {
