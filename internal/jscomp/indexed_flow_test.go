@@ -341,6 +341,8 @@ func TestIndexedFlowDivergencePreservesPartialState(t *testing.T) {
 
 func TestIndexedFlowTransferFailurePreservesPartialState(t *testing.T) {
 	cfg := NewControlFlowGraph(1, true, true)
+	cfg.CreateDiGraphNode(2)
+	cfg.CreateDiGraphNode(3)
 	cfg.Connect(1, ControlFlowGraph_Branch_UNCOND, 2)
 	cfg.Connect(2, ControlFlowGraph_Branch_UNCOND, 3)
 	cfg.Connect(3, ControlFlowGraph_Branch_UNCOND, 0)
