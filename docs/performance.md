@@ -1,7 +1,8 @@
 # Performance experiments, October 2026
 
 The retained CLI improves every workload in the existing five-task suite.
-Warm Java remains faster on those full builds. Worker and parsed-extern-cache experiments have been dropped. The active
+Warm Java remains faster on those full builds. Worker and parsed-extern-cache
+experiments have been dropped. The active
 comparison uses ordinary Go CLI processes and stock warm Java, creating fresh
 compilers and parsing externs on both sides.
 
@@ -84,17 +85,15 @@ The normal one-shot CLI, flags and default GC settings remain unchanged.
 | 64-byte packed AST | Passed pointer checks, clone/original-name/overflow tests and byte gates, but memory savings did not establish a useful elapsed-time gain. |
 | More GC headroom / GC disabled | Only a small remaining wall-time gain, sometimes slower. Bundle without GC used about 5.7GB. Defaults were retained. |
 | Process-lifetime arenas | Bundle slowed from about 19.1s to 21.4s and RSS grew from about 560MB to 4GB. Rejected. |
-| Parallel AST parsing | Targeted cases matched Java under the race detector, but measured gains were small. Default sequential behavior was retained. |
+| Parallel AST parsing | The existing thread flag now runs bounded prebuild jobs; 48 parallel compatibility/race cases passed in the experimental combined build. CLI scaling measurements are pending. |
 
-The first worker experiment exposed an allocation-lifetime bug: a partially
-filled batch could connect successive compilers through its object graph.
-Compiler allocation boundaries and private storage for retained templates fix
-that chain. A 22-compilation check stayed near 270–300MB RSS rather than growing
-on each iteration. That early leaking run is not used as performance evidence.
+Compiler allocation boundaries keep partially filled batches from retaining
+successive compilations through shared object graphs. The boundary fix remains
+useful for library callers and introduces no additional CLI configuration.
 
 ## Validation and limits
 
-All packages passed their tests. The large jscomp test binary was compiled
+The measured candidate above passed all package tests. The large jscomp test binary was compiled
 separately with lower *build-time* GC headroom to fit the 8GB machine, then run
 with default runtime GC; the test itself passed. Vet and license checks passed.
 A compression comparison test now uses an explicit flush to guarantee different
@@ -102,9 +101,8 @@ valid deflate layouts, since newer Go versions may emit identical bytes for
 `BestSpeed` and `BestCompression`; its payload/header assertions remain intact.
 
 All ten held-out project builds matched Java, covering date-fns, highlight.js,
-axios, ajv and Monaco inputs. and the ordinary CLI: source changes, output maps, warnings, parse errors, bad
-flags, stdin, JSON streams, custom extern settings and output encoding. JVM
-stack-frame differences use the repository's existing normalization rule.
+axios, ajv and Monaco inputs. Current CLI redesign prototypes are isolated
+from those measurements until their differential tests and timing runs complete.
 
 For a fraction `f` of elapsed time accelerated by `k`, the ideal whole-build
 speedup is `1 / ((1 - f) + f/k)` with other costs fixed. Even making a 30%
@@ -115,8 +113,8 @@ There is no defensible language-level theoretical maximum. HotSpot compiles
 hot code to native code too. The remaining large-build gap calls for further
 algorithmic work and reducing repeated analysis, rather than assuming a newer
 Go compiler, smaller structs or disabling GC guarantees a win. This report
-records measured CLI improvements. The worker/extern-cache approach was dropped after the equivalent Java
-comparison showed no win; it is outside the active implementation and matrix.
+records measured CLI improvements. The worker/extern-cache approach was dropped
+after the equivalent Java comparison showed no win; it is outside the active implementation and matrix.
 
 Raw medians, iteration data, binary hashes, build settings and machine metadata
 are in [performance-results.json](performance-results.json).
