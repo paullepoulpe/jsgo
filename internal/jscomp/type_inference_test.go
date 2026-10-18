@@ -263,7 +263,7 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root *rhino.Node, cfg
 	// Do the type inference by data-flow analysis.
 	dfa :=
 		NewTypeInference(c.compiler, cfg, rai, assumedScope, scopeCreator, TypeInferenceTest_ASSERTION_FUNCTION_MAP)
-	dfa.Analyze()
+	typeInferenceTestAnalyze(dfa)
 	// Get the scope of the implicit return.
 	rtnState := cfg.GetImplicitReturn().GetAnnotation().(*DataFlowAnalysis_LinearFlowState[FlowScope])
 	if cfgRoot.IsFunction() {
@@ -278,6 +278,29 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root *rhino.Node, cfg
 	}
 
 	c.closer = c.registry.GetResolver().OpenForDefinition()
+}
+
+// Go-only: test-helper — the existing branched-inference fixtures must
+// actually execute the indexed engine when opted in. Observe the generic
+// work-queue boundary without adding counters or fields to production state.
+// A generic fallback initializes that queue once for every real CFG node.
+func typeInferenceTestAnalyze(dfa *TypeInference) {
+	if !dataFlowAnalysisUseIndexed() {
+		dfa.Analyze()
+		return
+	}
+	AssertWithMessage("TypeInference fixture is eligible for indexed dispatch").
+		That(dataFlowAnalysisSupportsIndexed(dfa, dfa.cfg)).IsTrue()
+	original := dfa.workQueue.membership
+	genericQueueCalls := 0
+	dfa.workQueue.membership = func(node DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) *bool {
+		genericQueueCalls++
+		return original(node)
+	}
+	defer func() { dfa.workQueue.membership = original }()
+	dfa.Analyze()
+	AssertWithMessage("indexed TypeInference fixture used the generic data-flow queue").
+		That(genericQueueCalls).IsEqualTo(0)
 }
 
 // Java: TypeInferenceTest.getLabeledStatement(String)
