@@ -614,9 +614,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.addReferencedVariableInfo(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
 func (s *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext) AddReferencedVariableInfo(
 	variableInfo MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo) {
-	if !s.referencedVariables.ContainsKey(variableInfo) {
-		s.referencedVariables.Put(variableInfo, false)
-	}
+	s.referencedVariables.LoadOrStore(variableInfo, false)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.recordPotentialConflicts(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
@@ -630,10 +628,11 @@ func (s *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext) RecordPo
 		// completed pairs, including recursive visits from distinct child scopes.
 		// False values still represent this scope's queued own references; adding
 		// an already processed child reference preserves the original own order.
-		if s.referencedVariables.Get(referencedVariable) {
-			return
+		if len(s.declaredVariableInfos) >= 8 {
+			if s.referencedVariables.Put(referencedVariable, true) {
+				return
+			}
 		}
-		s.referencedVariables.Put(referencedVariable, true)
 		for _, declaredVariableInfo := range s.declaredVariableInfos {
 			// NOTE: No need to check whether the 2 variables are actually the same here.
 			// The logic in addPotentialConflict() can do that more efficiently.

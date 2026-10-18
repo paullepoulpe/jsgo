@@ -5,7 +5,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/paullepoulpe/jsgo/internal/cliworker"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -83,36 +83,8 @@ func main() {
 }
 
 func run(args []string) (out, stderr []byte, status int) {
-	var stdout, errbuf bytes.Buffer
-	outStream := jutil.NewPrintStream(&stdout)
-	errStream := jutil.NewPrintStreamWithCharset(&errbuf, jutil.System_NativeCharset())
-	oldOut, oldErr := jutil.System_Out(), jutil.System_Err()
-	jutil.System_SetOut(outStream)
-	jutil.System_SetErr(errStream)
-	defer func() {
-		if r := recover(); r != nil {
-			t, ok := r.(jutil.Throwable)
-			if !ok {
-				t = jutil.AsThrowable(r)
-			}
-			errStream.Print("Exception in thread \"main\" ")
-			jutil.Throwable_PrintStackTrace(t, errStream)
-			status = 1
-		}
-		outStream.Flush()
-		errStream.Flush()
-		out, stderr = stdout.Bytes(), errbuf.Bytes()
-		jutil.System_SetOut(oldOut)
-		jutil.System_SetErr(oldErr)
-	}()
-	runner := jscomp.NewCommandLineRunnerWithStreams(args, bytes.NewReader(nil), outStream, errStream)
-	if runner.ShouldRunCompiler() {
-		runner.SetExitCodeReceiver(func(code int) { status = int(uint8(code)) })
-		runner.Run()
-	} else if runner.HasErrors() {
-		status = 255
-	}
-	return
+	result := cliworker.Run(args, nil)
+	return result.Stdout, result.Stderr, result.Exit
 }
 
 func must(err error) {

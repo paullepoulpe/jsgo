@@ -18,7 +18,7 @@ func newConflictTestGraph() *conflictTestGraph {
 	inverter := NewMakeDeclaredNamesUnique_ContextualRenameInverter(nil)
 	for level := 0; level < 4; level++ {
 		scope := &Scope{depth: level + 1}
-		declared := make([]*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo, 3)
+		declared := make([]*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo, []int{3, 12, 24, 3}[level])
 		for i := range declared {
 			current := fmt.Sprintf("v%d$jscomp$%d", i, level)
 			v := NewVar(current, nil, scope, i, nil, nil)

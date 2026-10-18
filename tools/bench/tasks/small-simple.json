@@ -1,0 +1,22 @@
+{
+  "name": "small-simple",
+  "order": 11,
+  "title": "small-simple",
+  "description": "Small interactive browser app, held out of PGO training; repeated compilation includes full builtin extern/type work. Additional workload, not part of the original five-task aggregate.",
+  "flags": [
+    "--compilation_level=SIMPLE"
+  ],
+  "inputs": [
+    {
+      "file": "app/small-app.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ]
+}

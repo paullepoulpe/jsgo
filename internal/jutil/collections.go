@@ -339,6 +339,17 @@ func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
 	return zero
 }
 
+// LoadOrStore returns the existing value and true, or inserts v and returns
+// it with false. Unlike Java putIfAbsent it treats a present null as present.
+// Go-only: performance — one lookup for analysis bookkeeping, including misses.
+func (h *LinkedHashMap[K, V]) LoadOrStore(k K, v V) (V, bool) {
+	if e := h.find(k); e != nil {
+		return e.value, true
+	}
+	h.add(k, v)
+	return v, false
+}
+
 // ComputeIfAbsent is Map.computeIfAbsent (the mapping function must not
 // return Java null; Go has no way to express that distinction generically).
 func (h *LinkedHashMap[K, V]) ComputeIfAbsent(k K, f func(K) V) V {

@@ -7,12 +7,24 @@ import (
 )
 
 func gzipped(t *testing.T, level int, content string) []byte {
+	return gzippedWithFlush(t, level, content, false)
+}
+
+func gzippedWithFlush(t *testing.T, level int, content string, flush bool) []byte {
 	var b bytes.Buffer
 	w, err := gzip.NewWriterLevel(&b, level)
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.Write([]byte(content))
+	if flush {
+		w.Write([]byte(content[:1]))
+		if err := w.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(content[1:]))
+	} else {
+		w.Write([]byte(content))
+	}
 	w.Close()
 	out := b.Bytes()
 	out[8], out[9] = 0, 0xff // the header GZIPOutputStream writes (XFL 0, OS unknown)
@@ -21,7 +33,9 @@ func gzipped(t *testing.T, level int, content string) []byte {
 
 func TestSameOutput(t *testing.T) {
 	text := "var x = 1;\n" + string(bytes.Repeat([]byte("abcdefgh"), 1000))
-	fast, best := gzipped(t, gzip.BestSpeed, text), gzipped(t, gzip.BestCompression, text)
+	// Compression levels can legitimately emit identical bytes on newer Go.
+	// An explicit flush forces different deflate block boundaries instead.
+	fast, best := gzipped(t, gzip.BestSpeed, text), gzippedWithFlush(t, gzip.BestSpeed, text, true)
 	if bytes.Equal(fast, best) {
 		t.Fatal("want two different compressions of the same content")
 	}

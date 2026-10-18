@@ -1,0 +1,18 @@
+{
+  "name": "small-checks",
+  "order": 13,
+  "title": "small-checks",
+  "description": "Small interactive browser app, held out of PGO training; repeated compilation includes full builtin extern/type work. Additional workload, not part of the original five-task aggregate.",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--checks_only",
+    "--jscomp_warning=checkTypes"
+  ],
+  "inputs": [
+    {
+      "file": "app/small-app.js"
+    }
+  ],
+  "output_args": [],
+  "compare": []
+}
