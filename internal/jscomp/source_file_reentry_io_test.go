@@ -13,6 +13,10 @@ type sourceFileReentryThenIOExceptionLoader struct {
 	loads int
 }
 
+func (l *sourceFileReentryThenIOExceptionLoader) ToProtoLocationBuilder(name string) *SourceFileProto_Builder {
+	return NewSourceFile_CodeLoader_Preloaded("").ToProtoLocationBuilder(name)
+}
+
 func (l *sourceFileReentryThenIOExceptionLoader) LoadUncachedCode() string {
 	l.loads++
 	l.file.SetCodeDeprecated("callback\nsource")
