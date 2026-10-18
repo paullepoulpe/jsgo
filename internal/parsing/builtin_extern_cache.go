@@ -74,11 +74,6 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 	template := &builtinExternCacheTemplate{result: cloneBuiltinExternResult(result, file, true)}
 	if builtinExternFrozenCloneEnabled {
 		template.frozen = rhino.Node_FreezeParseTree(template.result.Ast)
-		if template.frozen != nil {
-			// The flat representation owns every clone plan; do not retain a
-			// second private AST after successful freezing.
-			template.result.Ast = nil
-		}
 	}
 	builtinExternCache.Lock()
 	defer builtinExternCache.Unlock()
