@@ -81,3 +81,25 @@ Passing this diagnostic does not prove JVM convergence. The harness never adds
 extra work to one implementation. If samples are still warming up, repeat both
 workers with the same larger warm-up/measurement counts. RSS retains the full
 matching request window; warm-up-only high-water RSS is also recorded.
+
+The default mixed-job gate launches stock Java for every case and saves a
+complete `oracle.json`: exact argv, UTF-8 source bytes, stdin bytes, actual exit,
+stdout/stderr bytes, and all output file bytes (including explicit missing-file
+values). Once the complete fresh gate succeeds, later compiler variants can
+reuse those stock results explicitly:
+
+```sh
+python3 tools/bench/worker_gate.py --command-json /tmp/next-worker-command.json \
+  --out /tmp/next-worker-gate --threads 1,2,4 \
+  --oracle-reference /tmp/java-worker-gate/oracle.json
+```
+
+Replay first verifies schema/completeness, pinned jar SHA-256, the entire ordered
+case/thread sequence, exact argv/source/stdin identities, and response/file
+integrity hashes. It then performs the same byte comparisons against the
+persisted raw stock responses, including every artifact and actual exit code.
+Older summaries containing only comparison booleans or stdout/stderr are
+insufficient and cannot be imported. Each gate records whether it used fresh
+Java or a verified oracle, the oracle hashes, and the worker's experiment flags.
+Run the lightweight schema checks with
+`python3 -I tools/bench/worker_gate_test.py`; they launch no compiler or JVM.
