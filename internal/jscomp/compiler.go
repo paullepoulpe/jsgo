@@ -2925,17 +2925,18 @@ func (c *Compiler) ToSource() string {
 			// to de-dupe seen licenses across all inputs.
 			lt := newCompiler_SingleBinaryLicenseTracker(c)
 			if c.jsRoot != nil {
-				i := 0
+				var roots []*rhino.Node
 				if c.options.ShouldPrintExterns() {
 					for scriptNode := c.externsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
-						c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
-						i++
+						roots = append(roots, scriptNode)
 					}
 				}
 				for scriptNode := c.jsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
-					c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
-					i++
+					roots = append(roots, scriptNode)
 				}
+				c.toSourceRoots(roots, lt, func(i int, root *rhino.Node, source *parallelSource) {
+					c.toSourceOfCodeBuilder(cb, lt, i, root, source)
+				})
 			}
 			return cb.String()
 		})
@@ -2973,13 +2974,16 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 				return ""
 			}
 			cb := NewCompiler_CodeBuilder()
-			for i := 0; i < numInputs; i++ {
-				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode == nil {
+			roots := make([]*rhino.Node, numInputs)
+			for i, input := range inputs {
+				roots[i] = input.GetAstRoot(c)
+				if roots[i] == nil {
 					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
 				}
-				c.ToSourceOfCodeBuilder(cb, licenseTracker, i, scriptNode)
 			}
+			c.toSourceRoots(roots, licenseTracker, func(i int, root *rhino.Node, source *parallelSource) {
+				c.toSourceOfCodeBuilder(cb, licenseTracker, i, root, source)
+			})
 			return cb.String()
 		})
 }
@@ -3000,6 +3004,14 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	licenseTracker CodePrinter_LicenseTracker,
 	inputSeqNum int,
 	root *rhino.Node) {
+	c.toSourceOfCodeBuilder(cb, licenseTracker, inputSeqNum, root, nil)
+}
+
+// Go-only: language-adapter — text and relative mappings may have been computed
+// by an isolated printer. Output offsets, licenses and concatenation stay ordered.
+func (c *Compiler) toSourceOfCodeBuilder(cb *Compiler_CodeBuilder,
+	licenseTracker CodePrinter_LicenseTracker, inputSeqNum int, root *rhino.Node,
+	source *parallelSource) {
 	Compiler_RunInCompilerThread(c,
 		func() any {
 			if c.options.ShouldPrintInputDelimiter() {
@@ -3024,7 +3036,15 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 				cb.Append(delimiter).Append("\n")
 			}
 
-			sourceAndMappings := c.toSourceAndMappings(root, inputSeqNum == 0, licenseTracker)
+			var sourceAndMappings *CodePrinter_SourceAndMappings
+			if source == nil {
+				sourceAndMappings = c.toSourceAndMappings(root, inputSeqNum == 0, licenseTracker)
+			} else {
+				sourceAndMappings = source.code
+				for _, node := range source.licenses.nodes {
+					licenseTracker.TrackLicensesForNode(node)
+				}
+			}
 			code := sourceAndMappings.source
 
 			// Check whether there is any license information that should be emitted.
@@ -3401,16 +3421,18 @@ func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chun
 
 			sources := make([]string, numInputs)
 			cb := NewCompiler_CodeBuilder()
-			for i := 0; i < numInputs; i++ {
-				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode == nil {
-					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk input: " + inputs[i].GetName()))
+			roots := make([]*rhino.Node, numInputs)
+			for i, input := range inputs {
+				roots[i] = input.GetAstRoot(c)
+				if roots[i] == nil {
+					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk input: " + input.GetName()))
 				}
-
-				cb.Reset()
-				c.ToSourceOfCodeBuilder(cb, licenseTracker, i, scriptNode)
-				sources[i] = cb.String()
 			}
+			c.toSourceRoots(roots, licenseTracker, func(i int, root *rhino.Node, source *parallelSource) {
+				cb.Reset()
+				c.toSourceOfCodeBuilder(cb, licenseTracker, i, root, source)
+				sources[i] = cb.String()
+			})
 			return sources
 		})
 }
