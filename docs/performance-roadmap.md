@@ -146,13 +146,14 @@ repeated analysis and pass algorithms. Larger changes require new measurements
 rather than extrapolation from GC CPU percentages. Increasing GOGC also raises
 memory use and remains an experiment, not the default recommendation.
 
-**Current next checks:** finish differential and race tests for the CLI
-prototypes, compare prebuilt candidates individually and in combination, and
-measure stock warm Java versus Go at 1, 2 and 4 compiler workers under the same
-CPU affinity/quota. Report elapsed-time and peak-RSS ratios together, with JVM
-warm-up drift and measurement windows. The earlier plan to prototype AST arenas
-via an overlay is historical; current retention decisions follow the measured
-CLI report.
+**Current evidence:** the ordinary CLI 1/2/4-job sweep is complete, with time
+and peak-RSS ratios and warm-up drift in [performance.md](performance.md).
+Extra jobs help the whitespace workload but do not beat Java. Initial native
+parser/CFG and whole-script inlining screens have not established an additional
+full-build win; the native reference index regressed and remains excluded.
+Further function-level scheduling needs the ownership/traversal constraints
+recorded on the isolated `perf/redesigns` branch. The earlier AST-arena overlay
+plan is historical; current retention decisions follow measured CLI results.
 
 ## Smaller open items
 
