@@ -1,0 +1,62 @@
+# Direct AST parser experiment
+
+This branch contains an opt-in architectural prototype. Set
+`JSGO_EXPERIMENT_NATIVE_PARSER=1` when starting the CLI or worker to try it.
+The default compiler continues to use the original parser. This experiment has
+not established an end-to-end performance gain.
+
+The native path consumes the existing Scanner's tokens and constructs final
+Rhino nodes directly. It creates neither a ProgramTree nor intermediate
+expression/statement tree objects. Expression frames are small values containing
+a final node and its source-position bounds. Existing IRFactory helpers still
+provide literal normalization, source metadata, property keys, call flags,
+directives, file-level setup and final validation.
+
+The initial grammar covers comment-free ES5 expression/data programs:
+
+- Explicitly semicolon-terminated `var`, expression and empty statements.
+- Ordinary unary, arithmetic, shift, relational, equality, bitwise and logical
+  expressions; simple assignment and conditional expressions.
+- Calls, ordinary property/index access, parentheses, arrays without holes and
+  objects with explicit identifier/string/number keys.
+- Decimal numbers, unescaped strings, ordinary identifiers, `this`, booleans
+  and null. UTF-16 source positions use the existing scanner.
+
+Functions, blocks, modules, ASI, patterns, trailing commas, spread, optional
+chains, exotic numeric syntax, escaped strings and reserved/private identifiers
+remain on the original path. TypeScript sources and configurations requesting
+comment descriptions/statement ranges also use the original path. Native
+recursion is bounded; deeper input falls back.
+
+Fallback is for the entire file. All scanner and IR diagnostics are private
+until acceptance; any warning or error rejects the attempt, and the original
+parser then emits its complete diagnostic sequence. Any comment also rejects
+an attempt, including comments encountered late in the file. Therefore licenses,
+JSDoc, fileoverview, closure-unaware annotations and source-map URL comments
+retain the original whole-file discovery/attachment behavior. The prototype
+intentionally does not attempt to approximate those rules with an incomplete
+stream of comments. Existing builtin-extern cache behavior takes precedence over
+the experiment.
+
+This makes the boundary explicit and differential testing straightforward, but
+unsupported files pay for speculative work before fallback. In particular, this
+prototype is not ready to replace the complete grammar or demonstrate a win on
+bundles containing functions/modules/comments. Production expansion should add
+full grammar support and whole-file comment discovery or a deferred attachment
+stage, plus preserve parser/IR diagnostic ordering without running the original
+parser in accepted cases.
+
+Run `go test ./internal/parsing -run NativeParser` for AST/property/source-range
+and diagnostic comparisons against the original pipeline. The generated tests
+exercise many expression combinations. `BenchmarkNativeParserDataProgram`
+compares the same data program through both implementations and reports
+allocations. A useful parser microbenchmark win would still need full CLI/worker
+byte comparisons, source-map checks, real coverage counts and end-to-end timing
+and peak-memory measurements before retention.
+
+A prior whitespace CPU profile attributed about 16% directly to parsing plus IR
+conversion. Removing that directly attributed work entirely corresponds to about
+1.19x speedup on that particular profile; indirect garbage-collection work is
+not included in that estimate. This prototype removes only part of front-end
+work and accepts only a subset of files, so it cannot by itself establish broad
+parity with Java.

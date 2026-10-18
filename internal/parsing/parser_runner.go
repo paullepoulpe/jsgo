@@ -126,6 +126,9 @@ func ParserRunner_Parse(
 	if builtinExternCacheEligible(sourceFile, config) {
 		return parseBuiltinExternCached(sourceFile, sourceString, config, errorReporter)
 	}
+	if nativeParserExperimentEnabled {
+		return parserRunnerParseWithNativeFallback(sourceFile, sourceString, config, errorReporter)
+	}
 	return parserRunnerParseUncached(sourceFile, sourceString, config, errorReporter)
 }
 
