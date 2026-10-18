@@ -422,6 +422,7 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
+	rhino.Node_AllocationBoundary()
 	c := &Compiler{}
 	c.InitAbstractCompilerBase(c)
 	c.initFields()

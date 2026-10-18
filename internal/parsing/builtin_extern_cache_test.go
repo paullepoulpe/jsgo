@@ -1,8 +1,10 @@
 package parsing
 
 import (
+	"runtime"
 	"strings"
 	"testing"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -64,4 +66,24 @@ func TestBuiltinExternCacheIsolation(t *testing.T) {
 	if builtinCacheFingerprint(changed.Ast) == want {
 		t.Fatal("source-content change reused cached AST")
 	}
+}
+
+//go:noinline
+func builtinCacheOriginalAndPrivateTemplate() (*ParserRunner_ParseResult, weak.Pointer[rhino.Node]) {
+	rhino.Node_AllocationBoundary()
+	file := rhino.NewSimpleSourceFile("externs.zip//lifetime.js", rhino.StaticSourceFile_SourceKind_EXTERN)
+	config := ParserRunner_CreateConfig(Config_LanguageMode_ES_NEXT, nil, Config_StrictMode_SLOPPY)
+	original := parserRunnerParseUncached(file, "/** @type {number} */ var answer;", config, rhino.ErrorReporter_ALWAYS_THROWS_INSTANCE)
+	return cloneBuiltinExternResult(original, file, true), weak.Make(original.Ast)
+}
+
+func TestBuiltinExternTemplateDoesNotRetainOriginalAST(t *testing.T) {
+	template, original := builtinCacheOriginalAndPrivateTemplate()
+	for i := 0; i < 10 && original.Value() != nil; i++ {
+		runtime.GC()
+	}
+	if original.Value() != nil {
+		t.Fatal("long-lived template retained original compilation through allocation chunks")
+	}
+	runtime.KeepAlive(template)
 }

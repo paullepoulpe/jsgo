@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -46,7 +47,7 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 		if group.config.Equals(config) {
 			if template := group.files[key]; template != nil {
 				builtinExternCache.Unlock()
-				return cloneBuiltinExternResult(template, file)
+				return cloneBuiltinExternResult(template, file, false)
 			}
 			break
 		}
@@ -60,7 +61,7 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 		len(result.TopLevelStatementRanges) != 0 || result.SourceMapURL != nil {
 		return result
 	}
-	template := cloneBuiltinExternResult(result, file)
+	template := cloneBuiltinExternResult(result, file, true)
 	builtinExternCache.Lock()
 	defer builtinExternCache.Unlock()
 	for _, group := range builtinExternCache.groups {
@@ -80,16 +81,30 @@ func parseBuiltinExternCached(file rhino.StaticSourceFile, source string, config
 	return result
 }
 
-func cloneBuiltinExternResult(template *ParserRunner_ParseResult, file rhino.StaticSourceFile) *ParserRunner_ParseResult {
+func cloneBuiltinExternResult(template *ParserRunner_ParseResult, file rhino.StaticSourceFile, private bool) *ParserRunner_ParseResult {
 	result := *template
-	result.Ast = template.Ast.CloneTreeWithTypeExprs(false)
+	cloneTree := func(n *rhino.Node) *rhino.Node { return n.CloneTreeWithTypeExprs(false) }
+	if private {
+		slab := &jutil.Slab[rhino.Node]{}
+		cloneTree = func(n *rhino.Node) *rhino.Node { return rhino.Node_CloneTreeInSlab(n, slab) }
+	}
+	result.Ast = cloneTree(template.Ast)
 	var bind func(*rhino.Node)
 	bind = func(n *rhino.Node) {
 		n.SetStaticSourceFile(file)
 		if doc := n.GetJSDocInfo(); doc != nil {
 			// Java's ordinary JSDoc clone intentionally drops INLINE_TYPE;
 			// a parse-template copy must preserve that parser fact too.
-			builder := doc.ToBuilderWithTransform((*rhino.JSTypeExpression).Copy)
+			builder := doc.ToBuilderWithTransform(func(expr *rhino.JSTypeExpression) *rhino.JSTypeExpression {
+				return rhino.NewJSTypeExpression(cloneTree(expr.GetRoot()), expr.GetSourceName())
+			})
+			if transforms := doc.GetTypeTransformations(); !transforms.IsEmpty() {
+				copied := jutil.NewLinkedHashMap[string, *rhino.Node]()
+				for name, tree := range transforms.All() {
+					copied.Put(name, cloneTree(tree))
+				}
+				builder.SetProp(rhino.JSDocInfo_TYPE_TRANSFORMATIONS, copied)
+			}
 			if doc.IsInlineType() {
 				builder.RecordInlineType()
 			}
@@ -97,6 +112,9 @@ func cloneBuiltinExternResult(template *ParserRunner_ParseResult, file rhino.Sta
 			n.SetJSDocInfo(doc)
 			for _, typeNode := range doc.GetTypeNodes() {
 				bind(typeNode)
+			}
+			for tree := range doc.GetTypeTransformations().Values() {
+				bind(tree)
 			}
 		}
 		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {

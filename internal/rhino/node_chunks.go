@@ -33,3 +33,13 @@ func newNodeInChunk(token Token) *Node {
 	n.linenoCharno = -1
 	return n
 }
+
+// Node_AllocationBoundary prevents a partial chunk from linking the lifetimes
+// of successive compilations or package-level constant ASTs. Existing nodes
+// stay valid; only the allocation group for future nodes changes.
+// Go-only: performance — call before starting an independent compilation.
+func Node_AllocationBoundary() {
+	nodeChunks.Lock()
+	nodeChunks.current = weak.Pointer[nodeChunk]{}
+	nodeChunks.Unlock()
+}
