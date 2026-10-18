@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"cmp"
+	"os"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -66,6 +67,9 @@ type CoalesceVariableNames struct {
 	//
 	// Go-only: language-adapter — see colorings.
 	shouldOptimizeScopeStack []bool
+
+	// Go-only: opt-in immutable function-analysis experiment.
+	functionAnalyses *coalesceFunctionAnalysisScheduler
 }
 
 // NewCoalesceVariableNames: usePseudoNames is for debug purposes, when
@@ -99,6 +103,12 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckNotNull(externs)
 	jutil.CheckNotNull(root)
+	if os.Getenv("JSGO_EXPERIMENT_FUNCTION_ANALYSIS") == "1" {
+		if compiler, ok := c.compiler.(*Compiler); ok && compiler.typedAstFilesystem == nil && compiler.GetErrorCount() == 0 {
+			c.functionAnalyses = newCoalesceFunctionAnalysisScheduler(c, root)
+			defer func() { c.functionAnalyses = nil }()
+		}
+	}
 	NodeTraversal_Builder_().
 		SetCompiler(c.compiler).
 		SetCallback(c).
@@ -131,6 +141,17 @@ func CoalesceVariableNames_ShouldOptimizeScope(t *NodeTraversal) *NodeUtil_AllVa
 
 // Java: CoalesceVariableNames.enterScopeWithCfg(NodeTraversal)
 func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
+	if c.functionAnalyses != nil {
+		if analysis := c.functionAnalyses.take(t.GetScopeRoot()); analysis != nil {
+			c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
+			c.liveness = analysis.liveness
+			c.liveAnalyses = append(c.liveAnalyses, analysis.liveness)
+			c.colorings = append(c.colorings, analysis.coloring)
+			// Retain the same CFG stack contract as the original lazy builder.
+			c.cfgs[len(c.cfgs)-1] = analysis.liveness.GetCfg()
+			return
+		}
+	}
 	allVarsDeclaredInFunction := CoalesceVariableNames_ShouldOptimizeScope(t)
 	if allVarsDeclaredInFunction == nil {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)

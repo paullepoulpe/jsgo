@@ -161,20 +161,30 @@ func NewLiveVariablesAnalysis(
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) *LiveVariablesAnalysis {
+	l := newLiveVariablesAnalysisFromSnapshot(cfg, jsScope, jsScopeChild, allVarsDeclaredInFunction,
+		jutil.NewObjectLinkedHashSet[*Var]())
+	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
+	l.AddScopeVariables()
+	return l
+}
+
+// Go-only: experimental function-analysis boundary. The caller discovers escaped
+// variables and materializes canonical lexical scopes before parallel execution.
+// The escaped set belongs to this analysis because arguments handling can add to it.
+func newLiveVariablesAnalysisFromSnapshot(cfg ControlFlowGraph[*rhino.Node], jsScope, jsScopeChild *Scope,
+	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction,
+	escaped *jutil.ObjectLinkedHashSet[*Var]) *LiveVariablesAnalysis {
 	l := &LiveVariablesAnalysis{}
 	l.InitDataFlowAnalysisBase(l, cfg)
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
-	l.escaped = jutil.NewObjectLinkedHashSet[*Var]()
+	l.escaped = escaped
 	l.scopeVariables = jutil.NewLinkedHashMap[string, int]()
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
 
-	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
-
-	l.AddScopeVariables()
 	return l
 }
 
