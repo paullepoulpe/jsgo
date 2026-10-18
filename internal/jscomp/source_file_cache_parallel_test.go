@@ -25,7 +25,8 @@ func TestParallelSourceSharedNumberOrigin(t *testing.T) {
 	for i := range roots {
 		number := rhino.IR_Number(42)
 		number.SetStaticSourceFile(origin).SetLinenoCharno(2, 0).SetLength(4)
-		roots[i] = rhino.IR_Script(rhino.IR_ExprResult(number))
+		roots[i] = rhino.IR_Script()
+		roots[i].AddChildToBack(rhino.IR_ExprResult(number))
 	}
 	count := 0
 	compiler.toSourceRoots(roots, newCompiler_SingleBinaryLicenseTracker(compiler), func(i int, root *rhino.Node, result *parallelSource) {
@@ -105,6 +106,10 @@ type sourceFileCacheFailingLoader struct {
 	SourceFile_CodeLoaderBase
 	failed bool
 	loads  int
+}
+
+func (l *sourceFileCacheFailingLoader) ToProtoLocationBuilder(name string) *SourceFileProto_Builder {
+	return NewSourceFile_CodeLoader_Preloaded("").ToProtoLocationBuilder(name)
 }
 
 func (l *sourceFileCacheFailingLoader) LoadUncachedCode() string {
