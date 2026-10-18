@@ -39,8 +39,13 @@ stream of comments. Existing builtin-extern cache behavior takes precedence over
 the experiment.
 
 This makes the boundary explicit and differential testing straightforward, but
-unsupported files pay for speculative work before fallback. In particular, this
-prototype is not ready to replace the complete grammar or demonstrate a win on
+unsupported files pay for speculative work before fallback. Speculative nodes
+also currently use IRFactory's shared weak allocation chunks. A failed large
+prefix can share a chunk with a retained AST, extending the aborted graph's
+lifetime; a production sink should own its allocation group per parse, including
+under concurrent parsing. The parser-only benchmark starts an allocation group
+per iteration for both variants, matching a normal Compiler job. In particular,
+this prototype is not ready to replace the complete grammar or demonstrate a win on
 bundles containing functions/modules/comments. Production expansion should add
 full grammar support and whole-file comment discovery or a deferred attachment
 stage, plus preserve parser/IR diagnostic ordering without running the original

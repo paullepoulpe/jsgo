@@ -149,6 +149,9 @@ func BenchmarkNativeParserDataProgram(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(len(text)))
 			for i := 0; i < b.N; i++ {
+				// A normal Compiler starts a fresh allocation group per job.
+				// Mirror that lifetime for both parser-only benchmark variants.
+				rhino.Node_AllocationBoundary()
 				if native {
 					result, ok := tryNativeParser(file, text, config)
 					if !ok {
