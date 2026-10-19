@@ -38,8 +38,8 @@ func NewThreadSafeDelegatingErrorManager(delegated ErrorManager) *ThreadSafeDele
 
 // Java: ThreadSafeDelegatingErrorManager.report(CheckLevel, JSError)
 func (m *ThreadSafeDelegatingErrorManager) Report(level *CheckLevel, error *JSError) {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	m.delegated.Report(level, error)
 }
 
@@ -57,43 +57,43 @@ func (m *ThreadSafeDelegatingErrorManager) HasHaltingErrors() bool {
 
 // Java: ThreadSafeDelegatingErrorManager.getErrorCount()
 func (m *ThreadSafeDelegatingErrorManager) GetErrorCount() int {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.GetErrorCount()
 }
 
 // Java: ThreadSafeDelegatingErrorManager.getWarningCount()
 func (m *ThreadSafeDelegatingErrorManager) GetWarningCount() int {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.GetWarningCount()
 }
 
 // Java: ThreadSafeDelegatingErrorManager.getErrors()
 func (m *ThreadSafeDelegatingErrorManager) GetErrors() []*JSError {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.GetErrors()
 }
 
 // Java: ThreadSafeDelegatingErrorManager.getWarnings()
 func (m *ThreadSafeDelegatingErrorManager) GetWarnings() []*JSError {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.GetWarnings()
 }
 
 // Java: ThreadSafeDelegatingErrorManager.setTypedPercent(double)
 func (m *ThreadSafeDelegatingErrorManager) SetTypedPercent(typedPercent float64) {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	m.delegated.SetTypedPercent(typedPercent)
 }
 
 // Java: ThreadSafeDelegatingErrorManager.getTypedPercent()
 func (m *ThreadSafeDelegatingErrorManager) GetTypedPercent() float64 {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.GetTypedPercent()
 }
 
@@ -104,8 +104,16 @@ func (m *ThreadSafeDelegatingErrorManager) ShouldReportConformanceViolation(
 	diagnostic *JSError,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
 	isAllowlisted bool) bool {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.lock()
+	defer m.unlock()
 	return m.delegated.ShouldReportConformanceViolation(
 		requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
+}
+
+func (m *ThreadSafeDelegatingErrorManager) lock() {
+	m.monitor.LockFast()
+}
+
+func (m *ThreadSafeDelegatingErrorManager) unlock() {
+	m.monitor.UnlockFast()
 }

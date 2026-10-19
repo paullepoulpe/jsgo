@@ -73,6 +73,27 @@ func (m *Monitor) Unlock() {
 	}
 }
 
+// LockFast acquires the monitor for a leaf synchronized method whose body
+// cannot re-enter the same monitor, but which may be called re-entrantly while
+// another method on the same object holds Lock(). When the monitor has no
+// re-entrant owner (owner == 0), it avoids the GoroutineID() stack walk.
+func (m *Monitor) LockFast() {
+	if owner := m.owner.Load(); owner != 0 && owner == GoroutineID() {
+		m.holds++
+		return
+	}
+	m.mu.Lock()
+	m.holds = 1
+}
+
+// UnlockFast releases one hold acquired by LockFast.
+func (m *Monitor) UnlockFast() {
+	m.holds--
+	if m.holds == 0 {
+		m.mu.Unlock()
+	}
+}
+
 // IsHeldByCurrentGoroutine reports whether the current goroutine holds the
 // monitor (Thread.holdsLock(obj); ReentrantLock.isHeldByCurrentThread()).
 func (m *Monitor) IsHeldByCurrentGoroutine() bool {

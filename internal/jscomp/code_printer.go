@@ -75,6 +75,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 	// The ordered list of finalized mappings since the last line break. See
 	// #reportLineCut.
 	completeMappings []*SourceMap_Mapping // nil is null
+	mappingSlab      []SourceMap_Mapping
 	// The index into allMappings to find the mappings added since the last
 	// line break. See #reportLineCut.
 	firstCandidateMappingForCut int
@@ -85,6 +86,15 @@ type CodePrinter_MappedCodePrinterBase struct {
 	lineLengthThreshold         int
 	lineLength                  int
 	lineIndex                   int
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
+	if len(m.mappingSlab) == 0 {
+		m.mappingSlab = make([]SourceMap_Mapping, 256)
+	}
+	res := &m.mappingSlab[0]
+	m.mappingSlab = m.mappingSlab[1:]
+	return res
 }
 
 // GetCodePrinter_MappedCodePrinterBase gives access to the base fields
@@ -168,9 +178,9 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node)
 		line := m.GetCurrentLineIndex()
 		index := m.GetCurrentCharIndex()
 		jutil.CheckState(line >= 0)
-		mapping := &SourceMap_Mapping{}
+		mapping := m.allocMapping()
 		mapping.node = node
-		mapping.start = sourcemap.NewFilePosition(line, index)
+		mapping.start = sourcemap.MakeFilePosition(line, index)
 		m.mappings = append(m.mappings, mapping)
 		m.allMappings = append(m.allMappings, mapping)
 	}
@@ -188,7 +198,7 @@ func (m *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node *rhino.Node) {
 		line := m.GetCurrentLineIndex()
 		index := m.GetCurrentCharIndex()
 		jutil.CheckState(line >= 0)
-		mapping.end = sourcemap.NewFilePosition(line, index)
+		mapping.end = sourcemap.MakeFilePosition(line, index)
 		m.completeMappings = append(m.completeMappings, mapping)
 	}
 }
@@ -203,15 +213,10 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 		return nil
 	}
 	lineLengths := CodePrinter_MappedCodePrinter_ComputeLineLengths(code)
-	fixedMappings := make([]*SourceMap_Mapping, 0, len(m.allMappings))
 	for _, mapping := range m.allMappings {
-		adjusted := &SourceMap_Mapping{}
-		adjusted.node = mapping.node
-		adjusted.start = mapping.start
-		adjusted.end = CodePrinter_MappedCodePrinter_AdjustEndPosition(lineLengths, mapping.end)
-		fixedMappings = append(fixedMappings, adjusted)
+		mapping.end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, mapping.end)
 	}
-	return fixedMappings
+	return m.allMappings
 }
 
 // ReportLineCut reports to the code consumer that the given line has been
@@ -231,18 +236,28 @@ func (m *CodePrinter_MappedCodePrinterBase) ReportLineCut(lineIndex int, charInd
 		mappingCount := len(m.allMappings)
 		for i := m.firstCandidateMappingForCut; i < mappingCount; i++ {
 			mapping := m.allMappings[i]
-			mapping.start = CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(mapping.start, lineIndex, charIndex)
+			mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
 		}
 		m.firstCandidateMappingForCut = mappingCount
 
 		for _, mapping := range m.completeMappings {
-			mapping.end = CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(mapping.end, lineIndex, charIndex)
+			mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
 		}
 		// To avoid iterating over every mapping, every time we cut a line,
 		// keep track of mappings that must end before the next cut.
 		clear(m.completeMappings)
 		m.completeMappings = m.completeMappings[:0]
 	}
+}
+
+func codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(
+	position sourcemap.FilePosition, lineIndex int, characterPosition int) sourcemap.FilePosition {
+	originalLine := position.GetLine()
+	originalChar := position.GetColumn()
+	if originalLine == lineIndex && originalChar >= characterPosition {
+		return sourcemap.MakeFilePosition(originalLine+1, originalChar-characterPosition)
+	}
+	return position
 }
 
 // CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut converts the
@@ -317,6 +332,26 @@ func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int {
 		}
 	}
 	return builder
+}
+
+func codePrinter_MappedCodePrinter_adjustEndPositionVal(
+	lineLengths []int, endPosition sourcemap.FilePosition) sourcemap.FilePosition {
+	line := endPosition.GetLine()
+	if line >= len(lineLengths) {
+		return endPosition
+	}
+	col := endPosition.GetColumn()
+	if col > lineLengths[line] {
+		jutil.CheckStateMsg2(
+			false,
+			"End position %s points to a column larger than line length %s",
+			&endPosition,
+			lineLengths[line])
+	}
+	if col == lineLengths[line] {
+		return sourcemap.MakeFilePosition(line+1, 0)
+	}
+	return endPosition
 }
 
 // CodePrinter_MappedCodePrinter_AdjustEndPosition adjusts end position of a

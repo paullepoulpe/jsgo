@@ -69,6 +69,8 @@ type SourceMapGeneratorV3 struct {
 	// The source root path for relocating source fails or avoid duplicate
 	// values on the source entry.
 	sourceRootPath *string
+
+	mappingSlab []SourceMapGeneratorV3_Mapping
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -110,6 +112,7 @@ func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
 	clear(g.mappings)
 	g.mappings = g.mappings[:0]
+	g.mappingSlab = nil
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
@@ -117,6 +120,16 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastSourceFileIndex = -1
 	g.offsetPosition = NewFilePosition(0, 0)
 	g.prefixPosition = NewFilePosition(0, 0)
+}
+
+func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
+	if len(g.mappingSlab) == 0 {
+		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 256)
+	}
+	m := &g.mappingSlab[0]
+	g.mappingSlab = g.mappingSlab[1:]
+	m.id = SourceMapGeneratorV3_UNMAPPED
+	return m
 }
 
 // Validate sets whether to perform (potentially costly) validation on the
@@ -172,6 +185,17 @@ func (g *SourceMapGeneratorV3) AddMapping(
 	sourceName *string, symbolName *string,
 	sourceStartPosition *FilePosition,
 	startPosition *FilePosition, endPosition *FilePosition) {
+	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
+		return
+	}
+	g.AddMappingPositions(sourceName, symbolName, *sourceStartPosition, *startPosition, *endPosition)
+}
+
+// AddMappingPositions adds a mapping using value FilePositions without heap allocation.
+func (g *SourceMapGeneratorV3) AddMappingPositions(
+	sourceName *string, symbolName *string,
+	sourceStartPosition FilePosition,
+	startPosition FilePosition, endPosition FilePosition) {
 
 	// Don't bother if there is not sufficient information to be useful.
 	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
@@ -198,17 +222,17 @@ func (g *SourceMapGeneratorV3) AddMapping(
 			endOffsetPosition = 0
 		}
 
-		adjustedStart = NewFilePosition(
+		adjustedStart = MakeFilePosition(
 			jutil.IntAdd(startPosition.GetLine(), offsetLine),
 			jutil.IntAdd(startPosition.GetColumn(), startOffsetPosition))
 
-		adjustedEnd = NewFilePosition(
+		adjustedEnd = MakeFilePosition(
 			jutil.IntAdd(endPosition.GetLine(), offsetLine),
 			jutil.IntAdd(endPosition.GetColumn(), endOffsetPosition))
 	}
 
 	// Create the new mapping.
-	mapping := NewSourceMapGeneratorV3_Mapping()
+	mapping := g.allocMapping()
 	mapping.sourceFile = *sourceName
 	mapping.originalPosition = sourceStartPosition
 	mapping.originalName = symbolName
@@ -578,15 +602,15 @@ type SourceMapGeneratorV3_Mapping struct {
 	// The position of the code in the input source file. Both the line
 	// number and the character index are indexed by 1 for legacy reasons via
 	// the Rhino Node class.
-	originalPosition *FilePosition
+	originalPosition FilePosition
 
 	// The starting position of the code in the generated source file which
 	// this mapping represents. Indexed by 0.
-	startPosition *FilePosition
+	startPosition FilePosition
 
 	// The ending position of the code in the generated source file which
 	// this mapping represents. Indexed by 0.
-	endPosition *FilePosition
+	endPosition FilePosition
 
 	// The original name of the token found at the position represented by
 	// this mapping (if any).
@@ -683,14 +707,14 @@ func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_
 // GetAdjustedLine returns the line adjusted for the prefix position.
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.getAdjustedLine(FilePosition)
-func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedLine(p *FilePosition) int {
+func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedLine(p FilePosition) int {
 	return jutil.IntAdd(p.GetLine(), t.outer.prefixPosition.GetLine())
 }
 
 // GetAdjustedCol returns the column adjusted for the prefix position.
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.getAdjustedCol(FilePosition)
-func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedCol(p *FilePosition) int {
+func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedCol(p FilePosition) int {
 	rawLine := p.GetLine()
 	rawCol := p.GetColumn()
 	// Only the first line needs the character position adjusted.
