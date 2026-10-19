@@ -21,7 +21,6 @@ package jscomp
 import (
 	"cmp"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -51,9 +50,10 @@ type ControlFlowAnalysis struct {
 
 	cfg ControlFlowGraph[*rhino.Node]
 
-	// Go-only: language-adapter — the Integer values are *int, so that an
-	// absent key (Java null) stays distinguishable from position 0.
-	astPosition *base.LinkedIdentityHashMap[*rhino.Node, *int]
+	// Go-only: performance — astPosition is never iterated, only queried via
+	// Get(node) inside priorityComparator; a native map[*rhino.Node]int avoids
+	// boxing every AST position as a heap *int and maintaining linked-list nodes.
+	astPosition map[*rhino.Node]int
 
 	// We order CFG nodes by by looking at the AST positions.
 	// CFG nodes that come first lexically should be visited first, because
@@ -145,12 +145,12 @@ func newControlFlowAnalysis(compiler AbstractCompiler, shouldTraverseFunctions b
 // astPositionOf is the key extractor of priorityComparator:
 // checkNotNull(astPosition.get(digraphNode.getValue()), digraphNode.getValue()).
 func (c *ControlFlowAnalysis) astPositionOf(digraphNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int {
-	p := c.astPosition.Get(digraphNode.GetValue())
-	if p == nil {
+	p, ok := c.astPosition[digraphNode.GetValue()]
+	if !ok {
 		// checkNotNull(T, Object errorMessage)
 		panic(jutil.NewNullPointerExceptionMsg(jutil.ToJavaString(digraphNode.GetValue())))
 	}
-	return *p
+	return p
 }
 
 // ControlFlowAnalysis_Builder configures a ControlFlowAnalysis instance then
@@ -218,7 +218,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
-	c.astPosition = base.NewLinkedIdentityHashMap[*rhino.Node, *int]()
+	c.astPosition = make(map[*rhino.Node]int, 16)
 	c.astPositionCounter = 0
 	c.cfg = newControlFlowAnalysis_AstControlFlowGraph(ControlFlowAnalysis_ComputeFallThrough(root), c.edgeAnnotations)
 
@@ -227,7 +227,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 
 	// Insert an implicit return last.
 	c.astPositionCounter++
-	c.astPosition.Put(nil, newControlFlowAnalysis_Position(c.astPositionCounter))
+	c.astPosition[nil] = c.astPositionCounter
 
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
@@ -265,11 +265,6 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	c.cfg.GetImplicitReturn().SetPriority(c.priorityCounter)
 }
 
-// newControlFlowAnalysis_Position boxes an AST position (Integer.valueOf).
-func newControlFlowAnalysis_Position(p int) *int {
-	return &p
-}
-
 // prioritizeFromEntryNode: given an entry node, find all the nodes reachable
 // from that node and prioritize them.
 //
@@ -298,7 +293,7 @@ func (c *ControlFlowAnalysis) ShouldTraverse(nodeTraversal *NodeTraversal, n *rh
 		// Any AST node that will later have a corresponding CFG node must be in astPosition.
 		// To avoid having astPosition grow too large, we exclude AST nodes that are not traversed
 		// further, as they usually are not put in the CFG.
-		c.astPosition.Put(n, newControlFlowAnalysis_Position(c.astPositionCounter))
+		c.astPosition[n] = c.astPositionCounter
 		c.astPositionCounter++
 		return true
 	}
@@ -374,7 +369,7 @@ func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n *rhino.Node, parent *
 			if !shouldTraverseForChild {
 				// The control-flow graph contains edges from a FOR node to all its children, even
 				// though only the body is actually traversed. So put the other children in astPosition.
-				c.astPosition.Put(n, newControlFlowAnalysis_Position(c.astPositionCounter))
+				c.astPosition[n] = c.astPositionCounter
 				c.astPositionCounter++
 			}
 			return shouldTraverseForChild

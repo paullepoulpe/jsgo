@@ -20,9 +20,11 @@ package jscomp
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
+	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -145,8 +147,20 @@ func newPolyfillUsageFinder_Polyfills(
 // The last line, WeakMap, does not have a polyfill available, so the
 // library token is empty.
 //
+var defaultPolyfillsTable = sync.OnceValue(func() *PolyfillUsageFinder_Polyfills {
+	return polyfillUsageFinder_Polyfills_parseTable(
+		resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt"))
+})
+
 // Java: PolyfillUsageFinder.Polyfills.fromTable(String)
 func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_Polyfills {
+	if table == resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt") {
+		return defaultPolyfillsTable()
+	}
+	return polyfillUsageFinder_Polyfills_parseTable(table)
+}
+
+func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder_Polyfills {
 	methods := jutil.NewImmutableListMultimapBuilder[string, *PolyfillUsageFinder_Polyfill]()
 	statics := jutil.NewImmutableMapBuilder[string, *PolyfillUsageFinder_Polyfill]()
 	byNativeVersion := jutil.NewImmutableListMultimapBuilder[string, *PolyfillUsageFinder_Polyfill]()
@@ -158,7 +172,8 @@ func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_
 			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid table: too few tokens on line: " + line))
 		}
 		symbol := tokens[0]
-		isPrototypeMethod := strings.Contains(symbol, ".prototype.")
+		protoIdx := strings.LastIndex(symbol, ".prototype.")
+		isPrototypeMethod := protoIdx >= 0
 		nativeVersionStr := tokens[1]
 		polyfillVersionStr := tokens[2]
 		library := ""
@@ -177,7 +192,7 @@ func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_
 				library,
 				kind)
 		if isPrototypeMethod {
-			methods.Put(jutil.StringReplaceAll(symbol, ".*\\.prototype\\.", ""), polyfill)
+			methods.Put(symbol[protoIdx+len(".prototype."):], polyfill)
 		} else {
 			statics.Put(symbol, polyfill)
 		}
