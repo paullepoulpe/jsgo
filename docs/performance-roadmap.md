@@ -196,6 +196,81 @@ Linux) and peak RSS by **9.7%** (25.3% on Linux), putting `jsgo` ahead of cold
 Java (**1.22×**) and closing the warm-JVM speed ratio from 0.67× to **0.85–0.89×**
 at **3.3–4.8× lower peak RSS**.
 
+## Idiomatic concurrency, hot-path passes, and PR #23 integration (2026-10-19)
+
+Building on `123b46e8`, a second round of systematic concurrency, data-structure,
+and pass-level optimizations was implemented and verified step by step:
+
+1. **Idiomatic concurrency & lock elimination (`step1` & `step7`):**
+   - Unified `prebuild_ast_parallel.go` and `prebuild_dependency_info_parallel.go`
+     into a generic `parallelPrebuild[T, R]` worker pool using lock-free
+     `atomic.Int64` work-claiming and capped at `min(numParallelThreads, runtime.GOMAXPROCS(0), len(inputs))`.
+   - Sharded `RhinoStringPool` (`internal/rhino/rhino_string_pool.go`) into 64
+     `sync.RWMutex` shards keyed by `StringHashCode(s)` with an allocation-free
+     read lock fast path.
+   - Replaced `jutil.Monitor` with `sync.Once` in `ParserRunner` /
+     `ParserConfiguration`, `sync.Mutex` + $O(1)$ `entries map[string]*zip.File`
+     in `JSCompZipFileCache`, lock-free `atomic.Pointer` / `atomic.Uint64` on
+     `colors.Color` (shrinking `Color` from 112 B → 80 B), `sync.Mutex` +
+     `atomic.Pointer[string]` on `SourceFile` (`GetCodeNoCache`), and
+     `sync.Mutex` on `DiagnosticGroup_ForType`.
+2. **Parallel `SourceInformationAnnotator` and per-script `CodePrinter` (`step2`):**
+   - Replaced `NodeTraversal` + `LinkedIdentityHashMap` scope stack in
+     `SourceInformationAnnotator` with a direct recursive AST walk (`AnnotateTree`)
+     and parallelized per-root annotation across worker goroutines.
+   - Parallelized per-script `toSourceAndMappings` in `Compiler.ToSourceArray` /
+     `ToSource` when `numParallelThreads > 1`, assembling source strings and
+     source-map mappings deterministically in script index order, and replaced
+     the UTF-16 `StringCharAt` suffix check with `strings.HasSuffix(code, ";")`.
+3. **Value-embedded collections & concrete scope/traversal stacks (`step3`):**
+   - Replaced `scopes []any` in `NodeTraversal` with concrete `[]scopeStackEntry`
+     backed by an inline `[16]scopeStackEntry` array; lazily initialized
+     `SyntacticScopeCreator` only when a traversal requests a scope.
+   - Embedded `jutil.LinkedHashMap` by value in `AbstractScope`,
+     `LinkedIdentityHashMap`, and `LinkedIdentityHashSet`; added inline
+     `refsBuf [4]*Reference` in `ReferenceCollection` and concrete `GetVar` /
+     `GetSlot` methods on `*Scope`.
+4. **Hot optimization pass improvements (`step4`, `step5`, `step8`):**
+   - **`FlowSensitiveInlineVariables`:** filtered function-parameter definitions
+     during candidate gathering, skipped `MustBeReachingVariableDef` when a
+     function has no candidates, deferred backward `MaybeReachingVariableUse`
+     until at least one candidate passes cheap AST/CFG/side-effect checks, and
+     embedded `dependsSet` inline in `MustBeReachingVariableDef_Definition`.
+   - **`RemoveUnusedCode` & `InlineAndCollapseProperties`:** guarded discarded
+     `DebugLog` closures (`IsLogging()`), checked `varInfo.IsRemovable()` before
+     allocating closures in `TraverseNode`, converted `Continuation` to a value
+     struct with inline `continuationsBuf [2]Continuation` and
+     `removablesBuf [2]Removable`, and cached parsed `js/polyfills.txt` via
+     `sync.OnceValue` across `PolyfillUsageFinder`, `RemoveUnusedCode`,
+     `RewritePolyfills`, and `IsolatePolyfills`.
+   - **`InlineVariables`, `ControlFlowAnalysis`, `LiveVariablesAnalysis`, `MakeDeclaredNamesUnique`:**
+     embedded all 9 `InitiallyUnknown[T]` fields by value on `IdentifyConstants`;
+     replaced `ControlFlowAnalysis.astPosition` with `map[*rhino.Node]int`;
+     added inline `buf [2]uint64` (128 bits) to `jutil.BitSet` and stack-allocated
+     `gen`/`kill` bitsets in `LiveVariablesAnalysis`; skipped `disallowedNames`
+     map allocation when `preferredName` has no conflict in `AttemptRename` and
+     used `map[string][]VariableInfo` in `VariableInfoStackMap`.
+5. **`PropertyMap`, `TreeMap`, and PGO with `bundle` (`step7` & `step9`):**
+   - Replaced `sort.Search` closure in `TreeMap.search` with an inline 3-way
+     binary search (`c == 0` early return).
+   - Replaced `TreeMap` inside `rhino.PropertyMap` (`jstype_property_map.go`,
+     embedded by value in `PrototypeObjectTypeBase`) with a flat `entries` slice,
+     $O(1)$ `byName` map for $> 8$ properties, lazy `StringCompareTo` sorting on
+     key-ordered iteration, and allocation-free `findClosestPairByKey` across
+     the prototype chain.
+   - Added `bundle` to default PGO profile collection (`tools/bench/pgo.py`) and
+     regenerated `cmd/jsgo/default.pgo`.
+
+### Measured results (interleaved, N=3 per step + final paired control)
+
+| Task | Original (`c9872522`) | Phase 1 (`123b46e8` `t=1`/`t=4`) | Phase 2 (`t=1` / `t=4`) | Phase 2 vs Phase 1 (`t=1` / `t=4`) | Total vs Original (`t=1` / `t=4`) | Warm Java (`t=4`) | Go / Warm Java Speed (`t=1` / `t=4`) | Go RSS vs Cold / Warm Java RSS |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `typed-app` | 2.86 s | 2.75 s / 2.61 s | **2.53 s** / **2.41 s** | **−8.1%** / **−7.5%** | **−11.7%** / **−15.7%** | 2.18 s | **0.86×** / **0.90×** | 230 MiB (**3.21× / 8.06×** lower) |
+| `bundle` (12.6 MB) | 11.82 s | 10.31 s | **9.40–9.44 s** | **−8.7% to −10.5%** | **−20.1%** | 8.68 s | **0.92×** / **0.92×** | 487 MiB (**3.99× / 4.84×** lower) |
+| `downlevel-whitespace` | 0.86 s | 0.84 s / 0.70 s | **0.74 s** / **0.63 s** | **−12.6%** / **−10.7%** | **−14.3%** / **−27.0%** | 0.60 s | **0.81×** / **0.95×** | 150 MiB (**3.24× / 12.08×** lower) |
+| `downlevel-simple` | 2.39 s | 2.24 s / 2.10 s | **2.02 s** / **1.90 s** | **−10.0%** / **−9.2%** | **−15.5%** / **−20.4%** | 1.60 s | **0.79×** / **0.84×** | 183 MiB (**3.22× / 7.76×** lower) |
+| `checks-only` | 4.40 s | 4.28 s / 3.83 s | **3.96 s** / **3.48 s** | **−7.5%** / **−9.0%** | **−10.0%** / **−20.9%** | 3.20 s | **0.81×** / **0.92×** | 637 MiB (**2.45× / 4.84×** lower) |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
@@ -204,4 +279,5 @@ at **3.3–4.8× lower peak RSS**.
 - The released jar still cannot load its own XTB reader
   (`NoClassDefFoundError …jarjar/javax/xml/parsers/ParserConfigurationException`);
   `tools/clie2e/build-java.sh` works around it for the oracles.
+
 

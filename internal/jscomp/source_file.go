@@ -25,6 +25,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -59,7 +61,7 @@ type SourceFile struct {
 	lineOffsets     []int // nil is null
 	lineByteOffsets []int
 
-	code *string
+	code atomic.Pointer[string]
 
 	// Code statistics used for metrics.
 	// For both of these, a negative value means we haven't counted yet.
@@ -68,9 +70,9 @@ type SourceFile struct {
 
 	isClosureUnawareCode bool
 
-	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized blocks of getCode and getCodeReader hold.
-	monitor jutil.Monitor
+	// Go-only: language-adapter — synchronizes lazy code loading in
+	// getCode and getCodeReader.
+	mu sync.Mutex
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
@@ -243,8 +245,8 @@ func (f *SourceFile) FindLineOffsets() {
 	}
 
 	var localCode string
-	if f.code != nil {
-		localCode = *f.code
+	if p := f.code.Load(); p != nil {
+		localCode = *p
 	} else {
 		failed := false
 		jutil.Try(func() {
@@ -288,18 +290,16 @@ func (f *SourceFile) FindLineOffsets() {
 //
 // Java: SourceFile.getCode()
 func (f *SourceFile) GetCode() string {
-	if f.code == nil {
-		// Only synchronize if we need to
-		func() {
-			f.monitor.Lock()
-			defer f.monitor.Unlock()
-			// Make sure another thread hasn't loaded the code while we waited.
-			if f.code == nil {
-				f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
-			}
-		}()
+	if p := f.code.Load(); p != nil {
+		return *p
 	}
-	return *f.code
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p := f.code.Load(); p != nil {
+		return *p
+	}
+	f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
+	return *f.code.Load()
 }
 
 // Java: SourceFile.setCodeDeprecated(String)
@@ -315,13 +315,13 @@ func (f *SourceFile) SetCodeDeprecated(code string) {
 // Java: SourceFile.getCodeReader()
 func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 	// Only synchronize if we need to
-	if f.code == nil {
+	if f.code.Load() == nil {
 		var uncachedReader jutil.JavaReader
 		func() {
-			f.monitor.Lock()
-			defer f.monitor.Unlock()
+			f.mu.Lock()
+			defer f.mu.Unlock()
 			// Make sure another thread hasn't loaded the code while we waited.
-			if f.code == nil {
+			if f.code.Load() == nil {
 				uncachedReader = f.loader.OpenUncachedReader()
 			}
 		}()
@@ -333,7 +333,7 @@ func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 }
 
 func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
-	f.code = nil
+	f.code.Store(nil)
 	// Force recalculation of all of these values when they are requested.
 	f.lineOffsets = nil
 	f.lineByteOffsets = nil
@@ -344,8 +344,7 @@ func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 			s = s[len(sourceFile_UTF8_BOM):]
 		}
 
-		f.code = &s
-		// Update numLines and numBytes
+		// Update numLines and numBytes before publishing code via atomic Store.
 		// NOTE: In some edit/refresh development workflows, we may end up
 		// re-reading the file and getting different numbers than we got last
 		// time we read it, so we should not have checkState() calls here to
@@ -365,6 +364,7 @@ func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 			}
 		}
 		f.numLines = numLines
+		f.code.Store(&s)
 	}
 }
 
@@ -391,7 +391,7 @@ func (f *SourceFile) ClearCachedSource() {
 
 // Java: SourceFile.hasSourceInMemory()
 func (f *SourceFile) HasSourceInMemory() bool {
-	return f.code != nil
+	return f.code.Load() != nil
 }
 
 // GetName returns a unique name for the source file.

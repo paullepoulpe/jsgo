@@ -73,16 +73,18 @@ type MustBeReachingVariableDef_Definition struct {
 	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
 	// hence the Object set.
 	depends             *jutil.ObjectLinkedHashSet[*Var]
+	dependsSet          jutil.ObjectLinkedHashSet[*Var]
 	unknownDependencies bool
 }
 
 // Java: MustBeReachingVariableDef.Definition(Node)
 func NewMustBeReachingVariableDef_Definition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
-	return &MustBeReachingVariableDef_Definition{
+	d := &MustBeReachingVariableDef_Definition{
 		node:                node,
-		depends:             jutil.NewObjectLinkedHashSet[*Var](),
 		unknownDependencies: false,
 	}
+	d.depends = &d.dependsSet
+	return d
 }
 
 // Java: MustBeReachingVariableDef.Definition.equals(Object)

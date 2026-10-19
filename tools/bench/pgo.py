@@ -92,7 +92,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", default=bench.default_cache(), help="the .cache directory (default: the main checkout's)")
     ap.add_argument("--profile", default=os.path.join(REPO, "cmd", "jsgo", "default.pgo"))
-    ap.add_argument("--tasks", default="typed-app,downlevel-whitespace,downlevel-simple,checks-only")
+    ap.add_argument("--tasks", default="typed-app,bundle,downlevel-whitespace,downlevel-simple,checks-only")
     ap.add_argument("--single-files", type=int, default=8, help="single-file invocations to profile")
     a = ap.parse_args()
 

@@ -12,10 +12,15 @@ import (
 // non-negative ints. The zero value is an empty set.
 type BitSet struct {
 	words []uint64
+	buf   [2]uint64
 }
 
 // NewBitSet is new BitSet().
-func NewBitSet() *BitSet { return &BitSet{} }
+func NewBitSet() *BitSet {
+	b := &BitSet{}
+	b.words = b.buf[:0:1]
+	return b
+}
 
 func bitSetCheckIndex(bitIndex int, name string) {
 	if bitIndex < 0 {
@@ -24,9 +29,20 @@ func bitSetCheckIndex(bitIndex int, name string) {
 }
 
 func (b *BitSet) ensure(wordIndex int) {
-	if wordIndex >= len(b.words) {
-		b.words = append(b.words, make([]uint64, wordIndex+1-len(b.words))...)
+	if wordIndex < len(b.words) {
+		return
 	}
+	if b.words == nil && wordIndex < len(b.buf) {
+		b.words = b.buf[:wordIndex+1]
+		return
+	}
+	if wordIndex < cap(b.words) {
+		prev := len(b.words)
+		b.words = b.words[:wordIndex+1]
+		clear(b.words[prev:])
+		return
+	}
+	b.words = append(b.words, make([]uint64, wordIndex+1-len(b.words))...)
 }
 
 // trim drops trailing zero words so that len(words) is Java's wordsInUse.
@@ -245,7 +261,21 @@ func (b *BitSet) ToByteArray() []byte {
 
 // Clone is BitSet.clone().
 func (b *BitSet) Clone() *BitSet {
-	return &BitSet{words: append([]uint64(nil), b.words...)}
+	c := &BitSet{}
+	b.CloneInto(c)
+	return c
+}
+
+// CloneInto copies b into dst, using dst's inline buffer when it fits.
+func (b *BitSet) CloneInto(dst *BitSet) {
+	n := len(b.words)
+	c := cap(b.words)
+	if c <= len(dst.buf) {
+		dst.words = dst.buf[:n:c]
+	} else {
+		dst.words = make([]uint64, n, c)
+	}
+	copy(dst.words, b.words)
 }
 
 // Equals is BitSet.equals(Object).

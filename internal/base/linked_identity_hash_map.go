@@ -31,30 +31,21 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Go-only: language-adapter — the IdentityHashMap is a Go map keyed by K
 // with Go ==, which is identity for the pointer types used as keys.
 type LinkedIdentityHashMap[K comparable, V any] struct {
-	innerMap       map[K]*LinkedIdentityHashMap_Entry[K, V]
-	iterationOrder *jutil.ArrayList[*LinkedIdentityHashMap_Entry[K, V]]
+	m jutil.LinkedHashMap[K, V]
 }
 
 // NewLinkedIdentityHashMap is the implicit default constructor.
 //
 // Java: LinkedIdentityHashMap()
 func NewLinkedIdentityHashMap[K comparable, V any]() *LinkedIdentityHashMap[K, V] {
-	return &LinkedIdentityHashMap[K, V]{
-		innerMap:       make(map[K]*LinkedIdentityHashMap_Entry[K, V]),
-		iterationOrder: jutil.NewArrayList[*LinkedIdentityHashMap_Entry[K, V]](),
-	}
+	return &LinkedIdentityHashMap[K, V]{}
 }
 
 // Get returns the value for key, or the zero value (Java null).
 //
 // Java: LinkedIdentityHashMap.get(K)
 func (m *LinkedIdentityHashMap[K, V]) Get(key K) V {
-	entry := m.innerMap[key]
-	if entry == nil {
-		var zero V
-		return zero
-	}
-	return entry.value
+	return m.m.Get(key)
 }
 
 // Lookup is Get plus whether the key is present.
@@ -64,12 +55,7 @@ func (m *LinkedIdentityHashMap[K, V]) Get(key K) V {
 // returns 0 for both a missing key and a present 0. Lookup reports presence,
 // like jutil.LinkedHashMap.Lookup, for the callers that test get(k) != null.
 func (m *LinkedIdentityHashMap[K, V]) Lookup(key K) (V, bool) {
-	entry := m.innerMap[key]
-	if entry == nil {
-		var zero V
-		return zero, false
-	}
-	return entry.value, true
+	return m.m.Lookup(key)
 }
 
 // Put associates value with key and returns the previous value (zero if
@@ -77,17 +63,7 @@ func (m *LinkedIdentityHashMap[K, V]) Lookup(key K) (V, bool) {
 //
 // Java: LinkedIdentityHashMap.put(K, V)
 func (m *LinkedIdentityHashMap[K, V]) Put(key K, value V) V {
-	entry := m.innerMap[key]
-	if entry == nil {
-		entry = NewLinkedIdentityHashMap_Entry(key, value)
-		m.innerMap[key] = entry
-		m.iterationOrder.Add(entry)
-		var zero V
-		return zero
-	}
-	oldValue := entry.value
-	entry.value = value
-	return oldValue
+	return m.m.Put(key, value)
 }
 
 // ComputeIfAbsent returns the existing non-null value, or computes, stores
@@ -97,13 +73,13 @@ func (m *LinkedIdentityHashMap[K, V]) Put(key K, value V) V {
 func (m *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn func(K) V) V {
 	// Go-only: language-adapter — Java's get(key) != null: present and not
 	// null (Get alone would read a missing key as a present 0 for an int V).
-	oldValue, ok := m.Lookup(key)
+	oldValue, ok := m.m.Lookup(key)
 	if ok && !jutil.IsNil(oldValue) {
 		return oldValue
 	}
 
 	newValue := fn(key)
-	m.Put(key, newValue)
+	m.m.Put(key, newValue)
 	return newValue
 }
 
@@ -114,14 +90,14 @@ func (m *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn func(K) V) V {
 func (m *LinkedIdentityHashMap[K, V]) Merge(key K, value V, fn func(V, V) V) V {
 	// Go-only: language-adapter — Java's get(key) == null: missing or null
 	// (see ComputeIfAbsent).
-	oldValue, ok := m.Lookup(key)
+	oldValue, ok := m.m.Lookup(key)
 	if !ok || jutil.IsNil(oldValue) {
-		m.Put(key, value)
+		m.m.Put(key, value)
 		return value
 	}
 
 	mergeValue := fn(oldValue, value)
-	m.Put(key, mergeValue)
+	m.m.Put(key, mergeValue)
 	return mergeValue
 }
 
@@ -129,8 +105,8 @@ func (m *LinkedIdentityHashMap[K, V]) Merge(key K, value V, fn func(V, V) V) V {
 //
 // Java: LinkedIdentityHashMap.forEach(BiConsumer<? super K, ? super V>)
 func (m *LinkedIdentityHashMap[K, V]) ForEach(fn func(K, V)) {
-	for entry := range m.iterationOrder.All() {
-		fn(entry.key, entry.value)
+	for k, v := range m.m.All() {
+		fn(k, v)
 	}
 }
 

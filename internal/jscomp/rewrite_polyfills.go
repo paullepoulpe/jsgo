@@ -21,7 +21,6 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
-	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -67,8 +66,7 @@ func NewRewritePolyfills(
 	return NewRewritePolyfillsWithRuntimeJsLibManager(
 		compiler,
 		compiler.GetRuntimeJsLibManager(),
-		PolyfillUsageFinder_Polyfills_FromTable(
-			resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.RewritePolyfills", "js/polyfills.txt")),
+		defaultPolyfillsTable(),
 		injectPolyfills,
 		isolatePolyfills,
 		injectPolyfillsNewerThan)

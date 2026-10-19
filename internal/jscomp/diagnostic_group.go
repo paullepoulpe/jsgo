@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -85,21 +87,22 @@ func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGro
 // DiagnosticGroups with only a single DiagnosticType.
 var diagnosticGroup_singletons = jutil.NewObjectLinkedHashMap[*DiagnosticType, *DiagnosticGroup]()
 
-// Go-only: language-adapter — the monitor of DiagnosticGroup.class, which
-// its static synchronized methods hold.
-var diagnosticGroup_classMonitor jutil.Monitor
+// Go-only: language-adapter — guards diagnosticGroup_singletons.
+var diagnosticGroup_mu sync.Mutex
 
 // DiagnosticGroup_ForType creates a diagnostic group that matches only the
 // given type.
 //
 // Java: DiagnosticGroup.forType(DiagnosticType)
 func DiagnosticGroup_ForType(type_ *DiagnosticType) *DiagnosticGroup {
-	diagnosticGroup_classMonitor.Lock()
-	defer diagnosticGroup_classMonitor.Unlock()
-	if g, ok := diagnosticGroup_singletons.Lookup(type_); !ok || g == nil {
-		diagnosticGroup_singletons.Put(type_, newDiagnosticGroupForSingleType(type_))
+	diagnosticGroup_mu.Lock()
+	defer diagnosticGroup_mu.Unlock()
+	if g, ok := diagnosticGroup_singletons.Lookup(type_); ok && g != nil {
+		return g
 	}
-	return diagnosticGroup_singletons.Get(type_)
+	g := newDiagnosticGroupForSingleType(type_)
+	diagnosticGroup_singletons.Put(type_, g)
+	return g
 }
 
 // Matches returns whether the given error's type matches a type in this

@@ -23,7 +23,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
-	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -58,10 +57,7 @@ const isolatePolyfills_POLYFILL_TEMP = "$jscomp$polyfillTmp"
 
 // Java: IsolatePolyfills(AbstractCompiler)
 func NewIsolatePolyfills(compiler AbstractCompiler) *IsolatePolyfills {
-	return NewIsolatePolyfillsWithPolyfills(
-		compiler,
-		PolyfillUsageFinder_Polyfills_FromTable(
-			resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.IsolatePolyfills", "js/polyfills.txt")))
+	return NewIsolatePolyfillsWithPolyfills(compiler, defaultPolyfillsTable())
 }
 
 // Java: IsolatePolyfills(AbstractCompiler, Polyfills)

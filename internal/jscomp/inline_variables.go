@@ -419,34 +419,26 @@ type InlineVariables_InliningBehavior_StandardVarExpert struct {
 	isDeclaredOrInferredConstant        bool
 	mayBeAParameterModifiedViaArguments bool
 
-	isNeverAssigned           *InlineVariables_InitiallyUnknown[bool]
-	isWellDefined             *InlineVariables_InitiallyUnknown[bool]
-	isAssignedOnceInLifetime  *InlineVariables_InitiallyUnknown[bool]
-	isReferencedWeakly        *InlineVariables_InitiallyUnknown[bool]
-	isWellDefinedAssignedOnce *InlineVariables_InitiallyUnknown[bool]
-	initializationReference   *InlineVariables_InitiallyUnknown[*Reference]
-	allReferencesAreValid     *InlineVariables_InitiallyUnknown[bool]
+	isNeverAssigned           InlineVariables_InitiallyUnknown[bool]
+	isWellDefined             InlineVariables_InitiallyUnknown[bool]
+	isAssignedOnceInLifetime  InlineVariables_InitiallyUnknown[bool]
+	isReferencedWeakly        InlineVariables_InitiallyUnknown[bool]
+	isWellDefinedAssignedOnce InlineVariables_InitiallyUnknown[bool]
+	initializationReference   InlineVariables_InitiallyUnknown[*Reference]
+	allReferencesAreValid     InlineVariables_InitiallyUnknown[bool]
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert(VarExpertInitData)
 func NewInlineVariables_InliningBehavior_StandardVarExpert(
 	outer *InlineVariables_InliningBehavior, initData *InlineVariables_InliningBehavior_VarExpertInitData) *InlineVariables_InliningBehavior_StandardVarExpert {
-	e := &InlineVariables_InliningBehavior_StandardVarExpert{
-		outer:                     outer,
-		isNeverAssigned:           NewInlineVariables_InitiallyUnknown[bool](),
-		isWellDefined:             NewInlineVariables_InitiallyUnknown[bool](),
-		isAssignedOnceInLifetime:  NewInlineVariables_InitiallyUnknown[bool](),
-		isReferencedWeakly:        NewInlineVariables_InitiallyUnknown[bool](),
-		isWellDefinedAssignedOnce: NewInlineVariables_InitiallyUnknown[bool](),
-		initializationReference:   NewInlineVariables_InitiallyUnknown[*Reference](),
-		allReferencesAreValid:     NewInlineVariables_InitiallyUnknown[bool](),
+	return &InlineVariables_InliningBehavior_StandardVarExpert{
+		outer:                               outer,
+		v:                                   initData.v,
+		referenceInfo:                       initData.referenceInfo,
+		declaration:                         initData.referenceInfo.references.Get(0),
+		isDeclaredOrInferredConstant:        initData.isDeclaredOrInferredConstant,
+		mayBeAParameterModifiedViaArguments: initData.mayBeAParameterModifiedViaArguments,
 	}
-	e.v = initData.v
-	e.referenceInfo = initData.referenceInfo
-	e.declaration = initData.referenceInfo.references.Get(0)
-	e.isDeclaredOrInferredConstant = initData.isDeclaredOrInferredConstant
-	e.mayBeAParameterModifiedViaArguments = initData.mayBeAParameterModifiedViaArguments
-	return e
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isNeverAssigned()
@@ -713,18 +705,16 @@ type InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis str
 
 	value *rhino.Node
 
-	isImmutableValue *InlineVariables_InitiallyUnknown[bool]
-	aliasedVar       *InlineVariables_InitiallyUnknown[*Var]
+	isImmutableValue InlineVariables_InitiallyUnknown[bool]
+	aliasedVar       InlineVariables_InitiallyUnknown[*Var]
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis(Node)
 func NewInlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis(
 	outer *InlineVariables_InliningBehavior_StandardVarExpert, value *rhino.Node) *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis {
 	return &InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis{
-		outer:            outer,
-		value:            value,
-		isImmutableValue: NewInlineVariables_InitiallyUnknown[bool](),
-		aliasedVar:       NewInlineVariables_InitiallyUnknown[*Var](),
+		outer: outer,
+		value: value,
 	}
 }
 

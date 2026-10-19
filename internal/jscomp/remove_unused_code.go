@@ -24,7 +24,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -89,7 +88,7 @@ type RemoveUnusedCode struct {
 	// traverse it, we add it to this worklist rather than traversing it
 	// immediately. If we invoked the traversal immediately, we could end up
 	// modifying a data structure in the traversal as we're iterating over it.
-	worklist *jutil.ArrayDeque[*RemoveUnusedCode_Continuation]
+	worklist *jutil.ArrayDeque[RemoveUnusedCode_Continuation]
 
 	varInfoMap *jutil.ObjectLinkedHashMap[*Var, RemoveUnusedCode_VarInfo]
 
@@ -137,7 +136,7 @@ var RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES = []string{"length", "toString",
 // Java: RemoveUnusedCode(Builder)
 func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
 	r := &RemoveUnusedCode{}
-	r.worklist = jutil.NewArrayDeque[*RemoveUnusedCode_Continuation]()
+	r.worklist = jutil.NewArrayDeque[RemoveUnusedCode_Continuation]()
 	r.varInfoMap = jutil.NewObjectLinkedHashMap[*Var, RemoveUnusedCode_VarInfo]()
 	r.pinnedPropertyNames = jutil.NewLinkedHashSet[string](RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES...)
 	r.removablesForPropertyNames = jutil.HashMultimap_Create[string, RemoveUnusedCode_Removable]()
@@ -158,9 +157,7 @@ func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
 	r.removeUnusedObjectDefinePropertiesDefinitions =
 		builder.removeUnusedObjectDefinePropertiesDefinitions
 	r.removeUnusedPolyfills = builder.removeUnusedPolyfills
-	r.polyfillsFromTable =
-		PolyfillUsageFinder_Polyfills_FromTable(
-			resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt"))
+	r.polyfillsFromTable = defaultPolyfillsTable()
 	r.assumeGettersArePure = builder.assumeGettersArePure
 
 	// All Vars that are completely unremovable will share this VarInfo instance.
@@ -408,7 +405,9 @@ func (r *RemoveUnusedCode) StorePolyfill(polyfillUsage *PolyfillUsageFinder_Poly
 // Java: RemoveUnusedCode.removeIndependentlyRemovableProperties()
 func (r *RemoveUnusedCode) RemoveIndependentlyRemovableProperties() {
 	for propName := range r.removablesForPropertyNames.KeySet() {
-		r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForProperty(propName).Get)
+		if r.removalLog.IsLogging() {
+			r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForProperty(propName).Get)
+		}
 		for removable := range r.removablesForPropertyNames.Get(propName).All() {
 			removable.Remove(r.compiler)
 		}
@@ -511,9 +510,11 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 			// class name() {}
 			// handled at a higher level
 			jutil.CheckState(!((parent.IsFunction() || parent.IsClass()) && parent.GetFirstChild() == n))
-			r.TraverseNameNode(n, scope).
-				SetIsExplicitlyNotRemovable(
+			varInfo := r.TraverseNameNode(n, scope)
+			if varInfo.IsRemovable() {
+				varInfo.SetIsExplicitlyNotRemovable(
 					func() string { return "reference found: " + n.GetLocation() })
+			}
 		}
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		r.TraverseNormalOrOptChainGetProp(n, scope)
@@ -1595,7 +1596,9 @@ func (r *RemoveUnusedCode) MarkUnusedParameters(paramList *rhino.Node, fparamSco
 		if varInfo.IsRemovable() {
 			param.SetUnusedParameter(true)
 			r.compiler.ReportChangeToEnclosingScope(paramList)
-			r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForMarkingNamedArg(paramNameNode, paramList).Get)
+			if r.removalLog.IsLogging() {
+				r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForMarkingNamedArg(paramNameNode, paramList).Get)
+			}
 		}
 	}
 }
@@ -1638,7 +1641,9 @@ func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList *rhino.No
 				// destructuring pattern with a "leftover" property key as in {a:{}} is not considered
 				// empty in this case!
 				NodeUtil_DeleteNode(lastArg, r.compiler)
-				r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForDestructuringArg(argList).Get)
+				if r.removalLog.IsLogging() {
+					r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForDestructuringArg(argList).Get)
+				}
 				continue
 			}
 		}
@@ -1646,7 +1651,9 @@ func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList *rhino.No
 		varInfo := r.GetVarInfo(r.GetVarForNameNode(argNode, fparamScope))
 		if varInfo.IsRemovable() {
 			NodeUtil_DeleteNode(lastArg, r.compiler)
-			r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForNamedArg(argNode, argList).Get)
+			if r.removalLog.IsLogging() {
+				r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForNamedArg(argNode, argList).Get)
+			}
 		} else {
 			break
 		}
@@ -1717,10 +1724,14 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 	jutil.CheckNotNull(var_)
 	isGlobal := var_.IsGlobal()
 	if var_.IsExtern() {
-		r.unremovableLog.LogSupplier(func() string { return var_.GetName() + ": extern" })
+		if r.unremovableLog.IsLogging() {
+			r.unremovableLog.LogSupplier(func() string { return var_.GetName() + ": extern" })
+		}
 		return r.canonicalUnremovableVarInfo
 	} else if r.codingConvention.IsExportedWithLocal(var_.GetName() /* local= */, !isGlobal) {
-		r.unremovableLog.LogSupplier(func() string { return var_.GetName() + ": exported by convention" })
+		if r.unremovableLog.IsLogging() {
+			r.unremovableLog.LogSupplier(func() string { return var_.GetName() + ": exported by convention" })
+		}
 		return r.canonicalUnremovableVarInfo
 	} else if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
@@ -1756,7 +1767,9 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 			continue
 		}
 
-		r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForVar(var_).Get)
+		if r.removalLog.IsLogging() {
+			r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForVar(var_).Get)
+		}
 		// Regardless of what happens to the original declaration,
 		// we need to remove all assigns, because they may contain references
 		// to other unreferenced variables.
@@ -1796,7 +1809,9 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 	var removed []RemoveUnusedCode_PolyfillInfo
 	for polyfill := range r.polyfills.Values() {
 		if polyfill.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
-			r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForPolyfill(polyfill).Get)
+			if r.removalLog.IsLogging() {
+				r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForPolyfill(polyfill).Get)
+			}
 			polyfill.GetRemoveUnusedCode_PolyfillInfoBase().removable.Remove(r.compiler)
 			removed = append(removed, polyfill)
 		}
@@ -1816,12 +1831,12 @@ type RemoveUnusedCode_Continuation struct {
 }
 
 // Java: RemoveUnusedCode.Continuation(Node, Scope)
-func NewRemoveUnusedCode_Continuation(outer *RemoveUnusedCode, node *rhino.Node, scope *Scope) *RemoveUnusedCode_Continuation {
-	return &RemoveUnusedCode_Continuation{outer: outer, node: node, scope: scope}
+func NewRemoveUnusedCode_Continuation(outer *RemoveUnusedCode, node *rhino.Node, scope *Scope) RemoveUnusedCode_Continuation {
+	return RemoveUnusedCode_Continuation{outer: outer, node: node, scope: scope}
 }
 
 // Java: RemoveUnusedCode.Continuation.apply()
-func (c *RemoveUnusedCode_Continuation) Apply() {
+func (c RemoveUnusedCode_Continuation) Apply() {
 	if c.node.IsFunction() {
 		// Calling traverseNode here would create infinite recursion for a function declaration
 		c.outer.TraverseFunction(c.node, c.scope)
@@ -1895,17 +1910,19 @@ type RemoveUnusedCode_RemovableBase struct {
 	outer *RemoveUnusedCode
 	self  RemoveUnusedCode_Removable
 
-	continuations *jutil.ArrayList[*RemoveUnusedCode_Continuation]
+	continuations    []RemoveUnusedCode_Continuation
+	continuationsBuf [2]RemoveUnusedCode_Continuation
 
 	// If this object represents an assignment of a value to a property. This
 	// is the name of the property.
-	propertyName *string
+	propertyName string
 
 	// If this object represents a variable declaration or assignment of a
 	// value, this is the node representing where the value is being stored.
 	// e.g. the LHS of an assignment.
 	targetNode *rhino.Node
 
+	hasPropertyName                 bool
 	isPrototypeDotPropertyReference bool
 	isThisDotPropertyReference      bool
 
@@ -1922,8 +1939,16 @@ func (b *RemoveUnusedCode_RemovableBase) InitRemoveUnusedCode_RemovableBase(self
 	b.outer = outer
 	b.continuationsAreApplied = false
 	b.isRemoved = false
-	b.continuations = builder.continuations
+	if len(builder.continuations) <= len(b.continuationsBuf) {
+		if len(builder.continuations) > 0 {
+			b.continuations = b.continuationsBuf[:len(builder.continuations)]
+			copy(b.continuations, builder.continuations)
+		}
+	} else {
+		b.continuations = builder.continuations
+	}
 	b.propertyName = builder.propertyName
+	b.hasPropertyName = builder.hasPropertyName
 	b.isPrototypeDotPropertyReference = builder.isPrototypeDotPropertyReference
 	b.isThisDotPropertyReference = builder.isThisDotPropertyReference
 	b.targetNode = targetNode
@@ -1937,7 +1962,10 @@ func (b *RemoveUnusedCode_RemovableBase) GetRemoveUnusedCode_RemovableBase() *Re
 
 // Java: RemoveUnusedCode.Removable.getPropertyName()
 func (b *RemoveUnusedCode_RemovableBase) GetPropertyName() string {
-	return *jutil.CheckNotNull(b.propertyName)
+	if !b.hasPropertyName {
+		panic(jutil.NewNullPointerException())
+	}
+	return b.propertyName
 }
 
 // Remove removes the associated nodes from the AST, unless they've already
@@ -1955,13 +1983,14 @@ func (b *RemoveUnusedCode_RemovableBase) Remove(compiler AbstractCompiler) {
 func (b *RemoveUnusedCode_RemovableBase) ApplyContinuations() {
 	if !b.continuationsAreApplied {
 		b.continuationsAreApplied = true
-		for _, c := range b.continuations.Slice() {
+		for _, c := range b.continuations {
 			// Enqueue the continuation for processing.
 			// Don't invoke the continuation immediately, because that can lead to concurrent
 			// modification of data structures.
 			b.outer.worklist.Add(c)
 		}
-		b.continuations.Clear()
+		clear(b.continuations)
+		b.continuations = nil
 	}
 }
 
@@ -1978,7 +2007,7 @@ func (b *RemoveUnusedCode_RemovableBase) IsVariableAssignment() bool {
 //
 // Java: RemoveUnusedCode.Removable.isNamedProperty()
 func (b *RemoveUnusedCode_RemovableBase) IsNamedProperty() bool {
-	return b.propertyName != nil
+	return b.hasPropertyName
 }
 
 // IsNamedPropertyAssignment: true if this object represents assignment to a
@@ -2012,11 +2041,11 @@ func (b *RemoveUnusedCode_RemovableBase) IsPrototypeAssignment() bool {
 	if !b.self.IsNamedPropertyAssignment() {
 		return false
 	}
-	if b.propertyName == nil {
+	if !b.hasPropertyName {
 		// propertyName.equals(...) on a null field.
 		panic(jutil.NewNullPointerException())
 	}
-	return *b.propertyName == "prototype"
+	return b.propertyName == "prototype"
 }
 
 // IsPrototypeDotPropertyReference: is this an assignment to a property on a
@@ -2077,28 +2106,27 @@ func (b *RemoveUnusedCode_RemovableBase) PreventsRemovalOfVariableWithNonLocalVa
 
 // RemoveUnusedCode_RemovableBuilder is the inner class RemovableBuilder.
 type RemoveUnusedCode_RemovableBuilder struct {
-	outer         *RemoveUnusedCode
-	continuations *jutil.ArrayList[*RemoveUnusedCode_Continuation]
+	outer            *RemoveUnusedCode
+	continuations    []RemoveUnusedCode_Continuation
+	continuationsBuf [2]RemoveUnusedCode_Continuation
 
-	propertyName                    *string
+	propertyName                    string
+	hasPropertyName                 bool
 	isPrototypeDotPropertyReference bool
 	isThisDotPropertyReference      bool
 }
 
 // Java: RemoveUnusedCode.RemovableBuilder()
 func NewRemoveUnusedCode_RemovableBuilder(outer *RemoveUnusedCode) *RemoveUnusedCode_RemovableBuilder {
-	return &RemoveUnusedCode_RemovableBuilder{
-		outer:                           outer,
-		continuations:                   jutil.NewArrayList[*RemoveUnusedCode_Continuation](),
-		propertyName:                    nil,
-		isPrototypeDotPropertyReference: false,
-		isThisDotPropertyReference:      false,
-	}
+	return &RemoveUnusedCode_RemovableBuilder{outer: outer}
 }
 
 // Java: RemoveUnusedCode.RemovableBuilder.addContinuation(Continuation)
-func (b *RemoveUnusedCode_RemovableBuilder) AddContinuation(continuation *RemoveUnusedCode_Continuation) *RemoveUnusedCode_RemovableBuilder {
-	b.continuations.Add(continuation)
+func (b *RemoveUnusedCode_RemovableBuilder) AddContinuation(continuation RemoveUnusedCode_Continuation) *RemoveUnusedCode_RemovableBuilder {
+	if b.continuations == nil {
+		b.continuations = b.continuationsBuf[:0]
+	}
+	b.continuations = append(b.continuations, continuation)
 	return b
 }
 
@@ -2116,7 +2144,8 @@ func (b *RemoveUnusedCode_RemovableBuilder) SetIsThisDotPropertyReference(value 
 
 // setPropertyName is `this.propertyName = name`.
 func (b *RemoveUnusedCode_RemovableBuilder) setPropertyName(name string) {
-	b.propertyName = &name
+	b.propertyName = name
+	b.hasPropertyName = true
 }
 
 // Java: RemoveUnusedCode.RemovableBuilder.buildIndirectAssign(Node, Node)
@@ -3023,7 +3052,9 @@ type RemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign struct {
 func NewRemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, assignNode *rhino.Node) *RemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign {
 	a := &RemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign{}
 	a.InitRemoveUnusedCode_RemovableBase(a, outer, assignNode.GetFirstChild(), builder)
-	jutil.CheckNotNull(builder.propertyName)
+	if !builder.hasPropertyName {
+		panic(jutil.NewNullPointerException())
+	}
 	jutil.CheckArgumentMsg1(assignNode.IsAssign(), "%s", assignNode)
 	a.assignNode = assignNode
 	return a
@@ -3279,7 +3310,8 @@ type RemoveUnusedCode_RealVarInfo struct {
 	//
 	// NOTE: Once we realize that we cannot remove the variable, this list
 	// will be cleared and no more will be added.
-	removables []RemoveUnusedCode_Removable
+	removables    []RemoveUnusedCode_Removable
+	removablesBuf [2]RemoveUnusedCode_Removable
 
 	isEntirelyRemovable bool
 
@@ -3304,15 +3336,13 @@ type RemoveUnusedCode_RealVarInfo struct {
 
 // Java: RemoveUnusedCode.RealVarInfo(String)
 func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, varName string) *RemoveUnusedCode_RealVarInfo {
-	return &RemoveUnusedCode_RealVarInfo{
-		outer:                               outer,
-		removables:                          nil,
-		isEntirelyRemovable:                 true,
-		hasNonLocalOrNonLiteralValue:        false,
-		hasFunctionOrClassLiteralValue:      false,
-		requiresLocalLiteralValueForRemoval: false,
-		varName:                             varName,
+	v := &RemoveUnusedCode_RealVarInfo{
+		outer:               outer,
+		isEntirelyRemovable: true,
+		varName:             varName,
 	}
+	v.removables = v.removablesBuf[:0]
+	return v
 }
 
 // Java: RemoveUnusedCode.RealVarInfo.addRemovable(Removable)
@@ -3363,7 +3393,9 @@ func (v *RemoveUnusedCode_RealVarInfo) IsRemovable() bool {
 func (v *RemoveUnusedCode_RealVarInfo) SetIsExplicitlyNotRemovable(reasonSupplier func() string) {
 	if v.isEntirelyRemovable {
 		v.isEntirelyRemovable = false
-		v.outer.unremovableLog.LogString(v.varName + ": " + reasonSupplier())
+		if v.outer.unremovableLog.IsLogging() {
+			v.outer.unremovableLog.LogString(v.varName + ": " + reasonSupplier())
+		}
 		for _, r := range v.removables {
 			v.outer.ConsiderForIndependentRemoval(r)
 		}

@@ -28,11 +28,16 @@ import (
 // apply checks or store additional state when adding.
 type ReferenceCollection struct {
 	references *jutil.ArrayList[*Reference]
+	refsList   jutil.ArrayList[*Reference]
+	refsBuf    [4]*Reference
 }
 
 // Java: ReferenceCollection()
 func NewReferenceCollection() *ReferenceCollection {
-	return &ReferenceCollection{references: jutil.NewArrayList[*Reference]()}
+	c := &ReferenceCollection{}
+	c.refsList.InitWithBuffer(c.refsBuf[:])
+	c.references = &c.refsList
+	return c
 }
 
 // All is the Iterable's iterator().

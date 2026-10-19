@@ -86,6 +86,23 @@ func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n *rhino.Node, pare
 	}
 }
 
+// AnnotateTree performs the post-order Visit walk directly without allocating
+// a NodeTraversal or Deque stack when dev-mode sourceFileToCheck is disabled.
+func (a *SourceInformationAnnotator) AnnotateTree(n *rhino.Node) {
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		a.AnnotateTree(child)
+	}
+	if SourceInformationAnnotator_IsStringNodeRequiringOriginalName(n) {
+		SourceInformationAnnotator_SetOriginalNameFromNode(n, n)
+		return
+	}
+	if n.IsFunction() {
+		if functionName := NodeUtil_GetNearestFunctionName(n); functionName != nil {
+			SourceInformationAnnotator_SetOriginalName(n, *functionName)
+		}
+	}
+}
+
 // SourceInformationAnnotator_IsStringNodeRequiringOriginalName: whether
 // JSCompiler attempts to preserve the original string attached to this node
 // on the AST post-mangling and in source maps.

@@ -66,12 +66,36 @@ type RhinoStringPool struct{}
 // long-lived process (tests, benchmarks) it starts over once it holds
 // rhinoStringPool_MAX_SIZE strings, which only ends the sharing with the
 // strings interned before.
-var (
-	rhinoStringPool_mu      sync.Mutex
-	rhinoStringPool_strings = make(map[string]*string)
+const (
+	rhinoStringPool_SHARDS         = 64
+	rhinoStringPool_MAX_SHARD_SIZE = (1 << 20) / rhinoStringPool_SHARDS
 )
 
-const rhinoStringPool_MAX_SIZE = 1 << 20
+type rhinoStringPoolShard struct {
+	mu      sync.RWMutex
+	strings map[string]*string
+}
+
+var rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
+
+func rhinoStringPoolShardFor(s string) *rhinoStringPoolShard {
+	h := uint32(len(s)) * 2654435761
+	if n := len(s); n > 0 {
+		h ^= uint32(s[0]) * 2246822519
+		h ^= uint32(s[n>>1]) * 3266489917
+		h ^= uint32(s[n-1]) * 668265263
+	}
+	return &rhinoStringPool_shards[(h^(h>>16))&(rhinoStringPool_SHARDS-1)]
+}
+
+func rhinoStringPoolClearForTest() {
+	for i := range rhinoStringPool_shards {
+		s := &rhinoStringPool_shards[i]
+		s.mu.Lock()
+		clear(s.strings)
+		s.mu.Unlock()
+	}
+}
 
 // RhinoStringPool_UncheckedEquals checks if two strings are the same
 // according to interning.
@@ -111,19 +135,32 @@ func RhinoStringPool_AddOrGet(s string) string { return *rhinoStringPoolCell(s) 
 
 // Go-only: performance — immutable header shared by StringNodes.
 func rhinoStringPoolCell(s string) *string {
-	rhinoStringPool_mu.Lock()
-	interned, ok := rhinoStringPool_strings[s]
-	if !ok {
-		if len(rhinoStringPool_strings) >= rhinoStringPool_MAX_SIZE {
-			clear(rhinoStringPool_strings)
+	shard := rhinoStringPoolShardFor(s)
+	shard.mu.RLock()
+	if shard.strings != nil {
+		if interned, ok := shard.strings[s]; ok {
+			shard.mu.RUnlock()
+			return interned
 		}
-		// Like unique.Make, keep a copy rather than the larger string s may
-		// be a slice of.
-		value := strings.Clone(s)
-		interned = &value
-		rhinoStringPool_strings[value] = interned
 	}
-	rhinoStringPool_mu.Unlock()
+	shard.mu.RUnlock()
+
+	shard.mu.Lock()
+	if shard.strings == nil {
+		shard.strings = make(map[string]*string, 64)
+	} else if interned, ok := shard.strings[s]; ok {
+		shard.mu.Unlock()
+		return interned
+	}
+	if len(shard.strings) >= rhinoStringPool_MAX_SHARD_SIZE {
+		clear(shard.strings)
+	}
+	// Like unique.Make, keep a copy rather than the larger string s may
+	// be a slice of.
+	value := strings.Clone(s)
+	interned := &value
+	shard.strings[value] = interned
+	shard.mu.Unlock()
 	return interned
 }
 

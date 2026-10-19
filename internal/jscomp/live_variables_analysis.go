@@ -88,20 +88,27 @@ func (j *LiveVariablesAnalysis_LiveVariableJoinOp) Finish() *LiveVariablesAnalys
 // lattice is the power set of all local variables and a variable is live if
 // it is in the set.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
-	liveSet *jutil.BitSet
+	liveSet  *jutil.BitSet
+	liveBits jutil.BitSet
 }
 
 // numVars is the number of all local variables.
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice(int)
 func NewLiveVariablesAnalysis_LiveVariableLattice(numVars int) *LiveVariablesAnalysis_LiveVariableLattice {
-	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: jutil.NewBitSetWithSize(numVars)}
+	l := &LiveVariablesAnalysis_LiveVariableLattice{}
+	l.liveBits.InitWithSize(numVars)
+	l.liveSet = &l.liveBits
+	return l
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice(LiveVariableLattice)
 func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
 	jutil.CheckNotNull(other)
-	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: other.liveSet.Clone()}
+	l := &LiveVariablesAnalysis_LiveVariableLattice{}
+	other.liveSet.CloneInto(&l.liveBits)
+	l.liveSet = &l.liveBits
+	return l
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.equals(Object)
@@ -238,8 +245,10 @@ func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
 func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	gen := jutil.NewBitSetWithSize(input.liveSet.Size())
-	kill := jutil.NewBitSetWithSize(input.liveSet.Size())
+	var gen, kill jutil.BitSet
+	size := input.liveSet.Size()
+	gen.InitWithSize(size)
+	kill.InitWithSize(size)
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -249,11 +258,11 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 			conditional = true
 		}
 	}
-	l.ComputeGenKill(node, gen, kill, conditional)
+	l.ComputeGenKill(node, &gen, &kill, conditional)
 	result := NewLiveVariablesAnalysis_LiveVariableLatticeOf(input)
 	// L_in = L_out - Kill + Gen
-	result.liveSet.AndNot(kill)
-	result.liveSet.Or(gen)
+	result.liveSet.AndNot(&kill)
+	result.liveSet.Or(&gen)
 	return result
 }
 

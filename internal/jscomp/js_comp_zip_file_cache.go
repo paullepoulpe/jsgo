@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -49,16 +50,16 @@ type JSCompZipFileCache struct{}
 func JSCompZipFileCache_GetEntryStream(zipName string, entryName string) io.Reader {
 	// Go-only: language-adapter — LoadingCache's Go representation mutates
 	// its lookup table and LRU links on hits as well as misses. Synchronize
-	// cache access and entry opening; reading the returned stream and parsing
-	// its source remain independent, parallel work.
-	jSCompZipFileCache_monitor.Lock()
-	defer jSCompZipFileCache_monitor.Unlock()
-	return jSCompZipFileCache_zipFileCache.GetUnchecked(zipName).GetEntryStream(entryName)
+	// cache access; opening the entry uses the CachedZipFile's own mutex.
+	jSCompZipFileCache_mu.Lock()
+	cached := jSCompZipFileCache_zipFileCache.GetUnchecked(zipName)
+	jSCompZipFileCache_mu.Unlock()
+	return cached.GetEntryStream(entryName)
 }
 
 // Go-only: language-adapter — protects the shared emulated cache, including
 // eviction callbacks that close a cached archive.
-var jSCompZipFileCache_monitor jutil.Monitor
+var jSCompZipFileCache_mu sync.Mutex
 
 // Go-only: language-adapter — there are no Java system properties; the
 // "jscomp.zipfile.cachesize" property takes its default.
@@ -82,11 +83,9 @@ var jSCompZipFileCache_zipFileCache = jutil.CacheBuilder_Build(
 type JSCompZipFileCache_CachedZipFile struct {
 	path         *jutil.Path
 	zipFile      *zip.ReadCloser
+	entries      map[string]*zip.File
 	lastModified *time.Time
-
-	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized block of refreshIfNeeded holds.
-	monitor jutil.Monitor
+	mu           sync.Mutex
 }
 
 func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_CachedZipFile {
@@ -95,13 +94,10 @@ func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_Cac
 
 // Java: JSCompZipFileCache.CachedZipFile.getEntryStream(String)
 func (z *JSCompZipFileCache_CachedZipFile) GetEntryStream(entryName string) io.Reader {
-	// Go-only: language-adapter — acquire metadata and the entry from the
-	// same archive generation. The returned reader owns its current stream;
-	// no monitor is held while its caller reads or parses it.
-	z.monitor.Lock()
-	defer z.monitor.Unlock()
+	z.mu.Lock()
+	defer z.mu.Unlock()
 	z.refreshIfNeededLocked()
-	entry := jSCompZipFileCache_getEntry(z.zipFile, entryName)
+	entry := z.getEntryLocked(entryName)
 	if entry == nil {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s!/%s", z.path, entryName)))
 	}
@@ -112,20 +108,14 @@ func (z *JSCompZipFileCache_CachedZipFile) GetEntryStream(entryName string) io.R
 	return rc
 }
 
-// jSCompZipFileCache_getEntry is ZipFile.getEntry(String): the entry with
+// getEntryLocked is ZipFile.getEntry(String): the entry with
 // the given name, or else the directory entry name + "/".
-//
-// Go-only: language-adapter — archive/zip has no lookup by name.
-func jSCompZipFileCache_getEntry(z *zip.ReadCloser, name string) *zip.File {
-	for _, f := range z.File {
-		if f.Name == name {
-			return f
-		}
+func (z *JSCompZipFileCache_CachedZipFile) getEntryLocked(name string) *zip.File {
+	if f, ok := z.entries[name]; ok {
+		return f
 	}
-	for _, f := range z.File {
-		if f.Name == name+"/" {
-			return f
-		}
+	if f, ok := z.entries[name+"/"]; ok {
+		return f
 	}
 	return nil
 }
@@ -147,16 +137,11 @@ func jSCompZipFileCache_ioException(err error, path string) jutil.Throwable {
 
 // Java: JSCompZipFileCache.CachedZipFile.refreshIfNeeded()
 func (z *JSCompZipFileCache_CachedZipFile) RefreshIfNeeded() {
-	// Go-only: language-adapter — Java's unsynchronized fast-path reads do
-	// not establish Go's required happens-before relation for lastModified
-	// and zipFile. Protect the entire check and metadata publication.
-	z.monitor.Lock()
-	defer z.monitor.Unlock()
+	z.mu.Lock()
+	defer z.mu.Unlock()
 	z.refreshIfNeededLocked()
 }
 
-// Go-only: language-adapter — caller holds z.monitor, avoiding a second
-// re-entrant monitor acquisition in GetEntryStream.
 func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLocked() {
 	info, err := os.Stat(z.path.String())
 	if err != nil {
@@ -172,23 +157,30 @@ func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLocked() {
 	if err != nil {
 		panic(jSCompZipFileCache_ioException(err, z.path.String()))
 	}
+	entries := make(map[string]*zip.File, len(zf.File))
+	for _, f := range zf.File {
+		if _, exists := entries[f.Name]; !exists {
+			entries[f.Name] = f
+		}
+	}
 	z.zipFile = zf
+	z.entries = entries
 	z.lastModified = &newLastModified
 }
 
 // Java: JSCompZipFileCache.CachedZipFile.maybeClose()
 func (z *JSCompZipFileCache_CachedZipFile) MaybeClose() {
-	z.monitor.Lock()
-	defer z.monitor.Unlock()
+	z.mu.Lock()
+	defer z.mu.Unlock()
 	z.maybeCloseLocked()
 }
 
-// Go-only: language-adapter — caller holds z.monitor.
 func (z *JSCompZipFileCache_CachedZipFile) maybeCloseLocked() {
 	if z.zipFile != nil {
 		if err := z.zipFile.Close(); err != nil {
 			panic(jSCompZipFileCache_ioException(err, z.path.String()))
 		}
+		z.entries = nil
 	}
 }
 

@@ -82,7 +82,7 @@ type PrototypeObjectTypeBase struct {
 
 	className          *string
 	templateParamCount int
-	properties         *PropertyMap
+	properties         PropertyMap
 	nativeType         bool
 	anonymousType      bool
 
@@ -125,7 +125,6 @@ func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *Prototy
 // Java: PrototypeObjectType(Builder<?>)
 func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_BuilderFields) {
 	p.self = self
-	p.properties = NewPropertyMap()
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, builder.registry, builder.templateTypeMap)
 
 	p.className = builder.className
@@ -275,7 +274,7 @@ func PrototypeObjectType_Builder_(registry *JSTypeRegistry) *PrototypeObjectType
 
 // Java: PrototypeObjectType.getPropertyMap()
 func (p *PrototypeObjectTypeBase) GetPropertyMap() *PropertyMap {
-	return p.properties
+	return &p.properties
 }
 
 // Java: PrototypeObjectType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -634,7 +633,7 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 // Java: PrototypeObjectType.recursionUnsafeHashCode()
 func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode() int32 {
 	if p.self.IsStructuralType() {
-		return jutil.ObjectsHash(jsTypeNullableString(p.className), p.properties)
+		return jutil.ObjectsHash(jsTypeNullableString(p.className), &p.properties)
 	} else {
 		return jutil.IdentityHashCode(p.self)
 	}

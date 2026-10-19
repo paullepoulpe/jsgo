@@ -2431,11 +2431,32 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 	}
 
 	// Build the AST.
+	allInputs := c.chunkGraph.GetAllInputs()
 	if c.options.GetNumParallelThreads() > 1 {
-		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(c.chunkGraph.GetAllInputs()))
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(allInputs))
 	}
 
-	for _, input := range c.chunkGraph.GetAllInputs() {
+	needSourceInfo := c.options.ShouldGatherSourceMapInfo() ||
+		c.options.GetExternExportsPath() != nil ||
+		len(c.options.GetReplaceStringsFunctionDescriptions()) != 0
+	annotatedInParallel := false
+	if needSourceInfo && !devMode && c.options.GetDevMode() == CompilerOptions_DevMode_OFF &&
+		c.options.GetNumParallelThreads() > 1 && len(allInputs) > 1 && !c.HasErrors() {
+		sia := SourceInformationAnnotator_Create()
+		failures := parallelPrebuild(len(allInputs), c.options.GetNumParallelThreads(), func(i int) {
+			if root := allInputs[i].GetAstRoot(c); root != nil {
+				sia.AnnotateTree(root)
+			}
+		})
+		for _, f := range failures {
+			if f != nil {
+				panic(f)
+			}
+		}
+		annotatedInParallel = true
+	}
+
+	for _, input := range allInputs {
 		n := jutil.CheckNotNull(input.GetAstRoot(c))
 		if devMode {
 			c.runValidityCheck()
@@ -2444,19 +2465,15 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 			}
 		}
 
-		if c.options.ShouldGatherSourceMapInfo() ||
-			c.options.GetExternExportsPath() != nil ||
-			len(c.options.GetReplaceStringsFunctionDescriptions()) != 0 {
-
+		if needSourceInfo && !annotatedInParallel {
 			// Annotate the nodes in the tree with information from the
 			// input file. This information is used to construct the SourceMap.
-			var sia *SourceInformationAnnotator
 			if c.options.GetDevMode() == CompilerOptions_DevMode_OFF {
-				sia = SourceInformationAnnotator_Create()
+				SourceInformationAnnotator_Create().AnnotateTree(n)
 			} else {
-				sia = SourceInformationAnnotator_CreateWithAnnotationChecks(input.GetName())
+				sia := SourceInformationAnnotator_CreateWithAnnotationChecks(input.GetName())
+				NodeTraversal_Traverse(c, n, sia)
 			}
-			NodeTraversal_Traverse(c, n, sia)
 		}
 
 		if NodeUtil_IsFromTypeSummary(n) {
@@ -2924,16 +2941,43 @@ func (c *Compiler) ToSource() string {
 			// to de-dupe seen licenses across all inputs.
 			lt := newCompiler_SingleBinaryLicenseTracker(c)
 			if c.jsRoot != nil {
-				i := 0
+				var scripts []*rhino.Node
 				if c.options.ShouldPrintExterns() {
 					for scriptNode := c.externsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
-						c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
-						i++
+						scripts = append(scripts, scriptNode)
 					}
 				}
 				for scriptNode := c.jsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
-					c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
-					i++
+					scripts = append(scripts, scriptNode)
+				}
+				if c.options.GetNumParallelThreads() > 1 && len(scripts) > 1 {
+					type scriptPrinted struct {
+						sm       *CodePrinter_SourceAndMappings
+						licenses []string
+					}
+					printed := make([]scriptPrinted, len(scripts))
+					failures := parallelPrebuild(len(scripts), c.options.GetNumParallelThreads(), func(i int) {
+						localLT := newCompiler_SingleBinaryLicenseTracker(c)
+						printed[i].sm = c.toSourceAndMappings(scripts[i], i == 0, localLT)
+						printed[i].licenses = localLT.currentlySeenLicenses.ToSlice()
+					})
+					for _, f := range failures {
+						if f != nil {
+							panic(f)
+						}
+					}
+					for i, scriptNode := range scripts {
+						for _, lic := range printed[i].licenses {
+							if !lt.globallyUniqueLicenses.Contains(lic) {
+								lt.currentlySeenLicenses.Add(lic)
+							}
+						}
+						c.appendSourceAndMappingsToCodeBuilder(cb, lt, i, scriptNode, printed[i].sm)
+					}
+				} else {
+					for i, scriptNode := range scripts {
+						c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
+					}
 				}
 			}
 			return cb.String()
@@ -3001,77 +3045,76 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	root *rhino.Node) {
 	Compiler_RunInCompilerThread(c,
 		func() any {
-			if c.options.ShouldPrintInputDelimiter() {
-				if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
-					cb.Append("\n") // Make sure that the label starts on a new line
-				}
-				jutil.CheckState(root.IsScript())
-
-				delimiter := c.options.GetInputDelimiter()
-
-				inputName := root.GetInputId().GetIdName()
-				sourceName := root.GetSourceFileName()
-				jutil.CheckState(sourceName != nil)
-				jutil.CheckState(*sourceName != "")
-
-				delimiter = strings.ReplaceAll(
-					strings.ReplaceAll(
-						strings.ReplaceAll(delimiter, "%name%", inputName),
-						"%num%", strconv.Itoa(inputSeqNum)),
-					"%n%", "\n")
-
-				cb.Append(delimiter).Append("\n")
-			}
-
 			sourceAndMappings := c.toSourceAndMappings(root, inputSeqNum == 0, licenseTracker)
-			code := sourceAndMappings.source
-
-			// Check whether there is any license information that should be emitted.
-			for license := range licenseTracker.EmitLicenses().All() {
-				cb.Append("/*\n").Append(license).Append("*/\n")
-			}
-
-			// Check whether there's any actual code to emit.
-			// This is deliberately done after the license tracker is given an opportunity to emit
-			// licenses, as some trackers might want to emit license info from this Node's tree
-			// regardless of whether it emits visible code. One example of this would be the case
-			// where inlining has moved the contents from this file to another file, but the license
-			// tracker can't be sure if the license for this code will ever be emitted.
-			if code == "" {
-				// Nothing to do.
-				return nil
-			}
-
-			// If there is a valid source map, then indicate to it that the current
-			// root node's mappings are offset by the given string builder buffer.
-			// This offset is a result of licenses being added to the output buffer.
-			if c.options.ShouldGatherSourceMapInfo() {
-				c.sourceMap.SetStartingPosition(cb.GetLineIndex(), cb.GetColumnIndex())
-			}
-
-			cb.Append(code)
-
-			// In order to avoid parse ambiguity when files are concatenated
-			// together, all files should end in a semi-colon. Do a quick
-			// heuristic check if there's an obvious semi-colon already there.
-			length := jutil.StringLength(code)
-			lastChar := jutil.StringCharAt(code, length-1)
-			var secondLastChar uint16
-			if length >= 2 {
-				secondLastChar = jutil.StringCharAt(code, length-2)
-			}
-			hasSemiColon := lastChar == ';' || (lastChar == '\n' && secondLastChar == ';')
-			if !hasSemiColon {
-				cb.Append(";")
-			}
-
-			if c.options.ShouldGatherSourceMapInfo() {
-				for _, mapping := range sourceAndMappings.mappings {
-					c.sourceMap.AddMapping(mapping)
-				}
-			}
+			c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, sourceAndMappings)
 			return nil
 		})
+}
+
+func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
+	cb *Compiler_CodeBuilder,
+	licenseTracker CodePrinter_LicenseTracker,
+	inputSeqNum int,
+	root *rhino.Node,
+	sourceAndMappings *CodePrinter_SourceAndMappings) {
+	if c.options.ShouldPrintInputDelimiter() {
+		if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
+			cb.Append("\n") // Make sure that the label starts on a new line
+		}
+		jutil.CheckState(root.IsScript())
+
+		delimiter := c.options.GetInputDelimiter()
+
+		inputName := root.GetInputId().GetIdName()
+		sourceName := root.GetSourceFileName()
+		jutil.CheckState(sourceName != nil)
+		jutil.CheckState(*sourceName != "")
+
+		delimiter = strings.ReplaceAll(
+			strings.ReplaceAll(
+				strings.ReplaceAll(delimiter, "%name%", inputName),
+				"%num%", strconv.Itoa(inputSeqNum)),
+			"%n%", "\n")
+
+		cb.Append(delimiter).Append("\n")
+	}
+
+	code := sourceAndMappings.source
+
+	// Check whether there is any license information that should be emitted.
+	for license := range licenseTracker.EmitLicenses().All() {
+		cb.Append("/*\n").Append(license).Append("*/\n")
+	}
+
+	// Check whether there's any actual code to emit.
+	if code == "" {
+		// Nothing to do.
+		return
+	}
+
+	// If there is a valid source map, then indicate to it that the current
+	// root node's mappings are offset by the given string builder buffer.
+	// This offset is a result of licenses being added to the output buffer.
+	if c.options.ShouldGatherSourceMapInfo() {
+		c.sourceMap.SetStartingPosition(cb.GetLineIndex(), cb.GetColumnIndex())
+	}
+
+	cb.Append(code)
+
+	// In order to avoid parse ambiguity when files are concatenated
+	// together, all files should end in a semi-colon. Do a quick
+	// heuristic check if there's an obvious semi-colon already there.
+	// ';' and '\n' are ASCII and never appear as trailing bytes of multi-byte UTF-8/WTF-8.
+	hasSemiColon := strings.HasSuffix(code, ";") || strings.HasSuffix(code, ";\n")
+	if !hasSemiColon {
+		cb.Append(";")
+	}
+
+	if c.options.ShouldGatherSourceMapInfo() {
+		for _, mapping := range sourceAndMappings.mappings {
+			c.sourceMap.AddMapping(mapping)
+		}
+	}
 }
 
 // ToSourceOfNode generates JavaScript source code for an AST, doesn't

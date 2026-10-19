@@ -123,15 +123,15 @@ func (c *peepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 // Java: PeepholeOptimizationsPass.PeepCallback.updateFeatures(NodeTraversal)
 func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal) {
 	for _, optim := range c.this.peepholeOptimizations {
-		newFeatures := optim.GetNewFeatures()
+		newFeatures := optim.GetAbstractPeepholeOptimizationBase().newFeatures
 		if !newFeatures.IsEmpty() {
 			// Go-only: language-adapter — FeatureSet.with(Set<Feature>) takes the Go EnumSet form.
 			NodeUtil_AddFeaturesToScript(
 				t.GetCurrentScript(),
 				parser.FeatureSet_BARE_MINIMUM.WithEnumSet(jutil.NewEnumSet(newFeatures.ToSlice()...)),
 				c.this.compiler)
+			optim.ClearNewFeatures()
 		}
-		optim.ClearNewFeatures()
 	}
 }
 

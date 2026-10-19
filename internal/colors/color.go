@@ -21,6 +21,7 @@ package colors
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -34,32 +35,28 @@ import (
 // struct here (PORTING.md §4, AutoValue → plain struct). Sets of Colors are
 // ObjectLinkedHashSets because Color has value equality.
 type Color struct {
-	id                         ColorId
-	prototypes                 *jutil.ObjectLinkedHashSet[*Color]
-	instanceColors             *jutil.ObjectLinkedHashSet[*Color]
-	invalidating               bool
-	propertiesKeepOriginalName bool
-	constructor                bool
-	ownProperties              *jutil.LinkedHashSet[string]
-	boxId                      *ColorId
-	closureAssert              bool
-	unionElements              *jutil.ObjectLinkedHashSet[*Color]
+	id             ColorId
+	prototypes     *jutil.ObjectLinkedHashSet[*Color]
+	instanceColors *jutil.ObjectLinkedHashSet[*Color]
+	ownProperties  *jutil.LinkedHashSet[string]
+	boxId          *ColorId
+	unionElements  *jutil.ObjectLinkedHashSet[*Color]
 
 	// Memoized value of subtractNullOrVoid() (AutoValue_Color).
-	subtractNullOrVoid *Color
+	subtractNullOrVoid atomic.Pointer[Color]
 
 	// Go-only: performance — the memoized hashCode(). Java's is cheap
 	// because every ImmutableSet field caches its own hash code (and every
 	// String its hash); the Go sets recompute theirs on each call, which made
 	// hashing a Color with many own properties dominate the hash lookups of
 	// DisambiguateProperties. All fields are immutable once built, so the
-	// value never changes.
-	hashCode         int32
-	hashCodeComputed bool
+	// value never changes. Bit 32 indicates the hash has been computed.
+	hashCode atomic.Uint64
 
-	// Go-only: language-adapter — the object's monitor, which the
-	// synchronized block of AutoValue_Color.subtractNullOrVoid holds.
-	monitor jutil.Monitor
+	invalidating               bool
+	propertiesKeepOriginalName bool
+	constructor                bool
+	closureAssert              bool
 }
 
 // Java: Color.getId()
@@ -241,19 +238,17 @@ func (c *Color) IsUnion() bool {
 //
 // Java: Color.subtractNullOrVoid()
 func (c *Color) SubtractNullOrVoid() *Color {
-	if c.subtractNullOrVoid == nil {
-		func() {
-			c.monitor.Lock()
-			defer c.monitor.Unlock()
-			if c.subtractNullOrVoid == nil {
-				c.subtractNullOrVoid = c.subtractNullOrVoidImpl()
-				if c.subtractNullOrVoid == nil {
-					panic(jutil.NewNullPointerExceptionMsg("subtractNullOrVoid() cannot return null"))
-				}
-			}
-		}()
+	if v := c.subtractNullOrVoid.Load(); v != nil {
+		return v
 	}
-	return c.subtractNullOrVoid
+	v := c.subtractNullOrVoidImpl()
+	if v == nil {
+		panic(jutil.NewNullPointerExceptionMsg("subtractNullOrVoid() cannot return null"))
+	}
+	if c.subtractNullOrVoid.CompareAndSwap(nil, v) {
+		return v
+	}
+	return c.subtractNullOrVoid.Load()
 }
 
 // subtractNullOrVoidImpl is the body of Color.subtractNullOrVoid() that
@@ -327,11 +322,12 @@ func colorBoolHash(b bool) int32 {
 
 // Java: $AutoValue_Color.hashCode()
 func (c *Color) HashCode() int32 {
-	if !c.hashCodeComputed {
-		c.hashCode = c.computeHashCode()
-		c.hashCodeComputed = true
+	if v := c.hashCode.Load(); v != 0 {
+		return int32(uint32(v))
 	}
-	return c.hashCode
+	h := c.computeHashCode()
+	c.hashCode.Store((1 << 32) | uint64(uint32(h)))
+	return h
 }
 
 // computeHashCode is the body of $AutoValue_Color.hashCode(), which
