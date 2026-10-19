@@ -10,11 +10,31 @@ A follow-up audit found that several post-colorization backends were blocked in 
 
 **The earlier optimized-CLI screens cannot establish those implementations' benefit or lack of benefit.** Their raw measurements remain unchanged; the performance attribution is withdrawn pending phase-appropriate proofs, real full-CLI positive activation counts, compatibility/race validation, and new matched timings. Whitespace output/inverter paths may have run without colorization and need separate evidence. Generic BitSet layouts, stock scope insertion without coallocation, native references, scope recipes, and pre-colorization template/access-control paths are not blanket-invalidated by this finding. The overall claim that warm Java has not been broadly beaten is unchanged.
 
-See the [phase/call-site audit](records/round2/runtime-library-admission-audit.md) and [independent activation audit](records/round2/post-colorization-activation-audit.md). Narrow corrections and new tests are under validation; no new speed claim is inferred from source review or output parity alone. Subsequent results and recovery material will be appended as they complete.
+See the [phase/call-site audit](records/round2/runtime-library-admission-audit.md) and [independent activation audit](records/round2/post-colorization-activation-audit.md). The completed corrected screen and recovery material are appended below. No speed claim is inferred from source review, activation counts or output parity alone.
+
+## Completed follow-up: rounds 12–15
+
+The corrected backends now have real-workload activation evidence, 1,299 focused race-test passes (2 skips, no failures/races), and all 15 Java artifact gates matching at compiler thread counts 1/2/4. This validates the exercised paths, not full-port parity. Earlier affected attribution remains withdrawn; the new same-binary compound screen is recorded separately.
+
+| Task | Control → compound seconds | Time change | Compound RSS MiB | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|---:|
+| typed-app | 5.076 → 4.892 | −3.6% | 246.7 | 0.764 | 4.42 |
+| bundle | 18.407 → 17.813 | −3.2% | 434.2 | 0.932 | 3.91 |
+| downlevel-whitespace | 1.230 → 1.231 | +0.05% | 159.6 | 0.762 | 5.83 |
+| downlevel-simple | 3.747 → 3.641 | −2.8% | 203.7 | 0.771 | 5.49 |
+| checks-only | 7.277 → 7.499 | +3.1% | 648.2 | 0.805 | 2.10 |
+
+All 30 measured outputs match Java. Three alternating repetitions per variant are a screen, with no confidence claim; Java is the stored warm cohort. Ratios are Java/Go, above 1 favors Go. Go RSS is median fresh-process lifetime peak; Java RSS is warm-JVM lifetime peak including warmup. No worker cache or runtime GC tuning is used. The compound is not promoted: checks-only is slower and bundle RSS rises versus its control. See [round 14](followup-records/round2/post-colors-compound-round14.md) and [raw summary](followup-records/round2/post-colors-compound-screen/summary.json).
+
+The [one-word BitSet screen](followup-records/round2/one-word-bitset-round12.md) and [24-byte two-word descriptor screen](followup-records/round2/bitset-descriptors-round13.md) are mixed and not promoted. The [matched CommonJS thread screen](followup-records/round2/commonjs-matched-thread-round15.md) also does not establish a win: parallel CommonJS is 8.0% slower at N=2 and 1.4% slower at N=4 than the same-binary control; N=1 inactive-path variation is 2.4%. Every N uses its own warm-Java N reference. Compiler work-item count does not set GOMAXPROCS or cap runtime goroutines/OS threads. Source-node admission counts are not CPU coverage.
+
+The follow-up adds [1,085 new/changed records](followup-measurement-manifest.json), [7 datasets](followup-datasets.json), [41 completed metric rows](followup-metrics.csv), and [17 frozen source refs](followup-source-manifest.json). Original archives remain unchanged. The [incremental measurement archive](followup-measurement-records.tar.gz) uses the original `records/` paths; extract it after the original archive to apply its two changed records. The [follow-up Git bundle](followup-prototype-history.bundle) requires main commit `123b46e8`; independent recovery verified every listed head and tree. [New design notes](followup-design-notes.json) include source-only and pending prototypes, which are not measured wins. Run `python3 docs/performance-experiments/verify_followup.py` to check both original and follow-up archive contents/hashes.
+
+Generalized browser-native type recipes, immutable resolved-vector sharing, projected use analysis and private ASCII scanning are ongoing research. Source availability/review does not imply compatibility or performance. Partial active tests/timings are deliberately excluded from this completed-evidence snapshot. The [fresh-Java audit](followup-records/round2/fresh-java-reference-audit.md) also records residual warmup/drift and historical wall-time outliers; settled-JIT or statistically confirmed parity is not inferred from the stored reference.
 
 ## How to read the numbers
 
-The latest same-binary template experiment measured typed-app 5.123 → 4.934 s (3.7% less elapsed time), RSS 275.7 → 252.6 MiB. Checks-only measured 7.504 → 7.405 s (1.3% less time), RSS 653.4 → 658.8 MiB. These five-sample ranges overlap. [Detailed round 11](records/round2/template-guard-v2-round11.md).
+The earlier round-11 same-binary template experiment measured typed-app 5.123 → 4.934 s (3.7% less elapsed time), RSS 275.7 → 252.6 MiB. Checks-only measured 7.504 → 7.405 s (1.3% less time), RSS 653.4 → 658.8 MiB. These five-sample ranges overlap. [Detailed round 11](records/round2/template-guard-v2-round11.md).
 
 For a broader comparison, the following table uses ONE complete five-task candidate, a6afc95f (`inline` in round 10), against the recorded current-main baseline da20b44f (compiler tree matching main 123b46e8). Every row uses that same candidate and configuration; this does not combine different per-task winning binaries.
 

@@ -1,0 +1,226 @@
+{
+ "date": "2026-10-19 14:28 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "variants": {
+   "control": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-post-colors-kernel-l4",
+    "sha256": "084c5d89af17cd9629ba034862b47a8daf016f210913da04983c68a980fce05d"
+   },
+   "commonjs": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-post-colors-kernel-l4",
+    "sha256": "084c5d89af17cd9629ba034862b47a8daf016f210913da04983c68a980fce05d"
+   }
+  }
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  0.97,
+  0.8,
+  0.86
+ ],
+ "bench_commit": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/round2/commonjs-matched-thread-reference/threads-1",
+ "runs": 5,
+ "seed": 20261018,
+ "variant_environment": {
+  "control": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1"
+  },
+  "commonjs": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1",
+   "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1"
+  }
+ },
+ "java_reference_machine": {
+  "date": "2026-10-19 09:50 UTC",
+  "host": "347f45b57e6a",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpus": 3,
+  "memory": "9.7 GiB",
+  "kernel": "6.18.55",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "java": [
+   "openjdk version \"21.0.12.1\" 2026-08-18",
+   "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+   "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+  ],
+  "go": "go version go1.27.2 linux/amd64",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "jsgo": {
+   "binary": "/workspace/jsgo-results/round2/bin/jsgo-traversal-l4",
+   "sha256": "9b9ebfb60adb968d36ff576bc4520470f50dfad100984f224eb7593c35e2963b"
+  },
+  "nice": 10,
+  "locale": "C.UTF-8",
+  "loadavg_start": [
+   0.55,
+   1.25,
+   1.4
+  ],
+  "bench_commit": "690e1dea2501793bef4615f781582f63a5782931",
+  "cpu_affinity": [
+   0,
+   1
+  ],
+  "mode": "cli",
+  "thread_counts": [
+   1
+  ],
+  "reference": "/workspace/jsgo-results/round2/baseline",
+  "thread_control": "--num_parallel_threads; existing flags replaced; runtime CPU detection unchanged",
+  "gomaxprocs": "runtime default; inherited GOMAXPROCS removed; compiler flag does not change it",
+  "go_environment": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1",
+   "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE": "1",
+   "JSGO_EXPERIMENT_PROPERTY_ASCII_INDEX": "1",
+   "JSGO_EXPERIMENT_TYPED_INITIAL_FUSION": "1",
+   "JSGO_EXPERIMENT_NATIVE_DEPENDENCY_SCAN": "1",
+   "JSGO_EXPERIMENT_TYPE_SCOPE_SCHEDULE": "1",
+   "JSGO_EXPERIMENT_INLINE_DIRECT_WORKLIST": "1",
+   "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE_CHUNKS": "1",
+   "JSGO_EXPERIMENT_NATIVE_TYPED_DECLARATIONS": "1",
+   "JSGO_EXPERIMENT_ACCESS_PROPERTY_FACTS": "1",
+   "JSGO_EXPERIMENT_REMOVE_UNUSED_TASKS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_PEEPHOLE": "1",
+   "JSGO_EXPERIMENT_REMOVE_UNUSED_INTRUSIVE_FIFO": "1",
+   "JSGO_EXPERIMENT_INVERTER_NOOP": "1",
+   "JSGO_EXPERIMENT_EMPTY_PASS_PROOFS": "1",
+   "JSGO_EXPERIMENT_REFERENCE_BATCHES": "1",
+   "JSGO_EXPERIMENT_PARALLEL_COALESCE": "1",
+   "JSGO_EXPERIMENT_TRAVERSAL_LEAVES": "1",
+   "JSGO_EXPERIMENT_STOCK_SCOPE_INSERTION": "1"
+  },
+  "go_runtime_environment": {
+   "GOGC": null,
+   "GOMEMLIMIT": null,
+   "GOMAXPROCS": null,
+   "GODEBUG": null
+  },
+  "go_environment_policy": "inherited GOGC/GOMEMLIMIT/GOMAXPROCS/GODEBUG and JSGO_EXPERIMENT_* cleared before explicit --go-env overrides; Java environment unchanged",
+  "java_compiler": "pinned stock jar; fresh CommandLineRunner/compiler and normal extern parsing per invocation",
+  "java_classpath": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar:/workspace/jsgo/.cache/bench-build/java",
+  "experiment_environment": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1",
+   "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE": "1",
+   "JSGO_EXPERIMENT_PROPERTY_ASCII_INDEX": "1",
+   "JSGO_EXPERIMENT_TYPED_INITIAL_FUSION": "1",
+   "JSGO_EXPERIMENT_NATIVE_DEPENDENCY_SCAN": "1",
+   "JSGO_EXPERIMENT_TYPE_SCOPE_SCHEDULE": "1",
+   "JSGO_EXPERIMENT_INLINE_DIRECT_WORKLIST": "1",
+   "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE_CHUNKS": "1",
+   "JSGO_EXPERIMENT_NATIVE_TYPED_DECLARATIONS": "1",
+   "JSGO_EXPERIMENT_ACCESS_PROPERTY_FACTS": "1",
+   "JSGO_EXPERIMENT_REMOVE_UNUSED_TASKS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_PEEPHOLE": "1",
+   "JSGO_EXPERIMENT_REMOVE_UNUSED_INTRUSIVE_FIFO": "1",
+   "JSGO_EXPERIMENT_INVERTER_NOOP": "1",
+   "JSGO_EXPERIMENT_EMPTY_PASS_PROOFS": "1",
+   "JSGO_EXPERIMENT_REFERENCE_BATCHES": "1",
+   "JSGO_EXPERIMENT_PARALLEL_COALESCE": "1",
+   "JSGO_EXPERIMENT_TRAVERSAL_LEAVES": "1",
+   "JSGO_EXPERIMENT_STOCK_SCOPE_INSERTION": "1"
+  },
+  "java_batch_source_sha256": "827729b128ef9b99cac0d7e584046c4bfc9c6575c647c0f42f12551f452a91e6",
+  "ratio_direction": "Java / Go; above1 favors Go for elapsed time and peak RSS",
+  "go_memory_window": "median of fresh CLI process peak RSS values",
+  "java_memory_window": "peak RSS of this same-N warm JVM lifetime including12warmup and10measured iterations",
+  "go_prebuild": "depends on supplied binary; bounded parallel helpers in updated port",
+  "memory_unit": "MiB; field names ending _mb are retained for compatibility",
+  "cpu.max": "200000 100000",
+  "cpuset.cpus.effective": "0-2",
+  "adapter_created_utc": "2026-10-19T14:25:54.177870+00:00",
+  "reference_role": "Java-only same-N warm time and warm JVM lifetime peak RSS; copied historical Go metadata does not identify the new candidate",
+  "source_sweep_machine": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/machine.json",
+  "source_sweep_thread_counts": [
+   1,
+   2,
+   4
+  ],
+  "compiler_thread_count": 1,
+  "tasks": [
+   "downlevel-whitespace"
+  ],
+  "source_files": {
+   "jobs.json": {
+    "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-1/downlevel-whitespace/jobs.json",
+    "sha256": "a815c116a315390c35df7784c2aad4c6eccad56f7a51dbca59267e8876e40862",
+    "role": "exact invocation arguments including same N for Go and Java"
+   },
+   "java-warm.json": {
+    "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-1/downlevel-whitespace/java-warm.json",
+    "sha256": "79754aba30eff69719b4489704c9b403b9de8eca1c66b4c0c7ebdbe57d4a379e",
+    "role": "same compiler thread-count Java cohort"
+   },
+   "java-cold.json": {
+    "source": "/workspace/jsgo-results/round2/baseline/downlevel-whitespace/java-cold.json",
+    "sha256": "46ba7b0121191aaa69bf61cd4e2d1af49e3784f36c867d4e891d38797c48b631",
+    "role": "artifact digests and byte-comparison only; NEVER a thread-matched timing/memory denominator"
+   }
+  },
+  "cold_java_scope": "baseline artifact digests only; cold timing/memory are not matched to N and must not be used",
+  "comparison_runtime_policy": "Go runtime defaults; GOGC/GOMEMLIMIT/GOMAXPROCS/GODEBUG unset; compiler N does not change GOMAXPROCS"
+ },
+ "ratio_direction": "Java / Go; above 1 favors Go for elapsed time and resident memory",
+ "java_ratio_scope": "stored JVM cohort; not a fresh paired-Java confidence estimate",
+ "memory_windows": {
+  "go": "median of fresh CLI process peak RSS",
+  "java": "peak of stored JVM lifetime including warmup"
+ },
+ "cpu.max": "200000 100000",
+ "cpuset.cpus.effective": "0-2",
+ "memory.max": "8589934592"
+}

@@ -1,0 +1,855 @@
+{
+  "round": 15,
+  "experiment": "Matched-thread CommonJS on/off, downlevel-whitespace",
+  "created_utc": "2026-10-19T14:32:45.310693+00:00",
+  "decision": "Do not promote; N2 elapsed median regressed7.97%, N4regressed1.43%; N1parallelwork isguardedoff andapparentgainiscontrolvariation.",
+  "binary": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-post-colors-kernel-l4",
+    "sha256": "084c5d89af17cd9629ba034862b47a8daf016f210913da04983c68a980fce05d",
+    "source_checkout": "/workspace/jsgo-post-colors-candidate-kernel",
+    "source_head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+    "runner_head_is_not_binary_source": true
+  },
+  "protocol": {
+    "go_runs_per_variant_N": 5,
+    "go_invocations": 30,
+    "go_all_artifacts_match": true,
+    "java_cohort": "same-N stored Java12warmup10measure",
+    "cold_java_json": "baseline artifact digest only; no cold time/RSS ratios",
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "cpu_quota": "200000/100000=2CPUs",
+    "compiler_job_counts": [
+      1,
+      2,
+      4
+    ],
+    "runtime_settings": {
+      "GOGC": null,
+      "GOMEMLIMIT": null,
+      "GOMAXPROCS": null,
+      "GODEBUG": null
+    },
+    "default_runtime": "process defaults; compiler N never modifies GOMAXPROCS",
+    "ratio_direction": "Java / Go; above1 favorsGo for elapsed and peakRSS",
+    "rss_windows": {
+      "go": "median fresh CLI process peakRSS",
+      "java": "same-N warm JVM lifetime peakRSS including warmup"
+    },
+    "command_manifest": "/workspace/jsgo-results/round2/commonjs-matched-thread-commands.json"
+  },
+  "threads": [
+    {
+      "compiler_threads": 1,
+      "java_warm_median_s": 0.8962000000000001,
+      "java_warm_lifetime_peak_rss_mib": 989.9765625,
+      "variants": {
+        "control": {
+          "median_s": 1.304695579005056,
+          "min_s": 1.1812532180047128,
+          "max_s": 1.3765036300028441,
+          "median_cpu_s": 1.654645,
+          "median_peak_rss_mb": 162.86328125,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.6869035309243791,
+          "memory_ratio_java_over_go": 6.078574341016478,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 161.2265625,
+          "max_peak_rss_mib": 165.11328125,
+          "runs": [
+            {
+              "wall_s": 1.304695579005056,
+              "user_s": 1.481703,
+              "sys_s": 0.127411,
+              "cpu_s": 1.609114,
+              "rss_mb": 162.86328125,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.3765036300028441,
+              "user_s": 1.6296119999999998,
+              "sys_s": 0.126274,
+              "cpu_s": 1.7558859999999998,
+              "rss_mb": 164.76171875,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1812532180047128,
+              "user_s": 1.307378,
+              "sys_s": 0.145902,
+              "cpu_s": 1.45328,
+              "rss_mb": 161.2265625,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.3116087519883877,
+              "user_s": 1.53979,
+              "sys_s": 0.114855,
+              "cpu_s": 1.654645,
+              "rss_mb": 165.11328125,
+              "load1": 0.98,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.277815470006317,
+              "user_s": 1.548381,
+              "sys_s": 0.108217,
+              "cpu_s": 1.656598,
+              "rss_mb": 162.39453125,
+              "load1": 0.98,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        },
+        "commonjs": {
+          "median_s": 1.2730453709955327,
+          "min_s": 1.2032409800012829,
+          "max_s": 1.3929774239950348,
+          "median_cpu_s": 1.5660249999999998,
+          "median_peak_rss_mb": 166.94140625,
+          "speed_vs_first_variant": 1.0248618067593087,
+          "speed_vs_java_warm": 0.7039811937725077,
+          "memory_ratio_java_over_go": 5.930084002152701,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 164.62109375,
+          "max_peak_rss_mib": 172.3828125,
+          "runs": [
+            {
+              "wall_s": 1.2184753179899417,
+              "user_s": 1.409027,
+              "sys_s": 0.092571,
+              "cpu_s": 1.501598,
+              "rss_mb": 172.3828125,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.3929774239950348,
+              "user_s": 1.529031,
+              "sys_s": 0.138743,
+              "cpu_s": 1.667774,
+              "rss_mb": 164.62109375,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.2730453709955327,
+              "user_s": 1.432821,
+              "sys_s": 0.133204,
+              "cpu_s": 1.5660249999999998,
+              "rss_mb": 169.91796875,
+              "load1": 0.97,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.2870123780012364,
+              "user_s": 1.522716,
+              "sys_s": 0.122066,
+              "cpu_s": 1.644782,
+              "rss_mb": 166.94140625,
+              "load1": 0.98,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.2032409800012829,
+              "user_s": 1.384045,
+              "sys_s": 0.10356,
+              "cpu_s": 1.487605,
+              "rss_mb": 166.84765625,
+              "load1": 0.98,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "commonjs_on_minus_off": {
+        "median_elapsed_s": -0.03165020800952334,
+        "median_elapsed_percent": -2.4258691850293057,
+        "median_peak_rss_mib": 4.078125,
+        "median_peak_rss_percent": 2.5040174609646693,
+        "median_cpu_s": -0.08862000000000014,
+        "median_cpu_percent": -5.3558316134276645,
+        "same_round_elapsed_changes_percent": [
+          -6.608458126367289,
+          1.196785364972608,
+          7.770743105010847,
+          -1.875282850153559,
+          -5.836092280575178
+        ],
+        "same_round_on_slower_count": 2
+      },
+      "sources": {
+        "screen": "/workspace/jsgo-results/round2/commonjs-matched-thread-screen/threads-1",
+        "reference_provenance": {
+          "created_utc": "2026-10-19T14:25:54.177870+00:00",
+          "compiler_threads": 1,
+          "source_sweep_machine_sha256": "6c09e734db71680babc64e1144319a3c25384452cf1c73d16196fc9a06d79105",
+          "files": {
+            "jobs.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-1/downlevel-whitespace/jobs.json",
+              "sha256": "a815c116a315390c35df7784c2aad4c6eccad56f7a51dbca59267e8876e40862",
+              "role": "exact invocation arguments including same N for Go and Java"
+            },
+            "java-warm.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-1/downlevel-whitespace/java-warm.json",
+              "sha256": "79754aba30eff69719b4489704c9b403b9de8eca1c66b4c0c7ebdbe57d4a379e",
+              "role": "same compiler thread-count Java cohort"
+            },
+            "java-cold.json": {
+              "source": "/workspace/jsgo-results/round2/baseline/downlevel-whitespace/java-cold.json",
+              "sha256": "46ba7b0121191aaa69bf61cd4e2d1af49e3784f36c867d4e891d38797c48b631",
+              "role": "artifact digests and byte-comparison only; NEVER a thread-matched timing/memory denominator"
+            }
+          },
+          "no_new_measurements": true
+        },
+        "runner_bench_commit": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b"
+      }
+    },
+    {
+      "compiler_threads": 2,
+      "java_warm_median_s": 0.8818,
+      "java_warm_lifetime_peak_rss_mib": 917.80078125,
+      "variants": {
+        "control": {
+          "median_s": 1.176314538999577,
+          "min_s": 1.1442529059859226,
+          "max_s": 1.224278323003091,
+          "median_cpu_s": 1.522014,
+          "median_peak_rss_mb": 170.51953125,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.7496294322349756,
+          "memory_ratio_java_over_go": 5.382379217923167,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 165.41015625,
+          "max_peak_rss_mib": 171.88671875,
+          "runs": [
+            {
+              "wall_s": 1.208034747003694,
+              "user_s": 1.444795,
+              "sys_s": 0.139424,
+              "cpu_s": 1.584219,
+              "rss_mb": 166.50390625,
+              "load1": 1.06,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.224278323003091,
+              "user_s": 1.4788679999999998,
+              "sys_s": 0.116686,
+              "cpu_s": 1.595554,
+              "rss_mb": 171.45703125,
+              "load1": 1.06,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.176314538999577,
+              "user_s": 1.370787,
+              "sys_s": 0.139036,
+              "cpu_s": 1.509823,
+              "rss_mb": 170.51953125,
+              "load1": 1.05,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1696217489952687,
+              "user_s": 1.393019,
+              "sys_s": 0.128995,
+              "cpu_s": 1.522014,
+              "rss_mb": 165.41015625,
+              "load1": 1.05,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1442529059859226,
+              "user_s": 1.3271389999999998,
+              "sys_s": 0.129458,
+              "cpu_s": 1.456597,
+              "rss_mb": 171.88671875,
+              "load1": 1.13,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        },
+        "commonjs": {
+          "median_s": 1.270103831004235,
+          "min_s": 1.1856148759979988,
+          "max_s": 1.3612592720019165,
+          "median_cpu_s": 1.6871429999999998,
+          "median_peak_rss_mb": 168.74609375,
+          "speed_vs_first_variant": 0.9261562010009045,
+          "speed_vs_java_warm": 0.69427394711721,
+          "memory_ratio_java_over_go": 5.438945345957082,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 164.05859375,
+          "max_peak_rss_mib": 174.21484375,
+          "runs": [
+            {
+              "wall_s": 1.2033820770011516,
+              "user_s": 1.458915,
+              "sys_s": 0.107627,
+              "cpu_s": 1.5665419999999999,
+              "rss_mb": 174.140625,
+              "load1": 1.06,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.270103831004235,
+              "user_s": 1.5807129999999998,
+              "sys_s": 0.10643,
+              "cpu_s": 1.6871429999999998,
+              "rss_mb": 168.43359375,
+              "load1": 1.06,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.303355242998805,
+              "user_s": 1.5473970000000001,
+              "sys_s": 0.143476,
+              "cpu_s": 1.690873,
+              "rss_mb": 164.05859375,
+              "load1": 1.05,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1856148759979988,
+              "user_s": 1.429698,
+              "sys_s": 0.099961,
+              "cpu_s": 1.5296589999999999,
+              "rss_mb": 168.74609375,
+              "load1": 1.05,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.3612592720019165,
+              "user_s": 1.665756,
+              "sys_s": 0.134163,
+              "cpu_s": 1.799919,
+              "rss_mb": 174.21484375,
+              "load1": 1.13,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "commonjs_on_minus_off": {
+        "median_elapsed_s": 0.09378929200465791,
+        "median_elapsed_percent": 7.973147393419366,
+        "median_peak_rss_mib": -1.7734375,
+        "median_peak_rss_percent": -1.0400201589810587,
+        "median_cpu_s": 0.16512899999999986,
+        "median_cpu_percent": 10.849374578683246,
+        "same_round_elapsed_changes_percent": [
+          -0.38514372323168455,
+          3.74306292451021,
+          10.799892357640362,
+          1.3673759928342966,
+          18.964895337452937
+        ],
+        "same_round_on_slower_count": 4
+      },
+      "sources": {
+        "screen": "/workspace/jsgo-results/round2/commonjs-matched-thread-screen/threads-2",
+        "reference_provenance": {
+          "created_utc": "2026-10-19T14:25:54.177870+00:00",
+          "compiler_threads": 2,
+          "source_sweep_machine_sha256": "6c09e734db71680babc64e1144319a3c25384452cf1c73d16196fc9a06d79105",
+          "files": {
+            "jobs.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-2/downlevel-whitespace/jobs.json",
+              "sha256": "8a0de1ef6a8641f5f23a1c3057f770334daae2c873ef975d0e7274ff78e86dfd",
+              "role": "exact invocation arguments including same N for Go and Java"
+            },
+            "java-warm.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-2/downlevel-whitespace/java-warm.json",
+              "sha256": "54fe3fac8ade208423a632ac2d11040879781df15311ff44231deef72a30aac3",
+              "role": "same compiler thread-count Java cohort"
+            },
+            "java-cold.json": {
+              "source": "/workspace/jsgo-results/round2/baseline/downlevel-whitespace/java-cold.json",
+              "sha256": "46ba7b0121191aaa69bf61cd4e2d1af49e3784f36c867d4e891d38797c48b631",
+              "role": "artifact digests and byte-comparison only; NEVER a thread-matched timing/memory denominator"
+            }
+          },
+          "no_new_measurements": true
+        },
+        "runner_bench_commit": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b"
+      }
+    },
+    {
+      "compiler_threads": 4,
+      "java_warm_median_s": 0.8475,
+      "java_warm_lifetime_peak_rss_mib": 869.3203125,
+      "variants": {
+        "control": {
+          "median_s": 1.1704623690020526,
+          "min_s": 1.1487302870082203,
+          "max_s": 1.2419821840012446,
+          "median_cpu_s": 1.525141,
+          "median_peak_rss_mb": 163.10546875,
+          "speed_vs_first_variant": 1.0,
+          "speed_vs_java_warm": 0.7240728300582501,
+          "memory_ratio_java_over_go": 5.329804813794755,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 157.05078125,
+          "max_peak_rss_mib": 174.66796875,
+          "runs": [
+            {
+              "wall_s": 1.2419821840012446,
+              "user_s": 1.564144,
+              "sys_s": 0.080564,
+              "cpu_s": 1.644708,
+              "rss_mb": 171.67578125,
+              "load1": 1.13,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.175219010998262,
+              "user_s": 1.391113,
+              "sys_s": 0.148939,
+              "cpu_s": 1.540052,
+              "rss_mb": 163.10546875,
+              "load1": 1.12,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1487302870082203,
+              "user_s": 1.3850419999999999,
+              "sys_s": 0.12528799999999998,
+              "cpu_s": 1.51033,
+              "rss_mb": 157.05078125,
+              "load1": 1.12,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1704623690020526,
+              "user_s": 1.408998,
+              "sys_s": 0.116143,
+              "cpu_s": 1.525141,
+              "rss_mb": 161.85546875,
+              "load1": 1.11,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1510573770065093,
+              "user_s": 1.373189,
+              "sys_s": 0.100449,
+              "cpu_s": 1.473638,
+              "rss_mb": 174.66796875,
+              "load1": 1.11,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        },
+        "commonjs": {
+          "median_s": 1.1872000319999643,
+          "min_s": 1.173745730004157,
+          "max_s": 1.221221929998137,
+          "median_cpu_s": 1.590802,
+          "median_peak_rss_mb": 164.05078125,
+          "speed_vs_first_variant": 0.9859015645664064,
+          "speed_vs_java_warm": 0.7138645360144545,
+          "memory_ratio_java_over_go": 5.29909279234231,
+          "all_outputs_match": true,
+          "min_peak_rss_mib": 159.55078125,
+          "max_peak_rss_mib": 169.48046875,
+          "runs": [
+            {
+              "wall_s": 1.173745730004157,
+              "user_s": 1.4008479999999999,
+              "sys_s": 0.13474,
+              "cpu_s": 1.535588,
+              "rss_mb": 159.796875,
+              "load1": 1.13,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1989709249901352,
+              "user_s": 1.456818,
+              "sys_s": 0.14188699999999999,
+              "cpu_s": 1.5987049999999998,
+              "rss_mb": 165.43359375,
+              "load1": 1.12,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1756156389892567,
+              "user_s": 1.446566,
+              "sys_s": 0.144236,
+              "cpu_s": 1.590802,
+              "rss_mb": 164.05078125,
+              "load1": 1.12,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.1872000319999643,
+              "user_s": 1.463518,
+              "sys_s": 0.10012299999999999,
+              "cpu_s": 1.563641,
+              "rss_mb": 159.55078125,
+              "load1": 1.11,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            },
+            {
+              "wall_s": 1.221221929998137,
+              "user_s": 1.539711,
+              "sys_s": 0.09219899999999999,
+              "cpu_s": 1.63191,
+              "rss_mb": 169.48046875,
+              "load1": 1.11,
+              "exits": [
+                0
+              ],
+              "digests": [
+                {
+                  "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+                  "out.js": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "commonjs_on_minus_off": {
+        "median_elapsed_s": 0.016737662997911684,
+        "median_elapsed_percent": 1.4300043676058083,
+        "median_peak_rss_mib": 0.9453125,
+        "median_peak_rss_percent": 0.5795713088252885,
+        "median_cpu_s": 0.06566099999999997,
+        "median_cpu_percent": 4.305241285887673,
+        "same_round_elapsed_changes_percent": [
+          -5.494157233178099,
+          2.0210627780516965,
+          2.340440770570895,
+          1.4300043676058083,
+          6.095660771846201
+        ],
+        "same_round_on_slower_count": 4
+      },
+      "sources": {
+        "screen": "/workspace/jsgo-results/round2/commonjs-matched-thread-screen/threads-4",
+        "reference_provenance": {
+          "created_utc": "2026-10-19T14:25:54.177870+00:00",
+          "compiler_threads": 4,
+          "source_sweep_machine_sha256": "6c09e734db71680babc64e1144319a3c25384452cf1c73d16196fc9a06d79105",
+          "files": {
+            "jobs.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-4/downlevel-whitespace/jobs.json",
+              "sha256": "1b08bcbe16048e56c894cb728a07c1bfa325f3ce95eb10a7a4d4d5c3a04b6ac3",
+              "role": "exact invocation arguments including same N for Go and Java"
+            },
+            "java-warm.json": {
+              "source": "/workspace/jsgo-results/round2/default-gc-white-traversal-thread-sweep/threads-4/downlevel-whitespace/java-warm.json",
+              "sha256": "7bcfc2eee45168156886d8bda07797e4c28f14112bdcf2766d3281735a86aebd",
+              "role": "same compiler thread-count Java cohort"
+            },
+            "java-cold.json": {
+              "source": "/workspace/jsgo-results/round2/baseline/downlevel-whitespace/java-cold.json",
+              "sha256": "46ba7b0121191aaa69bf61cd4e2d1af49e3784f36c867d4e891d38797c48b631",
+              "role": "artifact digests and byte-comparison only; NEVER a thread-matched timing/memory denominator"
+            }
+          },
+          "no_new_measurements": true
+        },
+        "runner_bench_commit": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b"
+      }
+    }
+  ]
+}

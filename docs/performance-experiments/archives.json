@@ -13,5 +13,15 @@
     "path": "prototype-history.bundle",
     "bytes": 1287971,
     "sha256": "efa5a584f1e10e8997561f1fef15bf85d540f816ee9b432b1ecb607191228cc5"
+  },
+  {
+    "path": "followup-measurement-records.tar.gz",
+    "bytes": 1415829,
+    "sha256": "3e86c6bedb7cfc22b110d389b6602260660899731c03816c153b0fd75d1118f1"
+  },
+  {
+    "path": "followup-prototype-history.bundle",
+    "bytes": 704532,
+    "sha256": "78ceec17d1fa674b88c72a7c54db628579f6f32d172c14a6de61b060662ee719"
   }
 ]

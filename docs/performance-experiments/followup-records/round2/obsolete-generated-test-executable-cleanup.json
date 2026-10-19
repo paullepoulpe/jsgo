@@ -1,0 +1,25 @@
+{
+  "reason": "Reclaim disk for active compiler builds. Old completed test executables only; all source commits, build commands, test logs and hashes retained, all timed CLI binaries retained. Recreate test binaries from archived sources when needed.",
+  "files": [
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-pass-storage.test",
+      "bytes": 109188746,
+      "sha256": "ec6b6a08aad4e462c44c2a99eb114a7eeb65786cc6cdceb4d8e3320dfe288cf5"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-followup.test",
+      "bytes": 108813629,
+      "sha256": "93a436019c10d1d0b055e92762e8f79bfb706a6b621e7cd3979dae2a0af23154"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-structural.test",
+      "bytes": 108615910,
+      "sha256": "dc5729710b8445e07b48589e039e4a3963edca88c1ba0820aba340d2c36776b6"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-work-elision.test",
+      "bytes": 107892613,
+      "sha256": "20cf8ed31766f42789dbc3b21da2d6d89064413a25ff29134db61f0dd817d2e8"
+    }
+  ]
+}

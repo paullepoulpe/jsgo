@@ -1,0 +1,88 @@
+[
+  {
+    "path": "round2/bitset-descriptors-screen/summary.json",
+    "browse": "followup-records/round2/bitset-descriptors-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "442379265f5a1487959dc9f8782c2fcfcdb0888f6d45b60ee75b6776cc1e99c5",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/bitset-distribution-original/summary.json",
+    "browse": "followup-records/round2/bitset-distribution-original/summary.json",
+    "keys": [
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "typed-app",
+      "checks-only",
+      "bundle"
+    ],
+    "sha256": "a6ae065f032cf09aa44916f8250c0456968445b05f51ce4c04b9dbba6761dfaf",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/commonjs-matched-thread-screen/threads-1/summary.json",
+    "browse": "followup-records/round2/commonjs-matched-thread-screen/threads-1/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "ec987ca2adf818de17cbd18a0be374e61b501d431b77984235e00b1e999efd0b",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/commonjs-matched-thread-screen/threads-2/summary.json",
+    "browse": "followup-records/round2/commonjs-matched-thread-screen/threads-2/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "a7bd4e8774e70ff3503a682da63cfec0be26d062c74240e40353c38427edce19",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/commonjs-matched-thread-screen/threads-4/summary.json",
+    "browse": "followup-records/round2/commonjs-matched-thread-screen/threads-4/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "6f3473913910d76135ddd310c119c7ccff319ab220df4922e272ac35af4b8546",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/one-word-bitset-screen/summary.json",
+    "browse": "followup-records/round2/one-word-bitset-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "0b83fa268ddb74d3f7a21a4cf6c40f96696d6b26299320864651553ef9c9eac0",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/post-colors-compound-screen/summary.json",
+    "browse": "followup-records/round2/post-colors-compound-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "ab658f3538c140e8a36b969806f8e9b864499fdaa9d05c440ba24b7800b410a8",
+    "change": "new",
+    "parseable_json": true
+  }
+]

@@ -1,0 +1,197 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.7394,
+  "java_peak_rss_mb": 1090.1875,
+  "variants": {
+   "slice": {
+    "median_s": 4.930793387000449,
+    "min_s": 4.928039602003992,
+    "max_s": 5.157764596995548,
+    "median_cpu_s": 5.930887,
+    "median_peak_rss_mb": 281.22265625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7583769398771726,
+    "memory_ratio_java_over_go": 3.876599113802731,
+    "all_outputs_match": true
+   },
+   "inline2": {
+    "median_s": 4.999824914993951,
+    "min_s": 4.900243771000532,
+    "max_s": 5.05247620800219,
+    "median_cpu_s": 5.968662,
+    "median_peak_rss_mb": 274.93359375,
+    "speed_vs_first_variant": 0.98619321092895,
+    "speed_vs_java_warm": 0.7479061894319401,
+    "memory_ratio_java_over_go": 3.9652757057812256,
+    "all_outputs_match": true
+   },
+   "inline1": {
+    "median_s": 5.017386271996656,
+    "min_s": 4.971199510997394,
+    "max_s": 5.058643608994316,
+    "median_cpu_s": 5.934013,
+    "median_peak_rss_mb": 276.2734375,
+    "speed_vs_first_variant": 0.9827414354203692,
+    "speed_vs_java_warm": 0.7452884424845996,
+    "memory_ratio_java_over_go": 3.9460453015864037,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.600099999999998,
+  "java_peak_rss_mb": 1696.55078125,
+  "variants": {
+   "slice": {
+    "median_s": 18.522376652996172,
+    "min_s": 18.4651564139931,
+    "max_s": 18.610809004007024,
+    "median_cpu_s": 21.402154,
+    "median_peak_rss_mb": 431.3359375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.8962186824612906,
+    "memory_ratio_java_over_go": 3.933246997880857,
+    "all_outputs_match": true
+   },
+   "inline2": {
+    "median_s": 18.120816237002145,
+    "min_s": 17.838733798998874,
+    "max_s": 18.89460362799582,
+    "median_cpu_s": 20.830664,
+    "median_peak_rss_mb": 425.8046875,
+    "speed_vs_first_variant": 1.0221601726292027,
+    "speed_vs_java_warm": 0.9160790431781494,
+    "memory_ratio_java_over_go": 3.984340311542484,
+    "all_outputs_match": true
+   },
+   "inline1": {
+    "median_s": 18.660059134999756,
+    "min_s": 18.544610223005293,
+    "max_s": 19.310227590001887,
+    "median_cpu_s": 21.277758000000002,
+    "median_peak_rss_mb": 431.71875,
+    "speed_vs_first_variant": 0.9926215409604282,
+    "speed_vs_java_warm": 0.8896059696222509,
+    "memory_ratio_java_over_go": 3.9297593195801666,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.93825,
+  "java_peak_rss_mb": 930.17578125,
+  "variants": {
+   "slice": {
+    "median_s": 1.2526433070015628,
+    "min_s": 1.196475898992503,
+    "max_s": 1.329041157005122,
+    "median_cpu_s": 1.553556,
+    "median_peak_rss_mb": 163.3828125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7490160964064685,
+    "memory_ratio_java_over_go": 5.693229091952374,
+    "all_outputs_match": true
+   },
+   "inline2": {
+    "median_s": 1.238034643989522,
+    "min_s": 1.1776834129996132,
+    "max_s": 1.2410331690043677,
+    "median_cpu_s": 1.526928,
+    "median_peak_rss_mb": 168.578125,
+    "speed_vs_first_variant": 1.0117998822431695,
+    "speed_vs_java_warm": 0.7578543981423034,
+    "memory_ratio_java_over_go": 5.517772731485772,
+    "all_outputs_match": true
+   },
+   "inline1": {
+    "median_s": 1.192953824007418,
+    "min_s": 1.1653257410071092,
+    "max_s": 1.3029996620025486,
+    "median_cpu_s": 1.464399,
+    "median_peak_rss_mb": 167.953125,
+    "speed_vs_first_variant": 1.0500350321973348,
+    "speed_vs_java_warm": 0.7864931409064881,
+    "memory_ratio_java_over_go": 5.5383058889199,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-simple": {
+  "java_warm_s": 2.8052,
+  "java_peak_rss_mb": 1118.35546875,
+  "variants": {
+   "slice": {
+    "median_s": 3.705923250003252,
+    "min_s": 3.6163423550024163,
+    "max_s": 3.718875267004478,
+    "median_cpu_s": 4.513103999999999,
+    "median_peak_rss_mb": 206.08984375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7569503766699806,
+    "memory_ratio_java_over_go": 5.4265433385773045,
+    "all_outputs_match": true
+   },
+   "inline2": {
+    "median_s": 3.8035086050076643,
+    "min_s": 3.6833828349917894,
+    "max_s": 3.805827607997344,
+    "median_cpu_s": 4.5778989999999995,
+    "median_peak_rss_mb": 215.62109375,
+    "speed_vs_first_variant": 0.9743433326597626,
+    "speed_vs_java_warm": 0.7375295526626914,
+    "memory_ratio_java_over_go": 5.186670048370441,
+    "all_outputs_match": true
+   },
+   "inline1": {
+    "median_s": 3.6997761810052907,
+    "min_s": 3.6850464120070683,
+    "max_s": 3.8064960000046995,
+    "median_cpu_s": 4.516419,
+    "median_peak_rss_mb": 211.6484375,
+    "speed_vs_first_variant": 1.0016614705044917,
+    "speed_vs_java_warm": 0.7582080273941816,
+    "memory_ratio_java_over_go": 5.284024214683844,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "checks-only": {
+  "java_warm_s": 6.038,
+  "java_peak_rss_mb": 1360.0234375,
+  "variants": {
+   "slice": {
+    "median_s": 7.4506644229986705,
+    "min_s": 7.42717851800262,
+    "max_s": 7.840570144995581,
+    "median_cpu_s": 8.672811000000001,
+    "median_peak_rss_mb": 657.21875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.8103975239257769,
+    "memory_ratio_java_over_go": 2.069361894346441,
+    "all_outputs_match": true
+   },
+   "inline2": {
+    "median_s": 7.421579246001784,
+    "min_s": 7.401616189003107,
+    "max_s": 7.432884228997864,
+    "median_cpu_s": 8.664223,
+    "median_peak_rss_mb": 663.39453125,
+    "speed_vs_first_variant": 1.003919001068749,
+    "speed_vs_java_warm": 0.8135734726881536,
+    "memory_ratio_java_over_go": 2.050097450965383,
+    "all_outputs_match": true
+   },
+   "inline1": {
+    "median_s": 7.486915390996728,
+    "min_s": 7.338032521001878,
+    "max_s": 7.778807685011998,
+    "median_cpu_s": 8.753895,
+    "median_peak_rss_mb": 671.12890625,
+    "speed_vs_first_variant": 0.9951580903342849,
+    "speed_vs_java_warm": 0.8064736523216092,
+    "memory_ratio_java_over_go": 2.0264712558713454,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

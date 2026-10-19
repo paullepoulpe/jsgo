@@ -1,0 +1,11 @@
+{
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-post-colors-designs-l4",
+  "sha256": "3d945d2c19ca432448b56d1b2788744456d132fcb0318d70fc343f7b1a1bbe40",
+  "source_production": "3750c2599170db23522d32d8515118c2d1cbe826",
+  "source_test_followup": "9d190a2b",
+  "scope": "Test/comment-only followup after CLI completed; production unchanged. Same Go1.27.2/shippedPGO/l4 flags as recorded commands. Runtime defaultGC; buildGOGC20/GOMAXPROCS1 RAM-only.",
+  "failed_sources": [
+    "32a2e421(_js.go filename excluded)",
+    "4bbbb8a9(real phase guard false-negative; CommonJS fixture map panic)"
+  ]
+}

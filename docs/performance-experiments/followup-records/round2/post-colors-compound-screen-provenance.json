@@ -1,0 +1,9 @@
+{
+  "source": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-post-colors-kernel-l4",
+  "sha256": "084c5d89af17cd9629ba034862b47a8daf016f210913da04983c68a980fce05d",
+  "command": "post-colors-compound-screen-command.json",
+  "summary": "post-colors-compound-screen/summary.json",
+  "race_log": "tests-post-colors-kernel-focused-race.log",
+  "gates": "gates-post-colors-kernel-l4.log"
+}

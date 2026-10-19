@@ -1,0 +1,4486 @@
+{
+  "scope": "New deduplicated browsable source-design notes only; unchanged notes link to the original publication. No existing note/archive is rewritten.",
+  "notes": [
+    {
+      "path": "followup-design-notes/041f0484f712c576-parallel-commonjs.md",
+      "sha256": "041f0484f712c576014e66989a23b254110f6ab539c8e22a9fa92337c74ae4dd",
+      "bytes": 6882,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/fundamental-compiler-designs",
+          "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+          "path": "docs/experiments/parallel-commonjs.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/parallel-commonjs.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/parallel-commonjs.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/parallel-commonjs.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/09d40253d4ecd9a5-post-colorization-activation-audit.md",
+      "sha256": "09d40253d4ecd9a56491e9a309a407d835fe1b12ec41ea5ab75e3c9a990461b4",
+      "bytes": 5735,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "post-colorization-activation-audit.md",
+          "original_location": "round2/post-colorization-activation-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/0a5dd1c54b9e6b07-post-colors-native-admission.md",
+      "sha256": "0a5dd1c54b9e6b07bdd77ac6c17a3ae2075bf244fb5cd882c3418a7e6d65b52a",
+      "bytes": 3675,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/post-colors-native-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/post-colors-native-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/post-colors-native-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-native-admission",
+          "head": "01a99ca6d99b066833980938b895aed192c53399",
+          "path": "docs/experiments/post-colors-native-admission.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/29ac0e662a1f2cbb-bitset-lazy-second-word-source-audit.md",
+      "sha256": "29ac0e662a1f2cbbb9a07c67c06e527b563702b7e804567ef4c44bb14465f98a",
+      "bytes": 5039,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "bitset-lazy-second-word-source-audit.md",
+          "original_location": "round2/bitset-lazy-second-word-source-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/2a6c793033e39258-fresh-template-guard-audit.md",
+      "sha256": "2a6c793033e392583de648661857884070faa3e7516abfeb00423150b57df490",
+      "bytes": 7065,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "fresh-template-guard-audit.md",
+          "original_location": "round2/fresh-template-guard-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/3a00411ef31cd0aa-ascii-output-buffer.md",
+      "sha256": "3a00411ef31cd0aa0b3c2310514d2a30d5f411aea3aa22998863325395ebc56e",
+      "bytes": 6235,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/ascii-output-buffer.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/ascii-output-buffer.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/ascii-output-buffer.md"
+        },
+        {
+          "ref": "refs/heads/perf/output-phase-admission",
+          "head": "c1961e28c737f7483f83229161584da83df174e4",
+          "path": "docs/experiments/ascii-output-buffer.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/3baaf754d511dd39-inline-candidate-kernel.md",
+      "sha256": "3baaf754d511dd3905c801ad6efa5fd4608feabd74b12b2b1a9f311dd392b9cb",
+      "bytes": 3698,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/inline-candidate-kernel.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/inline-candidate-kernel.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/3cbe613478961778-native-type-construction-audit.md",
+      "sha256": "3cbe6134789617787167eef80ae2193156c15582932608c455592a355861a3a2",
+      "bytes": 9039,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "native-type-construction-audit.md",
+          "original_location": "round2/native-type-construction-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/3e691a186e2f8536-inline-one-word-bitset.md",
+      "sha256": "3e691a186e2f85366ef3f11eda81828d4539bf2101a4082ef3d6281e844ac057",
+      "bytes": 4065,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/structural-one-word-control",
+          "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+          "path": "docs/experiments/inline-one-word-bitset.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/50633a00a6553346-inline-bitset-descriptors.md",
+      "sha256": "50633a00a65533468d42f387a3086a41c09e9606ddf8e477bf9140684d19d028",
+      "bytes": 5592,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/inline-two-word-descriptors",
+          "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+          "path": "docs/experiments/inline-bitset-descriptors.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/5227de2d8e1be5b0-native-array-unknown-recipe.md",
+      "sha256": "5227de2d8e1be5b0588a7a8677fd04b934ccd71b735e15125740055569b23ae3",
+      "bytes": 11586,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/array-specialization-reuse",
+          "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/array-shared-resolved",
+          "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/5a611985993d3d82-oneword-bitset-alternative-audit.md",
+      "sha256": "5a611985993d3d8245280461ad01a2474e079146899d792db40e981addf43114",
+      "bytes": 8137,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "oneword-bitset-alternative-audit.md",
+          "original_location": "round2/oneword-bitset-alternative-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/694f563e509223e1-parallel-inference-cfg.md",
+      "sha256": "694f563e509223e15a7de5ec28ee89f46032d67210aebb680ab10d366ae8b496",
+      "bytes": 6969,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/parallel-inference-cfg",
+          "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+          "path": "docs/experiments/parallel-inference-cfg.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/7603ab3af6c2d39c-fsiv-use-cardinality.md",
+      "sha256": "7603ab3af6c2d39c2414183e98a6460f9389a06818ebd1e5d8a0823eaf5a5614",
+      "bytes": 5456,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/fsiv-use-cardinality.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/fsiv-use-cardinality.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/fsiv-use-cardinality.md"
+        },
+        {
+          "ref": "refs/heads/perf/fsiv-use-cardinality",
+          "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+          "path": "docs/experiments/fsiv-use-cardinality.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/76bfad3d8092d954-inline-one-word-bitset.md",
+      "sha256": "76bfad3d8092d9541a2776f3c2728fbf77544ddc16bc8a5c8e222e8189ac4149",
+      "bytes": 4283,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/inline-one-word-bitset",
+          "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+          "path": "docs/experiments/inline-one-word-bitset.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/87fc707d8855b288-native-live-phase-admission.md",
+      "sha256": "87fc707d8855b2885b066d4a70c15b0b680327b7ebe00f19dd4776202bd87444",
+      "bytes": 2554,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/native-live-phase-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/native-live-phase-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/native-live-phase-admission.md"
+        },
+        {
+          "ref": "refs/heads/perf/native-live-phase-admission",
+          "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+          "path": "docs/experiments/native-live-phase-admission.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/939dc034ec6f67c6-native-array-unknown-recipe.md",
+      "sha256": "939dc034ec6f67c6feada7670913142ddf2f52cdce4b014fb92d66c751ddc977",
+      "bytes": 9402,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/fundamental-compiler-designs",
+          "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-design-integration",
+          "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-candidate-kernel",
+          "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+          "path": "docs/experiments/native-array-unknown-recipe.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/b1d1990fb65535e2-parser-string-front-cache-audit.md",
+      "sha256": "b1d1990fb65535e213cc99dcb8c1e61f617d9d2f0242d96ae52af2faf7e5e80e",
+      "bytes": 9804,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "parser-string-front-cache-audit.md",
+          "original_location": "round2/parser-string-front-cache-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/db65037e5508eaa6-native-live-scratch-bound.md",
+      "sha256": "db65037e5508eaa6769a738b8e8d0e08cb6e0c307bef2ea95cc091a51271fabc",
+      "bytes": 2801,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/inline-one-word-bitset",
+          "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+          "path": "docs/experiments/native-live-scratch-bound.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/e49f4525694e2955-native-array-shared-resolved.md",
+      "sha256": "e49f4525694e295517917580cc9ba8445550d72f6c8931f62346b763d0d45c66",
+      "bytes": 4835,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/array-shared-resolved",
+          "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+          "path": "docs/experiments/native-array-shared-resolved.md"
+        },
+        {
+          "ref": "refs/heads/perf/post-colors-array-sharing",
+          "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+          "path": "docs/experiments/native-array-shared-resolved.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/e63cffae940e1c8f-fsiv-use-cardinality.md",
+      "sha256": "e63cffae940e1c8f4844dde55887a5230f2a494f01e1d0307337e8965a066c81",
+      "bytes": 4234,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/fundamental-compiler-designs",
+          "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+          "path": "docs/experiments/fsiv-use-cardinality.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/e817006ad02c864a-runtime-library-admission-audit.md",
+      "sha256": "e817006ad02c864a5c63062798219840720dfe39f78355ffbff1f15b9df73b4c",
+      "bytes": 6654,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "runtime-library-admission-audit.md",
+          "original_location": "round2/runtime-library-admission-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/e8bf201eabc1a44d-ruc-stock-runtime-table.md",
+      "sha256": "e8bf201eabc1a44d47237d9d60733f7efc9bf027cee3496a322023cb44322276",
+      "bytes": 5070,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/ruc-stock-colors",
+          "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+          "path": "docs/experiments/ruc-stock-runtime-table.md"
+        }
+      ]
+    },
+    {
+      "path": "followup-design-notes/f2bffc97a1bc9648-parallel-commonjs.md",
+      "sha256": "f2bffc97a1bc96487c612ff2dc049246e08f69e9d02b17aa6e53d7fd4f439fc0",
+      "bytes": 11063,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/parallel-commonjs",
+          "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+          "path": "docs/experiments/parallel-commonjs.md"
+        }
+      ]
+    }
+  ],
+  "unchanged_notes_reused_from_original": [
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-one-word-bitset",
+        "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/structural-one-word-control",
+        "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/inline-two-word-descriptors",
+        "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/fundamental-compiler-designs",
+        "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-design-integration",
+        "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-candidate-kernel",
+        "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/array-specialization-reuse",
+        "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/array-shared-resolved",
+        "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-array-sharing",
+        "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "4093ff57c861c49c89a5664ba302de62e85e00aa0ccd6b4f59bf0f528b08aa44",
+      "existing_path": "design-notes/4093ff57c861c49c-inline-bitset-template-results.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/inline-bitset-template-results.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-commonjs",
+        "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/fsiv-use-cardinality",
+        "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/output-phase-admission",
+        "head": "c1961e28c737f7483f83229161584da83df174e4",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/native-live-phase-admission",
+        "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/post-colors-native-admission",
+        "head": "01a99ca6d99b066833980938b895aed192c53399",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/ruc-stock-colors",
+        "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "4093ff57c861c49c89a5664ba302de62e85e00aa0ccd6b4f59bf0f528b08aa44",
+      "existing_path": "design-notes/4093ff57c861c49c-inline-bitset-template-results.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/inline-bitset-template-results.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/parallel-inference-cfg",
+        "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+        "path": "docs/performance-roadmap.md"
+      }
+    },
+    {
+      "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+      "existing_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    },
+    {
+      "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+      "existing_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    },
+    {
+      "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+      "existing_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    },
+    {
+      "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+      "existing_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    },
+    {
+      "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+      "existing_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    },
+    {
+      "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+      "existing_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    },
+    {
+      "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+      "existing_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    },
+    {
+      "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+      "existing_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    },
+    {
+      "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+      "existing_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    },
+    {
+      "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+      "existing_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    },
+    {
+      "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+      "existing_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    },
+    {
+      "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+      "existing_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    },
+    {
+      "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+      "existing_path": "design-notes/90215202eeecce48-native-live-variables.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    },
+    {
+      "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+      "existing_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    },
+    {
+      "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+      "existing_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    },
+    {
+      "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+      "existing_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    },
+    {
+      "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+      "existing_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    },
+    {
+      "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+      "existing_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    },
+    {
+      "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+      "existing_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    },
+    {
+      "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+      "existing_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    },
+    {
+      "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+      "existing_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    },
+    {
+      "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+      "existing_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    },
+    {
+      "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+      "existing_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    },
+    {
+      "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+      "existing_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    },
+    {
+      "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+      "existing_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    },
+    {
+      "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+      "existing_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    },
+    {
+      "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+      "existing_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+      "source": {
+        "ref": "refs/heads/perf/parser-string-diagnostic",
+        "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+        "path": "docs/performance-roadmap.md"
+      }
+    }
+  ]
+}
