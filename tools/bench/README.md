@@ -44,16 +44,18 @@ pinned release, v20261015, and its jar), the corpus, `bench-inputs/` and
 
 | Input | Version | Used by |
 |---|---|---|
-| Closure Library | v20230802, the last release; GitHub tag `ccf3f1dc` | typed app, checks only |
-| three.js | 0.159.0 (`build/three.js`) | bundle |
-| lodash | 4.17.21 (`lodash.js`) | bundle |
-| react-dom | 18.3.1 (`umd/react-dom.development.js`) | bundle |
-| TypeScript | 5.6.3 (`lib/typescript.js`, 8.9 MB) | bundle |
+| Closure Library | v20230802, the last release; GitHub tag `ccf3f1dc` | typed app, checks only, shaka-blockly, typed-full |
+| Shaka Player | 5.3.1 (`lib/`, `ui/`, `externs/`, `third_party/`, `dist/locales.js`) | shaka-blockly, typed-full |
+| Blockly | 8.0.5 (`core/`, `blocks/`, `generators/`, last pure-Closure release) | shaka-blockly, typed-full |
+| three.js | 0.159.0 (`build/three.js`) | bundle, bundle-advanced, bundle-advanced-ts |
+| lodash | 4.17.21 (`lodash.js`) | bundle, bundle-advanced, bundle-advanced-ts |
+| react-dom | 18.3.1 (`umd/react-dom.development.js`) | bundle, bundle-advanced, bundle-advanced-ts |
+| TypeScript | 5.6.3 (`lib/typescript.js`, 8.9 MB) | bundle, bundle-advanced-ts |
 | @angular/core | 16.2.12 (`fesm2022/core.mjs`) | down-levelling |
-| rxjs | 7.8.2 (`dist/esm`, ES2015 modules) | down-levelling |
+| rxjs | 7.8.2 (`dist/esm`, ES2015 modules; `dist/bundles/rxjs.umd.js`) | down-levelling, bundle-advanced |
 | tslib | 2.8.1 (`tslib.es6.js`) | down-levelling |
 | core-js | 3.50.0 (CommonJS, from `stable/index.js`) | down-levelling |
-| oracle corpus | `tools/oracle/corpus.txt` | single files |
+| oracle corpus | `tools/oracle/corpus.txt` | single files, bundle-advanced |
 
 Choices:
 
@@ -107,6 +109,10 @@ Choices:
 | `downlevel-simple` | `SIMPLE`, `--language_out=ECMASCRIPT5` | stdout, stderr, exit, `out.js` |
 | `checks-only` | `--checks_only`, `--jscomp_warning=checkTypes` | stdout, stderr, exit |
 | `single-files` | `SIMPLE`, 1,000 processes per run | stdout, stderr, exit, per invocation |
+| `shaka-blockly` | `ADVANCED`, `--jscomp_warning=checkTypes`, source map (847 files, 8.6 MB: Shaka Player 5.3.1 + Blockly 8.0.5) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `typed-full` | `ADVANCED`, `--jscomp_warning=checkTypes`, source map (1,818 files, 28.5 MB: Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `bundle-advanced` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (11 UMD libraries, 5.4 MB) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `bundle-advanced-ts` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (12.6 MB incl. `typescript.js`) | stdout, stderr, exit, `out.js`, `out.js.map` |
 
 Input paths are always relative: `inputs/…`, `app/…`, `corpus/…` and
 `node_modules/…`. Each compile runs in its own directory holding those

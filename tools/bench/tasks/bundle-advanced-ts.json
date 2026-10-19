@@ -1,0 +1,34 @@
+{
+  "name": "bundle-advanced-ts",
+  "order": 10,
+  "title": "Large plain-JS bundle (with TypeScript), ADVANCED",
+  "description": "The four plain scripts of `bundle` (12.6 MB: three.js r159 `build/three.js`, lodash 4.17.21 `lodash.js`, react-dom 18.3.1 `umd/react-dom.development.js` and TypeScript 5.6.3 `lib/typescript.js`) compiled in `ADVANCED` mode with `--jscomp_warning=checkVars` (demoting the 31 undeclared Node/UMD/WebXR globals from error to warning) and source map output.",
+  "mode": "ADVANCED, `--jscomp_warning=checkVars`, source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--jscomp_warning=checkVars"
+  ],
+  "inputs": [
+    {
+      "file": "inputs/three@0.159.0/build/three.js"
+    },
+    {
+      "file": "inputs/lodash@4.17.21/lodash.js"
+    },
+    {
+      "file": "inputs/react-dom@18.3.1/umd/react-dom.development.js"
+    },
+    {
+      "file": "inputs/typescript@5.6.3/lib/typescript.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ],
+  "warm_warmup": 1
+}
