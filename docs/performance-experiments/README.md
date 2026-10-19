@@ -1,6 +1,6 @@
 # Performance experiment record
 
-This publishes the saved experiments through the completed clean latest-main factor screen, round19 (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.
+This publishes the saved experiments through the final clean-main design/thread screens and requested wrap-up, rounds20–21 (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.
 
 **Warm Java has not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
 
@@ -10,7 +10,39 @@ PR #23 now includes main through `ff06ac15` (ten commits after the original `123
 
 The new main already incorporates overlapping work: lazy FSIV use analysis and cheap-check ordering, value-embedded scope/reference storage, inline BitSets/lattices, direct scope lookup, RUC/helper allocation reductions, property lookup, sharded string pooling, and parallel annotation/output. **Archived measurements against `123b46e8` or historical prototype descendants do not establish an additional speedup over `ff06ac15`. Percentages from these cohorts must not be added together.** Pinned historical source, PGO and result files remain unchanged for reproduction.
 
-The active follow-up is to measure the new main and port only independent candidates onto a clean checkout. In particular, a native FSIV backend must preserve the new first-query lazy boundary; the newer embedded lattice/BitSet needs in-place initialization rather than copying self-referential inline buffers. Native type recipes/shared resolved vectors and private ASCII backing require their own minimal admission/alias proofs. Old-substrate partial screens remain research evidence, not latest-main claims. New main's [Phase 2 report](../performance-roadmap.md#idiomatic-concurrency-hot-path-passes-and-pr-23-integration-2026-10-19) is a separate machine/cohort and is not combined with this archive's timings.
+Independent candidates were ported onto a clean checkout and measured in rounds18–21 below. Further exploration is paused at the requested wrap-up; the open-ideas index records remaining work. In particular, a native FSIV backend must preserve the new first-query lazy boundary; the newer embedded lattice/BitSet needs in-place initialization rather than copying self-referential inline buffers. Native type recipes/shared resolved vectors and private ASCII backing require their own minimal admission/alias proofs. Old-substrate partial screens remain research evidence, not latest-main claims. New main's [Phase 2 report](../performance-roadmap.md#idiomatic-concurrency-hot-path-passes-and-pr-23-integration-2026-10-19) is a separate machine/cohort and is not combined with this archive's timings.
+
+## Final wrap-up: rounds20–21
+
+Work is paused at the user’s requested quota/time wrap-up. **Warm Java remains faster on every final workload. No broad default promotion, exhaustive search or theoretical performance ceiling is claimed.** Remaining designs and their next useful tests are documented in [OPEN-IDEAS.md](OPEN-IDEAS.md).
+
+The final candidate (`baf328cb`) includes the scope-stack retention repair, private candidate-gathering walker and captured Array validation. All 75 design runs and 30 matched-thread runs match Java artifacts/exits. The plain focused race run passes 205 test/subtest records, with one optional Angular fixture passing separately after its pinned input is supplied; no failures or data races. All 15 artifact gates match at N=1/2/4. Five actual DoRun diagnostics verify complete output parity and positive execution of the intended backends.
+
+This table uses one final `compound` configuration throughout round20, versus its same-binary optional-factors-off control. Both contain the unconditional compact-stack and retention changes. It is a three-observation screen, **not a paired stock-main speedup claim**. Parser and CommonJS factors are off; the compound combines captured recipe/sharing, gather and cardinality/projected/scalar use analysis. Ordinary fresh CLI, standard Go 1.27.2/new shipped PGO/default runtime settings, compiler N=1.
+
+|Task|Control → compound s|Time change|Control → compound RSS MiB|Java/Go time|Java/Go RSS|
+|---|---:|---:|---:|---:|---:|
+|typed-app|5.142 → 5.314|+3.34%|251.2 → 254.3|0.704|4.29|
+|bundle|18.270 → 18.230|-0.22%|495.6 → 541.2|0.911|3.13|
+|downlevel-whitespace|1.340 → 1.325|-1.11%|149.9 → 155.2|0.708|5.99|
+|downlevel-simple|3.899 → 3.907|+0.19%|196.7 → 198.9|0.718|5.62|
+|checks-only|8.174 → 8.035|-1.70%|662.2 → 632.3|0.751|2.15|
+
+Ratios above 1 favor Go. Java uses the stored warm-JVM reference with a fresh compiler and reparsed externs per iteration; a fresh paired Java/stock-main confirmation remains open. Go RSS is median fresh-process lifetime peak; Java RSS is warm-JVM lifetime peak including warmup. RSS ranges and GC-dependent variation are preserved in the full reports. Neither activation counts nor modeled allocation bytes are RSS measurements.
+
+Gather alone is 1.3% slower on typed-app and 2.3% slower on bundle, with bundle median RSS 600.9 versus 495.6 MiB. Captured validation is 6.7% slower on typed and 2.2% slower on checks than its proper recipe/shared-vector control. Those negative results are retained despite verified real-input activation. The weak-lifetime/reentrant tests validate the retention repair’s exercised behavior, not an isolated macro speed gain. See [round20](fourth-followup-records/round2/latest-main-final-design-round20.md), [validation/activation](fourth-followup-records/round2/latest-main-next-activation-report.md) and [final handoff](fourth-followup-records/round2/final-performance-wrap-up.md).
+
+The final whitespace sweep uses matched Java references for each compiler N:
+
+|Compiler N|Go control s / RSS MiB|Java/Go time|Java/Go RSS|Run-pool time vs same-N control|
+|---|---:|---:|---:|---:|
+|1|1.294 / 155.7|0.692|6.36|+0.18%|
+|2|1.215 / 158.6|0.726|5.79|+2.03%|
+|4|1.237 / 162.2|0.685|5.36|-0.76%|
+
+Five alternating observations per setting; the run-pool flag is inactive at N=1. The new pool is 2.0% slower at N=2 and essentially flat at N=4. The host has two CPUs, so N=4 is oversubscribed and cannot establish four-core scaling. Compiler N bounds phase jobs; it does not change GOMAXPROCS or cap all goroutines/OS threads. [Round21](fourth-followup-records/round2/latest-main-runpool-round21.md) includes both variants’ RSS/ratios and ranges.
+
+The fourth immutable [measurement delta](fourth-followup-measurement-manifest.json) contains the final build/test/activation/measurement evidence and open-idea notes. Extract its [archive](fourth-followup-measurement-records.tar.gz) after all prior deltas. The existing 12-ref/42-commit clean-main bundle already contains final source `baf328cb`; its earlier capture-time pending labels are superseded by these later records without rewriting the archive. No worker/extern-cache or runtime-GC tuning experiments were added.
 
 ## Independent clean-main prototypes: rounds18–19
 

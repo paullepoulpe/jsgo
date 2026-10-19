@@ -1,0 +1,28 @@
+{
+  "source": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+  "source_clean": true,
+  "main": "ff06ac15304f14c756bce9cd36ad2205212f51da",
+  "production_pr_matches_main": true,
+  "binary": {
+    "path": "/tmp/jsgo-latest-main-next-binaries/jsgo-latest-main-next-standard",
+    "sha256": "c7226e0574bd5ceba1ee7abff83ae8a5e92b2fae77c90ac8436f80e5e0c1741c"
+  },
+  "pgo": {
+    "path": "/workspace/jsgo-main-next-integration/cmd/jsgo/default.pgo",
+    "sha256": "578c122882aef8bb3e25c423ff3e2292ac08e2edd728bd2e0bd7b08bb945c137"
+  },
+  "focused_race": {
+    "passes": 205,
+    "initial_optional_skips": 1,
+    "separate_pinned_angular_passes": 1,
+    "failures": 0,
+    "data_races": 0
+  },
+  "java_artifact_gates": 15,
+  "final_timed_runs": 105,
+  "earlier_clean_design_timed_runs": 90,
+  "stock_main_baseline_runs": 30,
+  "runtime": "Default GOGC/GOMAXPROCS/GOMEMLIMIT/GODEBUG, all inherited JSGO_EXPERIMENT_* cleared; variants set only listed flags; 2-CPU affinity/quota",
+  "wrapup_deadline_utc": "2026-10-19T16:21:55Z",
+  "source_status_note": "Earlier published bundle captured this source before validation; these subsequent records supersede that status without altering the archive."
+}

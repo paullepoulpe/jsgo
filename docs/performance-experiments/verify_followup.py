@@ -54,9 +54,11 @@ with tarfile.open(root / second['archive']['path'], 'r:gz') as archive:
     assert seen == set(expected)
 print(f'PASS: {len(expected)} second follow-up records')
 
-third_path = root / 'third-followup-measurement-manifest.json'
-if third_path.exists():
-    third = json.loads(third_path.read_text())
+for delta_name in ('third', 'fourth'):
+    delta_path = root / f'{delta_name}-followup-measurement-manifest.json'
+    if not delta_path.exists():
+        continue
+    third = json.loads(delta_path.read_text())
     expected = {'records/' + e['path']: e for e in third['files']}
     with tarfile.open(root / third['archive']['path'], 'r:gz') as archive:
         seen = set()
@@ -66,12 +68,12 @@ if third_path.exists():
             data = archive.extractfile(item).read()
             entry = expected[item.name]
             assert len(data) == entry['bytes'] and sha(data) == entry['sha256'], item.name
-            browse = root / 'third-followup-records' / entry['path']
+            browse = root / f'{delta_name}-followup-records' / entry['path']
             if browse.exists():
                 assert browse.read_bytes() == data, browse
             seen.add(item.name)
         assert seen == set(expected)
-    print(f'PASS: {len(expected)} third follow-up records')
+    print(f'PASS: {len(expected)} {delta_name} follow-up records')
 
 latest_path = root / 'latest-main-source-manifest.json'
 if latest_path.exists():

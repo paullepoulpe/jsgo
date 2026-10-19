@@ -1,0 +1,46 @@
+[
+  {
+    "path": "round2/latest-main-final-design-screen/summary.json",
+    "browse": "fourth-followup-records/round2/latest-main-final-design-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "91b6c76a31b2e81e9767e8854027550b0ee0194897c5bd5192f3eefa580c7b7e",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-runpool-threads-1/summary.json",
+    "browse": "fourth-followup-records/round2/latest-main-runpool-threads-1/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "e1b203b551daccc90969b4897999a3648ae42e455aea62da8ce322a27b6ff322",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-runpool-threads-2/summary.json",
+    "browse": "fourth-followup-records/round2/latest-main-runpool-threads-2/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "651183056ebc5e1f70213337c9a47cabd3b038a8f015fc6e6be5e146c99d11aa",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-runpool-threads-4/summary.json",
+    "browse": "fourth-followup-records/round2/latest-main-runpool-threads-4/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "62c04422aa90713a02010bc5c4dd74f439330711adaf97fbb0b4512db0775fe8",
+    "change": "new",
+    "parseable_json": true
+  }
+]

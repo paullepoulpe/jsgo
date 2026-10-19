@@ -38,5 +38,10 @@
     "path": "latest-main-prototype-history.bundle",
     "bytes": 160681,
     "sha256": "ccb1f8ec319866ba9f303e3844e012e75a57b30100a37ac26b5981a928eb9940"
+  },
+  {
+    "path": "fourth-followup-measurement-records.tar.gz",
+    "bytes": 556649,
+    "sha256": "ba9fb5d06f9b5c06acbff7b1222709d332e03ad37de36a67751129082da5eaa7"
   }
 ]
