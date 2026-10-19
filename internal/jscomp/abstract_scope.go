@@ -255,9 +255,9 @@ type abstractScopeBound[S any, V any] interface {
 type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
 	self S
 
-	// Go-only: language-adapter — nil is the ImmutableMap.of() sentinel
-	// that is replaced on the first declaration.
-	vars *jutil.LinkedHashMap[string, V]
+	// Go-only: performance — held by value so declaring the first variable
+	// in a scope does not allocate a separate LinkedHashMap header.
+	vars jutil.LinkedHashMap[string, V]
 
 	// Go-only: language-adapter — the EnumMap<ImplicitVar, V>, indexed by
 	// ordinal (a zero V is an absent key, as EnumMap.computeIfAbsent never
@@ -265,6 +265,8 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	implicitVars *[4]V
 
 	rootNode *rhino.Node
+
+	varsInitialized bool
 }
 
 // abstractScope_of is the implicit conversion of an S to AbstractScope<?, ?>.
@@ -285,7 +287,8 @@ func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S)
 // Java: AbstractScope(Node)
 func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(self S, rootNode *rhino.Node) {
 	b.self = self
-	b.vars = nil
+	b.vars = jutil.LinkedHashMap[string, V]{}
+	b.varsInitialized = false
 	b.implicitVars = nil
 	b.rootNode = jutil.CheckNotNull(rootNode)
 }
@@ -375,7 +378,7 @@ func (b *AbstractScopeBase[S, V]) Undeclare(var_ V) {
 // Java: AbstractScope.undeclareInteral(V)
 func (b *AbstractScopeBase[S, V]) UndeclareInteral(var_ V) {
 	// Assume that vars must contain var, and thus not be empty
-	if b.vars == nil {
+	if !b.varsInitialized {
 		// Go-only: language-adapter — ImmutableMap.of().remove throws.
 		panic(jutil.NewUnsupportedOperationException())
 	}
@@ -386,10 +389,7 @@ func (b *AbstractScopeBase[S, V]) UndeclareInteral(var_ V) {
 func (b *AbstractScopeBase[S, V]) DeclareInternal(name string, var_ V) {
 	jutil.CheckStateMsg1(b.self.HasOwnSlot(name) || b.self.CanDeclare(name), "Illegal shadow: %s", var_.GetNode())
 
-	// For memory savings, only initialize the map once it needs to add its first element
-	if b.vars == nil {
-		b.vars = jutil.NewLinkedHashMap[string, V]()
-	}
+	b.varsInitialized = true
 	b.vars.Put(name, var_)
 }
 

@@ -26,14 +26,14 @@ package base
 // Sets.newIdentityHashSet were defined. The entire interface could be
 // satisfied in the future if necessary.
 type LinkedIdentityHashSet[E comparable] struct {
-	innerMap *LinkedIdentityHashMap[E, *LinkedIdentityHashSet_Sentinel]
+	innerMap LinkedIdentityHashMap[E, *LinkedIdentityHashSet_Sentinel]
 }
 
 // NewLinkedIdentityHashSet is the implicit default constructor.
 //
 // Java: LinkedIdentityHashSet()
 func NewLinkedIdentityHashSet[E comparable]() *LinkedIdentityHashSet[E] {
-	return &LinkedIdentityHashSet[E]{innerMap: NewLinkedIdentityHashMap[E, *LinkedIdentityHashSet_Sentinel]()}
+	return &LinkedIdentityHashSet[E]{}
 }
 
 // Contains reports whether element is in the set.
