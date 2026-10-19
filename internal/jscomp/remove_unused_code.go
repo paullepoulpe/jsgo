@@ -512,8 +512,11 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 			jutil.CheckState(!((parent.IsFunction() || parent.IsClass()) && parent.GetFirstChild() == n))
 			varInfo := r.TraverseNameNode(n, scope)
 			if varInfo.IsRemovable() {
-				varInfo.SetIsExplicitlyNotRemovable(
-					func() string { return "reference found: " + n.GetLocation() })
+				var reason func() string
+				if r.unremovableLog.IsLogging() {
+					reason = func() string { return "reference found: " + n.GetLocation() }
+				}
+				varInfo.SetIsExplicitlyNotRemovable(reason)
 			}
 		}
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:

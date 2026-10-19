@@ -110,6 +110,8 @@ type SyntacticScopeCreator_ScopeScanner struct {
 
 	// Will be null, when a detached node is traversed.
 	inputId       *rhino.InputId
+	input         *CompilerInput
+	inputResolved bool
 	changeRootSet *jutil.LinkedHashSet[*rhino.Node]
 }
 
@@ -142,12 +144,26 @@ func initSyntacticScopeCreator_ScopeScanner(
 	s.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations
 }
 
+func (s *SyntacticScopeCreator_ScopeScanner) setInputId(id *rhino.InputId) {
+	s.inputId = id
+	s.input = nil
+	s.inputResolved = false
+}
+
+func (s *SyntacticScopeCreator_ScopeScanner) getInput() *CompilerInput {
+	if !s.inputResolved {
+		s.input = s.compiler.GetInput(s.inputId)
+		s.inputResolved = true
+	}
+	return s.input
+}
+
 // Java: SyntacticScopeCreator.ScopeScanner.populate()
 func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 	n := s.scope.GetRootNode()
 	// If we are populating the global scope, inputId will be null, and need to be set
 	// as we enter each SCRIPT node.
-	s.inputId = NodeUtil_GetInputId(n)
+	s.setInputId(NodeUtil_GetInputId(n))
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		fnNameNode := n.GetFirstChild()
@@ -208,7 +224,47 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareLHS(sc *Scope, n *rhino.Node
 		// to avoid extra GC and cpu cycles.
 		s.DeclareVar(sc, n.GetFirstChild())
 	} else {
-		NodeUtil_VisitLhsNodesInNode(n, func(lhs *rhino.Node) { s.DeclareVar(sc, lhs) })
+		jutil.CheckArgumentMsg1(
+			NodeUtil_IsNameDeclaration(n) ||
+				n.IsParamList() ||
+				NodeUtil_IsAssignmentOp(n) ||
+				n.IsCatch() ||
+				n.IsDestructuringLhs() ||
+				n.IsDefaultValue() ||
+				n.IsImport() ||
+				NodeUtil_IsEnhancedFor(n),
+			"%s",
+			n)
+		s.declareLhsNodesHelper(sc, n)
+	}
+}
+
+func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_IMPORT:
+		s.declareLhsNodesHelper(sc, n.GetFirstChild())
+		s.declareLhsNodesHelper(sc, n.GetSecondChild())
+	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
+		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			s.declareLhsNodesHelper(sc, child)
+		}
+	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_DEFAULT_VALUE, rhino.Token_CATCH, rhino.Token_ITER_REST,
+		rhino.Token_OBJECT_REST, rhino.Token_CAST:
+		s.declareLhsNodesHelper(sc, n.GetFirstChild())
+	case rhino.Token_IMPORT_SPEC, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY:
+		s.declareLhsNodesHelper(sc, n.GetLastChild())
+	case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_GETPROP, rhino.Token_GETELEM:
+		s.DeclareVar(sc, n)
+	case rhino.Token_EMPTY:
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		s.declareLhsNodesHelper(sc, n.GetFirstChild())
+	default:
+		if NodeUtil_IsAssignmentOp(n) {
+			s.declareLhsNodesHelper(sc, n.GetFirstChild())
+		} else {
+			panic(jutil.NewIllegalStateExceptionMsg("Invalid node in lhs: " + n.String()))
+		}
 	}
 }
 
@@ -283,7 +339,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 			// any SCRIPT that aren't being asked for.
 			return
 		}
-		s.inputId = n.GetInputId()
+		s.setInputId(n.GetInputId())
 	case rhino.Token_MODULE_BODY:
 		// Module bodies are not part of global scope, but may declare an implicit goog namespace.
 		if hoistScope.IsGlobal() {
@@ -360,7 +416,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		}
 	}
 
-	input := s.compiler.GetInput(s.inputId)
+	input := s.getInput()
 	if v != nil ||
 		!syntacticScopeCreator_ScopeScanner_isShadowingAllowed(name, sc) ||
 		((sc.IsFunctionScope() ||
@@ -398,7 +454,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 		existing := sc.getOwnSlotV(root)
 		if existing != nil && !existing.IsImplicitGoogNamespace() {
 			s.redeclarationHandler.OnRedeclaration(
-				sc, root, existing.GetNode(), s.compiler.GetInput(s.inputId))
+				sc, root, existing.GetNode(), s.getInput())
 		}
 	}
 	sc.DeclareImplicitGoogNamespaceIfAbsent(root, namespaceNode)

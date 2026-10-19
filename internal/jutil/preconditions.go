@@ -3,6 +3,7 @@ package jutil
 import (
 	"reflect"
 	"strings"
+	"unsafe"
 )
 
 // Go-only: language-adapter — Guava com.google.common.base.Preconditions.
@@ -101,6 +102,14 @@ func IsNil(v any) bool {
 	if v == nil {
 		return true
 	}
+	if (*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1] != nil && reflect.ValueOf(v).Kind() != reflect.Slice {
+		return false
+	}
+	return isNilSlow(v)
+}
+
+//go:noinline
+func isNilSlow(v any) bool {
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
@@ -112,15 +121,20 @@ func IsNil(v any) bool {
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
 	if IsNil(reference) {
-		panic(NewNullPointerException())
+		failNull()
 	}
 	return reference
+}
+
+//go:noinline
+func failNull() {
+	panic(NewNullPointerException())
 }
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...).
 func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
 	if IsNil(reference) {
-		panic(NewNullPointerExceptionMsg(LenientFormat(template, args...)))
+		failNotNull(template, args...)
 	}
 	return reference
 }
