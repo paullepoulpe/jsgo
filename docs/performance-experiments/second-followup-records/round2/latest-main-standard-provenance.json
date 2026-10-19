@@ -1,0 +1,12 @@
+{
+  "source": "ff06ac15304f14c756bce9cd36ad2205212f51da",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-latest-main-standard",
+  "sha256": "0ae6e2efa9b5bda8effbb51ce6b64f42248a3d909f437f8aacf4a113b4418d73",
+  "pgo_sha256": "578c122882aef8bb3e25c423ff3e2292ac08e2edd728bd2e0bd7b08bb945c137",
+  "go": "1.27.2",
+  "build": "latest-main-standard-build-command.json",
+  "runtime": "DefaultGC/GOMAXPROCS, experimentenvempty",
+  "validation": "30measuredoutputsJavaMATCH",
+  "dataset": "latest-main-standard-screen/summary.json",
+  "threads": "latest-main-white-threads-{1,2,4}/summary.json"
+}

@@ -1,0 +1,38 @@
+{
+  "source": "7b801677eae2491f2cc9def38603d9320b7884cf",
+  "cwd": "/workspace/jsgo-post-colors-array-sharing",
+  "environment": {
+    "GOGC": "20",
+    "GOMAXPROCS": "1",
+    "GOCACHE": "/workspace/toolchains/cache",
+    "GOPATH": "/workspace/toolchains/gopath",
+    "GOTOOLCHAIN": "local"
+  },
+  "build_only_gc_note": "RAM control, not benchmark runtime tuning",
+  "cli": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "build",
+    "-p=1",
+    "-buildvcs=false",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/jscomp=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/rhino=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/jutil=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jsgo-post-colors-array-sharing-l4",
+    "./cmd/jsgo"
+  ],
+  "race": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p=1",
+    "-pgo=off",
+    "-buildvcs=false",
+    "-overlay=/workspace/jsgo-results/round2/focused-post-colors-array-sharing-overlay/overlay.json",
+    "-race",
+    "-c",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jscomp-post-colors-array-sharing-focused-race.test",
+    "./internal/jscomp"
+  ]
+}

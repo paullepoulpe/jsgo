@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p=1",
+    "-pgo=off",
+    "-buildvcs=false",
+    "-overlay=/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/overlay.json",
+    "-c",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jscomp-array-shared-resolved-diagnostic.test",
+    "./internal/jscomp"
+  ],
+  "cwd": "/workspace/jsgo-post-colors-array-sharing",
+  "source": "7b801677",
+  "overlay_sha256": "c42b1b2279cb45c89b79493bc16c4b8e3d039b319f03365e2c2ceff6e1842023",
+  "frozen_inputs": {
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/base/retained_helpers_test.go": "52cb1fe8c6ed7cddbf7e13bcb6946aafb1156e262ed29a533a9cf613f80f31b1",
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/array_shared_resolved_diagnostic_test.go": "fd98cc28f4ddd796d86d81301f7f22516a481d7c91c5306cf3d4657639cafe86",
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/base/excluded_test.go": "5d00c3e2e69661ba0c28ccbc7aedab084e4387838b1ecd642530df5e53d84b8f",
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/array_shared_resolved_diagnostic_probe.go": "abc7aa71432a6af00feecccce0b3d06ca6cf3ffad710e50c4057aeab1057d6c9",
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/fresh_template_values.go": "eeaaca28e2a8d123001a1c8d68268bd9ac556d130f31eb6266b54c084f77a890",
+    "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/typed_initial_analysis_fusion.go": "a122b3e2b74369276e0d77b1c970767fbf2f504785989fdd6b689ded33b24775"
+  },
+  "build_only_gc": "20; runtime unset"
+}

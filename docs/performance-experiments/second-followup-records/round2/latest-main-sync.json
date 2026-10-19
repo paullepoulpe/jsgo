@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-19T14:44:35.883185+00:00",
+  "main": "ff06ac15",
+  "previous_base": "123b46e8",
+  "publication_head": "ee12b2337bc1d51c4e56a58c97adfb167668ad0f",
+  "production_matches_main": true,
+  "old_screen_scope": "Historical experimental substrate, not incremental delta over latestmain",
+  "planned": "Fresh latestmaincontrol +minimalindependentcandidateports"
+}

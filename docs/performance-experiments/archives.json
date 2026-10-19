@@ -23,5 +23,10 @@
     "path": "followup-prototype-history.bundle",
     "bytes": 704532,
     "sha256": "78ceec17d1fa674b88c72a7c54db628579f6f32d172c14a6de61b060662ee719"
+  },
+  {
+    "path": "second-followup-measurement-records.tar.gz",
+    "bytes": 305016,
+    "sha256": "6e3e82d65215df01d357b3403e8a75cad4cfefcffeddcdca13f88c370cf17d68"
   }
 ]

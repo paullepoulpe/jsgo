@@ -12,6 +12,24 @@ The new main already incorporates overlapping work: lazy FSIV use analysis and c
 
 The active follow-up is to measure the new main and port only independent candidates onto a clean checkout. In particular, a native FSIV backend must preserve the new first-query lazy boundary; the newer embedded lattice/BitSet needs in-place initialization rather than copying self-referential inline buffers. Native type recipes/shared resolved vectors and private ASCII backing require their own minimal admission/alias proofs. Old-substrate partial screens remain research evidence, not latest-main claims. New main's [Phase 2 report](../performance-roadmap.md#idiomatic-concurrency-hot-path-passes-and-pr-23-integration-2026-10-19) is a separate machine/cohort and is not combined with this archive's timings.
 
+## New-main baseline and round 16 follow-up
+
+The clean `ff06ac15` standard build (Go1.27.2, new shipped PGO, standard inlining, no experiment flags, fresh CLI, default runtime GC) now has a completed five-task screen:
+
+| Task, compiler N=1 | Go seconds | Go RSS MiB | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|
+| typed-app | 5.340 | 253.5 | 0.700 | 4.30 |
+| bundle | 18.607 | 543.5 | 0.892 | 3.12 |
+| downlevel-whitespace | 1.333 | 154.8 | 0.704 | 6.01 |
+| downlevel-simple | 3.989 | 199.1 | 0.703 | 5.62 |
+| checks-only | 8.183 | 675.7 | 0.738 | 2.01 |
+
+All 30 measured outputs match Java: three observations per N=1 task plus a separate balanced whitespace sweep with five observations at each N=1/2/4. [Round 17](second-followup-records/round2/latest-main-standard-round17.md) includes ranges and matched same-N Java thread references. Ratios are Java/Go, above1 favors Go. These use stored warm-Java cohorts, not fresh paired confidence data. Go RSS is median fresh-process lifetime peak; Java RSS is warm-JVM lifetime peak including warmup. No broad warm-Java win is established. The historical package `-l=4` build settings are being checked separately; no build-setting gain is presented as a code gain.
+
+The completed historical-substrate [round 16 type screen](second-followup-records/round2/native-array-sharing-round16.md) contains all36 matching runs and actual recipe/shared-vector activation evidence. Its best typed combination is 4.7% faster than its own control but 3.4% slower on checks-only. Recipe alone and sharing are mixed; no broad promotion or incremental latest-main gain is claimed. The initial unflagged diagnostic control (zero activation) and subsequent positive flagged run are both retained.
+
+This second delta adds [361 new/changed records](second-followup-measurement-manifest.json), [5 datasets](second-followup-datasets.json) and [20 metric rows](second-followup-metrics.csv). Extract [the second archive](second-followup-measurement-records.tar.gz) after the original and first delta; original archives remain unchanged. Active clean-port tests, profiling and inlining comparisons are excluded from this completed-evidence cut. Source-frozen clean ports still require central validation and timings before being called improvements.
+
 ## Follow-up: activation correction (2026-10-19)
 
 A follow-up audit found that several post-colorization backends were blocked in ordinary optimized CLI runs: native liveness and its publication/scratch followups, compact inverter, RUC native tasks/intrusive FIFO, scope-first coallocation, and optimized ASCII output. Stock `ConvertTypesToColors` initializes `runtimeLibraryTypedAsts` before these consumers, while their eligibility guards rejected any nonnil table. Some focused fixtures ran earlier/raw compiler phases and therefore did not catch this exclusion. Enabling a flag did not establish that its backend executed.

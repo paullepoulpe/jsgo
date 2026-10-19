@@ -33,3 +33,23 @@ bundle = source['bundle']
 data = (root / bundle['path']).read_bytes()
 assert len(data) == bundle['bytes'] and sha(data) == bundle['sha256']
 print(f'PASS: {len(expected)} follow-up records and source bundle hash')
+
+second = json.loads((root / 'second-followup-measurement-manifest.json').read_text())
+for key in ('base_manifest', 'base_archive', 'first_followup_manifest', 'first_followup_archive'):
+    entry = second[key]
+    assert sha((root / entry['path']).read_bytes()) == entry['sha256'], key
+expected = {'records/' + e['path']: e for e in second['files']}
+with tarfile.open(root / second['archive']['path'], 'r:gz') as archive:
+    seen = set()
+    for item in archive:
+        assert item.isfile() and not Path(item.name).is_absolute()
+        assert '..' not in Path(item.name).parts and item.name not in seen
+        data = archive.extractfile(item).read()
+        entry = expected[item.name]
+        assert len(data) == entry['bytes'] and sha(data) == entry['sha256'], item.name
+        browse = root / 'second-followup-records' / entry['path']
+        if browse.exists():
+            assert browse.read_bytes() == data, browse
+        seen.add(item.name)
+    assert seen == set(expected)
+print(f'PASS: {len(expected)} second follow-up records')

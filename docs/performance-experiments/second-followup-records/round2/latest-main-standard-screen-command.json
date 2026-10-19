@@ -1,0 +1,21 @@
+[
+  "/usr/bin/taskset",
+  "-c",
+  "0,1",
+  "/usr/bin/python3",
+  "-I",
+  "-u",
+  "/workspace/jsgo-structural-bitset-template/tools/bench/experiments.py",
+  "--reference",
+  "/workspace/jsgo-results/round2/baseline",
+  "--out",
+  "/workspace/jsgo-results/round2/latest-main-standard-screen",
+  "--runs",
+  "3",
+  "--cache",
+  "/workspace/jsgo/.cache",
+  "--variant",
+  "main=/workspace/jsgo-results/round2/bin/jsgo-latest-main-standard",
+  "--variant-env",
+  "main={}"
+]

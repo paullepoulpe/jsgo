@@ -1,0 +1,57 @@
+[
+  {
+    "path": "round2/latest-main-standard-screen/summary.json",
+    "browse": "second-followup-records/round2/latest-main-standard-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "2e75206470c51bbba8a5ce37dfcb58186c8583b40b70f887633478bdf11fa820",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-white-threads-1/summary.json",
+    "browse": "second-followup-records/round2/latest-main-white-threads-1/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "32e120354d384ee7066373fc37a99c6b61c444756cce0a3f173280c72ff6db7b",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-white-threads-2/summary.json",
+    "browse": "second-followup-records/round2/latest-main-white-threads-2/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "789a3375cdeff8f7b19f74c1eaba86c56191210e4a1d079ca0a237de258c3296",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-white-threads-4/summary.json",
+    "browse": "second-followup-records/round2/latest-main-white-threads-4/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "bed0d7b98b9f2ce2f4960b32f8e11ea9c48ad2681f7798cc848d96bded22869e",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/native-array-sharing-typed-screen/summary.json",
+    "browse": "second-followup-records/round2/native-array-sharing-typed-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "checks-only"
+    ],
+    "sha256": "a018d66d8557fd3eaa2fa5fc9adbe73aa87589d45ba62673e651bc64f42fb535",
+    "change": "new",
+    "parseable_json": true
+  }
+]

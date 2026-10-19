@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/jsgo-results/round2/bin/jscomp-array-shared-resolved-diagnostic.test",
+    "-test.v",
+    "-test.count=1",
+    "-test.timeout=10m",
+    "-test.run=^TestArraySharedResolvedDiagnosticPinnedTasks$"
+  ],
+  "cwd": "/workspace/jsgo-post-colors-array-sharing/internal/jscomp",
+  "env": {
+    "JSGO_ARRAY_SHARED_DIAGNOSTIC_JOBS": "/workspace/jsgo-results/round2/array-shared-resolved-diagnostic-overlay/jobs.json"
+  },
+  "timed": false
+}
