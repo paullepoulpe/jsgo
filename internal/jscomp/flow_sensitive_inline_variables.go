@@ -50,7 +50,7 @@ type FlowSensitiveInlineVariables struct {
 	// need two separate dataflow result.
 	compiler AbstractCompiler
 
-	sideEffectPredicate *FlowSensitiveInlineVariables_SideEffectPredicate
+	sideEffectPredicate FlowSensitiveInlineVariables_SideEffectPredicate
 
 	// These two pieces of data is persistent in the whole execution of enter
 	// scope.
@@ -60,6 +60,39 @@ type FlowSensitiveInlineVariables struct {
 	reachingUses *MaybeReachingVariableUse
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
+
+	escapedSet       jutil.ObjectLinkedHashSet[*Var]
+	candidatesSet    jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
+	gatherCandidates FlowSensitiveInlineVariables_GatherCandidates
+	gatherCb         FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
+	candidateSlab    []FlowSensitiveInlineVariables_Candidate
+	candidateBuf     [8]FlowSensitiveInlineVariables_Candidate
+}
+
+func (f *FlowSensitiveInlineVariables) allocCandidate(
+	varName string,
+	defMetadata *MustBeReachingVariableDef_Definition,
+	use *rhino.Node,
+	useCfgNode *rhino.Node) *FlowSensitiveInlineVariables_Candidate {
+	jutil.CheckArgument(use.IsName())
+	if len(f.candidateSlab) == cap(f.candidateSlab) {
+		newCap := 16
+		if cap(f.candidateSlab) >= 16 {
+			newCap = cap(f.candidateSlab) * 2
+		}
+		f.candidateSlab = make([]FlowSensitiveInlineVariables_Candidate, 0, newCap)
+	}
+	idx := len(f.candidateSlab)
+	f.candidateSlab = f.candidateSlab[:idx+1]
+	c := &f.candidateSlab[idx]
+	*c = FlowSensitiveInlineVariables_Candidate{
+		outer:       f,
+		varName:     varName,
+		defMetadata: defMetadata,
+		use:         use,
+		useCfgNode:  useCfgNode,
+	}
+	return c
 }
 
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
@@ -157,7 +190,12 @@ func FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n *rhino.Node) bool {
 func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveInlineVariables {
 	f := &FlowSensitiveInlineVariables{}
 	f.compiler = compiler
-	f.sideEffectPredicate = NewFlowSensitiveInlineVariables_SideEffectPredicate(f)
+	f.sideEffectPredicate = FlowSensitiveInlineVariables_SideEffectPredicate{outer: f}
+	f.gatherCb = FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: f}
+	f.gatherCandidates = FlowSensitiveInlineVariables_GatherCandidates{
+		outer:    f,
+		gatherCb: &f.gatherCb,
+	}
 	return f
 }
 
@@ -188,6 +226,12 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	}
 
 	scopeCreator := t.GetScopeCreator().(*SyntacticScopeCreator)
+	scope := t.GetScope()
+	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, scope.GetParent())
+	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
+	if allVarsInFn.IsEmpty() {
+		return
+	}
 
 	// Compute the forward reaching definition.
 	f.cfg = ControlFlowAnalysis_Builder_().
@@ -196,20 +240,20 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		SetIncludeEdgeAnnotations(true).
 		ComputeCfg()
 
-	escaped := jutil.NewObjectLinkedHashSet[*Var]()
-	scope := t.GetScope()
-	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, scope.GetParent())
-	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
+	f.escapedSet.Clear()
+	escaped := &f.escapedSet
 	DataFlowAnalysis_ComputeEscaped(
 		scope.GetParent(), escaped, f.compiler, scopeCreator, allVarsInFn)
 
 	f.reachingDef = NewMustBeReachingVariableDef(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef.Analyze()
-	f.candidates = jutil.NewLinkedHashSet[*FlowSensitiveInlineVariables_Candidate]()
+	f.candidatesSet.Clear()
+	f.candidates = &f.candidatesSet
+	f.candidateSlab = f.candidateBuf[:0]
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates
-	NodeTraversal_Traverse(f.compiler, t.GetScopeRoot(), NewFlowSensitiveInlineVariables_GatherCandidates(f))
+	NodeTraversal_Traverse(f.compiler, t.GetScopeRoot(), &f.gatherCandidates)
 
 	if f.candidates.IsEmpty() {
 		return
@@ -370,7 +414,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		// TODO(nicksantos): We need to add some notion of @const outer
 		// scope vars. We can inline those just fine.
 		if def != nil && !def.node.IsFunction() && !cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
-			cb.outer.candidates.Add(NewFlowSensitiveInlineVariables_Candidate(cb.outer, name, def, n, cb.cfgNode))
+			cb.outer.candidates.Add(cb.outer.allocCandidate(name, def, n, cb.cfgNode))
 		}
 	}
 }
@@ -451,6 +495,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefCfgNode() *rhino.Node {
 	return c.defMetadata.node
 }
 
+func fsivAlwaysTrueEdgePredicate(DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]) bool {
+	return true
+}
+
 // Java: FlowSensitiveInlineVariables.Candidate.canInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	// Cannot inline a parameter.
@@ -504,19 +552,22 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		}
 	}
 
-	sideEffectPredicateWithNames := NewFlowSensitiveInlineVariables_SideEffectPredicateWithNames(c.outer, &namesToCheck)
+	sideEffectPredicateWithNames := FlowSensitiveInlineVariables_SideEffectPredicate{
+		outer:        c.outer,
+		namesToCheck: &namesToCheck,
+	}
 
 	// A subexpression evaluated after the variable has a side effect.
 	// Example, for x:
 	// x = readProp(b), modifyProp(b); print(x);
-	if FlowSensitiveInlineVariables_CheckPostExpressions(c.def, c.GetDefCfgNode(), sideEffectPredicateWithNames.Apply) {
+	if fsivCheckPostExpressions(c.def, c.GetDefCfgNode(), &sideEffectPredicateWithNames) {
 		return false
 	}
 
 	// Similar check as the above but this time, all the sub-expressions
 	// evaluated before the variable.
 	// x = readProp(b); modifyProp(b), print(x);
-	if FlowSensitiveInlineVariables_CheckPreExpressions(c.use, c.useCfgNode, sideEffectPredicateWithNames.Apply) {
+	if fsivCheckPreExpressions(c.use, c.useCfgNode, &sideEffectPredicateWithNames) {
 		return false
 	}
 
@@ -536,7 +587,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 			c.outer.cfg.GetDiGraphNode(c.GetDefCfgNode()),
 			c.outer.cfg.GetDiGraphNode(c.useCfgNode),
 			c.outer.sideEffectPredicate.Apply,
-			func(DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]) bool { return true },
+			fsivAlwaysTrueEdgePredicate,
 			false)
 		if pathCheck.SomePathsSatisfyPredicate() {
 			return false
@@ -597,8 +648,8 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 //
 // Java: FlowSensitiveInlineVariables.Candidate.getDefinition(Node)
 func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n *rhino.Node) {
-	gatherCb := &flowSensitiveInlineVariables_definitionCallback{candidate: c}
-	traverseCfgNode(c.outer.compiler, n, gatherCb)
+	gatherCb := flowSensitiveInlineVariables_definitionCallback{candidate: c}
+	traverseCfgNode(c.outer.compiler, n, &gatherCb)
 }
 
 // flowSensitiveInlineVariables_definitionCallback is the anonymous
@@ -633,9 +684,9 @@ func (cb *flowSensitiveInlineVariables_definitionCallback) Visit(t *NodeTraversa
 func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode *rhino.Node) {
 
 	c.numUsesWithinCfgNode = 0
-	gatherCb := &flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
+	gatherCb := flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
 
-	traverseCfgNode(c.outer.compiler, cfgNode, gatherCb)
+	traverseCfgNode(c.outer.compiler, cfgNode, &gatherCb)
 }
 
 // flowSensitiveInlineVariables_numUseCallback is the anonymous
@@ -674,6 +725,45 @@ func (cb *flowSensitiveInlineVariables_numUseCallback) IsAssignChain(child *rhin
 	return true
 }
 
+func fsivHasUnsafeRhsNode(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_GETELEM,
+		rhino.Token_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_OPTCHAIN_GETELEM,
+		rhino.Token_CLASS,
+		rhino.Token_ARRAYLIT,
+		rhino.Token_OBJECTLIT,
+		rhino.Token_REGEXP,
+		rhino.Token_NEW:
+		return true
+	case rhino.Token_FUNCTION:
+		return false
+	default:
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if fsivHasUnsafeRhsNode(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func fsivHasOutOfScopeName(n *rhino.Node, usageScope *Scope) bool {
+	if n.IsName() {
+		name := n.GetString()
+		if name != "" && !usageScope.HasSlot(name) {
+			return true
+		}
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if fsivHasOutOfScopeName(c, usageScope) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsRhsSafeToInline checks if the definition we're considering inline has
 // anything that makes inlining unsafe (that hasn't already been caught).
 //
@@ -681,62 +771,47 @@ func (cb *flowSensitiveInlineVariables_numUseCallback) IsAssignChain(child *rhin
 //
 // Java: FlowSensitiveInlineVariables.Candidate.isRhsSafeToInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *Scope) bool {
-	// Don't inline definitions with an R-Value that has:
-	// 1) GETELEM, OPTCHAIN_GETELEM (e.g: foo?.['bar']), GETPROP, OPTCHAIN_GETPROP (e.g:
-	// foo?.bar), CLASS, ARRAYLIT,
-	// OBJECTLIT, REGEXP
-	// 2) anything that creates a new object.
-	// Example:
-	// var x = a.b.c; j.c = 1; print(x);
-	// Inlining print(a.b.c) is not safe - consider if j were an alias to a.b.
-	if NodeUtil_Has(
-		c.def.GetLastChild(),
-		func(input *rhino.Node) bool {
-			switch input.GetToken() {
-			case rhino.Token_GETELEM,
-				rhino.Token_GETPROP,
-				rhino.Token_OPTCHAIN_GETPROP,
-				rhino.Token_OPTCHAIN_GETELEM,
-				rhino.Token_CLASS,
-				rhino.Token_ARRAYLIT,
-				rhino.Token_OBJECTLIT,
-				rhino.Token_REGEXP,
-				rhino.Token_NEW:
-				return true
-				// unsafe to inline.
-			default:
-			}
-			return false
-		},
-		// Recurse if the node is not a function.
-		func(input *rhino.Node) bool { return !input.IsFunction() }) {
+	rhs := c.def.GetLastChild()
+	if fsivHasUnsafeRhsNode(rhs) {
 		return false
 	}
-
-	// Don't inline definitions with an rvalue referencing names that are not declared in the
-	// usage's scope. (Unlike the above check, this includes names referenced inside function
-	// expressions in the rvalue).
-	// e.g. the name "a" below in the definition of "b":
-	//   {
-	//     let a = 3;
-	//     var b = a;
-	//   }
-	// return b;   // "a" is not declared in this scope so we can't inline this to "return a;"
-	if NodeUtil_Has(
-		c.def.GetLastChild(),
-		func(input *rhino.Node) bool {
-			if input.IsName() {
-				name := input.GetString()
-				if name != "" && !usageScope.HasSlot(name) {
-					return true // unsafe to inline.
-				}
-			}
-			return false
-		},
-		func(*rhino.Node) bool { return true }) {
+	if fsivHasOutOfScopeName(rhs, usageScope) {
 		return false
 	}
 	return true
+}
+
+func fsivCheckPostExpressions(
+	n *rhino.Node, expressionRoot *rhino.Node, predicate *FlowSensitiveInlineVariables_SideEffectPredicate) bool {
+	for p := n; p != expressionRoot; p = p.GetParent() {
+		for cur := p.GetNext(); cur != nil; cur = cur.GetNext() {
+			if predicate.Apply(cur) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func fsivCheckPreExpressions(
+	n *rhino.Node, expressionRoot *rhino.Node, predicate *FlowSensitiveInlineVariables_SideEffectPredicate) bool {
+	for p := n; p != expressionRoot; p = p.GetParent() {
+		oldestSibling := p.GetParent().GetFirstChild()
+		if oldestSibling.IsDestructuringPattern() {
+			if p.IsDestructuringPattern() {
+				if p.GetNext() != nil && predicate.Apply(p.GetNext()) {
+					return true
+				}
+			}
+			continue
+		}
+		for cur := oldestSibling; cur != p; cur = cur.GetNext() {
+			if predicate.Apply(cur) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // FlowSensitiveInlineVariables_CheckPostExpressions returns true, given an

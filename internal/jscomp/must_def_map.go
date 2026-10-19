@@ -15,11 +15,19 @@ type mustDefLayout struct {
 	ids  map[*Var]uint8
 }
 
+var emptyMustDefLayout = &mustDefLayout{}
+
 func newMustDefLayout(vars *jutil.LinkedHashMap[string, *Var]) *mustDefLayout {
-	if vars.Size() == 0 || vars.Size() > 64 {
+	if vars == nil || vars.Size() > 64 {
 		return nil
 	}
-	l := &mustDefLayout{ids: make(map[*Var]uint8, vars.Size())}
+	if vars.Size() == 0 {
+		return emptyMustDefLayout
+	}
+	l := &mustDefLayout{
+		vars: make([]*Var, 0, vars.Size()),
+		ids:  make(map[*Var]uint8, vars.Size()),
+	}
 	for v := range vars.Values() {
 		l.ids[v] = uint8(len(l.vars))
 		l.vars = append(l.vars, v)
@@ -31,11 +39,13 @@ func newMustDefLayout(vars *jutil.LinkedHashMap[string, *Var]) *mustDefLayout {
 // lattice. A clear presence bit is TOP; a present nil value is BOTTOM. The
 // order slice preserves encounter order independently of the variable IDs.
 type mustDefMap struct {
-	layout   *mustDefLayout
-	values   []*MustBeReachingVariableDef_Definition
-	present  uint64
-	order    []uint8
-	fallback *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+	layout    *mustDefLayout
+	values    []*MustBeReachingVariableDef_Definition
+	present   uint64
+	order     []uint8
+	valuesBuf [8]*MustBeReachingVariableDef_Definition
+	orderBuf  [8]uint8
+	fallback  *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
 }
 
 func newMustDefMap(layout *mustDefLayout) mustDefMap {
@@ -44,6 +54,18 @@ func newMustDefMap(layout *mustDefLayout) mustDefMap {
 		m.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
 	}
 	return m
+}
+
+func (m *mustDefMap) init(layout *mustDefLayout) {
+	m.layout = layout
+	m.values = nil
+	m.present = 0
+	m.order = nil
+	if layout == nil {
+		m.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	} else {
+		m.fallback = nil
+	}
 }
 
 func (m *mustDefMap) clone() mustDefMap {
@@ -56,6 +78,40 @@ func (m *mustDefMap) clone() mustDefMap {
 		n.fallback.Put(v, d)
 	}
 	return n
+}
+
+func (m *mustDefMap) cloneInto(dst *mustDefMap) {
+	if m.layout != nil {
+		dst.layout = m.layout
+		dst.present = m.present
+		dst.fallback = nil
+		if m.values == nil {
+			dst.values = nil
+			dst.order = nil
+			return
+		}
+		if len(m.values) <= len(dst.valuesBuf) {
+			dst.values = dst.valuesBuf[:len(m.values)]
+		} else {
+			dst.values = make([]*MustBeReachingVariableDef_Definition, len(m.values))
+		}
+		copy(dst.values, m.values)
+		if len(m.values) <= len(dst.orderBuf) {
+			dst.order = dst.orderBuf[:len(m.order):len(dst.orderBuf)]
+		} else {
+			dst.order = make([]uint8, len(m.order), len(m.values))
+		}
+		copy(dst.order, m.order)
+		return
+	}
+	dst.layout = nil
+	dst.values = nil
+	dst.present = 0
+	dst.order = nil
+	dst.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	for v, d := range m.fallback.All() {
+		dst.fallback.Put(v, d)
+	}
 }
 
 func (m *mustDefMap) materialize() {
@@ -84,8 +140,15 @@ func (m *mustDefMap) Put(v *Var, d *MustBeReachingVariableDef_Definition) {
 
 func (m *mustDefMap) putID(id uint8, d *MustBeReachingVariableDef_Definition) {
 	if m.values == nil {
-		m.values = make([]*MustBeReachingVariableDef_Definition, len(m.layout.vars))
-		m.order = make([]uint8, 0, len(m.layout.vars))
+		n := len(m.layout.vars)
+		if n <= len(m.valuesBuf) {
+			clear(m.valuesBuf[:n])
+			m.values = m.valuesBuf[:n]
+			m.order = m.orderBuf[:0:len(m.orderBuf)]
+		} else {
+			m.values = make([]*MustBeReachingVariableDef_Definition, n)
+			m.order = make([]uint8, 0, n)
+		}
 	}
 	bit := uint64(1) << id
 	if m.present&bit == 0 {
@@ -93,6 +156,51 @@ func (m *mustDefMap) putID(id uint8, d *MustBeReachingVariableDef_Definition) {
 		m.present |= bit
 	}
 	m.values[id] = d
+}
+
+func (m *mustDefMap) invalidateDependent(v *Var) {
+	if m.layout != nil {
+		for _, id := range m.order {
+			if otherDef := m.values[id]; otherDef != nil && !otherDef.depends.IsEmpty() && otherDef.depends.Contains(v) {
+				m.values[id] = nil
+			}
+		}
+		return
+	}
+	for key, otherDef := range m.fallback.All() {
+		if otherDef != nil && !otherDef.depends.IsEmpty() && otherDef.depends.Contains(v) {
+			m.fallback.Put(key, nil)
+		}
+	}
+}
+
+func (m *mustDefMap) invalidateParameters() {
+	if m.layout != nil {
+		for _, id := range m.order {
+			value := m.values[id]
+			if value == nil || value.depends.IsEmpty() {
+				continue
+			}
+			for dep := range value.depends.All() {
+				if MustBeReachingVariableDef_IsParameter(dep) {
+					m.values[id] = nil
+					break
+				}
+			}
+		}
+		return
+	}
+	for key, value := range m.fallback.All() {
+		if value == nil || value.depends.IsEmpty() {
+			continue
+		}
+		for dep := range value.depends.All() {
+			if MustBeReachingVariableDef_IsParameter(dep) {
+				m.fallback.Put(key, nil)
+				break
+			}
+		}
+	}
 }
 
 func (m *mustDefMap) lookup(v *Var) (*MustBeReachingVariableDef_Definition, bool) {

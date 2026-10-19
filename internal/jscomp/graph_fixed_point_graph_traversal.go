@@ -96,11 +96,17 @@ func FixedPointGraphTraversal_NewReverseTraversal[NodeT comparable, EdgeT any](
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) {
-	nodes := jutil.NewLinkedHashSet[N]()
-	for _, node := range graph.GetDiGraphNodes() {
-		nodes.Add(node.GetValue())
+	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
+	if ldg, ok := graph.(*LinkedDirectedGraph[N, E]); ok {
+		for node := range ldg.nodes.Values() {
+			workSet.Add(node)
+		}
+	} else {
+		for _, node := range graph.GetDiGraphNodes() {
+			workSet.Add(node)
+		}
 	}
-	t.ComputeFixedPointFromSet(graph, nodes)
+	t.computeFixedPointWorkSet(graph, &workSet)
 }
 
 // ComputeFixedPointFrom computes a fixed point for the given graph,
@@ -109,9 +115,9 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) 
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, N)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, E], entry N) {
-	entrySet := jutil.NewLinkedHashSet[N]()
-	entrySet.Add(entry)
-	t.ComputeFixedPointFromSet(graph, entrySet)
+	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
+	workSet.Add(graph.GetDiGraphNode(entry))
+	t.computeFixedPointWorkSet(graph, &workSet)
 }
 
 // We cube the number of nodes to estimate the largest number of iterations
@@ -129,6 +135,14 @@ var fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT = int64(math.Flo
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, Set<N>)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[N, E], entrySet jutil.Set[N]) {
+	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
+	for n := range entrySet.All() {
+		workSet.Add(graph.GetDiGraphNode(n))
+	}
+	t.computeFixedPointWorkSet(graph, &workSet)
+}
+
+func (t *FixedPointGraphTraversal[N, E]) computeFixedPointWorkSet(graph DiGraph[N, E], workSet *jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]) {
 	cycleCount := int64(0)
 	nodeCount := min(int64(graph.GetNodeCount()), fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT)
 
@@ -136,11 +150,6 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[
 	// doesn't converge.
 	maxIterations := max(nodeCount*nodeCount*nodeCount, 100)
 
-	// Use a LinkedHashSet, so that the traversal is deterministic.
-	workSet := jutil.NewLinkedHashSet[DiGraph_DiGraphNode[N, E]]()
-	for n := range entrySet.All() {
-		workSet.Add(graph.GetDiGraphNode(n))
-	}
 	for ; !workSet.IsEmpty() && cycleCount < maxIterations; cycleCount++ {
 		t.visitNode(fixedPointGraphTraversal_getFirst(workSet), workSet)
 	}

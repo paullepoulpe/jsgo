@@ -46,11 +46,14 @@ type LiveVariablesAnalysis struct {
 	// The scope of the body of the function that we are analyzing.
 	jsScopeChild *Scope
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
+	escapedSet   jutil.ObjectLinkedHashSet[*Var]
 
 	// Maps the variable name to it's position in this jsScope were we to
 	// combine the function and function body scopes. The Integer represents
 	// the equivalent of the variable index property within a scope
-	scopeVariables *jutil.LinkedHashMap[string, int]
+	scopeVariables      *jutil.LinkedHashMap[string, int]
+	scopeVariablesMap   jutil.LinkedHashMap[string, int]
+	scopeVariablesSlots [8]jutil.LhmSlot[string, int]
 
 	// obtain variables in the order in which they appear in the code
 	orderedVars []*Var
@@ -60,6 +63,11 @@ type LiveVariablesAnalysis struct {
 	escapedBits jutil.BitSet
 	genScratch  jutil.BitSet
 	killScratch jutil.BitSet
+
+	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
+	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
+	latticeSlab  []LiveVariablesAnalysis_LiveVariableLattice
+	latticeBuf   [8]LiveVariablesAnalysis_LiveVariableLattice
 }
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -119,7 +127,7 @@ func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis
 func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 	jutil.CheckNotNull(other)
 	liveVariableLattice, ok := other.(*LiveVariablesAnalysis_LiveVariableLattice)
-	return ok && l.liveSet.Equals(liveVariableLattice.liveSet)
+	return ok && (l == liveVariableLattice || l.liveSet.Equals(liveVariableLattice.liveSet))
 }
 
 // IsLive: there is only a version of this function with index since
@@ -178,15 +186,35 @@ func NewLiveVariablesAnalysis(
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
-	l.escaped = jutil.NewObjectLinkedHashSet[*Var]()
+	l.escaped = &l.escapedSet
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
-	l.scopeVariables = jutil.NewLinkedHashMapWithCapacity[string, int](len(l.orderedVars))
+	if len(l.orderedVars) <= len(l.scopeVariablesSlots) {
+		l.scopeVariablesMap.InitWithBuffer(l.scopeVariablesSlots[:])
+		l.scopeVariables = &l.scopeVariablesMap
+	} else {
+		l.scopeVariables = jutil.NewLinkedHashMapWithCapacity[string, int](len(l.orderedVars))
+	}
+	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
+	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
+	l.latticeSlab = l.latticeBuf[:0:len(l.latticeBuf)]
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
 	l.AddScopeVariables()
 	return l
+}
+
+func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
+	if len(l.latticeSlab) == cap(l.latticeSlab) {
+		nextCap := min(max(cap(l.latticeSlab)*2, 16), 256)
+		l.latticeSlab = make([]LiveVariablesAnalysis_LiveVariableLattice, 0, nextCap)
+	}
+	idx := len(l.latticeSlab)
+	l.latticeSlab = l.latticeSlab[:idx+1]
+	lat := &l.latticeSlab[idx]
+	lat.liveSet = &lat.liveBits
+	return lat
 }
 
 // AddScopeVariables: parameters belong to the function scope, but variables
@@ -248,17 +276,20 @@ func (l *LiveVariablesAnalysis) IsForward() bool {
 
 // Java: LiveVariablesAnalysis.createEntryLattice()
 func (l *LiveVariablesAnalysis) CreateEntryLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return NewLiveVariablesAnalysis_LiveVariableLattice(len(l.orderedVars))
+	return &l.emptyLattice
 }
 
 // Java: LiveVariablesAnalysis.createInitialEstimateLattice()
 func (l *LiveVariablesAnalysis) CreateInitialEstimateLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return NewLiveVariablesAnalysis_LiveVariableLattice(len(l.orderedVars))
+	return &l.emptyLattice
 }
 
 // Java: LiveVariablesAnalysis.createFlowJoiner()
 func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*LiveVariablesAnalysis_LiveVariableLattice] {
-	return NewLiveVariablesAnalysis_LiveVariableJoinOp(l)
+	lat := l.allocLattice()
+	lat.liveBits.InitWithSize(len(l.orderedVars))
+	l.joinOp.result = lat
+	return &l.joinOp
 }
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
@@ -273,10 +304,15 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 	for _, edge := range edgeList {
 		if ControlFlowGraph_Branch_ON_EX == edge.GetValue() {
 			conditional = true
+			break
 		}
 	}
 	l.ComputeGenKill(node, &l.genScratch, &l.killScratch, conditional)
-	result := NewLiveVariablesAnalysis_LiveVariableLatticeOf(input)
+	if l.genScratch.IsEmpty() && l.killScratch.IsEmpty() {
+		return input
+	}
+	result := l.allocLattice()
+	input.liveSet.CloneInto(&result.liveBits)
 	// L_in = L_out - Kill + Gen
 	result.liveSet.AndNot(&l.killScratch)
 	result.liveSet.Or(&l.genScratch)
