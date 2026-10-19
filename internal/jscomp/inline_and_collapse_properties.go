@@ -1598,17 +1598,23 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 // Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, Inlinability, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameWithInlinability(
 	name *GlobalNamespace_Name, inlinability GlobalNamespace_Inlinability, message string) {
-	c.LogDecisionForNameSupplier(name, func() string { return "inlinability " + inlinability.String() + ": " + message })
+	if c.outer.decisionsLog.IsLogging() {
+		c.LogDecisionForNameSupplier(name, func() string { return "inlinability " + inlinability.String() + ": " + message })
+	}
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForName(name *GlobalNamespace_Name, message string) {
-	c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + message })
+	if c.outer.decisionsLog.IsLogging() {
+		c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + message })
+	}
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, Supplier<String>)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameSupplier(name *GlobalNamespace_Name, messageSupplier func() string) {
-	c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + messageSupplier() })
+	if c.outer.decisionsLog.IsLogging() {
+		c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + messageSupplier() })
+	}
 }
 
 // FlattenSimpleStubDeclaration flattens a stub declaration. This is mostly a

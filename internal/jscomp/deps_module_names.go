@@ -68,16 +68,38 @@ func ModuleNames_ToJSIdentifier(path string) string {
 	s := moduleNames_stripJsExtension(path)
 	// replaceFirst("^\\./", "")
 	s = strings.TrimPrefix(s, "./")
-	s = strings.ReplaceAll(s, ModuleNames_MODULE_SLASH, "$")
-	s = strings.ReplaceAll(s, "\\", "$")
-	s = strings.ReplaceAll(s, "@", "$")
-	s = strings.ReplaceAll(s, "+", "$")
-	s = strings.ReplaceAll(s, "!", "$")
-	s = strings.ReplaceAll(s, "-", "_")
-	s = strings.ReplaceAll(s, ":", "_")
-	s = strings.ReplaceAll(s, ".", "_")
-	s = strings.ReplaceAll(s, "%20", "_")
-	return s
+	var b strings.Builder
+	last := 0
+	for i := 0; i < len(s); i++ {
+		var replacement byte
+		width := 1
+		switch s[i] {
+		case '/', '\\', '@', '+', '!':
+			replacement = '$'
+		case '-', ':', '.':
+			replacement = '_'
+		case '%':
+			if i+2 >= len(s) || s[i+1] != '2' || s[i+2] != '0' {
+				continue
+			}
+			replacement = '_'
+			width = 3
+		default:
+			continue
+		}
+		if last == 0 {
+			b.Grow(len(s))
+		}
+		b.WriteString(s[last:i])
+		b.WriteByte(replacement)
+		i += width - 1
+		last = i + 1
+	}
+	if last == 0 {
+		return s
+	}
+	b.WriteString(s[last:])
+	return b.String()
 }
 
 // Java: ModuleNames.toModuleName(String)
@@ -106,6 +128,9 @@ func moduleNames_stripJsExtension(fileName string) string {
 //
 // Java: ModuleNames.canonicalizePath(String)
 func ModuleNames_CanonicalizePath(path string) string {
+	if moduleNames_pathIsCanonical(path) {
+		return path
+	}
 	parts := jutil.StringSplitLiteral(path, ModuleNames_MODULE_SLASH)
 	buffer := make([]string, len(parts))
 	position := 0
@@ -148,6 +173,25 @@ func ModuleNames_CanonicalizePath(path string) string {
 		return ModuleNames_MODULE_SLASH // special-case single absolute segment as joining [""] doesn't work
 	}
 	return strings.Join(buffer[:position], ModuleNames_MODULE_SLASH)
+}
+
+func moduleNames_pathIsCanonical(path string) bool {
+	if strings.HasSuffix(path, ModuleNames_MODULE_SLASH) {
+		return false
+	}
+	for i := 0; i < len(path); i++ {
+		if path[i] != '.' || (i != 0 && path[i-1] != '/') {
+			continue
+		}
+		end := i + 1
+		if end < len(path) && path[end] == '.' {
+			end++
+		}
+		if end == len(path) || path[end] == '/' {
+			return false
+		}
+	}
+	return true
 }
 
 // Java: ModuleNames()

@@ -278,14 +278,14 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter struct {
 	// Basically this is a map whose keys are names and whose values are stacks of
 	// VariableInfo objects. The top of each stack represents the variable with that name that is
 	// visible in the scope we are currently traversing.
-	variablesStackedByName *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap
+	variablesStackedByName MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter(AbstractCompiler)
 func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 	compiler AbstractCompiler) *MakeDeclaredNamesUnique_ContextualRenameInverter {
 	c := &MakeDeclaredNamesUnique_ContextualRenameInverter{}
-	c.variablesStackedByName = NewMakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap(c)
+	c.variablesStackedByName.init(c)
 	c.compiler = compiler
 	return c
 }
@@ -326,10 +326,13 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *NodeTra
 	// Push them onto the variablesByName data structure to make them visible,
 	// and store them into a ScopeContext object for the scope we're entering.
 	var declaredVariablesBuilder []*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo
-	for var_ := range scope.GetVarIterable() {
-		variableInfo := c.CreateDeclaredVariableInfo(var_)
-		declaredVariablesBuilder = append(declaredVariablesBuilder, variableInfo)
-		c.variablesStackedByName.PushVariableInfo(variableInfo)
+	if varCount := scope.GetVarCount(); varCount > 0 {
+		declaredVariablesBuilder = make([]*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo, 0, varCount)
+		for var_ := range scope.GetVarIterable() {
+			variableInfo := c.CreateDeclaredVariableInfo(var_)
+			declaredVariablesBuilder = append(declaredVariablesBuilder, variableInfo)
+			c.variablesStackedByName.PushVariableInfo(variableInfo)
+		}
 	}
 	var parent *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext
 	if len(c.scopeContextStack) != 0 {
@@ -367,7 +370,7 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo struct {
 
 	// Will be filled with objects representing variables whose names must not conflict with this
 	// one.
-	potentialShadowVariables *jutil.LinkedHashSet[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]
+	potentialShadowVariables jutil.LinkedHashSet[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]
 
 	// The name the variable has currently
 	currentName string
@@ -381,11 +384,11 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo(
 	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
 	currentName string,
 	preferredName string) *MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo {
-	r := &MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo{this_: this_}
-	r.potentialShadowVariables = jutil.NewLinkedHashSet[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]()
-	r.currentName = currentName
-	r.preferredName = preferredName
-	return r
+	return &MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo{
+		this_:         this_,
+		currentName:   currentName,
+		preferredName: preferredName,
+	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo.addPotentialShadowVariable(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
@@ -396,20 +399,28 @@ func (r *MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo) AddPoten
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo.attemptRename()
 func (r *MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo) AttemptRename() string {
-	disallowedNames := jutil.NewLinkedHashSet[string]()
 	// If we somehow ended up with "arguments$jscomp$..." it's not safe to rename
 	// that to "arguments", because that name is special, but it would still be good
 	// to simplify its name, if possible. See the note below regarding why we
 	// rename variables to something other than their original name.
-	disallowedNames.Add(MakeDeclaredNamesUnique_ARGUMENTS)
-	for potentialShadowVariable := range r.potentialShadowVariables.All() {
-		// NOTE: We need to look up these names immediately before making our rename
-		// decision, because some of these variables could themselves have been renamed.
-		potentialShadowName := potentialShadowVariable.GetName()
-		disallowedNames.Add(potentialShadowName)
+	conflict := r.preferredName == MakeDeclaredNamesUnique_ARGUMENTS
+	if !conflict {
+		for potentialShadowVariable := range r.potentialShadowVariables.All() {
+			if potentialShadowVariable.GetName() == r.preferredName {
+				conflict = true
+				break
+			}
+		}
 	}
 	newName := r.preferredName
-	if disallowedNames.Contains(r.preferredName) {
+	if conflict {
+		disallowedNames := make(map[string]struct{}, r.potentialShadowVariables.Size()+1)
+		disallowedNames[MakeDeclaredNamesUnique_ARGUMENTS] = struct{}{}
+		for potentialShadowVariable := range r.potentialShadowVariables.All() {
+			// NOTE: We need to look up these names immediately before making our rename
+			// decision, because some of these variables could themselves have been renamed.
+			disallowedNames[potentialShadowVariable.GetName()] = struct{}{}
+		}
 		// Why are we bothering to find a name other than the original one?
 		// The reason is that we would like the final output name to depend more on the shape
 		// of the output code than on the process the compiler followed to reach that shape.
@@ -421,7 +432,7 @@ func (r *MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo) AttemptR
 		for {
 			newName = baseName + strconv.Itoa(i)
 			i++
-			if !disallowedNames.Contains(newName) {
+			if _, exists := disallowedNames[newName]; !exists {
 				break
 			}
 		}
@@ -594,7 +605,7 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext struct {
 	declaredVariableInfos []*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo
 
 	// Will be filled with objects for all variables we reference in this scope.
-	referencedVariables *jutil.LinkedHashMap[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo, bool]
+	referencedVariables jutil.LinkedHashMap[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo, bool]
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext(Scope, ImmutableList<MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo>, MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext)
@@ -603,12 +614,11 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
 	declaredVariableInfos []*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo,
 	parent *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext,
 ) *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext {
-	s := &MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext{}
-	s.referencedVariables = jutil.NewLinkedHashMap[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo, bool]()
-	s.scope = scope
-	s.declaredVariableInfos = declaredVariableInfos
-	s.parent = parent
-	return s
+	return &MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext{
+		scope:                 scope,
+		declaredVariableInfos: declaredVariableInfos,
+		parent:                parent,
+	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.addReferencedVariableInfo(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
@@ -658,18 +668,24 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap struc
 	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter // the enclosing instance
 
 	// Go-only: language-adapter — each ArrayDeque used as a stack is a
-	// *[]VariableInfo whose top is the last element.
-	mapOfStacks *jutil.LinkedHashMap[string, *[]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo]
+	// []VariableInfo whose top is the last element.
+	mapOfStacks map[string][]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo
+}
+
+func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) init(
+	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
+) {
+	v.this_ = this_
+	v.mapOfStacks = make(map[string][]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap()
 func NewMakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap(
 	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
 ) *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap {
-	return &MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap{
-		this_:       this_,
-		mapOfStacks: jutil.NewLinkedHashMap[string, *[]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo](),
-	}
+	v := &MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap{}
+	v.init(this_)
+	return v
 }
 
 // PushVariableInfo pushes a VariableInfo onto the stack corresponding to
@@ -679,31 +695,19 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap(
 func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) PushVariableInfo(
 	info MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo) {
 	name := info.GetName()
-	variableInfoStack := v.GetVariableInfoStack(name)
-	*variableInfoStack = append(*variableInfoStack, info)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.getVariableInfoStack(String)
-func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) GetVariableInfoStack(
-	name string) *[]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
-	return v.mapOfStacks.ComputeIfAbsent(name,
-		func(ignoredKey string) *[]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
-			return &[]MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo{}
-		})
+	v.mapOfStacks[name] = append(v.mapOfStacks[name], info)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.getOrCreateCurrentVariableInfo(String)
 func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) GetOrCreateCurrentVariableInfo(
 	name string) MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
-	variableInfoStack := v.GetVariableInfoStack(name)
-	var variableInfo MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo
-	if len(*variableInfoStack) == 0 {
-		variableInfo = v.this_.CreateUndeclaredVariableInfo(name)
-		*variableInfoStack = append(*variableInfoStack, variableInfo)
-	} else {
-		variableInfo = (*variableInfoStack)[len(*variableInfoStack)-1]
+	variableInfoStack := v.mapOfStacks[name]
+	if len(variableInfoStack) == 0 {
+		variableInfo := v.this_.CreateUndeclaredVariableInfo(name)
+		v.mapOfStacks[name] = []MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo{variableInfo}
+		return variableInfo
 	}
-	return variableInfo
+	return variableInfoStack[len(variableInfoStack)-1]
 }
 
 // PopVariableInfo pops the topmost VariableInfo off of the stack for the
@@ -712,16 +716,19 @@ func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.popVariableInfo(String)
 func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) PopVariableInfo(
 	name string) MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
-	variableInfos := v.mapOfStacks.Get(name)
-	jutil.CheckNotNullMsg1(variableInfos, "Nonexistent variable info requested: '%s'", name)
-	if len(*variableInfos) == 0 {
+	variableInfos, ok := v.mapOfStacks[name]
+	if !ok {
+		panic(jutil.NewNullPointerExceptionMsg("Nonexistent variable info requested: '" + name + "'"))
+	}
+	if len(variableInfos) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 	}
-	info := (*variableInfos)[len(*variableInfos)-1]
-	*variableInfos = (*variableInfos)[:len(*variableInfos)-1]
-	if len(*variableInfos) == 0 {
+	info := variableInfos[len(variableInfos)-1]
+	if len(variableInfos) == 1 {
 		// Remove empty stacks, so they can be garbage collected.
-		v.mapOfStacks.Remove(name)
+		delete(v.mapOfStacks, name)
+	} else {
+		v.mapOfStacks[name] = variableInfos[:len(variableInfos)-1]
 	}
 	return info
 }
@@ -730,7 +737,7 @@ func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) 
 //
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.clear()
 func (v *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) Clear() {
-	v.mapOfStacks.Clear()
+	clear(v.mapOfStacks)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.createUndeclaredVariableInfo(String)

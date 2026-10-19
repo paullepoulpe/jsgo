@@ -217,7 +217,7 @@ func FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier
 // Java: FunctionArgumentInjector.findModifiedParameters(Node)
 func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *jutil.LinkedHashSet[string] {
 	names := FunctionArgumentInjector_GetFunctionParameterSet(fnNode)
-	return jutil.NewLinkedHashSet(FunctionArgumentInjector_FindModifiedParametersIn(fnNode.GetLastChild(), names, false).ToSlice()...)
+	return FunctionArgumentInjector_FindModifiedParametersIn(fnNode.GetLastChild(), names, false)
 }
 
 // FunctionArgumentInjector_FindModifiedParametersIn checks for uses of the
@@ -236,6 +236,12 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *j
 func FunctionArgumentInjector_FindModifiedParametersIn(
 	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool) *jutil.LinkedHashSet[string] {
 	unsafe := jutil.NewLinkedHashSet[string]()
+	functionArgumentInjector_collectModifiedParameters(n, names, inInnerClosure, unsafe)
+	return unsafe
+}
+
+func functionArgumentInjector_collectModifiedParameters(
+	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool, unsafe *jutil.LinkedHashSet[string]) {
 	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
 		// A function parameter can not be replaced with a direct inlined value
 		// if it is referred to by an inner function or a non-static class field
@@ -252,10 +258,8 @@ func FunctionArgumentInjector_FindModifiedParametersIn(
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		unsafe.AddAll(FunctionArgumentInjector_FindModifiedParametersIn(c, names, inInnerClosure).ToSlice()...)
+		functionArgumentInjector_collectModifiedParameters(c, names, inInnerClosure, unsafe)
 	}
-
-	return unsafe
 }
 
 // FunctionArgumentInjector_CanNameValueChange is similar to NodeUtil.isLValue

@@ -147,14 +147,17 @@ func newPolyfillUsageFinder_Polyfills(
 // The last line, WeakMap, does not have a polyfill available, so the
 // library token is empty.
 //
+var defaultPolyfillsText = sync.OnceValue(func() string {
+	return resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt")
+})
+
 var defaultPolyfillsTable = sync.OnceValue(func() *PolyfillUsageFinder_Polyfills {
-	return polyfillUsageFinder_Polyfills_parseTable(
-		resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt"))
+	return polyfillUsageFinder_Polyfills_parseTable(defaultPolyfillsText())
 })
 
 // Java: PolyfillUsageFinder.Polyfills.fromTable(String)
 func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_Polyfills {
-	if table == resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt") {
+	if table == defaultPolyfillsText() {
 		return defaultPolyfillsTable()
 	}
 	return polyfillUsageFinder_Polyfills_parseTable(table)

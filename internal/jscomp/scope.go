@@ -86,6 +86,35 @@ func (s *Scope) GetParent() *Scope {
 	return s.parent
 }
 
+// GetVar uses the concrete parent links of Java's final Scope class. The
+// generic base must support TypedScope's virtual methods; untyped scopes can
+// avoid those dictionary calls and classify implicit names once per lookup.
+func (s *Scope) GetVar(name string) *Var {
+	implicit := AbstractScope_ImplicitVar_Of(name)
+	for {
+		if v := s.vars.Get(name); v != nil {
+			return v
+		}
+		if implicit != nil {
+			if v := s.GetOwnImplicitSlot(implicit); v != nil {
+				return v
+			}
+		}
+		s = s.parent
+		if s == nil {
+			return nil
+		}
+	}
+}
+
+// Java: AbstractScope.getSlot(String) (final)
+func (s *Scope) GetSlot(name string) rhino.StaticSlot {
+	if v := s.GetVar(name); v != nil {
+		return v
+	}
+	return nil
+}
+
 // Declare declares a variable.
 //
 // name is the name of the variable, nameNode the NAME node declaring the
