@@ -767,11 +767,7 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 	} else {
 		t.scopeCallback = nil
 	}
-	if builder.scopeCreator == nil {
-		t.scopeCreator = NewSyntacticScopeCreator(t.compiler)
-	} else {
-		t.scopeCreator = builder.scopeCreator
-	}
+	t.scopeCreator = builder.scopeCreator
 	t.obeyDestructuringAndDefaultValueExecutionOrder = builder.obeyDestructuringAndDefaultValueExecutionOrder
 	// TODO(johnlenz): refactor into compiler options helper.
 	options := t.compiler.GetOptions()
@@ -835,7 +831,8 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 //
 // Java: NodeTraversal.traverse(AbstractCompiler, Node, Callback)
 func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback) {
-	NodeTraversal_Builder_().SetCompiler(compiler).SetCallback(cb).Traverse(root)
+	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+	newNodeTraversal(&b).Traverse(root)
 }
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
@@ -861,7 +858,8 @@ func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
 // Java: NodeTraversal.traverseRoots(AbstractCompiler, Callback, Node, Node)
 func NodeTraversal_TraverseRoots(
 	compiler AbstractCompiler, cb NodeTraversal_Callback, externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Builder_().SetCompiler(compiler).SetCallback(cb).TraverseRoots(externs, root)
+	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+	newNodeTraversal(&b).TraverseRoots(externs, root)
 }
 
 const nodeTraversal_MISSING_SOURCE = "[source unknown]"
@@ -1619,7 +1617,7 @@ func (t *NodeTraversal) GetAbstractScopeAt(rootDepth int) AbstractScope {
 	if rootDepth > 0 {
 		parentScope = t.GetAbstractScopeAt(rootDepth - 1)
 	}
-	scope := t.scopeCreator.CreateScope(e.node, parentScope)
+	scope := t.GetScopeCreator().CreateScope(e.node, parentScope)
 	t.scopes[rootDepth].scope = scope
 	return scope
 }
@@ -1703,6 +1701,9 @@ func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() *rhino.Node 
 
 // Java: NodeTraversal.getScopeCreator()
 func (t *NodeTraversal) GetScopeCreator() ScopeCreator {
+	if t.scopeCreator == nil {
+		t.scopeCreator = NewSyntacticScopeCreator(t.compiler)
+	}
 	return t.scopeCreator
 }
 

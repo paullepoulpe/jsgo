@@ -58,6 +58,16 @@ type FlowSensitiveInlineVariables struct {
 	candidates   *jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
 	reachingDef  *MustBeReachingVariableDef
 	reachingUses *MaybeReachingVariableUse
+	escaped      *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
+}
+
+func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
+	if f.reachingUses == nil {
+		f.reachingUses = NewMaybeReachingVariableUse(f.cfg, f.escaped, f.allVarsInFn)
+		f.reachingUses.Analyze()
+	}
+	return f.reachingUses
 }
 
 // FlowSensitiveInlineVariables_SideEffectPredicate is a Predicate<Node>.
@@ -195,9 +205,15 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	// candidates
 	NodeTraversal_Traverse(f.compiler, t.GetScopeRoot(), NewFlowSensitiveInlineVariables_GatherCandidates(f))
 
-	// Compute the backward reaching use. The CFG and per-function variable info can be reused.
-	f.reachingUses = NewMaybeReachingVariableUse(f.cfg, escaped, allVarsInFn)
-	f.reachingUses.Analyze()
+	if f.candidates.IsEmpty() {
+		return
+	}
+
+	// Lazily compute the backward reaching use only if a candidate passes the
+	// syntactic and side-effect checks in Candidate.CanInline.
+	f.reachingUses = nil
+	f.escaped = escaped
+	f.allVarsInFn = allVarsInFn
 	for !f.candidates.IsEmpty() {
 		var c *FlowSensitiveInlineVariables_Candidate
 		for first := range f.candidates.All() {
@@ -347,7 +363,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		def := cb.outer.reachingDef.GetDef(name, cb.cfgNode)
 		// TODO(nicksantos): We need to add some notion of @const outer
 		// scope vars. We can inline those just fine.
-		if def != nil && !cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
+		if def != nil && !def.node.IsFunction() && !cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
 			cb.outer.candidates.Add(NewFlowSensitiveInlineVariables_Candidate(cb.outer, name, def, n, cb.cfgNode))
 		}
 	}
@@ -436,8 +452,12 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
+	// Make sure that the name is not within a loop
+	if NodeUtil_IsWithinLoop(c.use) {
+		return false
+	}
+
 	c.GetDefinition(c.GetDefCfgNode())
-	c.GetNumUseInUseCfgNode(c.useCfgNode)
 
 	// Definition was not found.
 	if c.def == nil {
@@ -450,26 +470,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	namesToCheck := jutil.NewLinkedHashSet[string]()
-	if c.defMetadata.depends != nil {
-		for var_ := range c.defMetadata.depends.All() {
-			namesToCheck.Add(var_.GetName())
-		}
-	}
-
-	sideEffectPredicateWithNames := NewFlowSensitiveInlineVariables_SideEffectPredicateWithNames(c.outer, namesToCheck)
-
-	// A subexpression evaluated after the variable has a side effect.
-	// Example, for x:
-	// x = readProp(b), modifyProp(b); print(x);
-	if FlowSensitiveInlineVariables_CheckPostExpressions(c.def, c.GetDefCfgNode(), sideEffectPredicateWithNames.Apply) {
-		return false
-	}
-
-	// Similar check as the above but this time, all the sub-expressions
-	// evaluated before the variable.
-	// x = readProp(b); modifyProp(b), print(x);
-	if FlowSensitiveInlineVariables_CheckPreExpressions(c.use, c.useCfgNode, sideEffectPredicateWithNames.Apply) {
+	if !c.IsRhsSafeToInline(scope) {
 		return false
 	}
 
@@ -485,20 +486,35 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	// Finally we have to make sure that there are no more than one use
 	// in the program and in the CFG node. Even when it is semantically
 	// correctly inlining twice increases code size.
+	c.GetNumUseInUseCfgNode(c.useCfgNode)
 	if c.numUsesWithinCfgNode != 1 {
 		return false
 	}
 
-	// Make sure that the name is not within a loop
-	if NodeUtil_IsWithinLoop(c.use) {
+	var namesToCheck jutil.LinkedHashSet[string]
+	if c.defMetadata.depends != nil {
+		for var_ := range c.defMetadata.depends.All() {
+			namesToCheck.Add(var_.GetName())
+		}
+	}
+
+	sideEffectPredicateWithNames := NewFlowSensitiveInlineVariables_SideEffectPredicateWithNames(c.outer, &namesToCheck)
+
+	// A subexpression evaluated after the variable has a side effect.
+	// Example, for x:
+	// x = readProp(b), modifyProp(b); print(x);
+	if FlowSensitiveInlineVariables_CheckPostExpressions(c.def, c.GetDefCfgNode(), sideEffectPredicateWithNames.Apply) {
 		return false
 	}
 
-	if !c.HasExactlyOne(c.outer.reachingUses.GetUses(c.varName, c.GetDefCfgNode())) {
+	// Similar check as the above but this time, all the sub-expressions
+	// evaluated before the variable.
+	// x = readProp(b); modifyProp(b), print(x);
+	if FlowSensitiveInlineVariables_CheckPreExpressions(c.use, c.useCfgNode, sideEffectPredicateWithNames.Apply) {
 		return false
 	}
 
-	if !c.IsRhsSafeToInline(scope) {
+	if !c.HasExactlyOne(c.outer.getReachingUses().GetUses(c.varName, c.GetDefCfgNode())) {
 		return false
 	}
 
