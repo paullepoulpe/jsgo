@@ -64,7 +64,13 @@ type FlowSensitiveInlineVariables struct {
 
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
 	if f.reachingUses == nil {
-		f.reachingUses = NewMaybeReachingVariableUse(f.cfg, f.escaped, f.allVarsInFn)
+		candidateVars := jutil.NewLinkedHashMapWithCapacity[string, *Var](f.candidates.Size())
+		for cand := range f.candidates.All() {
+			if v := f.allVarsInFn.Get(cand.varName); v != nil {
+				candidateVars.Put(cand.varName, v)
+			}
+		}
+		f.reachingUses = NewMaybeReachingVariableUse(f.cfg, f.escaped, candidateVars)
 		f.reachingUses.Analyze()
 	}
 	return f.reachingUses

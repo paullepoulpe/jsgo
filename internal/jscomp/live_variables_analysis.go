@@ -56,6 +56,10 @@ type LiveVariablesAnalysis struct {
 	orderedVars []*Var
 
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+
+	escapedBits jutil.BitSet
+	genScratch  jutil.BitSet
+	killScratch jutil.BitSet
 }
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -175,9 +179,9 @@ func NewLiveVariablesAnalysis(
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
 	l.escaped = jutil.NewObjectLinkedHashSet[*Var]()
-	l.scopeVariables = jutil.NewLinkedHashMap[string, int]()
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
+	l.scopeVariables = jutil.NewLinkedHashMapWithCapacity[string, int](len(l.orderedVars))
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
@@ -191,9 +195,23 @@ func NewLiveVariablesAnalysis(
 //
 // Java: LiveVariablesAnalysis.addScopeVariables()
 func (l *LiveVariablesAnalysis) AddScopeVariables() {
+	l.escapedBits.InitWithSize(len(l.orderedVars))
 	num := 0
 	for _, v := range l.orderedVars {
-		l.scopeVariables.Put(v.GetName(), num)
+		name := v.GetName()
+		l.scopeVariables.Put(name, num)
+		localScope, _ := v.GetScope().(*Scope)
+		var local bool
+		if localScope.IsFunctionBlockScope() {
+			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
+		} else if localScope == l.jsScope && l.jsScopeChild != nil {
+			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(l.jsScopeChild, name)
+		} else {
+			local = localScope.HasOwnSlot(name)
+		}
+		if !local || l.escaped.Contains(v) {
+			l.escapedBits.Set(num)
+		}
 		num++
 	}
 }
@@ -245,10 +263,9 @@ func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
 func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill jutil.BitSet
 	size := input.liveSet.Size()
-	gen.InitWithSize(size)
-	kill.InitWithSize(size)
+	l.genScratch.InitWithSize(size)
+	l.killScratch.InitWithSize(size)
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -258,11 +275,11 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 			conditional = true
 		}
 	}
-	l.ComputeGenKill(node, &gen, &kill, conditional)
+	l.ComputeGenKill(node, &l.genScratch, &l.killScratch, conditional)
 	result := NewLiveVariablesAnalysis_LiveVariableLatticeOf(input)
 	// L_in = L_out - Kill + Gen
-	result.liveSet.AndNot(&kill)
-	result.liveSet.Or(&gen)
+	result.liveSet.AndNot(&l.killScratch)
+	result.liveSet.Or(&l.genScratch)
 	return result
 }
 
@@ -382,33 +399,11 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
 func (l *LiveVariablesAnalysis) AddToSetIfLocal(node *rhino.Node, set *jutil.BitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	name := node.GetString()
-
-	var_ := l.allVarsInFn.Get(name)
-	if var_ == nil {
+	idx, ok := l.scopeVariables.Lookup(node.GetString())
+	if !ok || l.escapedBits.Get(idx) {
 		return
 	}
-
-	var local bool
-	localScope, _ := var_.GetScope().(*Scope)
-	// add to the local set if the variable is declared in the function or function body because
-	// ES6 separates the scope but if the variable is declared in the param it should be local
-	// to the function body.
-	if localScope.IsFunctionBlockScope() {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
-	} else if localScope == l.jsScope && l.jsScopeChild != nil {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(l.jsScopeChild, name)
-	} else {
-		local = localScope.HasOwnSlot(name)
-	}
-
-	if !local {
-		return
-	}
-
-	if !l.escaped.Contains(var_) {
-		set.Set(l.GetVarIndex(var_.GetName()))
-	}
+	set.Set(idx)
 }
 
 // Java: LiveVariablesAnalysis.isDeclaredInFunctionBlockOrParameter(Scope, String)
@@ -440,7 +435,11 @@ func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 	paramList := NodeUtil_GetFunctionParameters(l.jsScope.GetRootNode())
 	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
 		if param.IsName() {
-			l.escaped.Add(l.jsScope.GetVar(param.GetString()))
+			name := param.GetString()
+			l.escaped.Add(l.jsScope.GetVar(name))
+			if idx, ok := l.scopeVariables.Lookup(name); ok {
+				l.escapedBits.Set(idx)
+			}
 		}
 	}
 }

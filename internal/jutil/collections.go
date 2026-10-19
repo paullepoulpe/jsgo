@@ -229,6 +229,16 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 	return &LinkedHashMap[K, V]{}
 }
 
+// NewLinkedHashMapWithCapacity returns an empty map pre-sized for cap entries.
+func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K, V] {
+	if cap > lhmSmallSize {
+		return &LinkedHashMap[K, V]{
+			m: &lhmLarge[K, V]{index: make(map[K]*lhmEntry[K, V], cap)},
+		}
+	}
+	return &LinkedHashMap[K, V]{}
+}
+
 // find returns k's entry, or nil.
 func (h *LinkedHashMap[K, V]) find(k K) *lhmEntry[K, V] {
 	if h.m != nil {
