@@ -34,6 +34,8 @@ import (
 type JsDocInfoParser struct {
 	stream          *JsDocTokenStream
 	jsdocBuilder    *rhino.JSDocInfo_Builder
+	jsdocBuilderVal rhino.JSDocInfo_Builder
+	nodeSlab        *jutil.Slab[rhino.Node]
 	errorReporter   rhino.ErrorReporter
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind
 
@@ -248,17 +250,34 @@ func NewJsDocInfoParser(
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
 	errorReporter rhino.ErrorReporter,
 ) *JsDocInfoParser {
-	p := &JsDocInfoParser{unreadToken: JsDocInfoParser_NO_UNREAD_TOKEN}
+	p := &JsDocInfoParser{}
+	p.Init(stream, comment, commentPosition, templateNode, config, jsDocSourceKind, errorReporter, nil)
+	return p
+}
+
+// Init resets the parser for a new JSDoc comment without allocating.
+func (p *JsDocInfoParser) Init(
+	stream *JsDocTokenStream,
+	comment string,
+	commentPosition int,
+	templateNode *rhino.Node,
+	config *Config,
+	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
+	errorReporter rhino.ErrorReporter,
+	nodeSlab *jutil.Slab[rhino.Node],
+) {
 	p.stream = stream
+	p.nodeSlab = nodeSlab
+	p.jsdocBuilder = &p.jsdocBuilderVal
+	p.jsdocBuilder.Reset()
 
 	parseDocumentation := config.JsDocParsingMode().ShouldParseDescriptions()
-	p.jsdocBuilder = rhino.JSDocInfo_Builder_()
 	if parseDocumentation {
 		p.jsdocBuilder.ParseDocumentation()
 	}
 	p.jsdocBuilder.RecordOriginalCommentString(comment)
 	p.jsdocBuilder.RecordOriginalCommentPosition(commentPosition)
-	p.recordTsType = config.JsDocParsingMode().ShouldParseDescriptions()
+	p.recordTsType = parseDocumentation
 	p.annotations = config.Annotations()
 	p.suppressionNames = config.SuppressionNames()
 	p.closurePrimitiveNames = config.ClosurePrimitiveNames()
@@ -272,7 +291,10 @@ func NewJsDocInfoParser(
 	} else {
 		p.templateNode = templateNode
 	}
-	return p
+	p.fileOverviewJSDocInfo = nil
+	p.state = JsDocInfoParser_State_SEARCHING_ANNOTATION
+	p.licenseText = nil
+	p.unreadToken = JsDocInfoParser_NO_UNREAD_TOKEN
 }
 
 // GetSourceName returns the source file name.
@@ -2789,6 +2811,13 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) *rhino.Node {
 	return fieldType
 }
 
+func (p *JsDocInfoParser) allocNode() *rhino.Node {
+	if p.nodeSlab != nil {
+		return p.nodeSlab.New()
+	}
+	return &rhino.Node{}
+}
+
 // ParseFieldName parses
 // FieldName := NameExpression | StringLiteral | NumberLiteral | ReservedIdentifier
 //
@@ -2798,9 +2827,8 @@ func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) *rhino.Node {
 		return nil
 	}
 	s := p.stream.GetString()
-	n := rhino.Node_NewStringWithToken(rhino.Token_STRING_KEY, s).
-		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno()).
-		ClonePropsFrom(p.templateNode)
+	n := p.allocNode().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
+	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 	n.SetLength(jutil.StringLength(s))
 	return n
 }
@@ -2818,21 +2846,19 @@ func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n *rhino.Node, lineno in
 	if n == nil {
 		return nil
 	}
-	return rhino.NewNodeWithChild(type_, n).SetLinenoCharno(lineno, charno).ClonePropsFrom(p.templateNode)
+	return p.allocNode().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
 }
 
 // Java: JsDocInfoParser.newNode(Token)
 func (p *JsDocInfoParser) NewNode(type_ rhino.Token) *rhino.Node {
-	return rhino.NewNode(type_).
-		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno()).
-		ClonePropsFrom(p.templateNode)
+	return p.allocNode().InitFromTemplate(type_, p.templateNode).
+		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 }
 
 // Java: JsDocInfoParser.newStringNode(String)
 func (p *JsDocInfoParser) NewStringNode(s string) *rhino.Node {
-	n := rhino.Node_NewString(s).
-		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno()).
-		ClonePropsFrom(p.templateNode)
+	n := p.allocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, s, p.templateNode)
+	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 	n.SetLength(jutil.StringLength(s))
 	return n
 }

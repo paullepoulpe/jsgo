@@ -84,28 +84,36 @@ func NewJsDocTokenStreamWithLineno(sourceString string, lineno int) *JsDocTokenS
 
 // Java: JsDocTokenStream(String, int, int)
 func NewJsDocTokenStreamWithLinenoCharno(sourceString string, lineno int, initCharno int) *JsDocTokenStream {
-	s := &JsDocTokenStream{
-		string_:     "",
-		lineStart:   0,
-		lineEndChar: -1,
-		charno:      -1,
-	}
+	s := &JsDocTokenStream{}
+	s.Init(sourceString, lineno, initCharno)
+	return s
+}
+
+// Init resets the stream for a new JSDoc comment without allocating.
+func (s *JsDocTokenStream) Init(sourceString string, lineno int, initCharno int) {
+	s.string_ = ""
+	s.stringBufferTop = 0
+	s.ungetCursor = 0
+	s.lineStart = 0
+	s.lineEndChar = -1
+	s.charno = -1
 	// (checkNotNull(sourceString): a Go string is never null.)
 	s.lineno = lineno
 	if jutil.IsASCII(sourceString) {
 		s.rawSource = sourceString
+		s.sourceString = nil
 		s.sourceEnd = len(sourceString)
 		s.asciiBuffer = s.asciiBufferBuf[:]
 	} else {
+		s.rawSource = ""
 		s.sourceString = jutil.StringToUTF16(sourceString)
 		s.sourceEnd = len(s.sourceString)
 		s.stringBuffer = s.stringBufferBuf[:]
 	}
 	s.cursor = 0
-	s.sourceCursor = s.cursor
+	s.sourceCursor = 0
 	s.initLineno = lineno
 	s.initCharno = initCharno
-	return s
 }
 
 // GetJsDocToken tokenizes JSDoc comments.

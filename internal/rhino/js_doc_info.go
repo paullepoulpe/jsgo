@@ -523,13 +523,39 @@ type JSDocInfo_TypeTransform func(arg *JSTypeExpression) *JSTypeExpression
 // Java: JSDocInfo(long, TreeMap<Property<?>, Object>)
 func newJSDocInfo(bits_ int64, props *jutil.TreeMap[JSDocInfo_Property, any]) *JSDocInfo {
 	var keys int64 = 0
-	var values []any
+	var valsBuf [8]any
+	values := valsBuf[:0]
 	for prop, value := range props.All() {
 		if !prop.IsDefault(value) {
 			keys |= prop.GetJSDocInfo_PropertyBase().mask
 
 			// Ensure that another codepath did not inadvertently retrieve a
 			// reference to the array or a `null` value.
+			_, isArray := value.([]any)
+			jutil.CheckState(!isArray && !jutil.IsNil(value))
+			values = append(values, value)
+		}
+	}
+	return &JSDocInfo{
+		propertyBits:       bits_,
+		propertyKeysBitset: keys,
+		propertyValues:     JSDocInfo_PackPropertyValues(values),
+	}
+}
+
+func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocInfo {
+	var keys int64 = 0
+	var valsBuf [8]any
+	values := valsBuf[:0]
+	mask := propMask
+	for i := 0; mask != 0; i++ {
+		low := bits.TrailingZeros64(uint64(mask))
+		propBit := int64(1) << low
+		mask &^= propBit
+		prop := JSDocInfo_Property_values[low]
+		value := entries[i]
+		if !prop.IsDefault(value) {
+			keys |= propBit
 			_, isArray := value.([]any)
 			jutil.CheckState(!isArray && !jutil.IsNil(value))
 			values = append(values, value)
@@ -956,10 +982,14 @@ func (i *JSDocInfo) ToBuilderWithTransform(transform JSDocInfo_TypeTransform) *J
 	builder := NewJSDocInfo_Builder()
 	// inline type isn't copied...?
 	builder.bits = i.propertyBits &^ JSDocInfo_Bit_INLINE_TYPE.Mask()
-	builder.props = i.AsMap()
 	builder.populated = true
-	for k, v := range builder.props.All() {
-		builder.props.Put(k, k.Clone(v, transform))
+	bits_ := i.propertyKeysBitset
+	builder.propMask = bits_
+	for index := 0; bits_ != 0; index++ {
+		low := bits.TrailingZeros64(uint64(bits_))
+		bits_ &^= int64(1) << low
+		prop := JSDocInfo_Property_values[low]
+		builder.entries = append(builder.entries, prop.Clone(i.GetPropertyValueByIndex(index), transform))
 	}
 	return builder
 }
@@ -2247,8 +2277,10 @@ func JSDocInfo_PackPropertyValues(values []any) any {
 // early incompatibility detection among properties stored on the JSDocInfo
 // object being created.
 type JSDocInfo_Builder struct {
-	props *jutil.TreeMap[JSDocInfo_Property, any]
-	bits  int64
+	propMask   int64
+	entries    []any
+	entriesBuf [4]any
+	bits       int64
 
 	// whether the current JSDocInfo has valuable information
 	populated bool
@@ -2262,7 +2294,20 @@ type JSDocInfo_Builder struct {
 //
 // Java: JSDocInfo.Builder()
 func NewJSDocInfo_Builder() *JSDocInfo_Builder {
-	return &JSDocInfo_Builder{props: jsdocInfo_NewPropMap(), bits: 0}
+	b := &JSDocInfo_Builder{}
+	b.entries = b.entriesBuf[:0]
+	return b
+}
+
+// Reset resets the builder for reuse without allocating.
+func (b *JSDocInfo_Builder) Reset() {
+	clear(b.entries)
+	b.entries = b.entriesBuf[:0]
+	b.propMask = 0
+	b.bits = 0
+	b.populated = false
+	b.currentMarker = nil
+	b.licenseTexts = nil
 }
 
 // Java: JSDocInfo.Builder.copyFrom(JSDocInfo)
@@ -2376,7 +2421,7 @@ func (b *JSDocInfo_Builder) IsPopulatedWithFileOverview() bool {
 //
 // Java: JSDocInfo.Builder.isDescriptionRecorded()
 func (b *JSDocInfo_Builder) IsDescriptionRecorded() bool {
-	return b.props.Get(JSDocInfo_DESCRIPTION) != nil
+	return b.GetProp(JSDocInfo_DESCRIPTION) != nil
 }
 
 // IsNoInline returns whether the `@noinline` annotation is present on this
@@ -2418,7 +2463,7 @@ func (b *JSDocInfo_Builder) Build() *JSDocInfo {
 // Java: JSDocInfo.Builder.build(boolean)
 func (b *JSDocInfo_Builder) BuildWithAlways(always bool) *JSDocInfo {
 	if b.populated || always {
-		info := newJSDocInfo(b.bits, b.props)
+		info := newJSDocInfoFromBuilder(b.bits, b.propMask, b.entries)
 		b.populated = false
 		return info
 	}
@@ -2434,7 +2479,9 @@ func (b *JSDocInfo_Builder) BuildWithAlways(always bool) *JSDocInfo {
 func (b *JSDocInfo_Builder) BuildAndReset() *JSDocInfo {
 	info := b.Build()
 	b.bits &= JSDocInfo_Bit_INCLUDE_DOCUMENTATION.Mask() // only keep this one flag
-	b.props.Clear()
+	clear(b.entries)
+	b.entries = b.entries[:0]
+	b.propMask = 0
 	b.populated = false
 	return info
 }
@@ -2593,7 +2640,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 	}
 	transformations := jsdocGet[*jutil.LinkedHashMap[string, *Node]](b.GetProp(JSDocInfo_TYPE_TRANSFORMATIONS))
 	if (transformations != nil && transformations.ContainsKey(name)) ||
-		b.props.ContainsKey(JSDocInfo_TYPEDEF_TYPE) {
+		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
 	}
 	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
@@ -2974,7 +3021,7 @@ func (b *JSDocInfo_Builder) RecordEnhance(namespace string) bool {
 //
 // Java: JSDocInfo.Builder.isModsRecorded()
 func (b *JSDocInfo_Builder) IsModsRecorded() bool {
-	return b.props.Get(JSDocInfo_MODS) != nil
+	return b.GetProp(JSDocInfo_MODS) != nil
 }
 
 // RecordMods records modded namespace; returns true if the modded namespace
@@ -3543,7 +3590,7 @@ func (b *JSDocInfo_Builder) RecordClosureUnawareCodeWithMode(mode JSDocInfo_PerF
 //
 // Java: JSDocInfo.Builder.removeClosureUnawareCode()
 func (b *JSDocInfo_Builder) RemoveClosureUnawareCode() bool {
-	existing := b.props.Remove(JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE)
+	existing := b.removeProp(JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE)
 	return existing != nil
 }
 
@@ -3564,9 +3611,9 @@ func (b *JSDocInfo_Builder) RecordUsedViaDotConstructor() bool {
 //
 // Java: JSDocInfo.Builder.setType(JSTypeExpression)
 func (b *JSDocInfo_Builder) SetType(type_ *JSTypeExpression) *JSDocInfo_Builder {
-	b.props.Remove(JSDocInfo_RETURN_TYPE)
-	b.props.Remove(JSDocInfo_ENUM_PARAMETER_TYPE)
-	b.props.Remove(JSDocInfo_TYPEDEF_TYPE)
+	b.removeProp(JSDocInfo_RETURN_TYPE)
+	b.removeProp(JSDocInfo_ENUM_PARAMETER_TYPE)
+	b.removeProp(JSDocInfo_TYPEDEF_TYPE)
 	b.SetProp(JSDocInfo_TYPE, type_)
 	return b
 }
@@ -3623,14 +3670,50 @@ func (b *JSDocInfo_Builder) IsConstructorOrInterface() bool {
 	return (b.bits & (JSDocInfo_Bit_CONSTRUCTOR.Mask() | JSDocInfo_Bit_INTERFACE.Mask())) != 0
 }
 
+func (b *JSDocInfo_Builder) hasPropKey(prop JSDocInfo_Property) bool {
+	base := prop.GetJSDocInfo_PropertyBase()
+	return (b.propMask & base.mask) != 0
+}
+
+func (b *JSDocInfo_Builder) removeProp(prop JSDocInfo_Property) any {
+	base := prop.GetJSDocInfo_PropertyBase()
+	if (b.propMask & base.mask) == 0 {
+		return nil
+	}
+	idx := bits.OnesCount64(uint64(b.propMask & (base.mask - 1)))
+	old := b.entries[idx]
+	copy(b.entries[idx:], b.entries[idx+1:])
+	b.entries[len(b.entries)-1] = nil
+	b.entries = b.entries[:len(b.entries)-1]
+	b.propMask &^= base.mask
+	return old
+}
+
 // Java: JSDocInfo.Builder.setProp(Property<T>, T)
 func (b *JSDocInfo_Builder) SetProp(prop JSDocInfo_Property, value any) {
-	b.props.Put(prop, value)
+	base := prop.GetJSDocInfo_PropertyBase()
+	idx := bits.OnesCount64(uint64(b.propMask & (base.mask - 1)))
+	if (b.propMask & base.mask) != 0 {
+		b.entries[idx] = value
+		return
+	}
+	b.propMask |= base.mask
+	if b.entries == nil {
+		b.entries = b.entriesBuf[:0]
+	}
+	b.entries = append(b.entries, nil)
+	copy(b.entries[idx+1:], b.entries[idx:])
+	b.entries[idx] = value
 }
 
 // Java: JSDocInfo.Builder.getProp(Property<T>)
 func (b *JSDocInfo_Builder) GetProp(prop JSDocInfo_Property) any {
-	return b.props.Get(prop)
+	base := prop.GetJSDocInfo_PropertyBase()
+	if (b.propMask & base.mask) == 0 {
+		return nil
+	}
+	idx := bits.OnesCount64(uint64(b.propMask & (base.mask - 1)))
+	return b.entries[idx]
 }
 
 // Java: JSDocInfo.Builder.getPropWithDefault(Property<T>, Supplier<T>)
@@ -3673,7 +3756,23 @@ func JSDocInfo_Builder_PopulatePropEntry[V any](b *JSDocInfo_Builder, prop JSDoc
 // Java: JSDocInfo.Builder.populateProp(Property<T>, T)
 func (b *JSDocInfo_Builder) PopulateProp(prop JSDocInfo_Property, value any) bool {
 	b.populated = true
-	return jutil.IsNil(b.props.PutIfAbsent(prop, value))
+	base := prop.GetJSDocInfo_PropertyBase()
+	idx := bits.OnesCount64(uint64(b.propMask & (base.mask - 1)))
+	if (b.propMask & base.mask) != 0 {
+		if jutil.IsNil(b.entries[idx]) {
+			b.entries[idx] = value
+			return true
+		}
+		return false
+	}
+	b.propMask |= base.mask
+	if b.entries == nil {
+		b.entries = b.entriesBuf[:0]
+	}
+	b.entries = append(b.entries, nil)
+	copy(b.entries[idx+1:], b.entries[idx:])
+	b.entries[idx] = value
+	return true
 }
 
 // Java: JSDocInfo.Builder.checkBit(Bit)

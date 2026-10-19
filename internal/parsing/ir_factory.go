@@ -80,6 +80,11 @@ type IRFactory struct {
 	resultNode *rhino.Node
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
+
+	nodes       jutil.Slab[rhino.Node]
+	jsdocNodes  jutil.Slab[rhino.Node]
+	jsdocStream JsDocTokenStream
+	jsdocParser JsDocInfoParser
 }
 
 const IRFactory_GETTER_ERROR_MESSAGE = "getters are not supported in older versions of JavaScript. " +
@@ -405,7 +410,8 @@ func (f *IRFactory) GetFeatures() *parser.FeatureSet {
 func (f *IRFactory) ValidateAll(n *rhino.Node) {
 	// Go-only: language-adapter — the ArrayDeque used as a stack (push/poll at
 	// the head) is a slice used as a stack.
-	var work []*rhino.Node
+	var workBuf [32]*rhino.Node
+	work := workBuf[:0]
 	for n != nil {
 		f.Validate(n)
 		nextSibling := n.GetNext()
@@ -434,15 +440,26 @@ func (f *IRFactory) ValidateAll(n *rhino.Node) {
 
 // Java: IRFactory.validate(Node)
 func (f *IRFactory) Validate(n *rhino.Node) {
-	f.ValidateParameters(n)
-	f.ValidateBreakContinue(n)
-	f.ValidateReturn(n)
-	f.ValidateYield(n)
-	f.ValidateAwait(n)
-	f.ValidateNewDotTarget(n)
-	f.ValidateLabel(n)
-	f.ValidateBlockScopedFunctions(n)
-	f.ValidateShadowHost(n)
+	switch n.GetToken() {
+	case rhino.Token_PARAM_LIST:
+		f.ValidateParameters(n)
+	case rhino.Token_BREAK, rhino.Token_CONTINUE:
+		f.ValidateBreakContinue(n)
+	case rhino.Token_RETURN:
+		f.ValidateReturn(n)
+	case rhino.Token_YIELD:
+		f.ValidateYield(n)
+	case rhino.Token_AWAIT, rhino.Token_FOR_AWAIT_OF:
+		f.ValidateAwait(n)
+	case rhino.Token_NEW_TARGET:
+		f.ValidateNewDotTarget(n)
+	case rhino.Token_LABEL:
+		f.ValidateLabel(n)
+	case rhino.Token_FUNCTION:
+		f.ValidateBlockScopedFunctions(n)
+	case rhino.Token_NAME:
+		f.ValidateShadowHost(n)
+	}
 }
 
 // Java: IRFactory.validateShadowHost(Node)
@@ -688,7 +705,49 @@ func (f *IRFactory) ValidateParameters(n *rhino.Node) {
 	if !n.IsParamList() {
 		return
 	}
+	first := n.GetFirstChild()
+	if first == nil {
+		return
+	}
+	if first.IsName() {
+		second := first.GetNext()
+		if second == nil {
+			return
+		}
+		var seen [8]string
+		seen[0] = first.GetString()
+		count := 1
+		allSimple := true
+		for c := second; c != nil; c = c.GetNext() {
+			if !c.IsName() || count >= len(seen) {
+				allSimple = false
+				break
+			}
+			seen[count] = c.GetString()
+			count++
+		}
+		if allSimple {
+			hasDup := false
+			for i := 1; i < count; i++ {
+				for j := 0; j < i; j++ {
+					if seen[i] == seen[j] {
+						hasDup = true
+						break
+					}
+				}
+				if hasDup {
+					break
+				}
+			}
+			if !hasDup {
+				return
+			}
+		}
+	}
+	f.validateParametersSlow(n)
+}
 
+func (f *IRFactory) validateParametersSlow(n *rhino.Node) {
 	seenNames := jutil.NewLinkedHashSet[string]()
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 		ParsingUtil_GetParamOrPatternNames(
@@ -1323,16 +1382,24 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 	}
 
 	// The JsDocInfoParser expects the comment without the initial '/**'.
-	numOpeningChars := 3
-	jsdocParser := NewJsDocInfoParser(
-		NewJsDocTokenStreamWithLinenoCharno(
-			jutil.StringSubstringFrom(comment, numOpeningChars), lineno, charno+numOpeningChars),
+	const numOpeningChars = 3
+	var commentBody string
+	if len(comment) >= numOpeningChars && comment[0] < 0x80 && comment[1] < 0x80 && comment[2] < 0x80 {
+		commentBody = comment[numOpeningChars:]
+	} else {
+		commentBody = jutil.StringSubstringFrom(comment, numOpeningChars)
+	}
+	f.jsdocStream.Init(commentBody, lineno, charno+numOpeningChars)
+	jsdocParser := &f.jsdocParser
+	jsdocParser.Init(
+		&f.jsdocStream,
 		comment,
 		position,
 		f.templateNode,
 		config,
 		f.jsDocSourceKind,
-		f.errorReporter)
+		f.errorReporter,
+		&f.jsdocNodes)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
 		jsdocParser.ParseImportantComment()
@@ -1352,16 +1419,24 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 	charno := IRFactory_CharnoOfPosition(node.Location.Start)
 
 	// The JsDocInfoParser expects the comment without the initial '/**'.
-	numOpeningChars := 3
-	parser_ := NewJsDocInfoParser(
-		NewJsDocTokenStreamWithLinenoCharno(
-			jutil.StringSubstringFrom(comment, numOpeningChars), lineno, charno+numOpeningChars),
+	const numOpeningChars = 3
+	var commentBody string
+	if len(comment) >= numOpeningChars && comment[0] < 0x80 && comment[1] < 0x80 && comment[2] < 0x80 {
+		commentBody = comment[numOpeningChars:]
+	} else {
+		commentBody = jutil.StringSubstringFrom(comment, numOpeningChars)
+	}
+	f.jsdocStream.Init(commentBody, lineno, charno+numOpeningChars)
+	parser_ := &f.jsdocParser
+	parser_.Init(
+		&f.jsdocStream,
 		comment,
 		node.Location.Start.Offset,
 		f.templateNode,
 		f.config,
 		f.jsDocSourceKind,
-		f.errorReporter)
+		f.errorReporter,
+		&f.jsdocNodes)
 	return parser_.ParseInlineTypeDoc()
 }
 
@@ -4724,32 +4799,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
-	return rhino.NewNode(type_).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
-	return rhino.NewNodeWithChild(type_, child1).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
-	return rhino.NewNodeWith2Children(type_, child1, child2).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
-	return rhino.NewNodeWith3Children(type_, child1, child2, child3).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
-	return rhino.IR_String(value).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
-	return rhino.Node_NewStringWithToken(type_, value).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -4766,17 +4841,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.Sour
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
-	return rhino.Node_NewTemplateLitString(cooked, raw).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return rhino.IR_Number(value).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitNumberFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
-	return rhino.Node_NewBigInt(value).ClonePropsFrom(f.templateNode)
+	return f.nodes.New().InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)
