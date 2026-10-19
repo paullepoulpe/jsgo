@@ -36,8 +36,15 @@
 package rhino
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+type propMapEntry struct {
+	key  string
+	prop *Property
+}
 
 // PropertyMap is the representation for a collection of properties on an
 // object.
@@ -48,9 +55,12 @@ type PropertyMap struct {
 	// parents and secondary parents directly.
 	parentSource ObjectType
 
-	// The map of our own properties (a TreeMap, ordered by String.compareTo;
-	// the empty map is an ImmutableMap).
-	properties *jutil.TreeMap[string, *Property]
+	// Own string properties. Small maps (<=8 entries) scan entries directly
+	// with string equality; larger maps maintain byName for O(1) lookup and
+	// sort entries by StringCompareTo lazily when key-ordered iteration is
+	// requested.
+	entries []propMapEntry
+	byName  map[string]*Property
 
 	knownSymbols *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property] // lazily initialized
 
@@ -77,28 +87,41 @@ type PropertyMap struct {
 
 	// Go-only: language-adapter — EMPTY_MAP is built from ImmutableMaps,
 	// whose put() throws UnsupportedOperationException.
-	immutable bool
+	immutable   bool
+	sorted      bool
+	hasNonASCII bool
+}
+
+func propMapIsASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 // Java: PropertyMap.EMPTY_MAP
-var PropertyMap_EMPTY_MAP = func() *PropertyMap {
-	m := newPropertyMapWithMaps(
-		jutil.NewTreeMap[string, *Property](jutil.StringCompareTo),
-		jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property]())
-	m.immutable = true
-	return m
-}()
+var PropertyMap_EMPTY_MAP = &PropertyMap{
+	knownSymbols: jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property](),
+	immutable:    true,
+	sorted:       true,
+}
 
 // Java: PropertyMap()
 func NewPropertyMap() *PropertyMap {
-	return newPropertyMapWithMaps(jutil.NewTreeMap[string, *Property](jutil.StringCompareTo), nil)
+	return &PropertyMap{sorted: true}
 }
 
-// Java: PropertyMap(Map<String, Property>, Map<KnownSymbolType, Property>)
-func newPropertyMapWithMaps(
-	underlyingMap *jutil.TreeMap[string, *Property],
-	underlyingknownSymbols *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]) *PropertyMap {
-	return &PropertyMap{properties: underlyingMap, knownSymbols: underlyingknownSymbols}
+func (m *PropertyMap) ensureSorted() {
+	if m.sorted || len(m.entries) <= 1 {
+		m.sorted = true
+		return
+	}
+	slices.SortFunc(m.entries, func(a, b propMapEntry) int {
+		return jutil.StringCompareTo(a.key, b.key)
+	})
+	m.sorted = true
 }
 
 // Java: PropertyMap.immutableEmptyMap()
@@ -156,13 +179,14 @@ func (m *PropertyMap) FindClosest(name string) *Property_OwnedProperty {
 	return m.FindClosestByKey(NewProperty_StringKey(name))
 }
 
-// Java: PropertyMap.findClosest(Property.Key)
-func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedProperty {
-	// Check primary parents which always has precendence over secondary.
+// findClosestPairByKey resolves the closest (owner, Property) pair without
+// heap-allocating a Property_OwnedProperty wrapper.
+func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Property) {
+	// Check primary parents which always has precedence over secondary.
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
 		prop := pm.GetOwnPropertyByKey(name)
 		if prop != nil {
-			return NewProperty_OwnedProperty(pm.parentSource, prop)
+			return pm.parentSource, prop
 		}
 	}
 
@@ -171,20 +195,45 @@ func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedPropert
 		for _, o := range pm.GetSecondaryParentObjects() {
 			parent := o.GetPropertyMap()
 			if parent != nil {
-				e := parent.FindClosestByKey(name)
-				if e != nil {
-					return e
+				owner, prop := parent.findClosestPairByKey(name)
+				if prop != nil {
+					return owner, prop
 				}
 			}
 		}
 	}
 
-	return nil
+	return nil, nil
+}
+
+// Java: PropertyMap.findClosest(Property.Key)
+func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedProperty {
+	owner, prop := m.findClosestPairByKey(name)
+	if prop == nil {
+		return nil
+	}
+	return NewProperty_OwnedProperty(owner, prop)
 }
 
 // Java: PropertyMap.getOwnProperty(String)
 func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
-	return m.properties.Get(propertyName)
+	if m.byName != nil {
+		return m.byName[propertyName]
+	}
+	if !m.hasNonASCII {
+		for i := range m.entries {
+			if m.entries[i].key == propertyName {
+				return m.entries[i].prop
+			}
+		}
+		return nil
+	}
+	for i := range m.entries {
+		if m.entries[i].key == propertyName || jutil.StringCompareTo(m.entries[i].key, propertyName) == 0 {
+			return m.entries[i].prop
+		}
+	}
+	return nil
 }
 
 // Java: PropertyMap.getOwnProperty(Property.Key)
@@ -203,7 +252,7 @@ func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
 func (m *PropertyMap) GetPropertiesCount() int {
 	primaryParent := m.GetPrimaryParent()
 	if primaryParent == nil {
-		return m.properties.Size()
+		return len(m.entries)
 	}
 
 	return len(m.GetAllKeys().StringKeys())
@@ -215,7 +264,12 @@ func (m *PropertyMap) GetPropertiesCount() int {
 //
 // Java: PropertyMap.getOwnPropertyNames()
 func (m *PropertyMap) GetOwnPropertyNames() []string {
-	return m.properties.KeySlice()
+	m.ensureSorted()
+	out := make([]string, len(m.entries))
+	for i, e := range m.entries {
+		out[i] = e.key
+	}
+	return out
 }
 
 // Java: PropertyMap.getOwnKnownSymbols()
@@ -253,14 +307,21 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			ancestor.cachedKeySet = nil
 			ancestor.cachedKnownSymbolsKeySet = nil
 
-			for _, k := range ancestor.GetOwnPropertyNames() {
-				keys.Add(k)
+			ancestor.ensureSorted()
+			for _, e := range ancestor.entries {
+				keys.Add(e.key)
 			}
-			for _, s := range ancestor.GetOwnKnownSymbols() {
-				knownSymbolsKeys.Add(s)
+			if ancestor.knownSymbols != nil {
+				for s := range ancestor.knownSymbols.Keys() {
+					knownSymbolsKeys.Add(s)
+				}
 			}
 		}
-		m.cachedKeySet = append([]string{}, keys.ToSlice()...)
+		if keys.IsEmpty() {
+			m.cachedKeySet = []string{}
+		} else {
+			m.cachedKeySet = keys.ToSlice()
+		}
 		m.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
 	}
 
@@ -350,7 +411,28 @@ func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*Proper
 
 // Java: PropertyMap.putProperty(String, Property)
 func (m *PropertyMap) PutProperty(name string, newProp *Property) {
-	oldProp := m.properties.Get(name)
+	isASCII := !m.hasNonASCII && propMapIsASCII(name)
+	var oldProp *Property
+	oldIdx := -1
+	if m.byName != nil && isASCII {
+		oldProp = m.byName[name]
+	} else if !m.hasNonASCII && isASCII {
+		for i := range m.entries {
+			if m.entries[i].key == name {
+				oldProp = m.entries[i].prop
+				oldIdx = i
+				break
+			}
+		}
+	} else {
+		for i := range m.entries {
+			if m.entries[i].key == name || jutil.StringCompareTo(m.entries[i].key, name) == 0 {
+				oldProp = m.entries[i].prop
+				oldIdx = i
+				break
+			}
+		}
+	}
 
 	if oldProp == nil {
 		// The cache is only invalidated if this is a new property name.
@@ -364,7 +446,40 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	if m.immutable {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	m.properties.Put(name, newProp)
+	if oldProp != nil {
+		if oldIdx >= 0 {
+			m.entries[oldIdx].prop = newProp
+		} else {
+			m.byName[name] = newProp
+			for i := range m.entries {
+				if m.entries[i].key == name {
+					m.entries[i].prop = newProp
+					break
+				}
+			}
+		}
+		return
+	}
+	if !isASCII && !m.hasNonASCII {
+		m.hasNonASCII = true
+		m.byName = nil
+	}
+	if len(m.entries) == 0 {
+		m.sorted = true
+	} else if m.sorted && jutil.StringCompareTo(m.entries[len(m.entries)-1].key, name) >= 0 {
+		m.sorted = false
+	}
+	m.entries = append(m.entries, propMapEntry{key: name, prop: newProp})
+	if !m.hasNonASCII {
+		if m.byName != nil {
+			m.byName[name] = newProp
+		} else if len(m.entries) > 8 {
+			m.byName = make(map[string]*Property, 16)
+			for _, e := range m.entries {
+				m.byName[e.key] = e.prop
+			}
+		}
+	}
 }
 
 // Java: PropertyMap.putProperty(KnownSymbolType, Property)
@@ -400,7 +515,14 @@ func (m *PropertyMap) PutPropertyByKey(name Property_Key, newProp *Property) {
 
 // Java: PropertyMap.values()
 func (m *PropertyMap) Values() func(yield func(*Property) bool) {
-	return m.properties.Values()
+	m.ensureSorted()
+	return func(yield func(*Property) bool) {
+		for i := 0; i < len(m.entries); i++ {
+			if !yield(m.entries[i].prop) {
+				return
+			}
+		}
+	}
 }
 
 // Java: PropertyMap.hashCode()
@@ -412,11 +534,18 @@ func (m *PropertyMap) HashCode() int32 {
 	// Calculate the hash just based on the property names, not their types.
 	// Otherwise we can get into an infinite loop because the ObjectType
 	// hashCode method calls this one.
-	if m.knownSymbols == nil {
-		return jutil.SetHashCode(m.properties.KeySlice())
+	var propHash int32
+	for _, e := range m.entries {
+		propHash += jutil.StringHashCode(e.key)
 	}
-	return 31*(31*1+jutil.SetHashCode(m.properties.KeySlice())) +
-		jutil.SetHashCode(m.knownSymbols.KeySlice())
+	if m.knownSymbols == nil {
+		return propHash
+	}
+	var symHash int32
+	for s := range m.knownSymbols.Keys() {
+		symHash += jutil.ObjectHashCode(s)
+	}
+	return 31*(31*1+propHash) + symHash
 }
 
 // Equals is Object.equals (PropertyMap does not override it): identity.

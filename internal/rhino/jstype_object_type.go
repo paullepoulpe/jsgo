@@ -205,11 +205,8 @@ func (o *ObjectTypeBase) GetPropertyMap() *PropertyMap {
 //
 // Java: ObjectType.getSlot(Property.Key)
 func (o *ObjectTypeBase) GetSlotByKey(name Property_Key) *Property {
-	property := o.self.GetPropertyMap().FindClosestByKey(name)
-	if property == nil {
-		return nil
-	}
-	return property.GetValue()
+	_, prop := o.self.GetPropertyMap().findClosestPairByKey(name)
+	return prop
 }
 
 // Java: ObjectType.getSlot(String)
@@ -419,11 +416,8 @@ func (o *ObjectTypeBase) GetSuperClassConstructor() FunctionType {
 //
 // Java: ObjectType.getClosestDefiningType(String)
 func (o *ObjectTypeBase) GetClosestDefiningType(propertyName string) ObjectType {
-	property := o.self.GetPropertyMap().FindClosestByKey(NewProperty_StringKey(propertyName))
-	if property == nil {
-		return nil
-	}
-	return property.GetOwner()
+	owner, _ := o.self.GetPropertyMap().findClosestPairByKey(NewProperty_StringKey(propertyName))
+	return owner
 }
 
 // FindClosestDefinition returns the closest definition of the property

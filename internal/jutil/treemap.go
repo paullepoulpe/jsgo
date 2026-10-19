@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"iter"
-	"sort"
 	"strings"
 )
 
@@ -28,8 +27,21 @@ func NewTreeMap[K any, V any](compare func(a, b K) int) *TreeMap[K, V] {
 }
 
 func (m *TreeMap[K, V]) search(k K) (int, bool) {
-	i := sort.Search(len(m.entries), func(i int) bool { return m.compare(m.entries[i].key, k) >= 0 })
-	return i, i < len(m.entries) && m.compare(m.entries[i].key, k) == 0
+	entries := m.entries
+	cmp := m.compare
+	lo, hi := 0, len(entries)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		c := cmp(entries[mid].key, k)
+		if c < 0 {
+			lo = mid + 1
+		} else if c > 0 {
+			hi = mid
+		} else {
+			return mid, true
+		}
+	}
+	return lo, false
 }
 
 func (m *TreeMap[K, V]) Size() int     { return len(m.entries) }
