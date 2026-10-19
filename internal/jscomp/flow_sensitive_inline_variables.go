@@ -400,7 +400,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	cfgNode := n
 
 	g.gatherCb.SetCfgNode(cfgNode)
-	NodeTraversal_Traverse(g.outer.compiler, cfgNode, g.gatherCb)
+	traverseCfgNode(g.outer.compiler, cfgNode, g.gatherCb)
 }
 
 // FlowSensitiveInlineVariables_Candidate models the connection between a
@@ -592,7 +592,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 // Java: FlowSensitiveInlineVariables.Candidate.getDefinition(Node)
 func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n *rhino.Node) {
 	gatherCb := &flowSensitiveInlineVariables_definitionCallback{candidate: c}
-	NodeTraversal_Traverse(c.outer.compiler, n, gatherCb)
+	traverseCfgNode(c.outer.compiler, n, gatherCb)
 }
 
 // flowSensitiveInlineVariables_definitionCallback is the anonymous
@@ -629,7 +629,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode *
 	c.numUsesWithinCfgNode = 0
 	gatherCb := &flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
 
-	NodeTraversal_Traverse(c.outer.compiler, cfgNode, gatherCb)
+	traverseCfgNode(c.outer.compiler, cfgNode, gatherCb)
 }
 
 // flowSensitiveInlineVariables_numUseCallback is the anonymous

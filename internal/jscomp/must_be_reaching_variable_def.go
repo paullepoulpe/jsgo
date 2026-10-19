@@ -471,7 +471,7 @@ func MustBeReachingVariableDef_IsParameter(v *Var) bool {
 //
 // Java: MustBeReachingVariableDef.computeDependence(Definition, Node)
 func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariableDef_Definition, rValue *rhino.Node) {
-	NodeTraversal_Traverse(
+	traverseCfgNode(
 		d.compiler,
 		rValue,
 		&mustBeReachingVariableDef_dependenceCallback{outer: d, def: def})

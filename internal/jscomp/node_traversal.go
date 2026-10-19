@@ -141,7 +141,7 @@ type NodeTraversal struct {
 	// Go-only: performance — concrete struct instead of any avoids interface
 	// boxing and runtime type assertions on every GetScopeRoot / GetScope call.
 	scopes    []scopeStackEntry
-	scopesBuf [16]scopeStackEntry
+	scopesBuf [4]scopeStackEntry
 
 	// The current source file name
 	sourceName *string
@@ -1502,7 +1502,11 @@ func (t *NodeTraversal) PushScope(node *rhino.Node) {
 	if node == nil {
 		panic(jutil.NewNullPointerException()) // checkNotNull(node)
 	}
+	releaseInline := len(t.scopes) == len(t.scopesBuf) && &t.scopes[0] == &t.scopesBuf[0]
 	t.scopes = append(t.scopes, scopeStackEntry{node: node})
+	if releaseInline {
+		clear(t.scopesBuf[:])
+	}
 	if t.scopeCallback != nil {
 		t.scopeCallback.EnterScope(t)
 	}
@@ -1527,7 +1531,11 @@ func (t *NodeTraversal) PushScopeOfScopeWithQuietly(s AbstractScope, quietly boo
 	if s != nil {
 		root = s.GetRootNode()
 	}
+	releaseInline := len(t.scopes) == len(t.scopesBuf) && &t.scopes[0] == &t.scopesBuf[0]
 	t.scopes = append(t.scopes, scopeStackEntry{node: root, scope: s})
+	if releaseInline {
+		clear(t.scopesBuf[:])
+	}
 	if !quietly && t.scopeCallback != nil {
 		t.scopeCallback.EnterScope(t)
 	}
@@ -1612,12 +1620,13 @@ func (t *NodeTraversal) GetAbstractScopeAt(rootDepth int) AbstractScope {
 	if e.scope != nil {
 		return e.scope
 	}
+	node := e.node
 	// The root scope has a null parent.
 	var parentScope AbstractScope
 	if rootDepth > 0 {
 		parentScope = t.GetAbstractScopeAt(rootDepth - 1)
 	}
-	scope := t.GetScopeCreator().CreateScope(e.node, parentScope)
+	scope := t.GetScopeCreator().CreateScope(node, parentScope)
 	t.scopes[rootDepth].scope = scope
 	return scope
 }
