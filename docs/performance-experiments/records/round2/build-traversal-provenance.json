@@ -1,0 +1,14 @@
+{
+  "production_source_head": "0fafa2625e5da905b35aa724d2bb507cbb88bd5c",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-traversal-l4",
+  "binary_sha256": "9b9ebfb60adb968d36ff576bc4520470f50dfad100984f224eb7593c35e2963b",
+  "go": "1.27.2",
+  "pgo": "shipped default.pgo",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ],
+  "runtime_gc": "default"
+}

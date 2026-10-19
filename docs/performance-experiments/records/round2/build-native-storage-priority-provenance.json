@@ -1,0 +1,14 @@
+{
+  "production_source_head": "b2e407f6032f71ae08322a39563f4ad51b824233",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-native-storage-priority-l4",
+  "binary_sha256": "598cd028c8c4c266461d9fee5a95f72a9786cd395ccc7a6161c236e42eb106cd",
+  "go": "1.27.2",
+  "pgo": "shippeddefault.pgo",
+  "runtime_gc": "default",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ]
+}

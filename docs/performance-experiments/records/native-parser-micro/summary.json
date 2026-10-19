@@ -1,0 +1,102 @@
+{
+  "samples": {
+    "original": [
+      {
+        "round": 0,
+        "iterations": 134,
+        "ns": 1762130,
+        "bytes": 1093120,
+        "allocs": 7523,
+        "peak_rss_kib": 19624
+      },
+      {
+        "round": 1,
+        "iterations": 135,
+        "ns": 1710668,
+        "bytes": 1093121,
+        "allocs": 7523,
+        "peak_rss_kib": 19016
+      },
+      {
+        "round": 2,
+        "iterations": 138,
+        "ns": 1752494,
+        "bytes": 1093121,
+        "allocs": 7523,
+        "peak_rss_kib": 19596
+      },
+      {
+        "round": 3,
+        "iterations": 135,
+        "ns": 1710818,
+        "bytes": 1093120,
+        "allocs": 7523,
+        "peak_rss_kib": 19420
+      },
+      {
+        "round": 4,
+        "iterations": 135,
+        "ns": 2062657,
+        "bytes": 1093121,
+        "allocs": 7523,
+        "peak_rss_kib": 19624
+      }
+    ],
+    "native": [
+      {
+        "round": 0,
+        "iterations": 274,
+        "ns": 871057,
+        "bytes": 829638,
+        "allocs": 4026,
+        "peak_rss_kib": 18436
+      },
+      {
+        "round": 1,
+        "iterations": 279,
+        "ns": 872120,
+        "bytes": 829638,
+        "allocs": 4026,
+        "peak_rss_kib": 18480
+      },
+      {
+        "round": 2,
+        "iterations": 261,
+        "ns": 854929,
+        "bytes": 829635,
+        "allocs": 4026,
+        "peak_rss_kib": 18408
+      },
+      {
+        "round": 3,
+        "iterations": 268,
+        "ns": 867217,
+        "bytes": 829637,
+        "allocs": 4026,
+        "peak_rss_kib": 18504
+      },
+      {
+        "round": 4,
+        "iterations": 219,
+        "ns": 1069476,
+        "bytes": 829637,
+        "allocs": 4026,
+        "peak_rss_kib": 18508
+      }
+    ]
+  },
+  "medians": {
+    "original": {
+      "ns": 1752494,
+      "bytes": 1093121,
+      "allocs": 7523,
+      "peak_rss_kib": 19596
+    },
+    "native": {
+      "ns": 871057,
+      "bytes": 829637,
+      "allocs": 4026,
+      "peak_rss_kib": 18480
+    }
+  }
+}

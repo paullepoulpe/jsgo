@@ -1,0 +1,37 @@
+[
+  {
+    "path": "/workspace/jsgo-results/round2/bin/jscomp.test",
+    "bytes": 107235175,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round2/bin/jscomp-storage64.test",
+    "bytes": 107604985,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round-parser-node64-full.test",
+    "bytes": 28059122,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round-parser-refine-full.test",
+    "bytes": 27977176,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round-parser-full.test",
+    "bytes": 27959590,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round-parser-native80-full.test",
+    "bytes": 27985296,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/round-parser-node64-focused.test",
+    "bytes": 14032785,
+    "reason": "superseded generated test executable; source commits and complete logs retained"
+  }
+]

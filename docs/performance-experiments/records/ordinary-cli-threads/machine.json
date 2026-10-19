@@ -1,0 +1,52 @@
+{
+ "date": "2026-10-18 18:46 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "binary": "/workspace/jsgo/bin/jsgo-cli-main",
+  "sha256": "7c9f0ee143b73ee45a9bdd418636f77ee7d9afa2bf9ed9199e808788e600f017"
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  1.11,
+  1.55,
+  1.29
+ ],
+ "bench_commit": "08e44535de12e99a8fa25f0229a37e77ea41795e",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "mode": "cli",
+ "thread_counts": [
+  1,
+  2,
+  4
+ ],
+ "reference": "/workspace/jsgo-results/final-java",
+ "thread_control": "--num_parallel_threads; existing flags replaced; runtime CPU detection unchanged",
+ "gomaxprocs": "runtime default; inherited GOMAXPROCS removed; compiler flag does not change it",
+ "java_compiler": "pinned stock jar; fresh CommandLineRunner/compiler and normal extern parsing per invocation",
+ "java_classpath": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar:/workspace/jsgo/.cache/bench-build/java",
+ "experiment_environment": {},
+ "java_batch_source_sha256": "827729b128ef9b99cac0d7e584046c4bfc9c6575c647c0f42f12551f452a91e6",
+ "ratio_direction": "Java / Go; above 1 favors Go for time and resident memory",
+ "go_memory_window": "median of fresh CLI process peak RSS values",
+ "java_memory_window": "peak RSS of warm JVM including all warmup and measured iterations",
+ "go_prebuild": "depends on supplied binary; bounded parallel helpers in updated port",
+ "memory_unit": "MiB; field names ending _mb are retained for compatibility",
+ "cpu.max": "200000 100000",
+ "cpuset.cpus.effective": "0-2"
+}

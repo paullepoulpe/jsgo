@@ -1,0 +1,11 @@
+[
+  "taskset",
+  "-c",
+  "0,1",
+  "python3",
+  "/workspace/jsgo-results/round2/gate_combined.py",
+  "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-newinliner",
+  "gates-next-balanced-newinliner",
+  "1,2",
+  "{\"JSGO_EXPERIMENT_NATIVE_CFG\": \"1\", \"JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW\": \"1\", \"JSGO_EXPERIMENT_NATIVE_REFERENCES\": \"1\", \"JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS\": \"1\", \"JSGO_EXPERIMENT_PARALLEL_FSIV\": \"1\", \"JSGO_EXPERIMENT_NATIVE_PARSER\": \"1\", \"JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR\": \"1\", \"JSGO_EXPERIMENT_READONLY_CALLEE_FACTS\": \"1\", \"JSGO_EXPERIMENT_FSIV_SCOPE_SHARING\": \"1\", \"JSGO_EXPERIMENT_INVERTER_NOOP\": \"1\", \"JSGO_EXPERIMENT_EMPTY_PASS_PROOFS\": \"1\", \"JSGO_EXPERIMENT_REFERENCE_BATCHES\": \"1\", \"JSGO_EXPERIMENT_PARALLEL_COALESCE\": \"1\", \"GOGC\": \"60\"}"
+]

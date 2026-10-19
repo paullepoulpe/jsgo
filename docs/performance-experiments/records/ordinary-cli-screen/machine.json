@@ -1,0 +1,99 @@
+{
+ "date": "2026-10-18 18:11 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "Go: Unknown option: version",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "variants": {
+   "retained": {
+    "path": "/workspace/jsgo/bin/jsgo-delivery",
+    "sha256": "5c5667775aa2c1f84a935b2e05a4819dea9e7b3ab75b52aa1d96b66fccb30053"
+   },
+   "compound": {
+    "path": "/workspace/jsgo/bin/jsgo-compound",
+    "sha256": "d1fdd6c1e99269808ba2c927f82da66eabfd27fb6131b4d767a1199b2b1c6628"
+   },
+   "native-default": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "indexed": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "facts": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "type-slots": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "traversal": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "parser": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   },
+   "combined": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-redesigns",
+    "sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45"
+   }
+  }
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  0.01,
+  0.32,
+  0.86
+ ],
+ "bench_commit": "1a3260c1e7963f929273977cb95d2b9b78219889",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/final-java",
+ "runs": 1,
+ "seed": 20261018,
+ "variant_environment": {
+  "retained": {},
+  "compound": {},
+  "native-default": {},
+  "indexed": {
+   "JSGO_EXPERIMENT_INDEXED_FLOW": "1"
+  },
+  "facts": {
+   "JSGO_EXPERIMENT_NATIVE_FACTS": "1"
+  },
+  "type-slots": {
+   "JSGO_EXPERIMENT_INDEXED_FLOW_SLOTS": "1"
+  },
+  "traversal": {
+   "JSGO_EXPERIMENT_CONCRETE_TRAVERSAL": "1"
+  },
+  "parser": {
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1"
+  },
+  "combined": {
+   "JSGO_EXPERIMENT_INDEXED_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_FACTS": "1",
+   "JSGO_EXPERIMENT_INDEXED_FLOW_SLOTS": "1",
+   "JSGO_EXPERIMENT_CONCRETE_TRAVERSAL": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_FUNCTION_ANALYSIS": "1"
+  }
+ }
+}

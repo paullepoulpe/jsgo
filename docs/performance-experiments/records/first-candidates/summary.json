@@ -1,0 +1,137 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.82525,
+  "variants": {
+   "baseline": {
+    "median_s": 6.093749001000106,
+    "min_s": 6.0279031219997705,
+    "max_s": 6.285413325000263,
+    "median_cpu_s": 7.583755,
+    "median_peak_rss_mb": 272.89453125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6277334362429763,
+    "all_outputs_match": true
+   },
+   "collections": {
+    "median_s": 5.937749319999966,
+    "min_s": 5.927375221999682,
+    "max_s": 5.959579084000325,
+    "median_cpu_s": 7.394217,
+    "median_peak_rss_mb": 272.12890625,
+    "speed_vs_first_variant": 1.0262725272814548,
+    "speed_vs_java_warm": 0.6442255800721512,
+    "all_outputs_match": true
+   },
+   "dataflow": {
+    "median_s": 6.021771888999865,
+    "min_s": 5.940730538000025,
+    "max_s": 6.0846156710003925,
+    "median_cpu_s": 7.486235,
+    "median_peak_rss_mb": 272.234375,
+    "speed_vs_first_variant": 1.0119528127811888,
+    "speed_vs_java_warm": 0.6352366164828808,
+    "all_outputs_match": true
+   },
+   "node-chunks": {
+    "median_s": 5.622381882999434,
+    "min_s": 5.562482397000167,
+    "max_s": 5.7172560740000335,
+    "median_cpu_s": 6.7238500000000005,
+    "median_peak_rss_mb": 279.85546875,
+    "speed_vs_first_variant": 1.083837620391094,
+    "speed_vs_java_warm": 0.680361113777512,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.68645,
+  "variants": {
+   "baseline": {
+    "median_s": 23.528945103000297,
+    "min_s": 23.057398840999667,
+    "max_s": 24.10237937400052,
+    "median_cpu_s": 29.181100999999998,
+    "median_peak_rss_mb": 576.75,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7091881904162471,
+    "all_outputs_match": true
+   },
+   "collections": {
+    "median_s": 23.30204533899996,
+    "min_s": 23.185004283000126,
+    "max_s": 23.77741434299969,
+    "median_cpu_s": 28.780587,
+    "median_peak_rss_mb": 683.4765625,
+    "speed_vs_first_variant": 1.0097373325259384,
+    "speed_vs_java_warm": 0.7160937916497987,
+    "all_outputs_match": true
+   },
+   "dataflow": {
+    "median_s": 22.731072278000283,
+    "min_s": 22.511076005000177,
+    "max_s": 23.38495634500032,
+    "median_cpu_s": 27.943648,
+    "median_peak_rss_mb": 622.10546875,
+    "speed_vs_first_variant": 1.0351005361842176,
+    "speed_vs_java_warm": 0.7340810761553724,
+    "all_outputs_match": true
+   },
+   "node-chunks": {
+    "median_s": 22.03246141100044,
+    "min_s": 21.923578815999463,
+    "max_s": 22.759689546000118,
+    "median_cpu_s": 24.972623,
+    "median_peak_rss_mb": 588.81640625,
+    "speed_vs_first_variant": 1.0679217661651135,
+    "speed_vs_java_warm": 0.7573575048527594,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.8483,
+  "variants": {
+   "baseline": {
+    "median_s": 1.4746864199996708,
+    "min_s": 1.4633330300002854,
+    "max_s": 1.533506177000163,
+    "median_cpu_s": 1.841906,
+    "median_peak_rss_mb": 176.52734375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.5752409383414472,
+    "all_outputs_match": true
+   },
+   "collections": {
+    "median_s": 1.4965161449999869,
+    "min_s": 1.489828426000713,
+    "max_s": 1.5015947589999996,
+    "median_cpu_s": 1.8809429999999998,
+    "median_peak_rss_mb": 183.53125,
+    "speed_vs_first_variant": 0.9854129706029223,
+    "speed_vs_java_warm": 0.566849881863458,
+    "all_outputs_match": true
+   },
+   "dataflow": {
+    "median_s": 1.5297842899999523,
+    "min_s": 1.4425586580000527,
+    "max_s": 1.537593994999952,
+    "median_cpu_s": 1.919848,
+    "median_peak_rss_mb": 168.29296875,
+    "speed_vs_first_variant": 0.9639832423692342,
+    "speed_vs_java_warm": 0.5545226248859089,
+    "all_outputs_match": true
+   },
+   "node-chunks": {
+    "median_s": 1.3838628059993425,
+    "min_s": 1.3760820689994944,
+    "max_s": 1.4095905160002076,
+    "median_cpu_s": 1.63423,
+    "median_peak_rss_mb": 165.625,
+    "speed_vs_first_variant": 1.0656305044160364,
+    "speed_vs_java_warm": 0.6129942912855504,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

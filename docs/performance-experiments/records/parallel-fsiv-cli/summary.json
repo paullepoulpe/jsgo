@@ -1,0 +1,133 @@
+{
+  "jsgo": "/workspace/jsgo/bin/jsgo-cli-fsiv",
+  "jsgo_sha256": "bbd67102e0dfdba87742dcf0491aa78bf81b56cddefb84c46fceaaa6e5ed9fa8",
+  "jar": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "threads": [
+    2
+  ],
+  "cases": {
+    "simple/threads-2": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=2",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=SIMPLE",
+        "--js",
+        "plain/part00.js",
+        "--js",
+        "plain/part01.js",
+        "--js",
+        "plain/part02.js",
+        "--js",
+        "plain/part03.js",
+        "--js",
+        "plain/part04.js",
+        "--js",
+        "plain/part05.js",
+        "--js",
+        "plain/part06.js",
+        "--js",
+        "plain/part07.js",
+        "--js",
+        "plain/part08.js",
+        "--js",
+        "plain/part09.js",
+        "--js",
+        "plain/part10.js",
+        "--js",
+        "plain/part11.js"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "advanced/threads-2": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=2",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--js",
+        "plain/part00.js",
+        "--js",
+        "plain/part01.js",
+        "--js",
+        "plain/part02.js",
+        "--js",
+        "plain/part03.js",
+        "--js",
+        "plain/part04.js",
+        "--js",
+        "plain/part05.js",
+        "--js",
+        "plain/part06.js",
+        "--js",
+        "plain/part07.js",
+        "--js",
+        "plain/part08.js",
+        "--js",
+        "plain/part09.js",
+        "--js",
+        "plain/part10.js",
+        "--js",
+        "plain/part11.js"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "closure-prune-regex/threads-2": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=2",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=ADVANCED",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:gate.main",
+        "--js",
+        "closure/dead.js",
+        "--js",
+        "closure/main.js",
+        "--js",
+        "closure/base.js",
+        "--js",
+        "closure/dep.js"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    }
+  }
+}

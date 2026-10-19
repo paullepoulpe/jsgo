@@ -1,0 +1,127 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.82525,
+  "variants": {
+   "original": {
+    "median_s": 6.094260593001309,
+    "min_s": 6.001357810000627,
+    "max_s": 6.395014191999508,
+    "median_cpu_s": 7.637989,
+    "median_peak_rss_mb": 268.56640625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6276807402021738,
+    "all_outputs_match": true
+   },
+   "delivery": {
+    "median_s": 5.290425160999803,
+    "min_s": 5.156154049998804,
+    "max_s": 5.705290792000596,
+    "median_cpu_s": 6.151354,
+    "median_peak_rss_mb": 266.45703125,
+    "speed_vs_first_variant": 1.1519415562150386,
+    "speed_vs_java_warm": 0.7230515286746994,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.68645,
+  "variants": {
+   "original": {
+    "median_s": 23.10193844999958,
+    "min_s": 22.950996135999958,
+    "max_s": 23.341555695000352,
+    "median_cpu_s": 28.52076,
+    "median_peak_rss_mb": 675.16015625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7222965309216424,
+    "all_outputs_match": true
+   },
+   "delivery": {
+    "median_s": 18.530749577999813,
+    "min_s": 18.42512069700024,
+    "max_s": 18.83487234600034,
+    "median_cpu_s": 21.493897,
+    "median_peak_rss_mb": 504.16796875,
+    "speed_vs_first_variant": 1.2466812717293854,
+    "speed_vs_java_warm": 0.9004735577351165,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.8483,
+  "variants": {
+   "original": {
+    "median_s": 1.5543862880003871,
+    "min_s": 1.4430993709993345,
+    "max_s": 1.6334475340008794,
+    "median_cpu_s": 1.960769,
+    "median_peak_rss_mb": 179.34765625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.5457459362249526,
+    "all_outputs_match": true
+   },
+   "delivery": {
+    "median_s": 1.4176627710003231,
+    "min_s": 1.3633122999999614,
+    "max_s": 1.665231175998997,
+    "median_cpu_s": 1.666282,
+    "median_peak_rss_mb": 165.0078125,
+    "speed_vs_first_variant": 1.0964429057437899,
+    "speed_vs_java_warm": 0.598379260112352,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-simple": {
+  "java_warm_s": 2.6835,
+  "variants": {
+   "original": {
+    "median_s": 4.762170353000329,
+    "min_s": 4.500392419000491,
+    "max_s": 4.832548777998454,
+    "median_cpu_s": 5.914645,
+    "median_peak_rss_mb": 220.44140625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.5635035710785323,
+    "all_outputs_match": true
+   },
+   "delivery": {
+    "median_s": 4.037728691999291,
+    "min_s": 3.8923742679999123,
+    "max_s": 4.093233730000065,
+    "median_cpu_s": 4.713661,
+    "median_peak_rss_mb": 207.01171875,
+    "speed_vs_first_variant": 1.1794181125731675,
+    "speed_vs_java_warm": 0.6646063182296823,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "checks-only": {
+  "java_warm_s": 5.9517500000000005,
+  "variants": {
+   "original": {
+    "median_s": 8.871809405000022,
+    "min_s": 8.645187154999803,
+    "max_s": 9.040743821000433,
+    "median_cpu_s": 10.981755000000001,
+    "median_peak_rss_mb": 709.9765625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6708608952583767,
+    "all_outputs_match": true
+   },
+   "delivery": {
+    "median_s": 8.027984500000457,
+    "min_s": 7.979610048998438,
+    "max_s": 8.091270135000741,
+    "median_cpu_s": 9.177579999999999,
+    "median_peak_rss_mb": 679.94921875,
+    "speed_vs_first_variant": 1.1051104302704517,
+    "speed_vs_java_warm": 0.741375372610605,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

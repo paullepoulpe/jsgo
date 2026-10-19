@@ -1,0 +1,417 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.7394,
+  "java_peak_rss_mb": 1090.1875,
+  "variants": {
+   "control": {
+    "median_s": 5.183971823498723,
+    "min_s": 5.012091503987904,
+    "max_s": 5.3558521430095425,
+    "median_cpu_s": 6.084277,
+    "median_peak_rss_mb": 271.126953125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7213387972229053,
+    "memory_ratio_java_over_go": 4.020948442914053,
+    "all_outputs_match": true
+   },
+   "struct_base": {
+    "median_s": 4.830640773499908,
+    "min_s": 4.798501598008443,
+    "max_s": 4.862779948991374,
+    "median_cpu_s": 5.670438000000001,
+    "median_peak_rss_mb": 249.87890625,
+    "speed_vs_first_variant": 1.0731437228653247,
+    "speed_vs_java_warm": 0.774100202298984,
+    "memory_ratio_java_over_go": 4.362863261892479,
+    "all_outputs_match": true
+   },
+   "source": {
+    "median_s": 4.933692845508631,
+    "min_s": 4.862824321011431,
+    "max_s": 5.004561370005831,
+    "median_cpu_s": 5.8295285,
+    "median_peak_rss_mb": 248.1640625,
+    "speed_vs_first_variant": 1.0507285284729333,
+    "speed_vs_java_warm": 0.7579312529364589,
+    "memory_ratio_java_over_go": 4.393011175822446,
+    "all_outputs_match": true
+   },
+   "compound": {
+    "median_s": 5.114896379505808,
+    "min_s": 5.046386015004828,
+    "max_s": 5.183406744006788,
+    "median_cpu_s": 6.0982705,
+    "median_peak_rss_mb": 280.822265625,
+    "speed_vs_first_variant": 1.0135047592107016,
+    "speed_vs_java_warm": 0.7310803039887377,
+    "memory_ratio_java_over_go": 3.88212628928718,
+    "all_outputs_match": true
+   },
+   "pgo80": {
+    "median_s": 5.311988949004444,
+    "min_s": 5.20324648800306,
+    "max_s": 5.420731410005828,
+    "median_cpu_s": 6.332727500000001,
+    "median_peak_rss_mb": 272.107421875,
+    "speed_vs_first_variant": 0.9759003403932694,
+    "speed_vs_java_warm": 0.7039547777487049,
+    "memory_ratio_java_over_go": 4.0064599946884485,
+    "all_outputs_match": true
+   },
+   "compact": {
+    "median_s": 5.345523586001946,
+    "min_s": 5.181082481009071,
+    "max_s": 5.509964690994821,
+    "median_cpu_s": 6.277566,
+    "median_peak_rss_mb": 254.736328125,
+    "speed_vs_first_variant": 0.9697781218426816,
+    "speed_vs_java_warm": 0.699538583983088,
+    "memory_ratio_java_over_go": 4.2796703086064785,
+    "all_outputs_match": true
+   },
+   "compact_header": {
+    "median_s": 5.4761428345009335,
+    "min_s": 5.4287588300067,
+    "max_s": 5.523526838995167,
+    "median_cpu_s": 6.4658359999999995,
+    "median_peak_rss_mb": 257.681640625,
+    "speed_vs_first_variant": 0.946646568610032,
+    "speed_vs_java_warm": 0.6828528971963509,
+    "memory_ratio_java_over_go": 4.230753488513109,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.600099999999998,
+  "java_peak_rss_mb": 1696.55078125,
+  "variants": {
+   "control": {
+    "median_s": 18.09253119000641,
+    "min_s": 17.963789850007743,
+    "max_s": 18.22127253000508,
+    "median_cpu_s": 20.857954499999998,
+    "median_peak_rss_mb": 416.654296875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.9175111998242251,
+    "memory_ratio_java_over_go": 4.071842757831873,
+    "all_outputs_match": true
+   },
+   "struct_base": {
+    "median_s": 18.46873339600279,
+    "min_s": 18.406570879000355,
+    "max_s": 18.530895913005224,
+    "median_cpu_s": 21.3484135,
+    "median_peak_rss_mb": 419.03125,
+    "speed_vs_first_variant": 0.9796303190949845,
+    "speed_vs_java_warm": 0.8988217894570278,
+    "memory_ratio_java_over_go": 4.04874524573048,
+    "all_outputs_match": true
+   },
+   "source": {
+    "median_s": 18.26474703650456,
+    "min_s": 18.223379083006876,
+    "max_s": 18.306114990002243,
+    "median_cpu_s": 21.075077999999998,
+    "median_peak_rss_mb": 429.83984375,
+    "speed_vs_first_variant": 0.9905711343193557,
+    "speed_vs_java_warm": 0.9088601099605956,
+    "memory_ratio_java_over_go": 3.946936995065386,
+    "all_outputs_match": true
+   },
+   "compound": {
+    "median_s": 18.304755317498348,
+    "min_s": 18.257804959997884,
+    "max_s": 18.35170567499881,
+    "median_cpu_s": 21.215333,
+    "median_peak_rss_mb": 432.197265625,
+    "speed_vs_first_variant": 0.9884060658658976,
+    "speed_vs_java_warm": 0.9068736354061617,
+    "memory_ratio_java_over_go": 3.9254084099690445,
+    "all_outputs_match": true
+   },
+   "pgo80": {
+    "median_s": 18.573161731001164,
+    "min_s": 18.11389341800532,
+    "max_s": 19.03243004399701,
+    "median_cpu_s": 21.2528735,
+    "median_peak_rss_mb": 424.109375,
+    "speed_vs_first_variant": 0.9741223089554799,
+    "speed_vs_java_warm": 0.8937681284652869,
+    "memory_ratio_java_over_go": 4.0002671038573485,
+    "all_outputs_match": true
+   },
+   "compact": {
+    "median_s": 18.791040907497518,
+    "min_s": 18.50735332199838,
+    "max_s": 19.074728492996655,
+    "median_cpu_s": 21.625723999999998,
+    "median_peak_rss_mb": 392.369140625,
+    "speed_vs_first_variant": 0.9628275133384226,
+    "speed_vs_java_warm": 0.8834050269869113,
+    "memory_ratio_java_over_go": 4.323863947474527,
+    "all_outputs_match": true
+   },
+   "compact_header": {
+    "median_s": 18.715991312994447,
+    "min_s": 18.570200552989263,
+    "max_s": 18.86178207299963,
+    "median_cpu_s": 21.584993,
+    "median_peak_rss_mb": 407.826171875,
+    "speed_vs_first_variant": 0.9666883729233637,
+    "speed_vs_java_warm": 0.8869474088970434,
+    "memory_ratio_java_over_go": 4.159985057972194,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.93825,
+  "java_peak_rss_mb": 930.17578125,
+  "variants": {
+   "control": {
+    "median_s": 1.380398534500273,
+    "min_s": 1.3402241580042755,
+    "max_s": 1.4205729109962704,
+    "median_cpu_s": 1.6680395,
+    "median_peak_rss_mb": 160.853515625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6796950131069662,
+    "memory_ratio_java_over_go": 5.78275070728657,
+    "all_outputs_match": true
+   },
+   "struct_base": {
+    "median_s": 1.3543512975011254,
+    "min_s": 1.344647399004316,
+    "max_s": 1.3640551959979348,
+    "median_cpu_s": 1.6543039999999998,
+    "median_peak_rss_mb": 171.2890625,
+    "speed_vs_first_variant": 1.019232260527388,
+    "speed_vs_java_warm": 0.6927670846782058,
+    "memory_ratio_java_over_go": 5.430444697833523,
+    "all_outputs_match": true
+   },
+   "source": {
+    "median_s": 1.356135677495331,
+    "min_s": 1.24518674799765,
+    "max_s": 1.4670846069930121,
+    "median_cpu_s": 1.7049195,
+    "median_peak_rss_mb": 166.04296875,
+    "speed_vs_first_variant": 1.0178911722533202,
+    "speed_vs_java_warm": 0.6918555536661857,
+    "memory_ratio_java_over_go": 5.602018491072059,
+    "all_outputs_match": true
+   },
+   "compound": {
+    "median_s": 1.2524778224978945,
+    "min_s": 1.2195749459933722,
+    "max_s": 1.2853806990024168,
+    "median_cpu_s": 1.5476725,
+    "median_peak_rss_mb": 160.271484375,
+    "speed_vs_first_variant": 1.1021341134386382,
+    "speed_vs_java_warm": 0.7491150606793098,
+    "memory_ratio_java_over_go": 5.803750959675355,
+    "all_outputs_match": true
+   },
+   "pgo80": {
+    "median_s": 1.3562336294999113,
+    "min_s": 1.2832042740046745,
+    "max_s": 1.4292629849951481,
+    "median_cpu_s": 1.6471099999999999,
+    "median_peak_rss_mb": 165.244140625,
+    "speed_vs_first_variant": 1.0178176565414265,
+    "speed_vs_java_warm": 0.6918055854034265,
+    "memory_ratio_java_over_go": 5.629099934992022,
+    "all_outputs_match": true
+   },
+   "compact": {
+    "median_s": 1.405081524506386,
+    "min_s": 1.3612822520080954,
+    "max_s": 1.4488807970046764,
+    "median_cpu_s": 1.7163754999999998,
+    "median_peak_rss_mb": 165.681640625,
+    "speed_vs_first_variant": 0.9824330548970928,
+    "speed_vs_java_warm": 0.6677548481249963,
+    "memory_ratio_java_over_go": 5.614235697697722,
+    "all_outputs_match": true
+   },
+   "compact_header": {
+    "median_s": 1.343887162503961,
+    "min_s": 1.3102219319989672,
+    "max_s": 1.3775523930089548,
+    "median_cpu_s": 1.6405029999999998,
+    "median_peak_rss_mb": 165.12890625,
+    "speed_vs_first_variant": 1.0271684803717323,
+    "speed_vs_java_warm": 0.6981612937293272,
+    "memory_ratio_java_over_go": 5.6330281740117805,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-simple": {
+  "java_warm_s": 2.8052,
+  "java_peak_rss_mb": 1118.35546875,
+  "variants": {
+   "control": {
+    "median_s": 3.9344568904925836,
+    "min_s": 3.6369318309880327,
+    "max_s": 4.2319819499971345,
+    "median_cpu_s": 4.6929940000000006,
+    "median_peak_rss_mb": 202.119140625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7129827770584103,
+    "memory_ratio_java_over_go": 5.533149731845195,
+    "all_outputs_match": true
+   },
+   "struct_base": {
+    "median_s": 3.8557608435003203,
+    "min_s": 3.804953687998932,
+    "max_s": 3.906567999001709,
+    "median_cpu_s": 4.646255,
+    "median_peak_rss_mb": 209.359375,
+    "speed_vs_first_variant": 1.0204099917464855,
+    "speed_vs_java_warm": 0.7275347496535588,
+    "memory_ratio_java_over_go": 5.341797895365326,
+    "all_outputs_match": true
+   },
+   "source": {
+    "median_s": 3.722667507499864,
+    "min_s": 3.721946484001819,
+    "max_s": 3.7233885309979087,
+    "median_cpu_s": 4.5100345,
+    "median_peak_rss_mb": 198.056640625,
+    "speed_vs_first_variant": 1.056891834300549,
+    "speed_vs_java_warm": 0.7535456750699626,
+    "memory_ratio_java_over_go": 5.646644642769094,
+    "all_outputs_match": true
+   },
+   "compound": {
+    "median_s": 4.058512479998171,
+    "min_s": 3.7210180179972667,
+    "max_s": 4.396006941999076,
+    "median_cpu_s": 4.9881805,
+    "median_peak_rss_mb": 201.6171875,
+    "speed_vs_first_variant": 0.9694332369021954,
+    "speed_vs_java_warm": 0.691189201419251,
+    "memory_ratio_java_over_go": 5.546925252838377,
+    "all_outputs_match": true
+   },
+   "pgo80": {
+    "median_s": 3.8236831390022417,
+    "min_s": 3.816243431007024,
+    "max_s": 3.8311228469974594,
+    "median_cpu_s": 4.532762,
+    "median_peak_rss_mb": 204.486328125,
+    "speed_vs_first_variant": 1.028970431770465,
+    "speed_vs_java_warm": 0.7336381959546977,
+    "memory_ratio_java_over_go": 5.469096535717356,
+    "all_outputs_match": true
+   },
+   "compact": {
+    "median_s": 4.087550902491785,
+    "min_s": 4.048406324989628,
+    "max_s": 4.126695479993941,
+    "median_cpu_s": 4.965498999999999,
+    "median_peak_rss_mb": 202.2109375,
+    "speed_vs_first_variant": 0.9625462738810483,
+    "speed_vs_java_warm": 0.686278915398935,
+    "memory_ratio_java_over_go": 5.530637870416876,
+    "all_outputs_match": true
+   },
+   "compact_header": {
+    "median_s": 4.19095743199432,
+    "min_s": 3.941407738995622,
+    "max_s": 4.440507124993019,
+    "median_cpu_s": 5.039255000000001,
+    "median_peak_rss_mb": 205.634765625,
+    "speed_vs_first_variant": 0.9387966722010637,
+    "speed_vs_java_warm": 0.6693458584391085,
+    "memory_ratio_java_over_go": 5.438552500356176,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "checks-only": {
+  "java_warm_s": 6.038,
+  "java_peak_rss_mb": 1360.0234375,
+  "variants": {
+   "control": {
+    "median_s": 7.501554979498906,
+    "min_s": 7.410751272997004,
+    "max_s": 7.592358686000807,
+    "median_cpu_s": 8.5951415,
+    "median_peak_rss_mb": 673.466796875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.8048997863111483,
+    "memory_ratio_java_over_go": 2.019436509432594,
+    "all_outputs_match": true
+   },
+   "struct_base": {
+    "median_s": 7.528184255999804,
+    "min_s": 7.429969350996544,
+    "max_s": 7.626399161003064,
+    "median_cpu_s": 8.678529000000001,
+    "median_peak_rss_mb": 661.244140625,
+    "speed_vs_first_variant": 0.9964627225376855,
+    "speed_vs_java_warm": 0.8020526324376083,
+    "memory_ratio_java_over_go": 2.056764444391934,
+    "all_outputs_match": true
+   },
+   "source": {
+    "median_s": 7.379933032498229,
+    "min_s": 7.337570770003367,
+    "max_s": 7.422295294993091,
+    "median_cpu_s": 8.603343,
+    "median_peak_rss_mb": 650.81640625,
+    "speed_vs_first_variant": 1.0164800881613834,
+    "speed_vs_java_warm": 0.8181646057506348,
+    "memory_ratio_java_over_go": 2.089719042788805,
+    "all_outputs_match": true
+   },
+   "compound": {
+    "median_s": 7.328300414992555,
+    "min_s": 7.225297920987941,
+    "max_s": 7.431302908997168,
+    "median_cpu_s": 8.4984155,
+    "median_peak_rss_mb": 683.140625,
+    "speed_vs_first_variant": 1.023641847999558,
+    "speed_vs_java_warm": 0.8239291047139932,
+    "memory_ratio_java_over_go": 1.9908396422771666,
+    "all_outputs_match": true
+   },
+   "pgo80": {
+    "median_s": 7.531550102503388,
+    "min_s": 7.431176800004323,
+    "max_s": 7.631923405002453,
+    "median_cpu_s": 8.636114,
+    "median_peak_rss_mb": 653.330078125,
+    "speed_vs_first_variant": 0.9960174037752849,
+    "speed_vs_java_warm": 0.8016941954609116,
+    "memory_ratio_java_over_go": 2.081678898671171,
+    "all_outputs_match": true
+   },
+   "compact": {
+    "median_s": 7.8251051799961715,
+    "min_s": 7.779140565995476,
+    "max_s": 7.871069793996867,
+    "median_cpu_s": 9.021976500000001,
+    "median_peak_rss_mb": 649.966796875,
+    "speed_vs_first_variant": 0.9586522873424911,
+    "speed_vs_java_warm": 0.7716190212286648,
+    "memory_ratio_java_over_go": 2.092450636000036,
+    "all_outputs_match": true
+   },
+   "compact_header": {
+    "median_s": 7.859086454991484,
+    "min_s": 7.837550433992874,
+    "max_s": 7.880622475990094,
+    "median_cpu_s": 9.038332999999998,
+    "median_peak_rss_mb": 647.474609375,
+    "speed_vs_first_variant": 0.954507247433892,
+    "speed_vs_java_warm": 0.7682826794919821,
+    "memory_ratio_java_over_go": 2.100504665059863,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

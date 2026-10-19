@@ -1,0 +1,226 @@
+{
+  "candidate": {
+    "worktree": "/workspace/jsgo-round-parser-native80",
+    "branch": "perf/round-parser-native80",
+    "frozen_commit": "11534351",
+    "base_commit": "ef9657d7",
+    "enable": "JSGO_EXPERIMENT_NATIVE_PARSER=1",
+    "allocator": "nil by default; independent opt-in JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR=1"
+  },
+  "toolchain": "/workspace/toolchains/go1.27.2/bin/go",
+  "validation_environment": {
+    "GOMAXPROCS": "1",
+    "GOGC": "25",
+    "go_build_parallelism": "-p=1",
+    "cwd": "/workspace/jsgo-round-parser-native80/internal/parsing"
+  },
+  "validation": {
+    "original_full_suite_native_off": {
+      "status": "PASS",
+      "log": "/workspace/jsgo-results/round-parser-native80-full-default.log"
+    },
+    "original_full_suite_native_on": {
+      "status": "PASS",
+      "log": "/workspace/jsgo-results/round-parser-native80-full-native.log"
+    },
+    "build": {
+      "status": "PASS",
+      "log": "/workspace/jsgo-results/round-parser-native80-full-build.log",
+      "binary": "/workspace/jsgo-results/round-parser-native80-full.test"
+    },
+    "context_and_invalid_oracles": {
+      "status": "PASS",
+      "cases": 792,
+      "coverage": [
+        "ES3/ES5/ES_NEXT",
+        "strict/sloppy",
+        "stop/keep-going",
+        "restricted arrow line breaks",
+        "duplicate parameters and directives",
+        "return/break/continue/label across native and original fragments",
+        "regexp/template validation"
+      ]
+    },
+    "concurrent_attempts": {
+      "status": "PASS",
+      "coverage": "4 concurrent owners repeatedly parse accepted and late-fallback sources, preserving ASTs and deferred warnings"
+    },
+    "exact_fields": [
+      "AST node types/values/properties",
+      "complete JSDoc payloads",
+      "closure shadows",
+      "UTF-16 source positions and lengths",
+      "features",
+      "source-map URL",
+      "ordered diagnostics",
+      "exception cause chains",
+      "fallback recovered ASTs"
+    ],
+    "race": "Pending for this round; normal concurrent oracle passed. Prior rounds are not claimed as a race pass for this source.",
+    "cli": "Root confirmed all10 ordinary CLI correctness gates PASS (5 tasks at N1 and N2); root owns the logs, timings and memory measurements."
+  },
+  "corpora": {
+    "core_js": {
+      "accepted_files": 897,
+      "total_files": 897,
+      "fully_direct_files": 703,
+      "accepted_source_bytes": 889310,
+      "total_source_bytes": 889310,
+      "outside_original_fragment_bytes": 793518
+    },
+    "closure_checks_only": {
+      "accepted_files": 968,
+      "total_files": 971,
+      "accepted_goog_module_files": 148,
+      "accepted_source_bytes": 17355564,
+      "total_source_bytes": 17500198,
+      "outside_original_fragment_bytes": 15676158,
+      "rejections": {
+        "unsupported:=": 1,
+        "unsupported:?.": 1,
+        "unsupported:export": 1
+      },
+      "rejected_fallbacks": "Exact original AST and diagnostic oracle PASS"
+    },
+    "bundles": [
+      {
+        "name": "three",
+        "accepted": true,
+        "source_bytes": 1313070,
+        "outside_original_fragment_bytes": 464323,
+        "original_fragment_count": 468
+      },
+      {
+        "name": "lodash",
+        "accepted": true,
+        "source_bytes": 544098,
+        "outside_original_fragment_bytes": 532885,
+        "original_fragment_count": 98
+      },
+      {
+        "name": "react-dom",
+        "accepted": true,
+        "source_bytes": 1080227,
+        "outside_original_fragment_bytes": 825176,
+        "original_fragment_count": 306
+      },
+      {
+        "name": "typescript",
+        "accepted": true,
+        "source_bytes": 8927529,
+        "outside_original_fragment_bytes": 5843959,
+        "original_fragment_count": 9214
+      }
+    ]
+  },
+  "related_ast64_validation": {
+    "commit": "392a5373",
+    "full_suite_native_off": "PASS",
+    "full_suite_native_on": "PASS",
+    "logs": [
+      "/workspace/jsgo-results/round-parser-node64-full-default.log",
+      "/workspace/jsgo-results/round-parser-node64-full-native.log"
+    ],
+    "focused_nil_and_owned_allocator": "All four bundles, core-js,792 contextual cases and concurrent fallback PASS",
+    "focused_logs": [
+      "/workspace/jsgo-results/round-parser-node64-focused.log",
+      "/workspace/jsgo-results/round-parser-node64-focused-owned.log"
+    ],
+    "owned_cold_payload_unit_tests": "Added in392a5373, not yet run; do not claim PASS"
+  },
+  "limits": [
+    "Source bytes outside original grammar fragments are coverage, not time savings or allocation counts.",
+    "No speed, RSS, or Java ratio is claimed by this report; root centrally benchmarks ordinary CLI.",
+    "No worker, cached extern/template, global node-chunk or Unicode-table code was introduced.",
+    "Unsupported configurations and syntax retain private whole-file fallback.",
+    "Complex statements, functions, classes, properties, regex/templates and spread can use original grammar per construct."
+  ],
+  "activation_audit": {
+    "production_call_chain": [
+      "CompilerInput_JsAst.GetAstRoot -> parse (compiler_input.go:779,822)",
+      "parsing.ParserRunner_Parse (compiler_input.go:829)",
+      "nativeParserExperimentEnabled -> parserRunnerParseWithNativeFallback (parsing/parser_runner.go:126)"
+    ],
+    "startup_requirement": "JSGO_EXPERIMENT_NATIVE_PARSER=1 must be set when CLI process starts; binary name does not enable the experiment",
+    "compiler_config_origin": "Compiler.GetParserConfig -> CreateConfig (compiler.go:3751,3778) -> ParserRunner_CreateConfigWithModes",
+    "all_five_cli_default_config": {
+      "language": "STABLE maps to ECMASCRIPT_NEXT / parsing ES_NEXT",
+      "strict": true,
+      "jsdoc": "TYPES_ONLY",
+      "run_mode": "STOP_AFTER_ERROR",
+      "parse_inline_source_maps": true
+    },
+    "config_sources": [
+      "compiler_options.go:1409 TYPES_ONLY",
+      "compiler_options.go:1430 inline source maps true",
+      "compiler_options.go:1446 language STABLE_IN",
+      "compiler_options.go:4219 STABLE_IN=ECMASCRIPT_NEXT",
+      "compiler_options.go:4231 ES_NEXT defaults strict",
+      "compiler.go:3778 run mode selection",
+      "abstract_command_line_runner.go:517 only print_tree/json forces INCLUDE_ALL_COMMENTS"
+    ],
+    "guard_inventory": [
+      {
+        "guard": "sourceFile.IsTypeScriptSource()",
+        "origin": "rhino/static_source_file.go:147: suffix .closure.js or .tsx.cl.js",
+        "all_five": "Task inputs are ordinary .js/.mjs; no matching suffix found in Closure/core-js input trees"
+      },
+      {
+        "guard": "config.JsDocParsingMode().ShouldParseDescriptions()",
+        "origin": "native_parser_experiment.go:182; mode != TYPES_ONLY",
+        "all_five": "All five use TYPES_ONLY; none requests print_tree/json"
+      },
+      {
+        "guard": "lexical/grammar/IR validation warning/error",
+        "all_five": "Input dependent private whole-file fallback; unsupported syntax does not disable other files"
+      },
+      {
+        "guard": "closure-unaware annotation/range or legacy HTML/shebang comment",
+        "all_five": "Input dependent private fallback"
+      },
+      {
+        "guard": "depth/statement recursion128 or bounded unsupported grammar",
+        "all_five": "Input dependent private fallback; complex supported grammar can delegate fragments"
+      }
+    ],
+    "not_guards": [
+      "source kind EXTERN",
+      "output source map",
+      "checks_only",
+      "ADVANCED/SIMPLE/WHITESPACE_ONLY",
+      "STOP_AFTER_ERROR versus KEEP_GOING",
+      "parse_inline_source_maps"
+    ],
+    "evidence_limits": "Coverage observers call native helper directly. Full native-enabled original parsing suite validates ParserRunner_Parse dispatch generally. Actual CLI startup env and per-source accepted path should still be confirmed by root runtime profile or counting overlay."
+  },
+  "refinements": {
+    "worktree": "/workspace/jsgo-round-parser-refine",
+    "tested_commit": "43a7c58c",
+    "commits": {
+      "ac5135af": "Lazy immutable Parser_Config reuse within one native file",
+      "9c2edde6": "Single file-owned comment inventory during original fragment grammar",
+      "43a7c58c": "Remove redundant reserved-word lookup; scanner-keyword subset invariant"
+    },
+    "full_suite_default": "PASS",
+    "full_suite_native_enabled_all_corpora": "PASS",
+    "logs": [
+      "/workspace/jsgo-results/round-parser-guard-full-build.log",
+      "/workspace/jsgo-results/round-parser-guard-full-default.log",
+      "/workspace/jsgo-results/round-parser-guard-full-native.log"
+    ],
+    "same_corpus_coverage": true,
+    "focused_fixtures": [
+      "Multiple original fragments share configuration",
+      "Fragment-boundary annotation ownership",
+      "Inline default-parameter/property docs",
+      "Licenses and unknown-tag warning order",
+      "Repeated source mapping URLs",
+      "Template substitution annotations",
+      "Late malformed/legacy-comment fallback"
+    ],
+    "latest_source_commit": "43a7c58c",
+    "race": "Pending for this round; no race PASS claimed",
+    "contextual_oracle_combinations": 816,
+    "keyword_subset_invariant": "PASS"
+  }
+}

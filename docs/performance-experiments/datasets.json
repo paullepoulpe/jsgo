@@ -1,0 +1,672 @@
+[
+  {
+    "path": "arena-smoke/summary.json",
+    "browse": "records/arena-smoke/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "01c63bed232d8e8e494b0d4b059a736124a683172ff812b0666a1adc15ca9bb4"
+  },
+  {
+    "path": "cached-worker-profile-20261018/summary.json",
+    "browse": "records/cached-worker-profile-20261018/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "9fb4df5ac7b86580d4fb21abdb01d6d4241402dcb29b73383258fe4e01606d87"
+  },
+  {
+    "path": "delivery-paired/summary.json",
+    "browse": "records/delivery-paired/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "210c9876d0507a1bb54b65c6ece7b8f059bc2e589c1eb8d8d1ff025daef1f829"
+  },
+  {
+    "path": "first-candidates/summary.json",
+    "browse": "records/first-candidates/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "283cd4e70a503b2d292c8d3e0d8cde925d029d1509d885e20ea3ec8554371697"
+  },
+  {
+    "path": "java-worker-compare-smoke/summary.json",
+    "browse": "records/java-worker-compare-smoke/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "dcb88b6eae2999e70ed225ad86cfdf9e3aef9fa371dfb54932714495342cd5b9"
+  },
+  {
+    "path": "java-worker-equivalent-protocol/summary.json",
+    "browse": "records/java-worker-equivalent-protocol/summary.json",
+    "keys": [
+      "command",
+      "stock_jar_sha256",
+      "cases",
+      "cache_counters",
+      "all_match"
+    ],
+    "sha256": "bb621846649fb60238a0b19af77ab68843fb13e424f388bcd23bf0df97c6f0a6"
+  },
+  {
+    "path": "layout-smoke/summary.json",
+    "browse": "records/layout-smoke/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "e837ac3f11c1168eec49474275a1337d5674de7658c719ccbae1740379f0251c"
+  },
+  {
+    "path": "matched-worker-whitespace-repeat/summary.json",
+    "browse": "records/matched-worker-whitespace-repeat/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "081faf56ada5d3151ddabccc2a0241ff5e5767186e6488f8a07f1acede552512"
+  },
+  {
+    "path": "matched-worker-whitespace-threads/summary.json",
+    "browse": "records/matched-worker-whitespace-threads/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "d1fcbf307aa55363b447c1bc4267494bf9a719b7c3eccbe59ecfbe3935aab77e"
+  },
+  {
+    "path": "memory-envelope/summary.json",
+    "browse": "records/memory-envelope/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "4f2593c33205402b7f90e0abeb4d334ab84f982ab87d3d8502465fb186099568"
+  },
+  {
+    "path": "native-parser-micro/summary.json",
+    "browse": "records/native-parser-micro/summary.json",
+    "keys": [
+      "samples",
+      "medians"
+    ],
+    "sha256": "f8de071421b301893c432c9a455b7cfab9794fb8bc9883c461c579c59834ee47"
+  },
+  {
+    "path": "next-smoke/summary.json",
+    "browse": "records/next-smoke/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "991ff6add8a510c6e72161608ac66e40f9b4d5f9cab5be64fc6986d393b7bbaf"
+  },
+  {
+    "path": "node64-paired/summary.json",
+    "browse": "records/node64-paired/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "532f9bc3972ac65f47245e16fcbbf95c5c96ba1cd539a51894cfafd70e92b312"
+  },
+  {
+    "path": "node64-pgo-smoke/summary.json",
+    "browse": "records/node64-pgo-smoke/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "f55e6cc2bba9fce276e4a239fec382f63e0dc85b1e37271c67024336aa52a0db"
+  },
+  {
+    "path": "ordinary-cli-owned-screen/summary.json",
+    "browse": "records/ordinary-cli-owned-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "1922b0d2f9039a748e1c2ead0f28029fff3cd92a452285d381d7a1f59bb9dbf8"
+  },
+  {
+    "path": "ordinary-cli-screen/summary.json",
+    "browse": "records/ordinary-cli-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "a1ce8241233a55e9f06e1b7958174414846f3fee4492c3628a96b0ea4661d3e6"
+  },
+  {
+    "path": "ordinary-cli-threads/summary.json",
+    "browse": "records/ordinary-cli-threads/summary.json",
+    "keys": [
+      "typed-app",
+      "downlevel-whitespace"
+    ],
+    "sha256": "423fc2927d83c2db514abc07f7c3f89270e7462c312ab786d3a7b4ab0fcbead4"
+  },
+  {
+    "path": "parallel-cli-owned/summary.json",
+    "browse": "records/parallel-cli-owned/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "a4da035b8337dbc1a3cd0ec44c7a5ce2343ddfca358455ab4f716eb980ec7bec"
+  },
+  {
+    "path": "parallel-compound-final/summary.json",
+    "browse": "records/parallel-compound-final/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "39a57ffe619ac70ae1603ba81377f5e45181f557559cc05399c1c25e9742cbb4"
+  },
+  {
+    "path": "parallel-expanded/summary.json",
+    "browse": "records/parallel-expanded/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "8698e00c6002962010234fd3c476e0991e359f88a80c54aaa615cf4f2f15e936"
+  },
+  {
+    "path": "parallel-fsiv-cli/summary.json",
+    "browse": "records/parallel-fsiv-cli/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "deffdf11da780394c507e5ef2d91ba91136fb6e864e5719a5de4e4d39156ba1e"
+  },
+  {
+    "path": "parallel-gates/summary.json",
+    "browse": "records/parallel-gates/summary.json",
+    "keys": [
+      "whitespace",
+      "simple",
+      "advanced",
+      "errors",
+      "warning",
+      "missing"
+    ],
+    "sha256": "f3723687b57af9a9b26453ef20abfe648394d15e0661d150ecf3a761d6a40df4"
+  },
+  {
+    "path": "parallel-inlining-only-screen/summary.json",
+    "browse": "records/parallel-inlining-only-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle"
+    ],
+    "sha256": "23ce9e484e7e9247fab3959bd14fa1d8078496232c31b617081dd5c4ae7183dd"
+  },
+  {
+    "path": "parallel-inlining-screen/summary.json",
+    "browse": "records/parallel-inlining-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle"
+    ],
+    "sha256": "1443a2f1877b05b62f476dc345e2d1150a22f41e15c008593e86b588bfa3fd24"
+  },
+  {
+    "path": "parallel-modules-checked/summary.json",
+    "browse": "records/parallel-modules-checked/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "bde8995deed0e5b22fc6056ca3fcd542cd1fd23482acfd0f90ab11417bce7927"
+  },
+  {
+    "path": "parallel-zip/summary.json",
+    "browse": "records/parallel-zip/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "threads",
+      "cases"
+    ],
+    "sha256": "8fa9260bdb63a131096d164f16764867ef05d2c4171a3c9edfcc3608534940a3"
+  },
+  {
+    "path": "parser-tree-storage/summary.json",
+    "browse": "records/parser-tree-storage/summary.json",
+    "keys": [
+      "samples",
+      "medians"
+    ],
+    "sha256": "878f1890b480c0ef48b23a489b869c15d8ecee057b856f180b49866d2465295c"
+  },
+  {
+    "path": "production-worker/summary.json",
+    "browse": "records/production-worker/summary.json",
+    "keys": [
+      "small-advanced",
+      "small-simple",
+      "small-whitespace",
+      "small-checks"
+    ],
+    "sha256": "a7afb89a42c657ae29d41baedae9d3b7210dd66c73cb0be83d20579be01eba53"
+  },
+  {
+    "path": "protocol-harness-smoke/summary.json",
+    "browse": "records/protocol-harness-smoke/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "5ba2917b8bcebe803883489c3ab6fae247deeabc2265cd5fec52219d470ff8fe"
+  },
+  {
+    "path": "redesigns-first-worker-protocol/summary.json",
+    "browse": "records/redesigns-first-worker-protocol/summary.json",
+    "keys": [
+      "small-advanced",
+      "small-simple",
+      "small-whitespace",
+      "small-checks"
+    ],
+    "sha256": "cfea1f2d939bb4d7576a66243448a97d2aeee3652cf6766608fde0bdf837a87a"
+  },
+  {
+    "path": "refreshed-smoke/summary.json",
+    "browse": "records/refreshed-smoke/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "e510a6e099d80c1122922cce5949ffad00c1fe2d5533d19bd9b107c9c8aef2ac"
+  },
+  {
+    "path": "round2/allocations-screen/summary.json",
+    "browse": "records/round2/allocations-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "ef35bae4ed742e593793c8d2e377464f9b5aac0bc38d1eee45c9c0d0aeb0b2dd"
+  },
+  {
+    "path": "round2/code-design-screen/summary.json",
+    "browse": "records/round2/code-design-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "d794bb0a688f75903ce9c268df26097b1e438d7d0a0e213004503d40db08a844"
+  },
+  {
+    "path": "round2/compound-screen/summary.json",
+    "browse": "records/round2/compound-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "668c1ac6303856c3e5d1855e3ffa4a5513959e3fe2ea39273f98441fbfc36d16"
+  },
+  {
+    "path": "round2/default-gc-white-traversal-thread-sweep/summary.json",
+    "browse": "records/round2/default-gc-white-traversal-thread-sweep/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "aeaa53c9ba685185627c5ca8b1adc3d4450d86e9b116a992c1beb326a117e6c4"
+  },
+  {
+    "path": "round2/followup-screen/summary.json",
+    "browse": "records/round2/followup-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "6ec852ea568c85eddeefe33913ea06fc55c5a48e79f77d885fe097e196afcd76"
+  },
+  {
+    "path": "round2/inline-bitset-template-screen/summary.json",
+    "browse": "records/round2/inline-bitset-template-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "1c16a873bc336ec08f6b4fab45e4e37797b939c1ae91c2ad1b5f42b2fd128367"
+  },
+  {
+    "path": "round2/native-live-words-screen/summary.json",
+    "browse": "records/round2/native-live-words-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "33c22809757ae9737a46c314543bace31ce2904e160cb902301eb4a3236a104a"
+  },
+  {
+    "path": "round2/native-storage-code-screen/summary.json",
+    "browse": "records/round2/native-storage-code-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "ba9f2ab2663e0a23cf62d1ac70bc08362799c53214057b635ea5ab68b747c766"
+  },
+  {
+    "path": "round2/native-storage-screen/summary.json",
+    "browse": "records/round2/native-storage-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "ac76f3af142a41e1658fed46b1283cc3a32fc40721c6bb73fe7c6a6a47f60a5e"
+  },
+  {
+    "path": "round2/next-screen/summary.json",
+    "browse": "records/round2/next-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "92f7205daf17d408c463ace65f034b697125955353e67f36a7bfa79f5a2097b8"
+  },
+  {
+    "path": "round2/parser-gc-screen/summary.json",
+    "browse": "records/round2/parser-gc-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "ffddad53028bac6863e1bb6a2a29867a63f619b9b64badb9cbb8e24f739e7db5"
+  },
+  {
+    "path": "round2/recipes-externs-screen/summary.json",
+    "browse": "records/round2/recipes-externs-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "e2a12f3395c9ca6f9d3b462b2e6f1f38fd08f183bcc8a68b5e383def5c5e93d3"
+  },
+  {
+    "path": "round2/structural-screen/summary.json",
+    "browse": "records/round2/structural-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "e57966f99bd58fa81a4bbc99d9c6e2d588ce773fabce20a58f85282b74f742ea"
+  },
+  {
+    "path": "round2/template-guard-v2-screen/summary.json",
+    "browse": "records/round2/template-guard-v2-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "checks-only"
+    ],
+    "sha256": "0955d36a4784bdcf0ddf645f78e8259b22133d69fa3b4737fac665ebf92ca81d"
+  },
+  {
+    "path": "second-candidates/summary.json",
+    "browse": "records/second-candidates/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace"
+    ],
+    "sha256": "37c5c8cb581ada15acc429398c520b17c349945c2b699b16cdc559ff79735bca"
+  },
+  {
+    "path": "small-worker/summary.json",
+    "browse": "records/small-worker/summary.json",
+    "keys": [
+      "small-advanced",
+      "small-simple",
+      "small-whitespace",
+      "small-checks"
+    ],
+    "sha256": "bd43711dfd6bab9ea599489b548596ed9a7241243a744e9531294d91f8aac571"
+  },
+  {
+    "path": "thread-cache-off/summary.json",
+    "browse": "records/thread-cache-off/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "54329010c3ab0dd077a5ce04f260de1d07956deda6cab5ae9bf114ad200c1df7"
+  },
+  {
+    "path": "thread-cache-on/summary.json",
+    "browse": "records/thread-cache-on/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "6ece6fb9eada5d2a823cec5d4b9e4902696fd3069a30a398e24222839b1603fb"
+  },
+  {
+    "path": "thread-worker/protocol/small-whitespace/threads-1/summary.json",
+    "browse": "records/thread-worker/protocol/small-whitespace/threads-1/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "0fbeb9ab82cd6967fb91279909339abe2b15e87bb5fc57933db52d4346cc1e90"
+  },
+  {
+    "path": "thread-worker/protocol/small-whitespace/threads-2/summary.json",
+    "browse": "records/thread-worker/protocol/small-whitespace/threads-2/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "f37c8f989fdc7befadbe964453ad8040edbeefaef1a033184dbb19b34919fb5e"
+  },
+  {
+    "path": "thread-worker/protocol/small-whitespace/threads-4/summary.json",
+    "browse": "records/thread-worker/protocol/small-whitespace/threads-4/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "5ba0f2394463e2dd9f6a8ee2ba703376c5059cb4acaf32bf611fff7b3c73466a"
+  },
+  {
+    "path": "thread-worker/summary.json",
+    "browse": "records/thread-worker/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "b162f93789ef642c6a5f4ae9c6c13edde2fc8cccf6a2d85fc3adb6bb228088ab"
+  },
+  {
+    "path": "thread-worker-repeat/protocol/small-whitespace/threads-1/summary.json",
+    "browse": "records/thread-worker-repeat/protocol/small-whitespace/threads-1/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "0d479feeffd83fb18a91fa5908a6ae0d7b6ec8a0e2e85429e47a71adc94a597c"
+  },
+  {
+    "path": "thread-worker-repeat/protocol/small-whitespace/threads-2/summary.json",
+    "browse": "records/thread-worker-repeat/protocol/small-whitespace/threads-2/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "22e4529f8a91ecb8f43df7d357c9251dd61c61ae2a29e094715707e5d631f14c"
+  },
+  {
+    "path": "thread-worker-repeat/protocol/small-whitespace/threads-4/summary.json",
+    "browse": "records/thread-worker-repeat/protocol/small-whitespace/threads-4/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "86212cca882f45f17f1128993e960d4a677341bec7338e89459241b4f49356d2"
+  },
+  {
+    "path": "thread-worker-repeat/summary.json",
+    "browse": "records/thread-worker-repeat/summary.json",
+    "keys": [
+      "small-whitespace"
+    ],
+    "sha256": "93be7310261e274d5ff1b617a0e210805e8c6d1ee4d9eb6d5c1210f9d3225e4a"
+  },
+  {
+    "path": "toolchain/summary.json",
+    "browse": "records/toolchain/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "94b038c16caf67337aaf070d95acc61e31cbe47ce35131427acd057c2a35a4b5"
+  },
+  {
+    "path": "type-flow-cli-next/summary.json",
+    "browse": "records/type-flow-cli-next/summary.json",
+    "keys": [
+      "jsgo",
+      "jsgo_sha256",
+      "jar",
+      "jar_sha256",
+      "cases"
+    ],
+    "sha256": "cb166a00d02bea11d793586958d24d2e6c2d9ed8cb906abc387166adf4e55b31"
+  },
+  {
+    "path": "warm-combined/summary.json",
+    "browse": "records/warm-combined/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "0b332138c0c69710e32fa5abd328280c20daed25b1b06859476de0610a6349a5"
+  },
+  {
+    "path": "warm-next127/summary.json",
+    "browse": "records/warm-next127/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "2248a65e608938aa46598ddd2a5c6e9a6ec68bdb74d247f03aa55cd7b3aa095b"
+  },
+  {
+    "path": "worker-protocol/summary.json",
+    "browse": "records/worker-protocol/summary.json",
+    "keys": [
+      "help",
+      "version",
+      "whitespace",
+      "changed-source",
+      "simple-map",
+      "advanced-warning",
+      "parse-error",
+      "bad-flag",
+      "stdin",
+      "json-streams",
+      "custom-externs",
+      "default-after-custom",
+      "iso-8859-1"
+    ],
+    "sha256": "6fdfd801d734cb7fcd91f9df705243c351414ea97ae4601b422542cbde028ca7"
+  },
+  {
+    "path": "worker-retention/summary.json",
+    "browse": "records/worker-retention/summary.json",
+    "keys": [
+      "downlevel-whitespace"
+    ],
+    "sha256": "888ce4c3c01ac1800135b23169391db20bfe9815eb7e47f7da5ed95d00718e11"
+  }
+]

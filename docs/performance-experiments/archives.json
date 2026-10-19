@@ -1,0 +1,17 @@
+[
+  {
+    "path": "measurement-records.tar.gz",
+    "bytes": 23602613,
+    "sha256": "f02df58d7847b93c8b8f857535e228328cc15e658e7045d1a831283ad7d3fbfc"
+  },
+  {
+    "path": "prototype-sources.tar.gz",
+    "bytes": 14270725,
+    "sha256": "42c75baf474d6f31fc19390bdee82adf040e01b48917d5456b77bc8738419544"
+  },
+  {
+    "path": "prototype-history.bundle",
+    "bytes": 1287971,
+    "sha256": "efa5a584f1e10e8997561f1fef15bf85d540f816ee9b432b1ecb607191228cc5"
+  }
+]

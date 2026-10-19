@@ -1,0 +1,54 @@
+{
+  "typed-app": {
+    "cpu": {
+      "equality": 0.06,
+      "subtyping": 0.19,
+      "eq_ctor": 0.0,
+      "sub_ctor": 0.0,
+      "eq_cache": 0.05,
+      "sub_cache": 0.18,
+      "eq_union": 0.0,
+      "eq_templatemap": 0.01,
+      "obj_sub": 0.03,
+      "eq_methods": 0.07
+    },
+    "allocs": {
+      "equality": 0.0,
+      "subtyping": 4.5005,
+      "eq_ctor": 0.0,
+      "sub_ctor": 0.0,
+      "eq_cache": 0.0,
+      "sub_cache": 4.5005,
+      "eq_union": 0.0,
+      "eq_templatemap": 0.0,
+      "obj_sub": 4.0005,
+      "eq_methods": 0.0
+    }
+  },
+  "checks-only": {
+    "cpu": {
+      "equality": 0.2,
+      "subtyping": 0.43,
+      "eq_ctor": 0.0,
+      "sub_ctor": 0.0,
+      "eq_cache": 0.2,
+      "sub_cache": 0.4,
+      "eq_union": 0.03,
+      "eq_templatemap": 0.05,
+      "obj_sub": 0.12,
+      "eq_methods": 0.2
+    },
+    "allocs": {
+      "equality": 1.5001,
+      "subtyping": 20.5022,
+      "eq_ctor": 0.0,
+      "sub_ctor": 0.0,
+      "eq_cache": 1.5001,
+      "sub_cache": 20.5022,
+      "eq_union": 0.0,
+      "eq_templatemap": 0.0,
+      "obj_sub": 20.0022,
+      "eq_methods": 1.5001
+    }
+  }
+}

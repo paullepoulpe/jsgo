@@ -1,0 +1,5 @@
+*.bundle binary
+*.tar.gz binary
+# Immutable evidence copies preserve their original bytes, including whitespace.
+records/** -whitespace
+design-notes/** -whitespace

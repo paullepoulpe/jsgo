@@ -1,0 +1,13 @@
+{
+  "production_source": "3ebe6449",
+  "test_fix_source": "63dc7116",
+  "original_counts": {
+    "PASS": 939,
+    "FAIL": 3,
+    "SKIP": 2
+  },
+  "race_report": false,
+  "failures": "parent suite and fixture2 inbothCFGengines: malformedclassmissingclosingbrace; otherfixturesandexistingbasecheckspassed",
+  "CLI_gates": "all15MATCH N1N2N4",
+  "fixed_fixture_CLI_exit": 0
+}

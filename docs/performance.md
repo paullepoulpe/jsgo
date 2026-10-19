@@ -1,5 +1,7 @@
 # Archived performance experiments, October 2026
 
+**Complete later record:** [all experiment datasets, reports, audits, profiles and reproducible prototype source](performance-experiments/README.md). That index distinguishes individual-factor gains from cumulative screening comparisons and records untested opportunities. The tables below are the earlier historical cohort.
+
 These measurements describe the historical binaries and source revisions in
 [performance-results.json](performance-results.json), before the approved changes
 were integrated into `main` in `3fe3431a`. The measured branch included global
@@ -8,11 +10,14 @@ The current implementation uses direct node allocation and the compact Unicode
 delta wrapper from `main`. The numbers below do not measure that implementation.
 See [benchmarks.md](benchmarks.md) for the results retained on `main`.
 
-This PR now adds only this historical report, its raw data and two benchmark
-runners. Its compiler, Unicode and license files match `main`. Worker and
-extern-cache code and benchmark configurations are excluded. The archived CLI
-comparisons use fresh Go processes and stock warmed Java, with fresh compilers
-and normal extern parsing on both sides. Warm Java was faster on those builds.
+This PR adds historical reports, the complete experiment archive and two
+benchmark runners. Its active compiler, Unicode and license files match `main`.
+Superseded worker/extern-cache and GC-tuning records are preserved inside the
+archive for completeness; they are excluded from the current fresh-CLI/default-GC
+optimization target. Archived prototype source is evidence, not a compiler
+change applied by this PR. The CLI comparisons below use fresh Go processes
+and stock warmed Java, with fresh compilers and normal extern parsing on both
+sides. Warm Java was faster on those builds.
 
 ## Full compilations
 

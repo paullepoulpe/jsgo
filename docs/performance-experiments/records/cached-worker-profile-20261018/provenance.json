@@ -1,0 +1,10 @@
+{
+ "binary_sha256": "dce35142a70d0461e92c9eed94a4300a44b19bc1e68b5bfc4406ebaee75b0b34",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/small-final-java",
+ "memory_unit": "MiB (legacy _mb field names)",
+ "memory_method": "worker: /proc/PID/status VmHWM after each request; Java: wait4 ru_maxrss for the full reference process; both include warmup"
+}

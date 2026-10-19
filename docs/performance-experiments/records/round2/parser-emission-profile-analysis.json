@@ -1,0 +1,112 @@
+{
+  "typed-app": {
+    "cpu_s": {
+      "total": 6.87,
+      "emitter": 0.05,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.04,
+      "stringbuilder": 0.0,
+      "all_utf": 0.07,
+      "line_offsets": 0.03,
+      "module_path": 0.0
+    },
+    "alloc_bytes": {
+      "total": 1202176134.0,
+      "emitter": 2100801.0,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 3959644.0,
+      "all_utf": 24601988.0,
+      "line_offsets": 0.0,
+      "module_path": 1048656.0
+    }
+  },
+  "bundle": {
+    "cpu_s": {
+      "total": 26.59,
+      "emitter": 0.3,
+      "emitter_utf": 0.02,
+      "sourcemap": 0.0,
+      "stringbuilder": 0.02,
+      "all_utf": 0.1,
+      "line_offsets": 0.08,
+      "module_path": 0.0
+    },
+    "alloc_bytes": {
+      "total": 4942349927.0,
+      "emitter": 24681382.0,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 1048600.0,
+      "all_utf": 46161038.0,
+      "line_offsets": 0.0,
+      "module_path": 0.0
+    }
+  },
+  "downlevel-whitespace": {
+    "cpu_s": {
+      "total": 1.91,
+      "emitter": 0.08,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 0.0,
+      "all_utf": 0.06,
+      "line_offsets": 0.03,
+      "module_path": 0.06
+    },
+    "alloc_bytes": {
+      "total": 348381703.0,
+      "emitter": 1574344.0,
+      "emitter_utf": 524736.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 1065578.0,
+      "all_utf": 19257274.0,
+      "line_offsets": 0.0,
+      "module_path": 43518744.0
+    }
+  },
+  "downlevel-simple": {
+    "cpu_s": {
+      "total": 5.25,
+      "emitter": 0.06,
+      "emitter_utf": 0.01,
+      "sourcemap": 0.05,
+      "stringbuilder": 0.02,
+      "all_utf": 0.04,
+      "line_offsets": 0.0,
+      "module_path": 0.06
+    },
+    "alloc_bytes": {
+      "total": 1095277618.0,
+      "emitter": 0.0,
+      "emitter_utf": 0.0,
+      "sourcemap": 35202411.0,
+      "stringbuilder": 0.0,
+      "all_utf": 33085233.0,
+      "line_offsets": 0.0,
+      "module_path": 53480920.0
+    }
+  },
+  "checks-only": {
+    "cpu_s": {
+      "total": 10.2,
+      "emitter": 0.01,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 0.01,
+      "all_utf": 0.13,
+      "line_offsets": 0.0,
+      "module_path": 0.0
+    },
+    "alloc_bytes": {
+      "total": 1500014023.0,
+      "emitter": 0.0,
+      "emitter_utf": 0.0,
+      "sourcemap": 0.0,
+      "stringbuilder": 0.0,
+      "all_utf": 77889131.0,
+      "line_offsets": 0.0,
+      "module_path": 2097296.0
+    }
+  }
+}

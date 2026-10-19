@@ -1,0 +1,1297 @@
+{
+  "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+  "scope": "Historical and current prototype source snapshots as patches, not compiler changes applied to this PR. Apply each patch to a clean checkout of base_main; restore its listed untracked files. Runtime experiment flags and toolchains come from measurement metadata. Snapshot records working trees, including unfinished/rejected source; availability is not a correctness or speed endorsement.",
+  "worktrees": [
+    {
+      "worktree": "jsgo",
+      "head": "698231e22796289b1048e193eba162644f7d8958",
+      "branch": "refs/heads/perf/compiler-allocations-worker",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo/tracked-vs-main.patch",
+      "tracked_patch_bytes": 146349,
+      "tracked_patch_sha256": "1b463d57c0288f7adcbbba10aece6d2ec683acb40a08fa562f0aa69e24536dd2",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-access-property-facts",
+      "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+      "branch": "refs/heads/perf/access-property-facts",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-access-property-facts/tracked-vs-main.patch",
+      "tracked_patch_bytes": 643197,
+      "tracked_patch_sha256": "72d796dec664a11e5335e4fa16eecca040c58e16b4177c6759e90086540a95f4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-analysis-reuse",
+      "head": "c79c6fcfe6f024763e82e80a7a777c71d0f44ef9",
+      "branch": "refs/heads/perf/queue-retry-fix",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-analysis-reuse/tracked-vs-main.patch",
+      "tracked_patch_bytes": 510682,
+      "tracked_patch_sha256": "01fa24fe2c5e8dc2cc349c8b1da16170ebd7fa2fcd43b88fa88aeaa6caa072c2",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-cache-lifetime",
+      "head": "c225aab0f8ed46be44543852044082049d6f1813",
+      "branch": "refs/heads/perf/cache-lifetime",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-cache-lifetime/tracked-vs-main.patch",
+      "tracked_patch_bytes": 119790,
+      "tracked_patch_sha256": "ca8187d239d1733875016d49c43b94e01d4d370bbfd77b21c51e2bb91dc1d364",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-cli-next",
+      "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+      "branch": "refs/heads/perf/cli-next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-cli-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 339147,
+      "tracked_patch_sha256": "e1b1dc57e97575612df0a4ed38a6a00d7ce0f2e6e025935fbba5ae5d41026e21",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-cli-roadmap",
+      "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+      "branch": "refs/heads/perf/cli-roadmap",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-cli-roadmap/tracked-vs-main.patch",
+      "tracked_patch_bytes": 721833,
+      "tracked_patch_sha256": "f0d2e2bded74e2c60c81a573ee11809f2bb5fb3a0c319843c4348f498ae01936",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-cli-thread-audit",
+      "head": "a59d30b29886f4443872f7017af6d7256b6ca66b",
+      "branch": "refs/heads/perf/cli-thread-audit",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-cli-thread-audit/tracked-vs-main.patch",
+      "tracked_patch_bytes": 378112,
+      "tracked_patch_sha256": "ef1670252a34600585e4c9f4353ff2ce8a0df4d5dbd39a5d5bdf474952c77f43",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-collections",
+      "head": "82fbf788d916c1dffb20b21ec9fd08f0316bbc58",
+      "branch": "refs/heads/perf/collections",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-collections/tracked-vs-main.patch",
+      "tracked_patch_bytes": 113392,
+      "tracked_patch_sha256": "7422c49a9e7af5cfc958934641b577c036374ac8c86a8f92a47aa48ae5460855",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-combined",
+      "head": "348ee6e3cf1e64d945687127fdd411b5de647c3f",
+      "branch": "refs/heads/perf/combined",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-combined/tracked-vs-main.patch",
+      "tracked_patch_bytes": 113903,
+      "tracked_patch_sha256": "1775dc3fd324b81dfc5195e3473e3ef7cc5d231acc74de8c7ef5aef1c379eef3",
+      "untracked": [
+        {
+          "path": "tools/bench/experiments.py",
+          "bytes": 5935,
+          "sha256": "c7cc0bc3cd65a650c10d79500c27296f2fba675da5f80fe1957d0eac1970ae7b"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-combined2",
+      "head": "e8d956529ac4b1b5204eeac221acec924c34024d",
+      "branch": "refs/heads/perf/combined2",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-combined2/tracked-vs-main.patch",
+      "tracked_patch_bytes": 370952,
+      "tracked_patch_sha256": "546e0de53945336a8ea0ed1d4d139d6c93fc769f9a61d3f238fe07876a41da93",
+      "untracked": [
+        {
+          "path": "tools/bench/profile/main.go",
+          "bytes": 1682,
+          "sha256": "8384d5865be4fc5a74968519979342dcb9acfa2ce734f1d6c613c526f32494c9"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-compact-inverter",
+      "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+      "branch": "refs/heads/perf/compact-inverter",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-compact-inverter/tracked-vs-main.patch",
+      "tracked_patch_bytes": 987788,
+      "tracked_patch_sha256": "f37d1f7a8894c5b542fe6d5e9b3077ef442cff4da83a1a26010fff96fe3296e6",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-compact-parser",
+      "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+      "branch": "refs/heads/perf/compact-parser",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-compact-parser/tracked-vs-main.patch",
+      "tracked_patch_bytes": 146628,
+      "tracked_patch_sha256": "1f71fe03218cb0074a4e09b22018a6e25319b293832ba8eadc5728a6bb4f3a80",
+      "untracked": [
+        {
+          "path": "internal/parser/compact_self.go",
+          "bytes": 19478,
+          "sha256": "08b7b8921a99631189e79080b334fe8fe01cf3ae73abacda8ee194a918432cf9"
+        },
+        {
+          "path": "internal/parser/compact_self_test.go",
+          "bytes": 1574,
+          "sha256": "8da62d9a7a74e090527f45465b39a763a0fb20c40b5c88f8e43afd24b2bc35ed"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-compact-var",
+      "head": "75c80a98353029b72b7369b7688bfece1003555e",
+      "branch": "refs/heads/perf/compact-var",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-compact-var/tracked-vs-main.patch",
+      "tracked_patch_bytes": 115572,
+      "tracked_patch_sha256": "bd03e5c8f71e43e2150be4f524a87b4de5ca2b9bc7341fea48374b8c707ecd9e",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-compound",
+      "head": "21c008cd24a7bf973665a44fff85805ebfae853b",
+      "branch": "refs/heads/perf/compound",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-compound/tracked-vs-main.patch",
+      "tracked_patch_bytes": 529279,
+      "tracked_patch_sha256": "de0442926b846e73418c9680a1e97b8dbe68c15dfc061e64ae9adaec12288295",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-concrete-traversal",
+      "head": "2e091bd8373cf3f3074d2bc9ff247d6b44e210f4",
+      "branch": "refs/heads/perf/concrete-traversal",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-concrete-traversal/tracked-vs-main.patch",
+      "tracked_patch_bytes": 589492,
+      "tracked_patch_sha256": "56e078a0b02a95cb79c8bfc7d504422691592433b96aa03847bb5cb5bf9a2fbe",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-dataflow",
+      "head": "7a06024849c6430e6ab97240655278d71933c4e8",
+      "branch": "refs/heads/perf/dataflow",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-dataflow/tracked-vs-main.patch",
+      "tracked_patch_bytes": 109037,
+      "tracked_patch_sha256": "e18cb29252b47a632bdaca20e80536a7f25405bc953506d481cc419abdb9bee6",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-delivery",
+      "head": "c0a28a97199c6fbfd1a2a5f6e3bf0c744d9bbc0c",
+      "branch": "refs/heads/perf/delivery",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-delivery/tracked-vs-main.patch",
+      "tracked_patch_bytes": 454567,
+      "tracked_patch_sha256": "566009a1973a75957611c7c52f11d2ee9268e3df938f39e95619c2c6403ca931",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-dense-analysis",
+      "head": "291af22c04516c6e9646d7a48c75bd331d6b81a8",
+      "branch": "refs/heads/perf/dense-analysis",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-dense-analysis/tracked-vs-main.patch",
+      "tracked_patch_bytes": 470571,
+      "tracked_patch_sha256": "abec5991cc3a1c0088e2657e80d9a3ec2927fd704a8fe9bef66cd6ba52b2b4af",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-direct-ir",
+      "head": "becc0bcec90d27c6202ebfbeb592d0826be50885",
+      "branch": "refs/heads/perf/direct-ir",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-direct-ir/tracked-vs-main.patch",
+      "tracked_patch_bytes": 505575,
+      "tracked_patch_sha256": "055bb9910eb0694c0ff0739f0193232eb5517f51ec98407515d9fccf107d38ba",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-extern-cache",
+      "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+      "branch": "refs/heads/perf/extern-cache",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-extern-cache/tracked-vs-main.patch",
+      "tracked_patch_bytes": 122946,
+      "tracked_patch_sha256": "b70a549d6797278900cda969ea4019731380bd46894375b96976bad95f61daab",
+      "untracked": [
+        {
+          "path": "internal/parsing/builtin_extern_cache.go",
+          "bytes": 3913,
+          "sha256": "9dd6b2dc18553acffc74d7890c48dc17dcda17a139eabf25cba4c8d2014e7e47"
+        },
+        {
+          "path": "internal/parsing/builtin_extern_cache_test.go",
+          "bytes": 2286,
+          "sha256": "ab3a399819d2ad1c8b2827926c2e34d59707cb46a7627e28e444754e1ba97c78"
+        },
+        {
+          "path": "tools/bench/gowarm/main.go",
+          "bytes": 4180,
+          "sha256": "c4aa69645e89ea1bd26a25a344cfeca0af25ff2d8180f3bc245640814a1da944"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-extern-parse-inventory",
+      "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+      "branch": "refs/heads/perf/extern-parse-inventory",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-extern-parse-inventory/tracked-vs-main.patch",
+      "tracked_patch_bytes": 729750,
+      "tracked_patch_sha256": "0d128870c026e4a28f9ab37d266b901f7fda6b5a8afacddb38e5d46cb2ab88b7",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-fresh-template-values",
+      "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+      "branch": "refs/heads/perf/fresh-template-values",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-fresh-template-values/tracked-vs-main.patch",
+      "tracked_patch_bytes": 1147365,
+      "tracked_patch_sha256": "ca99f5beff54239596b66267cb42a6e865ad04eb841a2b6683407a3d165821b0",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-fsiv-scope-window",
+      "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+      "branch": "refs/heads/perf/fsiv-scope-window",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-fsiv-scope-window/tracked-vs-main.patch",
+      "tracked_patch_bytes": 240185,
+      "tracked_patch_sha256": "3ad9ed9e27d1cd6c61b66e86209c316f419c83d1657109966341b9bf7bf239da",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-function-analysis",
+      "head": "29977a25fb4a9b8b8fcee67cedbfe7ee6e2aa36c",
+      "branch": "refs/heads/perf/function-analysis",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-function-analysis/tracked-vs-main.patch",
+      "tracked_patch_bytes": 556357,
+      "tracked_patch_sha256": "b0368b690bb377eff86a8b08614db825c3138470685f758955de7077194e6cc4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-indexed-flow",
+      "head": "94d06deb027b3e1240bfeb9b819cf98aa5779fa8",
+      "branch": "refs/heads/perf/indexed-flow",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-indexed-flow/tracked-vs-main.patch",
+      "tracked_patch_bytes": 559056,
+      "tracked_patch_sha256": "7716675e796e68e8338ebd5945e2a19f4399e1a96ee92ee10161dc1a8fc2ad69",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-inline-bitset",
+      "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+      "branch": "refs/heads/perf/inline-bitset",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-inline-bitset/tracked-vs-main.patch",
+      "tracked_patch_bytes": 1109722,
+      "tracked_patch_sha256": "0671d2de69df1d3160c0bd59c5698708dc80cb94b5e9dd011c6462a9ec84778f",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-inline-discovery",
+      "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+      "branch": "refs/heads/perf/inline-function-discovery",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-inline-discovery/tracked-vs-main.patch",
+      "tracked_patch_bytes": 511635,
+      "tracked_patch_sha256": "2e6f82ce5c18e19ed44347ecfebc0bee0c3c0e684ef9ea9b03f57028611f1dcc",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-inline-mixed-worklist",
+      "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+      "branch": "refs/heads/perf/inline-mixed-worklist",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-inline-mixed-worklist/tracked-vs-main.patch",
+      "tracked_patch_bytes": 636130,
+      "tracked_patch_sha256": "38e3e378f22b2ca8e1ff88ee0b65fb2b5dcc42d0f160e7f072f00db5c3f4fb3f",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-inline-tape-chunks",
+      "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+      "branch": "refs/heads/perf/inline-discovery-chunks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-inline-tape-chunks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 689770,
+      "tracked_patch_sha256": "00a805190c9eb3bb6c29b3369c19449ffe168e288a0708dcdb19193626efe549",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-inline-worklist",
+      "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+      "branch": "refs/heads/perf/inline-direct-worklist",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-inline-worklist/tracked-vs-main.patch",
+      "tracked_patch_bytes": 631641,
+      "tracked_patch_sha256": "c76cd65883c006c3e5cfbafe2a6d782785817cffd3108e19ab5ab1f01073e5bd",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-java-worker",
+      "head": "17af0105cffb0469a9222144b4c1c17cd9bc2167",
+      "branch": "refs/heads/perf/java-worker",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-java-worker/tracked-vs-main.patch",
+      "tracked_patch_bytes": 522344,
+      "tracked_patch_sha256": "2d4aee3da6e446d8ab3f48ef6b1cefc647edbd3060566e65e85f8e12ce37454b",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-cfg",
+      "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+      "branch": "refs/heads/perf/native-cfg-license",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-cfg/tracked-vs-main.patch",
+      "tracked_patch_bytes": 696134,
+      "tracked_patch_sha256": "b88ca3a7cdc11333ecd5ee3684c927c60461eab41f519f976efb0a214d951155",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-dependency-scan",
+      "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+      "branch": "refs/heads/perf/native-dependency-scan",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-dependency-scan/tracked-vs-main.patch",
+      "tracked_patch_bytes": 516859,
+      "tracked_patch_sha256": "a18889a0b93cbf5a78184d22c0b462e5dd1dbd1a537e1ce2ae91e1b2ccff48c1",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-extern-arguments",
+      "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+      "branch": "refs/heads/perf/native-extern-arguments",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-extern-arguments/tracked-vs-main.patch",
+      "tracked_patch_bytes": 740808,
+      "tracked_patch_sha256": "4fb01edebcaee644b4a9274074e2b1656f21b294f5d2ef3d62b811fe19607be2",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-facts",
+      "head": "b99a9c6ee2d2d9de1a0cb4485751f61c81314d7b",
+      "branch": "refs/heads/perf/native-facts",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-facts/tracked-vs-main.patch",
+      "tracked_patch_bytes": 548712,
+      "tracked_patch_sha256": "85585ec379cb239be6a19e645d033d5eff4df2f19fa8e2cd0e4ddbc8d25fe5e4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-facts-fixtures",
+      "head": "0e99c7823250acc86924881c3bb62073e3fc3cdc",
+      "branch": "refs/heads/perf/native-facts-fixtures",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-facts-fixtures/tracked-vs-main.patch",
+      "tracked_patch_bytes": 550363,
+      "tracked_patch_sha256": "37eb56b8dc756e0cd9e13307a1aedcf740627f7e045b1818b56994e5b33711b9",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-live-vars",
+      "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+      "branch": "refs/heads/perf/native-live-vars",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-live-vars/tracked-vs-main.patch",
+      "tracked_patch_bytes": 999982,
+      "tracked_patch_sha256": "42541d4fe96bd87c394ace23cbb8f4c13b9298717cff6b1655a5a109a92c71d4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-parser",
+      "head": "6c5ee4fbc64814d639b0e3910f73397abed6df0a",
+      "branch": "refs/heads/perf/native-parser",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-parser/tracked-vs-main.patch",
+      "tracked_patch_bytes": 561534,
+      "tracked_patch_sha256": "924aed8ac5c6e52cb2b6cb4002bae4c26996cf957d8585980360449a60bd06ec",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-parser-allocation",
+      "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+      "branch": "refs/heads/perf/native-parser-allocation",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-parser-allocation/tracked-vs-main.patch",
+      "tracked_patch_bytes": 705987,
+      "tracked_patch_sha256": "daa83f8b8fdb7d503e91c86aa1256340a85742ff3851d847d7bf859afbd3de6b",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-parser-next",
+      "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+      "branch": "refs/heads/perf/native-parser-next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-parser-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 688740,
+      "tracked_patch_sha256": "4e45e7ef1606987670dbbc6ec865632caaf61c2ad3c66aeeafd848eaa50438f1",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-source-locks",
+      "head": "744869f2d8c27c7b964ddd01ea5cc8236947b3d5",
+      "branch": "refs/heads/perf/native-source-locks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-source-locks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 540843,
+      "tracked_patch_sha256": "0c1483234e02caed9ee45dfc93af10945e1e38180e5503caa7a08ccab959a0d8",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-types",
+      "head": "b6655347375fdc2789cce294ba17650a29af8803",
+      "branch": "refs/heads/perf/native-types",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-types/tracked-vs-main.patch",
+      "tracked_patch_bytes": 568898,
+      "tracked_patch_sha256": "d102d439fa36229ce94584be62aab4793df03f2b4776d991e2169595bfb3313e",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-native-types-v2",
+      "head": "ee6d65e97c9e24f0f4f2770795f62b379b8636af",
+      "branch": "refs/heads/perf/native-types-v2",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-native-types-v2/tracked-vs-main.patch",
+      "tracked_patch_bytes": 566105,
+      "tracked_patch_sha256": "83c8fbcfc695145a53392623bcd2454fc3e980295189d97df42011372537ec0c",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-next",
+      "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+      "branch": "refs/heads/perf/next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 375465,
+      "tracked_patch_sha256": "cbab77aad7a046891f4e8770c355ac6496635df8e2c55626fe073ffb6e619b70",
+      "untracked": [
+        {
+          "path": "tools/bench/profile/main.go",
+          "bytes": 1682,
+          "sha256": "8384d5865be4fc5a74968519979342dcb9acfa2ce734f1d6c613c526f32494c9"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-node-chunks",
+      "head": "f95d848ec976665ffc58dbae4059d9ae5a5cb0b7",
+      "branch": "refs/heads/perf/node-chunks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-node-chunks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 124910,
+      "tracked_patch_sha256": "6889ff9b0d6b5390095e2c5f0c19d910f9f7d41078f406eae67cfe729601d039",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-node64",
+      "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+      "branch": "refs/heads/perf/node64",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-node64/tracked-vs-main.patch",
+      "tracked_patch_bytes": 420289,
+      "tracked_patch_sha256": "cf390a761fde5d0ee7173f354b80f1549f308906df096d0c3aed39e81164b5fb",
+      "untracked": [
+        {
+          "path": "internal/rhino/node_packed.go",
+          "bytes": 6246,
+          "sha256": "85409cfaab2caa1d0694162c6c9f2e2432841b143debb9ece37f75b2798f78cb"
+        },
+        {
+          "path": "tools/bench/profile/main.go",
+          "bytes": 1682,
+          "sha256": "8384d5865be4fc5a74968519979342dcb9acfa2ce734f1d6c613c526f32494c9"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-node64-header",
+      "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+      "branch": "refs/heads/perf/node64-header",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-node64-header/tracked-vs-main.patch",
+      "tracked_patch_bytes": 562908,
+      "tracked_patch_sha256": "889532a6343f087e0b8a2f6269efb3ad5b47870402865b3fa8ee4d73bdee52e4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-node64-predicates",
+      "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+      "branch": "refs/heads/perf/node64-predicates",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-node64-predicates/tracked-vs-main.patch",
+      "tracked_patch_bytes": 566228,
+      "tracked_patch_sha256": "9d29dd71422491f3db70dafff7aafc2fdd9784fbfe538bef11c206d112f04b20",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-node80",
+      "head": "c732ea871fa5fe4d54b7984edb3007027b2350a6",
+      "branch": "refs/heads/perf/node80",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-node80/tracked-vs-main.patch",
+      "tracked_patch_bytes": 108765,
+      "tracked_patch_sha256": "aeaebf762826e2708def664e936e5bfcdfe88cae453fcdb12baed4f0f6923215",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-output-buffer",
+      "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+      "branch": "refs/heads/perf/output-buffer",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-output-buffer/tracked-vs-main.patch",
+      "tracked_patch_bytes": 987264,
+      "tracked_patch_sha256": "4786893d2d9e38531b2c84f2c07acdf44ae021dc25b053a7f487f2a6304fe6ae",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-parallel-parse",
+      "head": "c225aab0f8ed46be44543852044082049d6f1813",
+      "branch": "refs/heads/perf/parallel-parse",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parallel-parse/tracked-vs-main.patch",
+      "tracked_patch_bytes": 117388,
+      "tracked_patch_sha256": "9ce29cf2e96a6fa79b5bbbb5162bf7ed7dd2065aa1f0f92704acc670b84987f7",
+      "untracked": [
+        {
+          "path": "internal/jscomp/prebuild_ast_parallel.go",
+          "bytes": 3598,
+          "sha256": "fb6dba4bac5aa8f81981c6f0286bc20e418c0cc20950662bad9c929f535dfee4"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-parallel-passes",
+      "head": "00d52b28deb6ec37390f5b76ec3270281b914c91",
+      "branch": "refs/heads/perf/parallel-source-bounded",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parallel-passes/tracked-vs-main.patch",
+      "tracked_patch_bytes": 512749,
+      "tracked_patch_sha256": "614a3dc99d1c881b0767fc2ac575af7bd84ec62350b792f19e2d9c3a61d88ded",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-parallel-peephole",
+      "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+      "branch": "refs/heads/perf/parallel-peephole",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parallel-peephole/tracked-vs-main.patch",
+      "tracked_patch_bytes": 530202,
+      "tracked_patch_sha256": "9792f2fdf021b922caa2b8c6e2b43da9f39ec4d184581b6880df487453fa94f6",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-parallel-reference",
+      "head": "c931c431bd00805457fb7183c8063c39ce878758",
+      "branch": "refs/heads/perf/parallel-reference",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parallel-reference/tracked-vs-main.patch",
+      "tracked_patch_bytes": 698097,
+      "tracked_patch_sha256": "7f340c68da59b8d0909f37143cacab2c23a579bb561f5ecef2ce10e65d254e70",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-parallel-transpile",
+      "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+      "branch": "refs/heads/perf/parallel-fsiv",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parallel-transpile/tracked-vs-main.patch",
+      "tracked_patch_bytes": 739743,
+      "tracked_patch_sha256": "adc98d2fb493a9fe82d5d8a8331444253838ca9f4f77cbabf2a98ae778a2c539",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-parser-baseline",
+      "head": "bd01d6e65dee2dcd80496a3c4124fa8cc00447b1",
+      "branch": "detached",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-parser-baseline/tracked-vs-main.patch",
+      "tracked_patch_bytes": 478039,
+      "tracked_patch_sha256": "5ab770a1eea9fe52bf2f13c81cf11bd203b5e743ea444513189324b98ace377e",
+      "untracked": [
+        {
+          "path": "internal/parser/tree_storage_bench_test.go",
+          "bytes": 1000,
+          "sha256": "cbf5f887c7f8e4fd4323e73ba8a0704d9a3d5843756e672d3f4299dee8be28ab"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-pass-chunks",
+      "head": "e229c163206feca173d2dd02bcc9efc946647f24",
+      "branch": "refs/heads/perf/pass-chunks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-pass-chunks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 127855,
+      "tracked_patch_sha256": "4072087d950f0b139f0360e0df16f15c3d933344124fbf88daba229bf0566823",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-pass-empty-proofs",
+      "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+      "branch": "refs/heads/perf/pass-empty-proofs",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-pass-empty-proofs/tracked-vs-main.patch",
+      "tracked_patch_bytes": 411555,
+      "tracked_patch_sha256": "ffc63c689b1d69d1029c353da6702b6c5bf46d074659bb659569d08a85d890dc",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-position-cache",
+      "head": "75eb890ecf3888fb21f83b43c6d29686b3ffed46",
+      "branch": "refs/heads/perf/position-cache",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-position-cache/tracked-vs-main.patch",
+      "tracked_patch_bytes": 119378,
+      "tracked_patch_sha256": "08d15494f9f474964f14958e3721b847cdc74bd202102d47a00db7e236212ade",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-process-arena",
+      "head": "e8d956529ac4b1b5204eeac221acec924c34024d",
+      "branch": "refs/heads/perf/process-arena",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-process-arena/tracked-vs-main.patch",
+      "tracked_patch_bytes": 377172,
+      "tracked_patch_sha256": "9201ca3e7106212734a513a6d42f3494c7af0d4dd9799e8fdf9b8fc996a2dc38",
+      "untracked": [
+        {
+          "path": "internal/memregion/arena.go",
+          "bytes": 1154,
+          "sha256": "d1889e1dd0d2319ff809d97c6ea1ef5d19895039c774a1bc527e18fd9b2ecf0a"
+        },
+        {
+          "path": "internal/memregion/heap.go",
+          "bytes": 409,
+          "sha256": "1ea996e6fa7ec898653a09a3653da658b46ae38922419781edf32180cd1161b1"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-property-map-ascii",
+      "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+      "branch": "refs/heads/perf/property-map-ascii",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-property-map-ascii/tracked-vs-main.patch",
+      "tracked_patch_bytes": 508799,
+      "tracked_patch_sha256": "2c5135ecf02d7103e2962f6e66c8f69e64b221a7fe8599b49007f71c20857f66",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-redesigns",
+      "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+      "branch": "refs/heads/perf/redesigns",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-redesigns/tracked-vs-main.patch",
+      "tracked_patch_bytes": 895775,
+      "tracked_patch_sha256": "06915773b94e166222d6e20ee16a6521b111a9cd8a57df673d0f28ea8b0d5073",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-remove-unused-tasks",
+      "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+      "branch": "refs/heads/perf/remove-unused-tasks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-remove-unused-tasks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 728243,
+      "tracked_patch_sha256": "3b6420826c7247ff00442744a54b8d624360d1241c10d43effcc0881d3bcbd69",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-rename-conflicts",
+      "head": "6483584b027776810828278737a6f305fd58c4c4",
+      "branch": "refs/heads/perf/rename-conflicts",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-rename-conflicts/tracked-vs-main.patch",
+      "tracked_patch_bytes": 115277,
+      "tracked_patch_sha256": "cb4db9f423d8f978a89c72b81eb4671b9d2f4b2243928ec094123ee01a980b3a",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-allocation-tests",
+      "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+      "branch": "refs/heads/test/allocation-lifetimes",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-allocation-tests/tracked-vs-main.patch",
+      "tracked_patch_bytes": 485229,
+      "tracked_patch_sha256": "fc97cb0a263875177994c175acb7a4d1a73a435f3f91c6546300e762d5a74c8a",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-allocations",
+      "head": "90eb48fbba2a703797a02e0e7f23ec2c8973233c",
+      "branch": "refs/heads/perf/round-allocations",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-allocations/tracked-vs-main.patch",
+      "tracked_patch_bytes": 31709,
+      "tracked_patch_sha256": "9bd6ce63b8027f3e6eb66b6e7d05c6817462ac7fc410a64ed0450c2d72b8a94d",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-ast-layout",
+      "head": "e6417db40953ed1c17b90b4260f81271545df838",
+      "branch": "refs/heads/perf/round-ast-layout",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-ast-layout/tracked-vs-main.patch",
+      "tracked_patch_bytes": 84460,
+      "tracked_patch_sha256": "3d3b231628adef31e01a4c683dfa3d2451fb4f740a49e3bf4457d071048edb62",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-audit",
+      "head": "e55096ee72b66a250501c52b4cef168d385d50c4",
+      "branch": "refs/heads/perf/round-audit",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-audit/tracked-vs-main.patch",
+      "tracked_patch_bytes": 43411,
+      "tracked_patch_sha256": "78cfc28c4e21f16997aeb176739bad8db980585597788e023f8b8258f2da14cf",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-bitset",
+      "head": "1cbf0decc1845f05529b24ed8b2cbdda90fff689",
+      "branch": "refs/heads/perf/round-bitset",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-bitset/tracked-vs-main.patch",
+      "tracked_patch_bytes": 61987,
+      "tracked_patch_sha256": "dcb39ff0cb762a3f8f39472dc87c49399f3136e815ed54a37c38651c4652e15e",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-callee-facts",
+      "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+      "branch": "refs/heads/perf/readonly-callee-facts",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-callee-facts/tracked-vs-main.patch",
+      "tracked_patch_bytes": 357801,
+      "tracked_patch_sha256": "58406daa6ce9369be51a72c2ae58de6a5e8ce9a8835900e51daa0ad4e7e42aed",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-compound-next",
+      "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+      "branch": "refs/heads/perf/round-compound-next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-compound-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 489457,
+      "tracked_patch_sha256": "b6e1748768daf4e865f5e8f95e60d269f7a3ef49085c442ed6cd13f515bf2772",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-facts",
+      "head": "fe96f5bb9aec6dc46909ef401699cdec418ff76b",
+      "branch": "refs/heads/perf/round-facts",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-facts/tracked-vs-main.patch",
+      "tracked_patch_bytes": 34511,
+      "tracked_patch_sha256": "417e3a7cad4e25e4994ecc4796fb3cb6f680eff7a82ecdf48822022cc9cc6337",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-flow",
+      "head": "1dfe6491738bf6d39940c4ae78969ed8b481dd9e",
+      "branch": "refs/heads/perf/round-flow",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-flow/tracked-vs-main.patch",
+      "tracked_patch_bytes": 62384,
+      "tracked_patch_sha256": "700e564bb48b73fc56bbc94fe2df7a122014c2169262de0add3c890274645c42",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-flow-fsiv",
+      "head": "61a0ec3d2e480a9ec9d1104cb6721ef4bf9186e2",
+      "branch": "refs/heads/perf/round-terminal-empty",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-flow-fsiv/tracked-vs-main.patch",
+      "tracked_patch_bytes": 100589,
+      "tracked_patch_sha256": "60dc42affebf6f0aa5c740d12d47d0793a4dea740a4d298f674cb1de64be2f82",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-fsiv-skip-audit",
+      "head": "0bd6038796871e22e3812c1cb0ecc645052d6542",
+      "branch": "refs/heads/perf/fsiv-skip-audit",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-fsiv-skip-audit/tracked-vs-main.patch",
+      "tracked_patch_bytes": 21889,
+      "tracked_patch_sha256": "1df460695b60fd5743b864e495814183694c22a05415553b3add4beb09907b10",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-functions",
+      "head": "8b8626e2421a124638d7fd71c82f9c73046b49d4",
+      "branch": "refs/heads/perf/round-functions",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-functions/tracked-vs-main.patch",
+      "tracked_patch_bytes": 51926,
+      "tracked_patch_sha256": "447df3e058fddbf1df9e7a26ac7f9d1499e0536d17d75ad1d1c6ea8620a7b860",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-inverter-skip",
+      "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+      "branch": "refs/heads/perf/inverter-noop",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-inverter-skip/tracked-vs-main.patch",
+      "tracked_patch_bytes": 408276,
+      "tracked_patch_sha256": "91e0fba588b95638f028b41afaf82bb75179ac4c886ebe4750ebff190e10b083",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-module-names",
+      "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+      "branch": "refs/heads/perf/module-name-fusion",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-module-names/tracked-vs-main.patch",
+      "tracked_patch_bytes": 405221,
+      "tracked_patch_sha256": "72b9f1a852811334345689f93b8b14a181dbbdfe51f92df4121e2fb25cf50e0b",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-node64-parser",
+      "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+      "branch": "refs/heads/perf/node64-owned-parser",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-node64-parser/tracked-vs-main.patch",
+      "tracked_patch_bytes": 560140,
+      "tracked_patch_sha256": "e8ce3dc46a3f873f6f7bd3ba9ec30be9fc8e071c0553ad6d5ce64d04a3b764be",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parallel-coalesce",
+      "head": "784d05e56144bf53c412b2568e22f3156105874b",
+      "branch": "refs/heads/perf/round-parallel-coalesce",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parallel-coalesce/tracked-vs-main.patch",
+      "tracked_patch_bytes": 248690,
+      "tracked_patch_sha256": "5763cc49ed8124a052ce838b0e02945d8984752eb96751a169930c3c4b939597",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parser",
+      "head": "effd5f755a6acb994067707f24f3f23f75ea4faa",
+      "branch": "refs/heads/perf/round-parser",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parser/tracked-vs-main.patch",
+      "tracked_patch_bytes": 113223,
+      "tracked_patch_sha256": "a0a9abd81a1e20c9b24d2315f3081ca6562e7d77313067376e1cc7a63c8a01a3",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parser-module",
+      "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+      "branch": "refs/heads/perf/round-parser-module",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parser-module/tracked-vs-main.patch",
+      "tracked_patch_bytes": 428189,
+      "tracked_patch_sha256": "512f92dbfc8102365097a7b65159134fd8cf4bd2ee932e96042b4ffe2ebf0cfa",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parser-native80",
+      "head": "11534351de6bd917446e3ec876825c73599c1cda",
+      "branch": "refs/heads/perf/round-parser-native80",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parser-native80/tracked-vs-main.patch",
+      "tracked_patch_bytes": 318104,
+      "tracked_patch_sha256": "c585178a942221c5b8ef8ce29dec852745340db6509980af5789da0afc5741b1",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parser-node64",
+      "head": "392a5373a882372878a56d429bd279ce63fbe974",
+      "branch": "refs/heads/perf/round-parser-node64",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parser-node64/tracked-vs-main.patch",
+      "tracked_patch_bytes": 423982,
+      "tracked_patch_sha256": "3829b3064e13bb13cce8ef834da64063c14b1a3a58a6ed04707be705e4113795",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-parser-refine",
+      "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+      "branch": "refs/heads/perf/round-parser-refine",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-parser-refine/tracked-vs-main.patch",
+      "tracked_patch_bytes": 321507,
+      "tracked_patch_sha256": "85aed5d93042d9f0c1a2906207c53df095a6c8e24a1d651db629158d91d6ec2e",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-qname",
+      "head": "d07cd602166e581ad6031b1bcd8daf1580c26c8b",
+      "branch": "refs/heads/perf/round-qname",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-qname/tracked-vs-main.patch",
+      "tracked_patch_bytes": 31537,
+      "tracked_patch_sha256": "e3695be0b6bcbec5cedb0814976d571a653324b147de8bc93ad263a4a83960e4",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-reference-batches",
+      "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+      "branch": "refs/heads/perf/reference-batches",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-reference-batches/tracked-vs-main.patch",
+      "tracked_patch_bytes": 405316,
+      "tracked_patch_sha256": "414c600d649e8acb1b6bc8e487c1a4d8f8ef7c495f58e0de55111b5665f6565e",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-references",
+      "head": "527d6ad6e0184970f59ec87f354074ad9e0eddd2",
+      "branch": "refs/heads/perf/round-references",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-references/tracked-vs-main.patch",
+      "tracked_patch_bytes": 51454,
+      "tracked_patch_sha256": "a333b1e749bdc231d66432aef8aa25b03c8d9d1199d10ac39fea937c1e987ed7",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-scope-map",
+      "head": "ceceacbbed4f9a7cb8235d32fd0bee4b076efedd",
+      "branch": "refs/heads/perf/round-scope-map",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-scope-map/tracked-vs-main.patch",
+      "tracked_patch_bytes": 46180,
+      "tracked_patch_sha256": "450de04bd21ad8aac161b0c11b82625c9bcfc4b64795236f8b8eb681df3bb2d5",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-scope-reuse",
+      "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+      "branch": "refs/heads/perf/scope-reuse",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-scope-reuse/tracked-vs-main.patch",
+      "tracked_patch_bytes": 218341,
+      "tracked_patch_sha256": "c11d90602d3cb72137de26632b74c6a88d20bec4b197a62e57acc5f5682fe904",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-smallflow",
+      "head": "00adf86763be22e3e12eeabf7c2d27bfd0fae3dc",
+      "branch": "refs/heads/perf/round-smallflow",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-smallflow/tracked-vs-main.patch",
+      "tracked_patch_bytes": 42043,
+      "tracked_patch_sha256": "f6ecd42ba9f3cb544a7b2c16707f494a92c7f4969f9d8513b9c93e83172f3ac2",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-typed-declarations",
+      "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+      "branch": "refs/heads/perf/native-typed-declarations",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-typed-declarations/tracked-vs-main.patch",
+      "tracked_patch_bytes": 523092,
+      "tracked_patch_sha256": "c03f75dc5a7136508fc22defe721063f677f4e11a5ba144cd160e8dce3592658",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-unused",
+      "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+      "branch": "refs/heads/perf/unused-work",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-unused/tracked-vs-main.patch",
+      "tracked_patch_bytes": 339475,
+      "tracked_patch_sha256": "07046573f1e330b03f8de2681118ecc411e5d8792f69c4f255de0b6cf39906d5",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-round-work-elision",
+      "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+      "branch": "refs/heads/perf/round-work-elision",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-round-work-elision/tracked-vs-main.patch",
+      "tracked_patch_bytes": 393149,
+      "tracked_patch_sha256": "c922fd57a2217576c384da3fbc628a11ae4c9fb8ae8bafa8d8351ab68d235d64",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-ruc-intrusive",
+      "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+      "branch": "refs/heads/perf/remove-unused-intrusive",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-ruc-intrusive/tracked-vs-main.patch",
+      "tracked_patch_bytes": 742491,
+      "tracked_patch_sha256": "b95f3d2eaabde03c4db09b69d26ea86688e4bd364197e38c0088e30431e3421a",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-scope-chunks",
+      "head": "e229c163206feca173d2dd02bcc9efc946647f24",
+      "branch": "refs/heads/perf/scope-chunks",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-scope-chunks/tracked-vs-main.patch",
+      "tracked_patch_bytes": 126390,
+      "tracked_patch_sha256": "a0f205a664cd27f00f274e3f0cd859b532ee22c62644338192af650d3059ef15",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-scope-first-allocation",
+      "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+      "branch": "refs/heads/perf/scope-first-allocation",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-scope-first-allocation/tracked-vs-main.patch",
+      "tracked_patch_bytes": 978617,
+      "tracked_patch_sha256": "0195ba06fbe091c26b7ddb8dd237085463b3f33d448cba0483ab3fa9b150a573",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-scope-lookup",
+      "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+      "branch": "refs/heads/perf/scope-lookup",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-scope-lookup/tracked-vs-main.patch",
+      "tracked_patch_bytes": 378096,
+      "tracked_patch_sha256": "844c5ce2346ed3e3687aa67fd0b316dfe616033ccf2dcae674fba65d354c17cb",
+      "untracked": [
+        {
+          "path": "internal/jscomp/scope_lookup_test.go",
+          "bytes": 2453,
+          "sha256": "4a490eabf9f86aee91098d57a1d4cec0086117152aa04a9144e8dfcac4c4362f"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-scope-recipes",
+      "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+      "branch": "refs/heads/perf/scope-recipes",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-scope-recipes/tracked-vs-main.patch",
+      "tracked_patch_bytes": 905564,
+      "tracked_patch_sha256": "11edc8b13197bad6193338d105b1aee89922958a79fc399487c00127d3e220e3",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-slab-shapes",
+      "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+      "branch": "refs/heads/perf/slab-shapes",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-slab-shapes/tracked-vs-main.patch",
+      "tracked_patch_bytes": 376291,
+      "tracked_patch_sha256": "46b1a71a86cefe2f37c90ff1aed3660c7951c51fcf89ca8cd54d0d6aa0946970",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-source-position-cache",
+      "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+      "branch": "refs/heads/perf/source-callback-fix",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-source-position-cache/tracked-vs-main.patch",
+      "tracked_patch_bytes": 740129,
+      "tracked_patch_sha256": "50fff90e213508f50e7c87fc74cda5e4d442cb17d89121ac73816e5022e1ff6b",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-sourcefile-cli-lock",
+      "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+      "branch": "refs/heads/perf/sourcefile-cli-lock",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-sourcefile-cli-lock/tracked-vs-main.patch",
+      "tracked_patch_bytes": 516704,
+      "tracked_patch_sha256": "99fefd306283a0afcf4ce24fb2cb2c873beb0953aa909c6c343d4331a8b1d56f",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-stock-scope-insertion",
+      "head": "546231955458e7f729c009bc285e629ce820c3aa",
+      "branch": "refs/heads/perf/stock-scope-insertion",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-stock-scope-insertion/tracked-vs-main.patch",
+      "tracked_patch_bytes": 636395,
+      "tracked_patch_sha256": "05161fa4c90587d0e786565ff00f70d0616e3163d9658f5a8a67f3e9bc23ccbb",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-bitset-template",
+      "head": "837a92e7ee9b714b010a06573986431135b18eae",
+      "branch": "refs/heads/perf/structural-bitset-template",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-bitset-template/tracked-vs-main.patch",
+      "tracked_patch_bytes": 1178657,
+      "tracked_patch_sha256": "027b0bf066e5e714a8225579250bb0823dce89f62242d0c913102d151a5c988d",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-followup",
+      "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+      "branch": "refs/heads/perf/structural-followup",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-followup/tracked-vs-main.patch",
+      "tracked_patch_bytes": 712033,
+      "tracked_patch_sha256": "739e51b2a67b3619402129847de90a0d535997c8054647925ac66b61fefbb189",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-inline-bitset",
+      "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+      "branch": "refs/heads/perf/structural-inline-bitset",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-inline-bitset/tracked-vs-main.patch",
+      "tracked_patch_bytes": 1118167,
+      "tracked_patch_sha256": "2aec0d288713e09b8d751868a6615edb690d219522798852d46b97dd328560fa",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-native-analysis",
+      "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+      "branch": "refs/heads/perf/structural-native-analysis",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-native-analysis/tracked-vs-main.patch",
+      "tracked_patch_bytes": 1092851,
+      "tracked_patch_sha256": "17bd012d5d9702660d160022ca9fce9f6b5d35b2f61a9db4616940e831be95cb",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-next",
+      "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+      "branch": "refs/heads/perf/structural-next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 651677,
+      "tracked_patch_sha256": "148d7e867ea83021a1570d9b73a6233282a6d19d009f18be35dd0fb08ff60882",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-pass-storage",
+      "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+      "branch": "refs/heads/perf/structural-pass-storage",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-pass-storage/tracked-vs-main.patch",
+      "tracked_patch_bytes": 835909,
+      "tracked_patch_sha256": "29a14021cba8466c5c5352eaef25192d829f9af7c7837b11d571ae31bf6fcd34",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-recipes-externs",
+      "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+      "branch": "refs/heads/perf/structural-recipes-externs",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-recipes-externs/tracked-vs-main.patch",
+      "tracked_patch_bytes": 960983,
+      "tracked_patch_sha256": "6233b67227e6919d1d5a374a47ac86f67d37c2d2dbe35f026b0c55e66c303093",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-structural-traversal-next",
+      "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+      "branch": "refs/heads/perf/structural-traversal-next",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-structural-traversal-next/tracked-vs-main.patch",
+      "tracked_patch_bytes": 939584,
+      "tracked_patch_sha256": "ee7d50fbe4f58e956783533c9dbab14262d1e150ff1127fdc89d7d1f749c8343",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-thread-sweep-env",
+      "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+      "branch": "refs/heads/perf/thread-sweep-env",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-thread-sweep-env/tracked-vs-main.patch",
+      "tracked_patch_bytes": 347851,
+      "tracked_patch_sha256": "1fc7085c5cdc65becce0ce6de9dd8e8f19740317b3cfe30bc95eb1fe5a10deae",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-traversal-leaves",
+      "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+      "branch": "refs/heads/perf/traversal-leaves",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-traversal-leaves/tracked-vs-main.patch",
+      "tracked_patch_bytes": 830201,
+      "tracked_patch_sha256": "173f7f3a4a0c7477474370c09dc316c326e42c6c57e1535cf8f41f76f5c10bb3",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-typed-inference-schedule",
+      "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+      "branch": "refs/heads/perf/typed-inference-schedule",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-typed-inference-schedule/tracked-vs-main.patch",
+      "tracked_patch_bytes": 539073,
+      "tracked_patch_sha256": "3281fb49110b9919f865c9415183aee6ed2a2257a8d192e466b19e00024f6cd7",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-typed-initial-fusion",
+      "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+      "branch": "refs/heads/perf/typed-initial-fusion",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-typed-initial-fusion/tracked-vs-main.patch",
+      "tracked_patch_bytes": 517061,
+      "tracked_patch_sha256": "5297c06e85ed6d08f7015031505f56442d29d541df90e239af891a8ad403de8b",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-unicode15",
+      "head": "bc3d3ee2f65c150e2c215193641f048e24e75dbb",
+      "branch": "refs/heads/perf/unicode15",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-unicode15/tracked-vs-main.patch",
+      "tracked_patch_bytes": 395378,
+      "tracked_patch_sha256": "e61226bfd809dc86f5dd047878859bc3feb9ec81e72f517a5b770045c7b06657",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-unused-proxy-fence",
+      "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+      "branch": "refs/heads/fix/unused-proxy-fence",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-unused-proxy-fence/tracked-vs-main.patch",
+      "tracked_patch_bytes": 615409,
+      "tracked_patch_sha256": "e162513102f831746244a8bc0dde2aa2537de1cddc94e96eff2f4d99ba063406",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-var-hash",
+      "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+      "branch": "refs/heads/perf/var-hash",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-var-hash/tracked-vs-main.patch",
+      "tracked_patch_bytes": 120861,
+      "tracked_patch_sha256": "3de7dfee541a612c5b713a3b7c27460fcde487f590d673a1867d0486d4347cea",
+      "untracked": [
+        {
+          "path": "internal/jscomp/abstract_var_hash_test.go",
+          "bytes": 786,
+          "sha256": "ec60dafd6bdc1e70e92ed48d1fe0d891e6fa09a62c895e554db79f65db7a183b"
+        }
+      ]
+    },
+    {
+      "worktree": "jsgo-worker-clone-profile",
+      "head": "e864ed545650bbb796c2c992830a33d1683e9016",
+      "branch": "refs/heads/perf/frozen-extern-clone",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-worker-clone-profile/tracked-vs-main.patch",
+      "tracked_patch_bytes": 554829,
+      "tracked_patch_sha256": "ce409348cd805190dc8ff228072e519ac4303355ba95e3bf0c49f5fa34ba4ce3",
+      "untracked": []
+    },
+    {
+      "worktree": "jsgo-zip-safety",
+      "head": "5e464415747a2df973bf94784357321ec91e480f",
+      "branch": "refs/heads/perf/zip-safety",
+      "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+      "tracked_patch": "jsgo-zip-safety/tracked-vs-main.patch",
+      "tracked_patch_bytes": 478188,
+      "tracked_patch_sha256": "e2f9906e4d23d2017cdb87220365e5ae53e89e8362fd6a77d07ce4a48557336d",
+      "untracked": []
+    }
+  ]
+}

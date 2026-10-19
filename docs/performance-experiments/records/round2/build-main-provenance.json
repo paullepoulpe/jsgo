@@ -1,0 +1,17 @@
+{
+  "compiler_source_commit": "da20b44f",
+  "compiler_base": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+  "toolchain": "go1.27.2",
+  "build_command": "GOGC=35 GOMAXPROCS=2 go build -p=1 -buildvcs=false -o jsgo-main ./cmd/jsgo",
+  "build_env_scope": "Build only; runtime benchmark strips Go GC/scheduler overrides",
+  "profile_binary": "Main-only CPU/alloc/MemStats overlay using SetExitCodeReceiver; same library tree, normal tracer OFF",
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "cpu_quota": "200000 100000",
+  "threads_flag": 1,
+  "jsgo-main_sha256": "5f4dc046a4609c6ea27953c10da5d60bed265596a7ff48df712507e79ae9d5d9",
+  "jsgo-prof_sha256": "94d947ed7759ddf2d34ca4a846927adfdd95bb600a065648bcf4dd0c3eb03bd9",
+  "default.pgo_sha256": "f6aee9c5761f48f8e96beb0ee7cf5d4d8ef5f631460b2102d785d46885bdeaac"
+}

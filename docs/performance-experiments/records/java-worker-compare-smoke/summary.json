@@ -1,0 +1,44 @@
+{
+ "small-whitespace": {
+  "1": {
+   "go": {
+    "median_ms": 582.307179,
+    "peak_rss_mb": 67.1953125,
+    "measured_ms": [
+     582.307179
+    ],
+    "iterations": [
+     {
+      "iter": 0,
+      "kind": "measure",
+      "wall_ms": 582.307179,
+      "peak_rss_mb": 67.1953125
+     }
+    ],
+    "requests_checked": 1,
+    "measurement_half_drift_pct": null,
+    "all_responses_and_artifacts_match_stock_java": true
+   },
+   "java": {
+    "median_ms": 3313.40988,
+    "peak_rss_mb": 166.76171875,
+    "measured_ms": [
+     3313.40988
+    ],
+    "iterations": [
+     {
+      "iter": 0,
+      "kind": "measure",
+      "wall_ms": 3313.40988,
+      "peak_rss_mb": 166.76171875
+     }
+    ],
+    "requests_checked": 1,
+    "measurement_half_drift_pct": null,
+    "all_responses_and_artifacts_match_stock_java": true
+   },
+   "java_over_go_time": 5.690140873224577,
+   "java_over_go_peak_rss": 2.481746308568771
+  }
+ }
+}

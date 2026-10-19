@@ -1,0 +1,5 @@
+{
+  "source_commit": "3d9a9213",
+  "binary_sha256": "0a3487b8dbb91b01432667174d74864a5d6e8f03f7793651c12c71a5ae108b45",
+  "scope": "ordinary CLI only; normal extern parsing; screening one run, not final performance evidence"
+}

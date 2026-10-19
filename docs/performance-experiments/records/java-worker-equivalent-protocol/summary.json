@@ -1,0 +1,333 @@
+{
+ "command": [
+  "java",
+  "-Djsgo.bench.verifyCache=true",
+  "-Djsgo.bench.externCache=true",
+  "-cp",
+  "/workspace/jsgo-results/java-worker-equivalent/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "CliWorker"
+ ],
+ "stock_jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "cases": {
+  "threads-1.help": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.version": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.whitespace": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.changed-source": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.simple-map": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.advanced-warning": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.parse-error": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.bad-flag": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.stdin": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.json-streams": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.custom-externs": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.default-after-custom": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.iso-8859-1": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.changed-language": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-1.repeat-default": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.help": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.version": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.whitespace": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.changed-source": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.simple-map": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.advanced-warning": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.parse-error": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.bad-flag": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.stdin": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.json-streams": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.custom-externs": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.default-after-custom": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.iso-8859-1": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.changed-language": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-2.repeat-default": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.help": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.version": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.whitespace": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.changed-source": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.simple-map": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.advanced-warning": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.parse-error": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.bad-flag": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.stdin": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.json-streams": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.custom-externs": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.default-after-custom": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.iso-8859-1": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.changed-language": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  },
+  "threads-4.repeat-default": {
+   "exit": true,
+   "stdout": true,
+   "stderr": true,
+   "out.js": true,
+   "out.js.map": true
+  }
+ },
+ "cache_counters": {
+  "hits": 3995,
+  "misses": 260
+ },
+ "all_match": true
+}

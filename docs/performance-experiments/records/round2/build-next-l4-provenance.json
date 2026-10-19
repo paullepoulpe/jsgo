@@ -1,0 +1,17 @@
+{
+  "source_commit": "eecbcf44af08ed6743de5ce69eddce675a71ee93",
+  "source_status": "",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-next-l4",
+  "binary_sha256": "0184968dc697e21fc1283f49bd90e8db359e3aa3cf74c94bfbe3fd70beab3479",
+  "go": "go1.27.2",
+  "pgo_sha256": "f6aee9c5761f48f8e96beb0ee7cf5d4d8ef5f631460b2102d785d46885bdeaac",
+  "inlining_packages": [
+    "internal/jscomp",
+    "internal/jutil",
+    "internal/rhino",
+    "internal/parsing"
+  ],
+  "inline_option": "-l=4",
+  "production_overlay": null,
+  "build_info": "/workspace/jsgo-results/round2/bin/jsgo-next-l4: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4\n\tbuild\t-pgo=/workspace/jsgo-round-compound-next/cmd/jsgo/default.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n"
+}

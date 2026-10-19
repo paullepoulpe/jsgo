@@ -1,0 +1,168 @@
+{
+  "jsgo": "/workspace/jsgo/bin/jsgo-cli-owned",
+  "jsgo_sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22",
+  "jar": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "threads": [
+    1,
+    4
+  ],
+  "cases": {
+    "zipped-whitespace/threads-1": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=1",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--jszip",
+        "sources.zip"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "zipped-whitespace/threads-4": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=4",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--jszip",
+        "sources.zip"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "parse-errors-ordered/threads-1": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 3,
+      "go_exit": 3,
+      "args": [
+        "--num_parallel_threads=1",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=SIMPLE",
+        "--js",
+        "error-2.js",
+        "--js",
+        "error-0.js",
+        "--js",
+        "error-1.js"
+      ],
+      "artifact_names": [],
+      "match": true
+    },
+    "parse-errors-ordered/threads-4": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 3,
+      "go_exit": 3,
+      "args": [
+        "--num_parallel_threads=4",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=SIMPLE",
+        "--js",
+        "error-2.js",
+        "--js",
+        "error-0.js",
+        "--js",
+        "error-1.js"
+      ],
+      "artifact_names": [],
+      "match": true
+    },
+    "inline-maps-comments/threads-1": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=1",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--parse_inline_source_maps",
+        "--apply_input_source_maps",
+        "--source_map_include_content",
+        "--preserve_type_annotations",
+        "--js",
+        "inline-2.js",
+        "--js",
+        "inline-0.js",
+        "--js",
+        "inline-1.js"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "inline-maps-comments/threads-4": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=4",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--parse_inline_source_maps",
+        "--apply_input_source_maps",
+        "--source_map_include_content",
+        "--preserve_type_annotations",
+        "--js",
+        "inline-2.js",
+        "--js",
+        "inline-0.js",
+        "--js",
+        "inline-1.js"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    }
+  }
+}

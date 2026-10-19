@@ -1,0 +1,142 @@
+{
+  "samples": {
+    "functions_1": {
+      "baseline": [
+        {
+          "ns": 12288,
+          "bytes": 10800,
+          "allocs": 69
+        },
+        {
+          "ns": 11467,
+          "bytes": 10800,
+          "allocs": 69
+        },
+        {
+          "ns": 11882,
+          "bytes": 10800,
+          "allocs": 69
+        },
+        {
+          "ns": 10909,
+          "bytes": 10800,
+          "allocs": 69
+        },
+        {
+          "ns": 11264,
+          "bytes": 10800,
+          "allocs": 69
+        }
+      ],
+      "adaptive": [
+        {
+          "ns": 11448,
+          "bytes": 11776,
+          "allocs": 69
+        },
+        {
+          "ns": 11699,
+          "bytes": 11776,
+          "allocs": 69
+        },
+        {
+          "ns": 12661,
+          "bytes": 11776,
+          "allocs": 69
+        },
+        {
+          "ns": 11621,
+          "bytes": 11776,
+          "allocs": 69
+        },
+        {
+          "ns": 11247,
+          "bytes": 11776,
+          "allocs": 69
+        }
+      ]
+    },
+    "functions_256": {
+      "baseline": [
+        {
+          "ns": 3239003,
+          "bytes": 1705747,
+          "allocs": 12614
+        },
+        {
+          "ns": 3269969,
+          "bytes": 1705747,
+          "allocs": 12614
+        },
+        {
+          "ns": 3317890,
+          "bytes": 1705747,
+          "allocs": 12614
+        },
+        {
+          "ns": 3110096,
+          "bytes": 1705748,
+          "allocs": 12614
+        },
+        {
+          "ns": 3178205,
+          "bytes": 1705747,
+          "allocs": 12614
+        }
+      ],
+      "adaptive": [
+        {
+          "ns": 3334357,
+          "bytes": 1760530,
+          "allocs": 7622
+        },
+        {
+          "ns": 3416749,
+          "bytes": 1760530,
+          "allocs": 7622
+        },
+        {
+          "ns": 3307307,
+          "bytes": 1760531,
+          "allocs": 7622
+        },
+        {
+          "ns": 3148824,
+          "bytes": 1760530,
+          "allocs": 7622
+        },
+        {
+          "ns": 3204742,
+          "bytes": 1760531,
+          "allocs": 7622
+        }
+      ]
+    }
+  },
+  "medians": {
+    "functions_1": {
+      "baseline": {
+        "ns": 11467,
+        "bytes": 10800,
+        "allocs": 69
+      },
+      "adaptive": {
+        "ns": 11621,
+        "bytes": 11776,
+        "allocs": 69
+      }
+    },
+    "functions_256": {
+      "baseline": {
+        "ns": 3239003,
+        "bytes": 1705747,
+        "allocs": 12614
+      },
+      "adaptive": {
+        "ns": 3307307,
+        "bytes": 1760530,
+        "allocs": 7622
+      }
+    }
+  }
+}

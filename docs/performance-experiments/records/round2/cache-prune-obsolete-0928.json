@@ -1,0 +1,62 @@
+{
+  "purpose": "free generated build-cache archives, preserve all source/binaries/results; no builds running",
+  "cutoff": 1792401720.0,
+  "deleted_bytes": 2711897742,
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/98/98f3f3af749a529b6c58bdcb1187bf0f3ae2661823d772227848f8f547d85ff0-d",
+      "size": 232017886,
+      "mtime": 1792396710.7679074
+    },
+    {
+      "path": "/workspace/toolchains/cache/ed/ed35b26cca0282cfc8c2d917d2fa3a873e7d2623b2323f57adec6b048fd0b893-d",
+      "size": 258577364,
+      "mtime": 1792396860.126
+    },
+    {
+      "path": "/workspace/toolchains/cache/a2/a218d58feefdc90ed1fba09c8eab0e10825c3786b725b32ff18122b8ff82676b-d",
+      "size": 258584404,
+      "mtime": 1792397083.5859897
+    },
+    {
+      "path": "/workspace/toolchains/cache/7e/7e69b655510d260f826ef2ace113532e9685b0dcf2f5eda98f1c3c7fb68e92d9-d",
+      "size": 229089218,
+      "mtime": 1792397381.1972015
+    },
+    {
+      "path": "/workspace/toolchains/cache/8c/8ccd54bf6b016b0585590e35242111417f1b548a71dd84d0d2e61e6ff27623f5-d",
+      "size": 232133558,
+      "mtime": 1792397430.2420487
+    },
+    {
+      "path": "/workspace/toolchains/cache/ff/ffb58f94b31a36f708041dc8e9c2af6dc07d13b0a21f739b906cb17320579746-d",
+      "size": 259974318,
+      "mtime": 1792397609.1087818
+    },
+    {
+      "path": "/workspace/toolchains/cache/02/02f640f0a1271765b8105a114e80aab41f9c81971ee6a679e8eb066331cd7932-d",
+      "size": 231310044,
+      "mtime": 1792397609.8003986
+    },
+    {
+      "path": "/workspace/toolchains/cache/1e/1ebd1d818662c993108f2aa4f61b30ad5205ce1f83b0a0b101592f01cfae410d-d",
+      "size": 260409048,
+      "mtime": 1792397855.4041016
+    },
+    {
+      "path": "/workspace/toolchains/cache/af/af3d77958a3054e843a8660f96120b551968d68027948a5d9e45d0281197306d-d",
+      "size": 261210002,
+      "mtime": 1792397886.6962044
+    },
+    {
+      "path": "/workspace/toolchains/cache/08/08d4be23100f05240452b1443ff2a0251bd7f34ddfc805505148c3a4214382d9-d",
+      "size": 229729622,
+      "mtime": 1792398076.2565491
+    },
+    {
+      "path": "/workspace/toolchains/cache/86/861b287d22b48d092ba02bdf05ad6b03e772aa73fc392db1d91d082952b43a20-d",
+      "size": 258862278,
+      "mtime": 1792398853.2176123
+    }
+  ]
+}

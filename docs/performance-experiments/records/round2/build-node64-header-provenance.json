@@ -1,0 +1,10 @@
+{
+  "source_commit": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+  "source_status": "",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-node64-header-l4",
+  "sha256": "88a8912cb44f039c77b940f5c06bb215ca27a1e5f00904c5dfb771940a09e287",
+  "profile_sha256": "bf41a4d79739dc07555dbeb4300672be5edb0cc5dcbf7365f37507d3f018e942",
+  "build_info": "/workspace/jsgo-results/round2/bin/jsgo-node64-header-l4: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4\n\tbuild\t-pgo=/workspace/jsgo-results/round2/next-balanced-pgo/balanced.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n",
+  "production_axis": "Node64 common promoted metadata-header access; allocation/promotion/reset unchanged",
+  "comparison_gc": "default; no tuning"
+}

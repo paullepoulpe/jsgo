@@ -1,0 +1,69 @@
+{
+ "date": "2026-10-18 18:44 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "variants": {
+   "main": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-main",
+    "sha256": "7c9f0ee143b73ee45a9bdd418636f77ee7d9afa2bf9ed9199e808788e600f017"
+   },
+   "architecture-control": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+    "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+   },
+   "parser": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+    "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+   },
+   "cfg": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+    "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+   },
+   "parser-cfg": {
+    "path": "/workspace/jsgo/bin/jsgo-cli-owned",
+    "sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22"
+   }
+  }
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  0.95,
+  1.79,
+  1.32
+ ],
+ "bench_commit": "08e44535de12e99a8fa25f0229a37e77ea41795e",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/final-java",
+ "runs": 1,
+ "seed": 20261018,
+ "variant_environment": {
+  "main": {},
+  "architecture-control": {},
+  "parser": {
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1"
+  },
+  "cfg": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1"
+  },
+  "parser-cfg": {
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1"
+  }
+ }
+}

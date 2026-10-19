@@ -1,0 +1,602 @@
+{
+  "jsgo": "/workspace/jsgo/bin/jsgo-cli-next",
+  "jsgo_sha256": "9e1b1a409998f21be3d92d87acf1c17f9d59b6e151e57e58a23ebcfaf7e95104",
+  "jar": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "cases": {
+    "forward-alias/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "forward-alias/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "forward-alias/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "forward-alias/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "forward-alias/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "forward-alias/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "recursive-object/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "recursive-object/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "recursive-object/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "recursive-object/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "recursive-object/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "recursive-object/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "unknown-branches/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "unknown-branches/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "unknown-branches/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "unknown-branches/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "unknown-branches/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "unknown-branches/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "hash-collisions/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "hash-collisions/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "hash-collisions/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "hash-collisions/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "hash-collisions/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "hash-collisions/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "shadow-catch/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "shadow-catch/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "shadow-catch/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "shadow-catch/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "shadow-catch/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "shadow-catch/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/checks/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/checks/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/checks/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js",
+        "--checks_only"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/advanced/threads-1": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=1",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/advanced/threads-2": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=2",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    },
+    "large-scope-fallback/advanced/threads-4": {
+      "java_exit": 0,
+      "go_hamt_matches_java": true,
+      "go_indexed_matches_java": true,
+      "go_backends_match": true,
+      "args": [
+        "--num_parallel_threads=4",
+        "--compilation_level=ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js_output_file=.type-flow-output/out.js",
+        "--create_source_map=.type-flow-output/out.js.map",
+        "--js=input.js"
+      ],
+      "match": true
+    }
+  }
+}

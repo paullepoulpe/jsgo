@@ -1,0 +1,44 @@
+{
+ "date": "2026-10-18 16:47 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.24.7 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "binary": "/workspace/jsgo/bin/jsgo-delivery",
+  "sha256": "5c5667775aa2c1f84a935b2e05a4819dea9e7b3ab75b52aa1d96b66fccb30053"
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  1.82,
+  0.69,
+  0.25
+ ],
+ "bench_commit": "578dcedbb3662ab35bb076005a1c7bb36cace7ee",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "mode": "cli",
+ "thread_counts": [
+  1,
+  2,
+  4
+ ],
+ "reference": "/workspace/jsgo-results/final-java",
+ "thread_control": "--num_parallel_threads; runtime CPU detection unchanged",
+ "go_prebuild": "sequential in the shipped port",
+ "memory_unit": "MiB; field names ending _mb are retained for compatibility",
+ "cpu.max": "200000 100000",
+ "cpuset.cpus.effective": "0-2"
+}

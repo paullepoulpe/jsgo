@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-19T11:23:17.760028+00:00",
+  "source": "3ebe6449e42719612ac341b54a6c885c030e41e8",
+  "binary_sha256": "1d256445d256257df73e3fb1f18e48325211ec0c5ca5dfc8500f5e0b93cba59f",
+  "runtime_gc": "default; envunset",
+  "representation": "inlineBitSet alternative +fresh template vector; no owned-word V2 helper"
+}

@@ -1,0 +1,8 @@
+{
+ "binary_sha256": "9328c9434887c7cf6f208c21ef341b5cfc870e16b0bc096a4c4ad95d000db82a",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/small-final-java"
+}

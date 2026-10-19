@@ -1,0 +1,10 @@
+{
+  "source_commit": "11534351de6bd917446e3ec876825c73599c1cda",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-parser80",
+  "sha256": "f9ad4316496736fa48dc871617680ac83588de78cdf992fd90b39ad5c8cc175d",
+  "pgo_sha256": "f6aee9c5761f48f8e96beb0ee7cf5d4d8ef5f631460b2102d785d46885bdeaac",
+  "build_command": "GOGC=30 GOMAXPROCS=1 go1.27.2 build -p=1 -buildvcs=false -o jsgo-parser80 ./cmd/jsgo",
+  "build_info": "/workspace/jsgo-results/round2/bin/jsgo-parser80: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-pgo=/workspace/jsgo-round-parser-native80/cmd/jsgo/default.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n",
+  "native_parser_allocator_default": "nil; opt-in chunks disabled in timed screen",
+  "source_status": ""
+}

@@ -1,0 +1,5408 @@
+[
+  {
+    "path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+    "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+    "sources": [
+      {
+        "worktree": "jsgo",
+        "head": "698231e22796289b1048e193eba162644f7d8958",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-allocations",
+        "head": "90eb48fbba2a703797a02e0e7f23ec2c8973233c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-ast-layout",
+        "head": "e6417db40953ed1c17b90b4260f81271545df838",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-audit",
+        "head": "e55096ee72b66a250501c52b4cef168d385d50c4",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-bitset",
+        "head": "1cbf0decc1845f05529b24ed8b2cbdda90fff689",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-facts",
+        "head": "fe96f5bb9aec6dc46909ef401699cdec418ff76b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-flow",
+        "head": "1dfe6491738bf6d39940c4ae78969ed8b481dd9e",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-flow-fsiv",
+        "head": "61a0ec3d2e480a9ec9d1104cb6721ef4bf9186e2",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-fsiv-skip-audit",
+        "head": "0bd6038796871e22e3812c1cb0ecc645052d6542",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-functions",
+        "head": "8b8626e2421a124638d7fd71c82f9c73046b49d4",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parser",
+        "head": "effd5f755a6acb994067707f24f3f23f75ea4faa",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-native80",
+        "head": "11534351de6bd917446e3ec876825c73599c1cda",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-refine",
+        "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-qname",
+        "head": "d07cd602166e581ad6031b1bcd8daf1580c26c8b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-references",
+        "head": "527d6ad6e0184970f59ec87f354074ad9e0eddd2",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-scope-map",
+        "head": "ceceacbbed4f9a7cb8235d32fd0bee4b076efedd",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-scope-reuse",
+        "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-smallflow",
+        "head": "00adf86763be22e3e12eeabf7c2d27bfd0fae3dc",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/performance-roadmap.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/aae7ad251ba84510-performance.md",
+    "sha256": "aae7ad251ba84510ac8dcfe32f3f625b5ffa140bdec70a8101bc238d5f4f3078",
+    "sources": [
+      {
+        "worktree": "jsgo",
+        "head": "698231e22796289b1048e193eba162644f7d8958",
+        "path": "docs/performance.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+    "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/cli-source-lock.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/cli-source-lock.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+    "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/contextual-inverter-noop.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+    "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/empty-pass-proofs.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+    "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/fsiv-scope-window.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+    "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-functions",
+        "head": "8b8626e2421a124638d7fd71c82f9c73046b49d4",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-native80",
+        "head": "11534351de6bd917446e3ec876825c73599c1cda",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-refine",
+        "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-scope-reuse",
+        "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/function-fsiv-cohorts.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+    "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-facts",
+        "head": "fe96f5bb9aec6dc46909ef401699cdec418ff76b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-native80",
+        "head": "11534351de6bd917446e3ec876825c73599c1cda",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-refine",
+        "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/inline-argument-facts.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/inline-argument-facts.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+    "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/native-dependency-scan.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/native-dependency-scan.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+    "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-native80",
+        "head": "11534351de6bd917446e3ec876825c73599c1cda",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-refine",
+        "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-references",
+        "head": "527d6ad6e0184970f59ec87f354074ad9e0eddd2",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-scope-reuse",
+        "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/native-reference-storage.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/native-reference-storage.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+    "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/parallel-coalesce.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+    "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/readonly-callee-facts.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+    "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/reference-batches.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/reference-batches.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+    "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/experiments/typed-initial-analysis-fusion.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/91f7645ef337f1e1-performance-access-property-facts.md",
+    "sha256": "91f7645ef337f1e10953f7328adc8c796797989f3b024bc24b2e9673cecab571",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/performance-access-property-facts.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/performance-access-property-facts.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/9a44c2fefb65edf6-performance-methodology.md",
+    "sha256": "9a44c2fefb65edf6733305fe55c9acd6810098cf11c3f798df5ef953e21d9365",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-fsiv-scope-window",
+        "head": "d2c58119f3b5c4d309ee347f482c51e6c8f6e83d",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-inline-discovery",
+        "head": "82c10b14b15e2115f7d3e2bf468f61dca417e58f",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-native-dependency-scan",
+        "head": "675953b1b887446810e1f8185f871ebeaf5aa8e3",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-pass-empty-proofs",
+        "head": "8ee2d4cc92f4663df0915847f567fa829f48bb46",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-audit",
+        "head": "e55096ee72b66a250501c52b4cef168d385d50c4",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-compound-next",
+        "head": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-inverter-skip",
+        "head": "78f3d5bdb8feb50e8d219218f39dda278da3ebdd",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-module-names",
+        "head": "d10f95c85f161267b22ce9c9ecd047ec14f82e00",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-parallel-coalesce",
+        "head": "784d05e56144bf53c412b2568e22f3156105874b",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-native80",
+        "head": "11534351de6bd917446e3ec876825c73599c1cda",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-refine",
+        "head": "43a7c58ca2f2c4479cd49a4c9f8e3342cabf60f5",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-reference-batches",
+        "head": "5ae0e57cb3fc827092dad551b6a8c1edba27098e",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-scope-reuse",
+        "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-round-work-elision",
+        "head": "4f417579447153a0720dda79e7b4d9d9a94c4e9d",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-sourcefile-cli-lock",
+        "head": "7cdee302113118a1843da395ef5cfc984fe999f0",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-typed-initial-fusion",
+        "head": "6cc5d16fe4f296fd063bb320c2d4f0a90ac8aa42",
+        "path": "docs/performance-methodology.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/performance-methodology.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/3973aff38f7ebd87-performance-property-ascii-index.md",
+    "sha256": "3973aff38f7ebd8755ed531d04db15f2829ff51ef3ac48a045ebd9e5e1e6781c",
+    "sources": [
+      {
+        "worktree": "jsgo-access-property-facts",
+        "head": "43422751d4cd834f48cbb9edefcb0a9246a34088",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-inline-mixed-worklist",
+        "head": "55903dcdcffea6a05dd2ae40e83b7fe9255e188c",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-inline-worklist",
+        "head": "6b5fe820e16bf07f063c49ad9e380611391f41a4",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-property-map-ascii",
+        "head": "856feabfb84eb2f1ead9a9ecba681db35e3716bb",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/performance-property-ascii-index.md"
+      },
+      {
+        "worktree": "jsgo-unused-proxy-fence",
+        "head": "b87eac8c00b0f4f14199b71f40042a09b44f1a25",
+        "path": "docs/performance-property-ascii-index.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/7155fc019019a0ec-performance-roadmap.md",
+    "sha256": "7155fc019019a0ec1334d40b338c9043f6280f2d3d73a77a64cdfacaf201982f",
+    "sources": [
+      {
+        "worktree": "jsgo-analysis-reuse",
+        "head": "c79c6fcfe6f024763e82e80a7a777c71d0f44ef9",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-cache-lifetime",
+        "head": "c225aab0f8ed46be44543852044082049d6f1813",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-cli-thread-audit",
+        "head": "a59d30b29886f4443872f7017af6d7256b6ca66b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-collections",
+        "head": "82fbf788d916c1dffb20b21ec9fd08f0316bbc58",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-combined",
+        "head": "348ee6e3cf1e64d945687127fdd411b5de647c3f",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-combined2",
+        "head": "e8d956529ac4b1b5204eeac221acec924c34024d",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-compact-parser",
+        "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-compact-var",
+        "head": "75c80a98353029b72b7369b7688bfece1003555e",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-compound",
+        "head": "21c008cd24a7bf973665a44fff85805ebfae853b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-concrete-traversal",
+        "head": "2e091bd8373cf3f3074d2bc9ff247d6b44e210f4",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-dataflow",
+        "head": "7a06024849c6430e6ab97240655278d71933c4e8",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-delivery",
+        "head": "c0a28a97199c6fbfd1a2a5f6e3bf0c744d9bbc0c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-dense-analysis",
+        "head": "291af22c04516c6e9646d7a48c75bd331d6b81a8",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-direct-ir",
+        "head": "becc0bcec90d27c6202ebfbeb592d0826be50885",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-extern-cache",
+        "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-function-analysis",
+        "head": "29977a25fb4a9b8b8fcee67cedbfe7ee6e2aa36c",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-indexed-flow",
+        "head": "94d06deb027b3e1240bfeb9b819cf98aa5779fa8",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-java-worker",
+        "head": "17af0105cffb0469a9222144b4c1c17cd9bc2167",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-facts",
+        "head": "b99a9c6ee2d2d9de1a0cb4485751f61c81314d7b",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-facts-fixtures",
+        "head": "0e99c7823250acc86924881c3bb62073e3fc3cdc",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-parser",
+        "head": "6c5ee4fbc64814d639b0e3910f73397abed6df0a",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-source-locks",
+        "head": "744869f2d8c27c7b964ddd01ea5cc8236947b3d5",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-types",
+        "head": "b6655347375fdc2789cce294ba17650a29af8803",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-native-types-v2",
+        "head": "ee6d65e97c9e24f0f4f2770795f62b379b8636af",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-next",
+        "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-node-chunks",
+        "head": "f95d848ec976665ffc58dbae4059d9ae5a5cb0b7",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-node64",
+        "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-node80",
+        "head": "c732ea871fa5fe4d54b7984edb3007027b2350a6",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parallel-parse",
+        "head": "c225aab0f8ed46be44543852044082049d6f1813",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parallel-passes",
+        "head": "00d52b28deb6ec37390f5b76ec3270281b914c91",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-parser-baseline",
+        "head": "bd01d6e65dee2dcd80496a3c4124fa8cc00447b1",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-pass-chunks",
+        "head": "e229c163206feca173d2dd02bcc9efc946647f24",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-position-cache",
+        "head": "75eb890ecf3888fb21f83b43c6d29686b3ffed46",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-process-arena",
+        "head": "e8d956529ac4b1b5204eeac221acec924c34024d",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-rename-conflicts",
+        "head": "6483584b027776810828278737a6f305fd58c4c4",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-scope-chunks",
+        "head": "e229c163206feca173d2dd02bcc9efc946647f24",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-scope-lookup",
+        "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-slab-shapes",
+        "head": "fe2edc822ad13f83504f238dd6ef5dff529074ed",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-unicode15",
+        "head": "bc3d3ee2f65c150e2c215193641f048e24e75dbb",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-var-hash",
+        "head": "c9872522ef49054007c7ded25ee33b634c0ea989",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-worker-clone-profile",
+        "head": "e864ed545650bbb796c2c992830a33d1683e9016",
+        "path": "docs/performance-roadmap.md"
+      },
+      {
+        "worktree": "jsgo-zip-safety",
+        "head": "5e464415747a2df973bf94784357321ec91e480f",
+        "path": "docs/performance-roadmap.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/6668340c08c60077-performance.md",
+    "sha256": "6668340c08c600777920da06dafa32bc7bbbf4826b8e878e49fe5f1955709775",
+    "sources": [
+      {
+        "worktree": "jsgo-analysis-reuse",
+        "head": "c79c6fcfe6f024763e82e80a7a777c71d0f44ef9",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-compound",
+        "head": "21c008cd24a7bf973665a44fff85805ebfae853b",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-concrete-traversal",
+        "head": "2e091bd8373cf3f3074d2bc9ff247d6b44e210f4",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-dense-analysis",
+        "head": "291af22c04516c6e9646d7a48c75bd331d6b81a8",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-direct-ir",
+        "head": "becc0bcec90d27c6202ebfbeb592d0826be50885",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-function-analysis",
+        "head": "29977a25fb4a9b8b8fcee67cedbfe7ee6e2aa36c",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-indexed-flow",
+        "head": "94d06deb027b3e1240bfeb9b819cf98aa5779fa8",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-java-worker",
+        "head": "17af0105cffb0469a9222144b4c1c17cd9bc2167",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-facts",
+        "head": "b99a9c6ee2d2d9de1a0cb4485751f61c81314d7b",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-facts-fixtures",
+        "head": "0e99c7823250acc86924881c3bb62073e3fc3cdc",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-parser",
+        "head": "6c5ee4fbc64814d639b0e3910f73397abed6df0a",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-source-locks",
+        "head": "744869f2d8c27c7b964ddd01ea5cc8236947b3d5",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-types",
+        "head": "b6655347375fdc2789cce294ba17650a29af8803",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-types-v2",
+        "head": "ee6d65e97c9e24f0f4f2770795f62b379b8636af",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-parallel-passes",
+        "head": "00d52b28deb6ec37390f5b76ec3270281b914c91",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-parser-baseline",
+        "head": "bd01d6e65dee2dcd80496a3c4124fa8cc00447b1",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-worker-clone-profile",
+        "head": "e864ed545650bbb796c2c992830a33d1683e9016",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-zip-safety",
+        "head": "5e464415747a2df973bf94784357321ec91e480f",
+        "path": "docs/performance.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/f5e660da81d74702-cli-round2.md",
+    "sha256": "f5e660da81d74702cac26068053c21077fa6c4ad2f00af2c1fc127507e3449c1",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/cli-round2.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/cli-round2.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/7a1d8dd23740a921-direct-node-layout.md",
+    "sha256": "7a1d8dd23740a921a4e154313f1c14f09c31a1539df678aae654c673452f78d4",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-ast-layout",
+        "head": "e6417db40953ed1c17b90b4260f81271545df838",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/direct-node-layout.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/29efce75a521afdd-parser-gc-round2.md",
+    "sha256": "29efce75a521afdd074030f320201ea38d7a7cea973244985cad929533a74504",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/parser-gc-round2.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/parser-gc-round2.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/9734139861ae50de-qualified-name-values.md",
+    "sha256": "9734139861ae50de7969289f3e944624b6722f2f91e9bca96ee2bf0690b1e42f",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-round-qname",
+        "head": "d07cd602166e581ad6031b1bcd8daf1580c26c8b",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/qualified-name-values.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/qualified-name-values.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/9f42a24eeaa635b4-tiny-flow-maps.md",
+    "sha256": "9f42a24eeaa635b4fac977be5e50e6ae98cd0fd155236f7b6068ea1baffe61e7",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-next",
+        "head": "ae26ef82f6d573ff9528da2b00fdd18b9c62caa9",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-module",
+        "head": "8ba470bc4d9fa662d18171b4f5c2d3c5cce93b14",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-round-parser-node64",
+        "head": "392a5373a882372878a56d429bd279ce63fbe974",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-round-smallflow",
+        "head": "00adf86763be22e3e12eeabf7c2d27bfd0fae3dc",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-round-unused",
+        "head": "6f76aea7e6974e26f8431407fd38a32fdab47a3c",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      },
+      {
+        "worktree": "jsgo-thread-sweep-env",
+        "head": "b90c37b290c8f86bfe5c2447502a10131ba4fe8d",
+        "path": "docs/experiments/tiny-flow-maps.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/46a67600d139f19e-function-analysis.md",
+    "sha256": "46a67600d139f19e94bc725e4950fb0c55e330128903d773090bb584d19745e1",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-function-analysis",
+        "head": "29977a25fb4a9b8b8fcee67cedbfe7ee6e2aa36c",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/function-analysis.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/experiments/function-analysis.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/189921a3c8c57438-indexed-flow-slots.md",
+    "sha256": "189921a3c8c57438445ab1e5ed42df5d43ba897c86968ea072f2814845053d03",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-native-types-v2",
+        "head": "ee6d65e97c9e24f0f4f2770795f62b379b8636af",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/ccc91fc3d5982a5d-native-source-locks.md",
+    "sha256": "ccc91fc3d5982a5d35cd98deaef7683a1b28cc671215615997b28d270a7509a6",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/native-source-locks.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/be99a5af0c090442-parallel-analysis.md",
+    "sha256": "be99a5af0c0904427fe5b75cd25380542b5b2acc24b868139a37c01672a17a46",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-compound",
+        "head": "21c008cd24a7bf973665a44fff85805ebfae853b",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-concrete-traversal",
+        "head": "2e091bd8373cf3f3074d2bc9ff247d6b44e210f4",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-function-analysis",
+        "head": "29977a25fb4a9b8b8fcee67cedbfe7ee6e2aa36c",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-indexed-flow",
+        "head": "94d06deb027b3e1240bfeb9b819cf98aa5779fa8",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-facts",
+        "head": "b99a9c6ee2d2d9de1a0cb4485751f61c81314d7b",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-facts-fixtures",
+        "head": "0e99c7823250acc86924881c3bb62073e3fc3cdc",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-parser",
+        "head": "6c5ee4fbc64814d639b0e3910f73397abed6df0a",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-source-locks",
+        "head": "744869f2d8c27c7b964ddd01ea5cc8236947b3d5",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-types",
+        "head": "b6655347375fdc2789cce294ba17650a29af8803",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-native-types-v2",
+        "head": "ee6d65e97c9e24f0f4f2770795f62b379b8636af",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/experiments/parallel-analysis.md"
+      },
+      {
+        "worktree": "jsgo-worker-clone-profile",
+        "head": "e864ed545650bbb796c2c992830a33d1683e9016",
+        "path": "docs/experiments/parallel-analysis.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/9f0c8d982a251416-performance-roadmap.md",
+    "sha256": "9f0c8d982a2514168e277c3cb6647092df5aebfbc5fa2d8c5ba2cc4b7d636043",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/performance-roadmap.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/a03c8d360da935c0-performance.md",
+    "sha256": "a03c8d360da935c01f5e9cc8cc00d282fb748a09a836d83d441cc6c99df118de",
+    "sources": [
+      {
+        "worktree": "jsgo-cli-roadmap",
+        "head": "c7d8bd67a46d9b21e06085232becd9c45c993d75",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-cli-thread-audit",
+        "head": "a59d30b29886f4443872f7017af6d7256b6ca66b",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/performance.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/performance.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+    "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/compact-contextual-inverter.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+    "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/intrinsic-leaf-traversal.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+    "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-round-typed-declarations",
+        "head": "7e7dbb3f82883d2e96b41c8ed7e09dcda69142f0",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/native-typed-declarations.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/native-typed-declarations.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+    "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-parallel-peephole",
+        "head": "9e8aa408296ffbe3046278f1e86616f3ccbd577a",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/parallel-peephole.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/parallel-peephole.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+    "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/remove-unused-intrusive-fifo.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+    "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/remove-unused-tasks.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+    "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/scope-recipes.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/scope-recipes.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+    "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-stock-scope-insertion",
+        "head": "546231955458e7f729c009bc285e629ce820c3aa",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/stock-scope-insertion.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+    "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+    "sources": [
+      {
+        "worktree": "jsgo-compact-inverter",
+        "head": "a0a6aadd8382351ef683c599630d28ec3a795000",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-inline-tape-chunks",
+        "head": "258abf6b7640346b92d8240e2ad7efac0fa7a2c3",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-remove-unused-tasks",
+        "head": "d4b1aeaaba849ba01093d2864daa8212af6c4911",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-ruc-intrusive",
+        "head": "a3c2d995b9581cb817144c2a11125b8e4be2b65f",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-scope-recipes",
+        "head": "6595e5a18874889833383796aaa2b235d5cec4f6",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-pass-storage",
+        "head": "6a5f096aed171fc95e52d0ceab9fc85e376b7cb9",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-traversal-leaves",
+        "head": "7349a031bde2c5af364407cd89d0dc121eeaac7c",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      },
+      {
+        "worktree": "jsgo-typed-inference-schedule",
+        "head": "f0e6c332c0423ce413c3a9ed2e3c6533c4a64fcd",
+        "path": "docs/experiments/typed-inference-scope-schedule.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/4453144effcff0ba-performance.md",
+    "sha256": "4453144effcff0baff0ce5a05aa53b77da758afd751626e56700fd66b71423d9",
+    "sources": [
+      {
+        "worktree": "jsgo-delivery",
+        "head": "c0a28a97199c6fbfd1a2a5f6e3bf0c744d9bbc0c",
+        "path": "docs/performance.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/dc81ccb99c74d9fc-structural-followup-round5.md",
+    "sha256": "dc81ccb99c74d9fc0644b9525b079b8c81303f603f893a774889b8ee5ef8bf2f",
+    "sources": [
+      {
+        "worktree": "jsgo-extern-parse-inventory",
+        "head": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+        "path": "docs/experiments/structural-followup-round5.md"
+      },
+      {
+        "worktree": "jsgo-native-extern-arguments",
+        "head": "a0b55f5dfc3151e4c31fdbd3f1f1a0142accef36",
+        "path": "docs/experiments/structural-followup-round5.md"
+      },
+      {
+        "worktree": "jsgo-structural-followup",
+        "head": "8cd9d158bda312f95ab25ccc77bb52a9a817c93a",
+        "path": "docs/experiments/structural-followup-round5.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+    "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+    "sources": [
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      },
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      },
+      {
+        "worktree": "jsgo-output-buffer",
+        "head": "23ead36e2cfec5e7fd1b2c412a5e481d48f534b2",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/ascii-output-buffer.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+    "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+    "sources": [
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/fresh-template-values.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/fresh-template-values.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/eaba4c08649b1f27-native-live-variables.md",
+    "sha256": "eaba4c08649b1f271dcdb65fbf218d718b762c05a3969944c6f8178537402dc7",
+    "sources": [
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/native-live-variables.md"
+      },
+      {
+        "worktree": "jsgo-native-live-vars",
+        "head": "90905e6954c092d002efc17a41b98e681e958ad0",
+        "path": "docs/experiments/native-live-variables.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/d06c4b00ecca933b-native-storage-round8.md",
+    "sha256": "d06c4b00ecca933b544aef9a95bb56186148a7b0e10f1b2903b1181f90691630",
+    "sources": [
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/native-storage-round8.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/native-storage-round8.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+    "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+    "sources": [
+      {
+        "worktree": "jsgo-fresh-template-values",
+        "head": "00f707bbe3675bde81ab9d7f8f1314c5e2e3c0fc",
+        "path": "docs/experiments/scope-first-allocation.md"
+      },
+      {
+        "worktree": "jsgo-scope-first-allocation",
+        "head": "e7bf71c2eb4b97b78868cfebdcea2498cb9a57c5",
+        "path": "docs/experiments/scope-first-allocation.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/scope-first-allocation.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/scope-first-allocation.md"
+      },
+      {
+        "worktree": "jsgo-structural-native-analysis",
+        "head": "f2c17056e00a45252e8ccbb11ca6c4bb5bbe85df",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/4c6d27c01bc87888-inline-bitset.md",
+    "sha256": "4c6d27c01bc87888c769b71da1992f255468646e72d4a2f0aee01d50c3cfbc14",
+    "sources": [
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/90215202eeecce48-native-live-variables.md",
+    "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+    "sources": [
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/native-live-variables.md"
+      },
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/native-live-variables.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/native-live-variables.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/b2c1ca83e60ee22f-scope-first-allocation.md",
+    "sha256": "b2c1ca83e60ee22f5088e663e6c970656f34606e35af73229c98f61c578260f1",
+    "sources": [
+      {
+        "worktree": "jsgo-inline-bitset",
+        "head": "4f4074e56e503f597b7ef0ada063dac4da29969e",
+        "path": "docs/experiments/scope-first-allocation.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/a5a9572a7ba827f0-native-source-locks.md",
+    "sha256": "a5a9572a7ba827f028d7e0ee8b1afe4d6b8ac8d647575d452ad9194c6e2468b3",
+    "sources": [
+      {
+        "worktree": "jsgo-native-cfg",
+        "head": "d18a5136ef1d3db82b89a988d049d8c9661243b6",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-allocation",
+        "head": "54a89195c0e4fac27081241e72bcee618acd2f92",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-native-parser-next",
+        "head": "da324ef4c6c37add384b6a19028b26e48f36e1dd",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-native-source-locks",
+        "head": "744869f2d8c27c7b964ddd01ea5cc8236947b3d5",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/experiments/native-source-locks.md"
+      },
+      {
+        "worktree": "jsgo-source-position-cache",
+        "head": "1268e023b150b4a61e8c293a2ee19362290813cc",
+        "path": "docs/experiments/native-source-locks.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/1a60d162b6ef5c96-indexed-flow-slots.md",
+    "sha256": "1a60d162b6ef5c96a3d7931d3f87dd01b16fb803046bf3653902384ee210c413",
+    "sources": [
+      {
+        "worktree": "jsgo-native-types",
+        "head": "b6655347375fdc2789cce294ba17650a29af8803",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/indexed-flow-slots.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/cad32fc2dfa4f192-direct-node-layout.md",
+    "sha256": "cad32fc2dfa4f19234cb049f9b1aba22e6e58f46c07a8baf0efdf49a37826950",
+    "sources": [
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/direct-node-layout.md"
+      },
+      {
+        "worktree": "jsgo-round-node64-parser",
+        "head": "59c55bc74d0ad0d7ac76dd38ed4154c1c58dd332",
+        "path": "docs/experiments/direct-node-layout.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/632b1b6f9ca4bf8f-node64-cold-header.md",
+    "sha256": "632b1b6f9ca4bf8f7e39c1a0e6155c5089d586034e22d14a72d8582f7a41db20",
+    "sources": [
+      {
+        "worktree": "jsgo-node64-header",
+        "head": "3594959caf9cb502cb7a1c9f425ef118328bb525",
+        "path": "docs/experiments/node64-cold-header.md"
+      },
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/node64-cold-header.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/5bffa27c38ea06e5-node64-predicate-audit.md",
+    "sha256": "5bffa27c38ea06e5ae3bf94682f87d0d85342ecc582257c1f735283c4b8f8b2e",
+    "sources": [
+      {
+        "worktree": "jsgo-node64-predicates",
+        "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+        "path": "docs/experiments/node64-predicate-audit.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/e51cc8e869a8cde8-native-reference-lookup.md",
+    "sha256": "e51cc8e869a8cde89734ca1011c4b90e5e621dd16f81d943638cdfa2f6a57415",
+    "sources": [
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/native-reference-lookup.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/native-reference-lookup.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/82375aef515b8d2c-parallel-reference-feasibility.md",
+    "sha256": "82375aef515b8d2c9c43e23149eb855f8e6143534023c9063619da400b078693",
+    "sources": [
+      {
+        "worktree": "jsgo-parallel-reference",
+        "head": "c931c431bd00805457fb7183c8063c39ce878758",
+        "path": "docs/experiments/parallel-reference-feasibility.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/6118ca326d76fc4d-parallel-fsiv.md",
+    "sha256": "6118ca326d76fc4d26968ed0f5be46794a6b135ecb79fc8beda5d5287f163004",
+    "sources": [
+      {
+        "worktree": "jsgo-parallel-transpile",
+        "head": "45bf08cdd9a7e7c762477fb5bc8f143c3bd5edd8",
+        "path": "docs/experiments/parallel-fsiv.md"
+      },
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/experiments/parallel-fsiv.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/0f428edf73b26f39-performance-roadmap.md",
+    "sha256": "0f428edf73b26f3933e98282b09aea5c1ba5d6daebd9f455f07d03e9f06d9859",
+    "sources": [
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/performance-roadmap.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/fe27b078e882a464-performance.md",
+    "sha256": "fe27b078e882a46470ae6503da65bb282b90f466037750bd10be4913fdef7c7b",
+    "sources": [
+      {
+        "worktree": "jsgo-redesigns",
+        "head": "22e2e7c77e696c0b3cdaf58d32b10b25a8df1ccb",
+        "path": "docs/performance.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/b4c940f4a68b4a9a-parallel-coalesce.md",
+    "sha256": "b4c940f4a68b4a9a761eb140f8be652e03fb81ec56ad491b4e1df276ec7db7b1",
+    "sources": [
+      {
+        "worktree": "jsgo-round-allocation-tests",
+        "head": "959c8b1ed0f2e9628922e79d8f3937b95157744b",
+        "path": "docs/experiments/parallel-coalesce.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/4c6b3d63442ad083-scalar-bitset.md",
+    "sha256": "4c6b3d63442ad083a27b13037533c423d9014776d0930cd74528ff440a561912",
+    "sources": [
+      {
+        "worktree": "jsgo-round-bitset",
+        "head": "1cbf0decc1845f05529b24ed8b2cbdda90fff689",
+        "path": "docs/experiments/scalar-bitset.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/222bc9f74c779033-thread-budget-and-phase-map.md",
+    "sha256": "222bc9f74c779033a1a51a01cf738a41fb21c5e2ef3151bed02901fc8d934116",
+    "sources": [
+      {
+        "worktree": "jsgo-round-callee-facts",
+        "head": "0fa5d4f2826ee5e34f1d3b410e837a7958bb78d5",
+        "path": "docs/experiments/thread-budget-and-phase-map.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/23e468eba00d0869-fsiv-unchanged-function-audit.md",
+    "sha256": "23e468eba00d08696d64398c631050119dc522d5588c12f7fcb53836e8da9879",
+    "sources": [
+      {
+        "worktree": "jsgo-round-fsiv-skip-audit",
+        "head": "0bd6038796871e22e3812c1cb0ecc645052d6542",
+        "path": "docs/experiments/fsiv-unchanged-function-audit.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/ca89a9fda838f893-compact-scope-declarations.md",
+    "sha256": "ca89a9fda838f8934148887888b9e3bd831c99abba33bfca226cec2353db3c3b",
+    "sources": [
+      {
+        "worktree": "jsgo-round-scope-map",
+        "head": "ceceacbbed4f9a7cb8235d32fd0bee4b076efedd",
+        "path": "docs/experiments/compact-scope-declarations.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/c8f90c5b90e5364b-performance-scope-reuse.md",
+    "sha256": "c8f90c5b90e5364bc460e4d71c58b8482b7404e992ea6b690aeb74d8493e301f",
+    "sources": [
+      {
+        "worktree": "jsgo-round-scope-reuse",
+        "head": "56275ea4e433ffc2f9ca6466efca92020bb28578",
+        "path": "docs/performance-scope-reuse.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/4093ff57c861c49c-inline-bitset-template-results.md",
+    "sha256": "4093ff57c861c49c89a5664ba302de62e85e00aa0ccd6b4f59bf0f528b08aa44",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/inline-bitset-template-results.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/91207ecade7964ba-inline-bitset.md",
+    "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-bitset-template",
+        "head": "837a92e7ee9b714b010a06573986431135b18eae",
+        "path": "docs/experiments/inline-bitset.md"
+      },
+      {
+        "worktree": "jsgo-structural-inline-bitset",
+        "head": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+        "path": "docs/experiments/inline-bitset.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/9e18ba062f7ca4bc-cli-toolchain-round3.md",
+    "sha256": "9e18ba062f7ca4bcc20335c88c9212fbf7cb22d86b94d538584d5ef8f8f4727a",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/cli-toolchain-round3.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/db8d7b26c2325897-structural-round4.md",
+    "sha256": "db8d7b26c232589782e3c4092f4ac6a97808ee85bf4ea1bd6d76f7c89abb2bba",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-next",
+        "head": "f248613d2ebb4df5596f503d576d4127bb247145",
+        "path": "docs/experiments/structural-round4.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/3f100c2b443dbd30-recipes-externs-round7.md",
+    "sha256": "3f100c2b443dbd30586856bda54be1fd02bc43feaa14ee1a0e6621c93e425ce0",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-recipes-externs",
+        "head": "84d2b43802610102998720a868c67f87d9f0deb3",
+        "path": "docs/experiments/recipes-externs-round7.md"
+      }
+    ]
+  },
+  {
+    "path": "design-notes/ae61bbabe0599283-code-design-round6.md",
+    "sha256": "ae61bbabe0599283ab3f902cd735e54340dcc557cb2b415e59e8deffeb151d53",
+    "sources": [
+      {
+        "worktree": "jsgo-structural-traversal-next",
+        "head": "5960c812910bbe9d1e57ab6243a0296abab7e993",
+        "path": "docs/experiments/code-design-round6.md"
+      }
+    ]
+  }
+]

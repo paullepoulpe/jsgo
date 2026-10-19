@@ -1,0 +1,86 @@
+{
+  "source_commit": "ffc65958e84ef6e778ce704ca3990a871e7917d0",
+  "go_version": "go version go1.27.2 linux/amd64",
+  "runtime_environment": {
+    "GOMAXPROCS": "1",
+    "GOGC": "unset",
+    "GOMEMLIMIT": "unset",
+    "GODEBUG": "unset",
+    "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+    "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1"
+  },
+  "package": "./internal/parsing",
+  "test_filter": "^(TestNativeParserSpecialExternDeclarationFragment|TestNativeParserBuiltinExternInventory|TestNativeParser)",
+  "build_parallelism": 1,
+  "count": 1,
+  "exit": 0,
+  "test_runtime_s": 0.641,
+  "top_level_passed": 11,
+  "special_binding_cases": 70,
+  "output": "/workspace/jsgo-results/round2/extern-inventory-fragments.json",
+  "output_sha256": "1b7a7b2a67e8daec95f2864fa8468aa242267e97091f59e4f69859c8878000da",
+  "log": "/workspace/jsgo-results/round2/extern-fragments-native-family.log",
+  "log_sha256": "a4667fef6da8e7cafe90bd0d6304f073ab6d4ca530129879cc784d3916308ed9",
+  "source_hashes": {
+    "internal/parsing/native_parser_experiment.go": "30651c9e5d48a60f8060f1d018c21947aefeb63b22bd8982ea0a0f1be5451a8b",
+    "internal/parsing/native_parser_extern_arguments_test.go": "bd8d106e0dcdf8249d1af089c95253ddd13bb5a1f666b30090c06e10e1c9c713",
+    "internal/parsing/native_parser_extern_inventory_test.go": "4c436bc7e25714ad6ce7dbcc76e324929f4d92d510f2384568ee8cd600f5dd0f",
+    "internal/resources/externs.zip": "db8c50e9328e75ead4eb8b4812bd56dc69495b9771d5b69e582d2ecbd4a99f68"
+  },
+  "Browser": {
+    "Files": 128,
+    "SourceBytes": 1976245,
+    "AcceptedFiles": 128,
+    "AcceptedSourceBytes": 1976245,
+    "OutsideOriginalFragmentsBytes": 1976209,
+    "AcceptedFragmentBytes": 36,
+    "WholeFileFallbackBytes": 0,
+    "DiscardedAttemptFragmentBytes": 0,
+    "OracleFailures": 0,
+    "RejectionsByFiles": {},
+    "RejectionsByBytes": {},
+    "FragmentsByCount": {
+      "FUNCTION_DECLARATION": 1,
+      "VARIABLE_STATEMENT": 1
+    },
+    "FragmentsByBytes": {
+      "FUNCTION_DECLARATION": 22,
+      "VARIABLE_STATEMENT": 14
+    }
+  },
+  "Custom": {
+    "Files": 5,
+    "SourceBytes": 294804,
+    "AcceptedFiles": 5,
+    "AcceptedSourceBytes": 294804,
+    "OutsideOriginalFragmentsBytes": 294768,
+    "AcceptedFragmentBytes": 36,
+    "WholeFileFallbackBytes": 0,
+    "DiscardedAttemptFragmentBytes": 0,
+    "OracleFailures": 0,
+    "RejectionsByFiles": {},
+    "RejectionsByBytes": {},
+    "FragmentsByCount": {
+      "FUNCTION_DECLARATION": 1,
+      "VARIABLE_STATEMENT": 1
+    },
+    "FragmentsByBytes": {
+      "FUNCTION_DECLARATION": 22,
+      "VARIABLE_STATEMENT": 14
+    }
+  },
+  "benchmark_claim": false,
+  "prior_failed_attempt": {
+    "source_commit": "52605082",
+    "log": "/workspace/jsgo-results/round2/extern-fragments-native-first.log",
+    "cause": "new special binding guard used parsed annotation state instead of input EXTERN source kind; bare EXTERN dispatch expectations failed; exact original oracle passed",
+    "fixed_without_oracle_weakening": true
+  },
+  "cli_origin_proof": [
+    "CommandLineRunner.CreateExterns obtains fresh builtin SourceFile values.",
+    "Compiler.InitChunks wraps externs with NewCompilerInputWithIsExtern(file,true).",
+    "CompilerInput.SetIsExtern sets StaticSourceFile_SourceKind_EXTERN.",
+    "CompilerInput_JsAst.parse passes the same source file to ParserRunner_Parse.",
+    "IRFactory stores that sourceFile; the new guard uses its IsExtern method, independent of @externs annotation state."
+  ]
+}

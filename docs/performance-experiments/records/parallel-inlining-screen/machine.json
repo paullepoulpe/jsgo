@@ -1,0 +1,47 @@
+{
+ "date": "2026-10-18 19:05 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "path": "/workspace/jsgo/bin/jsgo-cli-fsiv",
+  "sha256": "bbd67102e0dfdba87742dcf0491aa78bf81b56cddefb84c46fceaaa6e5ed9fa8"
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  1.16,
+  1.42,
+  1.44
+ ],
+ "bench_commit": "5558a1fee56dc230a5ce6dbbc1b5fb1ac8feeb2b",
+ "scope": "fresh Go CLI processes; same binary, compiler jobs=2",
+ "source_commit": "a5a3b609",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "variant_environment": {
+  "control": {},
+  "references": {
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1"
+  },
+  "parallel-combined": {
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1"
+  }
+ },
+ "runs": 2,
+ "java_role": "stored artifact oracle only; NO Java timing ratios in this screen",
+ "memory_unit": "MiB; median fresh process peak RSS"
+}

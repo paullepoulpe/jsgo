@@ -1,0 +1,38 @@
+{
+  "whitespace": {
+    "java_exit": 0,
+    "go_exit": 0,
+    "stdout_match": true,
+    "stderr_match": true
+  },
+  "simple": {
+    "java_exit": 0,
+    "go_exit": 0,
+    "stdout_match": true,
+    "stderr_match": true
+  },
+  "advanced": {
+    "java_exit": 0,
+    "go_exit": 0,
+    "stdout_match": true,
+    "stderr_match": true
+  },
+  "errors": {
+    "java_exit": 2,
+    "go_exit": 2,
+    "stdout_match": true,
+    "stderr_match": true
+  },
+  "warning": {
+    "java_exit": 0,
+    "go_exit": 0,
+    "stdout_match": true,
+    "stderr_match": true
+  },
+  "missing": {
+    "java_exit": 1,
+    "go_exit": 1,
+    "stdout_match": true,
+    "stderr_match": true
+  }
+}

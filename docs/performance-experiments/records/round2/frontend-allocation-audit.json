@@ -1,0 +1,6261 @@
+{
+  "method": "Existing post-GC heap allocation columns (heap512) and CPU64. Inclusive categories overlap. Allocation leafs/contexts exclusive within frontend. CPU ancestry can lose outer roots; flat leafs remain actual sampled PCs.",
+  "tasks": {
+    "downlevel-whitespace": {
+      "heap": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/downlevel-whitespace/profile.live.pprof",
+        "sample_types": [
+          [
+            "alloc_objects",
+            "count"
+          ],
+          [
+            "alloc_space",
+            "bytes"
+          ]
+        ],
+        "totals": [
+          4358156,
+          420373275
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              901949,
+              130788765
+            ],
+            "fractions": [
+              0.2069565660338914,
+              0.3111253088103662
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              444806,
+              84490749
+            ],
+            "fractions": [
+              0.10206289081896104,
+              0.20098982029721085
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              201178,
+              55240481
+            ],
+            "fractions": [
+              0.04616126637045576,
+              0.13140816575459036
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              380685,
+              44725120
+            ],
+            "fractions": [
+              0.08735001684198547,
+              0.10639382344179706
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              36123,
+              42617519
+            ],
+            "fractions": [
+              0.00828859728747663,
+              0.10138018169685026
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              16404,
+              31041588
+            ],
+            "fractions": [
+              0.003763977241750869,
+              0.07384291496646642
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              85696,
+              28328510
+            ],
+            "fractions": [
+              0.019663362210990153,
+              0.06738894141165373
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              1487,
+              11934000
+            ],
+            "fractions": [
+              0.0003411993512852684,
+              0.028389054941706272
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              160013,
+              11792023
+            ],
+            "fractions": [
+              0.03671575776544025,
+              0.028051314632215857
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              13824,
+              5268805
+            ],
+            "fractions": [
+              0.0031719837472545726,
+              0.012533634541824762
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              120149,
+              2097188
+            ],
+            "fractions": [
+              0.027568769910943987,
+              0.004988870902889819
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Source *github.com/paullepoulpe/jsgo/internal/parser.SourceFile; Offset int; Line int; Column int }]).grow",
+            "values": [
+              8208,
+              25265396
+            ],
+            "fractions": [
+              0.0018833653499324026,
+              0.06010228885268694
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              29690,
+              16655672
+            ],
+            "fractions": [
+              0.006812514283563966,
+              0.039621148608935716
+            ]
+          },
+          {
+            "key": "internal/rhino.(*NodeAllocator).NewNode",
+            "values": [
+              2771,
+              12679226
+            ],
+            "fractions": [
+              0.0006358193694764483,
+              0.03016182700957857
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.TokenBase; github.com/paullepoulpe/jsgo/internal/parser.value string; github.com/paullepoulpe/jsgo/internal/parser.privateIdentifier bool }]).grow",
+            "values": [
+              5313,
+              11579470
+            ],
+            "fractions": [
+              0.0012190935799452796,
+              0.02754568543873299
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode",
+            "values": [
+              131080,
+              10486560
+            ],
+            "fractions": [
+              0.030076940797897092,
+              0.02494582939412597
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.self github.com/paullepoulpe/jsgo/internal/parser.Token; Location *github.com/paullepoulpe/jsgo/internal/parser.SourceRange; Type github.com/paullepoulpe/jsgo/internal/parser.TokenType }]).grow",
+            "values": [
+              1968,
+              8425003
+            ],
+            "fractions": [
+              0.0004515671306855468,
+              0.020041718874731034
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Start *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; End *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition }]).grow",
+            "values": [
+              9563,
+              8402816
+            ],
+            "fractions": [
+              0.002194276661964372,
+              0.019988939591842513
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocTokenStreamWithLinenoCharno",
+            "values": [
+              37430,
+              8390456
+            ],
+            "fractions": [
+              0.008588494767052854,
+              0.0199595371518325
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              159471,
+              3145812
+            ],
+            "fractions": [
+              0.036591393240627455,
+              0.0074833777194803835
+            ]
+          },
+          {
+            "key": "internal/parser.NewIdentifierExpressionTree",
+            "values": [
+              54615,
+              2621560
+            ],
+            "fractions": [
+              0.01253167624105241,
+              0.006236267041476412
+            ]
+          },
+          {
+            "key": "internal/rhino.rhinoStringPoolCell",
+            "values": [
+              77,
+              2152152
+            ],
+            "fractions": [
+              1.7668022897757676e-05,
+              0.005119621365083211
+            ]
+          },
+          {
+            "key": "strings.(*Builder).WriteString",
+            "values": [
+              40960,
+              1572988
+            ],
+            "fractions": [
+              0.009398470362235772,
+              0.0037418839244716495
+            ]
+          },
+          {
+            "key": "internal/parser.NewBinaryOperatorTree",
+            "values": [
+              19662,
+              1572984
+            ],
+            "fractions": [
+              0.0045115411196845635,
+              0.0037418744091188955
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSDocInfo_Builder",
+            "values": [
+              32769,
+              1572936
+            ],
+            "fractions": [
+              0.007519005744631445,
+              0.003741760224885847
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.*github.com/paullepoulpe/jsgo/internal/parser.Comment,go.shape.struct {}]).add",
+            "values": [
+              256,
+              1058997
+            ],
+            "fractions": [
+              5.874043976397357e-05,
+              0.002519182505120003
+            ]
+          },
+          {
+            "key": "internal/parser.NewUnaryExpressionTree",
+            "values": [
+              16384,
+              1048640
+            ],
+            "fractions": [
+              0.0037593881448943086,
+              0.0024945448780015807
+            ]
+          },
+          {
+            "key": "internal/jutil.(*TreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]).Put",
+            "values": [
+              16385,
+              1048640
+            ],
+            "fractions": [
+              0.0037596175997371365,
+              0.0024945448780015807
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_ObjectPropListItem",
+            "values": [
+              32768,
+              1048608
+            ],
+            "fractions": [
+              0.007518776289788617,
+              0.0024944687551795484
+            ]
+          },
+          {
+            "key": "internal/jutil.EnumSetCopyOf[go.shape.int32]",
+            "values": [
+              43690,
+              1048600
+            ],
+            "fractions": [
+              0.01002488208315627,
+              0.0024944497244740404
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.6e129888d4b05b962cb8c8ce29f8cb11060d63b20ab67d556a00b3e9709002e7]).grow",
+            "values": [
+              164,
+              525889
+            ],
+            "fractions": [
+              3.7630594223795566e-05,
+              0.0012510048361185663
+            ]
+          },
+          {
+            "key": "internal/parser.NewLineNumberScanner",
+            "values": [
+              3641,
+              524360
+            ],
+            "fractions": [
+              0.0008354450827368272,
+              0.001247367592528331
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).ParseSourceElementList",
+            "values": [
+              4096,
+              524352
+            ],
+            "fractions": [
+              0.0009398470362235771,
+              0.0012473485618228228
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocInfoParser",
+            "values": [
+              4681,
+              524344
+            ],
+            "fractions": [
+              0.0010740781192779699,
+              0.0012473295311173148
+            ]
+          },
+          {
+            "key": "internal/parser.NewSwitchStatementTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.0015038470398948546,
+              0.0012472914697062986
+            ]
+          },
+          {
+            "key": "internal/jscomp.NewJSError",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.0015038470398948546,
+              0.0012472914697062986
+            ]
+          },
+          {
+            "key": "internal/parser.NewIfStatementTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.0015038470398948546,
+              0.0012472914697062986
+            ]
+          },
+          {
+            "key": "internal/parser.NewStringLiteralToken",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0018796940724471543,
+              0.0012472724390007904
+            ]
+          },
+          {
+            "key": "internal/jutil.(*MessageFormat).ApplyPattern",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0018796940724471543,
+              0.0012472724390007904
+            ]
+          },
+          {
+            "key": "internal/parser.NewVariableDeclarationListTree",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0018796940724471543,
+              0.0012472724390007904
+            ]
+          },
+          {
+            "key": "internal/parser.NewIdentifierToken",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0018796940724471543,
+              0.0012472724390007904
+            ]
+          },
+          {
+            "key": "internal/parser.NewMemberExpressionTree",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0018796940724471543,
+              0.0012472724390007904
+            ]
+          },
+          {
+            "key": "internal/parser.NewVariableStatementTree",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.002506335248210482,
+              0.0012472534082952824
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).Add",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0037593881448943086,
+              0.0012472343775897742
+            ]
+          },
+          {
+            "key": "internal/jutil.NewLinkedHashSet[go.shape.string]",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0037593881448943086,
+              0.0012472343775897742
+            ]
+          },
+          {
+            "key": "internal/rhino.newJSDocInfo",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0037593881448943086,
+              0.0012472343775897742
+            ]
+          },
+          {
+            "key": "internal/parser.NewComment",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0037593881448943086,
+              0.0012472343775897742
+            ]
+          },
+          {
+            "key": "internal/stringslite.Clone",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.005012441041578135,
+              0.0012472248622370202
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSTypeExpression",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.005012441041578135,
+              0.0012472248622370202
+            ]
+          },
+          {
+            "key": "internal/jutil.(*EnumSet[go.shape.int32]).Add",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.007518776289788617,
+              0.0012472153468842662
+            ]
+          },
+          {
+            "key": "internal/jutil.mfLiteralText",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.007518776289788617,
+              0.0012472153468842662
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              430982,
+              79221944
+            ],
+            "fractions": [
+              0.09889090707170647,
+              0.18845618575538609
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              430982,
+              79221944
+            ],
+            "fractions": [
+              0.09889090707170647,
+              0.18845618575538609
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              430982,
+              79221944
+            ],
+            "fractions": [
+              0.09889090707170647,
+              0.18845618575538609
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              380685,
+              44725120
+            ],
+            "fractions": [
+              0.08735001684198547,
+              0.10639382344179706
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              380685,
+              44725120
+            ],
+            "fractions": [
+              0.08735001684198547,
+              0.10639382344179706
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              380685,
+              44725120
+            ],
+            "fractions": [
+              0.08735001684198547,
+              0.10639382344179706
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              113223,
+              33128634
+            ],
+            "fractions": [
+              0.025979565669517108,
+              0.07880765969244834
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              31025,
+              25248358
+            ],
+            "fractions": [
+              0.007118836498739375,
+              0.060061758207631065
+            ]
+          },
+          {
+            "key": "scanner/whole-original",
+            "values": [
+              87287,
+              18421444
+            ],
+            "fractions": [
+              0.020028424865929536,
+              0.04382163447474153
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              13105,
+              18405943
+            ],
+            "fractions": [
+              0.0030070057152612253,
+              0.0437847601039814
+            ]
+          },
+          {
+            "key": "positions_ranges/whole-original",
+            "values": [
+              4558,
+              14735546
+            ],
+            "fractions": [
+              0.0010458551736101233,
+              0.035053479553380264
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              12394,
+              11868226
+            ],
+            "fractions": [
+              0.002843863322010502,
+              0.028232589238695063
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              56006,
+              11672838
+            ],
+            "fractions": [
+              0.012850847927426187,
+              0.027767792802718013
+            ]
+          },
+          {
+            "key": "line_scanner/whole-original",
+            "values": [
+              2759,
+              10002030
+            ],
+            "fractions": [
+              0.0006330659113625121,
+              0.023793210926646085
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              1315,
+              8721098
+            ],
+            "fractions": [
+              0.00030173311831884863,
+              0.020746080968158595
+            ]
+          },
+          {
+            "key": "string_from_utf16/other-or-truncated",
+            "values": [
+              542,
+              8646211
+            ],
+            "fractions": [
+              0.00012436452481278778,
+              0.020567936912735472
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              13824,
+              5268805
+            ],
+            "fractions": [
+              0.0031719837472545726,
+              0.012533634541824762
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              13824,
+              5268805
+            ],
+            "fractions": [
+              0.0031719837472545726,
+              0.012533634541824762
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              13824,
+              5268805
+            ],
+            "fractions": [
+              0.0031719837472545726,
+              0.012533634541824762
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              13824,
+              5268805
+            ],
+            "fractions": [
+              0.0031719837472545726,
+              0.012533634541824762
+            ]
+          },
+          {
+            "key": "string_to_utf16/whole-original",
+            "values": [
+              17296,
+              4787446
+            ],
+            "fractions": [
+              0.003968650961553464,
+              0.011388559370240652
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              668,
+              3690403
+            ],
+            "fractions": [
+              0.00015327583500911854,
+              0.008778871587400507
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/whole-original",
+            "values": [
+              172,
+              3212902
+            ],
+            "fractions": [
+              3.946623296641974e-05,
+              0.0076429739735476765
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              540,
+              2633615
+            ],
+            "fractions": [
+              0.00012390561512713174,
+              0.006264943935838928
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              540,
+              2633615
+            ],
+            "fractions": [
+              0.00012390561512713174,
+              0.006264943935838928
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              93935,
+              2097220
+            ],
+            "fractions": [
+              0.021553840661050223,
+              0.004988947025711851
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              76458,
+              1572896
+            ],
+            "fractions": [
+              0.017543658372944887,
+              0.0037416650713583063
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              76458,
+              1572896
+            ],
+            "fractions": [
+              0.017543658372944887,
+              0.0037416650713583063
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              54613,
+              1048596
+            ],
+            "fractions": [
+              0.012531217331366752,
+              0.0024944402091212864
+            ]
+          },
+          {
+            "key": "string_from_utf16/whole-original",
+            "values": [
+              65536,
+              1048592
+            ],
+            "fractions": [
+              0.015037552579577234,
+              0.0024944306937685324
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/whole-original",
+            "values": [
+              65536,
+              1048592
+            ],
+            "fractions": [
+              0.015037552579577234,
+              0.0024944306937685324
+            ]
+          }
+        ]
+      },
+      "cpu": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/downlevel-whitespace/profile.cpu.pprof",
+        "sample_types": [
+          [
+            "cpu",
+            "nanoseconds"
+          ]
+        ],
+        "totals": [
+          1390000000
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              230000000
+            ],
+            "fractions": [
+              0.16546762589928057
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.07913669064748201
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              100000000
+            ],
+            "fractions": [
+              0.07194244604316546
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              60000000
+            ],
+            "fractions": [
+              0.04316546762589928
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.02158273381294964
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.02158273381294964
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.014388489208633094
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.014388489208633094
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/runtime/maps.memHashAES",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/runtime/atomic.(*UnsafePointer).Load",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocInfoParser).Next",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.gcmarknewobject",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/jutil.isASCII",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/rhino.JSDocInfo_PackPropertyValues",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).Add",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/jutil.StringTrim",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanNoHeaderSC5",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).PeekRelationalOperator",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).PeekAt",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.typedslicecopy",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.(*mspan).refillAllocCache",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetLineOffset",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).ValidateBreakContinue",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).ValidateParameters",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.heapSetTypeSmallHeader",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.memclrNoHeapPointers",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "runtime.(*stkframe).getStackMap",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "internal/runtime/maps.ctrlGroup.matchH2",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "whole-original",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.07913669064748201
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.07913669064748201
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.07913669064748201
+            ]
+          },
+          {
+            "key": "native-direct",
+            "values": [
+              100000000
+            ],
+            "fractions": [
+              0.07194244604316546
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              100000000
+            ],
+            "fractions": [
+              0.07194244604316546
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              100000000
+            ],
+            "fractions": [
+              0.07194244604316546
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.02158273381294964
+            ]
+          },
+          {
+            "key": "scanner/whole-original",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.014388489208633094
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.014388489208633094
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.014388489208633094
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "string_to_utf16/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "string_from_utf16/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "positions_ranges/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "scanner/other-or-truncated",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "positions_ranges/other-or-truncated",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          },
+          {
+            "key": "string_from_utf16/other-or-truncated",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.007194244604316547
+            ]
+          }
+        ]
+      }
+    },
+    "bundle": {
+      "heap": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/bundle/profile.live.pprof",
+        "sample_types": [
+          [
+            "alloc_objects",
+            "count"
+          ],
+          [
+            "alloc_space",
+            "bytes"
+          ]
+        ],
+        "totals": [
+          76033851,
+          5071370244
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              2556728,
+              462037210
+            ],
+            "fractions": [
+              0.03362618052845962,
+              0.09110697657041346
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              2196278,
+              456269954
+            ],
+            "fractions": [
+              0.028885528894228966,
+              0.08996975808260471
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              891326,
+              231422575
+            ],
+            "fractions": [
+              0.01172275227779795,
+              0.045633145257694185
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              209139,
+              186843951
+            ],
+            "fractions": [
+              0.002750603806717616,
+              0.03684289294812528
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              995195,
+              180729488
+            ],
+            "fractions": [
+              0.0130888411794373,
+              0.03563721032078525
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              184023,
+              139481066
+            ],
+            "fractions": [
+              0.0024202772525621515,
+              0.027503625112960693
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              13254,
+              50138465
+            ],
+            "fractions": [
+              0.0001743170946319686,
+              0.00988657159459407
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              645722,
+              29852050
+            ],
+            "fractions": [
+              0.00849255945223661,
+              0.005886387418729351
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              149,
+              29558044
+            ],
+            "fractions": [
+              1.959653470662692e-06,
+              0.005828413737878926
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              558876,
+              12059040
+            ],
+            "fractions": [
+              0.0073503576716112936,
+              0.0023778662215142342
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/rhino.(*NodeAllocator).NewNode",
+            "values": [
+              11000,
+              115473010
+            ],
+            "fractions": [
+              0.00014467240387442694,
+              0.02276958779269124
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Source *github.com/paullepoulpe/jsgo/internal/parser.SourceFile; Offset int; Line int; Column int }]).grow",
+            "values": [
+              22431,
+              103233673
+            ],
+            "fractions": [
+              0.00029501333557338825,
+              0.02035616964116099
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Start *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; End *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition }]).grow",
+            "values": [
+              32232,
+              45703169
+            ],
+            "fractions": [
+              0.0004239164474255026,
+              0.009011996127490785
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.TokenBase; github.com/paullepoulpe/jsgo/internal/parser.value string; github.com/paullepoulpe/jsgo/internal/parser.privateIdentifier bool }]).grow",
+            "values": [
+              4867,
+              38039233
+            ],
+            "fractions": [
+              6.401096269607599e-05,
+              0.007500780098831214
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.self github.com/paullepoulpe/jsgo/internal/parser.Token; Location *github.com/paullepoulpe/jsgo/internal/parser.SourceRange; Type github.com/paullepoulpe/jsgo/internal/parser.TokenType }]).grow",
+            "values": [
+              7020,
+              34236997
+            ],
+            "fractions": [
+              9.23272977453161e-05,
+              0.006751034799816915
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              12701,
+              32180876
+            ],
+            "fractions": [
+              0.00016704401832809968,
+              0.0063455978269529
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              640796,
+              13631936
+            ],
+            "fractions": [
+              0.008427772519374299,
+              0.002688018295672281
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocTokenStreamWithLinenoCharno",
+            "values": [
+              28304,
+              6292832
+            ],
+            "fractions": [
+              0.0003722552472056164,
+              0.001240854383969525
+            ]
+          },
+          {
+            "key": "internal/jutil.(*EnumSet[go.shape.int32]).Add",
+            "values": [
+              360450,
+              5767256
+            ],
+            "fractions": [
+              0.0047406516342306535,
+              0.0011372184878087556
+            ]
+          },
+          {
+            "key": "internal/parser.NewIdentifierExpressionTree",
+            "values": [
+              98307,
+              4718808
+            ],
+            "fractions": [
+              0.0012929372734257535,
+              0.0009304798847181153
+            ]
+          },
+          {
+            "key": "internal/rhino.rhinoStringPoolCell",
+            "values": [
+              32882,
+              3752524
+            ],
+            "fractions": [
+              0.0004324652712908097,
+              0.0007399428200770111
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode",
+            "values": [
+              45878,
+              3670296
+            ],
+            "fractions": [
+              0.0006033891404500872,
+              0.0007237286617640217
+            ]
+          },
+          {
+            "key": "internal/parser.NewArgumentListTree",
+            "values": [
+              32766,
+              3146016
+            ],
+            "fractions": [
+              0.00043093963503177025,
+              0.0006203483178381799
+            ]
+          },
+          {
+            "key": "internal/parser.NewMemberExpressionTree",
+            "values": [
+              49152,
+              3145920
+            ],
+            "fractions": [
+              0.000646448908657803,
+              0.000620329388043
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_IntPropListItem",
+            "values": [
+              98304,
+              3145824
+            ],
+            "fractions": [
+              0.001292897817315606,
+              0.0006203104582478202
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocInfoParser",
+            "values": [
+              23407,
+              2621720
+            ],
+            "fractions": [
+              0.00030784972340806464,
+              0.0005169648189464748
+            ]
+          },
+          {
+            "key": "internal/parser.NewLiteralToken",
+            "values": [
+              54615,
+              2621560
+            ],
+            "fractions": [
+              0.0007182984852365297,
+              0.0005169332692878418
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.struct {}]).add",
+            "values": [
+              81921,
+              2621520
+            ],
+            "fractions": [
+              0.0010774279997997208,
+              0.0005169253818731836
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourcePosition",
+            "values": [
+              81920,
+              2621520
+            ],
+            "fractions": [
+              0.0010774148477630048,
+              0.0005169253818731836
+            ]
+          },
+          {
+            "key": "internal/parser.NewBinaryOperatorTree",
+            "values": [
+              26216,
+              2097312
+            ],
+            "fractions": [
+              0.0003447937945429069,
+              0.00041355923529372664
+            ]
+          },
+          {
+            "key": "internal/parser.NewStringLiteralToken",
+            "values": [
+              32768,
+              2097280
+            ],
+            "fractions": [
+              0.000430965939105202,
+              0.00041355292536200005
+            ]
+          },
+          {
+            "key": "internal/parser.NewFormalParameterListTree",
+            "values": [
+              16383,
+              1573008
+            ],
+            "fractions": [
+              0.00021546981751588513,
+              0.00031017415891908994
+            ]
+          },
+          {
+            "key": "internal/parser.NewVariableDeclarationListTree",
+            "values": [
+              24576,
+              1572960
+            ],
+            "fractions": [
+              0.0003232244543289015,
+              0.0003101646940215
+            ]
+          },
+          {
+            "key": "internal/parser.NewExpressionStatementTree",
+            "values": [
+              32769,
+              1572936
+            ],
+            "fractions": [
+              0.0004309790911419178,
+              0.0003101599615727051
+            ]
+          },
+          {
+            "key": "internal/parser.NewLiteralExpressionTree",
+            "values": [
+              32769,
+              1572936
+            ],
+            "fractions": [
+              0.0004309790911419178,
+              0.0003101599615727051
+            ]
+          },
+          {
+            "key": "strings.(*Builder).WriteString",
+            "values": [
+              73728,
+              1572912
+            ],
+            "fractions": [
+              0.0009696733629867044,
+              0.0003101552291239101
+            ]
+          },
+          {
+            "key": "internal/parser.NewComment",
+            "values": [
+              49152,
+              1572912
+            ],
+            "fractions": [
+              0.000646448908657803,
+              0.0003101552291239101
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSTypeExpression",
+            "values": [
+              65536,
+              1572900
+            ],
+            "fractions": [
+              0.000861931878210404,
+              0.00031015286289951265
+            ]
+          },
+          {
+            "key": "internal/stringslite.Clone",
+            "values": [
+              87381,
+              1572892
+            ],
+            "fractions": [
+              0.0011492381202683,
+              0.000310151285416581
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParserDiagnostics).RecordComment",
+            "values": [
+              5,
+              1314487
+            ],
+            "fractions": [
+              6.576018357928496e-08,
+              0.00025919760079737536
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.*github.com/paullepoulpe/jsgo/internal/parser.Comment,go.shape.struct {}]).add",
+            "values": [
+              83,
+              1062595
+            ],
+            "fractions": [
+              1.0916190474161306e-06,
+              0.00020952818446990122
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).NormalizeString",
+            "values": [
+              567,
+              1050625
+            ],
+            "fractions": [
+              7.4572048178909155e-06,
+              0.0002071678756334163
+            ]
+          },
+          {
+            "key": "internal/parser.NewParserForFragment",
+            "values": [
+              8192,
+              1048704
+            ],
+            "fractions": [
+              0.0001077414847763005,
+              0.00020678908254445324
+            ]
+          },
+          {
+            "key": "internal/parser.NewFunctionDeclarationTree",
+            "values": [
+              13108,
+              1048656
+            ],
+            "fractions": [
+              0.00017239689727145346,
+              0.00020677961764686332
+            ]
+          },
+          {
+            "key": "internal/parser.NewIfStatementTree",
+            "values": [
+              13108,
+              1048656
+            ],
+            "fractions": [
+              0.00017239689727145346,
+              0.00020677961764686332
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).ParseSourceElementList",
+            "values": [
+              36864,
+              1048648
+            ],
+            "fractions": [
+              0.0004848366814933522,
+              0.0002067780401639317
+            ]
+          },
+          {
+            "key": "internal/parser.NewUnaryExpressionTree",
+            "values": [
+              16384,
+              1048640
+            ],
+            "fractions": [
+              0.000215482969552601,
+              0.00020677646268100003
+            ]
+          },
+          {
+            "key": "internal/parser.NewVariableStatementTree",
+            "values": [
+              21846,
+              1048624
+            ],
+            "fractions": [
+              0.0002873193940946119,
+              0.00020677330771513673
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourceRange",
+            "values": [
+              65536,
+              1048592
+            ],
+            "fractions": [
+              0.000861931878210404,
+              0.0002067669977834101
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.6e129888d4b05b962cb8c8ce29f8cb11060d63b20ab67d556a00b3e9709002e7]).grow",
+            "values": [
+              164,
+              525889
+            ],
+            "fractions": [
+              2.156934021400547e-06,
+              0.00010369761518047035
+            ]
+          },
+          {
+            "key": "internal/parser.NewTemplateLiteralExpressionTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              8.619844863572673e-05,
+              0.00010338980882343166
+            ]
+          },
+          {
+            "key": "internal/parser.NewForOfStatementTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              8.619844863572673e-05,
+              0.00010338980882343166
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).ValidatePrivatePropertyUsage",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0001077414847763005,
+              0.00010338823134050001
+            ]
+          },
+          {
+            "key": "internal/parser.NewBlockTree",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0001077414847763005,
+              0.00010338823134050001
+            ]
+          },
+          {
+            "key": "internal/parser.NewParser_CommentRecorder",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00014365969704730594,
+              0.00010338665385756837
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).add",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00014365969704730594,
+              0.00010338665385756837
+            ]
+          },
+          {
+            "key": "internal/parser.NewParenExpressionTree",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00014365969704730594,
+              0.00010338665385756837
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSDocInfo_Builder",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00014365969704730594,
+              0.00010338665385756837
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).node_getExt",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.000215482969552601,
+              0.0001033850763746367
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_ObjectPropListItem",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.000215482969552601,
+              0.0001033850763746367
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              1201083,
+              275540466
+            ],
+            "fractions": [
+              0.015796687714791667,
+              0.05433254776181946
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              1201083,
+              275540466
+            ],
+            "fractions": [
+              0.015796687714791667,
+              0.05433254776181946
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              1201083,
+              275540466
+            ],
+            "fractions": [
+              0.015796687714791667,
+              0.05433254776181946
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              995195,
+              180729488
+            ],
+            "fractions": [
+              0.0130888411794373,
+              0.03563721032078525
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              995195,
+              180729488
+            ],
+            "fractions": [
+              0.0130888411794373,
+              0.03563721032078525
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              995195,
+              180729488
+            ],
+            "fractions": [
+              0.0130888411794373,
+              0.03563721032078525
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              995195,
+              180729488
+            ],
+            "fractions": [
+              0.0130888411794373,
+              0.03563721032078525
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              561285,
+              140317772
+            ],
+            "fractions": [
+              0.0073820409280597925,
+              0.02766861129218709
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              141259,
+              103695838
+            ],
+            "fractions": [
+              0.001857843554445243,
+              0.020447301816049382
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              330041,
+              91104803
+            ],
+            "fractions": [
+              0.004340711349738158,
+              0.017964533965507096
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              137479,
+              85260531
+            ],
+            "fractions": [
+              0.0018081288556593036,
+              0.01681212904951532
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              67880,
+              83148113
+            ],
+            "fractions": [
+              0.0008927602522723727,
+              0.0163955911320759
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              46544,
+              54220535
+            ],
+            "fractions": [
+              0.0006121483969028479,
+              0.010691496063445372
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              12701,
+              32180876
+            ],
+            "fractions": [
+              0.00016704401832809968,
+              0.0063455978269529
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              149,
+              29558044
+            ],
+            "fractions": [
+              1.959653470662692e-06,
+              0.005828413737878926
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              553,
+              17957589
+            ],
+            "fractions": [
+              7.273076303868918e-06,
+              0.00354097376764117
+            ]
+          },
+          {
+            "key": "string_from_utf16/other-or-truncated",
+            "values": [
+              4926,
+              16220114
+            ],
+            "fractions": [
+              6.478693286231155e-05,
+              0.00319836912305707
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              427804,
+              9437540
+            ],
+            "fractions": [
+              0.005626493915190486,
+              0.0018609447833483799
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              345884,
+              7864644
+            ],
+            "fractions": [
+              0.00454907906742748,
+              0.001550792709190333
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              360450,
+              5767256
+            ],
+            "fractions": [
+              0.0047406516342306535,
+              0.0011372184878087556
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              360450,
+              5767256
+            ],
+            "fractions": [
+              0.0047406516342306535,
+              0.0011372184878087556
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-fragment",
+            "values": [
+              212992,
+              4194396
+            ],
+            "fractions": [
+              0.0028012786041838127,
+              0.0008270735123239012
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-fragment",
+            "values": [
+              212992,
+              4194396
+            ],
+            "fractions": [
+              0.0028012786041838127,
+              0.0008270735123239012
+            ]
+          }
+        ]
+      },
+      "cpu": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/bundle/profile.cpu.pprof",
+        "sample_types": [
+          [
+            "cpu",
+            "nanoseconds"
+          ]
+        ],
+        "totals": [
+          21180000000
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              810000000
+            ],
+            "fractions": [
+              0.03824362606232295
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              650000000
+            ],
+            "fractions": [
+              0.030689329556185082
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              340000000
+            ],
+            "fractions": [
+              0.016052880075542966
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              250000000
+            ],
+            "fractions": [
+              0.011803588290840416
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              140000000
+            ],
+            "fractions": [
+              0.0066100094428706326
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              80000000
+            ],
+            "fractions": [
+              0.003777148253068933
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              60000000
+            ],
+            "fractions": [
+              0.0028328611898017
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.0018885741265344666
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.0018885741265344666
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/parser.(*Scanner).ScanIdentifierOrKeyword",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.002360717658168083
+            ]
+          },
+          {
+            "key": "runtime.heapSetTypeSmallHeader",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.0018885741265344666
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00141643059490085
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).PeekCharAt",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00141643059490085
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).PeekTokenAt",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00141643059490085
+            ]
+          },
+          {
+            "key": "internal/parser.Identifiers_IsIdentifierPart",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00141643059490085
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).AddToString",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "internal/rhino.TokenStream_IsKeyword",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).Get",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanNoHeaderSC4",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "runtime.mapaccess2_faststr",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).ScanToken",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanNoHeaderSC7",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.int32]).find",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetJsDocToken",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Source *github.com/paullepoulpe/jsgo/internal/parser.SourceFile; Offset int; Line int; Column int }]).New",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.mallocgcTinySlowPath",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.decodeWTF8",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).GetJSDocCommentAt",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).Process",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).GetTreeLocation",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.ParsingUtil_GetParamOrPatternNames",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.(*mspan).markBitsForIndex",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.memclrNoHeapPointers",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).ParseArrowFunctionBody",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.nextFreeFast",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanNoHeaderSC6",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).Transform",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).node_castKind",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "memeqbody",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/runtime/maps.(*groupReference).key",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).ClonePropsFrom",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.memclrHasPointers",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).newToken",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.self github.com/paullepoulpe/jsgo/internal/parser.Token; Location *github.com/paullepoulpe/jsgo/internal/parser.SourceRange; Type github.com/paullepoulpe/jsgo/internal/parser.TokenType }]).New",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).GetTreeStartLocation",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.step",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*LineNumberScanner).AdvanceLine",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*TokenBase).InitTokenBase",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).beginAnnotation",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*LineNumberScanner).getSourcePosition",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/runtime/maps.memHashAES",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).Add",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).ValidateRegExpFlags",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*TokenBase).GetStart",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).prefix",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "internal/parser.(*LineNumberScanner).getTokenSourceRange",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanHeader",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "runtime.findObject",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              460000000
+            ],
+            "fractions": [
+              0.021718602455146365
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              460000000
+            ],
+            "fractions": [
+              0.021718602455146365
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              460000000
+            ],
+            "fractions": [
+              0.021718602455146365
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              250000000
+            ],
+            "fractions": [
+              0.011803588290840416
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              250000000
+            ],
+            "fractions": [
+              0.011803588290840416
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              250000000
+            ],
+            "fractions": [
+              0.011803588290840416
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              220000000
+            ],
+            "fractions": [
+              0.010387157695939566
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              190000000
+            ],
+            "fractions": [
+              0.008970727101038715
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              100000000
+            ],
+            "fractions": [
+              0.004721435316336166
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              90000000
+            ],
+            "fractions": [
+              0.00424929178470255
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              90000000
+            ],
+            "fractions": [
+              0.00424929178470255
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              70000000
+            ],
+            "fractions": [
+              0.0033050047214353163
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              70000000
+            ],
+            "fractions": [
+              0.0033050047214353163
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.002360717658168083
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.0018885741265344666
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.0018885741265344666
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00141643059490085
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "scanner/other-or-truncated",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "string_from_utf16/other-or-truncated",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.0009442870632672333
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.00047214353163361664
+            ]
+          }
+        ]
+      }
+    },
+    "typed-app": {
+      "heap": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/typed-app/profile.live.pprof",
+        "sample_types": [
+          [
+            "alloc_objects",
+            "count"
+          ],
+          [
+            "alloc_space",
+            "bytes"
+          ]
+        ],
+        "totals": [
+          19531812,
+          1315261615
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              1206682,
+              155067842
+            ],
+            "fractions": [
+              0.061780340707764336,
+              0.11789885771128507
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              1096238,
+              150854429
+            ],
+            "fractions": [
+              0.05612577061462603,
+              0.11469537868327435
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              494755,
+              70494237
+            ],
+            "fractions": [
+              0.025330727123525458,
+              0.053597121816711724
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              132234,
+              55259051
+            ],
+            "fractions": [
+              0.0067701859919601926,
+              0.04201373351871141
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              128942,
+              43673323
+            ],
+            "fractions": [
+              0.006601640441757273,
+              0.033205046434811376
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              87830,
+              25341179
+            ],
+            "fractions": [
+              0.004496766608238908,
+              0.01926702544269111
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              606791,
+              14833534
+            ],
+            "fractions": [
+              0.0310668052713184,
+              0.011278010268702322
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              315,
+              14025399
+            ],
+            "fractions": [
+              1.6127535939829852e-05,
+              0.010663581176585921
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              109494,
+              13151681
+            ],
+            "fractions": [
+              0.005605931492684857,
+              0.00999928900076659
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              314559,
+              8389780
+            ],
+            "fractions": [
+              0.01610495738951409,
+              0.006378791796489857
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              77676,
+              3689117
+            ],
+            "fractions": [
+              0.0039768967671816625,
+              0.00280485415063223
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Source *github.com/paullepoulpe/jsgo/internal/parser.SourceFile; Offset int; Line int; Column int }]).grow",
+            "values": [
+              7306,
+              31070378
+            ],
+            "fractions": [
+              0.00037405643675046636,
+              0.023622964165954163
+            ]
+          },
+          {
+            "key": "internal/rhino.(*NodeAllocator).NewNode",
+            "values": [
+              3471,
+              24331937
+            ],
+            "fractions": [
+              0.00017771008649888705,
+              0.01849969369021691
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              16681,
+              20325277
+            ],
+            "fractions": [
+              0.0008540426254358786,
+              0.01545341000467044
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              508436,
+              12059880
+            ],
+            "fractions": [
+              0.026031174168582003,
+              0.009169187226679613
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.self github.com/paullepoulpe/jsgo/internal/parser.Token; Location *github.com/paullepoulpe/jsgo/internal/parser.SourceRange; Type github.com/paullepoulpe/jsgo/internal/parser.TokenType }]).grow",
+            "values": [
+              2268,
+              11061184
+            ],
+            "fractions": [
+              0.00011611825876677494,
+              0.008409873650878195
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Start *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; End *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition }]).grow",
+            "values": [
+              7972,
+              10505985
+            ],
+            "fractions": [
+              0.0004081546555946781,
+              0.007987753067666314
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocTokenStreamWithLinenoCharno",
+            "values": [
+              48415,
+              10488000
+            ],
+            "fractions": [
+              0.002478776674688452,
+              0.007974078981997814
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode",
+            "values": [
+              72094,
+              5767608
+            ],
+            "fractions": [
+              0.0036911065906225188,
+              0.004385141278528074
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.TokenBase; github.com/paullepoulpe/jsgo/internal/parser.value string; github.com/paullepoulpe/jsgo/internal/parser.privateIdentifier bool }]).grow",
+            "values": [
+              1472,
+              4748358
+            ],
+            "fractions": [
+              7.536423143945887e-05,
+              0.0036102003934783728
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocInfoParser",
+            "values": [
+              18725,
+              2097376
+            ],
+            "fractions": [
+              0.0009586924142009968,
+              0.00159464548807653
+            ]
+          },
+          {
+            "key": "internal/rhino.rhinoStringPoolCell",
+            "values": [
+              57,
+              1614114
+            ],
+            "fractions": [
+              2.9183160272073065e-06,
+              0.0012272189666236097
+            ]
+          },
+          {
+            "key": "internal/bytealg.MakeNoZero",
+            "values": [
+              65585,
+              1578338
+            ],
+            "fractions": [
+              0.0033578553797261614,
+              0.0012000182944592358
+            ]
+          },
+          {
+            "key": "internal/parser.NewStringLiteralToken",
+            "values": [
+              24576,
+              1572960
+            ],
+            "fractions": [
+              0.0012582549944674872,
+              0.0011959293740964225
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSDocInfo_Builder",
+            "values": [
+              32769,
+              1572936
+            ],
+            "fractions": [
+              0.0016777245244834428,
+              0.0011959111267760977
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourcePosition",
+            "values": [
+              49152,
+              1572912
+            ],
+            "fractions": [
+              0.0025165099889349744,
+              0.0011958928794557728
+            ]
+          },
+          {
+            "key": "internal/jutil.(*TreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]).Put",
+            "values": [
+              20480,
+              1048656
+            ],
+            "fractions": [
+              0.001048545828722906,
+              0.0007972984142778318
+            ]
+          },
+          {
+            "key": "internal/rhino.newJSDocInfo",
+            "values": [
+              32768,
+              1048608
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0007972619196371818
+            ]
+          },
+          {
+            "key": "internal/jutil.NewTreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]",
+            "values": [
+              32768,
+              1048608
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0007972619196371818
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourceRange",
+            "values": [
+              65536,
+              1048592
+            ],
+            "fractions": [
+              0.0033553466519132993,
+              0.0007972497547569652
+            ]
+          },
+          {
+            "key": "regexp.(*bitState).reset",
+            "values": [
+              16,
+              540842
+            ],
+            "fractions": [
+              8.191764286897703e-07,
+              0.00041120488413250015
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ImmutableMapBuilder[go.shape.string,go.shape.int32]).BuildOrThrow",
+            "values": [
+              152,
+              526017
+            ],
+            "fractions": [
+              7.782176072552818e-06,
+              0.00039993336230678336
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ImmutableMapBuilder[go.shape.string,go.shape.int32]).Put",
+            "values": [
+              228,
+              525440
+            ],
+            "fractions": [
+              1.1673264108829226e-05,
+              0.0003994946663139713
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/jutil.key go.shape.string; github.com/paullepoulpe/jsgo/internal/jutil.value go.shape.int32; github.com/paullepoulpe/jsgo/internal/jutil.prev *github.com/paullepoulpe/jsgo/internal/jutil.lhmEntry[go.shape.string,go.shape.int32]; github.com/paullepoulpe/jsgo/internal/jutil.next *github.com/paullepoulpe/jsgo/internal/jutil.lhmEntry[go.shape.string,go.shape.int32] }]).grow",
+            "values": [
+              745,
+              524640
+            ],
+            "fractions": [
+              3.814290246086743e-05,
+              0.00039888642230314004
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.6e129888d4b05b962cb8c8ce29f8cb11060d63b20ab67d556a00b3e9709002e7]).grow",
+            "values": [
+              1365,
+              524480
+            ],
+            "fractions": [
+              6.988598907259603e-05,
+              0.0003987647735009738
+            ]
+          },
+          {
+            "key": "bytes.(*Buffer).String",
+            "values": [
+              4681,
+              524344
+            ],
+            "fractions": [
+              0.00023966030391855094,
+              0.0003986613720191325
+            ]
+          },
+          {
+            "key": "internal/parser.NewCaseClauseTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.00033555514460204716,
+              0.0003986492071389159
+            ]
+          },
+          {
+            "key": "internal/parser.NewBinaryOperatorTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.00033555514460204716,
+              0.0003986492071389159
+            ]
+          },
+          {
+            "key": "internal/parser.NewTemplateLiteralToken",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.00033555514460204716,
+              0.0003986492071389159
+            ]
+          },
+          {
+            "key": "internal/parser.NewMemberExpressionTree",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0004194183314891624,
+              0.00039864312469880755
+            ]
+          },
+          {
+            "key": "internal/parser.NewMemberLookupExpressionTree",
+            "values": [
+              8192,
+              524320
+            ],
+            "fractions": [
+              0.0004194183314891624,
+              0.00039864312469880755
+            ]
+          },
+          {
+            "key": "internal/parser.NewExpressionStatementTree",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.0005592415081611475,
+              0.0003986370422586992
+            ]
+          },
+          {
+            "key": "internal/parser.NewIdentifierExpressionTree",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.0005592415081611475,
+              0.0003986370422586992
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).add",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.0005592415081611475,
+              0.0003986370422586992
+            ]
+          },
+          {
+            "key": "strings.(*Builder).WriteString",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0008388366629783248,
+              0.0003986309598185909
+            ]
+          },
+          {
+            "key": "internal/rhino.JSDocInfo_PackPropertyValues",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0008388366629783248,
+              0.0003986309598185909
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_ObjectPropListItem",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0008388366629783248,
+              0.0003986309598185909
+            ]
+          },
+          {
+            "key": "internal/parser.NewComment",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0008388366629783248,
+              0.0003986309598185909
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSTypeExpression",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.0011184318177955021,
+              0.0003986279185985368
+            ]
+          },
+          {
+            "key": "internal/jutil.(*EnumSet[go.shape.int32]).Add",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0003986248773784826
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              986744,
+              137702748
+            ],
+            "fractions": [
+              0.05051983912194117,
+              0.10469608968250776
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              986744,
+              137702748
+            ],
+            "fractions": [
+              0.05051983912194117,
+              0.10469608968250776
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              986744,
+              137702748
+            ],
+            "fractions": [
+              0.05051983912194117,
+              0.10469608968250776
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              458967,
+              64179562
+            ],
+            "fractions": [
+              0.023498434246653613,
+              0.04879604275534187
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              130010,
+              49468560
+            ],
+            "fractions": [
+              0.006656320468372315,
+              0.03761119418055852
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              127850,
+              38934099
+            ],
+            "fractions": [
+              0.006545731650499196,
+              0.029601790667326666
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              16681,
+              20325277
+            ],
+            "fractions": [
+              0.0008540426254358786,
+              0.01545341000467044
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              315,
+              14025399
+            ],
+            "fractions": [
+              1.6127535939829852e-05,
+              0.010663581176585921
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              109494,
+              13151681
+            ],
+            "fractions": [
+              0.005605931492684857,
+              0.00999928900076659
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              109494,
+              13151681
+            ],
+            "fractions": [
+              0.005605931492684857,
+              0.00999928900076659
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              109494,
+              13151681
+            ],
+            "fractions": [
+              0.005605931492684857,
+              0.00999928900076659
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              109494,
+              13151681
+            ],
+            "fractions": [
+              0.005605931492684857,
+              0.00999928900076659
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              506665,
+              12065194
+            ],
+            "fractions": [
+              0.025940501577631406,
+              0.00917322748752156
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              279971,
+              7341052
+            ],
+            "fractions": [
+              0.01433410274479398,
+              0.00558143864025105
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              2116,
+              5263768
+            ],
+            "fractions": [
+              0.00010833608269422212,
+              0.004002069200506547
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              2912,
+              5263656
+            ],
+            "fractions": [
+              0.0001490901100215382,
+              0.00400198404634503
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              71149,
+              5015902
+            ],
+            "fractions": [
+              0.003642723982803029,
+              0.0038136154380206707
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              984,
+              4212501
+            ],
+            "fractions": [
+              5.037935036442087e-05,
+              0.0032027856298383647
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              77676,
+              3689117
+            ],
+            "fractions": [
+              0.0039768967671816625,
+              0.00280485415063223
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              77676,
+              3689117
+            ],
+            "fractions": [
+              0.0039768967671816625,
+              0.00280485415063223
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              77676,
+              3689117
+            ],
+            "fractions": [
+              0.0039768967671816625,
+              0.00280485415063223
+            ]
+          },
+          {
+            "key": "string_from_utf16/other-or-truncated",
+            "values": [
+              32770,
+              1195316
+            ],
+            "fractions": [
+              0.0016777757230102357,
+              0.0009088047475634724
+            ]
+          },
+          {
+            "key": "scanner/whole-original",
+            "values": [
+              32876,
+              1051019
+            ],
+            "fractions": [
+              0.0016832027668503054,
+              0.0007990950150248246
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-fragment",
+            "values": [
+              34588,
+              1048728
+            ],
+            "fractions": [
+              0.001770854644720111,
+              0.0007973531562388065
+            ]
+          },
+          {
+            "key": "positions_ranges/whole-original",
+            "values": [
+              108,
+              526723
+            ],
+            "fractions": [
+              5.52944089365595e-06,
+              0.00040047013764634196
+            ]
+          },
+          {
+            "key": "line_scanner/whole-original",
+            "values": [
+              108,
+              526723
+            ],
+            "fractions": [
+              5.52944089365595e-06,
+              0.00040047013764634196
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-fragment",
+            "values": [
+              1820,
+              524432
+            ],
+            "fractions": [
+              9.318131876346137e-05,
+              0.00039872827886032393
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0003986248773784826
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0003986248773784826
+            ]
+          },
+          {
+            "key": "string_from_utf16/whole-original",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0003986248773784826
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/whole-original",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.0016776733259566497,
+              0.0003986248773784826
+            ]
+          }
+        ]
+      },
+      "cpu": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/typed-app/profile.cpu.pprof",
+        "sample_types": [
+          [
+            "cpu",
+            "nanoseconds"
+          ]
+        ],
+        "totals": [
+          5930000000
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              260000000
+            ],
+            "fractions": [
+              0.04384485666104553
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              250000000
+            ],
+            "fractions": [
+              0.04215851602023609
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              120000000
+            ],
+            "fractions": [
+              0.02023608768971332
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              80000000
+            ],
+            "fractions": [
+              0.013490725126475547
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.008431703204047217
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00505902192242833
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "runtime.mallocgcTinySC2",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.006745362563237774
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00505902192242833
+            ]
+          },
+          {
+            "key": "runtime.heapSetTypeSmallHeader",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00505902192242833
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetJsDocToken",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "runtime.spanClass.sizeclass",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallNoScanSC6",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "runtime.typedslicecopy",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.6e129888d4b05b962cb8c8ce29f8cb11060d63b20ab67d556a00b3e9709002e7]).New",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/jutil.IsNil",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/parser.Scanner_IsWhitespace",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).prefix",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/jutil.StringTrim",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "runtime.memclrNoHeapPointers",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetChar",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "runtime.(*mspan).divideByElemSize",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).ScanIdentifierOrKeyword",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "unicode.is16",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).ClonePropsFrom",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              230000000
+            ],
+            "fractions": [
+              0.0387858347386172
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              230000000
+            ],
+            "fractions": [
+              0.0387858347386172
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              230000000
+            ],
+            "fractions": [
+              0.0387858347386172
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.01854974704890388
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              70000000
+            ],
+            "fractions": [
+              0.011804384485666104
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.008431703204047217
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.00505902192242833
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.003372681281618887
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-fragment",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          },
+          {
+            "key": "string_to_utf16/other-or-truncated",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0016863406408094434
+            ]
+          }
+        ]
+      }
+    },
+    "checks-only": {
+      "heap": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/checks-only/profile.live.pprof",
+        "sample_types": [
+          [
+            "alloc_objects",
+            "count"
+          ],
+          [
+            "alloc_space",
+            "bytes"
+          ]
+        ],
+        "totals": [
+          22972844,
+          1832776077
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              2887100,
+              552591574
+            ],
+            "fractions": [
+              0.1256744702571436,
+              0.30150523074510865
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              2759959,
+              543983109
+            ],
+            "fractions": [
+              0.12014006624517191,
+              0.29680827670471605
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              1230219,
+              285222901
+            ],
+            "fractions": [
+              0.053551010053435266,
+              0.15562343080496244
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              277628,
+              220001170
+            ],
+            "fractions": [
+              0.012085051376311962,
+              0.12003712442608448
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              258691,
+              164718759
+            ],
+            "fractions": [
+              0.011260730277888101,
+              0.08987391371324627
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              243805,
+              61663149
+            ],
+            "fractions": [
+              0.010612747816508918,
+              0.03364467147614345
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              49228,
+              58926398
+            ],
+            "fractions": [
+              0.0021428779127216466,
+              0.0321514443250778
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              1120,
+              46854707
+            ],
+            "fractions": [
+              4.8753214882754615e-05,
+              0.02556488355996803
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              911083,
+              24644580
+            ],
+            "fractions": [
+              0.0396591297098435,
+              0.013446585379016817
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              605247,
+              19401604
+            ],
+            "fractions": [
+              0.026346193792984446,
+              0.010585910763172843
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              105296,
+              8084165
+            ],
+            "fractions": [
+              0.004583498673477258,
+              0.004410885269319237
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "internal/rhino.(*NodeAllocator).NewNode",
+            "values": [
+              13472,
+              124429266
+            ],
+            "fractions": [
+              0.0005864315275897054,
+              0.06789114478385894
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Source *github.com/paullepoulpe/jsgo/internal/parser.SourceFile; Offset int; Line int; Column int }]).grow",
+            "values": [
+              24498,
+              113765362
+            ],
+            "fractions": [
+              0.0010663895162479665,
+              0.06207270131232731
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              49228,
+              58926398
+            ],
+            "fractions": [
+              0.0021428779127216466,
+              0.0321514443250778
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Start *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; End *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition }]).grow",
+            "values": [
+              29166,
+              50435477
+            ],
+            "fractions": [
+              0.0012695859511343045,
+              0.027518624687941078
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.self github.com/paullepoulpe/jsgo/internal/parser.Token; Location *github.com/paullepoulpe/jsgo/internal/parser.SourceRange; Type github.com/paullepoulpe/jsgo/internal/parser.TokenType }]).grow",
+            "values": [
+              10971,
+              50033003
+            ],
+            "fractions": [
+              0.0004775638575702686,
+              0.027299026666638446
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { github.com/paullepoulpe/jsgo/internal/parser.TokenBase; github.com/paullepoulpe/jsgo/internal/parser.value string; github.com/paullepoulpe/jsgo/internal/parser.privateIdentifier bool }]).grow",
+            "values": [
+              5774,
+              31145463
+            ],
+            "fractions": [
+              0.0002513402345830581,
+              0.016993599704215257
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              831894,
+              22023016
+            ],
+            "fractions": [
+              0.036212059769352024,
+              0.012016206603945104
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocTokenStreamWithLinenoCharno",
+            "values": [
+              84539,
+              17829504
+            ],
+            "fractions": [
+              0.0036799536008689216,
+              0.009728140946265744
+            ]
+          },
+          {
+            "key": "internal/parser.NewStringLiteralToken",
+            "values": [
+              245769,
+              15729600
+            ],
+            "fractions": [
+              0.01069824006117832,
+              0.008582390504434765
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode",
+            "values": [
+              117972,
+              9437904
+            ],
+            "fractions": [
+              0.005135280594775292,
+              0.005149512871997183
+            ]
+          },
+          {
+            "key": "internal/rhino.rhinoStringPoolCell",
+            "values": [
+              163955,
+              5849708
+            ],
+            "fractions": [
+              0.007136904773305386,
+              0.0031917199669995473
+            ]
+          },
+          {
+            "key": "internal/parsing.NewJsDocInfoParser",
+            "values": [
+              42133,
+              4719096
+            ],
+            "fractions": [
+              0.001834035002370625,
+              0.0025748350053349154
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourcePosition",
+            "values": [
+              147457,
+              4718736
+            ],
+            "fractions": [
+              0.006418752506219953,
+              0.002574638581994106
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_IntPropListItem",
+            "values": [
+              147457,
+              4718736
+            ],
+            "fractions": [
+              0.006418752506219953,
+              0.002574638581994106
+            ]
+          },
+          {
+            "key": "internal/parser.NewMemberExpressionTree",
+            "values": [
+              40961,
+              2621600
+            ],
+            "fractions": [
+              0.001783018245368314,
+              0.0014303984174057942
+            ]
+          },
+          {
+            "key": "internal/parser.NewLiteralToken",
+            "values": [
+              54615,
+              2621560
+            ],
+            "fractions": [
+              0.0023773721703764673,
+              0.0014303765925901487
+            ]
+          },
+          {
+            "key": "internal/stringslite.Clone",
+            "values": [
+              76459,
+              2621532
+            ],
+            "fractions": [
+              0.0033282339792147634,
+              0.0014303613152191969
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).node_getExt",
+            "values": [
+              81920,
+              2621520
+            ],
+            "fractions": [
+              0.0035659494314243373,
+              0.0014303547677745033
+            ]
+          },
+          {
+            "key": "internal/bytealg.MakeNoZero",
+            "values": [
+              68266,
+              2097252
+            ],
+            "fractions": [
+              0.002971595506416184,
+              0.0011443034565536835
+            ]
+          },
+          {
+            "key": "internal/parser.NewIdentifierExpressionTree",
+            "values": [
+              43692,
+              2097248
+            ],
+            "fractions": [
+              0.0019018977363011737,
+              0.0011443012740721189
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSTypeExpression",
+            "values": [
+              87381,
+              2097200
+            ],
+            "fractions": [
+              0.0038036648836339113,
+              0.0011442750842933444
+            ]
+          },
+          {
+            "key": "internal/rhino.newJSDocInfo",
+            "values": [
+              98305,
+              2097200
+            ],
+            "fractions": [
+              0.00427918284736535,
+              0.0011442750842933444
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).ParseCaseClauses",
+            "values": [
+              108,
+              1598231
+            ],
+            "fractions": [
+              4.701202863694195e-06,
+              0.0008720274233479096
+            ]
+          },
+          {
+            "key": "internal/parser.NewComment",
+            "values": [
+              49152,
+              1572912
+            ],
+            "fractions": [
+              0.0021395696588546024,
+              0.000858212860664702
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_ObjectPropListItem",
+            "values": [
+              49152,
+              1572912
+            ],
+            "fractions": [
+              0.0021395696588546024,
+              0.000858212860664702
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.*github.com/paullepoulpe/jsgo/internal/parser.Comment,go.shape.struct {}]).add",
+            "values": [
+              510,
+              1053902
+            ],
+            "fractions": [
+              2.2200124634111477e-05,
+              0.0005750304214604826
+            ]
+          },
+          {
+            "key": "strings.(*Builder).WriteString",
+            "values": [
+              8777,
+              1049056
+            ],
+            "fractions": [
+              0.00038205979198744397,
+              0.0005723863450450309
+            ]
+          },
+          {
+            "key": "internal/parser.NewParserForFragment",
+            "values": [
+              8192,
+              1048704
+            ],
+            "fractions": [
+              0.00035659494314243373,
+              0.0005721942866673505
+            ]
+          },
+          {
+            "key": "internal/rhino.NewJSDocInfo_Builder",
+            "values": [
+              21846,
+              1048624
+            ],
+            "fractions": [
+              0.0009509488681505869,
+              0.0005721506370360594
+            ]
+          },
+          {
+            "key": "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).add",
+            "values": [
+              21846,
+              1048624
+            ],
+            "fractions": [
+              0.0009509488681505869,
+              0.0005721506370360594
+            ]
+          },
+          {
+            "key": "internal/jutil.NewLinkedHashSet[go.shape.string]",
+            "values": [
+              32768,
+              1048608
+            ],
+            "fractions": [
+              0.001426379772569735,
+              0.0005721419071098013
+            ]
+          },
+          {
+            "key": "internal/jutil.NewTreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]",
+            "values": [
+              32768,
+              1048608
+            ],
+            "fractions": [
+              0.001426379772569735,
+              0.0005721419071098013
+            ]
+          },
+          {
+            "key": "internal/parser.NewSourceRange",
+            "values": [
+              65536,
+              1048592
+            ],
+            "fractions": [
+              0.00285275954513947,
+              0.0005721331771835431
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ImmutableMapBuilder[go.shape.string,go.shape.int32]).Put",
+            "values": [
+              1024,
+              524544
+            ],
+            "fractions": [
+              4.457436789280422e-05,
+              0.0002862019024487736
+            ]
+          },
+          {
+            "key": "internal/parsing.newIRFactoryWithNodeAllocator",
+            "values": [
+              2521,
+              524392
+            ],
+            "fractions": [
+              0.0001097382631423432,
+              0.0002861189681493207
+            ]
+          },
+          {
+            "key": "internal/parsing.nativeParserAttempt",
+            "values": [
+              4681,
+              524344
+            ],
+            "fractions": [
+              0.0002037623204162271,
+              0.00028609277837054613
+            ]
+          },
+          {
+            "key": "internal/parser.NewArgumentListTree",
+            "values": [
+              5461,
+              524336
+            ],
+            "fractions": [
+              0.00023771545220957406,
+              0.000286088413407417
+            ]
+          },
+          {
+            "key": "internal/parser.NewCaseClauseTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.0002852933663764051,
+              0.00028608404844428795
+            ]
+          },
+          {
+            "key": "internal/parser.NewFunctionDeclarationTree",
+            "values": [
+              6554,
+              524328
+            ],
+            "fractions": [
+              0.0002852933663764051,
+              0.00028608404844428795
+            ]
+          },
+          {
+            "key": "internal/rhino.JSDocInfo_PackPropertyValues",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00047547443407529343,
+              0.0002860753185180297
+            ]
+          },
+          {
+            "key": "internal/parser.NewLiteralExpressionTree",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00047547443407529343,
+              0.0002860753185180297
+            ]
+          },
+          {
+            "key": "unicode/utf8.appendRuneNonASCII",
+            "values": [
+              10923,
+              524312
+            ],
+            "fractions": [
+              0.00047547443407529343,
+              0.0002860753185180297
+            ]
+          },
+          {
+            "key": "internal/jutil.(*TreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]).Put",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0007131898862848675,
+              0.00028607095355490065
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).GetEndOfArgCommentZones",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0007131898862848675,
+              0.00028607095355490065
+            ]
+          },
+          {
+            "key": "internal/jutil.NewLinkedHashMap[go.shape.string,go.shape.*uint8]",
+            "values": [
+              16384,
+              524304
+            ],
+            "fractions": [
+              0.0007131898862848675,
+              0.00028607095355490065
+            ]
+          },
+          {
+            "key": "internal/jutil.EnumSetCopyOf[go.shape.int32]",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.0009509053384944415,
+              0.0002860687710733361
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              2516154,
+              482319960
+            ],
+            "fractions": [
+              0.10952731842866299,
+              0.26316360522857263
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              2516154,
+              482319960
+            ],
+            "fractions": [
+              0.10952731842866299,
+              0.26316360522857263
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              2516154,
+              482319960
+            ],
+            "fractions": [
+              0.10952731842866299,
+              0.26316360522857263
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              1157231,
+              253633436
+            ],
+            "fractions": [
+              0.050373867510700894,
+              0.13838757455584139
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              246210,
+              187381261
+            ],
+            "fractions": [
+              0.010717436639538405,
+              0.10223903691863825
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              236439,
+              142614205
+            ],
+            "fractions": [
+              0.010292108369342516,
+              0.0778132183138486
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              243805,
+              61663149
+            ],
+            "fractions": [
+              0.010612747816508918,
+              0.03364467147614345
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              243805,
+              61663149
+            ],
+            "fractions": [
+              0.010612747816508918,
+              0.03364467147614345
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              243805,
+              61663149
+            ],
+            "fractions": [
+              0.010612747816508918,
+              0.03364467147614345
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              243805,
+              61663149
+            ],
+            "fractions": [
+              0.010612747816508918,
+              0.03364467147614345
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              47039,
+              56619341
+            ],
+            "fractions": [
+              0.0020475914954195483,
+              0.030892666982361535
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              1115,
+              45596738
+            ],
+            "fractions": [
+              4.853556660202803e-05,
+              0.024878510022149313
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              30986,
+              30513017
+            ],
+            "fractions": [
+              0.0013488099253187807,
+              0.016648524270321978
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              72556,
+              29482573
+            ],
+            "fractions": [
+              0.0031583377312795926,
+              0.016086293011996794
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              829163,
+              23071684
+            ],
+            "fractions": [
+              0.036093180278419165,
+              0.012588381248278373
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              21928,
+              20524385
+            ],
+            "fractions": [
+              0.0009545182999545028,
+              0.011198522971554478
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              556095,
+              18353004
+            ],
+            "fractions": [
+              0.024206624134129846,
+              0.010013773221026171
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              105296,
+              8084165
+            ],
+            "fractions": [
+              0.004583498673477258,
+              0.004410885269319237
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              105296,
+              8084165
+            ],
+            "fractions": [
+              0.004583498673477258,
+              0.004410885269319237
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              105296,
+              8084165
+            ],
+            "fractions": [
+              0.004583498673477258,
+              0.004410885269319237
+            ]
+          },
+          {
+            "key": "string_to_utf16/whole-original",
+            "values": [
+              2189,
+              2307057
+            ],
+            "fractions": [
+              9.528641730209808e-05,
+              0.0012587773427162646
+            ]
+          },
+          {
+            "key": "scanner/whole-original",
+            "values": [
+              432,
+              2106892
+            ],
+            "fractions": [
+              1.880481145477678e-05,
+              0.001149563237124248
+            ]
+          },
+          {
+            "key": "positions_ranges/whole-original",
+            "values": [
+              432,
+              2106892
+            ],
+            "fractions": [
+              1.880481145477678e-05,
+              0.001149563237124248
+            ]
+          },
+          {
+            "key": "line_scanner/whole-original",
+            "values": [
+              324,
+              1580169
+            ],
+            "fractions": [
+              1.4103608591082584e-05,
+              0.000862172427843186
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/whole-original",
+            "values": [
+              5,
+              1257969
+            ],
+            "fractions": [
+              2.176482807265831e-07,
+              0.0006863735378187174
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-fragment",
+            "values": [
+              49152,
+              1048600
+            ],
+            "fractions": [
+              0.0021395696588546024,
+              0.0005721375421466722
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-fragment",
+            "values": [
+              49152,
+              1048600
+            ],
+            "fractions": [
+              0.0021395696588546024,
+              0.0005721375421466722
+            ]
+          },
+          {
+            "key": "other-or-truncated",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.0009509053384944415,
+              0.0002860687710733361
+            ]
+          },
+          {
+            "key": "frontend_inclusive/other-or-truncated",
+            "values": [
+              21845,
+              524300
+            ],
+            "fractions": [
+              0.0009509053384944415,
+              0.0002860687710733361
+            ]
+          },
+          {
+            "key": "string_from_utf16/whole-original",
+            "values": [
+              32768,
+              524296
+            ],
+            "fractions": [
+              0.001426379772569735,
+              0.00028606658859177154
+            ]
+          }
+        ]
+      },
+      "cpu": {
+        "path": "/workspace/jsgo-results/round2/structural-profiles/checks-only/profile.cpu.pprof",
+        "sample_types": [
+          [
+            "cpu",
+            "nanoseconds"
+          ]
+        ],
+        "totals": [
+          8570000000
+        ],
+        "buckets_inclusive": [
+          {
+            "key": "frontend_inclusive",
+            "values": [
+              1050000000
+            ],
+            "fractions": [
+              0.12252042007001167
+            ]
+          },
+          {
+            "key": "native_attempt",
+            "values": [
+              1030000000
+            ],
+            "fractions": [
+              0.12018669778296383
+            ]
+          },
+          {
+            "key": "scanner",
+            "values": [
+              380000000
+            ],
+            "fractions": [
+              0.044340723453908985
+            ]
+          },
+          {
+            "key": "positions_ranges",
+            "values": [
+              210000000
+            ],
+            "fractions": [
+              0.024504084014002333
+            ]
+          },
+          {
+            "key": "native_fragment",
+            "values": [
+              160000000
+            ],
+            "fractions": [
+              0.01866977829638273
+            ]
+          },
+          {
+            "key": "line_scanner",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.012835472578763127
+            ]
+          },
+          {
+            "key": "string_to_utf16",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.005834305717619603
+            ]
+          },
+          {
+            "key": "string_from_utf16",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.005834305717619603
+            ]
+          },
+          {
+            "key": "sourcefile_utf16",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.004667444574095682
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.004667444574095682
+            ]
+          },
+          {
+            "key": "whole_original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          }
+        ],
+        "frontend_leaf_exclusive": [
+          {
+            "key": "runtime.heapSetTypeSmallHeader",
+            "values": [
+              110000000
+            ],
+            "fractions": [
+              0.012835472578763127
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).ScanToken",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).RemoveAt",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "internal/jutil.StringFromUTF16",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "runtime.mapaccess2_faststr",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).ClonePropsFrom",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.tryDeferToSpanScan",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).IsValidIndex",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.findObject",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/rhino.(*Node).SetString",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.wbBufFlush1",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).prefix",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/jutil.StringToUTF16",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).PeekTokenAt",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/jutil.(*Slab[go.shape.struct { Start *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; End *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition }]).New",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.mapassign_faststr",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.memclrNoHeapPointers",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "runtime.step",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/parser.(*LineNumberScanner).getSourcePosition",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/jutil.(*ArrayList[go.shape.interface { AsIdentifier() *github.com/paullepoulpe/jsgo/internal/parser.IdentifierToken; AsLiteral() github.com/paullepoulpe/jsgo/internal/parser.LiteralToken; AsTemplateLiteral() *github.com/paullepoulpe/jsgo/internal/parser.TemplateLiteralToken; GetStart() *github.com/paullepoulpe/jsgo/internal/parser.SourcePosition; GetTokenBase() *github.com/paullepoulpe/jsgo/internal/parser.TokenBase; String() string }]).Size",
+            "values": [
+              20000000
+            ],
+            "fractions": [
+              0.002333722287047841
+            ]
+          },
+          {
+            "key": "internal/rhino.NewNode_IntPropListItem",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "gcWriteBarrier",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.getMCache",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/runtime/maps.ctrlGroup.matchH2",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*TokenBase).AsIdentifier",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/jutil.(*TreeMap[go.shape.5f29a6dddc746d5950eeddfefc45072aa8dc1404d903b68e387b25e6e0712ed3,go.shape.interface {}]).search",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetStringFromBuffer",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).TransformLhsOfBinaryTree",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*JsDocTokenStream).GetChar",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.LineNumberScanner_IsLineTerminator",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.mallocgc",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.(*pageAlloc).alloc",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.roundupsize",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).simpleArrowHead",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*nativeParser).function",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.Identifiers_IsIdentifierPart",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanNoHeaderSC2",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).SkipComment",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*LineNumberScanner).getTokenSourceRange",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*Scanner).ScanIdentifierOrKeyword",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory_TransformDispatcher).ProcessObjectLitKey",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.mallocgcSmallScanHeader",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.sysMmap",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*LiteralTokenBase).InitLiteralTokenBase",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/rhino.TokenStream_IsKeyword",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.makeslice",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parsing.(*IRFactory).NormalizeString",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/parser.(*Parser).NextToken",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "runtime.growslice",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "internal/runtime/maps.(*table).uncheckedPutSlot",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "key": "native-direct",
+            "values": [
+              880000000
+            ],
+            "fractions": [
+              0.10268378063010501
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-direct",
+            "values": [
+              880000000
+            ],
+            "fractions": [
+              0.10268378063010501
+            ]
+          },
+          {
+            "key": "native_attempt/native-direct",
+            "values": [
+              880000000
+            ],
+            "fractions": [
+              0.10268378063010501
+            ]
+          },
+          {
+            "key": "scanner/native-direct",
+            "values": [
+              320000000
+            ],
+            "fractions": [
+              0.03733955659276546
+            ]
+          },
+          {
+            "key": "native-fragment",
+            "values": [
+              160000000
+            ],
+            "fractions": [
+              0.01866977829638273
+            ]
+          },
+          {
+            "key": "frontend_inclusive/native-fragment",
+            "values": [
+              160000000
+            ],
+            "fractions": [
+              0.01866977829638273
+            ]
+          },
+          {
+            "key": "native_fragment/native-fragment",
+            "values": [
+              160000000
+            ],
+            "fractions": [
+              0.01866977829638273
+            ]
+          },
+          {
+            "key": "positions_ranges/native-direct",
+            "values": [
+              150000000
+            ],
+            "fractions": [
+              0.01750291715285881
+            ]
+          },
+          {
+            "key": "native_attempt/native-fragment",
+            "values": [
+              150000000
+            ],
+            "fractions": [
+              0.01750291715285881
+            ]
+          },
+          {
+            "key": "line_scanner/native-direct",
+            "values": [
+              80000000
+            ],
+            "fractions": [
+              0.009334889148191364
+            ]
+          },
+          {
+            "key": "scanner/native-fragment",
+            "values": [
+              60000000
+            ],
+            "fractions": [
+              0.007001166861143524
+            ]
+          },
+          {
+            "key": "positions_ranges/native-fragment",
+            "values": [
+              60000000
+            ],
+            "fractions": [
+              0.007001166861143524
+            ]
+          },
+          {
+            "key": "string_to_utf16/native-direct",
+            "values": [
+              50000000
+            ],
+            "fractions": [
+              0.005834305717619603
+            ]
+          },
+          {
+            "key": "sourcefile_utf16/native-direct",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.004667444574095682
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-direct",
+            "values": [
+              40000000
+            ],
+            "fractions": [
+              0.004667444574095682
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-direct",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "line_scanner/native-fragment",
+            "values": [
+              30000000
+            ],
+            "fractions": [
+              0.003500583430571762
+            ]
+          },
+          {
+            "key": "whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "frontend_inclusive/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "whole_original/whole-original",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "string_from_utf16/native-fragment",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          },
+          {
+            "key": "scanner_string_from_utf16/native-fragment",
+            "values": [
+              10000000
+            ],
+            "fractions": [
+              0.0011668611435239206
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

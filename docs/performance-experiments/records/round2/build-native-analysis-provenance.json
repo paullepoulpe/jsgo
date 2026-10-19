@@ -1,0 +1,14 @@
+{
+  "production_source_head": "87b27ab7",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-native-analysis-l4",
+  "binary_sha256": "623b065bec3f2c875286c74623d8503600ee5333d018778bd6f8d53390a69206",
+  "go": "1.27.2",
+  "pgo": "shippeddefault.pgo",
+  "runtime_gc": "default",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ]
+}

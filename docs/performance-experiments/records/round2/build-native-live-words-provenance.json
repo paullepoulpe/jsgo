@@ -1,0 +1,14 @@
+{
+  "production_source_head": "92fa5325d043ae0df8a9a7932d6b845015188926",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-native-live-words-l4",
+  "binary_sha256": "0cfc3e8e850c2dcd07a24258fd89f0180c55a73e0aafaf7b8ff0c84a53e1510f",
+  "go": "1.27.2",
+  "pgo": "shippeddefault.pgo",
+  "runtime_gc": "default",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ]
+}

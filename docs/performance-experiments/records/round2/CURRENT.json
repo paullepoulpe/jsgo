@@ -1,0 +1,45 @@
+{
+  "updated_utc": "2026-10-19T11:53:56.488840+00:00",
+  "user_steering": "STOP exploring GOGC changes; future comparisons DEFAULT runtime GC with matched controls. Code/design only.",
+  "active_timing": null,
+  "current_validated_source": "inlineBitSeta6afc95fCLI+jutiltests+focusedrace+15gates",
+  "source_followup": "/workspace/jsgo-structural-traversal-next HEAD690e1dea; timedCLIfrozen0fafa262 productionidentical lasttest-only690. Full5tasksN1/N2/N4allMATCH. Broadpreleaf6,270PASS51SKIP. Focusedallnewnormal/race rebuildinglastfixtureundefinedhelperfix.",
+  "current_results": "Round10 90 MATCH; Round11 20 MATCH. V2typed5.123\u21924.934s RSS275.7\u2192252.6MiB; checks7.504\u21927.405s RSS653.4\u2192658.8MiB. Default runtimeGC. No broad Java win; no promotion.",
+  "validation": "V2 compiler race964PASS2SKIP/noRACE; Monitor5normal+5racePASS; all15N1N2N4CLI gatesMATCH",
+  "new_code_batch": [
+    "CLI-ownedSourceFileordinarycoldlock+atomicrawcodepublication+weakrestorationhandles",
+    "InlineFunctionssparsephase-ownedreference discoveryitinerary",
+    "privateASCIIPropertyMapindexsortedTreeMaporacle",
+    "fusedTypedScopeCreatorinitialanalyses",
+    "nativeboundedgoogdependencyregexmatcher"
+  ],
+  "pending": [],
+  "binary_paths": "/workspace/jsgo-results/round2/bin",
+  "go": "/workspace/toolchains/go1.27.2/bin/go; sourceenv.sh GOCACHE/GOPATH eachcall. /usr/bin/go isgame",
+  "doc_report": "/workspace/jsgo-results/round2/cli-toolchain-round3.md",
+  "active_builds": {},
+  "diagnostic_overlay": "Fresh builtinexternparse128/128BROWSER and5/5CUSTOM native acceptance;36bytes originalstatementfragments; no cache/reuse.",
+  "report_docs": [
+    "/workspace/jsgo-results/round2/inline-bitset-template-round10.md",
+    "/workspace/jsgo-results/round2/template-guard-v2-round11.md",
+    "/workspace/jsgo-structural-bitset-template/docs/experiments/inline-bitset-template-results.md"
+  ],
+  "next_source_candidates": [
+    "inlineBitSet32Brepresentation",
+    "freshTemplatevaluevectorsintegrated3ebe6449",
+    "sourceonlyflowstateaudit"
+  ],
+  "fresh_thread_result": "WhitespaceN1/N2/N4fresh12warm10Java/5Go done allMATCH. Java/Go speed .740/.778/.722; memory6.034/5.568/5.211. StillJavafaster; GoN2best on2CPUquota.",
+  "new_source": "/workspace/jsgo-structural-bitset-templatec7998d45",
+  "active_validation": {},
+  "prepared_timing": "template-guard-v2-screen-command.json2variants2tasks5runs; notlaunched",
+  "setup_note": "originalrequestednamealreadybelongs earlierexperiment; overwriteguardblockedsetup; newuniqueoutputname",
+  "source_production": "c7998d45",
+  "source_documentation": "837a92e7ee9b714b010a06573986431135b18eae",
+  "next_priorities": [
+    "collect exact BitSet capacity/Clone distribution before one-word alternative",
+    "measure parser string front-cache locality/lock contention before implementation",
+    "confirm retained code candidates independently before default promotion"
+  ],
+  "goal_status": "Comfortable warm-Java win NOT achieved; runtime GC tuning is excluded."
+}

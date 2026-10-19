@@ -1,0 +1,12 @@
+{
+  "source_commit": "152d55820c21af6e0ea7838684069d454c79b369",
+  "go": "1.27.2",
+  "pgo": "cmd/jsgo/default.pgo",
+  "build_gc_only": 30,
+  "runtime_gc": "default",
+  "experiment_flags": "all disabled; native source locks enabled by default",
+  "binaries": {
+    "jsgo-redesigns": "6648fadd0694765530419f9e1ba7ac49eb2671a7e292926cad7360c5485caa32",
+    "jsgo-worker-redesigns": "fbc74aa8da2a65e25702e10a32e718137766f585f6263f4ab4b79c6bc7f6faf4"
+  }
+}

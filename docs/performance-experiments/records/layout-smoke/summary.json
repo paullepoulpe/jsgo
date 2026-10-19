@@ -1,0 +1,197 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.82525,
+  "variants": {
+   "baseline": {
+    "median_s": 6.486183236000215,
+    "min_s": 6.486183236000215,
+    "max_s": 6.486183236000215,
+    "median_cpu_s": 8.098166,
+    "median_peak_rss_mb": 265.17578125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.5897536133066273,
+    "all_outputs_match": true
+   },
+   "combined": {
+    "median_s": 5.949499338000351,
+    "min_s": 5.949499338000351,
+    "max_s": 5.949499338000351,
+    "median_cpu_s": 7.028937,
+    "median_peak_rss_mb": 280.15625,
+    "speed_vs_first_variant": 1.0902065648737842,
+    "speed_vs_java_warm": 0.6429532608849203,
+    "all_outputs_match": true
+   },
+   "scope-chunks": {
+    "median_s": 6.137189605999993,
+    "min_s": 6.137189605999993,
+    "max_s": 6.137189605999993,
+    "median_cpu_s": 7.16312,
+    "median_peak_rss_mb": 440.8671875,
+    "speed_vs_first_variant": 1.0568653817798022,
+    "speed_vs_java_warm": 0.6232901776833265,
+    "all_outputs_match": true
+   },
+   "position-cache": {
+    "median_s": 5.7988510139994105,
+    "min_s": 5.7988510139994105,
+    "max_s": 5.7988510139994105,
+    "median_cpu_s": 7.188178000000001,
+    "median_peak_rss_mb": 276.2890625,
+    "speed_vs_first_variant": 1.118529036242088,
+    "speed_vs_java_warm": 0.659656540712151,
+    "all_outputs_match": true
+   },
+   "node80": {
+    "median_s": 5.607489325000643,
+    "min_s": 5.607489325000643,
+    "max_s": 5.607489325000643,
+    "median_cpu_s": 6.771628000000001,
+    "median_peak_rss_mb": 280.171875,
+    "speed_vs_first_variant": 1.1567000595225336,
+    "speed_vs_java_warm": 0.6821680396154052,
+    "all_outputs_match": true
+   },
+   "compact-var": {
+    "median_s": 5.503400110999792,
+    "min_s": 5.503400110999792,
+    "max_s": 5.503400110999792,
+    "median_cpu_s": 6.453252,
+    "median_peak_rss_mb": 276.46875,
+    "speed_vs_first_variant": 1.1785774439761538,
+    "speed_vs_java_warm": 0.6950703061466259,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.68645,
+  "variants": {
+   "baseline": {
+    "median_s": 23.965618799999902,
+    "min_s": 23.965618799999902,
+    "max_s": 23.965618799999902,
+    "median_cpu_s": 29.397105,
+    "median_peak_rss_mb": 587.2265625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6962661861249362,
+    "all_outputs_match": true
+   },
+   "combined": {
+    "median_s": 21.48466234099942,
+    "min_s": 21.48466234099942,
+    "max_s": 21.48466234099942,
+    "median_cpu_s": 24.471942,
+    "median_peak_rss_mb": 615.1953125,
+    "speed_vs_first_variant": 1.1154757016714218,
+    "speed_vs_java_warm": 0.7766680125177979,
+    "all_outputs_match": true
+   },
+   "scope-chunks": {
+    "median_s": 21.95557166800063,
+    "min_s": 21.95557166800063,
+    "max_s": 21.95557166800063,
+    "median_cpu_s": 25.302686,
+    "median_peak_rss_mb": 1149.31640625,
+    "speed_vs_first_variant": 1.0915506625103657,
+    "speed_vs_java_warm": 0.7600098167482396,
+    "all_outputs_match": true
+   },
+   "position-cache": {
+    "median_s": 23.624676292000004,
+    "min_s": 23.624676292000004,
+    "max_s": 23.624676292000004,
+    "median_cpu_s": 28.940175,
+    "median_peak_rss_mb": 638.57421875,
+    "speed_vs_first_variant": 1.014431626651128,
+    "speed_vs_java_warm": 0.706314439772896,
+    "all_outputs_match": true
+   },
+   "node80": {
+    "median_s": 21.754924093000227,
+    "min_s": 21.754924093000227,
+    "max_s": 21.754924093000227,
+    "median_cpu_s": 24.992254,
+    "median_peak_rss_mb": 564.0390625,
+    "speed_vs_first_variant": 1.1016181301092647,
+    "speed_vs_java_warm": 0.7670194540172615,
+    "all_outputs_match": true
+   },
+   "compact-var": {
+    "median_s": 21.58530205599982,
+    "min_s": 21.58530205599982,
+    "max_s": 21.58530205599982,
+    "median_cpu_s": 24.240862,
+    "median_peak_rss_mb": 572.44140625,
+    "speed_vs_first_variant": 1.1102748869496804,
+    "speed_vs_java_warm": 0.7730468610867486,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.8483,
+  "variants": {
+   "baseline": {
+    "median_s": 1.5259820520004723,
+    "min_s": 1.5259820520004723,
+    "max_s": 1.5259820520004723,
+    "median_cpu_s": 1.9103439999999998,
+    "median_peak_rss_mb": 164.23046875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.5559043102033401,
+    "all_outputs_match": true
+   },
+   "combined": {
+    "median_s": 1.4359512049995828,
+    "min_s": 1.4359512049995828,
+    "max_s": 1.4359512049995828,
+    "median_cpu_s": 1.7077179999999998,
+    "median_peak_rss_mb": 180.0703125,
+    "speed_vs_first_variant": 1.062697706361767,
+    "speed_vs_java_warm": 0.5907582354097098,
+    "all_outputs_match": true
+   },
+   "scope-chunks": {
+    "median_s": 1.5112256940001316,
+    "min_s": 1.5112256940001316,
+    "max_s": 1.5112256940001316,
+    "median_cpu_s": 1.7847,
+    "median_peak_rss_mb": 242.49609375,
+    "speed_vs_first_variant": 1.0097644965003747,
+    "speed_vs_java_warm": 0.5613324358948639,
+    "all_outputs_match": true
+   },
+   "position-cache": {
+    "median_s": 1.459923592999985,
+    "min_s": 1.459923592999985,
+    "max_s": 1.459923592999985,
+    "median_cpu_s": 1.801733,
+    "median_peak_rss_mb": 175.8671875,
+    "speed_vs_first_variant": 1.045247887846476,
+    "speed_vs_java_warm": 0.5810578060847934,
+    "all_outputs_match": true
+   },
+   "node80": {
+    "median_s": 1.5090060279999307,
+    "min_s": 1.5090060279999307,
+    "max_s": 1.5090060279999307,
+    "median_cpu_s": 1.791613,
+    "median_peak_rss_mb": 169.125,
+    "speed_vs_first_variant": 1.011249805292721,
+    "speed_vs_java_warm": 0.5621581254545122,
+    "all_outputs_match": true
+   },
+   "compact-var": {
+    "median_s": 1.428892901000836,
+    "min_s": 1.428892901000836,
+    "max_s": 1.428892901000836,
+    "median_cpu_s": 1.6761469999999998,
+    "median_peak_rss_mb": 175.28515625,
+    "speed_vs_first_variant": 1.067947115512739,
+    "speed_vs_java_warm": 0.5936764045827558,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

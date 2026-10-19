@@ -1,0 +1,54 @@
+{
+  "help": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "version": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "whitespace": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "changed-source": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "simple-map": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "advanced-warning": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "parse-error": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "bad-flag": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "stdin": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "json-streams": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "custom-externs": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "default-after-custom": {
+    "matches_cli": true,
+    "matches_java": true
+  },
+  "iso-8859-1": {
+    "matches_cli": true,
+    "matches_java": true
+  }
+}
