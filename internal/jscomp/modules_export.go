@@ -22,6 +22,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"sync/atomic"
 )
 
 // Export is an exported name in a module.
@@ -59,6 +60,7 @@ type Export struct {
 	moduleMetadata   *ModuleMetadataMap_ModuleMetadata
 	closureNamespace *string
 	mutated          bool
+	hash             int32
 }
 
 // Export_DEFAULT_EXPORT_NAME is the Export.localName() of anonymous ES
@@ -152,37 +154,46 @@ func (e *Export) Mutated() bool { return e.mutated }
 func (e *Export) Equals(o any) bool {
 	other, ok := o.(*Export)
 	return ok && other != nil &&
-		modules_nullableStringEquals(e.exportName, other.exportName) &&
-		modules_nullableStringEquals(e.moduleRequest, other.moduleRequest) &&
-		modules_nullableStringEquals(e.importName, other.importName) &&
-		modules_nullableStringEquals(e.localName, other.localName) &&
-		e.modulePath == other.modulePath &&
-		e.exportNode == other.exportNode &&
-		e.nameNode == other.nameNode &&
-		e.moduleMetadata == other.moduleMetadata &&
-		modules_nullableStringEquals(e.closureNamespace, other.closureNamespace) &&
-		e.mutated == other.mutated
+		(e == other || (modules_nullableStringEquals(e.exportName, other.exportName) &&
+			modules_nullableStringEquals(e.moduleRequest, other.moduleRequest) &&
+			modules_nullableStringEquals(e.importName, other.importName) &&
+			modules_nullableStringEquals(e.localName, other.localName) &&
+			e.modulePath == other.modulePath &&
+			e.exportNode == other.exportNode &&
+			e.nameNode == other.nameNode &&
+			e.moduleMetadata == other.moduleMetadata &&
+			modules_nullableStringEquals(e.closureNamespace, other.closureNamespace) &&
+			e.mutated == other.mutated))
 }
 
 // HashCode is the record's hashCode.
 //
 // Go-only: language-adapter — identity hashes are jutil.IdentityHashCode.
 func (e *Export) HashCode() int32 {
+	if h := atomic.LoadInt32(&e.hash); h != 0 {
+		return h
+	}
+	return e.computeHashCode()
+}
+
+//go:noinline
+func (e *Export) computeHashCode() int32 {
 	h := int32(0)
 	h = 31*h + modules_nullableStringHash(e.exportName)
 	h = 31*h + modules_nullableStringHash(e.moduleRequest)
 	h = 31*h + modules_nullableStringHash(e.importName)
 	h = 31*h + modules_nullableStringHash(e.localName)
-	h = 31*h + jutil.IdentityHashCode(e.modulePath)
-	h = 31*h + jutil.IdentityHashCode(e.exportNode)
-	h = 31*h + jutil.IdentityHashCode(e.nameNode)
-	h = 31*h + jutil.IdentityHashCode(e.moduleMetadata)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(e.modulePath)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(e.exportNode)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(e.nameNode)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(e.moduleMetadata)
 	h = 31*h + modules_nullableStringHash(e.closureNamespace)
 	if e.mutated {
 		h = 31*h + 1231
 	} else {
 		h = 31*h + 1237
 	}
+	atomic.StoreInt32(&e.hash, h)
 	return h
 }
 

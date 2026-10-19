@@ -215,19 +215,24 @@ func (b *AbstractVarBase[S, V]) GetScopeRoot() *rhino.Node {
 // HashCode preserves ScopedName's final hash while avoiding repeated name
 // hashing and virtual self calls. The scope root and name are immutable.
 // Go-only: performance — indexAndFlags is 32 bits, leaving room for the cached
-// name hash without increasing the size of Var or TypedVar.
+// hash without increasing the size of Var or TypedVar.
 // Java: ScopedName.hashCode()
 func (b *AbstractVarBase[S, V]) HashCode() int32 {
+	if h := atomic.LoadInt32(&b.nameHash); h != 0 {
+		return h
+	}
+	return b.computeHashCode()
+}
+
+//go:noinline
+func (b *AbstractVarBase[S, V]) computeHashCode() int32 {
 	root := b.scope.GetRootNode()
 	if root == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	hash := atomic.LoadInt32(&b.nameHash)
-	if hash == 0 {
-		hash = jutil.StringHashCode(b.name)
-		atomic.StoreInt32(&b.nameHash, hash)
-	}
-	return 31*(31+hash) + jutil.IdentityHashCodeOfPointer(root)
+	h := 31*(31+jutil.StringHashCode(b.name)) + jutil.IdentityHashCodeOfPointer(root)
+	atomic.StoreInt32(&b.nameHash, h)
+	return h
 }
 
 // Java: AbstractVar.getNode()

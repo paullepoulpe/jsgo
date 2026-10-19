@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"sync/atomic"
 )
 
 // Binding represents a variable bound by an import or export statement, or
@@ -49,6 +50,7 @@ type Binding struct {
 	isModuleNamespace bool
 	closureNamespace  *string
 	createdBy         Binding_CreatedBy
+	hash              int32
 }
 
 // Java: Binding(ModuleMetadata, Node, Export, boolean, String, CreatedBy)
@@ -101,6 +103,9 @@ func (b *Binding) Equals(o any) bool {
 	if !ok || other == nil {
 		return false
 	}
+	if b == other {
+		return true
+	}
 	exportsEqual := b.originatingExport == other.originatingExport ||
 		(b.originatingExport != nil && b.originatingExport.Equals(other.originatingExport))
 	return b.metadata == other.metadata &&
@@ -116,9 +121,17 @@ func (b *Binding) Equals(o any) bool {
 // Go-only: language-adapter — identity hashes are jutil.IdentityHashCode;
 // the enum's identity hash is its ordinal.
 func (b *Binding) HashCode() int32 {
+	if h := atomic.LoadInt32(&b.hash); h != 0 {
+		return h
+	}
+	return b.computeHashCode()
+}
+
+//go:noinline
+func (b *Binding) computeHashCode() int32 {
 	h := int32(0)
-	h = 31*h + jutil.IdentityHashCode(b.metadata)
-	h = 31*h + jutil.IdentityHashCode(b.sourceNode)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(b.metadata)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(b.sourceNode)
 	if b.originatingExport != nil {
 		h = 31*h + b.originatingExport.HashCode()
 	} else {
@@ -131,6 +144,7 @@ func (b *Binding) HashCode() int32 {
 	}
 	h = 31*h + modules_nullableStringHash(b.closureNamespace)
 	h = 31*h + int32(b.createdBy)
+	atomic.StoreInt32(&b.hash, h)
 	return h
 }
 

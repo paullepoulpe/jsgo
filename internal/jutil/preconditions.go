@@ -11,14 +11,14 @@ import (
 // CheckState is Preconditions.checkState(boolean).
 func CheckState(expression bool) {
 	if !expression {
-		panic(NewIllegalStateException())
+		panic(&IllegalStateException{RuntimeException{ThrowableBase{className: "java.lang.IllegalStateException"}}})
 	}
 }
 
 // CheckStateMsg is Preconditions.checkState(boolean, String, Object...).
 func CheckStateMsg(expression bool, template string, args ...any) {
 	if !expression {
-		panic(NewIllegalStateExceptionMsg(LenientFormat(template, args...)))
+		failState(template, args...)
 	}
 }
 
@@ -59,14 +59,14 @@ func failState(template string, args ...any) {
 // CheckArgument is Preconditions.checkArgument(boolean).
 func CheckArgument(expression bool) {
 	if !expression {
-		panic(NewIllegalArgumentException())
+		panic(&IllegalArgumentException{RuntimeException{ThrowableBase{className: "java.lang.IllegalArgumentException"}}})
 	}
 }
 
 // CheckArgumentMsg is Preconditions.checkArgument(boolean, String, Object...).
 func CheckArgumentMsg(expression bool, template string, args ...any) {
 	if !expression {
-		panic(NewIllegalArgumentExceptionMsg(LenientFormat(template, args...)))
+		failArgument(template, args...)
 	}
 }
 
@@ -96,39 +96,37 @@ func failArgument(template string, args ...any) {
 	panic(NewIllegalArgumentExceptionMsg(LenientFormat(template, args...)))
 }
 
+type eface struct {
+	typ  *abiType
+	data unsafe.Pointer
+}
+
+type abiType struct {
+	size       uintptr
+	ptrBytes   uintptr
+	hash       uint32
+	tflag      uint8
+	align      uint8
+	fieldAlign uint8
+	kind       uint8
+}
+
 // IsNil reports whether v is Java null: a nil interface, or a nil pointer,
 // map, slice, func or chan stored in an interface.
 func IsNil(v any) bool {
-	if v == nil {
-		return true
+	e := *(*eface)(unsafe.Pointer(&v))
+	if e.data != nil {
+		return e.typ.kind&31 == uint8(reflect.Slice) && *(*unsafe.Pointer)(e.data) == nil
 	}
-	if (*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1] != nil && reflect.ValueOf(v).Kind() != reflect.Slice {
-		return false
-	}
-	return isNilSlow(v)
-}
-
-//go:noinline
-func isNilSlow(v any) bool {
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
-		return rv.IsNil()
-	}
-	return false
+	return e.typ == nil || e.typ.kind&31-uint8(reflect.Chan) <= uint8(reflect.Pointer-reflect.Chan)
 }
 
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
 	if IsNil(reference) {
-		failNull()
+		panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
 	}
 	return reference
-}
-
-//go:noinline
-func failNull() {
-	panic(NewNullPointerException())
 }
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...).
@@ -163,9 +161,14 @@ func failNotNull(template string, args ...any) {
 // CheckElementIndex is Preconditions.checkElementIndex(int, int).
 func CheckElementIndex(index, size int) int {
 	if index < 0 || index >= size {
-		panic(NewIndexOutOfBoundsException(LenientFormat("index (%s) must be less than size (%s)", index, size)))
+		failElementIndex(index, size)
 	}
 	return index
+}
+
+//go:noinline
+func failElementIndex(index, size int) {
+	panic(NewIndexOutOfBoundsException(LenientFormat("index (%s) must be less than size (%s)", index, size)))
 }
 
 // LenientFormat is Guava's Strings.lenientFormat: each "%s" is replaced by
