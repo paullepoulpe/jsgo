@@ -423,7 +423,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			sc.IsFunctionBlockScope()) && name == syntacticScopeCreator_ARGUMENTS) {
 		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
 	} else {
-		sc.Declare(name, n, input)
+		sc.declareNewVar(name, n, input)
 	}
 }
 

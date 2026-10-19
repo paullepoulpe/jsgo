@@ -140,35 +140,35 @@ type abstractVarBound[S any, V any] interface {
 	getScopeS() S
 }
 
-// AbstractVarBase holds the fields and the implementations of AbstractVar;
-// Var and TypedVar embed it and call InitAbstractVarBase with themselves.
-type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	self V
+const (
+	varIndexMask              uint32 = 0x00FFFFFF
+	varImplicitStrengthShift         = 24
+	varImplicitStrengthMask   uint32 = 0x03 << varImplicitStrengthShift
+	varFlagMarkedEscaped      uint32 = 1 << 26
+	varFlagMarkedAssignedOnce uint32 = 1 << 27
+	varFlagTypeInferred       uint32 = 1 << 28
+)
 
+// AbstractVarBase holds the fields and the implementations of AbstractVar;
+// Var and TypedVar embed it and call InitAbstractVarBase.
+type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
 	name string
 
 	nameNode *rhino.Node
 
-	// null if not an implicit goog namespace; otherwise starts out as an ArrayList then is frozen
-	// into an ImmutableList.
-	//
-	// Go-only: language-adapter — nil is Java null.
-	implicitGoogNamespaceStrength *rhino.StaticSourceFile_SourceKind
-
 	// Input source
 	input *CompilerInput
 
-	// The index at which the var is declared. e.g. if it's 0, it's the first
-	// declared variable in that scope
-	index int32
-	// Go-only: performance — immutable name hash, sharing the index word.
-	nameHash int32
-
 	scope S
+
+	// Lower 24 bits: uint32(index + 1); bits 24..25: implicit goog namespace
+	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..28: TypedVar flags.
+	indexAndFlags uint32
+	// Go-only: performance — immutable name hash, sharing the 8-byte word with indexAndFlags.
+	nameHash int32
 }
 
-// InitAbstractVarBase is the AbstractVar constructor; self is the concrete
-// var.
+// InitAbstractVarBase is the AbstractVar constructor.
 //
 // name is the name of this var. Does not have to be semantically valid JS
 // identifier. nameNode is the node representing this variables declaration
@@ -180,26 +180,24 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 //
 // Java: AbstractVar(String, Node, S, int, CompilerInput, Node)
 func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
-	self V,
 	name string,
 	nameNode *rhino.Node,
 	scope S,
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) {
-	b.self = self
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
 	b.name = name // Java: checkNotNull(name); a Go string is never null.
+	flags := uint32(index+1) & varIndexMask
 	if implicitGoogNamespaceDefinition != nil {
 		b.nameNode = nil
 		strength := abstractVar_strengthOf(implicitGoogNamespaceDefinition)
-		b.implicitGoogNamespaceStrength = &strength
+		flags |= (uint32(strength) + 1) << varImplicitStrengthShift
 	} else {
 		b.nameNode = nameNode
-		b.implicitGoogNamespaceStrength = nil
 	}
 	b.scope = scope
-	b.index = int32(index)
+	b.indexAndFlags = flags
 	b.nameHash = 0
 	b.input = input
 }
@@ -216,7 +214,7 @@ func (b *AbstractVarBase[S, V]) GetScopeRoot() *rhino.Node {
 
 // HashCode preserves ScopedName's final hash while avoiding repeated name
 // hashing and virtual self calls. The scope root and name are immutable.
-// Go-only: performance — index is Java int, leaving room for the cached
+// Go-only: performance — indexAndFlags is 32 bits, leaving room for the cached
 // name hash without increasing the size of Var or TypedVar.
 // Java: ScopedName.hashCode()
 func (b *AbstractVarBase[S, V]) HashCode() int32 {
@@ -249,23 +247,6 @@ func (b *AbstractVarBase[S, V]) GetSourceFile() rhino.StaticSourceFile {
 		n = b.scope.GetRootNode()
 	}
 	return n.GetStaticSourceFile()
-}
-
-// GetSymbol is final in Java and returns V; see AbstractVar.
-//
-// Java: AbstractVar.getSymbol()
-func (b *AbstractVarBase[S, V]) GetSymbol() rhino.StaticSlot {
-	return b.thisVar()
-}
-
-// GetDeclaration is final in Java and returns V; see AbstractVar.
-//
-// Java: AbstractVar.getDeclaration()
-func (b *AbstractVarBase[S, V]) GetDeclaration() rhino.StaticRef {
-	if b.GetNode() == nil {
-		return nil
-	}
-	return b.thisVar()
 }
 
 // Java: AbstractVar.getParentNode()
@@ -308,7 +289,7 @@ func (b *AbstractVarBase[S, V]) getScopeS() S {
 //
 // Java: AbstractVar.getIndex()
 func (b *AbstractVarBase[S, V]) GetIndex() int {
-	return int(b.index)
+	return int(b.indexAndFlags&varIndexMask) - 1
 }
 
 // Java: AbstractVar.isGlobal()
@@ -473,18 +454,13 @@ func (b *AbstractVarBase[S, V]) DeclarationType() *rhino.Token {
 	}
 	jutil.CheckStateMsg2(
 		b.IsImplicit(),
-		"The nameNode for %s must be a descendant of one of: %s", b.self, abstractVar_DECLARATION_TYPES)
+		"The nameNode for %s must be a descendant of one of: %s", b, abstractVar_DECLARATION_TYPES)
 	return nil
 }
 
-// thisVar is safe because any concrete subclass of AbstractVar<V> should be
-// assignable to V. While it's theoretically possible to do otherwise, such a
-// class would be very awkward to implement, and is therefore not worth
-// worrying about.
-//
-// Java: AbstractVar.thisVar()
-func (b *AbstractVarBase[S, V]) thisVar() V {
-	return b.self
+// Java: Var.toString()
+func (b *AbstractVarBase[S, V]) String() string {
+	return "Var " + b.GetName() + " @ " + jutil.ToJavaString(b.GetNameNode())
 }
 
 // IsImplicitGoogNamespace reports whether this name comes from a
@@ -493,7 +469,7 @@ func (b *AbstractVarBase[S, V]) thisVar() V {
 //
 // Java: AbstractVar.isImplicitGoogNamespace()
 func (b *AbstractVarBase[S, V]) IsImplicitGoogNamespace() bool {
-	return b.implicitGoogNamespaceStrength != nil
+	return b.indexAndFlags&varImplicitStrengthMask != 0
 }
 
 // AddImplicitGoogNamespaceDefinition indicates this namespace was provided
@@ -502,9 +478,10 @@ func (b *AbstractVarBase[S, V]) IsImplicitGoogNamespace() bool {
 //
 // Java: AbstractVar.addImplicitGoogNamespaceDefinition(Node)
 func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition *rhino.Node) {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self)
-	strength := abstractVar_strongerOf(*b.implicitGoogNamespaceStrength, abstractVar_strengthOf(definition))
-	b.implicitGoogNamespaceStrength = &strength
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b)
+	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
+	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
+	b.indexAndFlags = (b.indexAndFlags &^ varImplicitStrengthMask) | ((uint32(strength) + 1) << varImplicitStrengthShift)
 }
 
 // GetImplicitGoogNamespaceStrength returns the strongest kind of all
@@ -512,8 +489,8 @@ func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition *r
 //
 // Java: AbstractVar.getImplicitGoogNamespaceStrength()
 func (b *AbstractVarBase[S, V]) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self)
-	return *b.implicitGoogNamespaceStrength
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b)
+	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 }
 
 // Java: AbstractVar.strengthOf(Node)

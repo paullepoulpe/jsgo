@@ -38,7 +38,6 @@ type Scope struct {
 	AbstractScopeBase[*Scope, *Var]
 
 	parent *Scope
-	depth  int
 }
 
 // Java: Scope.createGlobalScope(Node)
@@ -54,21 +53,29 @@ func Scope_CreateChildScope(parent *Scope, rootNode *rhino.Node) *Scope {
 // Java: Scope(Scope, Node)
 func newScopeWithParent(parent *Scope, rootNode *rhino.Node) *Scope {
 	s := &Scope{}
+	initScopeWithParent(s, parent, rootNode)
+	return s
+}
+
+func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) {
 	s.InitAbstractScopeBase(s, rootNode)
 	s.CheckChildScope(parent)
 	s.parent = parent
-	s.depth = parent.GetDepth() + 1
-	return s
+	s.depth = parent.depth + 1
 }
 
 // Java: Scope(Node)
 func newScope(rootNode *rhino.Node) *Scope {
 	s := &Scope{}
+	initScope(s, rootNode)
+	return s
+}
+
+func initScope(s *Scope, rootNode *rhino.Node) {
 	s.InitAbstractScopeBase(s, rootNode)
 	s.CheckRootScope()
 	s.parent = nil
 	s.depth = 0
-	return s
 }
 
 // Java: Scope.untyped()
@@ -76,14 +83,27 @@ func (s *Scope) Untyped() *Scope {
 	return s
 }
 
-// Java: Scope.getDepth()
-func (s *Scope) GetDepth() int {
-	return s.depth
-}
-
 // Java: Scope.getParent()
 func (s *Scope) GetParent() *Scope {
 	return s.parent
+}
+
+// Java: AbstractScope.getParentScope()
+func (s *Scope) GetParentScope() rhino.StaticScope {
+	if s.parent != nil {
+		return s.parent
+	}
+	return nil
+}
+
+// Java: AbstractScope.isGlobal()
+func (s *Scope) IsGlobal() bool {
+	return s.parent == nil
+}
+
+// Java: AbstractScope.isLocal()
+func (s *Scope) IsLocal() bool {
+	return s.parent != nil
 }
 
 // GetVar uses the concrete parent links of Java's final Scope class. The
@@ -134,6 +154,19 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 		/* implicitGoogNamespaceDefinition= */ nil)
 	s.DeclareInternal(name, var_)
 	return var_
+}
+
+// declareNewVar declares a variable when the caller
+// (SyntacticScopeCreator_ScopeScanner.DeclareVar) has already verified that
+// s.getOwnSlotV(name) == nil.
+func (s *Scope) declareNewVar(name string, nameNode *rhino.Node, input *CompilerInput) {
+	jutil.CheckArgument(name != "")
+	var_ := NewVar(name, nameNode, s, s.vars.Size(), input, nil)
+	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", nameNode)))
+	}
+	s.varsInitialized = true
+	s.vars.PutNew(name, var_)
 }
 
 // DeclareImplicitGoogNamespaceIfAbsent declares an implicit goog.provide or
