@@ -36,15 +36,29 @@ type Scanner struct {
 	// Go-only: language-adapter — the Java String contents as UTF-16 code
 	// units, so that every index is a Java char index.
 	contents           []uint16
+	rawContents        string
+	asciiPrefix        int
 	contentsLength     int
-	currentTokens      *jutil.ArrayList[Token]
+	lookahead          []Token
+	lookaheadBuf       [8]Token
 	index              int
 	commentRecorder    Scanner_CommentRecorder
 	typeParameterLevel int
 
-	// Go-only: performance — the plain and identifier tokens (see newToken).
-	tokens      jutil.Slab[TokenBase]
-	identifiers jutil.Slab[IdentifierToken]
+	// Go-only: performance — the plain, identifier, and literal tokens (see newToken).
+	tokens         jutil.Slab[TokenBase]
+	identifiers    jutil.Slab[IdentifierToken]
+	literals       jutil.Slab[LiteralTokenBase]
+	stringLiterals jutil.Slab[StringLiteralToken]
+}
+
+// sliceString returns the string for s.contents[start:end], slicing
+// s.rawContents directly with zero allocations when end <= s.asciiPrefix.
+func (s *Scanner) sliceString(start, end int) string {
+	if end <= s.asciiPrefix {
+		return s.rawContents[start:end]
+	}
+	return jutil.StringFromUTF16(s.contents[start:end])
 }
 
 // newToken is `new Token(type, location)` for the scanner's plain tokens.
@@ -68,11 +82,33 @@ func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *Ident
 	return t
 }
 
+// newLiteralToken is `new LiteralToken(type, value, location)` for the
+// scanner's numeric and regex literals.
+//
+// Go-only: performance — see newToken.
+func (s *Scanner) newLiteralToken(type_ TokenType, value string, location *SourceRange) *LiteralTokenBase {
+	t := s.literals.New()
+	t.InitLiteralTokenBase(t, type_, value, location)
+	return t
+}
+
+// newStringLiteralToken is `new StringLiteralToken(...)` for the scanner's
+// string literals.
+//
+// Go-only: performance — see newToken.
+func (s *Scanner) newStringLiteralToken(value string, location *SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
+	t := s.stringLiterals.New()
+	t.InitLiteralTokenBase(t, TokenType_STRING, value, location)
+	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
+	return t
+}
+
 // NewScanner constructs a Scanner.
 //
 // Java: Scanner(ErrorReporter, CommentRecorder, SourceFile, int)
 func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentRecorder, file *SourceFile, offset int) *Scanner {
-	s := &Scanner{currentTokens: jutil.NewArrayList[Token]()}
+	s := &Scanner{}
+	s.lookahead = s.lookaheadBuf[:0]
 	s.errorReporter = errorReporter
 	s.commentRecorder = commentRecorder
 	s.source = file
@@ -80,6 +116,8 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentReco
 	// To help reason about the expected JVM performance unwrap "file" values.
 	// The scanner is key to the parsing speed.
 	s.contents = file.ContentsUTF16
+	s.rawContents = file.Contents
+	s.asciiPrefix = file.asciiPrefix
 	s.contentsLength = len(file.ContentsUTF16)
 	s.index = offset
 	s.typeParameterLevel = 0
@@ -103,10 +141,10 @@ func (s *Scanner) GetFile() *SourceFile {
 //
 // Java: Scanner.getOffset()
 func (s *Scanner) GetOffset() int {
-	if s.currentTokens.IsEmpty() {
+	if len(s.lookahead) == 0 {
 		return s.index
 	}
-	return s.PeekToken().GetTokenBase().Location.Start.Offset
+	return s.lookahead[0].GetTokenBase().Location.Start.Offset
 }
 
 // SetPosition moves the scanner to position, dropping any lookahead.
@@ -114,7 +152,8 @@ func (s *Scanner) GetOffset() int {
 // Java: Scanner.setPosition(SourcePosition)
 func (s *Scanner) SetPosition(position *SourcePosition) {
 	s.lineNumberScanner.RewindTo(position)
-	s.currentTokens.Clear()
+	clear(s.lookahead)
+	s.lookahead = s.lookahead[:0]
 	s.index = position.Offset
 }
 
@@ -122,10 +161,10 @@ func (s *Scanner) SetPosition(position *SourcePosition) {
 //
 // Java: Scanner.getPosition()
 func (s *Scanner) GetPosition() *SourcePosition {
-	if s.currentTokens.IsEmpty() {
+	if len(s.lookahead) == 0 {
 		return s.GetPositionAt(s.index)
 	}
-	return s.PeekToken().GetTokenBase().Location.Start
+	return s.lookahead[0].GetTokenBase().Location.Start
 }
 
 // GetPositionAt returns the source position of offset.
@@ -158,16 +197,28 @@ func (s *Scanner) GetTokenRangeFromPosition(position *SourcePosition) *SourceRan
 //
 // Java: Scanner.nextToken()
 func (s *Scanner) NextToken() Token {
-	s.PeekToken()
-	return s.currentTokens.RemoveAt(0)
+	n := len(s.lookahead)
+	if n == 0 {
+		return s.ScanToken()
+	}
+	tok := s.lookahead[0]
+	if n == 1 {
+		s.lookahead[0] = nil
+		s.lookahead = s.lookahead[:0]
+		return tok
+	}
+	copy(s.lookahead, s.lookahead[1:])
+	s.lookahead[n-1] = nil
+	s.lookahead = s.lookahead[:n-1]
+	return tok
 }
 
 // ClearTokenLookahead rewinds to the first lookahead token, if any.
 //
 // Java: Scanner.clearTokenLookahead()
 func (s *Scanner) ClearTokenLookahead() {
-	if !s.currentTokens.IsEmpty() {
-		s.SetPosition(s.PeekToken().GetTokenBase().Location.Start)
+	if len(s.lookahead) > 0 {
+		s.SetPosition(s.lookahead[0].GetTokenBase().Location.Start)
 	}
 }
 
@@ -184,14 +235,14 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 
 	// body
 	if !s.SkipRegularExpressionBody() {
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 
 	// separating '/'
 	if s.PeekChar() != '/' {
 		s.ReportError("Expected '/' in regular expression literal")
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 	s.NextChar()
@@ -201,7 +252,7 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 		s.NextChar()
 	}
 
-	return NewLiteralToken(
+	return s.newLiteralToken(
 		TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 }
 
@@ -311,17 +362,22 @@ func Scanner_IsRegularExpressionChar(ch uint16) bool {
 //
 // Java: Scanner.peekToken()
 func (s *Scanner) PeekToken() Token {
-	return s.PeekTokenAt(0)
+	if len(s.lookahead) == 0 {
+		tok := s.ScanToken()
+		s.lookahead = append(s.lookahead, tok)
+		return tok
+	}
+	return s.lookahead[0]
 }
 
 // PeekTokenAt returns the index-th next token without consuming any.
 //
 // Java: Scanner.peekToken(int)
 func (s *Scanner) PeekTokenAt(index int) Token {
-	for s.currentTokens.Size() <= index {
-		s.currentTokens.Add(s.ScanToken())
+	for len(s.lookahead) <= index {
+		s.lookahead = append(s.lookahead, s.ScanToken())
 	}
-	return s.currentTokens.Get(index)
+	return s.lookahead[index]
 }
 
 // Java: Scanner.isAtEnd()
@@ -342,8 +398,19 @@ func (s *Scanner) IsValidIndex(index int) bool {
 // Java: Scanner.skipWhitespace()
 func (s *Scanner) SkipWhitespace() bool {
 	foundLineTerminator := false
-	for !s.IsAtEnd() && s.PeekWhitespace() {
-		if Scanner_IsLineTerminator(s.NextChar()) {
+	contents := s.contents
+	contentsLength := s.contentsLength
+	for s.index < contentsLength {
+		ch := contents[s.index]
+		if ch == ' ' || ch == '\t' {
+			s.index++
+			continue
+		}
+		if !Scanner_IsWhitespace(ch) {
+			break
+		}
+		s.index++
+		if Scanner_IsLineTerminator(ch) {
 			foundLineTerminator = true
 		}
 	}
@@ -477,7 +544,7 @@ func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 		s.NextChar()
 	}
 	range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
-	value := jutil.StringFromUTF16(s.contents[startOffset:s.index])
+	value := s.sliceString(startOffset, s.index)
 	s.RecordComment(type_, range_, value)
 }
 
@@ -506,7 +573,7 @@ func (s *Scanner) SkipMultiLineComment() {
 			}
 		}
 		range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
-		value := jutil.StringFromUTF16(s.contents[startOffset:s.index])
+		value := s.sliceString(startOffset, s.index)
 		s.RecordComment(type_, range_, value)
 	} else {
 		s.ReportError("unterminated comment")
@@ -759,7 +826,7 @@ func (s *Scanner) ScanPostDigit(beginToken int) Token {
 	s.SkipDecimalDigits()
 	if s.Peek('n') {
 		s.NextChar()
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 	return s.ScanFractionalNumericLiteral(beginToken)
@@ -780,7 +847,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -798,7 +865,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -812,7 +879,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -829,14 +896,14 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if s.Peek('n') {
 			s.ReportError("SyntaxError: nonzero BigInt can't have leading zero")
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	case 'n':
 		s.NextChar()
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	default:
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 }
@@ -870,6 +937,23 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	unicodeEscapeLen := 0
 	if containsUnicodeEscape {
 		unicodeEscapeLen = 1
+	} else {
+		// Fast path for consecutive non-escaped identifier characters.
+		contents := s.contents
+		contentsLength := s.contentsLength
+		for s.index < contentsLength {
+			c := contents[s.index]
+			if c <= 127 {
+				if asciiIdentFlags[c]&asciiFlagIdentPart != 0 {
+					s.index++
+					continue
+				}
+			} else if Identifiers_IsIdentifierPart(c) {
+				s.index++
+				continue
+			}
+			break
+		}
 	}
 
 	ch = s.PeekChar()
@@ -899,7 +983,7 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		ch = s.PeekChar()
 	}
 
-	value := jutil.StringFromUTF16(s.contents[valueStartIndex:s.index])
+	value := s.sliceString(valueStartIndex, s.index)
 
 	if isPrivateIdentifier && value == "#" {
 		s.ReportErrorAtPosition(s.GetPositionAt(beginToken), "Invalid usage of #")
@@ -907,6 +991,7 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	}
 
 	// Process unicode escapes.
+	var start uint16
 	if containsUnicodeEscape {
 		processed := Scanner_ProcessUnicodeEscapes(value)
 		if processed == nil {
@@ -914,15 +999,20 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
 		value = *processed
+		start = jutil.StringCharAt(value, 0)
+		if isPrivateIdentifier {
+			start = jutil.StringCharAt(value, 1)
+		}
+	} else {
+		start = s.contents[valueStartIndex]
+		if isPrivateIdentifier {
+			// Skip the leading # for name validation.
+			start = s.contents[valueStartIndex+1]
+		}
 	}
 
 	// Check to make sure the first character (or the unicode escape at the
 	// beginning of the identifier) is a valid identifier start character.
-	start := jutil.StringCharAt(value, 0)
-	if isPrivateIdentifier {
-		// Skip the leading # for name validation.
-		start = jutil.StringCharAt(value, 1)
-	}
 	if !Identifiers_IsIdentifierStart(start) {
 		s.ReportErrorAtPosition(
 			s.GetPositionAt(beginToken),
@@ -1042,7 +1132,7 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 		hasUnescapedUnicodeLineOrParagraphSeparator =
 			hasUnescapedUnicodeLineOrParagraphSeparator || c == 0x2028 || c == 0x2029
 		if !s.SkipStringLiteralChar() {
-			return NewStringLiteralToken(
+			return s.newStringLiteralToken(
 				s.GetTokenString(beginIndex),
 				s.GetTokenRangeFromPosition(startingPosition),
 				hasUnescapedUnicodeLineOrParagraphSeparator)
@@ -1053,7 +1143,7 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 	} else {
 		s.NextChar()
 	}
-	return NewStringLiteralToken(
+	return s.newStringLiteralToken(
 		s.GetTokenString(beginIndex),
 		s.GetTokenRangeFromPosition(startingPosition),
 		hasUnescapedUnicodeLineOrParagraphSeparator)
@@ -1114,7 +1204,7 @@ func (s *Scanner) NextTemplateLiteralTokenShared(endType, middleType TokenType) 
 
 // Java: Scanner.getTokenString(int)
 func (s *Scanner) GetTokenString(beginIndex int) string {
-	return jutil.StringFromUTF16(s.contents[beginIndex:s.index])
+	return s.sliceString(beginIndex, s.index)
 }
 
 // Java: Scanner.peekStringLiteralChar(char)
@@ -1321,7 +1411,7 @@ func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) LiteralToken {
 		s.SkipDecimalDigits()
 	default:
 	}
-	return NewLiteralToken(
+	return s.newLiteralToken(
 		TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 }
 

@@ -3859,7 +3859,7 @@ func (p *Parser) EatIdOrKeywordAsId() *IdentifierToken {
 	if token.GetTokenBase().Type == TokenType_IDENTIFIER {
 		return token.(*IdentifierToken)
 	} else if Keywords_IsKeywordTokenType(token.GetTokenBase().Type) {
-		return NewIdentifierToken(token.GetTokenBase().Location, Keywords_GetByTokenType(token.GetTokenBase().Type).String())
+		return p.scanner.newIdentifierToken(token.GetTokenBase().Location, Keywords_GetByTokenType(token.GetTokenBase().Type).String())
 	} else {
 		p.ReportExpectedError(token, TokenType_IDENTIFIER)
 	}

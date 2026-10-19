@@ -4452,7 +4452,24 @@ func (f *IRFactory) NormalizeNumber(token parser.LiteralToken) float64 {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected character in number literal: " + value[1:2]))
 		}
+	} else if value == "0" {
+		return 0
 	} else {
+		if length <= 15 && value[0] >= '1' && value[0] <= '9' {
+			v := uint64(value[0] - '0')
+			allDigits := true
+			for i := 1; i < length; i++ {
+				d := value[i] - '0'
+				if d > 9 {
+					allDigits = false
+					break
+				}
+				v = v*10 + uint64(d)
+			}
+			if allDigits {
+				return float64(v)
+			}
+		}
 		return jutil.DoubleParseDouble(value)
 	}
 }

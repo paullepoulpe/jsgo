@@ -84,38 +84,60 @@ func decodeWTF8(s string) (r rune, size int) {
 	return utf8.DecodeRuneInString(s)
 }
 
-func isASCII(s string) bool {
-	// Go-only: performance — eight bytes at a time (unaligned loads are
-	// fine on the platforms Go supports); this check runs before most
-	// String operations.
+// IsASCII reports whether s contains only ASCII bytes (< 0x80).
+func IsASCII(s string) bool {
+	return isASCII(s)
+}
+
+// ASCIIPrefixLen returns the byte length of the leading pure-ASCII prefix of s
+// (len(s) if s is entirely ASCII).
+func ASCIIPrefixLen(s string) int {
 	i := 0
 	if len(s) >= 8 {
 		p := unsafe.Pointer(unsafe.StringData(s))
 		for ; i+8 <= len(s); i += 8 {
 			if *(*uint64)(unsafe.Add(p, i))&0x8080808080808080 != 0 {
-				return false
+				break
 			}
 		}
 	}
 	for ; i < len(s); i++ {
 		if s[i] >= 0x80 {
-			return false
+			return i
 		}
 	}
-	return true
+	return len(s)
+}
+
+func isASCII(s string) bool {
+	// Go-only: performance — eight bytes at a time (unaligned loads are
+	// fine on the platforms Go supports); this check runs before most
+	// String operations.
+	return ASCIIPrefixLen(s) == len(s)
 }
 
 // StringToUTF16 converts a WTF-8 Go string to UTF-16 code units.
 func StringToUTF16(s string) []uint16 {
-	if isASCII(s) {
+	out, _ := StringToUTF16AndASCIIPrefix(s)
+	return out
+}
+
+// StringToUTF16AndASCIIPrefix converts s to UTF-16 code units and returns
+// the length of its leading pure-ASCII prefix.
+func StringToUTF16AndASCIIPrefix(s string) ([]uint16, int) {
+	prefix := ASCIIPrefixLen(s)
+	if prefix == len(s) {
 		out := make([]uint16, len(s))
 		for i := 0; i < len(s); i++ {
 			out[i] = uint16(s[i])
 		}
-		return out
+		return out, prefix
 	}
-	out := make([]uint16, 0, len(s))
-	for i := 0; i < len(s); {
+	out := make([]uint16, prefix, len(s))
+	for i := 0; i < prefix; i++ {
+		out[i] = uint16(s[i])
+	}
+	for i := prefix; i < len(s); {
 		r, n := decodeWTF8(s[i:])
 		i += n
 		if r >= 0x10000 {
@@ -125,7 +147,7 @@ func StringToUTF16(s string) []uint16 {
 			out = append(out, uint16(r))
 		}
 	}
-	return out
+	return out, prefix
 }
 
 // StringLength is Java's String.length(): the number of UTF-16 code units.

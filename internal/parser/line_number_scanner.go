@@ -140,10 +140,16 @@ func (l *LineNumberScanner) AdvanceLine() {
 	l.lastLine++
 
 	l.lastLineStart = l.nextLineStart
-	for index := l.lastLineStart; index < l.sourceLength; index++ {
-		ch := l.contents[index]
-		if LineNumberScanner_IsLineTerminator(ch) {
-			if ch == '\r' && index+1 < l.sourceLength && l.contents[index+1] == '\n' {
+	contents := l.contents
+	sourceLength := l.sourceLength
+	for index := l.lastLineStart; index < sourceLength; index++ {
+		ch := contents[index]
+		if ch == '\n' {
+			l.nextLineStart = index + 1
+			return
+		}
+		if ch == '\r' || ch == 0x2028 || ch == 0x2029 {
+			if ch == '\r' && index+1 < sourceLength && contents[index+1] == '\n' {
 				index++
 			}
 			l.nextLineStart = index + 1

@@ -25,13 +25,34 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Java: final class Identifiers (static methods only; the private
 // constructor has no Go counterpart).
 
+const (
+	asciiFlagIdentStart uint8 = 1 << iota
+	asciiFlagIdentPart
+)
+
+var asciiIdentFlags = func() [128]uint8 {
+	var t [128]uint8
+	for c := uint8('A'); c <= 'Z'; c++ {
+		t[c] = asciiFlagIdentStart | asciiFlagIdentPart
+	}
+	for c := uint8('a'); c <= 'z'; c++ {
+		t[c] = asciiFlagIdentStart | asciiFlagIdentPart
+	}
+	for c := uint8('0'); c <= '9'; c++ {
+		t[c] = asciiFlagIdentPart
+	}
+	t['_'] = asciiFlagIdentStart | asciiFlagIdentPart
+	t['$'] = asciiFlagIdentStart | asciiFlagIdentPart
+	return t
+}()
+
 // Identifiers_IsIdentifierStart reports whether ch can start an identifier.
 //
 // Java: Identifiers.isIdentifierStart(char)
 func Identifiers_IsIdentifierStart(ch uint16) bool {
 	// Most code is written in pure ASCII, so create a fast path here.
 	if ch <= 127 {
-		return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch == '_' || ch == '$')
+		return asciiIdentFlags[ch]&asciiFlagIdentStart != 0
 	}
 
 	// Handle non-ASCII characters.
@@ -46,10 +67,7 @@ func Identifiers_IsIdentifierStart(ch uint16) bool {
 func Identifiers_IsIdentifierPart(ch uint16) bool {
 	// Most code is written in pure ASCII, so create a fast path here.
 	if ch <= 127 {
-		return (ch >= 'A' && ch <= 'Z') ||
-			(ch >= 'a' && ch <= 'z') ||
-			(ch >= '0' && ch <= '9') ||
-			(ch == '_' || ch == '$')
+		return asciiIdentFlags[ch]&asciiFlagIdentPart != 0
 	}
 
 	// Handle non-ASCII characters.
