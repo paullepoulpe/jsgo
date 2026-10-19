@@ -79,23 +79,35 @@ const SubtypeChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH = 20
 // Java: SubtypeChecker.setSupertype(JSType)
 func (c *SubtypeChecker) SetSupertype(value JSType) *SubtypeChecker {
 	c.CheckHasNotRun()
-	jutil.CheckState(c.initialSupertype == nil)
-	c.initialSupertype = jutil.CheckNotNull(value)
+	if c.initialSupertype != nil {
+		failJSTypeState()
+	}
+	if value == nil {
+		failJSTypeNull()
+	}
+	c.initialSupertype = value
 	return c
 }
 
 // Java: SubtypeChecker.setSubtype(JSType)
 func (c *SubtypeChecker) SetSubtype(value JSType) *SubtypeChecker {
 	c.CheckHasNotRun()
-	jutil.CheckState(c.initialSubtype == nil)
-	c.initialSubtype = jutil.CheckNotNull(value)
+	if c.initialSubtype != nil {
+		failJSTypeState()
+	}
+	if value == nil {
+		failJSTypeNull()
+	}
+	c.initialSubtype = value
 	return c
 }
 
 // Java: SubtypeChecker.setUsingStructuralSubtyping(boolean)
 func (c *SubtypeChecker) SetUsingStructuralSubtyping(value bool) *SubtypeChecker {
 	c.CheckHasNotRun()
-	jutil.CheckState(c.isUsingStructuralTyping == nil)
+	if c.isUsingStructuralTyping != nil {
+		failJSTypeState()
+	}
 	// Go-only: performance — the nullable Boolean points at a shared value
 	// rather than a fresh copy (it is only ever read through).
 	c.isUsingStructuralTyping = &subtypeChecker_booleans[0]
@@ -118,7 +130,9 @@ var (
 // Java: SubtypeChecker.setSubtypingMode(SubtypingMode)
 func (c *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeChecker {
 	c.CheckHasNotRun()
-	jutil.CheckState(c.subtypingMode == nil)
+	if c.subtypingMode != nil {
+		failJSTypeState()
+	}
 	// Go-only: performance — see SetUsingStructuralSubtyping (and
 	// EqualityChecker.SetEqMethod for the copy in the else branch).
 	if value >= 0 && int(value) < len(subtypeChecker_subtypingModes) {
@@ -132,7 +146,9 @@ func (c *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeCh
 
 // Java: SubtypeChecker.checkHasNotRun()
 func (c *SubtypeChecker) CheckHasNotRun() {
-	jutil.CheckState(!c.hasRun)
+	if c.hasRun {
+		failJSTypeState()
+	}
 }
 
 // Java: SubtypeChecker(JSTypeRegistry)
@@ -156,8 +172,9 @@ func (c *SubtypeChecker) Check() bool {
 //
 // Java: SubtypeChecker.isSubtypeCaching(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool {
-	jutil.CheckNotNull(subtype)
-	jutil.CheckNotNull(supertype)
+	if subtype == nil || supertype == nil {
+		failJSTypeNull()
+	}
 
 	// Wait to instantiate/use the cache until we have some hint that there may
 	// be recursion.
@@ -170,8 +187,9 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 	// Once the cache exists, use it consistently.
 	if c.subtypeCache == nil {
 		c.recursionDepth++
-		defer func() { c.recursionDepth-- }()
-		return c.IsSubtypeDispatching(subtype, supertype)
+		res := c.IsSubtypeDispatching(subtype, supertype)
+		c.recursionDepth--
+		return res
 	}
 
 	key := NewSubtypeChecker_CacheKey(subtype, supertype)
@@ -799,9 +817,15 @@ func (c *SubtypeChecker) ShouldTreatThisTypesAsCovariant(subtype FunctionType, s
 // Java: SubtypeChecker.hackTemporarilyChangeSubtypingMode(SubtypingMode, BooleanSupplier)
 func (c *SubtypeChecker) HackTemporarilyChangeSubtypingMode(tempMode JSType_SubtypingMode, callback func() bool) bool {
 	originalMode := c.subtypingMode
-	defer func() { c.subtypingMode = originalMode }()
-	c.subtypingMode = &tempMode
-	return callback()
+	if tempMode >= 0 && int(tempMode) < len(subtypeChecker_subtypingModes) {
+		c.subtypingMode = &subtypeChecker_subtypingModes[tempMode]
+	} else {
+		other := tempMode
+		c.subtypingMode = &other
+	}
+	res := callback()
+	c.subtypingMode = originalMode
+	return res
 }
 
 // Java: SubtypeChecker.getObjectTypeIfNative(JSType)

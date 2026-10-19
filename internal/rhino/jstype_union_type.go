@@ -640,7 +640,8 @@ type UnionType_Builder struct {
 	rebuildTarget *UnionType
 	registry      *JSTypeRegistry
 
-	alternates      *jutil.ArrayList[JSType]
+	firstAlternate  JSType
+	alternates      []JSType
 	finalAlternates []JSType
 
 	// If a union has ? or *, we do not care about any other types, except for
@@ -650,6 +651,7 @@ type UnionType_Builder struct {
 	isNativeUnknownType           bool
 	areAllUnknownsChecked         bool
 	alternatesResolvedBeforeBuild bool
+	hasBuilt                      bool
 
 	// Every UnionType may have at most one structural function in it.
 	//
@@ -678,13 +680,63 @@ type UnionType_Builder struct {
 	functionTypePosition int
 }
 
+func (b *UnionType_Builder) size() int {
+	if b.alternates != nil {
+		return len(b.alternates)
+	}
+	if b.firstAlternate != nil {
+		return 1
+	}
+	return 0
+}
+
+func (b *UnionType_Builder) get(i int) JSType {
+	if b.alternates != nil {
+		return b.alternates[i]
+	}
+	return b.firstAlternate
+}
+
+func (b *UnionType_Builder) set(i int, t JSType) {
+	if b.alternates != nil {
+		b.alternates[i] = t
+	} else {
+		b.firstAlternate = t
+	}
+}
+
+func (b *UnionType_Builder) removeAt(i int) {
+	if b.alternates == nil {
+		b.firstAlternate = nil
+		return
+	}
+	last := len(b.alternates) - 1
+	copy(b.alternates[i:], b.alternates[i+1:])
+	b.alternates[last] = nil
+	b.alternates = b.alternates[:last]
+}
+
+func (b *UnionType_Builder) add(t JSType) {
+	if b.alternates != nil {
+		b.alternates = append(b.alternates, t)
+		return
+	}
+	if b.firstAlternate == nil {
+		b.firstAlternate = t
+		return
+	}
+	b.alternates = make([]JSType, 2, 4)
+	b.alternates[0] = b.firstAlternate
+	b.alternates[1] = t
+	b.firstAlternate = nil
+}
+
 // NewUnionType_Builder creates a builder for a new union.
 //
 // Java: UnionType.Builder(JSTypeRegistry)
 func NewUnionType_Builder(registry *JSTypeRegistry) *UnionType_Builder {
 	return &UnionType_Builder{
 		registry:                      registry,
-		alternates:                    jutil.NewArrayList[JSType](),
 		areAllUnknownsChecked:         true,
 		alternatesResolvedBeforeBuild: true,
 		functionTypePosition:          -1,
@@ -738,7 +790,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 		return b
 	}
 
-	if b.alternates.Size() > UnionType_MAX_UNION_SIZE {
+	if b.size() > UnionType_MAX_UNION_SIZE {
 		return b
 	}
 
@@ -748,12 +800,12 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	if !alternate.IsResolved() {
 		b.alternatesResolvedBeforeBuild = false
 
-		for _, current := range b.alternates.Slice() {
-			if current == alternate {
+		for i := 0; i < b.size(); i++ {
+			if b.get(i) == alternate {
 				return b
 			}
 		}
-		b.alternates.Add(alternate)
+		b.add(alternate)
 		return b
 	}
 
@@ -781,17 +833,17 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	// at functionTypePosition.
 	if alternate.IsFunctionType() && b.functionTypePosition != -1 {
 		// See the comments on functionTypePosition above.
-		other := b.alternates.Get(b.functionTypePosition).ToMaybeFunctionType()
+		other := b.get(b.functionTypePosition).ToMaybeFunctionType()
 		supremum := alternate.ToMaybeFunctionType().SupAndInfHelper(other, true)
-		b.alternates.Set(b.functionTypePosition, supremum)
+		b.set(b.functionTypePosition, supremum)
 		return b
 	}
 
 	// Look through the alternates we've got so far, and check if any of them
 	// are duplicates of one another.
-	for index := 0; index < b.alternates.Size(); index++ {
+	for index := 0; index < b.size(); index++ {
 		removeCurrent := false
-		current := b.alternates.Get(index)
+		current := b.get(index)
 		if !current.IsResolved() { // Defer de-duplicating unresolved alternates.
 			continue
 		}
@@ -860,7 +912,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 						rawType := templatizedCurrent.GetReferencedObjTypeInternal()
 						// Providing no type-parameter values specializes `rawType` on `?`
 						// by default.
-						alternate = b.registry.CreateTemplatizedTypeOfList(rawType, []JSType{})
+						alternate = b.registry.CreateTemplatizedTypeOfList(rawType, nil)
 						removeCurrent = true
 					}
 				}
@@ -878,7 +930,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 		}
 
 		if removeCurrent {
-			b.alternates.RemoveAt(index)
+			b.removeAt(index)
 
 			if index == b.functionTypePosition {
 				b.functionTypePosition = -1
@@ -893,10 +945,10 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	if alternate.IsFunctionType() {
 		// See the comments on functionTypePosition above.
 		jutil.CheckState(b.functionTypePosition == -1)
-		b.functionTypePosition = b.alternates.Size()
+		b.functionTypePosition = b.size()
 	}
 
-	b.alternates.Add(alternate)
+	b.add(alternate)
 	return b
 }
 
@@ -915,19 +967,38 @@ func (b *UnionType_Builder) MayRegisterDroppedProperties(subtype JSType, superty
 //
 // Java: UnionType.Builder.build()
 func (b *UnionType_Builder) Build() JSType {
-	b.BuildInternal()
+	if b.rebuildTarget == nil {
+		b.CheckHasNotBuilt()
+		b.hasBuilt = true
 
-	if b.rebuildTarget != nil {
-		b.rebuildTarget.FillFromBuilder(b)
-	}
-
-	if len(b.finalAlternates) == 1 {
-		return b.finalAlternates[0]
-	} else if b.rebuildTarget != nil {
-		return b.rebuildTarget
-	} else {
+		wildcard := b.GetNativeWildcardType()
+		if wildcard != nil {
+			if !b.containsVoidType {
+				return wildcard
+			}
+			b.finalAlternates = []JSType{wildcard, b.registry.GetNativeType(JSTypeNative_VOID_TYPE)}
+			return NewUnionType(b)
+		}
+		n := b.size()
+		if n == 0 {
+			return b.registry.GetNativeType(JSTypeNative_NO_TYPE)
+		}
+		if n == 1 {
+			return b.get(0)
+		}
+		if n > UnionType_MAX_UNION_SIZE {
+			return b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		}
+		b.finalAlternates = b.alternates
 		return NewUnionType(b)
 	}
+
+	b.BuildInternal()
+	b.rebuildTarget.FillFromBuilder(b)
+	if len(b.finalAlternates) == 1 {
+		return b.finalAlternates[0]
+	}
+	return b.rebuildTarget
 }
 
 // BuildInternal creates the final set of alternates for either a new union
@@ -936,6 +1007,7 @@ func (b *UnionType_Builder) Build() JSType {
 // Java: UnionType.Builder.buildInternal()
 func (b *UnionType_Builder) BuildInternal() *UnionType_Builder {
 	b.CheckHasNotBuilt()
+	b.hasBuilt = true
 
 	wildcard := b.GetNativeWildcardType()
 	if wildcard != nil {
@@ -944,17 +1016,18 @@ func (b *UnionType_Builder) BuildInternal() *UnionType_Builder {
 		} else {
 			b.finalAlternates = []JSType{wildcard}
 		}
-	} else if b.alternates.IsEmpty() {
+	} else if b.size() == 0 {
 		// To simplify the typesystem, empty union types are forbidden. Using a
 		// single `bottom` makes it essentially a proxy instead.
 		b.finalAlternates = []JSType{b.registry.GetNativeType(JSTypeNative_NO_TYPE)}
-	} else if b.alternates.Size() > UnionType_MAX_UNION_SIZE {
+	} else if b.size() > UnionType_MAX_UNION_SIZE {
 		b.finalAlternates = []JSType{b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)}
+	} else if b.alternates != nil {
+		b.finalAlternates = b.alternates
 	} else {
-		b.finalAlternates = b.alternates.ToSlice()
+		b.finalAlternates = []JSType{b.firstAlternate}
 	}
 
-	jutil.CheckNotNull(b.finalAlternates)
 	return b
 }
 
@@ -977,7 +1050,7 @@ func (b *UnionType_Builder) GetNativeWildcardType() JSType {
 
 // Java: UnionType.Builder.checkHasNotBuilt()
 func (b *UnionType_Builder) CheckHasNotBuilt() {
-	jutil.CheckStateMsg(
-		b.finalAlternates == nil,
-		"Cannot reuse a `UnionType.Builder` that has already built.")
+	if b.hasBuilt {
+		panic(jutil.NewIllegalStateExceptionMsg("Cannot reuse a `UnionType.Builder` that has already built."))
+	}
 }

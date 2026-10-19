@@ -101,10 +101,22 @@ func (m EqualityChecker_EqMethod) String() string { return equalityChecker_EqMet
 // Java: EqualityChecker.POTENTIALLY_CYCLIC_RECURSION_DEPTH
 const EqualityChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH = 20
 
+//go:noinline
+func failJSTypeState() {
+	panic(jutil.NewIllegalStateException())
+}
+
+//go:noinline
+func failJSTypeNull() {
+	panic(jutil.NewNullPointerException())
+}
+
 // Java: EqualityChecker.setEqMethod(EqMethod)
 func (c *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityChecker {
 	c.CheckHasNotRun()
-	jutil.CheckState(c.eqMethod == nil)
+	if c.eqMethod != nil {
+		failJSTypeState()
+	}
 	// Go-only: performance — the nullable enum points into a shared table
 	// rather than at a fresh copy of x (it is only ever read through). The
 	// copy is a variable of the else branch: taking &x would move x to the
@@ -126,7 +138,9 @@ var equalityChecker_eqMethods = [...]EqualityChecker_EqMethod{
 
 // Java: EqualityChecker.checkHasNotRun()
 func (c *EqualityChecker) CheckHasNotRun() {
-	jutil.CheckState(!c.hasRun)
+	if c.hasRun {
+		failJSTypeState()
+	}
 }
 
 // Java: EqualityChecker()
@@ -164,8 +178,9 @@ func (c *EqualityChecker) AreEqualCaching(left JSType, right JSType) bool {
 	// Once the cache exists, use it consistently.
 	if c.eqCache == nil {
 		c.recursionDepth++
-		defer func() { c.recursionDepth-- }()
-		return c.AreEqualInternal(left, right)
+		res := c.AreEqualInternal(left, right)
+		c.recursionDepth--
+		return res
 	}
 
 	key := NewEqualityChecker_CacheKey(left, right)
