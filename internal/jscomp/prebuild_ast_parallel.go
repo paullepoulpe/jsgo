@@ -1,8 +1,6 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -32,32 +30,22 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		failure jutil.Throwable
 	}
 	outcomes := make([]outcome, len(inputs))
-	work := make(chan int)
-	var wg sync.WaitGroup
-	for i := 0; i < min(p.numParallelThreads, len(inputs)); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for index := range work {
-				input, result := inputs[index], &outcomes[index]
-				if input.ast.isParsed() {
-					continue
-				}
-				jutil.Try(func() {
-					config := normal
-					if input.sourceFile.IsExtern() {
-						config = extern
-					}
-					result.parsed = parsing.ParserRunner_Parse(input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
-				}, func(t jutil.Throwable) { result.failure = t })
-			}
-		}()
+	failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(index int) {
+		input, result := inputs[index], &outcomes[index]
+		if input.ast.isParsed() {
+			return
+		}
+		config := normal
+		if input.sourceFile.IsExtern() {
+			config = extern
+		}
+		result.parsed = parsing.ParserRunner_Parse(input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
+	})
+	for i, f := range failures {
+		if f != nil {
+			outcomes[i].failure = f
+		}
 	}
-	for index := range inputs {
-		work <- index
-	}
-	close(work)
-	wg.Wait()
 	var failure jutil.Throwable
 	reporter := compiler.GetDefaultErrorReporter()
 	for index, input := range inputs {

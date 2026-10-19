@@ -36,8 +36,8 @@ var parserConfiguration_properties string
 // PropertyResourceBundle once; the mutex is the JDK's own synchronization of
 // that cache.
 var (
-	parserConfiguration_bundleMu sync.Mutex
-	parserConfiguration_bundle   *jutil.LinkedHashMap[string, string]
+	parserConfiguration_bundleOnce sync.Once
+	parserConfiguration_bundle     *jutil.LinkedHashMap[string, string]
 )
 
 // ParserConfiguration reads the parser's ParserConfig.properties resource.
@@ -50,13 +50,10 @@ type ParserConfiguration struct{}
 //
 // Java: ParserConfiguration.getString(String)
 func ParserConfiguration_GetString(name string) string {
-	parserConfiguration_bundleMu.Lock()
-	if parserConfiguration_bundle == nil {
+	parserConfiguration_bundleOnce.Do(func() {
 		parserConfiguration_bundle = jutil.PropertiesLoad(parserConfiguration_properties)
-	}
-	bundle := parserConfiguration_bundle
-	parserConfiguration_bundleMu.Unlock()
-	value, ok := bundle.Lookup(name)
+	})
+	value, ok := parserConfiguration_bundle.Lookup(name)
 	if !ok {
 		panic(jutil.NewMissingResourceException(
 			"Can't find resource for bundle java.util.PropertyResourceBundle, key "+name,

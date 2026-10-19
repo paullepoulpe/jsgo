@@ -2,6 +2,7 @@ package jscomp
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -10,21 +11,21 @@ import (
 // Each slot is written by one worker and consumed only after the join.
 func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
 	failures := make([]jutil.Throwable, count)
-	work := make(chan int)
+	var next atomic.Int64
 	var wg sync.WaitGroup
 	for range min(workers, count) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for index := range work {
+			for {
+				index := int(next.Add(1) - 1)
+				if index >= count {
+					return
+				}
 				jutil.Try(func() { run(index) }, func(t jutil.Throwable) { failures[index] = t })
 			}
 		}()
 	}
-	for index := range count {
-		work <- index
-	}
-	close(work)
 	wg.Wait()
 	return failures
 }
