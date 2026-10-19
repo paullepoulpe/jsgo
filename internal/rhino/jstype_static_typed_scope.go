@@ -35,6 +35,8 @@
 
 package rhino
 
+import "strings"
+
 // StaticTypedScope must be implemented by any object that defines variables
 // for the purposes of static analysis. It is distinguished from the
 // Scriptable class that Rhino normally uses to represent a run-time scope.
@@ -72,6 +74,15 @@ type StaticTypedScope interface {
 //
 // Java: StaticTypedScope.lookupQualifiedName(QualifiedName) (default method)
 func StaticTypedScope_LookupQualifiedName(s StaticTypedScope, qname QualifiedName) JSType {
+	switch q := qname.(type) {
+	case *QualifiedName_NodeQname:
+		if name, ok := q.node.getQualifiedNameString(); ok {
+			return StaticTypedScope_LookupQualifiedNameString(s, name)
+		}
+		return StaticTypedScope_LookupQualifiedNameString(s, "null")
+	case *QualifiedName_StringListQname:
+		return StaticTypedScope_LookupQualifiedNameString(s, q.Join())
+	}
 	slot, _ := s.GetSlot(qname.Join()).(StaticTypedSlot)
 	if slot != nil && !slot.IsTypeInferred() {
 		return slot.GetType()
@@ -83,3 +94,29 @@ func StaticTypedScope_LookupQualifiedName(s StaticTypedScope, qname QualifiedNam
 	}
 	return nil
 }
+
+// StaticTypedScope_LookupQualifiedNameString is StaticTypedScope_LookupQualifiedName
+// on a dot-separated string without allocating QualifiedName wrappers or prefix strings.
+func StaticTypedScope_LookupQualifiedNameString(s StaticTypedScope, name string) JSType {
+	slot, _ := s.GetSlot(name).(StaticTypedSlot)
+	if slot != nil && !slot.IsTypeInferred() {
+		return slot.GetType()
+	}
+	if dot := strings.LastIndexByte(name, '.'); dot >= 0 {
+		type_ := StaticTypedScope_LookupQualifiedNameString(s, name[:dot])
+		if type_ != nil && !type_.IsUnknownType() {
+			return type_.FindPropertyType(name[dot+1:])
+		}
+	}
+	return nil
+}
+
+// StaticTypedScope_LookupQualifiedNameNode looks up n's qualified name in s
+// without allocating a QualifiedName_NodeQname wrapper.
+func StaticTypedScope_LookupQualifiedNameNode(s StaticTypedScope, n *Node) JSType {
+	if name, ok := n.getQualifiedNameString(); ok {
+		return StaticTypedScope_LookupQualifiedNameString(s, name)
+	}
+	return StaticTypedScope_LookupQualifiedNameString(s, "null")
+}
+

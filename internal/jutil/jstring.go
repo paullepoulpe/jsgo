@@ -195,6 +195,19 @@ func StringIndexOfFrom(s, sub string, from int) int {
 	if from < 0 {
 		from = 0
 	}
+	if isASCII(s) && isASCII(sub) {
+		if from > len(s) {
+			if sub == "" {
+				return len(s)
+			}
+			return -1
+		}
+		i := strings.Index(s[from:], sub)
+		if i < 0 {
+			return -1
+		}
+		return from + i
+	}
 	n := StringLength(s)
 	if from > n {
 		if sub == "" {
@@ -287,24 +300,34 @@ func StringHashCode(s string) int32 {
 
 // StringToLowerCaseASCII is Guava's Ascii.toLowerCase(String).
 func StringToLowerCaseASCII(s string) string {
-	b := []byte(s)
-	for i, c := range b {
-		if c >= 'A' && c <= 'Z' {
-			b[i] = c + ('a' - 'A')
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			b := []byte(s)
+			for ; i < len(b); i++ {
+				if c := b[i]; c >= 'A' && c <= 'Z' {
+					b[i] = c + ('a' - 'A')
+				}
+			}
+			return unsafe.String(unsafe.SliceData(b), len(b))
 		}
 	}
-	return string(b)
+	return s
 }
 
 // StringToUpperCaseASCII is Guava's Ascii.toUpperCase(String).
 func StringToUpperCaseASCII(s string) string {
-	b := []byte(s)
-	for i, c := range b {
-		if c >= 'a' && c <= 'z' {
-			b[i] = c - ('a' - 'A')
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'a' && c <= 'z' {
+			b := []byte(s)
+			for ; i < len(b); i++ {
+				if c := b[i]; c >= 'a' && c <= 'z' {
+					b[i] = c - ('a' - 'A')
+				}
+			}
+			return unsafe.String(unsafe.SliceData(b), len(b))
 		}
 	}
-	return string(b)
+	return s
 }
 
 // CaseFormat_UpperUnderscoreToLowerCamel is Guava's
@@ -345,6 +368,15 @@ func StringEndsWith(s, suffix string) bool { return strings.HasSuffix(s, suffix)
 func StringRegionMatches(s string, toffset int, other string, ooffset int, length int) bool {
 	if toffset < 0 || ooffset < 0 {
 		return false
+	}
+	if isASCII(s) && isASCII(other) {
+		if int64(toffset) > int64(len(s))-int64(length) || int64(ooffset) > int64(len(other))-int64(length) {
+			return false
+		}
+		if length <= 0 {
+			return true
+		}
+		return s[toffset:toffset+length] == other[ooffset:ooffset+length]
 	}
 	us, uo := StringToUTF16(s), StringToUTF16(other)
 	if int64(toffset) > int64(len(us))-int64(length) || int64(ooffset) > int64(len(uo))-int64(length) {
@@ -451,6 +483,12 @@ func StringIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
 
 // StringCodePointAt is String.codePointAt(int) with a UTF-16 index.
 func StringCodePointAt(s string, index int) int {
+	if isASCII(s) {
+		if index < 0 || index >= len(s) {
+			panic(NewStringIndexOutOfBoundsException(index, len(s)))
+		}
+		return int(s[index])
+	}
 	u := StringToUTF16(s)
 	if index < 0 || index >= len(u) {
 		panic(NewStringIndexOutOfBoundsException(index, len(u)))

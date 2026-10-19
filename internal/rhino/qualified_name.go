@@ -96,24 +96,18 @@ func (q *QualifiedNameBase) InitQualifiedNameBase(self QualifiedName) {
 func (q *QualifiedNameBase) GetQualifiedNameBase() *QualifiedNameBase { return q }
 
 // Java: QualifiedName.of(String)
-func QualifiedName_Of(string_ string) QualifiedName {
-	lastIndex := 0
-	var index int
-	var builder []string
+func QualifiedName_Of(s string) QualifiedName {
+	n := 1 + strings.Count(s, ".")
+	terms := make([]string, 0, n)
 	for {
-		index = jutil.StringIndexOfCharFrom(string_, '.', lastIndex)
-		end := index
-		if index < 0 {
-			end = jutil.StringLength(string_)
-		}
-		term := jutil.StringSubstring(string_, lastIndex, end)
-		builder = append(builder, RhinoStringPool_AddOrGet(term))
-		lastIndex = index + 1
-		if index < 0 {
+		i := strings.IndexByte(s, '.')
+		if i < 0 {
+			terms = append(terms, RhinoStringPool_AddOrGet(s))
 			break
 		}
+		terms = append(terms, RhinoStringPool_AddOrGet(s[:i]))
+		s = s[i+1:]
 	}
-	terms := builder
 	return NewQualifiedName_StringListQname(terms, len(terms))
 }
 

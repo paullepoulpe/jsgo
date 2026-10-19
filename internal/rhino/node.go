@@ -2914,6 +2914,12 @@ func (n *Node) GetQualifiedName() *string {
 	return &s
 }
 
+// GetQualifiedNameString is the body of GetQualifiedName; ok is false
+// where Java returns null.
+func (n *Node) GetQualifiedNameString() (string, bool) {
+	return n.getQualifiedNameString()
+}
+
 // getQualifiedNameString is the body of getQualifiedName; ok is false
 // where Java returns null.
 func (n *Node) getQualifiedNameString() (string, bool) {
@@ -3085,8 +3091,28 @@ func (n *Node) MatchesNameNode(other *Node) bool {
 // qualified name, such as `x` or `a.b.c` or `this.a`.
 //
 // Java: Node.matchesQualifiedName(String)
-func (n *Node) MatchesQualifiedName(name string) bool {
-	return n.MatchesQualifiedNameWithEnd(name, jutil.StringLength(name))
+func (n *Node) MatchesQualifiedName(qname string) bool {
+	for {
+		switch n.token {
+		case Token_NAME, Token_IMPORT_STAR:
+			name := n.GetString()
+			return name != "" && name == qname && strings.IndexByte(name, '.') < 0
+		case Token_THIS:
+			return qname == "this"
+		case Token_SUPER:
+			return qname == "super"
+		case Token_GETPROP:
+			prop := n.GetString()
+			dot := len(qname) - len(prop) - 1
+			if dot < 1 || qname[dot] != '.' || qname[dot+1:] != prop || strings.IndexByte(prop, '.') >= 0 {
+				return false
+			}
+			qname = qname[:dot]
+			n = n.first
+		default:
+			return false
+		}
+	}
 }
 
 // MatchesQualifiedNameWithEnd returns whether a node matches a simple or a

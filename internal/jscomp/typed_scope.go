@@ -70,7 +70,7 @@ type TypedScope struct {
 
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
-	return NewTypedScopeWithReservedNames(parent, rootNode, jutil.NewLinkedHashSet[string](), nil)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
 // NewTypedScopeWithReservedNames creates a new global or local TypedScope.
@@ -82,16 +82,23 @@ func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
 // Java: TypedScope(TypedScope, Node, Set<String>, Module)
 func NewTypedScopeWithReservedNames(
 	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
+	var copied *jutil.LinkedHashSet[string]
+	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
+		copied = jutil.NewLinkedHashSet[string](reservedNames.ToSlice()...)
+	}
+	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module)
+}
+
+func newTypedScopeOwnedReservedNames(
+	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	s.CheckChildScope(parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
 	s.isBottom = false
-	if jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
-		s.reservedNames = nil
-	} else {
-		s.reservedNames = jutil.NewLinkedHashSet[string](reservedNames.ToSlice()...)
+	if reservedNames != nil && !reservedNames.IsEmpty() {
+		s.reservedNames = reservedNames
 	}
 	s.module = module
 	return s
