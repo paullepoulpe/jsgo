@@ -1,0 +1,23 @@
+{
+  "source": "c762a02f",
+  "root": "/workspace/jsgo-main-array-captured",
+  "gc": "default",
+  "runs": [
+    {
+      "kind": "normal",
+      "command": "env PATH=/workspace/toolchains/go1.27.2/bin:$PATH GOTOOLCHAIN=local GOCACHE=/workspace/toolchains/cache GOPATH=/workspace/toolchains/gopath GOMAXPROCS=1 /workspace/toolchains/go1.27.2/bin/go test -p=1 ./internal/rhino -run '^TestNativeArray' -count=1 -v",
+      "log": "/workspace/jsgo-results/round2/tests-main-array-captured-rhino-normal.log",
+      "passed_records": 39,
+      "failed_records": 0,
+      "status": "PASS"
+    },
+    {
+      "kind": "race",
+      "command": "env PATH=/workspace/toolchains/go1.27.2/bin:$PATH GOTOOLCHAIN=local GOCACHE=/workspace/toolchains/cache GOPATH=/workspace/toolchains/gopath GOMAXPROCS=1 /workspace/toolchains/go1.27.2/bin/go test -race -p=1 ./internal/rhino -run '^TestNativeArray' -count=1 -v",
+      "log": "/workspace/jsgo-results/round2/tests-main-array-captured-rhino-race.log",
+      "passed_records": 39,
+      "failed_records": 0,
+      "status": "PASS"
+    }
+  ]
+}

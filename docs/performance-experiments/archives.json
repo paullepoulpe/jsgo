@@ -28,5 +28,15 @@
     "path": "second-followup-measurement-records.tar.gz",
     "bytes": 305016,
     "sha256": "6e3e82d65215df01d357b3403e8a75cad4cfefcffeddcdca13f88c370cf17d68"
+  },
+  {
+    "path": "third-followup-measurement-records.tar.gz",
+    "bytes": 2046569,
+    "sha256": "6774c8945c12402349d52e2aed57d8836ff284b87830c20b0d2414de199f94fc"
+  },
+  {
+    "path": "latest-main-prototype-history.bundle",
+    "bytes": 160681,
+    "sha256": "ccb1f8ec319866ba9f303e3844e012e75a57b30100a37ac26b5981a928eb9940"
   }
 ]

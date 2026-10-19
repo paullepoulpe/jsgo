@@ -1,0 +1,25 @@
+{
+  "reason": "No active Go compiles; generated large compiler cache objects only. All source, raw evidence and timed CLIs retained. New source layouts require new compiles anyway.",
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/44/441e68e4bee267abc443f042467b0a554142bb6df4367785c5d87e4c5a9b1f15-d",
+      "bytes": 227807354,
+      "mtime": 1792421292.362558
+    },
+    {
+      "path": "/workspace/toolchains/cache/a8/a893cf3fa4542b1fb4bd31f6088edbbdb98846c87fd1cec5604a6753bda61ba6-d",
+      "bytes": 257091800,
+      "mtime": 1792421759.2826276
+    },
+    {
+      "path": "/workspace/toolchains/cache/47/47ffbf63b89420c3bd29ebe392361d6554ed2a0484f81c71d753d47bd8b1bd42-d",
+      "bytes": 229580876,
+      "mtime": 1792422560.491718
+    },
+    {
+      "path": "/workspace/toolchains/cache/b2/b2a07c36bbdf4e609d647001aee0961aca9e00ffac935b3d53104550135b49ec-d",
+      "bytes": 260462438,
+      "mtime": 1792422582.9898512
+    }
+  ]
+}

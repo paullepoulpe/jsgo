@@ -1,0 +1,33 @@
+{
+  "cwd": "/workspace/jsgo-main-traversal-stack4",
+  "source": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+  "cli": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "build",
+    "-p=1",
+    "-buildvcs=false",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jsgo-latest-main-stack4-standard",
+    "./cmd/jsgo"
+  ],
+  "race": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p=1",
+    "-pgo=off",
+    "-buildvcs=false",
+    "-overlay=/workspace/jsgo-results/round2/focused-latest-main-stack4-overlay/overlay.json",
+    "-race",
+    "-c",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jscomp-latest-main-stack4-focused-race.test",
+    "./internal/jscomp"
+  ],
+  "build_only_memory_controls": {
+    "GOGC": "20",
+    "GOMAXPROCS": "1"
+  },
+  "runtime": "defaultGC/nohiddenexperimentflags",
+  "production_difference_vs_a3": "ONLY private scopesBuf16\u21924; subsequentchanges test-only",
+  "setup_note": "Initial prebuild assertion expectedliteralkeep list; actual generator automatically retainsnewtests viaGitdiff. No build started until verifiedmanifest."
+}

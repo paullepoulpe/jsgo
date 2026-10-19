@@ -1,6 +1,6 @@
 # Performance experiment record
 
-This publishes the saved experiments through the completed template-guard V2 screen (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.
+This publishes the saved experiments through the completed clean latest-main factor screen, round19 (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.
 
 **Warm Java has not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
 
@@ -11,6 +11,32 @@ PR #23 now includes main through `ff06ac15` (ten commits after the original `123
 The new main already incorporates overlapping work: lazy FSIV use analysis and cheap-check ordering, value-embedded scope/reference storage, inline BitSets/lattices, direct scope lookup, RUC/helper allocation reductions, property lookup, sharded string pooling, and parallel annotation/output. **Archived measurements against `123b46e8` or historical prototype descendants do not establish an additional speedup over `ff06ac15`. Percentages from these cohorts must not be added together.** Pinned historical source, PGO and result files remain unchanged for reproduction.
 
 The active follow-up is to measure the new main and port only independent candidates onto a clean checkout. In particular, a native FSIV backend must preserve the new first-query lazy boundary; the newer embedded lattice/BitSet needs in-place initialization rather than copying self-referential inline buffers. Native type recipes/shared resolved vectors and private ASCII backing require their own minimal admission/alias proofs. Old-substrate partial screens remain research evidence, not latest-main claims. New main's [Phase 2 report](../performance-roadmap.md#idiomatic-concurrency-hot-path-passes-and-pr-23-integration-2026-10-19) is a separate machine/cohort and is not combined with this archive's timings.
+
+## Independent clean-main prototypes: rounds18–19
+
+The clean ports have a completed 40-run layout/compound screen and 50-run same-binary factor screen. Every timed exit and artifact digest matches pinned Java. The compact4 integration also passes 146 focused race tests (0 skips, 0 failures, 0 races) and 15 CLI artifact gates at N=1/2/4. These cover the exercised workloads/fixtures, not full-port parity. No compiler prototype is enabled in this PR’s production tree.
+
+This table uses ONE `compound4` configuration throughout round19, compared with its same-binary all-off control. It enables private ASCII parsing, native Array recipes and shared resolved vectors, and lazy cardinality/projected/scalar use analysis. Ordinary fresh CLI, compiler N=1, default runtime GC/GOMAXPROCS, Go 1.27.2/standard inlining/new main PGO. Two observations per setting are an initial screen, not a confidence result.
+
+|Task|Control → compound s|Time change|Control → compound RSS MiB|Java/Go time|Java/Go RSS|
+|---|---:|---:|---:|---:|---:|
+|typed-app|5.244 → 5.159|-1.61%|252.5 → 251.7|0.725|4.33|
+|bundle|18.222 → 17.927|-1.62%|622.0 → 650.6|0.926|2.61|
+|downlevel-whitespace|1.292 → 1.281|-0.83%|152.4 → 156.2|0.732|5.95|
+|downlevel-simple|3.823 → 3.750|-1.89%|200.8 → 196.9|0.748|5.68|
+|checks-only|7.979 → 8.028|+0.62%|654.9 → 628.8|0.752|2.16|
+
+Ratios above 1 favor Go. Java uses the documented stored warm JVM, fresh compiler and reparsed externs reference; a fresh paired Java rerun has not been performed for this screen. Go RSS is median fresh-process lifetime peak; Java RSS is warm-JVM lifetime peak including warmup. Bundle peak RSS varies by hundreds of MiB across individual observations. The compound remains slower than warm Java on all five tasks. Its small changes, including a checks-only regression, do not justify broad default promotion.
+
+[Round18 layout/compound results](third-followup-records/round2/latest-main-design-round18.md) isolate stack16→4 and preserve a slow stock typed observation rather than treating it as a code win. [Round19 factor results](third-followup-records/round2/latest-main-factor-round19.md) separate parser, recipe/sharing and use-analysis effects; no individual factor gives a broad win. Ranges, flags, binary hashes and raw samples are retained. Percentages across these cohorts are not added.
+
+[Actual DoRun diagnostics](third-followup-records/round2/latest-main-composed-activation-report.md) confirm 795 native use-analysis programs on bundle, ASCII backing on 986/995 whitespace parses, and 862/863 CommonJS scripts dispatched in a single bounded N=2 run on white/SIMPLE. Admission/node counts are not CPU coverage, modeled buffer bytes are not RSS, and N=2 activation is not a measured N=2 speedup.
+
+Fresh current-main profiling identifies traversal construction as 8.50% of bundle allocated bytes and splits typed inference cost between scope construction and analysis. The [profile evidence](third-followup-records/round2/latest-main-profiles-v2/evidence.md) retains the failed first capture and corrected second capture. Profiles nominate experiments; they do not establish speedups or a theoretical ceiling.
+
+A source audit found stale inline scope entries after stack growth. The smaller-buffer timing binary excludes the proposed cleanup. New source-only candidates include that retention repair, captured Array validation and a concrete CFG-local gather walker. Their source archive records unvalidated/pending build state at capture, with no measured gain claimed. Private indexed AST/arena and operation-local resolved binding designs remain research; retention and module-binding invalidation risks are recorded.
+
+The [third evidence delta](third-followup-measurement-manifest.json) adds 708 files, 3 datasets and 45 metric rows. Extract its [archive](third-followup-measurement-records.tar.gz) after the original and first two deltas. The [clean-main source manifest](latest-main-source-manifest.json) preserves 12 explicit refs, 42 commits and 14 deduplicated notes; its [Git bundle](latest-main-prototype-history.bundle) requires main commit `ff06ac15`. Independent recovery verified every listed head/tree. Earlier archives are unchanged. `verify_followup.py` checks all published archive/member hashes and browsable notes.
 
 ## New-main baseline and round 16 follow-up
 

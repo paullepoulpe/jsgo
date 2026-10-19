@@ -1,0 +1,384 @@
+{
+  "scope": "New clean-main design notes; deduplicated against original and first-followup source note archives. Existing files untouched.",
+  "notes": [
+    {
+      "path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+      "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c",
+      "bytes": 5504,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/latest-main-designs",
+          "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack4",
+          "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack8",
+          "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack-tests",
+          "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/experiments/commonjs-main.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/experiments/commonjs-main.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+      "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5",
+      "bytes": 18578,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/latest-main-designs",
+          "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack4",
+          "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack8",
+          "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack-tests",
+          "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-array-captured",
+          "head": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-lazy-use",
+          "head": "77e80cc59d2c4d716451f475e80a17b33e016cde",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-recipe",
+          "head": "b4e92b25ffca57d81576d44ad6e1ea43a7d37857",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-parser-ascii",
+          "head": "b9c61f6e8de305f47a31515822053e3d96512555",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/commonjs-main",
+          "head": "b8669b1bffe95a33c4186c17c799ea86eb46f7a1",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/performance-roadmap.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/performance-roadmap.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/4d206de9ef2e25e0-traversal-compact-stack-audit.md",
+      "sha256": "4d206de9ef2e25e08dab4f440fb0633b098d590472d717568989de298e9a918d",
+      "bytes": 5137,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "traversal-compact-stack-audit.md",
+          "original_location": "round2/traversal-compact-stack-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/4f6f97278b9bfab3-native-array-captured-validation.md",
+      "sha256": "4f6f97278b9bfab3cffb6bf321d427485ed3f3a9950f879f9d9d72989ca08bf7",
+      "bytes": 5413,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/main-array-captured",
+          "head": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+          "path": "docs/native-array-captured-validation.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/native-array-captured-validation.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/6762e7ee8b975734-traversal-inline-release.md",
+      "sha256": "6762e7ee8b975734042b0f35ea836bea0813e10fcd25544857ac368bc36c1703",
+      "bytes": 2874,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/traversal-inline-release.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/traversal-inline-release.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/79d338a71d4f2522-native-live-newmain-materialization-audit.md",
+      "sha256": "79d338a71d4f252275cc94207866f37b7a2a983831585e65bde116305d5194d3",
+      "bytes": 6973,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "native-live-newmain-materialization-audit.md",
+          "original_location": "round2/native-live-newmain-materialization-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/7ae2837f27e93c3b-latest-main-type-inference-next-audit.md",
+      "sha256": "7ae2837f27e93c3b43ae52e27c8a00fb53bd81a49d7ddf7c2bf258118f5683dd",
+      "bytes": 10923,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "latest-main-type-inference-next-audit.md",
+          "original_location": "round2/latest-main-type-inference-next-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/8f0b9e4f9932f1b1-traversal-inline-retention-audit.md",
+      "sha256": "8f0b9e4f9932f1b1f334ef035b9dd24d9687a0bd13f1371c150e3dc2b0e065de",
+      "bytes": 3309,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "traversal-inline-retention-audit.md",
+          "original_location": "round2/traversal-inline-retention-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+      "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107",
+      "bytes": 3450,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/latest-main-designs",
+          "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack4",
+          "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack8",
+          "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack-tests",
+          "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-array-captured",
+          "head": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-recipe",
+          "head": "b4e92b25ffca57d81576d44ad6e1ea43a7d37857",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/native-array-recipe.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/native-array-recipe.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+      "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855",
+      "bytes": 6104,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/latest-main-designs",
+          "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack4",
+          "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack8",
+          "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack-tests",
+          "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-parser-ascii",
+          "head": "b9c61f6e8de305f47a31515822053e3d96512555",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/experiments/parser-owned-ascii.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+      "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3",
+      "bytes": 5766,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/latest-main-designs",
+          "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack4",
+          "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack8",
+          "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-stack-tests",
+          "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-lazy-use",
+          "head": "77e80cc59d2c4d716451f475e80a17b33e016cde",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-traversal-inline-release",
+          "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/experiments/lazy-fsiv-use-backends.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/be94a1bfa97d3693-node-string-cell-layout-audit.md",
+      "sha256": "be94a1bfa97d36930b196a508a7c4dd53b9498164e3c8f163c2ffc52a5151939",
+      "bytes": 7336,
+      "sources": [
+        {
+          "kind": "untimed-source-audit",
+          "path": "node-string-cell-layout-audit.md",
+          "original_location": "round2/node-string-cell-layout-audit.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/e6a807e314c105f7-commonjs-main.md",
+      "sha256": "e6a807e314c105f772415a7b5dc836608394f006268497fcd0680cf3fa65d69a",
+      "bytes": 6129,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/commonjs-main",
+          "head": "b8669b1bffe95a33c4186c17c799ea86eb46f7a1",
+          "path": "docs/experiments/commonjs-main.md"
+        }
+      ]
+    },
+    {
+      "path": "latest-main-design-notes/f62b90e86b7a5621-fsiv-native-gather.md",
+      "sha256": "f62b90e86b7a5621943f7e6b0d50d0015c2130b3fb682ee9efa90f9d043dbd97",
+      "bytes": 3481,
+      "sources": [
+        {
+          "ref": "refs/heads/perf/main-native-gather",
+          "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "path": "docs/experiments/fsiv-native-gather.md"
+        },
+        {
+          "ref": "refs/heads/perf/main-next-integration",
+          "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+          "path": "docs/experiments/fsiv-native-gather.md"
+        }
+      ]
+    }
+  ],
+  "unchanged_notes_reused": []
+}

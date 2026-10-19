@@ -1,0 +1,75 @@
+{
+  "reason": "Reproducible completed historical TEST executables only; source/build commands/rawlogs archived, all timedCLI/profiles/currenttestexecutables retained. No testbinaryinuse.",
+  "files": [
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-fundamental-designs-focused-race.test",
+      "bytes": 65346728,
+      "sha256": "2e2b215eea75331bbaaf3985e6e3e134f088c50e42117c1076fb4e6209f34670"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-template-guard-v2-focused-race.test",
+      "bytes": 63622150,
+      "sha256": "9602a7616b5046546c926c4b39fc922e2573fc683beb60ec63b85a9aaf46ed54"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-bitset-template-focused-race-fixed.test",
+      "bytes": 63546444,
+      "sha256": "b8573a9eebda956c2075aeb8bd566dbe70e7f2a539b971421780ca1be7dd68e9"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-bitset-template-focused-race.test",
+      "bytes": 63546444,
+      "sha256": "1913d199629b6a394c5d9694252a0d3700c926245675e602e91b2e303a5c90c1"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-one-word-focused-race.test",
+      "bytes": 63517666,
+      "sha256": "a39305efeedd88bfc8a20f02f8081f149b2815ff1de2592b6c569880e20de454"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-inline-bitset-focused-race.test",
+      "bytes": 63513322,
+      "sha256": "b8750937ff214e24400eae9aea6dc7cdf267b528101abe20941d000e460c59bb"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-native-live-words-focused-race.test",
+      "bytes": 63509680,
+      "sha256": "20e4747332bf244e817de9e59591e62ee69420383b9de4c076a2108df6b846f2"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-native-storage-final-focused-race.test",
+      "bytes": 63497384,
+      "sha256": "076b298fb46988b33cf9cb1a3792c78d0d083bbe8765e04f43fb598476a4bc20"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-traversal-focused-fixed-race.test",
+      "bytes": 63031206,
+      "sha256": "7bca0ae8002947bddec6663ae32b5cae4a385bbd453d59cc2f2e408598294431"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-traversal-focused-race.test",
+      "bytes": 63031206,
+      "sha256": "300266b7baff6db6489663894f9e7caf23b907b084f2386c7e45668dca89dfa3"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-pass-storage-focused-race.test",
+      "bytes": 62730672,
+      "sha256": "19318fceb8beb60f2ad5609e9f05d6b62dc83e86d23c1c190ae93920041f07d1"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-structural-focused-race.test",
+      "bytes": 61904552,
+      "sha256": "884279f32f2063be8133a5717d0b9cf1d9107c23519dc5e8424c761eb3fcfffc"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-next-focused-race.test",
+      "bytes": 60402961,
+      "sha256": "27cfcd26d21db08b546b28f564cade81dc2429c3299d49e7786143e23956a85c"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-fundamental-designs-activation.test",
+      "bytes": 53268272,
+      "sha256": "86abbd5086546b2f2b91e72e32f3ee4e32704fa57b785b722f99c5293d872c9c"
+    }
+  ]
+}

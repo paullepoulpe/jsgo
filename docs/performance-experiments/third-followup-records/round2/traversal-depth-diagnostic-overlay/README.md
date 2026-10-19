@@ -1,0 +1,7 @@
+Diagnostic source is frozen against a3a2f8f3. No binary has been built or run.
+
+Build only after root grants a heavy slot, with standard shipped-PGO options and the overlay.json here. Output binary must be `bin/jsgo-depth-diagnostic`; create bin first. Run `python3 run.py` only outside timing and after root authorization. It clears all inherited JSGO/runtime GC/scheduler overrides, captures five pinned tasks untimed with CPU affinity0,1, validates every artifact against the Java reference, and verifies each callback histogram sums to its constructor count. No elapsed/RSS claims are generated.
+
+The tiny uint32 high-watermark field occupies original bool-alignment padding. Every construction initially counts depth0; each new maximum moves that traversal's count from its prior bucket to the new bucket. Both lazy-root and prebuilt-scope pushes are covered. No finalizer or explicit traversal finish is required, so never-used and exception-aborted traversals also have a valid maximum. Buckets0..255 are exact;256 means at least256. Global keys retain only immutable reflect.Type metadata; values contain integers, with no compiler/AST/scope/traversal retention. The global diagnostic mutex serializes histogram updates, which is why this binary must never be timed as a performance candidate.
+
+The overlay also uses the validated main-only exit adapter: flush histogram/profile output before the original exported success receiver exits; preserve original stock runner Run catches and exit normalization. No compiler options or flags change.

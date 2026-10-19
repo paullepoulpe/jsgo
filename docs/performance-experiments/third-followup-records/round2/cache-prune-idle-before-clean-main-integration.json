@@ -1,0 +1,95 @@
+{
+  "reason": "Idle Go jobs, reproducible cache archives only >20MB/>15min old; all source/evidence/binaries retained",
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/44/445ad26d27b057f9eb5b1c3ae449d450eb034d3725280b0b395e46f17f1a3cc0-d",
+      "bytes": 47591620,
+      "mtime": 1792419393.6411192
+    },
+    {
+      "path": "/workspace/toolchains/cache/f4/f4a973b271965f480395316de1e25ddd373fc1d013878c945f4a35be02a8ad3f-d",
+      "bytes": 52334596,
+      "mtime": 1792419445.3141832
+    },
+    {
+      "path": "/workspace/toolchains/cache/28/28ccd5cd2daf70bc3af649c021c6aa523e8ec5337d63f0f18ae5dda3444d2165-d",
+      "bytes": 22538294,
+      "mtime": 1792419459.1198804
+    },
+    {
+      "path": "/workspace/toolchains/cache/1d/1d2a1b1189b790db0f178eeb66e0fb2e0dde5816af2392ca0623b3210ba2837d-d",
+      "bytes": 27031888,
+      "mtime": 1792420178.3845403
+    },
+    {
+      "path": "/workspace/toolchains/cache/68/68e983c0a46e5552c4252fccfbb82b5d2a3f1f6d1f2e7441f4bcd7a0a4643c86-d",
+      "bytes": 47688040,
+      "mtime": 1792420193.4867742
+    },
+    {
+      "path": "/workspace/toolchains/cache/94/948b119e9d562376fd8ba790b68de5e5130ffea7e5d995444dce3704cf9c8fe2-d",
+      "bytes": 28913144,
+      "mtime": 1792420197.0307539
+    },
+    {
+      "path": "/workspace/toolchains/cache/f8/f87f0000b319f6291313c550ce5b3ca9dfc57b95996577860c781a06ed1cfe87-d",
+      "bytes": 27342214,
+      "mtime": 1792420198.1313276
+    },
+    {
+      "path": "/workspace/toolchains/cache/2a/2a3e4ed93da3e9b147f3d227ad89c36477ce34f23caa80387d67f846744b442a-d",
+      "bytes": 42889002,
+      "mtime": 1792420215.4718769
+    },
+    {
+      "path": "/workspace/toolchains/cache/80/805494ae6d5948fffce6c4c36ef9462d62c551598042d4a2e4e5b5f17dec3eb2-d",
+      "bytes": 43220098,
+      "mtime": 1792420218.9369056
+    },
+    {
+      "path": "/workspace/toolchains/cache/87/8769cd1fc9983f0edce74ecfc32fad447fe95cf5c8a86095475eb1977ea3f7bc-d",
+      "bytes": 20641988,
+      "mtime": 1792420229.3172784
+    },
+    {
+      "path": "/workspace/toolchains/cache/22/224e04850df44443cd8a5e34bf81d248d81742594a9e8a0405be145fb4641bc5-d",
+      "bytes": 28912216,
+      "mtime": 1792420239.2010937
+    },
+    {
+      "path": "/workspace/toolchains/cache/f0/f0675b5524881f2ac846a721c69cf263a7a2f9598c183d406f5b4d8ae1772e57-d",
+      "bytes": 52446884,
+      "mtime": 1792420257.4470959
+    },
+    {
+      "path": "/workspace/toolchains/cache/58/58d1e3901cc9ecc7d136d8718b25f7e63b22d24e6b338be75160af19568c3e91-d",
+      "bytes": 22537660,
+      "mtime": 1792420269.9330518
+    },
+    {
+      "path": "/workspace/toolchains/cache/07/0745c65a8e24f2ab72828cbb6437b518a4fdac14258fb5df43fc7a59ea8279f8-d",
+      "bytes": 28445326,
+      "mtime": 1792420403.5220695
+    },
+    {
+      "path": "/workspace/toolchains/cache/de/de02e7dbb235f96f4fdb56659d4ac9258ad8ea9e6ade354914e20fd8d552b5b5-d",
+      "bytes": 27106098,
+      "mtime": 1792420452.1359966
+    },
+    {
+      "path": "/workspace/toolchains/cache/df/df3a296563889d6df12b3ed87a6feb011836a6f3abe95f1fe4271860c69af873-d",
+      "bytes": 27032816,
+      "mtime": 1792420456.7085276
+    },
+    {
+      "path": "/workspace/toolchains/cache/98/98f67f790e75b7bc232ff73d16cb8ff63b98d751cca4d5f3e5505557761edbee-d",
+      "bytes": 39083798,
+      "mtime": 1792420484.184666
+    },
+    {
+      "path": "/workspace/toolchains/cache/7e/7eac180e29a97dfeaf0aa62cf90b9008de7efdc35f5aa5ac7bc485d16fcd7731-d",
+      "bytes": 39086038,
+      "mtime": 1792420485.4490566
+    }
+  ]
+}

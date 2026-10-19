@@ -1,0 +1,34 @@
+{
+  "worktree": "/workspace/jsgo-main-next-integration",
+  "branch": "perf/main-next-integration",
+  "base": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+  "frozen_head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+  "validation": "SOURCE ONLY: cherry-picks and git diff --check pass; no Go build, test, profile or benchmark run",
+  "commits": [
+    {
+      "original": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+      "local": "9dc8327a",
+      "change": "Clear obsolete inline scope entries after first successful growth; capture logical root before reentrant materialization",
+      "flag": "Unconditional retention/correctness repair for existing compact4 traversal"
+    },
+    {
+      "original": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+      "local": "f8d00341",
+      "change": "Captured Array binding validation session inside existing private frozen inference window",
+      "flag": "JSGO_EXPERIMENT_ARRAY_CAPTURED_VALIDATION=1 requires existing JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE=1; shared-resolved flag independent"
+    },
+    {
+      "original": "cbf0034b20b003b8b44798534162492eb4819d2c",
+      "local": "baf328cb",
+      "change": "Private stock FSIV CFG-local gather walker with original fallback and staged ordered publication",
+      "flag": "JSGO_EXPERIMENT_FSIV_NATIVE_GATHER=1 independent of backward-use flags"
+    }
+  ],
+  "conflicts": "None; all three cherry-picked cleanly in requested order",
+  "existing_dependencies": "Common CLI lease and native Array recipe already present in9044; no duplicate foundation or old native ecosystem added",
+  "test_scopes": {
+    "jscomp": "^Test(NodeTraversalInlineRelease|NativeArrayCapturedValidation|NativeFSIVGather)",
+    "rhino": "^TestNativeArrayCapturedValidation"
+  },
+  "deferred": "All normal/race/actual CLI activation/byte diagnostics/memory/speed validation belongs to root scheduled slots; no promotion or performance claim"
+}

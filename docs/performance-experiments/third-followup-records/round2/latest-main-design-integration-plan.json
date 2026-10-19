@@ -1,0 +1,16 @@
+{
+  "base": "ff06ac15",
+  "root": "/workspace/jsgo-latest-main-designs",
+  "commits": [
+    "65b4423f",
+    "b4e92b25",
+    "969b3667",
+    "f017dcb0",
+    "9b9ab913",
+    "b6bc6c02",
+    "f3cc9edb",
+    "47b36eb4",
+    "92552e57"
+  ],
+  "pending": "analysis_reuse lazyuse backend; do not build until finalsourcefreeze"
+}

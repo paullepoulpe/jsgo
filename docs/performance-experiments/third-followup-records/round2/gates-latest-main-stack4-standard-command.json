@@ -1,0 +1,9 @@
+[
+  "python3",
+  "-u",
+  "/workspace/jsgo-results/round2/gate_combined_exit_checked.py",
+  "/workspace/jsgo-results/round2/bin/jsgo-latest-main-stack4-standard",
+  "gates-latest-main-stack4-standard",
+  "1,2,4",
+  "{\"JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE\": \"1\", \"JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED\": \"1\", \"JSGO_EXPERIMENT_PARSER_ASCII_SOURCE\": \"1\", \"JSGO_EXPERIMENT_PARALLEL_COMMONJS\": \"1\", \"JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD\": \"1\", \"JSGO_EXPERIMENT_COMMONJS_RUN_POOL\": \"1\", \"JSGO_EXPERIMENT_FSIV_USE_CARDINALITY\": \"1\", \"JSGO_EXPERIMENT_FSIV_USE_PROJECTION\": \"1\", \"JSGO_EXPERIMENT_FSIV_USE_SCALAR\": \"1\"}"
+]

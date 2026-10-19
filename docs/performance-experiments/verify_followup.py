@@ -53,3 +53,38 @@ with tarfile.open(root / second['archive']['path'], 'r:gz') as archive:
         seen.add(item.name)
     assert seen == set(expected)
 print(f'PASS: {len(expected)} second follow-up records')
+
+third_path = root / 'third-followup-measurement-manifest.json'
+if third_path.exists():
+    third = json.loads(third_path.read_text())
+    expected = {'records/' + e['path']: e for e in third['files']}
+    with tarfile.open(root / third['archive']['path'], 'r:gz') as archive:
+        seen = set()
+        for item in archive:
+            assert item.isfile() and not Path(item.name).is_absolute()
+            assert '..' not in Path(item.name).parts and item.name not in seen
+            data = archive.extractfile(item).read()
+            entry = expected[item.name]
+            assert len(data) == entry['bytes'] and sha(data) == entry['sha256'], item.name
+            browse = root / 'third-followup-records' / entry['path']
+            if browse.exists():
+                assert browse.read_bytes() == data, browse
+            seen.add(item.name)
+        assert seen == set(expected)
+    print(f'PASS: {len(expected)} third follow-up records')
+
+latest_path = root / 'latest-main-source-manifest.json'
+if latest_path.exists():
+    latest = json.loads(latest_path.read_text())
+    bundle = latest['bundle']
+    data = (root / bundle['path']).read_bytes()
+    assert len(data) == bundle['bytes'] and sha(data) == bundle['sha256']
+    notes = json.loads((root / 'latest-main-design-notes.json').read_text())
+    for note in notes['notes']:
+        data = (root / note['path']).read_bytes()
+        assert len(data) == note['bytes'] and sha(data) == note['sha256']
+    # Verify all browsable note bytes via the source manifest, including shared notes.
+    for source in latest['sources']:
+        for note in source.get('design_notes', []):
+            assert sha((root / note['browsable_path']).read_bytes()) == note['sha256']
+    print(f"PASS: latest-main bundle hash and notes for {len(latest['sources'])} source refs")

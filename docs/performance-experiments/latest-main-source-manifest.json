@@ -1,0 +1,625 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-19T15:46:39.384891+00:00",
+  "scope": "Explicit frozen clean latest-main prototype source refs only; recoverability is not validation or a performance endorsement. No binaries or measurement archives. Original publications untouched.",
+  "base_main_ref_at_capture": "refs/remotes/origin/main",
+  "base_main": "ff06ac15304f14c756bce9cd36ad2205212f51da",
+  "bundle": {
+    "path": "latest-main-prototype-history.bundle",
+    "bytes": 160681,
+    "sha256": "ccb1f8ec319866ba9f303e3844e012e75a57b30100a37ac26b5981a928eb9940",
+    "creation_revision_arguments": [
+      "refs/heads/perf/latest-main-designs",
+      "refs/heads/perf/main-traversal-stack4",
+      "refs/heads/perf/main-traversal-stack8",
+      "refs/heads/perf/main-traversal-stack-tests",
+      "refs/heads/perf/main-array-captured",
+      "refs/heads/perf/main-native-gather",
+      "refs/heads/perf/main-lazy-use",
+      "refs/heads/perf/main-native-recipe",
+      "refs/heads/perf/main-parser-ascii",
+      "refs/heads/perf/commonjs-main",
+      "refs/heads/perf/main-traversal-inline-release",
+      "refs/heads/perf/main-next-integration",
+      "--not",
+      "refs/remotes/origin/main"
+    ],
+    "uses_all_refs": false,
+    "prerequisites": [
+      "ff06ac15304f14c756bce9cd36ad2205212f51da"
+    ],
+    "head_count": 12,
+    "included_commit_count": 42,
+    "publication_archive_path_history_included": false
+  },
+  "sources": [
+    {
+      "experiment": "integrated-clean-main",
+      "ref": "refs/heads/perf/latest-main-designs",
+      "head": "a3a2f8f3293b293571fb835f6234f7deffc2fac3",
+      "tree": "cc0a8268ae51227a70325827f2edae98d1d5c5f2",
+      "worktree_snapshot_name": "jsgo-latest-main-designs",
+      "worktree_branch": "refs/heads/perf/latest-main-designs",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+          "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "CLI compiled;15 Java artifact gates MATCH. Focused race run had one Angular parsing fixture failure; corrected fixture/source retry pending. This is not a complete passing correctness gate or performance result.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "traversal-inline4",
+      "ref": "refs/heads/perf/main-traversal-stack4",
+      "head": "9044aff99824c3d58ddd0b5e6a0279d8d52fcfe9",
+      "tree": "67e969e32d0888b937aa54bc0e0967f23019da39",
+      "worktree_snapshot_name": "jsgo-main-traversal-stack4",
+      "worktree_branch": "refs/heads/perf/main-traversal-stack4",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {},
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "CLI compiled; all15 Java artifact gates MATCH and focused race146 PASS/0 SKIP. Source representation is compiled in. Timing records are separate; this source manifest makes no speed/RSS claim.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "traversal-inline8",
+      "ref": "refs/heads/perf/main-traversal-stack8",
+      "head": "edb1ef247f1e668dd594cb1bbe1b9c04be7a0062",
+      "tree": "36e66bffdf1c2add6664117e39a82587f5a27e50",
+      "worktree_snapshot_name": "jsgo-main-traversal-stack8",
+      "worktree_branch": "refs/heads/perf/main-traversal-stack8",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {},
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen source-only alternative, unmeasured; no complete compiler validation claimed.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "traversal-stack-fixtures",
+      "ref": "refs/heads/perf/main-traversal-stack-tests",
+      "head": "9a29bf5bb97f00acd5a519d46ccd6ea21fd9a6b4",
+      "tree": "0dbbd7a05320ac9b83934f1efa13becea8a8bb0f",
+      "worktree_snapshot_name": "jsgo-main-traversal-stack-tests",
+      "worktree_branch": "refs/heads/perf/main-traversal-stack-tests",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {},
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen source fixtures/diagnostic overlay for current-main stack alternatives; source availability alone is not a validation result.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "array-captured-validation",
+      "ref": "refs/heads/perf/main-array-captured",
+      "head": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+      "tree": "8840093569ccc119b9cc2971495c40b46a57c83b",
+      "worktree_snapshot_name": "jsgo-main-array-captured",
+      "worktree_branch": "refs/heads/perf/main-array-captured",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+          "JSGO_EXPERIMENT_ARRAY_CAPTURED_VALIDATION": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Rhino component normal39/race39 PASS. Compiler-facing session tests source-only; unmeasured. Public full validators unchanged; captured in-place-write exclusion documented.",
+      "design_notes": [
+        {
+          "original_path": "docs/native-array-captured-validation.md",
+          "browsable_path": "latest-main-design-notes/4f6f97278b9bfab3-native-array-captured-validation.md",
+          "sha256": "4f6f97278b9bfab3cffb6bf321d427485ed3f3a9950f879f9d9d72989ca08bf7"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "native-candidate-gather",
+      "ref": "refs/heads/perf/main-native-gather",
+      "head": "cbf0034b20b003b8b44798534162492eb4819d2c",
+      "tree": "a6e6706dc67c6f05bc975adaf64908747f501cdd",
+      "worktree_snapshot_name": "jsgo-native-gather",
+      "worktree_branch": "refs/heads/perf/main-native-gather",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_FSIV_NATIVE_GATHER": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen isolated source-only candidate gathering; unmeasured. No whole-CLI correctness/performance claim.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/fsiv-native-gather.md",
+          "browsable_path": "latest-main-design-notes/f62b90e86b7a5621-fsiv-native-gather.md",
+          "sha256": "f62b90e86b7a5621943f7e6b0d50d0015c2130b3fb682ee9efa90f9d043dbd97"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "lazy-use-backends",
+      "ref": "refs/heads/perf/main-lazy-use",
+      "head": "77e80cc59d2c4d716451f475e80a17b33e016cde",
+      "tree": "1ef6a118bbd238f1f93fe235820201564ff3e49e",
+      "worktree_snapshot_name": "jsgo-lazy-use-designs",
+      "worktree_branch": "refs/heads/perf/main-lazy-use",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen clean-main lazy query backend source; component/full-CLI validation belongs to separate central records. No standalone measured win claimed.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "array-recipe-and-sharing",
+      "ref": "refs/heads/perf/main-native-recipe",
+      "head": "b4e92b25ffca57d81576d44ad6e1ea43a7d37857",
+      "tree": "51b914d56877fd8e5bb99eab3fc96023cec125dd",
+      "worktree_snapshot_name": "jsgo-main-native-recipe",
+      "worktree_branch": "refs/heads/perf/main-native-recipe",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+          "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Rhino focused normal/race and jutil Monitor normal/race passed. Central compiler integration is separate; this isolated source has no standalone new-main speed/RSS result.",
+      "design_notes": [
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "stock-parser-ascii",
+      "ref": "refs/heads/perf/main-parser-ascii",
+      "head": "b9c61f6e8de305f47a31515822053e3d96512555",
+      "tree": "c3f239627176fbf0e78a3d5d3ff647ef92f45953",
+      "worktree_snapshot_name": "jsgo-main-parser-ascii",
+      "worktree_branch": "refs/heads/perf/main-parser-ascii",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen stock-parser ASCII-source specialization and same-token entry guards. Component/package validation recorded in separate raw logs; whole integration15 artifact gates MATCH is not an isolated timing result.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "commonjs-refinements-and-diagnostics",
+      "ref": "refs/heads/perf/commonjs-main",
+      "head": "b8669b1bffe95a33c4186c17c799ea86eb46f7a1",
+      "tree": "5ff356a962c9cea1641246ac36b7d40506f02a5a",
+      "worktree_snapshot_name": "jsgo-commonjs-main",
+      "worktree_branch": "refs/heads/perf/commonjs-main",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+          "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+          "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen clean-main CommonJS port/refinements with diagnostic followups59e353c5 and b8669b1b. Angular parsing fixture corrected after initial integrated race failure; central retry pending. No isolated elapsed/RSS claim.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/e6a807e314c105f7-commonjs-main.md",
+          "sha256": "e6a807e314c105f772415a7b5dc836608394f006268497fcd0680cf3fa65d69a"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        }
+      ]
+    },
+    {
+      "experiment": "traversal-inline-release",
+      "ref": "refs/heads/perf/main-traversal-inline-release",
+      "head": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+      "tree": "2c17bdd064e8e29875d2e808413791ea1e51dd75",
+      "worktree_snapshot_name": "jsgo-main-traversal-inline-release",
+      "worktree_branch": "refs/heads/perf/main-traversal-inline-release",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {},
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen source-only retention/entry-pointer repair after compact4. Untested/unmeasured independently at this capture; do not transfer compact4 validation to this commit.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        },
+        {
+          "original_path": "docs/traversal-inline-release.md",
+          "browsable_path": "latest-main-design-notes/6762e7ee8b975734-traversal-inline-release.md",
+          "sha256": "6762e7ee8b975734042b0f35ea836bea0813e10fcd25544857ac368bc36c1703"
+        }
+      ]
+    },
+    {
+      "experiment": "next-clean-integration",
+      "ref": "refs/heads/perf/main-next-integration",
+      "head": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+      "tree": "93dc0369136160d3ffb19ccbd7c2ed8ad806934a",
+      "worktree_snapshot_name": "jsgo-main-next-integration",
+      "worktree_branch": "refs/heads/perf/main-next-integration",
+      "worktree_status_at_capture": [],
+      "source_snapshot": "Frozen committed tree only; uncommitted/untracked files excluded.",
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+          "JSGO_EXPERIMENT_ARRAY_CAPTURED_VALIDATION": "1",
+          "JSGO_EXPERIMENT_FSIV_NATIVE_GATHER": "1"
+        },
+        "default_gc_required": true,
+        "ordinary_fresh_cli_only": true,
+        "notes": "Flags identify the factor, not a timed command. Exact argv, inputs, toolchain, PGO, independent feature settings and component evidence belong to raw measurement records. No historical native9/parser/Unicode/BitSet substrate was imported."
+      },
+      "status_at_capture": "Frozen next integration combines compact4, inline-release repair, captured native Array validation and native FSIV gather. Central production/test builds RUNNING at requested capture cutoff; unvalidated/unmeasured. No successful build/test/performance result claimed.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/commonjs-main.md",
+          "browsable_path": "latest-main-design-notes/35b1dd9e3dae8c78-commonjs-main.md",
+          "sha256": "35b1dd9e3dae8c78ef3350d5d249321e7e3320f8d5775bccec4a20f2ef89755c"
+        },
+        {
+          "original_path": "docs/experiments/fsiv-native-gather.md",
+          "browsable_path": "latest-main-design-notes/f62b90e86b7a5621-fsiv-native-gather.md",
+          "sha256": "f62b90e86b7a5621943f7e6b0d50d0015c2130b3fb682ee9efa90f9d043dbd97"
+        },
+        {
+          "original_path": "docs/experiments/lazy-fsiv-use-backends.md",
+          "browsable_path": "latest-main-design-notes/9f9485ded5c33140-lazy-fsiv-use-backends.md",
+          "sha256": "9f9485ded5c33140e5adab0a3e46ecde1affe9569f646c856a8d2404977bcab3"
+        },
+        {
+          "original_path": "docs/experiments/parser-owned-ascii.md",
+          "browsable_path": "latest-main-design-notes/99275f3818a4958a-parser-owned-ascii.md",
+          "sha256": "99275f3818a4958ad9c0320114000d200adf57f9402099fc26c569b7da04e855"
+        },
+        {
+          "original_path": "docs/native-array-captured-validation.md",
+          "browsable_path": "latest-main-design-notes/4f6f97278b9bfab3-native-array-captured-validation.md",
+          "sha256": "4f6f97278b9bfab3cffb6bf321d427485ed3f3a9950f879f9d9d72989ca08bf7"
+        },
+        {
+          "original_path": "docs/native-array-recipe.md",
+          "browsable_path": "latest-main-design-notes/929e9544803b9d34-native-array-recipe.md",
+          "sha256": "929e9544803b9d348830b28b93019bdd8cbcc8eb9295400ccdea50921c9f4107"
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "browsable_path": "latest-main-design-notes/3ca08aebb3361f33-performance-roadmap.md",
+          "sha256": "3ca08aebb3361f33ce5d58b46eb2d1227b5531629e3336dee1e32a3b563e7db5"
+        },
+        {
+          "original_path": "docs/traversal-inline-release.md",
+          "browsable_path": "latest-main-design-notes/6762e7ee8b975734-traversal-inline-release.md",
+          "sha256": "6762e7ee8b975734042b0f35ea836bea0813e10fcd25544857ac368bc36c1703"
+        }
+      ],
+      "integration_commit_mapping": [
+        {
+          "original": "4e19d36ee56f7721e45e0573a00f6ceb789d7f83",
+          "local": "9dc8327a",
+          "change": "Clear obsolete inline scope entries after first successful growth; capture logical root before reentrant materialization",
+          "flag": "Unconditional retention/correctness repair for existing compact4 traversal"
+        },
+        {
+          "original": "c762a02fc28de08cfa97796431f8d5cc83412e74",
+          "local": "f8d00341",
+          "change": "Captured Array binding validation session inside existing private frozen inference window",
+          "flag": "JSGO_EXPERIMENT_ARRAY_CAPTURED_VALIDATION=1 requires existing JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE=1; shared-resolved flag independent"
+        },
+        {
+          "original": "cbf0034b20b003b8b44798534162492eb4819d2c",
+          "local": "baf328cb",
+          "change": "Private stock FSIV CFG-local gather walker with original fallback and staged ordered publication",
+          "flag": "JSGO_EXPERIMENT_FSIV_NATIVE_GATHER=1 independent of backward-use flags"
+        }
+      ],
+      "integration_build_status_at_requested_capture": "Central builds RUNNING; source-only/unvalidated at cutoff"
+    }
+  ],
+  "design_notes": {
+    "manifest": "latest-main-design-notes.json",
+    "new_unique_notes": 14,
+    "existing_source_note_links": 0
+  },
+  "recovery_verification": {
+    "independent_empty_repository": true,
+    "seeded_only_with_main": "ff06ac15304f14c756bce9cd36ad2205212f51da",
+    "alternates_or_shared_objects": false,
+    "bundle_verify_exit": 0,
+    "recovered_heads": 12,
+    "every_head_and_tree_oid_matched": true,
+    "connectivity_fsck_exit": 0,
+    "temporary_recovery_removed": true
+  },
+  "private_text_scan": {
+    "status": "passed-no-high-confidence-matches",
+    "new_text_blobs": 92,
+    "new_notes": 14,
+    "compiled_elf_or_pe_objects": 0,
+    "matching_text_not_logged": true,
+    "credentials_or_network_used": false
+  },
+  "recovery_commands": [
+    [
+      "git",
+      "clone",
+      "--bare",
+      "https://github.com/paullepoulpe/jsgo.git",
+      "jsgo-recovery.git"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "cat-file",
+      "-e",
+      "ff06ac15304f14c756bce9cd36ad2205212f51da^{commit}"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "bundle",
+      "verify",
+      "latest-main-prototype-history.bundle"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "fetch",
+      "latest-main-prototype-history.bundle",
+      "+refs/heads/perf/*:refs/heads/recovered/perf/*"
+    ]
+  ],
+  "status_caveat": "Point-in-time status: a3 CLI15 MATCH but its initial race had one Angular fixture failure; compact4 subsequently passed race146/0skip and all15 CLI gates. Stack8, captured validation and native gather remain unmeasured standalone. Inline-release source is untested independently, and next-integration builds were RUNNING/unvalidated at requested cutoff. Source-only status is not a negative performance result. Exact timings/RSS belong to separate raw measurement records maintained by root."
+}
