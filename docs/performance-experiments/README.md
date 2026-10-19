@@ -4,6 +4,14 @@ This publishes the saved experiments through the completed template-guard V2 scr
 
 **Warm Java has not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
 
+## Latest-main synchronization (2026-10-19)
+
+PR #23 now includes main through `ff06ac15` (ten commits after the original `123b46e8` measurement base), including its refreshed bundle-trained PGO. The compiler/library tree in this PR matches that main exactly; the PR's additional changes publish experiment records and runners.
+
+The new main already incorporates overlapping work: lazy FSIV use analysis and cheap-check ordering, value-embedded scope/reference storage, inline BitSets/lattices, direct scope lookup, RUC/helper allocation reductions, property lookup, sharded string pooling, and parallel annotation/output. **Archived measurements against `123b46e8` or historical prototype descendants do not establish an additional speedup over `ff06ac15`. Percentages from these cohorts must not be added together.** Pinned historical source, PGO and result files remain unchanged for reproduction.
+
+The active follow-up is to measure the new main and port only independent candidates onto a clean checkout. In particular, a native FSIV backend must preserve the new first-query lazy boundary; the newer embedded lattice/BitSet needs in-place initialization rather than copying self-referential inline buffers. Native type recipes/shared resolved vectors and private ASCII backing require their own minimal admission/alias proofs. Old-substrate partial screens remain research evidence, not latest-main claims. New main's [Phase 2 report](../performance-roadmap.md#idiomatic-concurrency-hot-path-passes-and-pr-23-integration-2026-10-19) is a separate machine/cohort and is not combined with this archive's timings.
+
 ## Follow-up: activation correction (2026-10-19)
 
 A follow-up audit found that several post-colorization backends were blocked in ordinary optimized CLI runs: native liveness and its publication/scratch followups, compact inverter, RUC native tasks/intrusive FIFO, scope-first coallocation, and optimized ASCII output. Stock `ConvertTypesToColors` initializes `runtimeLibraryTypedAsts` before these consumers, while their eligibility guards rejected any nonnil table. Some focused fixtures ran earlier/raw compiler phases and therefore did not catch this exclusion. Enabling a flag did not establish that its backend executed.
@@ -36,7 +44,7 @@ Generalized browser-native type recipes, immutable resolved-vector sharing, proj
 
 The earlier round-11 same-binary template experiment measured typed-app 5.123 → 4.934 s (3.7% less elapsed time), RSS 275.7 → 252.6 MiB. Checks-only measured 7.504 → 7.405 s (1.3% less time), RSS 653.4 → 658.8 MiB. These five-sample ranges overlap. [Detailed round 11](records/round2/template-guard-v2-round11.md).
 
-For a broader comparison, the following table uses ONE complete five-task candidate, a6afc95f (`inline` in round 10), against the recorded current-main baseline da20b44f (compiler tree matching main 123b46e8). Every row uses that same candidate and configuration; this does not combine different per-task winning binaries.
+For a broader comparison, the following table uses ONE complete five-task candidate, a6afc95f (`inline` in round 10), against the recorded historical-main baseline da20b44f (compiler tree matching main 123b46e8). Every row uses that same candidate and configuration; this does not combine different per-task winning binaries.
 
 | Workload | Main → candidate Go seconds | Less elapsed time | Main → candidate peak MiB | Java/Go time | Java/Go RSS |
 |---|---:|---:|---:|---:|---:|
