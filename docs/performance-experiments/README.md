@@ -4,6 +4,14 @@ This publishes the saved experiments through the completed template-guard V2 scr
 
 **Warm Java has not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
 
+## Follow-up: activation correction (2026-10-19)
+
+A follow-up audit found that several post-colorization backends were blocked in ordinary optimized CLI runs: native liveness and its publication/scratch followups, compact inverter, RUC native tasks/intrusive FIFO, scope-first coallocation, and optimized ASCII output. Stock `ConvertTypesToColors` initializes `runtimeLibraryTypedAsts` before these consumers, while their eligibility guards rejected any nonnil table. Some focused fixtures ran earlier/raw compiler phases and therefore did not catch this exclusion. Enabling a flag did not establish that its backend executed.
+
+**The earlier optimized-CLI screens cannot establish those implementations' benefit or lack of benefit.** Their raw measurements remain unchanged; the performance attribution is withdrawn pending phase-appropriate proofs, real full-CLI positive activation counts, compatibility/race validation, and new matched timings. Whitespace output/inverter paths may have run without colorization and need separate evidence. Generic BitSet layouts, stock scope insertion without coallocation, native references, scope recipes, and pre-colorization template/access-control paths are not blanket-invalidated by this finding. The overall claim that warm Java has not been broadly beaten is unchanged.
+
+See the [phase/call-site audit](records/round2/runtime-library-admission-audit.md) and [independent activation audit](records/round2/post-colorization-activation-audit.md). Narrow corrections and new tests are under validation; no new speed claim is inferred from source review or output parity alone. Subsequent results and recovery material will be appended as they complete.
+
 ## How to read the numbers
 
 The latest same-binary template experiment measured typed-app 5.123 → 4.934 s (3.7% less elapsed time), RSS 275.7 → 252.6 MiB. Checks-only measured 7.504 → 7.405 s (1.3% less time), RSS 653.4 → 658.8 MiB. These five-sample ranges overlap. [Detailed round 11](records/round2/template-guard-v2-round11.md).
