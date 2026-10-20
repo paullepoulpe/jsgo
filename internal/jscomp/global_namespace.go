@@ -84,9 +84,20 @@ type GlobalNamespace struct {
 	// Limits traversal to scripts matching the given predicate.
 	shouldTraverseScript func(*rhino.Node) bool
 
-	nameSlab  jutil.Slab[GlobalNamespace_Name]
-	refSlab   jutil.Slab[GlobalNamespace_Ref]
-	propsSlab jutil.Slab[globalNamespace_propsSlot]
+	nameSlab     jutil.Slab[GlobalNamespace_Name]
+	refSlab      jutil.Slab[GlobalNamespace_Ref]
+	propsSlab    jutil.Slab[globalNamespace_propsSlot]
+	scopeCreator *SyntacticScopeCreator
+}
+
+// Release returns pooled Scope/Var arenas owned by this GlobalNamespace back to
+// their sync.Pools. Callers must only invoke Release once no Scope or Var
+// references from this GlobalNamespace are needed anymore.
+func (g *GlobalNamespace) Release() {
+	if g != nil && g.scopeCreator != nil {
+		g.scopeCreator.ReleaseArena()
+		g.scopeCreator = nil
+	}
 }
 
 type globalNamespace_propsSlot struct {
@@ -448,7 +459,11 @@ func (g *GlobalNamespace) ProcessNamespace() {
 			g.globalNames = jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](max(capHint/4, 16))
 		}
 	}
-	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetCallback(NewGlobalNamespace_BuildGlobalNamespace(g))
+	if g.scopeCreator == nil {
+		g.scopeCreator = NewSyntacticScopeCreator(g.compiler)
+		g.scopeCreator.EnableArenaPool()
+	}
+	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(g.scopeCreator).SetCallback(NewGlobalNamespace_BuildGlobalNamespace(g))
 
 	if g.HasExternsRoot() {
 		traversal.TraverseRoots(g.externsRoot, g.root)
@@ -635,7 +650,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 		b.curMetadata = nil
 	}
 
-	b.Collect(t.GetScope(), t.GetChunk(), n)
+	b.collect(nil, nil, t, n)
 
 	return true
 }
@@ -663,6 +678,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) SetupModuleMetadata(moduleRoot *r
 
 // Java: GlobalNamespace.BuildGlobalNamespace.collect(Scope, JSChunk, Node)
 func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSChunk, n *rhino.Node) {
+	b.collect(scope, chunk, nil, n)
+}
+
+func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSChunk, t *NodeTraversal, n *rhino.Node) {
 	g := b.outer
 	parent := n.GetParent()
 
@@ -680,6 +699,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		nameStr, hasName = nodeUtil_getBestLValueNameString(n)
 		if !hasName {
 			return
+		}
+		if scope == nil {
+			scope = t.GetScope()
 		}
 		root = b.getRootNodeOfTopName(GlobalNamespace_GetTopVarName(nameStr), scope)
 		if !b.IsTopLevelScopeRoot(root) {
@@ -707,6 +729,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		if !hasName {
 			return
 		}
+		if scope == nil {
+			scope = t.GetScope()
+		}
 		root = b.getRootNodeOfTopName(GlobalNamespace_GetTopVarName(nameStr), scope)
 		if !b.IsTopLevelScopeRoot(root) {
 			return
@@ -732,8 +757,14 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		}
 		if n.GetToken() == rhino.Token_NAME {
 			nameStr = n.GetString()
-			if nameStr == "" {
+			if nameStr == "" || pTok == rhino.Token_PARAM_LIST {
 				return
+			}
+			if pTok == rhino.Token_FUNCTION && (parent.GetParent() == nil || NodeUtil_IsFunctionExpression(parent)) {
+				return
+			}
+			if scope == nil {
+				scope = t.GetScope()
 			}
 			root = b.getRootNodeOfTopName(nameStr, scope)
 			if !b.IsTopLevelScopeRoot(root) {
@@ -751,6 +782,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 			topName := left.GetString()
 			if topName == "" {
 				return
+			}
+			if scope == nil {
+				scope = t.GetScope()
 			}
 			root = b.getRootNodeOfTopName(topName, scope)
 			if !b.IsTopLevelScopeRoot(root) {
@@ -837,6 +871,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 	var nameMetadata *ModuleMetadataMap_ModuleMetadata
 	if root != g.globalRoot {
 		nameMetadata = b.curMetadata
+	}
+	if chunk == nil && t != nil {
+		chunk = t.GetChunk()
 	}
 	if isSet {
 		// Use the closest hoist scope to select handleSetFromGlobal or handleSetFromLocal

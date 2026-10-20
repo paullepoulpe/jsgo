@@ -54,6 +54,19 @@ func scopeNameHash(s string) uint32 {
 	return h ^ (h >> 16)
 }
 
+func scopeBloomMask(s string) uint64 {
+	n := len(s)
+	if n == 0 {
+		return 1
+	}
+	b0 := uint32(s[0])
+	b1 := uint32(s[n-1])
+	b2 := uint32(s[n>>1])
+	h1 := (b0*31 + b1 + uint32(n)*7) & 63
+	h2 := (b2*37 + b1*13 + b0 + uint32(n)) & 63
+	return (uint64(1) << h1) | (uint64(1) << h2)
+}
+
 // Scope contains information about a variable scope in JavaScript. Scopes
 // can be nested, a scope points back to its parent scope. A Scope contains
 // information about variables defined in that scope.
@@ -72,6 +85,7 @@ type Scope struct {
 	arena    *scopeArena
 	varList  []*Var
 	varHash  []int32
+	varBloom uint64
 	varCount int32
 }
 
@@ -590,6 +604,13 @@ func (s *Scope) lookupOwnVar(name string) *Var {
 	if s.varCount == 0 {
 		return nil
 	}
+	return s.lookupOwnVarWithBloom(name, scopeBloomMask(name))
+}
+
+func (s *Scope) lookupOwnVarWithBloom(name string, bloom uint64) *Var {
+	if (s.varBloom & bloom) != bloom {
+		return nil
+	}
 	if s.varHash != nil {
 		mask := uint32(len(s.varHash) - 1)
 		slot := scopeNameHash(name) & mask
@@ -610,6 +631,16 @@ func (s *Scope) lookupOwnVar(name string) *Var {
 		}
 	}
 	return nil
+}
+
+func (s *Scope) hasOwnSlotWithBloom(name string, bloom uint64) bool {
+	if s.lookupOwnVarWithBloom(name, bloom) != nil {
+		return true
+	}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+		return s.HasOwnImplicitSlot(imp)
+	}
+	return false
 }
 
 // Java: AbstractScope.getOwnSlot(String) (final)
@@ -641,13 +672,26 @@ func (s *Scope) HasOwnSlot(name string) bool {
 	return false
 }
 
+// Java: AbstractScope.canDeclare(String)
+func (s *Scope) CanDeclare(name string) bool {
+	bloom := scopeBloomMask(name)
+	if s.hasOwnSlotWithBloom(name, bloom) {
+		return false
+	}
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) {
+		return s.IsBleedingFunctionName(name)
+	}
+	return true
+}
+
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
 	implicit := AbstractScope_ImplicitVar_Of(name)
+	bloom := scopeBloomMask(name)
 	var h uint32
 	var hashed bool
 	for ; s != nil; s = s.parent {
-		if s.varCount > 0 {
+		if (s.varBloom & bloom) == bloom {
 			if s.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
@@ -698,10 +742,11 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 // avoid those dictionary calls and classify implicit names once per lookup.
 func (s *Scope) GetVar(name string) *Var {
 	implicit := AbstractScope_ImplicitVar_Of(name)
+	bloom := scopeBloomMask(name)
 	var h uint32
 	var hashed bool
 	for {
-		if s.varCount > 0 {
+		if (s.varBloom & bloom) == bloom {
 			if s.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
@@ -772,6 +817,7 @@ func (s *Scope) ClearVarsInternal() {
 		}
 		s.varCount = 0
 	}
+	s.varBloom = 0
 }
 
 // Java: AbstractScope.undeclare(V)
@@ -802,6 +848,9 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 			if s.varList[idx-1].name == name {
 				s.varList[idx-1] = nil
 				s.varCount--
+				if s.varCount == 0 {
+					s.varBloom = 0
+				}
 				break
 			}
 			i = (i + 1) & mask
@@ -826,6 +875,9 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 		if v != nil && v.name == name {
 			s.varList[i] = nil
 			s.varCount--
+			if s.varCount == 0 {
+				s.varBloom = 0
+			}
 			return
 		}
 	}
@@ -933,32 +985,43 @@ func (s *Scope) appendVarToInitialized(var_ *Var, probeSlot uint32) {
 
 // Java: AbstractScope.declareInternal(String, V)
 func (s *Scope) DeclareInternal(name string, var_ *Var) {
-	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
+	bloom := scopeBloomMask(name)
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) && !s.hasOwnSlotWithBloom(name, bloom) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
+	alreadyMaybePresent := (s.varBloom & bloom) == bloom
+	s.varBloom |= bloom
 	s.varsInitialized = true
 	if s.varHash != nil {
 		h := scopeNameHash(name)
 		mask := uint32(len(s.varHash) - 1)
 		slot := h & mask
-		for {
-			idx := s.varHash[slot]
-			if idx == 0 {
-				break
+		if alreadyMaybePresent {
+			for {
+				idx := s.varHash[slot]
+				if idx == 0 {
+					break
+				}
+				if s.varList[idx-1].name == name {
+					s.varList[idx-1] = var_
+					return
+				}
+				slot = (slot + 1) & mask
 			}
-			if s.varList[idx-1].name == name {
-				s.varList[idx-1] = var_
-				return
+		} else {
+			for s.varHash[slot] != 0 {
+				slot = (slot + 1) & mask
 			}
-			slot = (slot + 1) & mask
 		}
 		s.appendVarToInitialized(var_, slot)
 		return
 	}
-	for i, existing := range s.varList {
-		if existing != nil && existing.name == name {
-			s.varList[i] = var_
-			return
+	if alreadyMaybePresent {
+		for i, existing := range s.varList {
+			if existing != nil && existing.name == name {
+				s.varList[i] = var_
+				return
+			}
 		}
 	}
 	s.appendVar(var_)
@@ -1011,8 +1074,37 @@ func (s *Scope) GetSlot(name string) rhino.StaticSlot {
 // Java: Scope.declare(String, Node, CompilerInput)
 func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput) *Var {
 	jutil.CheckArgument(name != "")
-	// Make sure that it's declared only once
-	jutil.CheckState(s.getOwnSlotV(name) == nil)
+	bloom := scopeBloomMask(name)
+	var slot uint32
+	if s.varHash != nil {
+		mask := uint32(len(s.varHash) - 1)
+		slot = scopeNameHash(name) & mask
+		if (s.varBloom & bloom) == bloom {
+			for {
+				idx := s.varHash[slot]
+				if idx == 0 {
+					break
+				}
+				if s.varList[idx-1].name == name {
+					panic(jutil.NewIllegalStateException())
+				}
+				slot = (slot + 1) & mask
+			}
+		} else {
+			for s.varHash[slot] != 0 {
+				slot = (slot + 1) & mask
+			}
+		}
+	} else if (s.varBloom & bloom) == bloom {
+		for _, v := range s.varList {
+			if v != nil && v.name == name {
+				panic(jutil.NewIllegalStateException())
+			}
+		}
+	}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil && s.GetOwnImplicitSlot(imp) != nil {
+		panic(jutil.NewIllegalStateException())
+	}
 	var var_ *Var
 	if s.arena != nil {
 		var_ = s.arena.allocVar()
@@ -1026,7 +1118,20 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 			input,
 			/* implicitGoogNamespaceDefinition= */ nil)
 	}
-	s.DeclareInternal(name, var_)
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) && !s.IsBleedingFunctionName(name) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
+	}
+	s.varsInitialized = true
+	s.varBloom |= bloom
+	if s.varHash != nil {
+		s.appendVarToInitialized(var_, slot)
+		return var_
+	}
+	s.appendVar(var_)
+	s.varCount++
+	if len(s.varList) > 8 {
+		s.initVarHash(32)
+	}
 	return var_
 }
 
@@ -1184,7 +1289,43 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 	jutil.CheckStateMsg1(s.IsGlobal(), "Cannot declare implicit goog namespace in local scope %s", s)
 	// Allow redeclarations of provides, since they are implicit and don't have a single
 	// declaration site.
-	var_ := s.getOwnSlotV(name)
+	bloom := scopeBloomMask(name)
+	alreadyMaybePresent := (s.varBloom & bloom) == bloom
+	var var_ *Var
+	var slot uint32
+	if s.varHash != nil {
+		mask := uint32(len(s.varHash) - 1)
+		slot = scopeNameHash(name) & mask
+		if alreadyMaybePresent {
+			for {
+				idx := s.varHash[slot]
+				if idx == 0 {
+					break
+				}
+				if cand := s.varList[idx-1]; cand.name == name {
+					var_ = cand
+					break
+				}
+				slot = (slot + 1) & mask
+			}
+		} else {
+			for s.varHash[slot] != 0 {
+				slot = (slot + 1) & mask
+			}
+		}
+	} else if alreadyMaybePresent {
+		for _, cand := range s.varList {
+			if cand != nil && cand.name == name {
+				var_ = cand
+				break
+			}
+		}
+	}
+	if var_ == nil {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			var_ = s.GetOwnImplicitSlot(imp)
+		}
+	}
 	if var_ == nil {
 		if s.arena != nil {
 			var_ = s.arena.allocVar()
@@ -1192,7 +1333,17 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 		} else {
 			var_ = Var_CreateImplicitGoogNamespace(name, s, definition)
 		}
-		s.DeclareInternal(name, var_)
+		s.varsInitialized = true
+		s.varBloom |= bloom
+		if s.varHash != nil {
+			s.appendVarToInitialized(var_, slot)
+		} else {
+			s.appendVar(var_)
+			s.varCount++
+			if len(s.varList) > 8 {
+				s.initVarHash(32)
+			}
+		}
 	} else if var_.IsImplicitGoogNamespace() {
 		var_.AddImplicitGoogNamespaceDefinition(definition)
 	}

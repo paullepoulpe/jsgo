@@ -293,12 +293,14 @@ with warm Java / Go peak RSS ratios of **4.74×** (`typed-app`), **3.33×**
 (`bundle`), **5.72×** (`downlevel-whitespace`), **7.13×** (`downlevel-simple`),
 and **2.19×** (`checks-only`).
 
-### Rounds 2–10 and Large / Mega Real-World `ADVANCED` Benchmarks
+### Rounds 2–11 and Large / Mega Real-World `ADVANCED` Benchmarks
 
-Following ten rounds of substrate, scanner, AST-slab, flat-map,
+Following eleven rounds of substrate, scanner, AST-slab, flat-map,
 CFG/dataflow-slab, type-system, pass-level, inter-pass arena, peephole-dispatch,
-source-map, `Scope` open-addressed hash table, `ParseArena` pool draining,
-`GuardedCallback`, and dataflow/liveness optimizations
+source-map, `Scope` open-addressed hash table + 64-bit Bloom filter, `ParseArena`
+pool draining, `GlobalNamespace` lazy scope resolution, `RemoveUnusedCode` slab
+retention, `ReferenceCollector` pointer-slice pooling, and `OptimizeCalls` /
+`InlineFunctions` / `InlineSimpleMethods` / `ColorFindPropertyReferences` pooling
 (see [performance-roadmap.md](performance-roadmap.md)), `jsgo` beats a warm
 JIT-compiled JVM across both the standard 5 benchmarks and 6 large/mega
 real-world `ADVANCED` compilation workloads up to 44.6 MB / 4,385 files (`N=3`
@@ -307,24 +309,24 @@ all 100% byte-identical):
 
 #### Standard 5 Whole-Program Tasks
 
-| Task | Original (`c9872522`) | Round 9 (`e5d0987a` `t=1`/`t=4`) | **Round 10 (`t=1` / `t=4`)** | Δ vs Round 9 (`t=1`/`t=4`) | Δ vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+| Task | Original (`c9872522`) | Round 10 (`9c895b43` `t=1`/`t=4`) | **Round 11 (`t=1` / `t=4`)** | Δ vs Round 10 (`t=1`/`t=4`) | Δ vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **`typed-app`** | 2.86 s | 1.59 s / 1.46 s | **1.57 s** / **1.44 s** | **−1.2%** / **−0.9%** | **−45.1%** / **−49.7%** | 6.14 s / 2.18 s | **4.26×** / **1.51×** | **256–260 MiB** vs 758 / 1,871 MiB (**2.9× / 7.2× lower**, −11.3% RSS) |
-| **`bundle`** (12.6 MB) | 11.82 s | 4.99 s / 4.88 s | **4.89 s** / **4.82 s** | **−2.0%** / **−1.3%** | **−58.6%** / **−59.2%** | 16.40 s / 8.68 s | **3.40×** / **1.80×** | **577 MiB** vs 2,151 / 2,343 MiB (**3.7× / 4.1× lower**, −30.3% RSS) |
-| **`downlevel-whitespace`** | 0.86 s | 0.58 s / 0.49 s | **0.58 s** / **0.48 s** | **−1.2%** / **−1.7%** | **−32.6%** / **−44.2%** | 2.55 s / 0.60 s | **5.31×** / **1.25×** | **165–187 MiB** vs 553 / 1,437 MiB (**3.0× / 8.7× lower**, −25.0% RSS) |
-| **`downlevel-simple`** | 2.39 s | 1.26 s / 1.16 s | **1.21 s** / **1.12 s** | **−3.8%** / **−3.9%** | **−49.4%** / **−53.1%** | 4.68 s / 1.60 s | **4.18×** / **1.43×** | **199–206 MiB** vs 613 / 1,489 MiB (**3.0× / 7.5× lower**, −22.9% RSS) |
-| **`checks-only`** | 4.40 s | 2.72 s / 2.33 s | **2.73 s** / **2.33 s** | **+0.1%** / **+0.1%** | **−38.0%** / **−47.0%** | 6.55 s / 3.20 s | **2.81×** / **1.37×** | **611–640 MiB** vs 1,591 / 3,562 MiB (**2.5× / 5.6× lower**, −12.0% RSS) |
+| **`typed-app`** | 2.86 s | 1.57 s / 1.46 s | **1.55 s** / **1.43 s** | **−0.8%** / **−1.8%** | **−45.8%** / **−50.0%** | 6.14 s / 2.18 s | **4.29×** / **1.52×** | **242–246 MiB** vs 758 / 1,871 MiB (**3.1× / 7.7× lower**, −14.4% RSS) |
+| **`bundle`** (12.6 MB) | 11.82 s | 4.90 s / 4.79 s | **4.81 s** / **4.70 s** | **−1.8%** / **−2.0%** | **−59.3%** / **−60.2%** | 16.40 s / 8.68 s | **3.49×** / **1.85×** | **558–597 MiB** vs 2,151 / 2,343 MiB (**3.6× / 4.2× lower**) |
+| **`downlevel-whitespace`** | 0.86 s | 0.58 s / 0.48 s | **0.56 s** / **0.47 s** | **−2.0%** / **−1.8%** | **−34.9%** / **−45.3%** | 2.55 s / 0.60 s | **5.43×** / **1.28×** | **162–171 MiB** vs 553 / 1,437 MiB (**3.2× / 8.9× lower**) |
+| **`downlevel-simple`** | 2.39 s | 1.21 s / 1.12 s | **1.20 s** / **1.10 s** | **−1.5%** / **−1.4%** | **−49.8%** / **−54.0%** | 4.68 s / 1.60 s | **4.25×** / **1.45×** | **205–211 MiB** vs 613 / 1,489 MiB (**2.9× / 7.3× lower**) |
+| **`checks-only`** | 4.40 s | 2.74 s / 2.32 s | **2.72 s** / **2.33 s** | **−0.5%** / **+0.3%** | **−38.2%** / **−47.0%** | 6.55 s / 3.20 s | **2.81×** / **1.37×** | **623–664 MiB** vs 1,591 / 3,562 MiB (**2.4× / 5.7× lower**) |
 
 #### Large & Mega Real-World `ADVANCED` Workloads
 
-| Task | Input Size & Workload (`--compilation_level=ADVANCED`) | Round 9 (`e5d0987a` `t=1`/`t=4`) | **Round 10 (`t=1` / `t=4`)** | Δ vs Round 9 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+| Task | Input Size & Workload (`--compilation_level=ADVANCED`) | Round 10 (`9c895b43` `t=1`/`t=4`) | **Round 11 (`t=1` / `t=4`)** | Δ vs Round 10 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases: Closure Library + NGA OpenSphere 23.0.1 + OpenLayers 4.6.5 + Shaka Player 5.3.1 + Blockly 8.0.5 + Camptocamp ngeo 2.2.10 + YouTube SPFjs 2.4.0 + ol-cesium 1.37.0 + google-protobuf 3.21.2 + app, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 21.40 s / 20.29 s | **20.96 s** / **19.83 s** | **−2.0%** / **−2.3%** | 38.18 s | 29.53 s | **1.82×** / **1.93× faster** | **1.41×** / **1.49× faster** (−9.70 s) | **1,804–1,908 MiB** vs 6,608 / 6,881 MiB (**3.5× / 3.6× lower**, −123 MiB vs R9) |
-| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (plotly.js, handsontable, echarts, ag-grid-community, pdfjs-dist, three.js, react-dom, pixi.js, fabric, mathjs, konva, moment, d3, google-libphonenumber, lodash, lovefield, vue, jquery, rxjs, google-protobuf, handlebars, immutable, chart.js, zone.js, underscore, 27,597 warnings → 13.09 MB JS + 33.99 MB map) | 27.57 s / 26.73 s | **26.51 s** / **25.70 s** | **−3.9%** / **−3.8%** | 66.71 s | 53.60 s | **2.52×** / **2.60× faster** | **2.02×** / **2.09× faster** (−27.90 s) | **2,387–2,444 MiB** vs 4,421 / 6,775 MiB (**1.8× / 2.8× lower**, −637 MiB / −21.1% vs R9) |
-| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 12.37 s / 11.70 s | **12.13 s** / **11.48 s** | **−2.0%** / **−1.9%** | 31.60 s | 20.21 s | **2.61×** / **2.75× faster** | **1.67×** / **1.76× faster** (−8.73 s) | **1,036–1,057 MiB** vs 1,603 / 4,724 MiB (**1.5× / 4.5× lower**, −117 MiB vs R9) |
-| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 7.62 s / 7.49 s | **7.54 s** / **7.41 s** | **−1.0%** / **−1.0%** | 20.78 s | 12.41 s | **2.76×** / **2.80× faster** | **1.65×** / **1.67× faster** (−5.00 s) | **633–677 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.2× lower**, −219 MiB / −24.5% vs R9) |
-| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.19 s / 4.95 s | **5.08 s** / **4.84 s** | **−2.1%** / **−2.2%** | 15.26 s | 8.67 s | **3.00×** / **3.15× faster** | **1.71×** / **1.79× faster** (−3.83 s) | **513–528 MiB** vs 1,341 / 2,852 MiB (**2.5× / 5.4× lower**, −47 MiB vs R9) |
-| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 3.86 s / 3.69 s | **3.83 s** / **3.66 s** | **−0.8%** / **−0.9%** | 11.30 s | 6.79 s | **2.95×** / **3.09× faster** | **1.77×** / **1.86× faster** (−3.13 s) | **395–404 MiB** vs 1,600 / 3,795 MiB (**4.0× / 9.4× lower**, −123 MiB / −23.3% vs R9) |
+| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases: Closure Library + NGA OpenSphere 23.0.1 + OpenLayers 4.6.5 + Shaka Player 5.3.1 + Blockly 8.0.5 + Camptocamp ngeo 2.2.10 + YouTube SPFjs 2.4.0 + ol-cesium 1.37.0 + google-protobuf 3.21.2 + app, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 20.95 s / 19.80 s | **20.74 s** / **19.61 s** | **−1.0%** / **−1.0%** | 38.18 s | 29.53 s | **1.84×** / **1.95× faster** | **1.42×** / **1.51× faster** (−9.92 s) | **1,821–1,864 MiB** vs 6,608 / 6,881 MiB (**3.5× / 3.8× lower**, −84 MiB vs R10) |
+| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (plotly.js, handsontable, echarts, ag-grid-community, pdfjs-dist, three.js, react-dom, pixi.js, fabric, mathjs, konva, moment, d3, google-libphonenumber, lodash, lovefield, vue, jquery, rxjs, google-protobuf, handlebars, immutable, chart.js, zone.js, underscore, 27,597 warnings → 13.09 MB JS + 33.99 MB map) | 26.44 s / 25.80 s | **26.15 s** / **25.39 s** | **−1.1%** / **−1.6%** | 66.71 s | 53.60 s | **2.55×** / **2.63× faster** | **2.05×** / **2.11× faster** (−28.21 s) | **2,288–2,410 MiB** vs 4,421 / 6,775 MiB (**1.8× / 3.0× lower**, −82 MiB vs R10) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 12.16 s / 11.47 s | **11.96 s** / **11.35 s** | **−1.6%** / **−1.1%** | 31.60 s | 20.21 s | **2.64×** / **2.78× faster** | **1.69×** / **1.78× faster** (−8.86 s) | **1,098–1,113 MiB** vs 1,603 / 4,724 MiB (**1.4× / 4.3× lower**) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 7.53 s / 7.41 s | **7.40 s** / **7.28 s** | **−1.8%** / **−1.8%** | 20.78 s | 12.41 s | **2.81×** / **2.85× faster** | **1.68×** / **1.70× faster** (−5.13 s) | **627–673 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.5× lower**) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.08 s / 4.84 s | **4.98 s** / **4.78 s** | **−2.1%** / **−1.3%** | 15.26 s | 8.67 s | **3.06×** / **3.19× faster** | **1.74×** / **1.81× faster** (−3.89 s) | **547–551 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 3.83 s / 3.65 s | **3.77 s** / **3.60 s** | **−1.6%** / **−1.4%** | 11.30 s | 6.79 s | **3.00×** / **3.14× faster** | **1.80×** / **1.89× faster** (−3.19 s) | **389–395 MiB** vs 1,600 / 3,795 MiB (**4.1× / 9.8× lower**) |
 
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 

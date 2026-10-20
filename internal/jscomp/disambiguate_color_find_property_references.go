@@ -24,6 +24,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type cfprPropCacheEntry struct {
+	name string
+	prop *PropertyClustering
+}
+
 // ColorFindPropertyReferences traverses the AST, collecting connections
 // between JSTypes, property accesses, and their accociated Nodes.
 //
@@ -40,6 +45,11 @@ type ColorFindPropertyReferences struct {
 	propSlab     jutil.Slab[PropertyClustering]
 	lastPropName string
 	lastProp     *PropertyClustering
+	propCache    [512]cfprPropCacheEntry
+
+	lastOwnerColor *colors.Color
+	lastFlatOwner  *ColorGraphNode
+	ownerMap       map[*colors.Color]*ColorGraphNode
 
 	colorGraphNodeFactory *ColorGraphNodeFactory
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector
@@ -64,10 +74,30 @@ type ColorFindPropertyReferences_IsPropertyReflector func(nameNode *rhino.Node) 
 func NewColorFindPropertyReferences(
 	colorGraphNodeFactory *ColorGraphNodeFactory, isPropertyReflector ColorFindPropertyReferences_IsPropertyReflector) *ColorFindPropertyReferences {
 	return &ColorFindPropertyReferences{
-		propIndex:             jutil.NewLinkedHashMapWithCapacity[string, *PropertyClustering](1024),
+		propIndex:             jutil.NewLinkedHashMapWithCapacity[string, *PropertyClustering](4096),
+		ownerMap:              make(map[*colors.Color]*ColorGraphNode, 512),
 		colorGraphNodeFactory: colorGraphNodeFactory,
 		isPropertyReflector:   isPropertyReflector,
 	}
+}
+
+func (r *ColorFindPropertyReferences) createNode(owner *colors.Color) *ColorGraphNode {
+	if owner == nil {
+		owner = colors.StandardColors_UNKNOWN
+	}
+	if owner == r.lastOwnerColor && r.lastFlatOwner != nil {
+		return r.lastFlatOwner
+	}
+	if flat := r.ownerMap[owner]; flat != nil {
+		r.lastOwnerColor = owner
+		r.lastFlatOwner = flat
+		return flat
+	}
+	flat := r.colorGraphNodeFactory.CreateNode(owner)
+	r.ownerMap[owner] = flat
+	r.lastOwnerColor = owner
+	r.lastFlatOwner = flat
+	return flat
 }
 
 // Java: ColorFindPropertyReferences.getPropertyIndex()
@@ -103,8 +133,7 @@ func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n *rhino
 		return
 	}
 
-	owner := n.GetColor()
-	r.traverseObjectlitLike(t, n, func(m *rhino.Node) *colors.Color { return owner })
+	r.traverseObjectlitWithOwner(t, n, n.GetColor())
 }
 
 // handleCall examines calls in case they are Object.defineProperties calls
@@ -126,28 +155,51 @@ func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call *rhino.N
 // Java: ColorFindPropertyReferences.handleClass(NodeTraversal, Node)
 func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode *rhino.Node) {
 	classType := classNode.GetColor()
-	r.traverseObjectlitLike(
-		t,
-		NodeUtil_GetClassMembers(classNode),
-		func(m *rhino.Node) *colors.Color {
-			if m.IsStaticMember() {
-				return classType
-			} else if m.IsMemberFieldDef() {
-				classInstanceType := classType.GetInstanceColors()
-				if classInstanceType.IsEmpty() {
-					return colors.StandardColors_UNKNOWN
-				}
-				return colors.Color_CreateUnion(classInstanceType)
-			} else {
-				jutil.CheckStateMsg1(m.IsMemberFunctionDef() || m.IsGetterDef() || m.IsSetterDef(), "%s", m)
-				classPrototypeType := classType.GetPrototypes()
-				if classPrototypeType.IsEmpty() {
-					return colors.StandardColors_UNKNOWN
-				}
-				return colors.Color_CreateUnion(classPrototypeType)
+	members := NodeUtil_GetClassMembers(classNode)
+	jutil.CheckState(members.IsObjectLit() || members.IsObjectPattern() || members.IsClassMembers())
+
+	var instanceOwner *colors.Color
+	var protoOwner *colors.Color
+	for child := members.GetFirstChild(); child != nil; child = child.GetNext() {
+		switch child.GetToken() {
+		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
+			continue
+		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+			if child.IsQuotedStringKey() {
+				continue
 			}
-		})
-	r.colorGraphNodeFactory.CreateNode(classType)
+			var owner *colors.Color
+			if child.IsStaticMember() {
+				owner = classType
+			} else if child.IsMemberFieldDef() {
+				if instanceOwner == nil {
+					classInstanceType := classType.GetInstanceColors()
+					if classInstanceType.IsEmpty() {
+						instanceOwner = colors.StandardColors_UNKNOWN
+					} else {
+						instanceOwner = colors.Color_CreateUnion(classInstanceType)
+					}
+				}
+				owner = instanceOwner
+			} else {
+				jutil.CheckStateMsg1(child.IsMemberFunctionDef() || child.IsGetterDef() || child.IsSetterDef(), "%s", child)
+				if protoOwner == nil {
+					classPrototypeType := classType.GetPrototypes()
+					if classPrototypeType.IsEmpty() {
+						protoOwner = colors.StandardColors_UNKNOWN
+					} else {
+						protoOwner = colors.Color_CreateUnion(classPrototypeType)
+					}
+				}
+				owner = protoOwner
+			}
+			r.registerPropertyUse(t, child, owner)
+		default:
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"Unexpected child of " + members.GetToken().String() + ": " + child.ToStringTree()))
+		}
+	}
+	r.createNode(classType)
 }
 
 // Java: ColorFindPropertyReferences.handleFunction(Node)
@@ -158,14 +210,13 @@ func (r *ColorFindPropertyReferences) handleFunction(fnNode *rhino.Node) {
 	// e.g. `const /** !FooInterface */ x = new Foo(); x.method();`
 	fnType := fnNode.GetColor()
 	if fnType != nil && !fnType.GetInstanceColors().IsEmpty() {
-		r.colorGraphNodeFactory.CreateNode(fnType)
+		r.createNode(fnType)
 	}
 }
 
 // Java: ColorFindPropertyReferences.handleObjectPattern(NodeTraversal, Node)
 func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern *rhino.Node) {
-	owner := pattern.GetColor()
-	r.traverseObjectlitLike(t, pattern, func(m *rhino.Node) *colors.Color { return owner })
+	r.traverseObjectlitWithOwner(t, pattern, pattern.GetColor())
 }
 
 // Java: ColorFindPropertyReferences.handlePropertyReflectorCall(NodeTraversal, Node)
@@ -191,8 +242,27 @@ func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraver
 		return
 	}
 
-	type_ := typeObj.GetColor()
-	r.traverseObjectlitLike(t, objectLiteral, func(m *rhino.Node) *colors.Color { return type_ })
+	r.traverseObjectlitWithOwner(t, objectLiteral, typeObj.GetColor())
+}
+
+func (r *ColorFindPropertyReferences) traverseObjectlitWithOwner(t *NodeTraversal, n *rhino.Node, owner *colors.Color) {
+	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
+
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		switch child.GetToken() {
+		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
+			continue
+		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+			if child.IsQuotedStringKey() {
+				continue // These won't be renamed due to our assumptions. Ignore them.
+			}
+
+			r.registerPropertyUse(t, child, owner)
+		default:
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"Unexpected child of " + n.GetToken().String() + ": " + child.ToStringTree()))
+		}
+	}
 }
 
 // Java: ColorFindPropertyReferences.traverseObjectlitLike(NodeTraversal, Node, Function<Node, Color>)
@@ -226,6 +296,21 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	var prop *PropertyClustering
 	if r.lastProp != nil && propName == r.lastPropName {
 		prop = r.lastProp
+	} else if propName != "" {
+		idx := ocCacheIdx(propName)
+		if e := &r.propCache[idx]; e.prop != nil && e.name == propName {
+			prop = e.prop
+		} else {
+			prop = r.propIndex.Get(propName)
+			if prop == nil {
+				prop = r.propSlab.New()
+				prop.init(propName)
+				r.propIndex.PutNew(propName, prop)
+			}
+			r.propCache[idx] = cfprPropCacheEntry{name: propName, prop: prop}
+		}
+		r.lastPropName = propName
+		r.lastProp = prop
 	} else {
 		prop = r.propIndex.Get(propName)
 		if prop == nil {
@@ -236,7 +321,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 		r.lastPropName = propName
 		r.lastProp = prop
 	}
-	flatOwner := r.colorGraphNodeFactory.CreateNode(owner)
+	flatOwner := r.createNode(owner)
 
 	if prop.lastOwner != flatOwner {
 		prop.lastOwner = flatOwner
@@ -247,7 +332,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 		}
 	}
 	// Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
-	prop.useSites.Put(site, flatOwner)
+	prop.useSites.PutNew(site, flatOwner)
 
 	// Track the cluster of types whose properties must keep their original name after
 	// disambiguation. Note: an "enum type" is the type of an enum object like "{STOP: 0, GO: 1}".

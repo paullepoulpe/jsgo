@@ -270,7 +270,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 
 		// Args: Declare function variables
 		jutil.CheckState(args.IsParamList())
-		s.DeclareLHS(s.scope, args)
+		for a := args.GetFirstChild(); a != nil; a = a.GetNext() {
+			if a.IsName() {
+				s.DeclareVar(s.scope, a)
+			} else {
+				s.declareLhsNodesHelper(s.scope, a)
+			}
+		}
 
 		// Bleed the function name into the scope, if it hasn't been declared in the outer scope
 		// and the name isn't already in the scope via the param list.
@@ -348,7 +354,11 @@ func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n 
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
 		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
 		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
-			s.declareLhsNodesHelper(sc, child)
+			if child.IsName() {
+				s.DeclareVar(sc, child)
+			} else {
+				s.declareLhsNodesHelper(sc, child)
+			}
 		}
 	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_DEFAULT_VALUE, rhino.Token_CATCH, rhino.Token_ITER_REST,
 		rhino.Token_OBJECT_REST, rhino.Token_CAST:
@@ -570,6 +580,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	// the same var declared name node twice. Bail out in this case.
 	// TODO(johnlenz): Hash lookups are not free and building scopes are already expensive.
 	// Restructure the scope building to avoid this check.
+	bloom := scopeBloomMask(name)
+	alreadyMaybePresent := (sc.varBloom & bloom) == bloom
 	var v *Var
 	var h uint32
 	var probeSlot uint32
@@ -577,16 +589,22 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		h = scopeNameHash(name)
 		mask := uint32(len(sc.varHash) - 1)
 		probeSlot = h & mask
-		for {
-			idx := sc.varHash[probeSlot]
-			if idx == 0 {
-				break
+		if alreadyMaybePresent {
+			for {
+				idx := sc.varHash[probeSlot]
+				if idx == 0 {
+					break
+				}
+				if cand := sc.varList[idx-1]; cand.name == name {
+					v = cand
+					break
+				}
+				probeSlot = (probeSlot + 1) & mask
 			}
-			if cand := sc.varList[idx-1]; cand.name == name {
-				v = cand
-				break
+		} else {
+			for sc.varHash[probeSlot] != 0 {
+				probeSlot = (probeSlot + 1) & mask
 			}
-			probeSlot = (probeSlot + 1) & mask
 		}
 		if v == nil {
 			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
@@ -594,10 +612,12 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			}
 		}
 	} else {
-		for i := 0; i < s.smallLen; i++ {
-			if s.smallVars[i].name == name {
-				v = s.smallVars[i]
-				break
+		if alreadyMaybePresent {
+			for i := 0; i < s.smallLen; i++ {
+				if s.smallVars[i].name == name {
+					v = s.smallVars[i]
+					break
+				}
 			}
 		}
 		if v == nil {
@@ -625,8 +645,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 
 	isFnBlock := s.isFnBlock
 	var parentVar *Var
-	if v == nil && isFnBlock && sc.parent.varCount > 0 {
-		parentVar = sc.parent.lookupOwnVar(name)
+	if v == nil && isFnBlock {
+		parentVar = sc.parent.lookupOwnVarWithBloom(name, bloom)
 	}
 
 	input := s.getInput()
@@ -645,6 +665,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		if parentVar != nil && !sc.IsBleedingFunctionName(name) {
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
 		}
+		sc.varBloom |= bloom
 		if sc.varHash == nil {
 			if s.smallLen < len(s.smallVars) {
 				var var_ *Var

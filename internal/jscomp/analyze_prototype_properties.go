@@ -75,6 +75,17 @@ type AnalyzePrototypeProperties struct {
 	// All the NameInfo for global functions, hashed by the name of the
 	// global variable that it's assigned to.
 	varNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
+
+	scopeCreator *SyntacticScopeCreator
+}
+
+// Release returns pooled Scope/Var arenas owned by this AnalyzePrototypeProperties
+// back to their sync.Pools.
+func (a *AnalyzePrototypeProperties) Release() {
+	if a != nil && a.scopeCreator != nil {
+		a.scopeCreator.ReleaseArena()
+		a.scopeCreator = nil
+	}
 }
 
 // Constants for symbol types, for easier readability.
@@ -146,7 +157,11 @@ func (a *AnalyzePrototypeProperties) Process(externRoot *rhino.Node, root *rhino
 		NodeTraversal_Traverse(a.compiler, externRoot, &AnalyzePrototypeProperties_ProcessExternProperties{outer: a})
 	}
 
-	NodeTraversal_Traverse(a.compiler, root, &AnalyzePrototypeProperties_ProcessProperties{outer: a})
+	if a.scopeCreator == nil {
+		a.scopeCreator = NewSyntacticScopeCreator(a.compiler)
+		a.scopeCreator.EnableArenaPool()
+	}
+	NodeTraversal_Builder_().SetCompiler(a.compiler).SetScopeCreator(a.scopeCreator).SetCallback(&AnalyzePrototypeProperties_ProcessProperties{outer: a}).Traverse(root)
 
 	t := FixedPointGraphTraversal_NewTraversal[*AnalyzePrototypeProperties_NameInfo, *JSChunk](
 		&AnalyzePrototypeProperties_PropagateReferences{outer: a})
@@ -393,8 +408,12 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 
 	case rhino.Token_NAME:
 		name := n.GetString()
+		if name == "" {
+			break
+		}
 
-		var_ := t.GetScope().GetVar(name)
+		scope := t.GetScope()
+		var_ := scope.GetVar(name)
 		if var_ != nil {
 			// Only process global functions.
 			if var_.IsGlobal() {
@@ -411,7 +430,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 				// If it is not a global, it might be accessing a local of the outer
 				// scope. If that's the case the functions between the variable's
 				// declaring scope and the variable reference scope cannot be moved.
-			} else if var_.GetScope().(*Scope) != t.GetScope() {
+			} else if var_.GetScope().(*Scope) != scope {
 				for i := len(p.symbolStack) - 1; i >= 0; i-- {
 					context := p.symbolStack[i]
 					if context.scope == var_.GetScope().(*Scope) {
@@ -468,16 +487,15 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessNonFunctionPrototy
 //
 // Java: AnalyzePrototypeProperties.ProcessProperties.isGlobalFunctionDeclaration(NodeTraversal, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) IsGlobalFunctionDeclaration(t *NodeTraversal, n *rhino.Node) bool {
-	// Make sure we're not in a function scope, or if we are then the function we're looking at
-	// is defined in the global scope.
-	if !(t.InGlobalHoistScope() ||
-		(n.IsFunction() &&
-			t.GetScopeRoot() == n &&
-			t.GetScope().GetParent().GetClosestHoistScope().IsGlobal())) {
+	if !(NodeUtil_IsFunctionDeclaration(n) || (n.IsFunction() && n.GetParent().IsName())) {
 		return false
 	}
 
-	return NodeUtil_IsFunctionDeclaration(n) || (n.IsFunction() && n.GetParent().IsName())
+	// Make sure we're not in a function scope, or if we are then the function we're looking at
+	// is defined in the global scope.
+	return t.InGlobalHoistScope() ||
+		(t.GetScopeRoot() == n &&
+			t.GetScope().GetParent().GetClosestHoistScope().IsGlobal())
 }
 
 // IsAssignRValue returns true if this is the r-value of an assignment.

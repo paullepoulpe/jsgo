@@ -78,7 +78,12 @@ func (e *Es6RewriteClass) Process(externs *rhino.Node, root *rhino.Node) {
 	//     constructor rewriting logic into this class.
 	// The code here only creates the GlobalNamespace object which is very cheap. The expensive
 	// building of global namespace happens inside es6ConvertSuperConstructorCalls pass.
-	e.convertSuperConstructorCalls.SetGlobalNamespace(NewGlobalNamespaceWithRoots(e.compiler, externs, root))
+	ns := NewGlobalNamespaceWithRoots(e.compiler, externs, root)
+	defer func() {
+		ns.Release()
+		e.convertSuperConstructorCalls.SetGlobalNamespace(nil)
+	}()
+	e.convertSuperConstructorCalls.SetGlobalNamespace(ns)
 	NodeTraversal_Traverse(e.compiler, root, e.convertSuperConstructorCalls)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteClass_features)
 }

@@ -621,8 +621,12 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 
 // Java: GatherModuleMetadata.process(Node, Node)
 func (g *GatherModuleMetadata) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Traverse(g.compiler, externs, NewGatherModuleMetadata_Finder(g))
-	NodeTraversal_Traverse(g.compiler, root, NewGatherModuleMetadata_Finder(g))
+	sc := NewSyntacticScopeCreator(g.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(NewGatherModuleMetadata_Finder(g)).Traverse(externs)
+	sc.ReleaseArena()
+	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(NewGatherModuleMetadata_Finder(g)).Traverse(root)
 	g.compiler.SetModuleMetadataMap(NewModuleMetadataMap(g.modulesByPath, g.modulesByGoogNamespace))
 }
 

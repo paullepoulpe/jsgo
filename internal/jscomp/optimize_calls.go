@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -130,16 +131,19 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 		return
 	}
 
-	references := NewOptimizeCalls_ReferenceMap()
+	references := acquireOptimizeCallsRefMap()
+	defer releaseOptimizeCallsRefMap(references)
 	sc := NewSyntacticScopeCreator(o.compiler)
 	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
+	cb := acquireOptimizeCallsCallback(o, references)
 	b := NodeTraversal_Builder{
 		compiler:     o.compiler,
-		callback:     NewOptimizeCalls_ReferenceMapBuildingCallback(o, references),
+		callback:     cb,
 		scopeCreator: sc,
 	}
 	b.TraverseRoots(externs, root)
+	releaseOptimizeCallsCallback(cb)
 	o.EliminateAccessorsFrom(references)
 
 	for _, pass := range o.passes {
@@ -173,9 +177,11 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 	references.lastPropList = nil
 }
 
+const ocRefSlotChunkSize = 1024
+
 type optimizeCalls_refListSlot struct {
 	list jutil.ArrayList[*rhino.Node]
-	buf  [2]*rhino.Node
+	buf  [4]*rhino.Node
 }
 
 // OptimizeCalls_ReferenceMap is a reference map for global symbols and
@@ -184,11 +190,87 @@ type OptimizeCalls_ReferenceMap struct {
 	globalScope  *Scope
 	names        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
 	props        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
-	listSlab     jutil.Slab[optimizeCalls_refListSlot]
+	slotChunks   [][]optimizeCalls_refListSlot
+	slotChunkIdx int
+	slotUsed     int
+	pooled       bool
 	lastNameKey  string
 	lastNameList *jutil.ArrayList[*rhino.Node]
 	lastPropKey  string
 	lastPropList *jutil.ArrayList[*rhino.Node]
+}
+
+var optimizeCallsRefMapPool sync.Pool
+var optimizeCallsCallbackPool sync.Pool
+
+func acquireOptimizeCallsRefMap() *OptimizeCalls_ReferenceMap {
+	if v := optimizeCallsRefMapPool.Get(); v != nil {
+		return v.(*OptimizeCalls_ReferenceMap)
+	}
+	return &OptimizeCalls_ReferenceMap{
+		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](1024),
+		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](2048),
+	}
+}
+
+func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
+	total := m.names.Size() + m.props.Size()
+	if total < 32 || total > 524288 {
+		return
+	}
+	m.globalScope = nil
+	m.lastNameKey = ""
+	m.lastNameList = nil
+	m.lastPropKey = ""
+	m.lastPropList = nil
+	m.names.Clear()
+	m.props.Clear()
+	for ci := 0; ci <= m.slotChunkIdx && ci < len(m.slotChunks); ci++ {
+		chunk := m.slotChunks[ci]
+		limit := len(chunk)
+		if ci == m.slotChunkIdx {
+			limit = m.slotUsed
+		}
+		for i := 0; i < limit; i++ {
+			slot := &chunk[i]
+			if cap(slot.list.Slice()) <= 64 {
+				slot.list.Clear()
+			} else {
+				clear(slot.list.Slice())
+				slot.list.InitWithBuffer(slot.buf[:])
+			}
+		}
+	}
+	m.slotChunkIdx = 0
+	m.slotUsed = 0
+	m.pooled = true
+	optimizeCallsRefMapPool.Put(m)
+}
+
+func acquireOptimizeCallsCallback(outer *OptimizeCalls, references *OptimizeCalls_ReferenceMap) *OptimizeCalls_ReferenceMapBuildingCallback {
+	if v := optimizeCallsCallbackPool.Get(); v != nil {
+		c := v.(*OptimizeCalls_ReferenceMapBuildingCallback)
+		c.outer = outer
+		c.codingConvention = outer.compiler.GetCodingConvention()
+		c.externProps = OptimizeCalls_SafeSet(outer.compiler.GetExternProperties())
+		c.references = references
+		return c
+	}
+	return NewOptimizeCalls_ReferenceMapBuildingCallback(outer, references)
+}
+
+func releaseOptimizeCallsCallback(c *OptimizeCalls_ReferenceMapBuildingCallback) {
+	c.outer = nil
+	c.codingConvention = nil
+	c.externProps = nil
+	c.references = nil
+	c.globalScope = nil
+	c.lastSkippedName = ""
+	c.lastExternProp = ""
+	c.hasExternProp = false
+	clear(c.nameCache[:])
+	clear(c.propCache[:])
+	optimizeCallsCallbackPool.Put(c)
 }
 
 // Java: OptimizeCalls.ReferenceMap()
@@ -200,8 +282,22 @@ func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
 }
 
 func (m *OptimizeCalls_ReferenceMap) allocRefList() *jutil.ArrayList[*rhino.Node] {
-	slot := m.listSlab.New()
-	slot.list.InitWithBuffer(slot.buf[:])
+	if len(m.slotChunks) == 0 {
+		m.slotChunks = append(m.slotChunks, make([]optimizeCalls_refListSlot, ocRefSlotChunkSize))
+		m.slotChunkIdx = 0
+		m.slotUsed = 0
+	} else if m.slotUsed == len(m.slotChunks[m.slotChunkIdx]) {
+		m.slotChunkIdx++
+		if m.slotChunkIdx == len(m.slotChunks) {
+			m.slotChunks = append(m.slotChunks, make([]optimizeCalls_refListSlot, ocRefSlotChunkSize))
+		}
+		m.slotUsed = 0
+	}
+	slot := &m.slotChunks[m.slotChunkIdx][m.slotUsed]
+	m.slotUsed++
+	if slot.list.Slice() == nil {
+		slot.list.InitWithBuffer(slot.buf[:])
+	}
 	return &slot.list
 }
 
@@ -812,10 +908,12 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) EnterScope(t *NodeTraversal
 	if t.InGlobalScope() {
 		c.globalScope = t.GetScope()
 		c.references.globalScope = c.globalScope
-		if varCount := c.globalScope.GetVarCount(); varCount > 256 && c.references.names.IsEmpty() {
-			c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
-			if varCount > 512 && c.references.props.IsEmpty() {
-				c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount, 1024))
+		if !c.references.pooled {
+			if varCount := c.globalScope.GetVarCount(); varCount > 1024 && c.references.names.IsEmpty() {
+				c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
+				if c.references.props.IsEmpty() {
+					c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount * 2)
+				}
 			}
 		}
 	}

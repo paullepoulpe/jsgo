@@ -75,10 +75,15 @@ func (e *Es6RewriteBlockScopedDeclaration) Process(externs *rhino.Node, root *rh
 	// - Gather a list of let & const variables
 	// - Also add `= void 0` to any that are not initialized.
 	NodeTraversal_Traverse(e.compiler, root, e)
-	transformer := newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(e)
-	NodeTraversal_Traverse(e.compiler, root, transformer)
-	transformer.TransformLoopClosure()
-	e.RewriteDeclsToVars()
+	if !e.letConsts.IsEmpty() {
+		sc := NewSyntacticScopeCreator(e.compiler)
+		sc.EnableArenaPool()
+		defer sc.ReleaseArena()
+		transformer := newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(e)
+		NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
+		transformer.TransformLoopClosure()
+		e.RewriteDeclsToVars()
+	}
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteBlockScopedDeclaration_transpiledFeatures)
 }
 

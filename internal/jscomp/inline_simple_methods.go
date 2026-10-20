@@ -19,9 +19,83 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+const ismSlotChunkSize = 512
+
+type ismPropSlot struct {
+	defs          []*rhino.Node
+	buf           [2]*rhino.Node
+	nonInlineable bool
+	checked       bool
+}
+
+type ismPoolState struct {
+	props        map[string]*ismPropSlot
+	slotChunks   [][]ismPropSlot
+	slotChunkIdx int
+	slotUsed     int
+	gatherCb     InlineSimpleMethods_GatherSignatures
+	inlineCb     InlineSimpleMethods_InlineTrivialAccessors
+}
+
+var ismStatePool sync.Pool
+
+func acquireIsmState(m *InlineSimpleMethods) *ismPoolState {
+	var s *ismPoolState
+	if v := ismStatePool.Get(); v != nil {
+		s = v.(*ismPoolState)
+	} else {
+		s = &ismPoolState{
+			props: make(map[string]*ismPropSlot, 1024),
+		}
+		s.inlineCb.InitInvocationsCallbackBase(&s.inlineCb)
+	}
+	s.gatherCb.outer = m
+	s.inlineCb.outer = m
+	return s
+}
+
+func releaseIsmState(s *ismPoolState) {
+	if len(s.props) > 524288 {
+		return
+	}
+	clear(s.props)
+	for ci := 0; ci <= s.slotChunkIdx && ci < len(s.slotChunks); ci++ {
+		chunk := s.slotChunks[ci]
+		limit := len(chunk)
+		if ci == s.slotChunkIdx {
+			limit = s.slotUsed
+		}
+		clear(chunk[:limit])
+	}
+	s.slotChunkIdx = 0
+	s.slotUsed = 0
+	s.gatherCb.outer = nil
+	s.inlineCb.outer = nil
+	ismStatePool.Put(s)
+}
+
+func (s *ismPoolState) allocSlot() *ismPropSlot {
+	if len(s.slotChunks) == 0 {
+		s.slotChunks = append(s.slotChunks, make([]ismPropSlot, ismSlotChunkSize))
+		s.slotChunkIdx = 0
+		s.slotUsed = 0
+	} else if s.slotUsed == len(s.slotChunks[s.slotChunkIdx]) {
+		s.slotChunkIdx++
+		if s.slotChunkIdx == len(s.slotChunks) {
+			s.slotChunks = append(s.slotChunks, make([]ismPropSlot, ismSlotChunkSize))
+		}
+		s.slotUsed = 0
+	}
+	slot := &s.slotChunks[s.slotChunkIdx][s.slotUsed]
+	s.slotUsed++
+	return slot
+}
 
 // InlineSimpleMethods inlines methods that take no arguments and have only a
 // return statement returning a property. Because it works on method names
@@ -45,19 +119,12 @@ import (
 // the prototype method is mutated and we don't detect that, inlining it is
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
-	// List of property names that we know are not safe to inline
-	// This includes:
-	//   - extern properties (we can't see the actual method definition for externs)
-	//   - non-method properties
-	//   - methods with @noinline
-	//   - methods with multiple, non-equivalent definitions
-	nonInlineableProperties *jutil.LinkedHashSet[string]
-	externProperties        *jutil.LinkedHashSet[string]
+	externProperties *jutil.LinkedHashSet[string]
+	state            *ismPoolState
 
-	// Use a linked map here to keep the output deterministic.  Otherwise,
-	// the choice of method bodies is random when multiple identical definitions
-	// are found which causes problems in the source maps.
-	methodDefinitions *jutil.SetMultimap[string, *rhino.Node]
+	lastNonInlineable string
+	hasLastNonInline  bool
+	hasDefs           bool
 
 	compiler    AbstractCompiler
 	astAnalyzer *AstAnalyzer
@@ -66,28 +133,51 @@ type InlineSimpleMethods struct {
 // Java: InlineSimpleMethods(AbstractCompiler)
 func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	m := &InlineSimpleMethods{
-		nonInlineableProperties: jutil.NewLinkedHashSet[string](),
-		externProperties:        compiler.GetExternProperties(),
-		methodDefinitions:       jutil.NewSetMultimap[string, *rhino.Node](),
+		externProperties: compiler.GetExternProperties(),
 	}
 	m.compiler = compiler
 	m.astAnalyzer = compiler.GetAstAnalyzer()
 	return m
 }
 
-func (m *InlineSimpleMethods) isNonInlineable(name string) bool {
-	return m.nonInlineableProperties.Contains(name) ||
-		(m.externProperties != nil && m.externProperties.Contains(name))
+func (m *InlineSimpleMethods) ensureState() *ismPoolState {
+	if m.state == nil {
+		m.state = acquireIsmState(m)
+	}
+	return m.state
+}
+
+func (m *InlineSimpleMethods) markNonInlineable(name string) {
+	if m.hasLastNonInline && name == m.lastNonInlineable {
+		return
+	}
+	s := m.ensureState()
+	slot := s.props[name]
+	if slot == nil {
+		slot = s.allocSlot()
+		s.props[name] = slot
+	}
+	slot.nonInlineable = true
+	m.lastNonInlineable = name
+	m.hasLastNonInline = true
 }
 
 // Java: InlineSimpleMethods.process(Node, Node)
 func (m *InlineSimpleMethods) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckStateMsg1(m.compiler.GetLifeCycleStage().IsNormalized(), "%s", m.compiler.GetLifeCycleStage())
-	jutil.CheckState(m.methodDefinitions.IsEmpty())
+	jutil.CheckState(!m.hasDefs)
 	jutil.CheckState(externs != nil)
 
-	NodeTraversal_TraverseRoots(m.compiler, NewInlineSimpleMethods_GatherSignatures(m), externs, root)
-	NodeTraversal_Traverse(m.compiler, root, NewInlineSimpleMethods_InlineTrivialAccessors(m))
+	s := m.ensureState()
+	defer func() {
+		m.state = nil
+		releaseIsmState(s)
+	}()
+
+	NodeTraversal_TraverseRoots(m.compiler, &s.gatherCb, externs, root)
+	if m.hasDefs {
+		NodeTraversal_Traverse(m.compiler, root, &s.inlineCb)
+	}
 }
 
 // InlineSimpleMethods_InlineTrivialAccessors: for each method call, see if
@@ -107,38 +197,40 @@ func NewInlineSimpleMethods_InlineTrivialAccessors(outer *InlineSimpleMethods) *
 // Java: InlineSimpleMethods.InlineTrivialAccessors.visit(NodeTraversal, Node, Node, String)
 func (a *InlineSimpleMethods_InlineTrivialAccessors) VisitWithCallName(t *NodeTraversal, callNode *rhino.Node, parent *rhino.Node, callName string) {
 	m := a.outer
-	if m.isNonInlineable(callName) {
+	if m.hasLastNonInline && callName == m.lastNonInlineable {
+		return
+	}
+	s := m.state
+	if s == nil {
+		return
+	}
+	slot := s.props[callName]
+	if slot == nil || slot.nonInlineable || len(slot.defs) == 0 {
+		if slot != nil && slot.nonInlineable {
+			m.lastNonInlineable = callName
+			m.hasLastNonInline = true
+		}
 		return
 	}
 
-	definitions := m.methodDefinitions.Get(callName)
-	if definitions == nil || definitions.IsEmpty() {
-		return
+	defs := slot.defs
+	if !slot.checked {
+		if len(defs) > 1 && !m.allDefinitionsEquivalentSlice(defs) {
+			slot.nonInlineable = true
+			m.lastNonInlineable = callName
+			m.hasLastNonInline = true
+			return
+		}
+		if m.anyDefinitionsNotInlineableSlice(defs) {
+			slot.nonInlineable = true
+			m.lastNonInlineable = callName
+			m.hasLastNonInline = true
+			return
+		}
+		slot.checked = true
 	}
 
-	// Exit early if all method definitions are not equivalent, and mark this method as not
-	// inlineable.
-	// NOTE: we could also cache the 'good' result of this method having all equivalent
-	// definitions and avoid recalculating later, but profile data suggests that's not too useful
-	if definitions.Size() > 1 && !m.AllDefinitionsEquivalent(definitions) {
-		m.nonInlineableProperties.Add(callName)
-		return
-	}
-	// Exit early if any definitions are incompatible with the InlineSimpleMethods inlining
-	// NOTE: we could also cache the 'good' result of these methods being inlineable to
-	// avoid recalculating later, but profile data suggests that's not too useful.
-	if m.AnyDefinitionsNotInlineable(definitions) {
-		m.nonInlineableProperties.Add(callName)
-		return
-	}
-
-	// Do check of arity, complexity, and consistency in what we think is
-	// the order from least to most complex
-	var firstDefinition *rhino.Node
-	for d := range definitions.All() {
-		firstDefinition = d
-		break
-	}
+	firstDefinition := defs[0]
 
 	// Do not inline if the callsite is a derived class calling a base method using `super.`
 	if !m.ArgsMayHaveSideEffects(callNode) && !NodeUtil_ReferencesSuper(callNode) {
@@ -215,6 +307,32 @@ func InlineSimpleMethods_ReturnedExpression(fn *rhino.Node) *rhino.Node {
 // Java: InlineSimpleMethods.isEmptyMethod(Node)
 func InlineSimpleMethods_IsEmptyMethod(fn *rhino.Node) bool {
 	return NodeUtil_IsEmptyBlock(NodeUtil_GetFunctionBody(fn))
+}
+
+func (m *InlineSimpleMethods) allDefinitionsEquivalentSlice(definitions []*rhino.Node) bool {
+	first := definitions[0]
+	for _, n := range definitions[1:] {
+		if !m.compiler.AreNodesEqualForInlining(first, n) {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *InlineSimpleMethods) anyDefinitionsNotInlineableSlice(definitions []*rhino.Node) bool {
+	for _, n := range definitions {
+		if n.IsAsyncFunction() || n.IsGeneratorFunction() {
+			return true
+		}
+		if NodeUtil_FunctionParametersMayHaveSideEffects(n, m.astAnalyzer) {
+			return true
+		}
+		jsDocInfo := NodeUtil_GetBestJSDocInfo(n.GetParent())
+		if jsDocInfo != nil && jsDocInfo.IsNoInline() {
+			return true
+		}
+	}
+	return false
 }
 
 // AllDefinitionsEquivalent verifies, given a set of method definitions, that
@@ -322,17 +440,47 @@ func (m *InlineSimpleMethods) AddPossibleSignature(name string, node *rhino.Node
 		// The node we're looking at is a function, so we can add it directly
 		m.AddSignature(name, node)
 	} else {
-		m.nonInlineableProperties.Add(name)
+		m.markNonInlineable(name)
 	}
 }
 
 // Java: InlineSimpleMethods.addSignature(String, Node)
 func (m *InlineSimpleMethods) AddSignature(name string, function *rhino.Node) {
-	if m.isNonInlineable(name) {
+	if m.hasLastNonInline && name == m.lastNonInlineable {
 		return
 	}
-
-	m.methodDefinitions.Put(name, function)
+	s := m.ensureState()
+	slot := s.props[name]
+	if slot != nil && slot.nonInlineable {
+		m.lastNonInlineable = name
+		m.hasLastNonInline = true
+		return
+	}
+	if m.externProperties != nil && m.externProperties.Contains(name) {
+		if slot == nil {
+			slot = s.allocSlot()
+			s.props[name] = slot
+		}
+		slot.nonInlineable = true
+		m.lastNonInlineable = name
+		m.hasLastNonInline = true
+		return
+	}
+	if slot == nil {
+		slot = s.allocSlot()
+		slot.defs = slot.buf[:1:2]
+		slot.buf[0] = function
+		s.props[name] = slot
+		m.hasDefs = true
+		return
+	}
+	for _, d := range slot.defs {
+		if d == function {
+			return
+		}
+	}
+	slot.defs = append(slot.defs, function)
+	m.hasDefs = true
 }
 
 // InlineSimpleMethods_GatherSignatures gathers signatures from the source to
@@ -379,7 +527,7 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_STRING_KEY:
 				m.AddPossibleSignature(key.GetString(), key.GetFirstChild())
 			case rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF:
-				m.nonInlineableProperties.Add(key.GetString())
+				m.markNonInlineable(key.GetString())
 			case rhino.Token_COMPUTED_PROP, // complicated
 				rhino.Token_OBJECT_SPREAD,
 				rhino.Token_COMPUTED_FIELD_DEF,
@@ -393,7 +541,7 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 		// method can be safely inlined.
 		if m.compiler.GetCodingConvention().IsPropertyRenameFunction(n.GetFirstChild()) {
 			// Other code guarantees that getSecondChild() is a STRINGLIT
-			m.nonInlineableProperties.Add(n.GetSecondChild().GetString())
+			m.markNonInlineable(n.GetSecondChild().GetString())
 		}
 	default:
 	}

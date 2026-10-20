@@ -78,7 +78,7 @@ var inlineVariables_Mode_names = [...]string{"CONSTANTS_ONLY", "LOCALS_ONLY", "A
 var inlineVariables_Mode_varPredicate = [...]func(*Var) bool{
 	inlineVariables_isDeclaredOrInferredConst,
 	func(v *Var) bool { return v.IsLocal() },
-	func(*Var) bool { return true },
+	nil,
 }
 
 func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
@@ -303,6 +303,7 @@ type InlineVariables_InliningBehavior struct {
 	currentScopeHandledVarAnalysesMap *jutil.ObjectLinkedHashMap[*Var, InlineVariables_InlineVarAnalysis]
 	handledVars                       []handledVarAnalysisEntry
 	handledVarsBuf                    [32]handledVarAnalysisEntry
+	handledVarsMap                    map[*Var]InlineVariables_InlineVarAnalysis
 
 	// Records alias variables that are waiting for the original variables to
 	// be handled.
@@ -313,8 +314,8 @@ type InlineVariables_InliningBehavior struct {
 	aliasRetryHandlers         map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
 
 	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
-	scopeExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
-	scopeExpertBuf   [32]InlineVariables_InliningBehavior_StandardVarExpert
+	delayedNegSlab   []inlineVariables_delayedNegativeAnalysis
+	delayedNegBuf    [32]inlineVariables_delayedNegativeAnalysis
 	retryExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
 	retryExpertBuf   [8]InlineVariables_InliningBehavior_StandardVarExpert
 	retryHandlerSlab []InlineVariables_InliningBehavior_AliasInlineRetryHandler
@@ -332,19 +333,33 @@ func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariable
 		codingConvention: cc,
 	}
 	b.handledVars = b.handledVarsBuf[:0]
-	b.scopeExpertSlab = b.scopeExpertBuf[:0]
+	b.delayedNegSlab = b.delayedNegBuf[:0]
 	b.retryExpertSlab = b.retryExpertBuf[:0]
 	b.retryHandlerSlab = b.retryHandlerBuf[:0]
 	return b
 }
 
 func (b *InlineVariables_InliningBehavior) putHandledVarAnalysis(v *Var, analysis InlineVariables_InlineVarAnalysis) {
+	if len(b.handledVars) == len(b.handledVarsBuf) && b.handledVarsMap == nil {
+		b.handledVarsMap = make(map[*Var]InlineVariables_InlineVarAnalysis, 128)
+		for _, entry := range b.handledVars {
+			b.handledVarsMap[entry.v] = entry.analysis
+		}
+	}
 	b.handledVars = append(b.handledVars, handledVarAnalysisEntry{v: v, analysis: analysis})
+	if b.handledVarsMap != nil {
+		b.handledVarsMap[v] = analysis
+	}
 }
 
 func (b *InlineVariables_InliningBehavior) getHandledVarAnalysis(scope *Scope, aliasedVar *Var) InlineVariables_InlineVarAnalysis {
 	if aliasedVar == nil || aliasedVar.scope != scope {
 		return nil
+	}
+	if b.handledVarsMap != nil {
+		if analysis := b.handledVarsMap[aliasedVar]; analysis != nil {
+			return analysis
+		}
 	}
 	name := aliasedVar.name
 	for _, entry := range b.handledVars {
@@ -372,22 +387,28 @@ func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 	return &b.scratchExpert
 }
 
-func (b *InlineVariables_InliningBehavior) allocScopeExpert(
+func (b *InlineVariables_InliningBehavior) allocDelayedNegativeAnalysis(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
-) *InlineVariables_InliningBehavior_StandardVarExpert {
-	if len(b.scopeExpertSlab) == cap(b.scopeExpertSlab) {
+) *inlineVariables_delayedNegativeAnalysis {
+	if len(b.delayedNegSlab) == cap(b.delayedNegSlab) {
 		newCap := 64
-		if cap(b.scopeExpertSlab) >= 64 {
-			newCap = min(cap(b.scopeExpertSlab)*2, 512)
+		if cap(b.delayedNegSlab) >= 64 {
+			newCap = min(cap(b.delayedNegSlab)*2, 512)
 		}
-		b.scopeExpertSlab = make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
+		b.delayedNegSlab = make([]inlineVariables_delayedNegativeAnalysis, 0, newCap)
 	}
-	idx := len(b.scopeExpertSlab)
-	b.scopeExpertSlab = b.scopeExpertSlab[:idx+1]
-	e := &b.scopeExpertSlab[idx]
-	*e = *src
-	e.initValAnalysis.outer = e
-	return e
+	idx := len(b.delayedNegSlab)
+	b.delayedNegSlab = b.delayedNegSlab[:idx+1]
+	a := &b.delayedNegSlab[idx]
+	var state uint8
+	if src.isWellDefined.IsKnownToBe(true) {
+		state = 3
+	}
+	*a = inlineVariables_delayedNegativeAnalysis{
+		referenceInfo: src.referenceInfo,
+		state:         state,
+	}
+	return a
 }
 
 func (b *InlineVariables_InliningBehavior) allocRetryExpert(
@@ -453,7 +474,10 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	// Any variables we completed in an earlier scope are now out of scope,
 	// so we can clear this map.
 	b.handledVars = b.handledVars[:0]
-	b.scopeExpertSlab = b.scopeExpertBuf[:0]
+	if len(b.handledVarsMap) > 0 {
+		clear(b.handledVarsMap)
+	}
+	b.delayedNegSlab = b.delayedNegBuf[:0]
 	if len(b.aliasRetryHandlers) == 0 {
 		b.retryExpertSlab = b.retryExpertBuf[:0]
 		b.retryHandlerSlab = b.retryHandlerBuf[:0]
@@ -465,13 +489,29 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	if scope.GetVarCount() == 0 {
 		return
 	}
+	isLocalScope := scope.IsLocal()
+	if b.outer.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(b.aliasRetryHandlers) == 0 {
+		return
+	}
 	mayBeAParameterModifiedViaArguments :=
 		b.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)
-	isLocalScope := scope.IsLocal()
 	wrapper, _ := referenceMap.(*ReferenceCollector_ReferenceMapWrapper)
-	for v := range scope.GetVarIterable() {
+	var collector *ReferenceCollector
+	if wrapper != nil {
+		collector = wrapper.c
+	}
+	for i := 0; i < len(scope.varList); i++ {
+		v := scope.varList[i]
+		if v == nil {
+			continue
+		}
+		if b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY && !inlineVariables_isDeclaredOrInferredConst(v) {
+			continue
+		}
 		var referenceInfo *ReferenceCollection
-		if wrapper != nil {
+		if collector != nil {
+			referenceInfo = collector.GetReferences(v)
+		} else if wrapper != nil {
 			referenceInfo = wrapper.GetReferences(v)
 		} else {
 			referenceInfo = referenceMap.GetReferences(v)
@@ -506,12 +546,14 @@ func (b *InlineVariables_InliningBehavior) completeVarAnalysis(v *Var, analysis 
 			analysis = InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
 		}
 	} else if analysis == &b.scratchExpert {
-		analysis = b.allocScopeExpert(&b.scratchExpert)
+		analysis = b.allocDelayedNegativeAnalysis(&b.scratchExpert)
 	}
-	// Record the results for aliases we may find later
-	b.putHandledVarAnalysis(v, analysis)
-	// Retry any aliases we saw before handling this Var
-	b.RetryAliases(v, analysis)
+	if b.outer.mode != InlineVariables_Mode_CONSTANTS_ONLY {
+		// Record the results for aliases we may find later
+		b.putHandledVarAnalysis(v, analysis)
+		// Retry any aliases we saw before handling this Var
+		b.RetryAliases(v, analysis)
+	}
 }
 
 func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
@@ -774,10 +816,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AllReferencesAreVal
 	if e.allReferencesAreValid.IsKnown() {
 		return e.allReferencesAreValid.GetKnownValue()
 	} else {
-		hasValidDeclaration := e.HasValidDeclaration()
-		hasValidInitialization := e.HasValidInitialization()
-		neverAssigned := e.IsNeverAssigned()
-		if hasValidDeclaration && (hasValidInitialization || neverAssigned) {
+		if e.HasValidDeclaration() && (e.HasValidInitialization() || e.IsNeverAssigned()) {
 			initialization := e.GetInitialization()
 			for _, ref := range e.referenceInfo.references.Slice() {
 				if ref != e.declaration && ref != initialization && !e.outer.IsValidReference(ref) {
@@ -848,7 +887,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 	//  3. The unit tests will have to be more verbose to make sure stuff we don't want to be
 	//  removed is used.
 	if refCount > 1 && e.AllReferencesAreValid() {
-		if e.referenceInfo.IsNeverAssigned() {
+		if e.IsNeverAssigned() {
 			e.analysisKind = analysisKindInlineNeverAssigned
 			return e
 		}
@@ -895,10 +934,14 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) GetNegativeInlineVa
 	// use canonical analysis values to save on memory space.
 	if e.mayBeAParameterModifiedViaArguments ||
 		e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
-		e.isWellDefinedAssignedOnce.IsKnownToBe(false) {
+		e.referenceInfo.references.Size() <= 1 ||
+		e.isWellDefinedAssignedOnce.IsKnownToBe(false) ||
+		e.isWellDefined.IsKnownToBe(false) ||
+		e.isAssignedOnceInLifetime.IsKnownToBe(false) {
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS
 	}
-	if e.isWellDefinedAssignedOnce.IsKnownToBe(true) {
+	if e.isWellDefinedAssignedOnce.IsKnownToBe(true) ||
+		(e.isWellDefined.IsKnownToBe(true) && e.isAssignedOnceInLifetime.IsKnownToBe(true)) {
 		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
 	}
 
@@ -911,12 +954,30 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) GetNegativeInlineVa
 // of StandardVarExpert.getNegativeInlineVarAnalysis().
 type inlineVariables_delayedNegativeAnalysis struct {
 	InlineVariables_InlineVarAnalysisBase
-	expert *InlineVariables_InliningBehavior_StandardVarExpert
+	referenceInfo *ReferenceCollection
+	state         uint8 // 0: unknown, 1: false, 2: true, 3: wellDefined known true
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.getNegativeInlineVarAnalysis().new InlineVarAnalysis() {...}.isSafeToInlineAliases()
 func (a *inlineVariables_delayedNegativeAnalysis) IsSafeToInlineAliases() bool {
-	return a.expert.IsWellDefinedAssignedOnce()
+	switch a.state {
+	case 0:
+		if a.referenceInfo.IsWellDefined() && a.referenceInfo.IsAssignedOnceInLifetime() {
+			a.state = 2
+			return true
+		}
+		a.state = 1
+		return false
+	case 3:
+		if a.referenceInfo.IsAssignedOnceInLifetime() {
+			a.state = 2
+			return true
+		}
+		a.state = 1
+		return false
+	default:
+		return a.state == 2
+	}
 }
 
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVarAnalysis(initValue *rhino.Node) InlineVariables_InlineVarAnalysis {

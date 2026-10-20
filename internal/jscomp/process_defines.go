@@ -259,6 +259,12 @@ func (b *ProcessDefines_Builder) Build() *ProcessDefines {
 // Java: ProcessDefines.process(Node, Node)
 func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
 	p.InitNamespace(externs, root)
+	if p.namespaceSupplier == nil && p.namespace != nil {
+		defer func() {
+			p.namespace.Release()
+			p.namespace = nil
+		}()
+	}
 	p.CollectDefines(root)
 	p.ReportInvalidDefineLocations(root)
 	p.CollectValidDefineValueExpressions()
