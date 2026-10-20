@@ -3,7 +3,7 @@
 
 Existing main tasks are reused verbatim except for an explicit thread flag and
 the same output manifest on both engines. typed-full-chunks partitions that
-actual 1,818-input workload into four dependent ADVANCED chunks; no replication.
+actual 1,820-input workload into four dependent ADVANCED chunks; no replication.
 This tool prepares files only; it does not run a compiler or fetch dependencies.
 """
 import argparse
@@ -88,6 +88,7 @@ def main():
             raise ValueError('enterprise paired unit must contain one compilation')
         argv = jobs[0]
         chunks = []
+        absent_artifacts = []
         if name == 'typed-full-chunks':
             inputs = bench.expand_inputs(task['inputs'], str(setup))
             groups = {key: [] for key in ('core', 'shaka', 'blockly', 'app')}
@@ -112,7 +113,13 @@ def main():
             artifacts.append('chunk-dependencies.json')
         else:
             argv += ['--output_manifest=inputs.manifest']
-            artifacts = list(task.get('compare', []))+['inputs.manifest']
+            artifacts = list(task.get('compare', []))
+            if '--checks_only' in argv or '--checks-only' in argv:
+                # Stock OutputJs.NONE bypasses outputManifest() in processResults.
+                # Retain the same flag/work on both engines and gate its absence.
+                absent_artifacts = ['inputs.manifest']
+            else:
+                artifacts.append('inputs.manifest')
         argv = replace_threads(argv, a.threads)
         links = {'inputs': str(Path(a.cache).resolve()/'bench-inputs'),
                  'corpus': str(Path(a.cache).resolve()/'corpus'), 'app': str(Path(bench.HERE)/'app')}
@@ -128,13 +135,14 @@ def main():
             source_inputs.append({'flag': value, 'link': link, 'relative': '/'.join(relative),
                                   'bytes': len(data), 'sha256': sha(data)})
         spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': name, 'source_task': task['name'],
-                'argv': argv, 'links': links, 'inputs': source_inputs, 'artifacts': artifacts,
+                'argv': argv, 'links': links, 'inputs': source_inputs, 'artifacts': artifacts, 'absent_artifacts': absent_artifacts,
                 'same_work': {'mode': task['mode'], 'compiler_threads': a.threads, 'chunks': chunks,
+                              'output_manifest_expected': 'absent: checks-only OutputJs.NONE skips output emission' if absent_artifacts else 'present',
                               'source_count': len(source_inputs), 'source_bytes': sum(x['bytes'] for x in source_inputs),
                               'builtin_externs': externs, 'explicit_externs': [x for x in source_inputs if x['flag'] == '--externs'],
                               'validation': ['identical complete argv on both engines', 'identical input and builtin extern bytes',
                                              'strict stdout/stderr/exit and ALL output artifacts for every warmup/measurement',
-                                             'actual emitted input manifests and chunk graph match, not only final JS',
+                                             'emitted manifests/chunk graph match; checks-only manifest absence matches stock OutputJs.NONE',
                                              'failure/OOM is a failed task, never a speed ratio']}}
         bench.save(str(out/(name+'.json')), spec)
         print(name, len(source_inputs), 'files', sum(x['bytes'] for x in source_inputs), 'bytes', 'chunks', chunks)

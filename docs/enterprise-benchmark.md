@@ -18,8 +18,10 @@ for typed-full and 848 files / 8,523,185 bytes for shaka-blockly.
 actual inputs in four chunks: core (971), Shaka (522), Blockly (324) and app (3).
 The latter three depend on core. This is real multi-chunk ADVANCED work, without
 copying or duplicating source. Every chunk's JS, map and input manifest, plus the
-chunk dependency graph, is compared. Single-output tasks also emit a common
-input manifest. These additional manifest outputs change the measured job from
+chunk dependency graph, is compared. Single-output tasks that emit code also emit a common
+input manifest. Checks-only retains the same manifest flag, but stock Java sets
+`OutputJs.NONE` and skips manifest emission. Both runtimes must leave that file
+absent; stdout, stderr and exit still match exactly. These additional manifest outputs change the measured job from
 the historical task; both runtimes perform the extra work.
 
 ## Resource budget

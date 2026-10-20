@@ -128,7 +128,7 @@ def workspace(path, spec):
         link = path/name
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(target, target_is_directory=True)
-    for rel in spec['artifacts']:
+    for rel in spec['artifacts']+spec.get('absent_artifacts', []):
         target = path/rel
         if Path(rel).is_absolute() or '..' in Path(rel).parts:
             raise ValueError('artifact must be a safe relative path')
@@ -141,6 +141,10 @@ def digests(work, spec, streams):
     result = {name: sha(path) if path.is_file() else None for name, path in paths.items()}
     if any(value is None for value in result.values()):
         raise ValueError('required output missing: '+str(result))
+    for name in spec.get('absent_artifacts', []):
+        if (work/name).exists():
+            raise ValueError('stock no-output artifact unexpectedly emitted: '+name)
+        result[name] = None
     return result
 
 
@@ -156,7 +160,7 @@ def input_identity(spec):
 
 
 def java_request(process, work, spec, number, kind):
-    for rel in spec['artifacts']:
+    for rel in spec['artifacts']+spec.get('absent_artifacts', []):
         (work/rel).unlink(missing_ok=True)
     process.stdin.write(str(number)+'\t'+kind+'\n'); process.stdin.flush()
     line = process.stdout.readline().rstrip('\n')
