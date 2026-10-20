@@ -19,7 +19,11 @@ func TestTemplateTypeMap_FastPathNormalizesConstructedPrimitives(t *testing.T) {
 		{"void", func(r *JSTypeRegistry) JSType { return NewVoidType(r) }, JSTypeNative_VOID_TYPE},
 		{"all", func(r *JSTypeRegistry) JSType { return NewAllType(r) }, JSTypeNative_ALL_TYPE},
 		{"bigint", func(r *JSTypeRegistry) JSType { return NewBigIntType(r) }, JSTypeNative_BIGINT_TYPE},
-		{"noObject", func(r *JSTypeRegistry) JSType { return NewNoObjectType(r) }, JSTypeNative_NO_OBJECT_TYPE},
+		{"noObject", func(r *JSTypeRegistry) JSType {
+			closer := r.GetResolver().OpenForDefinition()
+			defer closer.Close()
+			return NewNoObjectType(r)
+		}, JSTypeNative_NO_OBJECT_TYPE},
 		{"unknown", func(r *JSTypeRegistry) JSType { return NewUnknownType(r, false) }, JSTypeNative_UNKNOWN_TYPE},
 		{"checkedUnknown", func(r *JSTypeRegistry) JSType { return NewUnknownType(r, true) }, JSTypeNative_UNKNOWN_TYPE},
 	}
