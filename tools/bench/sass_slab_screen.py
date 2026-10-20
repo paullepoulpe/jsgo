@@ -6,6 +6,7 @@ Execution needs the finished candidate's caller-supplied SHA and a quiet slot.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -59,13 +60,24 @@ def check(plan):
     return plan
 
 
-def prepare(out):
+def prepare(out, candidate=CANDIDATE, source_manifest=None, build_result=None, extra_provenance=()):
     if out.exists():
         raise ValueError('new preparation directory required')
     if screen.sha(STOCK) != STOCK_SHA:
         raise ValueError('frozen stock5de binary changed')
-    if not CANDIDATE.parent.is_dir():
-        raise ValueError('candidate destination directory not prepared')
+    candidate = Path(candidate).resolve()
+    if candidate != CANDIDATE and (source_manifest is None or build_result is None or not extra_provenance):
+        raise ValueError('custom candidate requires explicit source manifest, build result and build/equivalence provenance')
+    source_manifest = Path(source_manifest or RESULTS/'sass-slab-5de-v3/source-manifest.json').resolve()
+    build_result = Path(build_result or RESULTS/'sass-slab-5de-v3/steps/cli-build/result.json').resolve()
+    build = json.loads(build_result.read_text())
+    if build.get('exit') != 0 or Path(build['binary']).resolve() != candidate:
+        raise ValueError('successful build result must identify this exact candidate path')
+    candidate_sha = build['binary_sha256']
+    if screen.sha(candidate) != candidate_sha:
+        raise ValueError('candidate does not match frozen build result')
+    if json.loads(source_manifest.read_text()).get('base') != '5de6e3359349d70e60c98788e5e62b78cf1cb0e7':
+        raise ValueError('candidate source manifest must identify the stock5de base')
     if screen.sha(HERE/'paired_factors.py') != screen.FACTORS_SHA256:
         raise ValueError('screen factor helper pin changed')
     for name, expected in factors.HELPER_PINS.items():
@@ -93,13 +105,14 @@ def prepare(out):
             'diagnostic_only_15row_arithmetic_minutes': 15*diag['wall_s']/60,
             'estimate_warning': 'Busy historical correctness clocks, not a benchmark prediction or Java comparison.'})
         paths += [spec_path, oracle, metadata, diagnostic, ip, ap]
-    provenance = [RESULTS/'main-5de/stock-build.json', RESULTS/'sass-slab-5de-v3/source-manifest.json']
+    provenance = [RESULTS/'main-5de/stock-build.json', source_manifest, build_result]+[Path(p).resolve() for p in extra_provenance]
     paths += provenance
-    plan = {'schema': 'jsgo-sass-slab-screen-plan-v1', 'status': 'PREPARED ONLY; candidate hash pending',
-        'stock': str(STOCK), 'stock_sha256': STOCK_SHA, 'candidate': str(CANDIDATE),
-        'candidate_sha256': None, 'image': IMAGE, 'rounds': 3, 'seed': 20261020,
+    plan = {'schema': 'jsgo-sass-slab-screen-plan-v1', 'status': 'PREPARED ONLY; finished candidate pinned to build result',
+        'stock': str(STOCK), 'stock_sha256': STOCK_SHA, 'candidate': str(candidate),
+        'candidate_sha256': candidate_sha, 'candidate_source_manifest': str(source_manifest),
+        'candidate_build_result': str(build_result), 'image': IMAGE, 'rounds': 3, 'seed': 20261020,
         'variants': [{'name': 'stock-5de', 'binary': str(STOCK), 'go_env': {}, 'sha256': STOCK_SHA}]+
-            [{'name': name, 'binary': str(CANDIDATE), 'go_env': {SASS: a, SLAB: b}, 'sha256': None}
+            [{'name': name, 'binary': str(candidate), 'go_env': {SASS: a, SLAB: b}, 'sha256': candidate_sha}
              for name, a, b in CONFIGS],
         'tasks': tasks, 'provenance': list(map(str, provenance)),
         'pins': {str(p): screen.sha(p) for p in paths},
@@ -112,15 +125,52 @@ def prepare(out):
     save(out/'plan.json', plan)
     check(plan)
     print(json.dumps({'status': 'PREPARED_NOT_RUN', 'plan': str(out/'plan.json'),
-        'candidate_sha256': None, 'tasks': [t['name'] for t in tasks], 'rows': 30}))
+        'candidate_sha256': candidate_sha, 'tasks': [t['name'] for t in tasks], 'rows': 30}))
+
+
+
+def quiet_preflight(path):
+    """Runtime-only read-only checks; preparation never contacts Docker."""
+    workloads = []
+    for proc in Path('/proc').iterdir():
+        if not proc.name.isdecimal():
+            continue
+        try:
+            comm = (proc/'comm').read_text().strip()
+            executable = Path(os.readlink(proc/'exe').removesuffix(' (deleted)')).name
+            if executable in {'go', 'compile', 'link', 'java', 'javac', 'node', 'protoc'} or executable.endswith('.test') or executable.startswith(('jsgo', 'protoc-')):
+                workloads.append({'pid': int(proc.name), 'comm': comm, 'executable': executable})
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            pass
+    env = {k: v for k, v in os.environ.items() if k not in helper.DOCKER_DROP}
+    docker = subprocess.run(helper.DOCKER+['ps', '--format', '{{.ID}}\t{{.Names}}'],
+                            env=env, capture_output=True, text=True, check=True)
+    containers = docker.stdout.splitlines()
+    cg = Path('/sys/fs/cgroup')
+    current, limit = [int((cg/name).read_text()) for name in ('memory.current', 'memory.max')]
+    stat = dict((k, int(v)) for k, v in (line.split() for line in (cg/'memory.stat').read_text().splitlines()))
+    clean = max(0, min(stat.get('file', 0)-stat.get('shmem', 0)-stat.get('file_dirty', 0)-stat.get('file_writeback', 0),
+                       stat.get('inactive_file', 0)+stat.get('active_file', 0)))
+    extra = limit-max(0, current-clean)-5*(1 << 30)
+    proof = {'scope': 'Read-only quiet/headroom admission, no reclaim/cache-dropping writes',
+             'workloads': workloads, 'containers': containers, 'memory_current': current,
+             'memory_max': limit, 'memory_stat': stat, 'clean_file_cache_only': clean,
+             'full_task_cap': 4*(1 << 30), 'outer_margin': 1 << 30, 'additional_headroom': extra}
+    proof['admitted'] = not workloads and not containers and extra >= 0
+    save(path, proof)
+    if not proof['admitted']:
+        raise RuntimeError('quiet/headroom preflight failed; no screen launched')
 
 
 def run(planpath, out, digest):
     plan = check(json.loads(planpath.read_text()))
-    if not re.fullmatch('[0-9a-f]{64}', digest) or screen.sha(plan['candidate']) != digest:
+    if not re.fullmatch('[0-9a-f]{64}', digest) or screen.sha(plan['candidate']) != digest or plan['candidate_sha256'] != digest:
         raise ValueError('finished candidate must match supplied SHA256')
     if out.exists():
         raise ValueError('new run evidence directory required')
+    build = json.loads(Path(plan['candidate_build_result']).read_text())
+    if build.get('exit') != 0 or build['binary_sha256'] != digest or Path(build['binary']).resolve() != Path(plan['candidate']).resolve():
+        raise ValueError('candidate no longer matches its frozen successful build provenance')
     variants = [dict(v, sha256=digest) if v['binary'] == plan['candidate'] else v
                 for v in plan['variants']]
     out.mkdir(parents=True)
@@ -131,6 +181,7 @@ def run(planpath, out, digest):
                             'scope': plan['scope']})
     for task in plan['tasks']:
         check(plan)
+        quiet_preflight(out/(task['name']+'-quiet-preflight.json'))
         command = [sys.executable, str(HERE/'go_factor_screen.py'), '--spec', task['spec'],
             '--variants', str(variantpath), '--control', 'stock-5de', '--oracle', task['oracle'],
             '--oracle-metadata', task['oracle_metadata'], '--image', plan['image'],
@@ -155,11 +206,16 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='mode', required=True)
     prep = sub.add_parser('prepare'); prep.add_argument('--out', required=True)
+    prep.add_argument('--candidate', default=str(CANDIDATE))
+    prep.add_argument('--candidate-source-manifest')
+    prep.add_argument('--candidate-build-result')
+    prep.add_argument('--candidate-provenance', action='append', default=[],
+                      help='repeat build commands/source-equivalence proof paths; frozen and copied into both runs')
     chk = sub.add_parser('check'); chk.add_argument('--plan', required=True)
     launch = sub.add_parser('run'); launch.add_argument('--plan', required=True)
     launch.add_argument('--out', required=True); launch.add_argument('--candidate-sha256', required=True)
     a = p.parse_args()
-    if a.mode == 'prepare': prepare(Path(a.out).resolve())
+    if a.mode == 'prepare': prepare(Path(a.out).resolve(), a.candidate, a.candidate_source_manifest, a.candidate_build_result, a.candidate_provenance)
     elif a.mode == 'check':
         check(json.loads(Path(a.plan).read_text())); print('PASS: preparation paths/pins/inputs/oracles; NO workloads launched')
     else: run(Path(a.plan).resolve(), Path(a.out).resolve(), a.candidate_sha256)
