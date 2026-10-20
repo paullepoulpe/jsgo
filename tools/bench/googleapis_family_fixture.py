@@ -237,7 +237,8 @@ def specs(a):
     argv = replace_threads(argv+['--js_output_file=out.js', '--create_source_map=out.js.map', '--output_manifest=inputs.manifest'], a.threads)
     result = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-bigquery-v2-advanced', 'argv': argv, 'links': {'inputs': str(inputs), 'generated': str(fixture)},
               'inputs': sources, 'artifacts': ['out.js', 'out.js.map', 'inputs.manifest'], 'fixture_manifest_sha256': sha(fixture/'fixture-manifest.json'),
-              'semantic_check': {'script': str(HERE/'generated/verify_semantics.js'), 'entry': 'jsgoEnterpriseBigQueryV2', 'expected': 'benchmark-project|analytics|invoices|2|INT64|42|false|Revenue € 🧾|query-invoices-001'},
+              'semantic_check': {'script': str(HERE/'generated/bigquery_compiled_check.js'), 'entry': 'jsgoEnterpriseBigQueryV2', 'expected': 'benchmark-project|analytics|invoices|2|INT64|42|false|Revenue € 🧾|query-invoices-001',
+                                 'native_crosscheck_required': 'Run bigquery_native_crosscheck.py on both Node outputs before a valid performance claim'},
               'same_work': {'mode': 'ADVANCED/PRUNE/checkTypes/checkVars, complete genuine BigQueryV2 type catalog and native protobuf wire oracle', 'compiler_threads': a.threads,
                             'source_count': source_count, 'source_bytes': sum(x['bytes'] for x in sources if x['flag'] == '--js'), 'builtin_externs': embedded_externs(a.jar, Path(bench.REPO)),
                             'provided_family_schemas': record['family_schemas'], 'provided_transitive_schemas': record['all_transitive_schemas'], 'generated_js_files': record['generated_js_files'],

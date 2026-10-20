@@ -27,6 +27,10 @@ class GateQueueTest(unittest.TestCase):
             invalid = ordinary(); invalid['argv'] = argv
             with self.assertRaises(ValueError): queue.validate_spec(invalid, True)
 
+    def test_native_api_oracle_cannot_be_silently_omitted(self):
+        spec = ordinary(); spec['semantic_check']['native_crosscheck_required'] = 'both actual compiled wire payloads'
+        with self.assertRaises(ValueError): queue.validate_spec(spec, True)
+
     def test_auxiliary_source_map_not_a_fake_js_input(self):
         spec = ordinary(); spec['inputs'].append({'flag': 'input-source-map-or-sidecar', 'link': 'generated', 'relative': 'a.js.map'})
         queue.validate_spec(spec, True)

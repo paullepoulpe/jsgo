@@ -45,6 +45,8 @@ def validate_spec(spec, semantics):
         raise ValueError('need source/map/manifest artifact gates')
     if semantics and not all(spec.get('semantic_check', {}).get(key) for key in ('script', 'entry', 'expected')):
         raise ValueError('generated fixture needs its independent runtime oracle')
+    if semantics and spec['semantic_check'].get('native_crosscheck_required'):
+        raise ValueError('this API fixture also requires its separate native protobuf crosscheck; use the complete staged workflow')
     inputs = [item for item in spec['inputs'] if item['flag'] == '--js']
     paths = [item['link']+'/'+item['relative'] for item in inputs]
     actual = [argv[i+1] for i, arg in enumerate(argv) if arg == '--js']
