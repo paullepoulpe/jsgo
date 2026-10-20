@@ -18,7 +18,7 @@ six further commits, 32 changed files and PGO SHA256
 `e11b868352b3ed0d585686fa63b47f3d04e62259535497237d4804c78a060462`.
 It is now merged into PR 23 and frozen for the next paired-JVM block.
 Its bundle N1 and N2 correctness invocations match all six stock-Java
-artifacts under the actual 4 GiB cap. Its full suite is in progress.
+artifacts under the actual 4 GiB cap. Its full normal suite has passed.
 The completed N1 paired-JVM block below establishes a win on this bundle.
 
 ### Completed 5de6e335 warm-JVM comparison
@@ -63,6 +63,15 @@ The full `5de6e335` suite was explicitly paused from 09:18:49 to 09:42:48 UTC
 for the quiet timing block, then resumed automatically. Its wall time is
 not a performance measurement. A post-block fetch confirmed main still
 points to this measured source.
+
+The completed full normal run passes **29,508 checks** (3,802 top-level),
+with 103 skipped events (37 top-level) and zero failures across 21 packages.
+All 3,839 original top-level names/statuses match the actual completed 289
+run exactly. All 553 effective test-source files remain present; the only
+12 test overlays change corpus paths. No production overlay, `-short`,
+`-run` or cached test result was used. Runtime GC and CPU settings are default.
+Full live-Java CLI/corpus parity and unfiltered race coverage remain separate,
+outstanding gates.
 
 The intervening main `289058de` passed the complete all-package normal
 suite, including the test-only fail-closed corpus paths: 29,508 PASS events
@@ -113,8 +122,22 @@ Closure-style protoc 3.20.3 fixture has now passed generation, raw execution,
 all six ADVANCED Java/Go byte gates and independent execution of both
 compiled outputs under the verified cap (zero OOM events). This is a
 correctness diagnostic; it supplies no settled-JVM performance ratio.
-Soy generation, J2CL inputs and dependency-preserving 32-chunk construction
-are prepared; their remaining gates are explicitly pending.
+Soy and the modern J2CL JRE fixture now also pass all Java/Go bytes and
+independent execution of both compiled outputs. The first 2022 JRE fixture
+was incompatible with the 2026 Java compiler's registration ABI; the new
+fixture uses the unmodified published Kie J2CL packaging fork's May 2026
+JRE/bootstrap pair, with matching ABI and verified checksums. This is a JRE
+fixture, not a large production Java application. Soy includes the genuine
+same-release `soy.checks` module missing from the first failed preparation.
+All setup failures remain retained.
+
+The 32-chunk ADVANCED gate passes all 103 digest entries: 98 output artifacts,
+two expected absences, stdout/stderr/exit. Both engines use the same 1,820
+provided files, emitting 1,747 source-manifest entries exactly once. The 68
+`@externs` and five `@nocompile` files account for the difference, matching
+the pinned Java AST inventory. All 32 named chunks and the weak dependency
+record match. These correctness checks ran alongside the normal suite;
+their clocks and diagnostic memory readings are not performance comparisons.
 
 ## Verified base and remaining parity work
 
@@ -367,3 +390,47 @@ value-copy and strong-edge constraints, and a measurable break-even test;
 it is not an implemented layout or an RSS result. Current-main profiles and
 actual COW allocation-event counts are the next useful gates before larger
 rewrites. Earlier archives remain unchanged.
+
+## Fourth completed evidence cut
+
+[round4-measurement-records-v4.tar.gz](round4-measurement-records-v4.tar.gz)
+adds 778 completed new/changed records (239,342,479 original bytes), with
+473 content-addressed blobs. Eight rebuildable binaries/classes are excluded
+with hashes. It preserves the complete 5de normal run and inventory check,
+fresh byte-gated profiles, modern J2CL/Soy/32-chunk/typed correctness gates,
+and the COW mutation diagnostic, including its blocked first Docker attempt.
+Input symlinks are metadata only. Active optimization builds are excluded.
+
+Archive SHA256: `2728b3efa9c3617129956e2d535f1feb0f26bf6ab9a78538ac71da025611efe1`.
+All payloads passed the same verifier. The publication tree's 29 benchmark
+tool checks pass.
+
+The current profiles show GC-scan stack unions at 17.10% bundle / 15.75%
+typed, and `madvise` at zero / 0.04 sampled seconds. Typed source-map record
+allocation is now 39.69 MiB versus 2,377.65 MiB in the earlier profile.
+These are single diagnostic profiles, not paired speed measurements.
+Scope/Var/slot arenas still allocate about 754.61 MiB typed / 388.66 MiB
+bundle. Their observed requests and lifetimes need a census before reuse or
+growth-policy changes; allocation bytes alone do not establish retained RSS.
+
+The naive COW72 diagnostic passes 18 focused Rhino tests and both Java
+artifact gates, with four complete population and mutation snapshots per
+task. It models 1,342,450 bundle / 3,929,488 typed wrapper allocations,
+or 20.48 / 59.96 MiB, versus favorable full-slab savings of at most about
+7.19 / 25.08 MiB in sampled node-slab allocations. This argues against a
+naive per-store pair rewrite; it is **not** measured performance/RSS for an
+implemented smaller Node. A direct-pointer union could avoid allocations
+when only one metadata field exists. Its separate counter extension is
+source-only; the old counters cannot decide that question.
+
+[round4-source-manifest-v4.json](round4-source-manifest-v4.json) fingerprints
+20 frozen states in [round4-prototype-sources-v4.bundle](round4-prototype-sources-v4.bundle).
+New Sass value-result, node-slab-capacity and combined candidates remain
+unpromoted with validation/timing gates pending. The direct-union diagnostic
+is unbuilt. A complete genuine BigQuery API family has 227 generated JS
+files from 48 root schemas and 13 dependencies; raw JavaScript and native
+protobuf payload checks pass, while compiler gates and actual manifest
+counts remain pending at this cut. Its source/generator pins and semantic
+checker are included in the benchmark tools. An automatic approval rejection
+of the concurrent compiler launch is retained; no compiler ran, and that
+queue is deferred until the active build finishes. Earlier cuts are unchanged.

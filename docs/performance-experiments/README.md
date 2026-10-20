@@ -6,8 +6,10 @@ three settled, independently restarted JVM cohorts give **Java/Go time
 1.2269** (95% cohort interval 1.2096–1.2534) and **Java/Go peak RSS 3.7956**
 (3.4900–4.0768). Go takes **18.5% less time** and uses **73.7% less peak RSS**;
 all 15 alternating pairs match output. This win belongs to landed main
-changes. Full `5de6e335` validation and broader workload gates are in progress.
-The intervening `289058de` passed 29,508 normal checks. Earlier baseline
+changes. The full `5de6e335` normal suite passes 29,508 checks; genuine J2CL,
+Soy, protobuf and 32-chunk byte gates pass. Broader performance and live-Java
+parity work remains open. The intervening `289058de` also passed 29,508 normal
+checks. Earlier baseline
 and factor results below retain their original sources and cohorts.
 The raw evidence and recoverable source snapshots are now published. The sections below
 preserve the completed October 19 investigation and its original cohorts.
