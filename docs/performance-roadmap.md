@@ -14,13 +14,13 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Round 3 below):
-  after three rounds of systematic substrate, data-structure, and pass-level
-  optimizations, `jsgo` is **1.72×–4.64× faster than cold Java (`java -jar`)**
-  and **1.00×–1.18× faster than a warm JIT-compiled JVM** across all 9
-  whole-program benchmarks (including 1,818-file / 28.5 MB `ADVANCED` builds of
-  Closure Library + Google Shaka Player 5.3.1 + Google Blockly 8.0.5), while
-  using **4.0×–9.6× less peak RSS** than warm Java.
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–4 below):
+  after four rounds of systematic substrate, data-structure, and pass-level
+  optimizations, `jsgo` is **1.46×–4.90× faster than cold Java (`java -jar`)**
+  and **1.12×–1.47× faster than a warm JIT-compiled JVM** across all 11
+  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` and
+  26-library / 36.1 MB `bundle-mega` `ADVANCED` builds), while using
+  **2.7×–9.8× less peak RSS** than warm Java.
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
   1:1 port, `jsgo` was 0.65–0.74× of warm Java's speed, trailing in the
@@ -402,6 +402,56 @@ code** to Java v20261015:
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 9.16 s / 8.61 s | **7.57 s** / **7.44 s** | **−13.6%** | 15.26 s | 8.67 s | **2.02×** / **2.05× faster** | **1.14×** / **1.17× faster** (−1.23 s) | **513–552 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 9.42 s / 8.67 s | **6.20 s** / **6.05 s** | **−30.2%** | 11.30 s | 6.79 s | **1.82×** / **1.87× faster** | **1.09×** / **1.12× faster** (−0.74 s) | **412–417 MiB** vs 1,600 / 3,795 MiB (**3.8× / 9.1× lower**) |
 | **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | — / 43.29 s | **12.20 s** / **12.09 s** | **−72.1% (3.58×)** | 20.78 s | 12.41 s | **1.70×** / **1.72× faster** | **1.02×** / **1.03× faster** (−0.32 s) | **668–670 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.3× lower**) |
+
+## Round 4: Mega-Benchmarks (`typed-mega` 44.6 MB & `bundle-mega` 36.1 MB) and Deep Pass/SourceMap/Slab Optimizations (2026-10-20)
+
+To stress-test `jsgo` at even larger real-world scale and uncover additional
+bottlenecks, Round 4 added two mega-benchmarks to [`tools/bench/tasks/`](../tools/bench/tasks/)
+and executed a 6-agent parallel optimization swarm across the optimization loop,
+type inference, reference collection, AST/scope hot paths, and source-map/diagnostic
+formatting:
+
+1. **Two New Mega-Benchmarks (`typed-mega` and `bundle-mega`):**
+   - **`typed-mega`** (`tools/bench/tasks/typed-mega.json`): **4,385 files, 44.62 MB (42.56 MiB), 94.1% typed** across 10 real-world Closure `ADVANCED` codebases: Closure Library `v20230802` (971 files), NGA OpenSphere `release-23.0.1` (1,648 files), OpenLayers `4.6.5` (539 files), Google Shaka Player `5.3.1` (520 files), Google Blockly `8.0.5` (446 files), Camptocamp `ngeo@2.2.10` (203 files), YouTube SPFjs `2.4.0`, `ol-cesium@1.37.0`, `google-protobuf@3.21.2`, and `app/` → produces **14.33 MB `out.js` + 22.29 MB `out.js.map` + 3.15 MB `stderr`**.
+   - **`bundle-mega`** (`tools/bench/tasks/bundle-mega.json`): **26 UMD/browser libraries, 36.14 MB (34.47 MiB)** (`plotly.js`, `handsontable`, `echarts`, `ag-grid-community`, `pdfjs-dist`, `three.js`, `react-dom`, `pixi.js`, `fabric`, `mathjs`, `konva`, `moment`, `d3`, `google-libphonenumber`, `lodash`, `lovefield`, `vue`, `jquery`, `rxjs`, `google-protobuf`, `handlebars`, `immutable`, `chart.js`, `zone.js`, `underscore`) in `ADVANCED` mode → produces **13.09 MB `out.js` + 33.99 MB `out.js.map` + 14.01 MB `stderr` (27,597 warnings)**.
+2. **`RemoveUnusedCode`, `GlobalNamespace`, `ProcessDefines`, and `InlineAndCollapseProperties` (~970 MB allocation reduction):**
+   - Replaced pointer `*VarInfo` polymorphism in `RemoveUnusedCode` (`remove_unused_code.go`) with a single concrete 48-byte `VarInfo` struct allocated from 256-entry slabs and stored directly in a native `varInfoMap map[*Var]*VarInfo`, plus native `worklistSet map[*VarInfo]struct{}` and `removableSet map[*rhino.Node]struct{}`.
+   - Added 256-entry `refSlab` / `nameSlab` bump allocators in `GlobalNamespace` (`global_namespace.go`), replaced `GlobalNamespace_Name.AliasingGets` with `int32` and `docInfo` with a bitflag, pre-sized `globalNames`, and reused a single `NodeFilter` closure across `Ref_CreateRefForTesting`.
+3. **`ReferenceCollector`, `BasicBlock`, `InlineVariables`, and `InlineObjectLiterals`:**
+   - Added 256-entry `Reference` and `BasicBlock` slab allocators in `ReferenceCollectingCallback` (`reference_collector.go`) with an inline `blockStackBuf [16]*BasicBlock` stack, inline `provable` slice on `BasicBlock` (`basic_block.go`), and `NativeVarMap` in `ReferenceMap`.
+   - Replaced `LinkedIdentityHashMap` / `LinkedIdentityHashSet` in `InlineVariables` (`inline_variables.go`) and `InlineObjectLiterals` (`inline_object_literals.go`) with native Go maps where iteration order is not observable.
+4. **Type System & Property Disambiguation (`TypeInference`, `LinkedFlowScope`, `TypeCheck`, `TypedScopeCreator`, `DisambiguateProperties`):**
+   - Added 256-entry `LinkedFlowSlot` slab allocation (`flowSlotSlab`), pooled `FlatFlowScopeCache`, and embedded `LinkedHashMap` by value in `FlatFlowScopeCache` (`linked_flow_scope.go`), eliminating ~400 MB of flow-scope churn.
+   - Pre-bound `SyntacticScopeCreator` callback in `TypeInferencePass` (`type_inference_pass.go`), added zero-alloc `GetJSTypeBeforeCast` and fast paths in `TypeCheck` (`type_check.go`) and `TypedScopeCreator` (`typed_scope_creator.go`), and added slab-allocated union-find elements + pooled `Proprec` nodes in `DisambiguateProperties` (`disambiguate_ambiguate_properties.go`).
+5. **Inlining, Peephole, and Call Optimization Passes (`InlineSimpleMethods`, `InlineProperties`, `Peephole`, `InlineFunctions`, `OptimizeCalls`, `PureFunctionIdentifier`):**
+   - Replaced `ArrayListMultimap` in `InlineSimpleMethods` with a flat `map[string][]*rhino.Node`, replaced `Objects_Equals` reflection in `PeepholeRemoveDeadCode` and `PeepholeMinimizeConditions` with direct pointer comparisons, eliminated per-call-site slice/map allocations in `InlineFunctions` / `FunctionInjector` / `FunctionArgumentInjector`, and optimized `OptimizeCalls` and `PureFunctionIdentifier`.
+6. **AST Traversal, `Scope`, `GuardedCallback`, and SourceMap / Diagnostic Formatting:**
+   - Added 64-entry `Var` and `TypedVar` slabs on `Scope` and `TypedScope` (`scope.go`), a zero-alloc `nativeSeenSet` in `SyntacticScopeCreator` (`syntactic_scope_creator.go`), a native `map[string]bool` in `GuardedCallback` (`guarded_callback.go`), a scratch node pool in `MinimizedCondition` (`minimized_condition.go`), and direct `TraverseWithScope` walks across `NodeUtil` (`node_util.go`).
+   - Replaced per-character `Append([]byte{...})` in `Base64VLQ_Encode` (`base64_vlq.go`) and `SourceMapGeneratorV3_AddNameMap` (`source_map_generator_v3.go`) with a 4 KB stack buffer and an ASCII fast path in `Util_EscapeString` (`util.go`), cached `lastSymbolName` in `GetNameId`, increased mapping slabs to 4,096 entries, and added an ASCII fast path to `LightweightMessageFormatter.PadLine` (`lightweight_message_formatter.go`).
+   - Regenerated `cmd/jsgo/default.pgo` from 15 profiles including `typed-full` and `bundle-advanced-ts`.
+
+### Final measured results — Round 4 (`t=1` and `t=4`, interleaved, N=3, PGO enabled)
+
+#### Standard 5 Benchmarks
+
+| Benchmark | Original (`c9872522`) | Round 3 (`f0303218` `t=1`/`t=4`) | **Round 4 (`t=1` / `t=4`)** | Round 4 vs Round 3 (`t=1`/`t=4`) | Total vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-app`** | 2.86 s | 2.22 s / 2.10 s | **1.93 s** / **1.82 s** | **−13.3%** / **−13.5%** | **−32.5%** / **−36.4%** | 6.14 s / 2.18 s | **3.37×** / **1.20×** | **253–269 MiB** vs 758 / 1,871 MiB (**2.8× / 7.0× lower**) |
+| **`bundle`** (12.6 MB) | 11.82 s | 7.89 s / 7.77 s | **6.74 s** / **6.60 s** | **−14.6%** / **−15.0%** | **−43.0%** / **−44.2%** | 16.40 s / 8.68 s | **2.48×** / **1.32×** | **542 MiB** vs 2,151 / 2,343 MiB (**4.0× / 4.3× lower**) |
+| **`downlevel-whitespace`** | 0.86 s | 0.64 s / 0.55 s | **0.61 s** / **0.52 s** | **−4.7%** / **−5.9%** | **−29.1%** / **−39.5%** | 2.55 s / 0.60 s | **4.90×** / **1.15×** | **133–149 MiB** vs 553 / 1,437 MiB (**3.7× / 9.6× lower**) |
+| **`downlevel-simple`** | 2.39 s | 1.69 s / 1.60 s | **1.52 s** / **1.43 s** | **−9.7%** / **−10.6%** | **−36.4%** / **−40.2%** | 4.68 s / 1.60 s | **3.27×** / **1.12×** | **199–201 MiB** vs 613 / 1,489 MiB (**3.1× / 7.4× lower**) |
+| **`checks-only`** | 4.40 s | 3.48 s / 3.07 s | **3.21 s** / **2.82 s** | **−7.6%** / **−8.1%** | **−27.0%** / **−35.9%** | 6.55 s / 3.20 s | **2.32×** / **1.13×** | **642–685 MiB** vs 1,591 / 3,562 MiB (**2.3× / 5.2× lower**) |
+
+#### Large & Mega Real-World `ADVANCED` Benchmarks
+
+| Benchmark | Workload (`--compilation_level=ADVANCED`) | Round 3 (`f0303218` `t=1`/`t=4`) | **Round 4 (`t=1` / `t=4`)** | Round 4 vs Round 3 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 30.61 s / 29.38 s | **27.55 s** / **26.14 s** | **−10.0%** / **−11.1%** | 38.18 s | 29.53 s | **1.39×** / **1.46× faster** | **1.07×** / **1.13× faster** (−3.39 s) | **2,091–2,563 MiB** vs 6,608 / 6,881 MiB (**2.6× / 2.7× lower**) |
+| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (27,597 warnings → 13.09 MB JS + 33.99 MB map) | 42.59 s / 41.59 s | **37.68 s** / **36.35 s** | **−11.5%** / **−12.6%** | 66.71 s | 53.60 s | **1.77×** / **1.84× faster** | **1.42×** / **1.47× faster** (−17.25 s) | **2,442–2,465 MiB** vs 4,421 / 6,775 MiB (**1.8× / 2.75× lower**, −622 MiB vs R3) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 17.97 s / 17.19 s | **15.91 s** / **15.21 s** | **−11.5%** / **−11.5%** | 31.60 s | 20.21 s | **1.99×** / **2.08× faster** | **1.27×** / **1.33× faster** (−5.00 s) | **1,411–1,418 MiB** vs 1,603 / 4,724 MiB (**1.1× / 3.3× lower**) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 12.21 s / 12.11 s | **10.22 s** / **10.07 s** | **−16.3%** / **−16.8%** | 20.78 s | 12.41 s | **2.03×** / **2.06× faster** | **1.21×** / **1.23× faster** (−2.34 s) | **716–717 MiB** vs 2,422 / 2,850+ MiB (**3.4× / 4.0× lower**) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 7.66 s / 7.44 s | **6.76 s** / **6.52 s** | **−11.8%** / **−12.4%** | 15.26 s | 8.67 s | **2.26×** / **2.34× faster** | **1.28×** / **1.33× faster** (−2.15 s) | **497–569 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.0× lower**) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 6.25 s / 6.07 s | **5.21 s** / **5.03 s** | **−16.7%** / **−17.2%** | 11.30 s | 6.79 s | **2.17×** / **2.25× faster** | **1.30×** / **1.35× faster** (−1.76 s) | **363–389 MiB** vs 1,600 / 3,795 MiB (**4.1× / 9.8× lower**) |
 
 ## Smaller open items
 

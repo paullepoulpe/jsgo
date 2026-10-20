@@ -1252,13 +1252,19 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 		// Try to declare this property in the current scope if it
 		// has an authoritative name.
 		if hasQualifiedName {
-			if objRootScope == nil {
-				objRootScope = b.GetLValueRootScope(objOwner)
+			var scopeToDeclareIn *TypedScope
+			if keyNode.IsStringKey() {
+				if objRootScope == nil {
+					objRootScope = b.GetLValueRootScope(objOwner)
+				}
+				scopeToDeclareIn = objRootScope
+			} else {
+				scopeToDeclareIn = b.currentHoistScope.GetGlobalScope()
 			}
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 				ForDeclarationNode(keyNode).
 				ForVariableName(qualifiedName).
-				InScope(objRootScope).
+				InScope(scopeToDeclareIn).
 				WithType(keyType).
 				AllowLaterTypeInference(keyType == nil).
 				DefineSlot()

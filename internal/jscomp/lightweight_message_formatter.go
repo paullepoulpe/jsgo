@@ -274,6 +274,39 @@ func lightweightMessageFormatter_appendPosition(
 // Java: LightweightMessageFormatter.padLine(int, String, StringBuilder, int, Node)
 func (f *LightweightMessageFormatter) PadLine(
 	charno int, sourceExcerpt string, b *strings.Builder, errLength int, errorNode *rhino.Node) bool {
+	// Fast path for pure-ASCII source lines (avoids allocating a []uint16 slice
+	// on the heap for every warning).
+	isASCII := true
+	for i := 0; i < len(sourceExcerpt); i++ {
+		if sourceExcerpt[i] >= 0x80 {
+			isASCII = false
+			break
+		}
+	}
+	if isASCII {
+		if charno > len(sourceExcerpt) {
+			return false
+		}
+		for i := 0; i < charno; i++ {
+			c := sourceExcerpt[i]
+			if rhino.TokenUtil_IsWhitespace(int(c)) {
+				b.WriteByte(c)
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		if errorNode == nil {
+			b.WriteByte('^')
+		} else {
+			length := max(1, min(errLength, len(sourceExcerpt)-charno))
+			for i := 0; i < length; i++ {
+				b.WriteByte('^')
+			}
+		}
+		b.WriteByte('\n')
+		return true
+	}
+
 	// This can occur when somehow code is requesting to "pad" a line that is shorter than the
 	// starting charno where we will insert '^' characters.
 	// This typically indicates a bug somewhere else in the compiler, and by using checkState we

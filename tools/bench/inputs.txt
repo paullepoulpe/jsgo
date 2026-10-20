@@ -21,3 +21,21 @@ npm  core-js               3.50.0    sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMM
 npm  tslib                 2.8.1     sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==
 npm  shaka-player          5.3.1     sha512-nlhxDfgQKXfc+ecNQos/l1epXILup8C3n7CrQSm43M47vAY1WDlpIAq448YDXTRHK5vZ/4JGiDfxOVkv7vwegg==
 npm  blockly               8.0.5     sha512-jgr3PHImkFYSC2pNWZ74TmXP1HdajxeRd2DQaAt+9I+XLl9RCWvInqNHcS+blsKBTn6zOIxHK6nLzRATbLrDSw==
+npm  openlayers            4.6.5     sha512-RH1jqHJA8/d4ZuMYewBMfbFvmriplQ3GvDSLpqxad3S55PFyMWkbg3lKSt2zHRhijiFq4PpsCsJQLDqmSDGSOQ==
+npm  ngeo                  2.2.10    sha512-2Ww7hv7BMU6IjqFP0TFdTHNxacYgeDM4x+I5wxDqOv9WGUymydGdlqGavqXlSIhAVzQBO557UCux4aLO2qt0kg==
+npm  spf                   2.4.0     sha512-CSTvNESUC8ELfoK21OWhEtwnxboC+Q+li4z1fwE9X1ZRCGznY6aTu3lhzqrTGeK7KgdIojdf77ByqmmglHlDtg==
+npm  ol-cesium             1.37.0    sha512-0WuxUeibs51NAQ+AeuKmjHpJxMJAQKw47JJwVswTrXiURDuih6UJeX0ugw+c9DDxWHDtg6a/xQarlZkahQmv4Q==
+npm  google-protobuf       3.21.2    sha512-3MSOYFO5U9mPGikIYCzK0SaThypfGgS6bHqrUGXG3DPHCrb+txNqeEcns1W0lkGfk0rCyNXm7xB9rMxnCiZOoA==
+npm  google-libphonenumber 3.2.34    sha512-CLwkp0lZvMywh6dCh0T3Fm8XsfJhLAupc8AECwYkJNQBPW8wQPrv/tV0oFKCs8FMw+pTQyNPZoycgBzYjqtTZQ==
+npm  lovefield             2.1.12    sha512-uOTF9enxl7bhyGtsWMkQTeWLpaNuJ0N0d5wH2/r6upQ3pvBEKEsiix+pwo8FHlli3SmDbrvuXo6a+HD7An99OQ==
+npm  echarts               5.5.1     sha512-Fce8upazaAXUVUVsjgV6mBnGuqgO+JNDlcgF79Dksy4+wgGpQB2lmYoO4TSweFg/mZITdpGHomw/cNBJZj1icA==
+npm  pdfjs-dist            2.16.105  sha512-J4dn41spsAwUxCpEoVf6GVoz908IAA3mYiLmNxg8J9kfRXc2jxpbUepcP0ocp0alVNLFthTAM8DZ1RaHh8sU0A==
+npm  mathjs                11.12.0   sha512-UGhVw8rS1AyedyI55DGz9q1qZ0p98kyKPyc9vherBkoueLntPfKtPBh14x+V4cdUWK0NZV2TBwqRFlvadscSuw==
+npm  chart.js              4.4.4     sha512-emICKGBABnxhMjUjlYRR12PmOXhJ2eJjEHL2/dZlWjxRAZT1D8xplLFq5M0tMQK8ja+wBS/tuVEJB5C6r7VxJA==
+npm  konva                 9.3.15    sha512-6jceV1u75a41Fwky7HIg7Xr092sn9g+emE/F4KrkNey9j5IwM/No91z4g13P9kbh0NePzC20YvfyGVS5EzliUA==
+npm  fabric                5.3.0     sha512-AVayKuzWoXM5cTn7iD3yNWBlfEa8r1tHaOe2g8NsZrmWKAHjryTxT/j6f9ncRfOWOF0I1Ci1AId3y78cC+GExQ==
+npm  pixi.js               7.4.2     sha512-TifqgHGNofO7UCEbdZJOpUu7dUnpu4YZ0o76kfCqxDa4RS8ITc9zjECCbtalmuNXkVhSEZmBKQvE7qhHMqw/xg==
+npm  ag-grid-community     31.3.2    sha512-GxqFRD0OcjaVRE1gwLgoP0oERNPH8Lk8wKJ1txulsxysEQ5dZWHhiIoXXSiHjvOCVMkK/F5qzY6HNrn6VeDMTQ==
+npm  handsontable          14.3.0    sha512-XRKivPK+DkxWTYr+H6ywwLhSn/B5WMj3F3whF7O+Mo6Edm35rF8ydOm6oxVuVWnkvvy4FLqch7wgQk2w6hC8VA==
+npm  plotly.js             2.35.2    sha512-s0knlWzRvLQXxzf3JQ6qbm8FpwKuMjkr+6r04f8/yCEByAQ+I0jkUzY/hSGRGb+u7iljTh9hgpEiiJP90vjyeQ==
+git  opensphere            release-23.0.1 https://github.com/ngageoint/opensphere 9dcebfd159ed48948a4b660987815bc492bffe3d 814014978e4ff3bf58646fe5527ae27572bf4f5e 616b8ca732ddbb64ce3984a069a2c97ff14540cd1dbcc3efdf4bf7d139dfc569

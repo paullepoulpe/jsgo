@@ -310,9 +310,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 	// first element and add() appends.
 	workList := namespace.GetNameForest().ToSlice()
 
-	for len(workList) != 0 {
-		name := workList[0]
-		workList = workList[1:]
+	for i := 0; i < len(workList); i++ {
+		name := workList[i]
 
 		// Don't attempt to inline a getter or setter property as a variable.
 		if name.IsGetOrSetDefinition() {
@@ -1188,6 +1187,26 @@ func InlineAndCollapseProperties_MaybeAddPropertiesToWorklist(name *GlobalNamesp
 	}
 }
 
+func inlineAndCollapseProperties_getProperty(
+	parent *GlobalNamespace_Name,
+	propName string,
+	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name],
+) *GlobalNamespace_Name {
+	if parent.props == nil {
+		return nil
+	}
+	props := parent.props.Slice()
+	if len(props) <= 16 {
+		for _, p := range props {
+			if p.baseName == propName {
+				return p
+			}
+		}
+		return nil
+	}
+	return nameMap.Get(parent.GetFullName() + "." + propName)
+}
+
 // InlineAndCollapseProperties_MayBeGlobalAlias returns true if the alias is
 // possibly defined in the global scope, which we handle with more caution
 // than with locally scoped variables. May return false positives.
@@ -1246,8 +1265,7 @@ func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 			// e.g. if the reference is "alias.b.someProp", this will be "b".
 			propertyName := ref.GetParent().GetString()
 			// e.g. if the aliased name is "originalName", this will be "originalName.b".
-			originalPropertyName := aliasedName.GetName() + "." + propertyName
-			originalProperty, _ := namespace.GetOwnSlot(originalPropertyName).(*GlobalNamespace_Name)
+			originalProperty := inlineAndCollapseProperties_getProperty(aliasedName, propertyName, namespace.GetNameIndex())
 			// If the original property isn't in the namespace or can't be collapsed, keep going.
 			if originalProperty == nil || !originalProperty.CanCollapse() {
 				continue
@@ -1715,9 +1733,23 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *
 	// replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
 	if n.props != nil {
 		for p := range n.props.All() {
-			c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, 1, isConstantName)
+			if flattenPrefixesHasWork(p) {
+				c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, 1, isConstantName)
+			}
 		}
 	}
+}
+
+func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
+	if n.props != nil {
+		return true
+	}
+	decl := n.getDeclarationRef()
+	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
+		return true
+	}
+	refs := n.GetRefs()
+	return len(refs) > 1 || (len(refs) == 1 && refs[0] != decl)
 }
 
 // FlattenPrefixes flattens all occurrences of a name as a prefix of subnames
@@ -1750,7 +1782,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 
 	if n.props != nil {
 		for p := range n.props.All() {
-			c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, depth+1, isConstantName)
+			if flattenPrefixesHasWork(p) {
+				c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, depth+1, isConstantName)
+			}
 		}
 	}
 }
@@ -2279,8 +2313,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		}
 
 		// If the name cannot be collapsed, skip it.
-		qName := objlitName.GetFullName() + "." + propName
-		p := c.nameMap.Get(qName)
+		p := inlineAndCollapseProperties_getProperty(objlitName, propName, c.nameMap)
 		if p != nil && !c.CanCollapse(p) {
 			continue
 		}

@@ -32,11 +32,24 @@ type Util struct{}
 var Util_HEX_CHARS = [...]uint16{'0', '1', '2', '3', '4', '5', '6', '7',
 	'8', '9', 'a', 'b', 'c', 'd', 'e', 'f'}
 
+func util_needsEscape(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c <= 0x1f || c > 0x7f || c == '\\' || c == '"' || c == '>' || c == '<' {
+			return true
+		}
+	}
+	return false
+}
+
 // Util_EscapeString escapes the given string to a double quoted (")
 // JavaScript/JSON string.
 //
 // Java: Util.escapeString(String)
 func Util_EscapeString(s string) string {
+	if !util_needsEscape(s) {
+		return `"` + s + `"`
+	}
 	const quote = '"'
 	const doublequoteEscape = "\\\""
 	const singlequoteEscape = "'"

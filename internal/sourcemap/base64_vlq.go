@@ -20,6 +20,7 @@ package sourcemap
 
 import (
 	"io"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -86,18 +87,27 @@ func Base64VLQ_FromVLQSigned(value int32) int32 {
 //
 // Java: Base64VLQ.encode(Appendable, int)
 func Base64VLQ_Encode(out io.StringWriter, value int32) {
+	var buf [8]byte
+	n := base64VLQ_encodeToBytes(&buf, value)
+	appendString(out, unsafe.String(&buf[0], n))
+}
+
+func base64VLQ_encodeToBytes(buf *[8]byte, value int32) int {
 	value = Base64VLQ_ToVLQSigned(value)
+	n := 0
 	for {
 		digit := value & Base64VLQ_VLQ_BASE_MASK
 		value = jutil.Ushr32(value, Base64VLQ_VLQ_BASE_SHIFT)
 		if value > 0 {
 			digit |= Base64VLQ_VLQ_CONTINUATION_BIT
 		}
-		appendChar(out, Base64_ToBase64(digit))
+		buf[n] = byte(Base64_ToBase64(digit))
+		n++
 		if !(value > 0) {
 			break
 		}
 	}
+	return n
 }
 
 // Base64VLQ_CharIterator is a simple interface for advancing through a

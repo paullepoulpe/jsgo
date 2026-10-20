@@ -62,7 +62,7 @@ type GlobalNamespace struct {
 	root                          *rhino.Node
 	externsRoot                   *rhino.Node
 	globalRoot                    *rhino.Node
-	spreadSiblingCache            *jutil.LinkedHashMap[*rhino.Node, bool]
+	spreadSiblingCache            map[*rhino.Node]bool
 	sourceKind                    GlobalNamespace_SourceKind
 	generated                     bool
 
@@ -83,6 +83,9 @@ type GlobalNamespace struct {
 
 	// Limits traversal to scripts matching the given predicate.
 	shouldTraverseScript func(*rhino.Node) bool
+
+	nameSlab jutil.Slab[GlobalNamespace_Name]
+	refSlab  jutil.Slab[GlobalNamespace_Ref]
 }
 
 // Java: GlobalNamespace.GOOG_PROVIDE
@@ -181,7 +184,6 @@ func NewGlobalNamespaceWithLogAndRoots(
 	root *rhino.Node) *GlobalNamespace {
 	g := &GlobalNamespace{
 		globalRoot:           rhino.IR_Root(),
-		spreadSiblingCache:   jutil.NewLinkedHashMap[*rhino.Node, bool](),
 		generated:            false,
 		globalNames:          jutil.NewArrayList[*GlobalNamespace_Name](),
 		nameMap:              jutil.NewLinkedHashMap[string, *GlobalNamespace_Name](),
@@ -475,11 +477,32 @@ func (g *GlobalNamespace) GetNameFromModule(moduleMetadata *ModuleMetadataMap_Mo
 //
 // Java: GlobalNamespace.declarationHasFollowingObjectSpreadSibling(Node)
 func (g *GlobalNamespace) DeclarationHasFollowingObjectSpreadSibling(declaration *rhino.Node) bool {
-	jutil.CheckStateMsg1(declaration.GetParent().IsObjectLit(), "%s", declaration)
+	objLit := declaration.GetParent()
+	jutil.CheckStateMsg1(objLit.IsObjectLit(), "%s", declaration)
 
-	if cached, ok := g.spreadSiblingCache.Lookup(declaration); ok {
-		return cached
+	if g.spreadSiblingCache != nil {
+		if cached, ok := g.spreadSiblingCache[objLit]; ok && !cached {
+			return false
+		}
+		if cached, ok := g.spreadSiblingCache[declaration]; ok {
+			return cached
+		}
+	} else {
+		g.spreadSiblingCache = make(map[*rhino.Node]bool, 64)
 	}
+
+	hasSpread := false
+	for sibling := objLit.GetLastChild(); sibling != nil; sibling = sibling.GetPrevious() {
+		if sibling.IsSpread() {
+			hasSpread = true
+			break
+		}
+	}
+	if !hasSpread {
+		g.spreadSiblingCache[objLit] = false
+		return false
+	}
+	g.spreadSiblingCache[objLit] = true
 
 	/*
 	 * Iterate backward over all children of the object-literal, filling in the cache.
@@ -491,14 +514,14 @@ func (g *GlobalNamespace) DeclarationHasFollowingObjectSpreadSibling(declaration
 	 * the reason caching was added.
 	 */
 	toCache := false
-	for sibling := declaration.GetParent().GetLastChild(); sibling != nil; sibling = sibling.GetPrevious() {
+	for sibling := objLit.GetLastChild(); sibling != nil; sibling = sibling.GetPrevious() {
 		if sibling.IsSpread() {
 			toCache = true
 		}
-		g.spreadSiblingCache.Put(sibling, toCache)
+		g.spreadSiblingCache[sibling] = toCache
 	}
 
-	return g.spreadSiblingCache.Get(declaration)
+	return g.spreadSiblingCache[declaration]
 }
 
 // -------------------------------------------------------------------------
@@ -571,7 +594,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 	g := b.outer
 	parent := n.GetParent()
 
-	var name *string
+	var nameStr string
+	hasName := false
 	isSet := false
 	type_ := GlobalNamespace_NameProp_OTHER_OBJECT
 
@@ -580,7 +604,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		if parent.IsClassMembers() && !n.IsStaticMember() {
 			return // Within a class, only static members define global names.
 		}
-		name = NodeUtil_GetBestLValueName(n)
+		nameStr, hasName = nodeUtil_getBestLValueNameString(n)
 		isSet = true
 
 		if n.IsMemberFunctionDef() {
@@ -591,14 +615,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 			type_ = GlobalNamespace_NameProp_GET_SET
 		}
 	case rhino.Token_STRING_KEY:
-		name = nil
 		if parent.IsObjectLit() {
-			analysis := b.CreateObjLitStringKeyAnalysis(n)
-			name = analysis.NameString()
-			type_ = analysis.NameType()
+			nameStr, type_, hasName = b.analyzeObjLitStringKey(n)
 			isSet = true
 		} else if parent.IsObjectPattern() {
-			name = b.GetNameForObjectPatternKey(n)
+			nameStr, hasName = b.getNameForObjectPatternKey(n)
 			type_ = b.GetValueType(n.GetFirstChild())
 			// not a set
 		}
@@ -665,8 +686,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 			// isSet = false, type = OTHER.
 		case rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
 			if n.IsFirstChildOf(parent) && b.IsObjectHasOwnPropertyCall(parent) {
-				qname := n.GetFirstChild().GetQualifiedName()
-				globalName := b.GetOrCreateName(*qname, b.curMetadata)
+				qname, _ := n.GetFirstChild().GetQualifiedNameString()
+				globalName := b.GetOrCreateName(qname, b.curMetadata)
 				globalName.SetBooleanProperty(GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY)
 			}
 		default:
@@ -675,10 +696,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
 			}
 		}
-		if !n.IsQualifiedName() {
+		nameStr, hasName = n.GetQualifiedNameString()
+		if !hasName {
 			return
 		}
-		name = n.GetQualifiedName()
 	case rhino.Token_CALL:
 		if parent.IsExprResult() &&
 			GlobalNamespace_GOOG_PROVIDE.Matches(n.GetFirstChild()) &&
@@ -694,11 +715,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		return
 	}
 
-	if name == nil {
+	if !hasName {
 		return
 	}
 
-	root := g.GetRootNodeOfName(*name, scope)
+	root := g.GetRootNodeOfName(nameStr, scope)
 	// We are only interested in global and module names.
 	if !b.IsTopLevelScopeRoot(root) {
 		return
@@ -717,39 +738,44 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		// name set in a module scope is a 'global' set.
 		if hoistScope.IsGlobal() ||
 			(root != g.globalRoot && hoistScope.GetRootNode() == b.curModuleRoot) {
-			b.HandleSetFromGlobal(chunk, scope, n, *name, type_, nameMetadata)
+			b.HandleSetFromGlobal(chunk, scope, n, nameStr, type_, nameMetadata)
 		} else {
-			b.HandleSetFromLocal(chunk, scope, n, *name, nameMetadata)
+			b.HandleSetFromLocal(chunk, scope, n, nameStr, nameMetadata)
 		}
 	} else {
-		b.HandleGet(chunk, scope, n, *name, nameMetadata)
+		b.HandleGet(chunk, scope, n, nameStr, nameMetadata)
 	}
+}
+
+func (b *GlobalNamespace_BuildGlobalNamespace) analyzeObjLitStringKey(stringKeyNode *rhino.Node) (string, GlobalNamespace_NameProp, bool) {
+	if nameString, ok := nodeUtil_getBestLValueNameString(stringKeyNode); ok {
+		// `parent.qname = { myPropName: myValue }`;
+		// `NodeUtil.getBestLValueName()` finds the name being assigned for this case.
+		return nameString, b.GetValueType(stringKeyNode.GetOnlyChild()), true
+	}
+	// maybe we have a case like
+	// `Object.defineProperties(parentName, { myPropName: { get: ..., set: ..., ... })`
+	objLitNode := stringKeyNode.GetParent()
+	jutil.CheckArgumentMsg1(objLitNode.IsObjectLit(), "%s", objLitNode)
+	objLitParentNode := objLitNode.GetParent()
+	if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParentNode) {
+		receiverNode := objLitParentNode.GetSecondChild()
+		if qname, ok := receiverNode.GetQualifiedNameString(); ok {
+			jutil.CheckStateMsg1(objLitNode == receiverNode.GetNext(), "%s", objLitParentNode)
+			defined := qname + "." + stringKeyNode.GetString()
+			return defined, GlobalNamespace_NameProp_GET_SET, true
+		}
+	}
+	return "", GlobalNamespace_NameProp_OTHER_OBJECT, false
 }
 
 // Java: GlobalNamespace.BuildGlobalNamespace.createObjLitStringKeyAnalysis(Node)
 func (b *GlobalNamespace_BuildGlobalNamespace) CreateObjLitStringKeyAnalysis(stringKeyNode *rhino.Node) *GlobalNamespace_ObjLitStringKeyAnalysis {
-	nameString := NodeUtil_GetBestLValueName(stringKeyNode)
-	if nameString != nil {
-		// `parent.qname = { myPropName: myValue }`;
-		// `NodeUtil.getBestLValueName()` finds the name being assigned for this case.
-		return GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(
-			*nameString, b.GetValueType(stringKeyNode.GetOnlyChild()))
-	} else {
-		// maybe we have a case like
-		// `Object.defineProperties(parentName, { myPropName: { get: ..., set: ..., ... })`
-		objLitNode := stringKeyNode.GetParent()
-		jutil.CheckArgumentMsg1(objLitNode.IsObjectLit(), "%s", objLitNode)
-		objLitParentNode := objLitNode.GetParent()
-		if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParentNode) {
-			receiverNode := objLitParentNode.GetSecondChild()
-			if receiverNode.IsQualifiedName() {
-				jutil.CheckStateMsg1(objLitNode == receiverNode.GetNext(), "%s", objLitParentNode)
-				defined := *receiverNode.GetQualifiedName() + "." + stringKeyNode.GetString()
-				return GlobalNamespace_ObjLitStringKeyAnalysis_ForObjectDefineProperty(defined)
-			}
-		}
+	nameString, nameType, ok := b.analyzeObjLitStringKey(stringKeyNode)
+	if !ok {
 		return GlobalNamespace_ObjLitStringKeyAnalysis_ForNonReference()
 	}
+	return NewGlobalNamespace_ObjLitStringKeyAnalysis(&nameString, nameType)
 }
 
 // CreateNamesFromProvide declares all subnamespaces from
@@ -801,6 +827,27 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsTopLevelScopeRoot(root *rhino.N
 	return b.curModuleRoot != nil && b.curModuleRoot.IsBlock() && root == b.curModuleRoot.GetParent()
 }
 
+func (b *GlobalNamespace_BuildGlobalNamespace) getNameForObjectPatternKey(stringKey *rhino.Node) (string, bool) {
+	parent := stringKey.GetParent()
+	jutil.CheckState(parent.IsObjectPattern())
+
+	patternParent := parent.GetParent()
+	if patternParent.IsAssign() || patternParent.IsDestructuringLhs() {
+		// this is a top-level string key. we find the name.
+		rhs := patternParent.GetSecondChild()
+		if rhs == nil {
+			// The rhs is null for patterns in parameter lists, enhanced for loops, and catch exprs
+			return "", false
+		}
+		if qname, ok := rhs.GetQualifiedNameString(); ok {
+			return qname + "." + stringKey.GetString(), true
+		}
+		return "", false
+	}
+	// skip this step for nested patterns for now
+	return "", false
+}
+
 // GetNameForObjectPatternKey gets the fully qualified name corresponding to
 // an object pattern key, as long as it is not in a nested pattern and is
 // destructuring an qualified name.
@@ -811,23 +858,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsTopLevelScopeRoot(root *rhino.N
 //
 // Java: GlobalNamespace.BuildGlobalNamespace.getNameForObjectPatternKey(Node)
 func (b *GlobalNamespace_BuildGlobalNamespace) GetNameForObjectPatternKey(stringKey *rhino.Node) *string {
-	parent := stringKey.GetParent()
-	jutil.CheckState(parent.IsObjectPattern())
-
-	patternParent := parent.GetParent()
-	if patternParent.IsAssign() || patternParent.IsDestructuringLhs() {
-		// this is a top-level string key. we find the name.
-		rhs := patternParent.GetSecondChild()
-		if rhs == nil || !rhs.IsQualifiedName() {
-			// The rhs is null for patterns in parameter lists, enhanced for loops, and catch exprs
-			return nil
-		}
-		return jutil.StringPtr(*rhs.GetQualifiedName() + "." + stringKey.GetString())
-
-	} else {
-		// skip this step for nested patterns for now
-		return nil
+	if s, ok := b.getNameForObjectPatternKey(stringKey); ok {
+		return &s
 	}
+	return nil
 }
 
 // GetValueType gets the type of a value or simple expression.
@@ -1253,6 +1287,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, meta
 			parentName := jutil.StringSubstring(name, 0, i)
 			parent := b.GetOrCreateName(parentName, metadata)
 			node = parent.AddProperty(jutil.StringSubstringFrom(name, i+1), g.sourceKind)
+			node.fullName = name
 			if metadata == nil {
 				g.nameMap.Put(name, node)
 			} else {
@@ -1349,6 +1384,7 @@ type GlobalNamespace_Name struct {
 	outer *GlobalNamespace
 
 	baseName string
+	fullName string
 	parent   *GlobalNamespace_Name
 
 	// The children of this name. Must be null if there are no children.
@@ -1362,18 +1398,15 @@ type GlobalNamespace_Name struct {
 
 	// Keep track of which Nodes are Refs for this Name.
 	//
-	// This is either null, a `Map<Node, Ref>` refsForNodeMap or a singleton
-	// Ref.
-	//
-	// This makes the code using refsForNode more complex but greatly
-	// decreases the memory usage of this class. For example, one project had
-	// more than 5 million Names, and more than 80% of those Names had exactly
-	// 1 Ref, their declaration. So specializing this field to sometimes be a
-	// single Ref, not a map, saves on creating > 4 million Map instances.
-	//
-	// Go-only: language-adapter — nil, a *GlobalNamespace_Ref or a
-	// *jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref].
-	refsForNode any
+	// refsState:
+	//   0: empty
+	//   1: singleton Ref in refsBuf[0] (refsSlice == refsBuf[:1])
+	//   2: small slice in refsSlice (up to 8 refs)
+	//   3: refsMap
+	refsBuf   [2]*GlobalNamespace_Ref
+	refsSlice []*GlobalNamespace_Ref
+	refsMap   *jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref]
+	refsState uint8
 
 	globalSets              int
 	localSets               int
@@ -1408,9 +1441,18 @@ type GlobalNamespace_Name struct {
 
 // Java: GlobalNamespace.Name(String, Name, SourceKind)
 func NewGlobalNamespace_Name(outer *GlobalNamespace, name string, parent *GlobalNamespace_Name, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
-	n := &GlobalNamespace_Name{outer: outer}
+	var n *GlobalNamespace_Name
+	if outer != nil {
+		n = outer.nameSlab.New()
+		n.outer = outer
+	} else {
+		n = &GlobalNamespace_Name{}
+	}
 	n.baseName = name
 	n.parent = parent
+	if parent == nil {
+		n.fullName = name
+	}
 	n.SetBooleanProperty(GlobalNamespace_NameProp_NOT_A_TYPE)
 	n.SetBooleanProperty(GlobalNamespace_NameProp_OTHER_OBJECT)
 	if sourceKind == GlobalNamespace_SourceKind_EXTERN {
@@ -1451,10 +1493,15 @@ func (n *GlobalNamespace_Name) GetName() string {
 
 // Java: GlobalNamespace.Name.getFullName()
 func (n *GlobalNamespace_Name) GetFullName() string {
+	if n.fullName != "" {
+		return n.fullName
+	}
 	if n.parent == nil {
+		n.fullName = n.baseName
 		return n.baseName
 	}
-	return n.parent.GetFullName() + "." + n.baseName
+	n.fullName = n.parent.GetFullName() + "." + n.baseName
+	return n.fullName
 }
 
 // Java: GlobalNamespace.Name.usesHasOwnProperty()
@@ -1587,44 +1634,85 @@ func (n *GlobalNamespace_Name) AddRef(chunk *JSChunk, scope *Scope, node *rhino.
 
 // Java: GlobalNamespace.Name.checkNoExistingRefsForNode(Node)
 func (n *GlobalNamespace_Name) CheckNoExistingRefsForNode(node *rhino.Node) {
-	if n.refsForNode == nil {
+	switch n.refsState {
+	case 0:
 		return
-	}
-	if ref, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		jutil.CheckStateMsg1(ref.node != node, "Ref already exists for node: %s", ref)
+	case 1:
+		jutil.CheckStateMsg1(n.refsBuf[0].node != node, "Ref already exists for node: %s", n.refsBuf[0])
 		return
+	case 2:
+		for _, r := range n.refsSlice {
+			jutil.CheckStateMsg1(r.node != node, "Ref already exists for node: %s", r)
+		}
+		return
+	default:
+		refForNode := n.refsMap.Get(node)
+		jutil.CheckStateMsg1(refForNode == nil, "Ref already exists for node: %s", refForNode)
 	}
-	refForNode := n.CastRefsForNodeMap().Get(node)
-	jutil.CheckStateMsg1(refForNode == nil, "Ref already exists for node: %s", refForNode)
 }
 
 // Java: GlobalNamespace.Name.castRefsForNodeMap()
 func (n *GlobalNamespace_Name) CastRefsForNodeMap() *jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref] {
-	return n.refsForNode.(*jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref])
+	return n.refsMap
 }
 
 // Java: GlobalNamespace.Name.createNewRef(JSChunk, Scope, Node, Ref.Type)
 func (n *GlobalNamespace_Name) CreateNewRef(chunk *JSChunk, scope *Scope, node *rhino.Node, type_ GlobalNamespace_Ref_Type) *GlobalNamespace_Ref {
-	return NewGlobalNamespace_Ref(
-		chunk,
-		jutil.CheckNotNull(scope),
-		jutil.CheckNotNull(node), // may be null later, but not on creation
-		type_)
+	jutil.CheckNotNull(scope)
+	jutil.CheckNotNull(node) // may be null later, but not on creation
+	if n.outer != nil {
+		r := n.outer.refSlab.New()
+		r.chunk = chunk
+		r.scope = scope
+		r.node = node
+		r.type_ = type_
+		return r
+	}
+	return NewGlobalNamespace_Ref(chunk, scope, node, type_)
 }
 
 // Java: GlobalNamespace.Name.putRef(Node, Ref)
 func (n *GlobalNamespace_Name) PutRef(node *rhino.Node, ref *GlobalNamespace_Ref) {
-	if n.refsForNode == nil {
-		n.refsForNode = ref
-		return
+	switch n.refsState {
+	case 0:
+		n.refsBuf[0] = ref
+		n.refsSlice = n.refsBuf[:1]
+		n.refsState = 1
+	case 1:
+		if n.refsBuf[0].node == node {
+			n.refsBuf[0] = ref
+			n.refsState = 2
+		} else {
+			n.refsBuf[1] = ref
+			n.refsSlice = n.refsBuf[:2]
+			n.refsState = 2
+		}
+	case 2:
+		for i, r := range n.refsSlice {
+			if r.node == node {
+				next := make([]*GlobalNamespace_Ref, len(n.refsSlice))
+				copy(next, n.refsSlice)
+				next[i] = ref
+				n.refsSlice = next
+				return
+			}
+		}
+		if len(n.refsSlice) < 8 {
+			n.refsSlice = append(n.refsSlice, ref)
+			return
+		}
+		refsForNodeMap := jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *GlobalNamespace_Ref](16)
+		for _, r := range n.refsSlice {
+			refsForNodeMap.Put(r.node, r)
+		}
+		refsForNodeMap.Put(node, ref)
+		n.refsMap = refsForNodeMap
+		n.refsSlice = nil
+		n.refsBuf = [2]*GlobalNamespace_Ref{}
+		n.refsState = 3
+	default:
+		n.refsMap.Put(node, ref)
 	}
-	if existingRef, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		// Convert the singleton Ref object into a map, so that we can store a second Ref.
-		refsForNodeMap := jutil.NewLinkedHashMap[*rhino.Node, *GlobalNamespace_Ref]()
-		refsForNodeMap.Put(existingRef.node, existingRef)
-		n.refsForNode = refsForNodeMap
-	}
-	n.CastRefsForNodeMap().Put(node, ref)
 }
 
 // Java: GlobalNamespace.Name.addSingleRefForTesting(Node, Ref.Type)
@@ -1739,13 +1827,49 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode *
 	jutil.CheckStateMsg1(oldNode != nil, "Ref's node is already null: %s", ref)
 	ref.node = newNode
 
-	if n.refsForNode == nil {
-		n.refsForNode = ref
-	} else if singleton, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
+	switch n.refsState {
+	case 0:
+		n.refsBuf[0] = ref
+		n.refsSlice = n.refsBuf[:1]
+		n.refsState = 1
+	case 1:
 		// No update needed, since refsForNode is a singleton.
-		jutil.CheckState(singleton == ref)
-	} else {
-		refsForNodeMap := n.CastRefsForNodeMap()
+		jutil.CheckState(n.refsBuf[0] == ref)
+	case 2:
+		idx := -1
+		for i, r := range n.refsSlice {
+			if r.node == oldNode || r == ref {
+				idx = i
+				break
+			}
+		}
+		if newNode != nil {
+			for i, r := range n.refsSlice {
+				if i != idx && r.node == newNode {
+					jutil.CheckArgumentMsg1(false, "refs already exist: %s", r)
+				}
+			}
+		}
+		if idx >= 0 {
+			newLen := len(n.refsSlice) - 1
+			if newNode != nil {
+				newLen++
+			}
+			next := make([]*GlobalNamespace_Ref, 0, newLen)
+			next = append(next, n.refsSlice[:idx]...)
+			next = append(next, n.refsSlice[idx+1:]...)
+			if newNode != nil {
+				next = append(next, ref)
+			}
+			n.refsSlice = next
+		} else if newNode != nil {
+			next := make([]*GlobalNamespace_Ref, len(n.refsSlice)+1)
+			copy(next, n.refsSlice)
+			next[len(n.refsSlice)] = ref
+			n.refsSlice = next
+		}
+	default:
+		refsForNodeMap := n.refsMap
 		refsForNodeMap.Remove(oldNode)
 		if newNode != nil {
 			existingRefForNewNode := refsForNodeMap.Get(newNode)
@@ -1763,13 +1887,31 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode *
 //
 // Java: GlobalNamespace.Name.removeRef(Ref)
 func (n *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
-	jutil.CheckNotNullMsg1(n.refsForNode, "removeRef(%s): unknown ref", ref)
-	if singleton, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		jutil.CheckStateMsg1(singleton == ref, "removeRef(%s): unknown ref", ref)
-		n.refsForNode = nil
-	} else {
+	if n.refsState == 0 {
+		panic(jutil.NewNullPointerExceptionMsg("removeRef(" + jutil.ToJavaString(ref) + "): unknown ref"))
+	}
+	switch n.refsState {
+	case 1:
+		jutil.CheckStateMsg1(n.refsBuf[0] == ref, "removeRef(%s): unknown ref", ref)
+		n.refsBuf[0] = nil
+		n.refsSlice = nil
+		n.refsState = 0
+	case 2:
+		refNode := ref.GetNode()
+		found := false
+		for _, r := range n.refsSlice {
+			if r.node == refNode {
+				found = true
+				break
+			}
+		}
+		jutil.CheckStateMsg1(found, "removeRef(%s): unknown ref", ref)
+		if refNode != nil {
+			n.RemoveRefFromNodeMap(ref)
+		}
+	default:
 		jutil.CheckStateMsg1(
-			n.CastRefsForNodeMap().ContainsKey(ref.GetNode()), "removeRef(%s): unknown ref", ref)
+			n.refsMap.ContainsKey(ref.GetNode()), "removeRef(%s): unknown ref", ref)
 		refNode := ref.GetNode()
 		if refNode != nil {
 			n.RemoveRefFromNodeMap(ref)
@@ -1834,17 +1976,41 @@ func (n *GlobalNamespace_Name) RemoveRefAndUpdateState(ref *GlobalNamespace_Ref)
 // Java: GlobalNamespace.Name.removeRefFromNodeMap(Ref)
 func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 	refNode := jutil.CheckNotNullMsg1(ref.GetNode(), "%s", ref)
-	jutil.CheckNotNullMsg1(n.refsForNode, "Missing ref when trying to remove it: %s", ref)
-	if _, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		n.refsForNode = nil
-	} else {
-		refsForNode := n.CastRefsForNodeMap().Get(refNode)
+	if n.refsState == 0 {
+		panic(jutil.NewNullPointerExceptionMsg("Missing ref when trying to remove it: " + jutil.ToJavaString(ref)))
+	}
+	switch n.refsState {
+	case 1:
+		n.refsBuf[0] = nil
+		n.refsSlice = nil
+		n.refsState = 0
+	case 2:
+		idx := -1
+		var refsForNode *GlobalNamespace_Ref
+		for i, r := range n.refsSlice {
+			if r.node == refNode {
+				refsForNode = r
+				idx = i
+				break
+			}
+		}
 		jutil.CheckStateMsg2(
 			refsForNode == ref,
 			"Unexpected Refs for Node: %s: when removing Ref: %s",
 			refsForNode,
 			ref)
-		n.CastRefsForNodeMap().Remove(refNode)
+		next := make([]*GlobalNamespace_Ref, 0, len(n.refsSlice)-1)
+		next = append(next, n.refsSlice[:idx]...)
+		next = append(next, n.refsSlice[idx+1:]...)
+		n.refsSlice = next
+	default:
+		refsForNode := n.refsMap.Get(refNode)
+		jutil.CheckStateMsg2(
+			refsForNode == ref,
+			"Unexpected Refs for Node: %s: when removing Ref: %s",
+			refsForNode,
+			ref)
+		n.refsMap.Remove(refNode)
 	}
 }
 
@@ -1856,18 +2022,19 @@ func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 //
 // Java: GlobalNamespace.Name.getRefs()
 func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
-	if n.refsForNode == nil {
+	switch n.refsState {
+	case 0:
 		return nil
+	case 1, 2:
+		return n.refsSlice
+	default:
+		refsForNodeMap := n.refsMap
+		refs := make([]*GlobalNamespace_Ref, 0, refsForNodeMap.Size())
+		for ref := range refsForNodeMap.Values() {
+			refs = append(refs, ref)
+		}
+		return refs
 	}
-	if ref, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		return []*GlobalNamespace_Ref{ref}
-	}
-	refsForNodeMap := n.CastRefsForNodeMap()
-	refs := make([]*GlobalNamespace_Ref, 0, refsForNodeMap.Size())
-	for ref := range refsForNodeMap.Values() {
-		refs = append(refs, ref)
-	}
-	return refs
 }
 
 // GetRefForNode gets the Ref for this name that belongs to the given node.
@@ -1877,28 +2044,57 @@ func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
 // Java: GlobalNamespace.Name.getRefForNode(Node)
 func (n *GlobalNamespace_Name) GetRefForNode(node *rhino.Node) *GlobalNamespace_Ref {
 	jutil.CheckNotNull(node)
-	if n.refsForNode == nil {
+	switch n.refsState {
+	case 0:
 		return nil
-	}
-	if ref, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		if ref.GetNode() == node {
-			return ref
+	case 1:
+		if n.refsBuf[0].node == node {
+			return n.refsBuf[0]
 		}
 		return nil
+	case 2:
+		for _, r := range n.refsSlice {
+			if r.node == node {
+				return r
+			}
+		}
+		return nil
+	default:
+		return n.refsMap.Get(node)
 	}
-	return n.CastRefsForNodeMap().Get(node)
 }
 
 // Java: GlobalNamespace.Name.getFirstRef()
 func (n *GlobalNamespace_Name) GetFirstRef() *GlobalNamespace_Ref {
-	jutil.CheckNotNullMsg(n.refsForNode, "no first Ref to get")
-	if ref, ok := n.refsForNode.(*GlobalNamespace_Ref); ok {
-		return ref
+	switch n.refsState {
+	case 0:
+		panic(jutil.NewNullPointerExceptionMsg("no first Ref to get"))
+	case 1:
+		return n.refsBuf[0]
+	case 2:
+		if len(n.refsSlice) > 0 {
+			return n.refsSlice[0]
+		}
+		panic(jutil.NewNoSuchElementException())
+	default:
+		for ref := range n.refsMap.Values() {
+			return ref
+		}
+		panic(jutil.NewNoSuchElementException())
 	}
-	for ref := range n.CastRefsForNodeMap().Values() {
-		return ref
+}
+
+func (n *GlobalNamespace_Name) refCount() int {
+	switch n.refsState {
+	case 0:
+		return 0
+	case 1:
+		return 1
+	case 2:
+		return len(n.refsSlice)
+	default:
+		return n.refsMap.Size()
 	}
-	panic(jutil.NewNoSuchElementException())
 }
 
 // Java: GlobalNamespace.Name.canEliminate()
@@ -1919,7 +2115,7 @@ func (n *GlobalNamespace_Name) CanEliminate() bool {
 
 // Java: GlobalNamespace.Name.isSimpleStubDeclaration()
 func (n *GlobalNamespace_Name) IsSimpleStubDeclaration() bool {
-	if len(n.GetRefs()) == 1 {
+	if n.refCount() == 1 {
 		ref := n.GetFirstRef()
 		if ref.node.GetParent().IsExprResult() {
 			return true
