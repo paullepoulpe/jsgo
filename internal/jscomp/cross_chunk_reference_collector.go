@@ -868,15 +868,15 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 			v := scope.GetVar(n.GetString())
 
 			if v != nil && v.IsGlobal() {
+				if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
+					goto checkBoundary
+				}
 				var col *ReferenceCollection
 				if v == c.lastVar {
 					col = c.lastCollection
 				} else {
 					col = c.getExistingReferences(v)
 					if col == nil {
-						if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
-							goto checkBoundary
-						}
 						col = c.createReferencesForNewVar(v)
 					} else {
 						if c.referenceMap != nil {
