@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p=1",
+    "-pgo=off",
+    "-buildvcs=false",
+    "-overlay=/workspace/jsgo-results/round2/latest-main-focused-composed-activation-v3/overlay.json",
+    "-c",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+    "./internal/jscomp"
+  ],
+  "cwd": "/workspace/jsgo-latest-main-designs",
+  "manifest": "/workspace/jsgo-results/round2/latest-main-focused-composed-activation-v3/manifest.json",
+  "build_only": "GC20/MAX1RAMcontrol; runtimedefaults"
+}

@@ -1,0 +1,127 @@
+{
+  "typed-app": {
+    "go_s": 5.79457185100182,
+    "go_peak_RSS_MiB": 257.33203125,
+    "java_s": 3.7394,
+    "java_peak_RSS_MiB": 1090.1875,
+    "Java_over_Go_time": 0.6453280925929838,
+    "Java_over_Go_RSS": 4.236501358592529,
+    "gate": {
+      "status": "MATCH",
+      "counts": {
+        "MATCH": 1,
+        "DIFF": 0,
+        "PENDING": 0
+      },
+      "diff_kinds": {
+        "crash": 0,
+        "java-frames": 0,
+        "output": 0
+      },
+      "pending": {},
+      "crashes": {},
+      "diffs": [],
+      "matched": null
+    }
+  },
+  "bundle": {
+    "go_s": 20.30690857800073,
+    "go_peak_RSS_MiB": 612.47265625,
+    "java_s": 16.600099999999998,
+    "java_peak_RSS_MiB": 1696.55078125,
+    "Java_over_Go_time": 0.8174607147236354,
+    "Java_over_Go_RSS": 2.770002487355941,
+    "gate": {
+      "status": "MATCH",
+      "counts": {
+        "MATCH": 1,
+        "DIFF": 0,
+        "PENDING": 0
+      },
+      "diff_kinds": {
+        "crash": 0,
+        "java-frames": 0,
+        "output": 0
+      },
+      "pending": {},
+      "crashes": {},
+      "diffs": [],
+      "matched": null
+    }
+  },
+  "downlevel-whitespace": {
+    "go_s": 1.4665705070001422,
+    "go_peak_RSS_MiB": 164.90234375,
+    "java_s": 0.93825,
+    "java_peak_RSS_MiB": 930.17578125,
+    "Java_over_Go_time": 0.6397578537967347,
+    "Java_over_Go_RSS": 5.640767499703896,
+    "gate": {
+      "status": "MATCH",
+      "counts": {
+        "MATCH": 1,
+        "DIFF": 0,
+        "PENDING": 0
+      },
+      "diff_kinds": {
+        "crash": 0,
+        "java-frames": 0,
+        "output": 0
+      },
+      "pending": {},
+      "crashes": {},
+      "diffs": [],
+      "matched": null
+    }
+  },
+  "downlevel-simple": {
+    "go_s": 4.403733175000525,
+    "go_peak_RSS_MiB": 199.57421875,
+    "java_s": 2.8052,
+    "java_peak_RSS_MiB": 1118.35546875,
+    "Java_over_Go_time": 0.637004988386851,
+    "Java_over_Go_RSS": 5.60370711084144,
+    "gate": {
+      "status": "MATCH",
+      "counts": {
+        "MATCH": 1,
+        "DIFF": 0,
+        "PENDING": 0
+      },
+      "diff_kinds": {
+        "crash": 0,
+        "java-frames": 0,
+        "output": 0
+      },
+      "pending": {},
+      "crashes": {},
+      "diffs": [],
+      "matched": null
+    }
+  },
+  "checks-only": {
+    "go_s": 8.569493232003879,
+    "go_peak_RSS_MiB": 657.11328125,
+    "java_s": 6.038,
+    "java_peak_RSS_MiB": 1360.0234375,
+    "Java_over_Go_time": 0.704592422974361,
+    "Java_over_Go_RSS": 2.0696940334441005,
+    "gate": {
+      "status": "MATCH",
+      "counts": {
+        "MATCH": 1,
+        "DIFF": 0,
+        "PENDING": 0
+      },
+      "diff_kinds": {
+        "crash": 0,
+        "java-frames": 0,
+        "output": 0
+      },
+      "pending": {},
+      "crashes": {},
+      "diffs": [],
+      "matched": null
+    }
+  }
+}

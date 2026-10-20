@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-19T11:18:03.318415+00:00",
+  "source": "a6afc95f418ee25084951f1b556d5e1e33e06f3b",
+  "binary_sha256": "e82c86bf4f1df78cff2c5bcb5fec778f7030cf158d61aafa58552349e6277180",
+  "runtime_gc": "default; envunset",
+  "representation": "inlineBitSet alternative; no owned-word V2 helper"
+}

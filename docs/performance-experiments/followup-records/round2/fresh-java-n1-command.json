@@ -1,0 +1,36 @@
+{
+  "argv": [
+    "taskset",
+    "-c",
+    "0,1",
+    "python3",
+    "/workspace/jsgo-results/round2/run_fresh_java_n1.py",
+    "--repo",
+    "/workspace/jsgo-structural-bitset-template",
+    "--reference",
+    "/workspace/jsgo-results/round2/baseline",
+    "--cache",
+    "/workspace/jsgo/.cache",
+    "--out",
+    "/workspace/jsgo-results/round2/fresh-java-n1",
+    "--warmup",
+    "12",
+    "--warm-iters",
+    "10"
+  ],
+  "cwd": "/workspace",
+  "expected_duration_minutes": [
+    12,
+    15
+  ],
+  "execution": "Prepared only; wait for coordinator isolated timing reservation. Unique javac compilation happens before the five measured JVMs.",
+  "output_directory_must_not_exist": true,
+  "compiler_threads": 1,
+  "cpu_quota_expected": "200000 100000",
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "jvm_flags": [],
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6"
+}

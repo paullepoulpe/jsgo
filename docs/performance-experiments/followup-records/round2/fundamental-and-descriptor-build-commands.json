@@ -1,0 +1,50 @@
+{
+  "fundamental": {
+    "cwd": "/workspace/jsgo-fundamental-compiler-designs",
+    "source": "32a2e421",
+    "environment": {
+      "GOGC": "20",
+      "GOMAXPROCS": "1",
+      "GOCACHE": "/workspace/toolchains/cache",
+      "GOPATH": "/workspace/toolchains/gopath",
+      "GOTOOLCHAIN": "local"
+    },
+    "command": [
+      "/workspace/toolchains/go1.27.2/bin/go",
+      "build",
+      "-p=1",
+      "-buildvcs=false",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/jscomp=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/rhino=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/jutil=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4",
+      "-o",
+      "/workspace/jsgo-results/round2/bin/jsgo-fundamental-designs-l4",
+      "./cmd/jsgo"
+    ]
+  },
+  "descriptors": {
+    "cwd": "/workspace/jsgo-inline-two-word-descriptors",
+    "source": "3c7ac3c0",
+    "environment": {
+      "GOGC": "20",
+      "GOMAXPROCS": "1",
+      "GOCACHE": "/workspace/toolchains/cache",
+      "GOPATH": "/workspace/toolchains/gopath",
+      "GOTOOLCHAIN": "local"
+    },
+    "command": [
+      "/workspace/toolchains/go1.27.2/bin/go",
+      "build",
+      "-p=1",
+      "-buildvcs=false",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/jscomp=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/rhino=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/jutil=-l=4",
+      "-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4",
+      "-o",
+      "/workspace/jsgo-results/round2/bin/jsgo-bitset-descriptors-l4",
+      "./cmd/jsgo"
+    ]
+  }
+}

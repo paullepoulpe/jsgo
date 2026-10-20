@@ -1,0 +1,9 @@
+[
+  "python3",
+  "-u",
+  "/workspace/jsgo-results/round2/gate_combined.py",
+  "/workspace/jsgo-results/round2/bin/jsgo-native-live-words-l4",
+  "gates-native-live-words-l4",
+  "1,2,4",
+  "{\"JSGO_EXPERIMENT_NATIVE_CFG\": \"1\", \"JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW\": \"1\", \"JSGO_EXPERIMENT_NATIVE_REFERENCES\": \"1\", \"JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS\": \"1\", \"JSGO_EXPERIMENT_PARALLEL_FSIV\": \"1\", \"JSGO_EXPERIMENT_NATIVE_PARSER\": \"1\", \"JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR\": \"1\", \"JSGO_EXPERIMENT_READONLY_CALLEE_FACTS\": \"1\", \"JSGO_EXPERIMENT_FSIV_SCOPE_SHARING\": \"1\", \"JSGO_EXPERIMENT_CLI_SOURCE_LOCK\": \"1\", \"JSGO_EXPERIMENT_NATIVE_LIVE_VARIABLES\": \"1\", \"JSGO_EXPERIMENT_PARALLEL_COALESCE\": \"1\"}"
+]

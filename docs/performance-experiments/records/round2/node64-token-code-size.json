@@ -1,0 +1,17 @@
+{
+  "jsgo-next-balanced-l4": {
+    "instruction_lines": 2,
+    "encoded_bytes": 3,
+    "dump": "TEXT github.com/paullepoulpe/jsgo/internal/rhino.(*Node).GetToken(SB) /workspace/jsgo-round-compound-next/internal/rhino/node.go\n  node.go:679\t\t0x7230a0\t\t8b00\t\t\tMOVL 0(AX), AX\t\t\n  node.go:679\t\t0x7230a2\t\tc3\t\t\tRET\t\t\t\n"
+  },
+  "jsgo-next-node64-l4": {
+    "instruction_lines": 34,
+    "encoded_bytes": 89,
+    "dump": "TEXT github.com/paullepoulpe/jsgo/internal/rhino.(*Node).GetToken(SB) /workspace/jsgo-round-node64-parser/internal/rhino/node.go\n  node.go:682\t\t0x71e2c0\t\t90\t\t\tNOPL\t\t\t\n  node_payload.go:112\t0x71e2c1\t\t8b08\t\t\tMOVL 0(AX), CX\t\t\n  node_payload.go:112\t0x71e2c3\t\t0fb6d1\t\t\tMOVZX CL, DX\t\t\n  node_payload.go:113\t0x71e2c6\t\t81faff000000\t\tCMPL DX, $0xff\t\t\n  node_payload.go:113\t0x71e2cc\t\t7548\t\t\tJNE 0x71e316\t\t\n  node_payload.go:44\t0x71e2ce\t\tc1e908\t\t\tSHRL $0x8, CX\t\t\n  node_payload.go:44\t0x71e2d1\t\t83e107\t\t\tANDL $0x7, CX\t\t\n  node_payload.go:78\t0x71e2d4\t\t80f902\t\t\tCMPL CL, $0x2\t\t\n  node_payload.go:81\t0x71e2d7\t\t771a\t\t\tJA 0x71e2f3\t\t\n  node_payload.go:79\t0x71e2d9\t\t80f901\t\t\tCMPL CL, $0x1\t\t\n  node_payload.go:79\t0x71e2dc\t\t7508\t\t\tJNE 0x71e2e6\t\t\n  node_payload.go:80\t0x71e2de\t\t488b4838\t\tMOVQ 0x38(AX), CX\t\n  node_payload.go:80\t0x71e2e2\t\t8401\t\t\tTESTB AL, 0(CX)\t\t\n  node_payload.go:116\t0x71e2e4\t\teb2d\t\t\tJMP 0x71e313\t\t\n  node_payload.go:78\t0x71e2e6\t\t80f902\t\t\tCMPL CL, $0x2\t\t\n  node_payload.go:81\t0x71e2e9\t\t7524\t\t\tJNE 0x71e30f\t\t\n  node_payload.go:82\t0x71e2eb\t\t488b4838\t\tMOVQ 0x38(AX), CX\t\n  node_payload.go:82\t0x71e2ef\t\t8401\t\t\tTESTB AL, 0(CX)\t\t\n  node_payload.go:116\t0x71e2f1\t\teb20\t\t\tJMP 0x71e313\t\t\n  node_payload.go:83\t0x71e2f3\t\t80f903\t\t\tCMPL CL, $0x3\t\t\n  node_payload.go:83\t0x71e2f6\t\t750a\t\t\tJNE 0x71e302\t\t\n  node_payload.go:84\t0x71e2f8\t\t488b4838\t\tMOVQ 0x38(AX), CX\t\n  node_payload.go:84\t0x71e2fc\t\t8401\t\t\tTESTB AL, 0(CX)\t\t\n  node_payload.go:84\t0x71e2fe\t\t6690\t\t\tNOPW\t\t\t\n  node_payload.go:116\t0x71e300\t\teb11\t\t\tJMP 0x71e313\t\t\n  node_payload.go:85\t0x71e302\t\t80f904\t\t\tCMPL CL, $0x4\t\t\n  node_payload.go:85\t0x71e305\t\t7508\t\t\tJNE 0x71e30f\t\t\n  node_payload.go:86\t0x71e307\t\t488b4838\t\tMOVQ 0x38(AX), CX\t\n  node_payload.go:86\t0x71e30b\t\t8401\t\t\tTESTB AL, 0(CX)\t\t\n  node_payload.go:116\t0x71e30d\t\teb04\t\t\tJMP 0x71e313\t\t\n  node_payload.go:88\t0x71e30f\t\t488b4838\t\tMOVQ 0x38(AX), CX\t\n  node_payload.go:116\t0x71e313\t\t8b5108\t\t\tMOVL 0x8(CX), DX\t\n  node.go:683\t\t0x71e316\t\t89d0\t\t\tMOVL DX, AX\t\t\n  node.go:683\t\t0x71e318\t\tc3\t\t\tRET\t\t\t\n"
+  },
+  "jsgo-node64-header-l4": {
+    "instruction_lines": 8,
+    "encoded_bytes": 22,
+    "dump": "TEXT github.com/paullepoulpe/jsgo/internal/rhino.(*Node).GetToken(SB) /workspace/jsgo-node64-header/internal/rhino/node.go\n  node.go:682\t\t0x724580\t\t90\t\t\tNOPL\t\t\t\n  node_payload.go:105\t0x724581\t\t0fb608\t\t\tMOVZX 0(AX), CX\t\t\n  node_payload.go:106\t0x724584\t\t81f9ff000000\t\tCMPL CX, $0xff\t\t\n  node_payload.go:106\t0x72458a\t\t7507\t\t\tJNE 0x724593\t\t\n  node_payload.go:82\t0x72458c\t\t488b5038\t\tMOVQ 0x38(AX), DX\t\n  node_payload.go:109\t0x724590\t\t8b4a08\t\t\tMOVL 0x8(DX), CX\t\n  node.go:683\t\t0x724593\t\t89c8\t\t\tMOVL CX, AX\t\t\n  node.go:683\t\t0x724595\t\tc3\t\t\tRET\t\t\t\n"
+  }
+}

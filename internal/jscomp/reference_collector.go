@@ -1060,15 +1060,12 @@ func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversa
 }
 
 func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *NodeTraversal, scope *Scope) {
-	var collection *ReferenceCollection
-	if v == c.lastVar && v != nil {
-		collection = c.lastCollection
-	} else {
-		if !c.varFilter(v) {
-			return
-		}
-		collection = c.getOrCreateReferences(v)
+	// The public predicate may be stateful or reenter this collector. Invoke it
+	// for every reference, before consulting a cache it may change.
+	if !c.varFilter(v) {
+		return
 	}
+	collection := c.getOrCreateReferences(v)
 
 	// Add this particular reference
 	if len(c.blockStack) == 0 {

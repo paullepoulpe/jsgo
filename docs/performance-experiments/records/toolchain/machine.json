@@ -1,0 +1,43 @@
+{
+ "date": "2026-10-18 12:37 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "variants": {
+   "go124": {
+    "path": "/workspace/jsgo/bin/jsgo-go124",
+    "sha256": "132709913b97b95e5442085161b8fc8ad48e9f00d33ec3717d4325010e45b684"
+   },
+   "go127": {
+    "path": "/workspace/jsgo/bin/jsgo-go127",
+    "sha256": "56e8f5aa9551c34e140f4801ee2b2d1220a32f67785c94ca6613e7ca4d1c0968"
+   }
+  }
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  1.55,
+  1.62,
+  1.22
+ ],
+ "bench_commit": "c9872522ef49054007c7ded25ee33b634c0ea989",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/baseline",
+ "runs": 3,
+ "seed": 20261018
+}

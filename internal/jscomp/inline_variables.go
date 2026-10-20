@@ -300,13 +300,14 @@ type InlineVariables_InliningBehavior struct {
 	varToAliasRetryHandlersMap *jutil.SetMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler]
 	aliasRetryHandlers         map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
 
-	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
-	scopeExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
-	scopeExpertBuf   [32]InlineVariables_InliningBehavior_StandardVarExpert
-	retryExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
-	retryExpertBuf   [8]InlineVariables_InliningBehavior_StandardVarExpert
-	retryHandlerSlab []InlineVariables_InliningBehavior_AliasInlineRetryHandler
-	retryHandlerBuf  [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	scratchExpert      InlineVariables_InliningBehavior_StandardVarExpert
+	scratchExpertInUse bool
+	scopeExpertSlab    []InlineVariables_InliningBehavior_StandardVarExpert
+	scopeExpertBuf     [32]InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertSlab    []InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertBuf     [8]InlineVariables_InliningBehavior_StandardVarExpert
+	retryHandlerSlab   []InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	retryHandlerBuf    [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
 }
 
 // Java: InlineVariables.InliningBehavior()
@@ -452,26 +453,35 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 		b.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)
 	for v := range scope.GetVarIterable() {
 		referenceInfo := referenceMap.GetReferences(v)
-		expert := b.CreateVarExpert(v, referenceInfo, mayBeAParameterModifiedViaArguments)
-		analysis := expert.Analyze()
-		if analysis.ShouldWaitForAliasedVar() {
-			// We need to wait for the aliased variable to be handled.
-			aliasedVar := analysis.GetAliasedVar()
-			aliasedVarAnalysis := b.getHandledVarAnalysis(scope, aliasedVar)
-			if aliasedVarAnalysis != nil {
-				// We've actually already completed the aliased Var
-				b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedVarAnalysis)
-			} else {
-				// wait for completion of the aliased Var
-				if expert == &b.scratchExpert {
-					expert = b.allocRetryExpert(&b.scratchExpert)
-				}
-				retryHandler := b.allocRetryHandler(v, expert)
-				b.putAliasRetryHandler(aliasedVar, retryHandler)
-			}
+		b.analyzeVarForScope(scope, v, referenceInfo, mayBeAParameterModifiedViaArguments)
+	}
+}
+
+// analyzeVarForScope owns scratch only until this variable and its synchronous
+// alias retries finish. Reentry uses a separate stable expert instead.
+func (b *InlineVariables_InliningBehavior) analyzeVarForScope(scope *Scope, v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) {
+	wasInUse := b.scratchExpertInUse
+	b.scratchExpertInUse = true
+	defer func() { b.scratchExpertInUse = wasInUse }()
+	expert := b.createVarExpert(v, referenceInfo, mayBeAParameterModifiedViaArguments, !wasInUse)
+	analysis := expert.Analyze()
+	if analysis.ShouldWaitForAliasedVar() {
+		// We need to wait for the aliased variable to be handled.
+		aliasedVar := analysis.GetAliasedVar()
+		aliasedVarAnalysis := b.getHandledVarAnalysis(scope, aliasedVar)
+		if aliasedVarAnalysis != nil {
+			// We've actually already completed the aliased Var
+			b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedVarAnalysis)
 		} else {
-			b.completeVarAnalysis(v, analysis)
+			// wait for completion of the aliased Var
+			if expert == &b.scratchExpert {
+				expert = b.allocRetryExpert(&b.scratchExpert)
+			}
+			retryHandler := b.allocRetryHandler(v, expert)
+			b.putAliasRetryHandler(aliasedVar, retryHandler)
 		}
+	} else {
+		b.completeVarAnalysis(v, analysis)
 	}
 }
 
@@ -1053,6 +1063,12 @@ func (a *InlineVariables_InliningBehavior_VarIsAliasAnalysis) IsSafeToInlineAlia
 // Java: InlineVariables.InliningBehavior.createVarExpert(Var, ReferenceCollection, boolean)
 func (b *InlineVariables_InliningBehavior) CreateVarExpert(
 	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) InlineVariables_VarExpert {
+	return b.createVarExpert(v, referenceInfo, mayBeAParameterModifiedViaArguments, false)
+}
+
+// createVarExpert permits scratch only for the private, synchronous driver.
+func (b *InlineVariables_InliningBehavior) createVarExpert(
+	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool, useScratch bool) InlineVariables_VarExpert {
 	if referenceInfo == nil {
 		// If we couldn't collect any reference info, don't try to inline and assume it's unsafe
 		// to inline aliases of this variable, too.
@@ -1083,7 +1099,15 @@ func (b *InlineVariables_InliningBehavior) CreateVarExpert(
 		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT
 	}
 
-	return b.initScratchVarExpert(v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
+	if useScratch {
+		return b.initScratchVarExpert(v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
+	}
+	return NewInlineVariables_InliningBehavior_StandardVarExpert(b, &InlineVariables_InliningBehavior_VarExpertInitData{
+		v:                                   v,
+		referenceInfo:                       referenceInfo,
+		isDeclaredOrInferredConstant:        isDeclaredOrInferredConstant,
+		mayBeAParameterModifiedViaArguments: mayBeAParameterModifiedViaArguments,
+	})
 }
 
 // InlineVariables_InliningBehavior_VarExpertInitData is used to initialize

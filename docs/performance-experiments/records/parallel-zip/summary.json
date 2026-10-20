@@ -1,0 +1,82 @@
+{
+  "jsgo": "/workspace/jsgo/bin/jsgo-parallel-fixed-race",
+  "jsgo_sha256": "01256de7d2ab3ff844367b019695c4bfaf37e5c7d7eff79b8bb35e0389c3fd64",
+  "jar": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "threads": [
+    1,
+    2,
+    4
+  ],
+  "cases": {
+    "zipped-whitespace/threads-1": {
+      "exit_match": true,
+      "stdout_match": true,
+      "stderr_match": true,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": false,
+      "java_exit": 0,
+      "go_exit": 0,
+      "args": [
+        "--num_parallel_threads=1",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--jszip",
+        "sources.zip"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": true
+    },
+    "zipped-whitespace/threads-2": {
+      "exit_match": false,
+      "stdout_match": true,
+      "stderr_match": false,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": true,
+      "java_exit": 0,
+      "go_exit": 66,
+      "args": [
+        "--num_parallel_threads=2",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--jszip",
+        "sources.zip"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": false
+    },
+    "zipped-whitespace/threads-4": {
+      "exit_match": false,
+      "stdout_match": true,
+      "stderr_match": false,
+      "java_frames_only": false,
+      "artifacts_match": true,
+      "race_detected": true,
+      "java_exit": 0,
+      "go_exit": 66,
+      "args": [
+        "--num_parallel_threads=4",
+        "--js_output_file=.gate-output/out.js",
+        "--create_source_map=.gate-output/out.js.map",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--jszip",
+        "sources.zip"
+      ],
+      "artifact_names": [
+        "out.js",
+        "out.js.map"
+      ],
+      "match": false
+    }
+  }
+}

@@ -714,11 +714,11 @@ func scopeDumpCompare(t *testing.T, rootFor func(name string) string, paths ...s
 	}
 }
 
-func scopeDumpCorpus() string {
+func scopeDumpCorpus(t *testing.T) string {
 	if root := os.Getenv("SCOPE_CORPUS"); root != "" {
 		return root
 	}
-	return "/home/user/jsgo/.cache/corpus"
+	return oracleTestCorpusRoot(t)
 }
 
 func TestScopeDumpGolden(t *testing.T) {
@@ -730,7 +730,7 @@ func TestScopeDumpGolden(t *testing.T) {
 	for _, e := range js {
 		local[e.Name()] = true
 	}
-	corpus := scopeDumpCorpus()
+	corpus := scopeDumpCorpus(t)
 	if _, err := os.Stat(corpus); err != nil {
 		t.Logf("corpus not available (%v): comparing the hand-written inputs only", err)
 		corpus = ""
@@ -750,7 +750,7 @@ func TestScopeDumpOracle(t *testing.T) {
 	}
 	root := os.Getenv("SCOPE_ROOT")
 	if root == "" {
-		root = scopeDumpCorpus()
+		root = scopeDumpCorpus(t)
 	}
 	paths := strings.Split(oracle, ",")
 	sort.Strings(paths)

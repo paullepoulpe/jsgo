@@ -1,0 +1,42 @@
+{
+  "source": "cbd3d91cf3c2b52c73a5045413c9bdf7d9dc47cd",
+  "cwd": "/workspace/jsgo-array-specialization-reuse",
+  "normal_command": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p",
+    "1",
+    "./internal/rhino",
+    "-run",
+    "^Test(NativeArrayUnknownRecipe|TemplateTypeMap_|TemplatizedType)",
+    "-count=1",
+    "-v",
+    "-timeout=5m"
+  ],
+  "race_command": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-race",
+    "-p",
+    "1",
+    "./internal/rhino",
+    "-run",
+    "^Test(NativeArrayUnknownRecipe|TemplateTypeMap_|TemplatizedType)",
+    "-count=1",
+    "-v",
+    "-timeout=5m"
+  ],
+  "environment": {
+    "GOMAXPROCS": "1",
+    "GOCACHE": "/workspace/toolchains/cache",
+    "GOPATH": "/workspace/toolchains/gopath",
+    "GOTOOLCHAIN": "local"
+  },
+  "unset": [
+    "GOGC",
+    "GOMEMLIMIT",
+    "GODEBUG"
+  ],
+  "normal_log": "/workspace/jsgo-results/round2/tests-array-recipe-rhino-normal.log",
+  "race_log": "/workspace/jsgo-results/round2/tests-array-recipe-rhino-race.log"
+}

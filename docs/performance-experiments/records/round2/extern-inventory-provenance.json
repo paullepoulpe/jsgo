@@ -1,0 +1,51 @@
+{
+  "source_commit": "051fa54892157c04dfcaa7e352ec7be2c6a9c60b",
+  "go_version": "go version go1.27.2 linux/amd64",
+  "runtime_environment": {
+    "GOMAXPROCS": "1",
+    "GOGC": "unset",
+    "GOMEMLIMIT": "unset",
+    "GODEBUG": "unset"
+  },
+  "package": "./internal/parsing",
+  "test_filter": "^TestNativeParserBuiltinExternInventory",
+  "build_parallelism": 1,
+  "count": 1,
+  "source_hashes": {
+    "internal/parsing/native_parser_extern_inventory_test.go": "4c436bc7e25714ad6ce7dbcc76e324929f4d92d510f2384568ee8cd600f5dd0f",
+    "internal/parsing/native_parser_experiment.go": "f6d9ae6e7edafea850ec4c2258de69b1a76d6e693152fa2c9188825381399f68",
+    "internal/jscomp/default_externs.go": "6eab9404f4775586e251f8a1406b357c52db0d1a07b30f8823782763e96db016",
+    "internal/jscomp/abstract_command_line_runner.go": "35a0748064da709b18e5b731cfa1268c9f24f483930090fd97047b9f190fc7ce",
+    "internal/resources/externs.zip": "db8c50e9328e75ead4eb8b4812bd56dc69495b9771d5b69e582d2ecbd4a99f68"
+  },
+  "runs": [
+    {
+      "output": "/workspace/jsgo-results/round2/extern-inventory.json",
+      "sha256": "d28b200c6ff8480a72585fdcb696c3e432b5f4f9c229139f8869d5736cde4f1c",
+      "log": "/workspace/jsgo-results/round2/extern-inventory-test.log",
+      "allocator": "ordinary",
+      "test_runtime_s": 0.586,
+      "exit": 0
+    },
+    {
+      "output": "/workspace/jsgo-results/round2/extern-inventory-owned.json",
+      "sha256": "d28b200c6ff8480a72585fdcb696c3e432b5f4f9c229139f8869d5736cde4f1c",
+      "log": "/workspace/jsgo-results/round2/extern-inventory-owned-test.log",
+      "allocator": "owned",
+      "flags": {
+        "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+        "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1"
+      },
+      "test_runtime_s": 0.563,
+      "exit": 0
+    }
+  ],
+  "allocator_results_identical": true,
+  "benchmark_claim": false,
+  "sole_rejection": {
+    "file": "es3.js",
+    "utf16_offset": 6807,
+    "reason": "unsupported:identifier",
+    "context": "var arguments;"
+  }
+}

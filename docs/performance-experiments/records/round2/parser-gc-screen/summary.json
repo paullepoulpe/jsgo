@@ -1,0 +1,252 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.7394,
+  "java_peak_rss_mb": 1090.1875,
+  "variants": {
+   "native80": {
+    "median_s": 5.789577921997989,
+    "min_s": 5.701570723002078,
+    "max_s": 5.940233632005402,
+    "median_cpu_s": 7.264565999999999,
+    "median_peak_rss_mb": 254.6328125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.645884734669834,
+    "memory_ratio_java_over_go": 4.281410118737152,
+    "all_outputs_match": true
+   },
+   "parser80": {
+    "median_s": 5.801642855993123,
+    "min_s": 5.704898604002665,
+    "max_s": 5.964469824000844,
+    "median_cpu_s": 7.119987,
+    "median_peak_rss_mb": 256.078125,
+    "speed_vs_first_variant": 0.9979204280072719,
+    "speed_vs_java_warm": 0.644541570865084,
+    "memory_ratio_java_over_go": 4.257245713588382,
+    "all_outputs_match": true
+   },
+   "parser200": {
+    "median_s": 5.433033124994836,
+    "min_s": 5.099657883009058,
+    "max_s": 5.507356639995123,
+    "median_cpu_s": 6.151372,
+    "median_peak_rss_mb": 304.26171875,
+    "speed_vs_first_variant": 1.0656253677826586,
+    "speed_vs_java_warm": 0.6882711579277467,
+    "memory_ratio_java_over_go": 3.5830583764491406,
+    "all_outputs_match": true
+   },
+   "parser400": {
+    "median_s": 5.540624945002492,
+    "min_s": 5.200213443007669,
+    "max_s": 5.5641999390063575,
+    "median_cpu_s": 5.970732999999999,
+    "median_peak_rss_mb": 485.8359375,
+    "speed_vs_first_variant": 1.0449322918383144,
+    "speed_vs_java_warm": 0.6749058160619313,
+    "memory_ratio_java_over_go": 2.2439416598324406,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.600099999999998,
+  "java_peak_rss_mb": 1696.55078125,
+  "variants": {
+   "native80": {
+    "median_s": 19.748755931999767,
+    "min_s": 19.69097042598878,
+    "max_s": 19.995307638004306,
+    "median_cpu_s": 25.120468,
+    "median_peak_rss_mb": 565.71484375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.8405643402125464,
+    "memory_ratio_java_over_go": 2.998950442954503,
+    "all_outputs_match": true
+   },
+   "parser80": {
+    "median_s": 20.734284812002443,
+    "min_s": 20.570755041000666,
+    "max_s": 21.374532693997025,
+    "median_cpu_s": 26.179064,
+    "median_peak_rss_mb": 412.5703125,
+    "speed_vs_first_variant": 0.9524686340069862,
+    "speed_vs_java_warm": 0.8006111689172277,
+    "memory_ratio_java_over_go": 4.1121494442235225,
+    "all_outputs_match": true
+   },
+   "parser200": {
+    "median_s": 19.429462960993988,
+    "min_s": 19.173780566998175,
+    "max_s": 19.93335531699995,
+    "median_cpu_s": 22.312335,
+    "median_peak_rss_mb": 563.24609375,
+    "speed_vs_first_variant": 1.0164334429441917,
+    "speed_vs_java_warm": 0.8543777063383514,
+    "memory_ratio_java_over_go": 3.0120950683468455,
+    "all_outputs_match": true
+   },
+   "parser400": {
+    "median_s": 18.315510346990777,
+    "min_s": 18.270950877995347,
+    "max_s": 18.714580211002612,
+    "median_cpu_s": 19.847636,
+    "median_peak_rss_mb": 898.7421875,
+    "speed_vs_first_variant": 1.0782531066760295,
+    "speed_vs_java_warm": 0.9063411111952652,
+    "memory_ratio_java_over_go": 1.8876946079155765,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.93825,
+  "java_peak_rss_mb": 930.17578125,
+  "variants": {
+   "native80": {
+    "median_s": 1.4717116609972436,
+    "min_s": 1.3562639380106702,
+    "max_s": 1.5155208639916964,
+    "median_cpu_s": 1.881542,
+    "median_peak_rss_mb": 165.14453125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6375229774045782,
+    "memory_ratio_java_over_go": 5.6324952101615535,
+    "all_outputs_match": true
+   },
+   "parser80": {
+    "median_s": 1.3999069380079163,
+    "min_s": 1.3492346090060892,
+    "max_s": 1.4021394949959358,
+    "median_cpu_s": 1.783618,
+    "median_peak_rss_mb": 169.65234375,
+    "speed_vs_first_variant": 1.0512924974080822,
+    "speed_vs_java_warm": 0.6702231230706954,
+    "memory_ratio_java_over_go": 5.48283484147268,
+    "all_outputs_match": true
+   },
+   "parser200": {
+    "median_s": 1.2888749209960224,
+    "min_s": 1.269441270007519,
+    "max_s": 1.3585483610077063,
+    "median_cpu_s": 1.498735,
+    "median_peak_rss_mb": 202.1953125,
+    "speed_vs_first_variant": 1.1418576287138305,
+    "speed_vs_java_warm": 0.7279604752297726,
+    "memory_ratio_java_over_go": 4.600382519995363,
+    "all_outputs_match": true
+   },
+   "parser400": {
+    "median_s": 1.2910445290035568,
+    "min_s": 1.2384571040020091,
+    "max_s": 1.3568815920007182,
+    "median_cpu_s": 1.4165420000000002,
+    "median_peak_rss_mb": 237.05078125,
+    "speed_vs_first_variant": 1.1399387301792974,
+    "speed_vs_java_warm": 0.7267371333226998,
+    "memory_ratio_java_over_go": 3.9239515531020843,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-simple": {
+  "java_warm_s": 2.8052,
+  "java_peak_rss_mb": 1118.35546875,
+  "variants": {
+   "native80": {
+    "median_s": 4.152694738993887,
+    "min_s": 4.129229444995872,
+    "max_s": 4.391810169006931,
+    "median_cpu_s": 5.245085,
+    "median_peak_rss_mb": 202.984375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6755131730871321,
+    "memory_ratio_java_over_go": 5.509564313755677,
+    "all_outputs_match": true
+   },
+   "parser80": {
+    "median_s": 4.260870004989556,
+    "min_s": 4.147201328989468,
+    "max_s": 4.7664893829933135,
+    "median_cpu_s": 5.311968,
+    "median_peak_rss_mb": 200.08203125,
+    "speed_vs_first_variant": 0.9746119299887126,
+    "speed_vs_java_warm": 0.6583631973552491,
+    "memory_ratio_java_over_go": 5.5894847816325335,
+    "all_outputs_match": true
+   },
+   "parser200": {
+    "median_s": 3.8601193639915437,
+    "min_s": 3.808323464996647,
+    "max_s": 4.17870365800627,
+    "median_cpu_s": 4.422143999999999,
+    "median_peak_rss_mb": 248.3359375,
+    "speed_vs_first_variant": 1.0757943854616472,
+    "speed_vs_java_warm": 0.7267132789125185,
+    "memory_ratio_java_over_go": 4.503397615377356,
+    "all_outputs_match": true
+   },
+   "parser400": {
+    "median_s": 3.8465442629967583,
+    "min_s": 3.754294040001696,
+    "max_s": 3.9998044579988346,
+    "median_cpu_s": 4.181331,
+    "median_peak_rss_mb": 339.1328125,
+    "speed_vs_first_variant": 1.0795910446013206,
+    "speed_vs_java_warm": 0.7292779721750895,
+    "memory_ratio_java_over_go": 3.2976917229146028,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "checks-only": {
+  "java_warm_s": 6.038,
+  "java_peak_rss_mb": 1360.0234375,
+  "variants": {
+   "native80": {
+    "median_s": 8.276246177003486,
+    "min_s": 8.27029335500265,
+    "max_s": 8.321502335005789,
+    "median_cpu_s": 10.233509000000002,
+    "median_peak_rss_mb": 658.65234375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7295578056604075,
+    "memory_ratio_java_over_go": 2.0648578121756667,
+    "all_outputs_match": true
+   },
+   "parser80": {
+    "median_s": 8.176448302998324,
+    "min_s": 8.154582643008325,
+    "max_s": 8.238858505996177,
+    "median_cpu_s": 10.078882,
+    "median_peak_rss_mb": 652.2578125,
+    "speed_vs_first_variant": 1.0122055286484923,
+    "speed_vs_java_warm": 0.7384624443581268,
+    "memory_ratio_java_over_go": 2.085101031273581,
+    "all_outputs_match": true
+   },
+   "parser200": {
+    "median_s": 7.748162603995297,
+    "min_s": 7.67393618299684,
+    "max_s": 7.9717532619979465,
+    "median_cpu_s": 8.90164,
+    "median_peak_rss_mb": 882.19921875,
+    "speed_vs_first_variant": 1.0681559745191571,
+    "speed_vs_java_warm": 0.7792815288732504,
+    "memory_ratio_java_over_go": 1.5416284764194594,
+    "all_outputs_match": true
+   },
+   "parser400": {
+    "median_s": 7.398069188988302,
+    "min_s": 7.297880824000458,
+    "max_s": 7.818153011001414,
+    "median_cpu_s": 7.926604,
+    "median_peak_rss_mb": 1001.484375,
+    "speed_vs_first_variant": 1.1187035381234758,
+    "speed_vs_java_warm": 0.816158898457897,
+    "memory_ratio_java_over_go": 1.3580076449020984,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

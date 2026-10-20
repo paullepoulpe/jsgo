@@ -1,0 +1,813 @@
+{
+  "schema": "jsgo-round4-source-bundle-v2",
+  "note": "Experimental snapshots only; source-only names mean no compiled validation. No experimental compiler optimization promoted. Frozen sourceprerequisites all present in main5de/PR23 history.",
+  "bundle": "round4-prototype-sources-v2.bundle",
+  "bytes": 193631,
+  "sha256": "087ee8144991d7568fdad606a0eaf03b481def7a83a5ec35ab076269c36ace08",
+  "prerequisites": [
+    "2262bb6a8a9d24ee34fdb52bd30c49269e4b5373",
+    "289058def0873f349f80e49e6777afe3091e18a9",
+    "5de6e3359349d70e60c98788e5e62b78cf1cb0e7"
+  ],
+  "verification": "The bundle contains these 11 refs:\n30092a8d29206330780b5b3202bb402f8e41c201 refs/round4-snapshot-v2/sourcefile-race-passed\n6418a8107b904603d6f19f5f8ffa32fbd116d382 refs/round4-snapshot-v2/dae-289-compiled\nfdef8f8d46c5ac47261768c1bfe2a51e5fb26bdc refs/round4-snapshot-v2/dae-cfg-289-fixtures-corrected\n168d20fae9bb85c1d9528a3673a64009dd8764ac refs/round4-snapshot-v2/node-census-289-tested\n7b8e5d4bc85eed83e70705c2cb7b5c2d85343785 refs/round4-snapshot-v2/node-cow72-source-only\n1c475a9236e3d73b094c0389b317ab0932a1782f refs/round4-snapshot-v2/dae-5de-source-only\n0bff4342ccf19b25617ea1a4bf3333c0e02d6228 refs/round4-snapshot-v2/window-source-audit-only\n95d31fd398a01d8b272797a0adf1f0bd524da5a7 refs/round4-snapshot-v2/dpae-reentry-probe-only\n64a9142af9ca51048a7c547518d946612e7dad29 refs/round4-snapshot-v2/cfg-degree-source-only\na6f11c7d7217fb9ae9d62324a7d08a456f35c504 refs/round4-snapshot-v2/benchmark-validated-preparation\n19c3179833f87bd64d0f1204b8a49ef72ec39d00 refs/round4-snapshot-v2/closure-protobuf-preparation\nThe bundle requires these 3 refs:\n2262bb6a8a9d24ee34fdb52bd30c49269e4b5373 \n289058def0873f349f80e49e6777afe3091e18a9 \n5de6e3359349d70e60c98788e5e62b78cf1cb0e7 \nThe bundle uses this hash algorithm: sha1\ndocs/performance-experiments/round4-prototype-sources-v2.bundle is okay\n",
+  "snapshots": [
+    {
+      "name": "sourcefile-race-passed",
+      "ref": "refs/round4-snapshot-v2/sourcefile-race-passed",
+      "commit": "30092a8d29206330780b5b3202bb402f8e41c201",
+      "tree": "bd28d9ee0cff338c58736a189e5e222d952fd212",
+      "source_main_ancestor": "2262bb6a8a9d24ee34fdb52bd30c49269e4b5373",
+      "changed_files": [
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11117,
+          "sha256": "61005e55efdd86b9c1c53484d2aea9e97785b30fb6b3b60920b75bfed6484f1b"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "dae-289-compiled",
+      "ref": "refs/round4-snapshot-v2/dae-289-compiled",
+      "commit": "6418a8107b904603d6f19f5f8ffa32fbd116d382",
+      "tree": "de779012a6d8ffb19d08dc88a2201a697adab219",
+      "source_main_ancestor": "289058def0873f349f80e49e6777afe3091e18a9",
+      "changed_files": [
+        {
+          "path": "docs/dae-read-only-scope-window.md",
+          "bytes": 3888,
+          "sha256": "29b575cbdc645e21fca2c172d7cde77cd989134510ca74892f931fe3a4371e96"
+        },
+        {
+          "path": "docs/parallel-dead-assignment-analysis.md",
+          "bytes": 8746,
+          "sha256": "eddd766a2235ad5a6526c92ffa42e75ecc0c80e2a8ca8555a14786eb7d6f6e48"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window.go",
+          "bytes": 8582,
+          "sha256": "c134f9e906c255e1ff8f282a46acb90ef91201f031fac71f776290fbd8284074"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window_test.go",
+          "bytes": 12093,
+          "sha256": "747e3646c85aecf43a3a1bfb96dec431253007a3dd747901e8aa6fe692179da1"
+        },
+        {
+          "path": "internal/jscomp/dead_assignments_elimination.go",
+          "bytes": 22473,
+          "sha256": "a9673a95094a5fbbc5e2fcb3de98199144e8bdb999c07ea3ca1b4cc10bdaa633"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 119993,
+          "sha256": "c149f4ef1a0ac8664b7c21dfb087ef0de97eaa4345097745030c4b6dd43a84d2"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 69926,
+          "sha256": "4871cb7d932a08bb46a6c0745dc18862d21e5bf655ce75cf613033e1be83c82b"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments.go",
+          "bytes": 9335,
+          "sha256": "d21b82f043f38fc53c02521a65d8eff4b4306ddd8bd7dbfd555deb5eb0accc11"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments_test.go",
+          "bytes": 21455,
+          "sha256": "757c7ce17d0f3cf7a9e66dcd8e531bba708efd17a29e693f84bffb983e6a8b6d"
+        },
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11117,
+          "sha256": "61005e55efdd86b9c1c53484d2aea9e97785b30fb6b3b60920b75bfed6484f1b"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "dae-cfg-289-fixtures-corrected",
+      "ref": "refs/round4-snapshot-v2/dae-cfg-289-fixtures-corrected",
+      "commit": "fdef8f8d46c5ac47261768c1bfe2a51e5fb26bdc",
+      "tree": "db8863c224ee28af83d2e32ca24afb42f121cb15",
+      "source_main_ancestor": "289058def0873f349f80e49e6777afe3091e18a9",
+      "changed_files": [
+        {
+          "path": "docs/dae-read-only-scope-window.md",
+          "bytes": 3888,
+          "sha256": "29b575cbdc645e21fca2c172d7cde77cd989134510ca74892f931fe3a4371e96"
+        },
+        {
+          "path": "docs/parallel-dead-assignment-analysis.md",
+          "bytes": 8746,
+          "sha256": "eddd766a2235ad5a6526c92ffa42e75ecc0c80e2a8ca8555a14786eb7d6f6e48"
+        },
+        {
+          "path": "internal/jscomp/control_flow_analysis.go",
+          "bytes": 46502,
+          "sha256": "67717b3ac4d0687492e50c643ebafe9992bd89fab9c846622ce7500cb327b453"
+        },
+        {
+          "path": "internal/jscomp/dae_cfg_pool_integration.go",
+          "bytes": 3353,
+          "sha256": "e96ace9fe8beaf231e0d1ae515d495be2ab77c95d2155a4f05b7c35ce2f1a006"
+        },
+        {
+          "path": "internal/jscomp/dae_cfg_pool_integration_test.go",
+          "bytes": 16356,
+          "sha256": "2f641b7e36af1657b2200710127bf4bf2b6dd485e159fb2a87350581a3ac0dda"
+        },
+        {
+          "path": "internal/jscomp/dae_private_cfg_pool.go",
+          "bytes": 5400,
+          "sha256": "3205feeb3bb684eaf0aa8cee8e6ea25e48a454129774375d059994b925fdeaf2"
+        },
+        {
+          "path": "internal/jscomp/dae_private_cfg_pool_test.go",
+          "bytes": 12788,
+          "sha256": "c9de98553e5112488a4ba91c390c7c31a8029af1199e6e211a649b943ca72517"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window.go",
+          "bytes": 8582,
+          "sha256": "c134f9e906c255e1ff8f282a46acb90ef91201f031fac71f776290fbd8284074"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window_test.go",
+          "bytes": 12368,
+          "sha256": "69b78bc0d1c88e1065d488d12e3c0c2facebf70fde786e2677d409bc0897d06c"
+        },
+        {
+          "path": "internal/jscomp/dead_assignments_elimination.go",
+          "bytes": 23502,
+          "sha256": "6a9222706b76f3db220a3bd27ed126c618be63eb1892c2c9fa55a0624c502c21"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 119993,
+          "sha256": "c149f4ef1a0ac8664b7c21dfb087ef0de97eaa4345097745030c4b6dd43a84d2"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 69926,
+          "sha256": "4871cb7d932a08bb46a6c0745dc18862d21e5bf655ce75cf613033e1be83c82b"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments.go",
+          "bytes": 10199,
+          "sha256": "612e60ade03942a83ebdec64d498a7c96c1685234d221a67b43f59ee3b903bed"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments_test.go",
+          "bytes": 21455,
+          "sha256": "757c7ce17d0f3cf7a9e66dcd8e531bba708efd17a29e693f84bffb983e6a8b6d"
+        },
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11117,
+          "sha256": "61005e55efdd86b9c1c53484d2aea9e97785b30fb6b3b60920b75bfed6484f1b"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "node-census-289-tested",
+      "ref": "refs/round4-snapshot-v2/node-census-289-tested",
+      "commit": "168d20fae9bb85c1d9528a3673a64009dd8764ac",
+      "tree": "8e2503abae474fff94292fd360efad4b6df51276",
+      "source_main_ancestor": "289058def0873f349f80e49e6777afe3091e18a9",
+      "changed_files": [
+        {
+          "path": "docs/node-cold-tuple-census.md",
+          "bytes": 8042,
+          "sha256": "cce176116e4ade13cea9ff65e82d9618d0245a6c7268943e244db66f0888ea67"
+        },
+        {
+          "path": "internal/jscomp/compiler.go",
+          "bytes": 187586,
+          "sha256": "adedbcb68a92ea14dd0b82e169f42b2dc08758885faa881e336546bcda028905"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_disabled.go",
+          "bytes": 254,
+          "sha256": "d8f95ad162af415b56bf103539deeb237b7cd3e9d9d2d5910944c651272fead2"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled.go",
+          "bytes": 1452,
+          "sha256": "d9b40e8b55b8b45f689f7a79eaeee51f13625117c185b16f6f56829c8c522be5"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled_test.go",
+          "bytes": 1930,
+          "sha256": "461af0d7cf84e66939920f4fa4fbfac1ad28bbbb0bd605222e610d9278f237dd"
+        },
+        {
+          "path": "internal/rhino/node_cold_census.go",
+          "bytes": 16059,
+          "sha256": "089be9d296a50d9e6fbc0ed87c0011074cfc6f46e863b8e84b82dc200876faf3"
+        },
+        {
+          "path": "internal/rhino/node_cold_census_test.go",
+          "bytes": 13572,
+          "sha256": "a00553811cbeface8243cd00b05abff25ac62f1596f520d9884864130c803059"
+        }
+      ]
+    },
+    {
+      "name": "node-cow72-source-only",
+      "ref": "refs/round4-snapshot-v2/node-cow72-source-only",
+      "commit": "7b8e5d4bc85eed83e70705c2cb7b5c2d85343785",
+      "tree": "71b77ffb14e0d49275060b36d41b839ebc7df7cc",
+      "source_main_ancestor": "289058def0873f349f80e49e6777afe3091e18a9",
+      "changed_files": [
+        {
+          "path": "docs/node-cold-tuple-census.md",
+          "bytes": 8374,
+          "sha256": "063f1f0da8814dbc12bd00a74198fd9f4afa42c6645abf433b66da3869b0fd0f"
+        },
+        {
+          "path": "docs/node72-pair-mutation-diagnostic.md",
+          "bytes": 8278,
+          "sha256": "539697dfded4370cd17baa494c25fdffb01d3a407bc68ea9955430c0f0089481"
+        },
+        {
+          "path": "internal/jscomp/compiler.go",
+          "bytes": 187586,
+          "sha256": "adedbcb68a92ea14dd0b82e169f42b2dc08758885faa881e336546bcda028905"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_disabled.go",
+          "bytes": 254,
+          "sha256": "d8f95ad162af415b56bf103539deeb237b7cd3e9d9d2d5910944c651272fead2"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled.go",
+          "bytes": 1452,
+          "sha256": "d9b40e8b55b8b45f689f7a79eaeee51f13625117c185b16f6f56829c8c522be5"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled_test.go",
+          "bytes": 1930,
+          "sha256": "461af0d7cf84e66939920f4fa4fbfac1ad28bbbb0bd605222e610d9278f237dd"
+        },
+        {
+          "path": "internal/rhino/node.go",
+          "bytes": 156016,
+          "sha256": "57111c4d11465abb59c440768067e1cf65d2d5b28273b4b36b202cacd81e32da"
+        },
+        {
+          "path": "internal/rhino/node_cold_census.go",
+          "bytes": 16250,
+          "sha256": "7d218f1be2f74e364c1463807be02eb0463b9b362b2beed460361fccf1c33f10"
+        },
+        {
+          "path": "internal/rhino/node_cold_census_test.go",
+          "bytes": 13841,
+          "sha256": "38ef7f993cdba128dc2460f9f0e0040f70fc12d2cf34963ca5f65fdabfb27236"
+        },
+        {
+          "path": "internal/rhino/node_pair_mutation_disabled.go",
+          "bytes": 480,
+          "sha256": "7554545dddd3fb7e51cc807dfa92c4b24883ed3135e4bf69b0be679349ef230a"
+        },
+        {
+          "path": "internal/rhino/node_pair_mutation_enabled.go",
+          "bytes": 11215,
+          "sha256": "0ed30a37f975f208ff160450902ea6ec59f697c7e929ce878f2ac8b862fa0824"
+        },
+        {
+          "path": "internal/rhino/node_pair_mutation_ops.go",
+          "bytes": 1085,
+          "sha256": "eae553d90f4208fd8e843b63640e58837962f78aed87280740da8e1e6330c023"
+        },
+        {
+          "path": "internal/rhino/node_pair_mutation_test.go",
+          "bytes": 9713,
+          "sha256": "32b5eed00d69e7824e9b865330f274d0ebc3cd0daad261b46dadce6c6c0672d3"
+        }
+      ]
+    },
+    {
+      "name": "dae-5de-source-only",
+      "ref": "refs/round4-snapshot-v2/dae-5de-source-only",
+      "commit": "1c475a9236e3d73b094c0389b317ab0932a1782f",
+      "tree": "8ec2302b21527af6d3b446cb288acce6a72af0e4",
+      "source_main_ancestor": "5de6e3359349d70e60c98788e5e62b78cf1cb0e7",
+      "changed_files": [
+        {
+          "path": "docs/dae-read-only-scope-window.md",
+          "bytes": 4138,
+          "sha256": "faa96782bbce1db4265ab0d9a9e3e9a5d891df6df9b712fa157e63e895c4d098"
+        },
+        {
+          "path": "docs/parallel-dead-assignment-analysis.md",
+          "bytes": 11486,
+          "sha256": "b422af5c8f5c0c3615affde2515d2ed3badbf1cb71b3450aa9c88a6190e6cd66"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window.go",
+          "bytes": 9386,
+          "sha256": "3538f5c7b41ea8a5b2992b18ab1dc18e67fb9f3493d98fa0e35df625cabc979b"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window_test.go",
+          "bytes": 12368,
+          "sha256": "69b78bc0d1c88e1065d488d12e3c0c2facebf70fde786e2677d409bc0897d06c"
+        },
+        {
+          "path": "internal/jscomp/dead_assignments_elimination.go",
+          "bytes": 22649,
+          "sha256": "056e9a78959bb6b1443d5356c7979d48361785abfd3622e16d5966f8a453d4c0"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 119993,
+          "sha256": "c149f4ef1a0ac8664b7c21dfb087ef0de97eaa4345097745030c4b6dd43a84d2"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 70618,
+          "sha256": "c685516999bb3b0c0fed6642fa0282882655df9e2e4c2fa26eba9ed089a7ce97"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments.go",
+          "bytes": 10137,
+          "sha256": "dae81d2f7fc1e771bfdb0ce531c647d2c2c122223e543e8bc25f2f32d88e8529"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments_test.go",
+          "bytes": 24925,
+          "sha256": "c75dedc509137d56befb2741eb6da8aa1c9803f2a1c8af2e66c192b3887c8809"
+        },
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11117,
+          "sha256": "61005e55efdd86b9c1c53484d2aea9e97785b30fb6b3b60920b75bfed6484f1b"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "window-source-audit-only",
+      "ref": "refs/round4-snapshot-v2/window-source-audit-only",
+      "commit": "0bff4342ccf19b25617ea1a4bf3333c0e02d6228",
+      "tree": "f73c7cccc4bafee1c85cf9e2d947d8b250461049",
+      "source_main_ancestor": "5de6e3359349d70e60c98788e5e62b78cf1cb0e7",
+      "changed_files": [
+        {
+          "path": "docs/dae-read-only-scope-window.md",
+          "bytes": 4138,
+          "sha256": "faa96782bbce1db4265ab0d9a9e3e9a5d891df6df9b712fa157e63e895c4d098"
+        },
+        {
+          "path": "docs/parallel-dead-assignment-analysis.md",
+          "bytes": 11486,
+          "sha256": "b422af5c8f5c0c3615affde2515d2ed3badbf1cb71b3450aa9c88a6190e6cd66"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window.go",
+          "bytes": 9386,
+          "sha256": "3538f5c7b41ea8a5b2992b18ab1dc18e67fb9f3493d98fa0e35df625cabc979b"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window_test.go",
+          "bytes": 12368,
+          "sha256": "69b78bc0d1c88e1065d488d12e3c0c2facebf70fde786e2677d409bc0897d06c"
+        },
+        {
+          "path": "internal/jscomp/dead_assignments_elimination.go",
+          "bytes": 22649,
+          "sha256": "056e9a78959bb6b1443d5356c7979d48361785abfd3622e16d5966f8a453d4c0"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 119993,
+          "sha256": "c149f4ef1a0ac8664b7c21dfb087ef0de97eaa4345097745030c4b6dd43a84d2"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 70618,
+          "sha256": "c685516999bb3b0c0fed6642fa0282882655df9e2e4c2fa26eba9ed089a7ce97"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments.go",
+          "bytes": 10137,
+          "sha256": "dae81d2f7fc1e771bfdb0ce531c647d2c2c122223e543e8bc25f2f32d88e8529"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments_test.go",
+          "bytes": 24925,
+          "sha256": "c75dedc509137d56befb2741eb6da8aa1c9803f2a1c8af2e66c192b3887c8809"
+        },
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11117,
+          "sha256": "61005e55efdd86b9c1c53484d2aea9e97785b30fb6b3b60920b75bfed6484f1b"
+        },
+        {
+          "path": "tools/bench/dae_scope_window_source_audit/README.md",
+          "bytes": 2967,
+          "sha256": "907a46cc4ab0b00c567082de52ca44f43b8ad69d552d93dab069aa497f877685"
+        },
+        {
+          "path": "tools/bench/dae_scope_window_source_audit/source_accessor_test.go.in",
+          "bytes": 2498,
+          "sha256": "00d930e3947c9ac2ee560f945a3f8a937dd8347e7d861bf8a097313262d9a6aa"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "dpae-reentry-probe-only",
+      "ref": "refs/round4-snapshot-v2/dpae-reentry-probe-only",
+      "commit": "95d31fd398a01d8b272797a0adf1f0bd524da5a7",
+      "tree": "7053eae98ee415ee05612192b337660c3b84b59b",
+      "source_main_ancestor": "5de6e3359349d70e60c98788e5e62b78cf1cb0e7",
+      "changed_files": [
+        {
+          "path": "internal/jscomp/round5_dpae_reentry_probe_test.go",
+          "bytes": 2400,
+          "sha256": "18bd66d77367befc4ee1165ab59c1c1993a0a5586cc391f7c06aa1b5947878ea"
+        }
+      ]
+    },
+    {
+      "name": "cfg-degree-source-only",
+      "ref": "refs/round4-snapshot-v2/cfg-degree-source-only",
+      "commit": "64a9142af9ca51048a7c547518d946612e7dad29",
+      "tree": "01ad8ed1acb8f90a0c271644b427d6c18a544bc5",
+      "source_main_ancestor": "289058def0873f349f80e49e6777afe3091e18a9",
+      "changed_files": [
+        {
+          "path": "tools/bench/cfg_degree_census/README.md",
+          "bytes": 8211,
+          "sha256": "93f43acb38458383b8c81b45f0e44a2e9a94a2134006eb17527f3a16591d41ab"
+        },
+        {
+          "path": "tools/bench/cfg_degree_census/make_overlay.py",
+          "bytes": 5652,
+          "sha256": "d3a825aa4c293ab0b9adc0e7c518792610b1a1aa34cd4d8b50df7aa793cbd8c8"
+        },
+        {
+          "path": "tools/bench/cfg_degree_census/record.go.in",
+          "bytes": 9448,
+          "sha256": "52308189764111ae1cbe3484f63d4f0eeb8980d6f4faab29d641bf9cf7ad5975"
+        },
+        {
+          "path": "tools/bench/cfg_degree_census/report.py",
+          "bytes": 4539,
+          "sha256": "289f32d46f622c81efb9c38d430e1c0fa340a4c1c7bd6d51cd93a598bcde1e16"
+        }
+      ]
+    },
+    {
+      "name": "benchmark-validated-preparation",
+      "ref": "refs/round4-snapshot-v2/benchmark-validated-preparation",
+      "commit": "a6f11c7d7217fb9ae9d62324a7d08a456f35c504",
+      "tree": "3dec554f6ef6d7f7899b9cd9b60822c99795d0a1",
+      "source_main_ancestor": "2262bb6a8a9d24ee34fdb52bd30c49269e4b5373",
+      "changed_files": [
+        {
+          "path": "docs/enterprise-benchmark.md",
+          "bytes": 9496,
+          "sha256": "fcd2e7778220d6939a36d4006633ff691fb4843f345307ad202e81952181589c"
+        },
+        {
+          "path": "tools/bench/capped_cli.py",
+          "bytes": 1845,
+          "sha256": "284fac04572b51bccf17e6aa070439c7868a0559db923faef5ac7fd31110322c"
+        },
+        {
+          "path": "tools/bench/capped_java_oracle.py",
+          "bytes": 9848,
+          "sha256": "85d809a2975714be1d8c35a4018125ee02c3d9dd4ac3dcf7ecdaed4a1e012cbb"
+        },
+        {
+          "path": "tools/bench/capped_java_oracle_test.py",
+          "bytes": 9052,
+          "sha256": "0ae54817ba92e2c90733ef61e8a17a7fda9ba7b2c186a0ac2f2552a5e9161741"
+        },
+        {
+          "path": "tools/bench/cgroup_exec.py",
+          "bytes": 760,
+          "sha256": "3b19b27b04a146b3793b917ab1eef30573ca92bcff06360acfb964ac7b6d025e"
+        },
+        {
+          "path": "tools/bench/enterprise_specs.py",
+          "bytes": 9784,
+          "sha256": "9bc36ac9f67bead83e23d5b8e28cb8ca5ec861a221f70a71c02f9afcb304575b"
+        },
+        {
+          "path": "tools/bench/generated/assets.json",
+          "bytes": 4242,
+          "sha256": "1cc82dec222063b3b5d0249dd9c2f32358f949cdb4cf3c2ac2e3b64715d1218c"
+        },
+        {
+          "path": "tools/bench/generated/j2cl_entry.js",
+          "bytes": 806,
+          "sha256": "c2d641c20893a92cb407a31cd43d89dc8dc59dc9085728502ae5f736f3935b7c"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_entry.js",
+          "bytes": 2053,
+          "sha256": "4227b81572ee50c6ad736f97f22f0cb8b189b0baffcb81065c98139adb150425"
+        },
+        {
+          "path": "tools/bench/generated/soy_entry.js",
+          "bytes": 507,
+          "sha256": "d2a3f47c6480012b1c2a93ece1d19d3e34d422ed7a85acc145db388a12ff93ae"
+        },
+        {
+          "path": "tools/bench/generated/verify_semantics.js",
+          "bytes": 903,
+          "sha256": "efb75d48b1533d996ec80aba9fc227cbbcbd805261e7d98bf9204f1942c49761"
+        },
+        {
+          "path": "tools/bench/generated_fixtures.py",
+          "bytes": 15989,
+          "sha256": "41e690854be2224f856529e97c1bd138e84c1313e4a5eee679caf55b97725488"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.md",
+          "bytes": 2978,
+          "sha256": "c4c30acd99363f8762fffe0b9687daa7338bc707ed573e51d6fa0c74f4891b37"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.py",
+          "bytes": 14329,
+          "sha256": "c8ad2393bab3f070fc168d65d395c7b36189ffae63e360fe97228052c387ae58"
+        },
+        {
+          "path": "tools/bench/go_factor_screen_test.py",
+          "bytes": 5902,
+          "sha256": "dd7788ff68c0a7e513a82c381344e91e519ca7a70e6f5a7f4175f3f543edfce8"
+        },
+        {
+          "path": "tools/bench/java/CliDependencyInventory.java",
+          "bytes": 5782,
+          "sha256": "4f392994b230b6900888c8b6420dc3f007b603eba97a9d4cde4fcb0986ed76a0"
+        },
+        {
+          "path": "tools/bench/java/CliPaired.java",
+          "bytes": 4909,
+          "sha256": "3e9690c404b3352f5240323a6ab854e4ec53349272b34361db1d069d4c67c1cd"
+        },
+        {
+          "path": "tools/bench/limited_cli.py",
+          "bytes": 1671,
+          "sha256": "6b7b4d551cc9521d14b1b0088660cb111ea15aade76ef4f6300f6d11de310cf3"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.md",
+          "bytes": 2770,
+          "sha256": "2b90995ac8d8975d94a393ed3419d967699c6a0d6937e5b9a95d30580abf2bb1"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.py",
+          "bytes": 10112,
+          "sha256": "be7a44dff74f77fd32e297805d97f3950bf09a52ab08ded4fe22f6fbbdc48847"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs_test.py",
+          "bytes": 3762,
+          "sha256": "e9047b1b1b264b13d855891ebbfd44c4c8dd0067035947afba6959246ce95164"
+        },
+        {
+          "path": "tools/bench/paired_cli.py",
+          "bytes": 19633,
+          "sha256": "914a9c97eb5cb66fa786d01a2f43599b781327c89b51fe0e4fef3ab207fd0854"
+        },
+        {
+          "path": "tools/bench/paired_factors.md",
+          "bytes": 3956,
+          "sha256": "becf249f30b3a898eddf1ceecc99c06f8f5f6bf3758a0ae1277dc010beee4fd4"
+        },
+        {
+          "path": "tools/bench/paired_factors.py",
+          "bytes": 22133,
+          "sha256": "6c5f7b60e83c4531be527d5d01a91a1e0bf307455a3ac45d133001a3ae922159"
+        },
+        {
+          "path": "tools/bench/paired_factors_test.py",
+          "bytes": 5651,
+          "sha256": "92c28731cef2e41735f9b25c29b7d45689d24d24811ed787fbc2966b78093a39"
+        },
+        {
+          "path": "tools/bench/validate_budget.py",
+          "bytes": 2648,
+          "sha256": "b6415ff3a6bdc61688298ce02ce48f6a043274fd9c0a684eb18ddf533a20431a"
+        }
+      ]
+    },
+    {
+      "name": "closure-protobuf-preparation",
+      "ref": "refs/round4-snapshot-v2/closure-protobuf-preparation",
+      "commit": "19c3179833f87bd64d0f1204b8a49ef72ec39d00",
+      "tree": "d50ea71fc5da91f58396e24f1e3d0f011ced7e65",
+      "source_main_ancestor": "2262bb6a8a9d24ee34fdb52bd30c49269e4b5373",
+      "changed_files": [
+        {
+          "path": "docs/enterprise-benchmark.md",
+          "bytes": 9032,
+          "sha256": "0f8257e8936a90dc61b64d28fa7fa20312646bf46967c071245c65d11ca21840"
+        },
+        {
+          "path": "tools/bench/capped_cli.py",
+          "bytes": 1845,
+          "sha256": "284fac04572b51bccf17e6aa070439c7868a0559db923faef5ac7fd31110322c"
+        },
+        {
+          "path": "tools/bench/capped_java_oracle.py",
+          "bytes": 9848,
+          "sha256": "85d809a2975714be1d8c35a4018125ee02c3d9dd4ac3dcf7ecdaed4a1e012cbb"
+        },
+        {
+          "path": "tools/bench/capped_java_oracle_test.py",
+          "bytes": 9052,
+          "sha256": "0ae54817ba92e2c90733ef61e8a17a7fda9ba7b2c186a0ac2f2552a5e9161741"
+        },
+        {
+          "path": "tools/bench/cgroup_exec.py",
+          "bytes": 760,
+          "sha256": "3b19b27b04a146b3793b917ab1eef30573ca92bcff06360acfb964ac7b6d025e"
+        },
+        {
+          "path": "tools/bench/enterprise_specs.py",
+          "bytes": 9784,
+          "sha256": "9bc36ac9f67bead83e23d5b8e28cb8ca5ec861a221f70a71c02f9afcb304575b"
+        },
+        {
+          "path": "tools/bench/generated/assets.json",
+          "bytes": 4242,
+          "sha256": "1cc82dec222063b3b5d0249dd9c2f32358f949cdb4cf3c2ac2e3b64715d1218c"
+        },
+        {
+          "path": "tools/bench/generated/j2cl_entry.js",
+          "bytes": 806,
+          "sha256": "c2d641c20893a92cb407a31cd43d89dc8dc59dc9085728502ae5f736f3935b7c"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_closure_assets.json",
+          "bytes": 1421,
+          "sha256": "ec8c2605915d8392d612544272fd30ffbc7cd3e4e1489cc25cfefdf353286df4"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_closure_entry.js",
+          "bytes": 3077,
+          "sha256": "9d059ad49a8f63e1ad62437dd2ecfcf7c1df2fd615f0f770c153c25070fd6d59"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_closure_uncompiled_check.js",
+          "bytes": 2466,
+          "sha256": "9a6f4a5e85a47217d7654ca9910ce1e4c344f2721e3a73d3c2ac2683ed13a7c1"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_entry.js",
+          "bytes": 2053,
+          "sha256": "4227b81572ee50c6ad736f97f22f0cb8b189b0baffcb81065c98139adb150425"
+        },
+        {
+          "path": "tools/bench/generated/soy_entry.js",
+          "bytes": 507,
+          "sha256": "d2a3f47c6480012b1c2a93ece1d19d3e34d422ed7a85acc145db388a12ff93ae"
+        },
+        {
+          "path": "tools/bench/generated/verify_semantics.js",
+          "bytes": 903,
+          "sha256": "efb75d48b1533d996ec80aba9fc227cbbcbd805261e7d98bf9204f1942c49761"
+        },
+        {
+          "path": "tools/bench/generated_fixtures.py",
+          "bytes": 15536,
+          "sha256": "92af1d50ce341dfe2718791d3f7d5121ccc5b24015c7e4cd2e67ec0302672ca0"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.md",
+          "bytes": 2978,
+          "sha256": "c4c30acd99363f8762fffe0b9687daa7338bc707ed573e51d6fa0c74f4891b37"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.py",
+          "bytes": 14329,
+          "sha256": "c8ad2393bab3f070fc168d65d395c7b36189ffae63e360fe97228052c387ae58"
+        },
+        {
+          "path": "tools/bench/go_factor_screen_test.py",
+          "bytes": 5902,
+          "sha256": "dd7788ff68c0a7e513a82c381344e91e519ca7a70e6f5a7f4175f3f543edfce8"
+        },
+        {
+          "path": "tools/bench/java/CliDependencyInventory.java",
+          "bytes": 5782,
+          "sha256": "4f392994b230b6900888c8b6420dc3f007b603eba97a9d4cde4fcb0986ed76a0"
+        },
+        {
+          "path": "tools/bench/java/CliPaired.java",
+          "bytes": 4909,
+          "sha256": "3e9690c404b3352f5240323a6ab854e4ec53349272b34361db1d069d4c67c1cd"
+        },
+        {
+          "path": "tools/bench/limited_cli.py",
+          "bytes": 1671,
+          "sha256": "6b7b4d551cc9521d14b1b0088660cb111ea15aade76ef4f6300f6d11de310cf3"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.md",
+          "bytes": 2770,
+          "sha256": "2b90995ac8d8975d94a393ed3419d967699c6a0d6937e5b9a95d30580abf2bb1"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.py",
+          "bytes": 10112,
+          "sha256": "be7a44dff74f77fd32e297805d97f3950bf09a52ab08ded4fe22f6fbbdc48847"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs_test.py",
+          "bytes": 3762,
+          "sha256": "e9047b1b1b264b13d855891ebbfd44c4c8dd0067035947afba6959246ce95164"
+        },
+        {
+          "path": "tools/bench/paired_cli.py",
+          "bytes": 19633,
+          "sha256": "914a9c97eb5cb66fa786d01a2f43599b781327c89b51fe0e4fef3ab207fd0854"
+        },
+        {
+          "path": "tools/bench/paired_factors.md",
+          "bytes": 3956,
+          "sha256": "becf249f30b3a898eddf1ceecc99c06f8f5f6bf3758a0ae1277dc010beee4fd4"
+        },
+        {
+          "path": "tools/bench/paired_factors.py",
+          "bytes": 22133,
+          "sha256": "6c5f7b60e83c4531be527d5d01a91a1e0bf307455a3ac45d133001a3ae922159"
+        },
+        {
+          "path": "tools/bench/paired_factors_test.py",
+          "bytes": 5651,
+          "sha256": "92c28731cef2e41735f9b25c29b7d45689d24d24811ed787fbc2966b78093a39"
+        },
+        {
+          "path": "tools/bench/protobuf_closure_fixture.py",
+          "bytes": 12140,
+          "sha256": "f86421bec1a233cb6eef4355162c05db2c415d0b13f9963d0d20f0feda2a82b9"
+        },
+        {
+          "path": "tools/bench/validate_budget.py",
+          "bytes": 2648,
+          "sha256": "b6415ff3a6bdc61688298ce02ce48f6a043274fd9c0a684eb18ddf533a20431a"
+        }
+      ]
+    }
+  ],
+  "recovery": [
+    "git bundle verify docs/performance-experiments/round4-prototype-sources-v2.bundle",
+    "git fetch docs/performance-experiments/round4-prototype-sources-v2.bundle 'refs/round4-snapshot-v2/*:refs/heads/round4-archive-v2/*'"
+  ]
+}

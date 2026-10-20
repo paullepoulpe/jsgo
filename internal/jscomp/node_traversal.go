@@ -1766,9 +1766,12 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 		return e.untypedScope
 	}
 	if e.scope != nil {
-		s := e.scope.Untyped()
-		e.untypedScope = s
-		return s
+		if s, ok := e.scope.(*Scope); ok {
+			e.untypedScope = s
+			return s
+		}
+		// Custom scopes may override Untyped with observable behavior.
+		return e.scope.Untyped()
 	}
 	if t.syntacticScopeCreator != nil {
 		var parentScope *Scope
@@ -1780,9 +1783,7 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 		t.scopes[rootDepth].untypedScope = s
 		return s
 	}
-	s := t.GetAbstractScopeAt(rootDepth).Untyped()
-	t.scopes[rootDepth].untypedScope = s
-	return s
+	return t.GetAbstractScopeAt(rootDepth).Untyped()
 }
 
 // Java: NodeTraversal.getTypedScope()
@@ -1816,7 +1817,7 @@ func (t *NodeTraversal) GetAbstractScopeAt(rootDepth int) AbstractScope {
 	if rootDepth > 0 {
 		parentScope = t.GetAbstractScopeAt(rootDepth - 1)
 	}
-	scope := t.GetScopeCreator().CreateScope(node, parentScope)
+	scope := t.getScopeCreator().CreateScope(node, parentScope)
 	if u, ok := scope.(*Scope); ok {
 		t.scopes[rootDepth].untypedScope = u
 	}
@@ -1903,6 +1904,22 @@ func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() *rhino.Node 
 
 // Java: NodeTraversal.getScopeCreator()
 func (t *NodeTraversal) GetScopeCreator() ScopeCreator {
+	creator := t.getScopeCreator()
+	if ssc, ok := creator.(*SyntacticScopeCreator); ok && ssc == &t.defaultScopeCreator {
+		// A callback may keep this creator after the traversal is released to
+		// its pool. Preserve the creator's current state and independently
+		// owned arena without publishing an interior pointer into the traversal.
+		published := new(SyntacticScopeCreator)
+		*published = *ssc
+		t.scopeCreator = published
+		t.syntacticScopeCreator = published
+		return published
+	}
+	return creator
+}
+
+// getScopeCreator is for internal calls that do not publish the creator.
+func (t *NodeTraversal) getScopeCreator() ScopeCreator {
 	if t.scopeCreator == nil {
 		if t.syntacticScopeCreator != nil {
 			t.scopeCreator = t.syntacticScopeCreator

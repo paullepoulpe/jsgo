@@ -1,0 +1,10 @@
+{
+  "time": "2026-10-19T10:37:52.434552+00:00",
+  "source": "dc0a7fa0",
+  "sessions": [
+    50435,
+    25829
+  ],
+  "reason": "superseded by missing-priority fallback guard and exact partial-failure fixture f534d979; no timing performed",
+  "preserved_prior_binaries": true
+}

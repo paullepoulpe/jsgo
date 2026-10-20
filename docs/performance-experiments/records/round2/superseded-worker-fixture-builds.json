@@ -1,0 +1,16 @@
+{
+  "time": "2026-10-19T10:43:41.130414+00:00",
+  "pids": [],
+  "sessions": [
+    47480,
+    15376
+  ],
+  "reason": "testonly806e fixespercohortcounteroracle; productionunchangedb2",
+  "terminated_pids": [
+    196066,
+    196072,
+    196097,
+    196094
+  ],
+  "note": "proc cwd discovery unavailable; terminated explicit confirmed own Go+compiler PIDs; four compiles briefly overlapped before old two stopped, no timing active"
+}

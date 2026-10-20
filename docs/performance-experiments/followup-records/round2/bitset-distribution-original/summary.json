@@ -1,0 +1,227 @@
+{
+  "downlevel-whitespace": {
+    "gate": "MATCH",
+    "constructor_result_capacity_0_1_2_large": [
+      2,
+      54,
+      0,
+      0
+    ],
+    "clone_result_capacity_0_1_2_large": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "growth_from_by_to_capacity_0_1_2_large": [
+      [
+        0,
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "owned_word_helper_calls": 0,
+    "raw_reports": [
+      "/workspace/jsgo-results/round2/bitset-distribution-original/downlevel-whitespace/counts-0.json"
+    ]
+  },
+  "downlevel-simple": {
+    "gate": "MATCH",
+    "constructor_result_capacity_0_1_2_large": [
+      60961,
+      348016,
+      0,
+      0
+    ],
+    "clone_result_capacity_0_1_2_large": [
+      18032,
+      59490,
+      0,
+      0
+    ],
+    "growth_from_by_to_capacity_0_1_2_large": [
+      [
+        0,
+        22746,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "owned_word_helper_calls": 0,
+    "raw_reports": [
+      "/workspace/jsgo-results/round2/bitset-distribution-original/downlevel-simple/counts-0.json"
+    ]
+  },
+  "typed-app": {
+    "gate": "MATCH",
+    "constructor_result_capacity_0_1_2_large": [
+      39108,
+      195141,
+      0,
+      0
+    ],
+    "clone_result_capacity_0_1_2_large": [
+      8427,
+      37879,
+      0,
+      0
+    ],
+    "growth_from_by_to_capacity_0_1_2_large": [
+      [
+        0,
+        14663,
+        87,
+        1016
+      ],
+      [
+        0,
+        0,
+        5,
+        26
+      ],
+      [
+        0,
+        0,
+        0,
+        25
+      ],
+      [
+        0,
+        0,
+        0,
+        111
+      ]
+    ],
+    "owned_word_helper_calls": 0,
+    "raw_reports": [
+      "/workspace/jsgo-results/round2/bitset-distribution-original/typed-app/counts-0.json"
+    ]
+  },
+  "checks-only": {
+    "gate": "MATCH",
+    "constructor_result_capacity_0_1_2_large": [
+      2,
+      30836,
+      0,
+      0
+    ],
+    "clone_result_capacity_0_1_2_large": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "growth_from_by_to_capacity_0_1_2_large": [
+      [
+        0,
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "owned_word_helper_calls": 0,
+    "raw_reports": [
+      "/workspace/jsgo-results/round2/bitset-distribution-original/checks-only/counts-0.json"
+    ]
+  },
+  "bundle": {
+    "gate": "MATCH",
+    "constructor_result_capacity_0_1_2_large": [
+      344597,
+      2082265,
+      39779,
+      0
+    ],
+    "clone_result_capacity_0_1_2_large": [
+      99421,
+      361356,
+      3704,
+      0
+    ],
+    "growth_from_by_to_capacity_0_1_2_large": [
+      [
+        0,
+        123546,
+        254,
+        0
+      ],
+      [
+        0,
+        0,
+        373,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "owned_word_helper_calls": 0,
+    "raw_reports": [
+      "/workspace/jsgo-results/round2/bitset-distribution-original/bundle/counts-0.json"
+    ]
+  }
+}

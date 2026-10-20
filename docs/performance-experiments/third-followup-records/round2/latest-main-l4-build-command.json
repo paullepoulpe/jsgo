@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "build",
+    "-p=1",
+    "-buildvcs=false",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/jscomp=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/rhino=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/jutil=-l=4",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jsgo-latest-main-l4",
+    "./cmd/jsgo"
+  ],
+  "cwd": "/workspace/jsgo-latest-main-control",
+  "source": "ff06ac15",
+  "Go": "1.27.2",
+  "build_only_memory_controls": {
+    "GOGC": "20",
+    "GOMAXPROCS": "1"
+  },
+  "runtime_controls": "unset (default GC/GOMAXPROCS)",
+  "note": "Same mainff06/newshippedPGO, historical package inlining -l4 settings, separate build-factor control. No experimental source/runtime flags."
+}

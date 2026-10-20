@@ -1,0 +1,112 @@
+[
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "0,1",
+      "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+      "-test.run=^TestParallelCommonJSMainBenchmarkActivation$",
+      "-test.v"
+    ],
+    "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-0.json",
+    "env": {
+      "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+      "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+      "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+      "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+      "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+      "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+    }
+  },
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "0,1",
+      "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+      "-test.run=^TestParallelCommonJSMainBenchmarkActivation$",
+      "-test.v"
+    ],
+    "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-1.json",
+    "env": {
+      "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+      "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+      "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+      "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+      "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+      "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+    }
+  },
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "0,1",
+      "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+      "-test.run=^TestParallelCommonJSMainBenchmarkActivation$",
+      "-test.v"
+    ],
+    "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-2.json",
+    "env": {
+      "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+      "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+      "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+      "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+      "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+      "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+    }
+  },
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "0,1",
+      "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+      "-test.run=^TestParallelCommonJSMainBenchmarkActivation$",
+      "-test.v"
+    ],
+    "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-3.json",
+    "env": {
+      "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+      "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+      "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+      "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+      "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+      "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+    }
+  },
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "0,1",
+      "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+      "-test.run=^TestParallelCommonJSMainBenchmarkActivation$",
+      "-test.v"
+    ],
+    "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-4.json",
+    "env": {
+      "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+      "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+      "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+      "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+      "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+      "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+      "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+    }
+  }
+]

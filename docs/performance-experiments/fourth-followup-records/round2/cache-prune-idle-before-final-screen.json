@@ -1,0 +1,9 @@
+{
+  "scope": "All Go builds complete; reproducible generated cache archives only; binaries/source/results retained",
+  "removed": [
+    {
+      "path": "/workspace/toolchains/cache/a3/a3672e66707419c15b5d02315f3f41efad665c196e6477b9c88f93456dae5996-d",
+      "bytes": 232096042
+    }
+  ]
+}

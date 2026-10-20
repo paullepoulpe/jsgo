@@ -1,0 +1,12 @@
+{
+ "binary": "/workspace/jsgo-results/gowarm-scope-gctrace",
+ "sha256": "29a365d1e951d8ba3b8f0fd1eef8c9c838b70030ff3f586611cab51bb8b7f463",
+ "affinity": [
+  0,
+  1
+ ],
+ "warmup": 2,
+ "iters": 20,
+ "extern_cache": true,
+ "gogc": "default"
+}

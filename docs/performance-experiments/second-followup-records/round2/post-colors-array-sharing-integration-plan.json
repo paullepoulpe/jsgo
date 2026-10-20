@@ -1,0 +1,22 @@
+{
+  "worktree": [
+    "git",
+    "-C",
+    "/workspace/jsgo",
+    "worktree",
+    "add",
+    "-b",
+    "perf/post-colors-array-sharing",
+    "/workspace/jsgo-post-colors-array-sharing",
+    "22358ec4"
+  ],
+  "cherry_pick": [
+    "git",
+    "-C",
+    "/workspace/jsgo-post-colors-array-sharing",
+    "cherry-pick",
+    "2a6fee38",
+    "ac401680"
+  ],
+  "note": "Prepared only; execute after timing reservation. Frozen source before any build. Production CLI and focused race build, at most two concurrent heavy compiles."
+}

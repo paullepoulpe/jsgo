@@ -254,6 +254,8 @@ type RemoveUnusedCode struct {
 	preserveFunctionExpressionNames bool
 
 	externProperties *jutil.LinkedHashSet[string]
+	// Non-nil only when the exported implicit-property list differs from its default.
+	customImplicitProperties map[string]struct{}
 
 	// Single value to use for all vars for which we cannot remove anything at
 	// all.
@@ -318,6 +320,25 @@ func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
 		removeUnusedPolyfills:                         builder.removeUnusedPolyfills,
 		polyfillsFromTable:                            defaultPolyfillsTable(),
 		assumeGettersArePure:                          builder.assumeGettersArePure,
+	}
+
+	// Preserve the constructor's snapshot of the exported mutable list. Keep the
+	// allocation-free switch for the stock list, including later global changes.
+	defaults := [...]string{"length", "toString", "valueOf", "constructor", "prototype"}
+	stock := len(RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES) == len(defaults)
+	if stock {
+		for i, name := range defaults {
+			if RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES[i] != name {
+				stock = false
+				break
+			}
+		}
+	}
+	if !stock {
+		r.customImplicitProperties = make(map[string]struct{}, len(RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES))
+		for _, name := range RemoveUnusedCode_IMPLICITLY_USED_PROPERTIES {
+			r.customImplicitProperties[name] = struct{}{}
+		}
 	}
 
 	// All Vars that are completely unremovable will share this VarInfo instance.
@@ -637,7 +658,7 @@ func (r *RemoveUnusedCode) RemoveIndependentlyRemovableProperties() {
 			next := cur.propNext
 			cur.propNext = nil
 			cur.inPropList = false
-			cur.Remove(r.compiler)
+			cur.self.Remove(r.compiler)
 			cur = next
 		}
 	}
@@ -1773,7 +1794,11 @@ func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
 }
 
 func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
-	if isImplicitlyUsedProperty(propertyName) {
+	if r.customImplicitProperties == nil {
+		if isImplicitlyUsedProperty(propertyName) {
+			return true
+		}
+	} else if _, ok := r.customImplicitProperties[propertyName]; ok {
 		return true
 	}
 	if _, ok := r.pinnedPropertyNames[propertyName]; ok {
@@ -1796,7 +1821,7 @@ func (r *RemoveUnusedCode) MarkPropertyNameAsPinned(propertyName string) {
 			next := cur.propNext
 			cur.propNext = nil
 			cur.inPropList = false
-			cur.ApplyContinuations()
+			cur.self.ApplyContinuations()
 			cur = next
 		}
 	}

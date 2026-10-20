@@ -1,0 +1,2092 @@
+{
+  "schema": 1,
+  "label_key": "jsgo_pass",
+  "method": "exclusive exact sample label; total includes unlabeled; no function-frame attribution",
+  "tasks": {
+    "typed-app": {
+      "path": "/workspace/jsgo-results/round2/structural-profiles/typed-app/profile.cpu.pprof",
+      "sha256": "12cb2b0fab12abede92205137be9d0577fb1e7b0abf08de43ad0d107ab5ec681",
+      "sample_types": [
+        [
+          "samples",
+          "count"
+        ],
+        [
+          "cpu",
+          "nanoseconds"
+        ]
+      ],
+      "total_cpu_ns": 5930000000,
+      "total_cpu_s": 5.93,
+      "total_sample_count": 593,
+      "labeled_cpu_ns": 4230000000,
+      "labeled_cpu_fraction": 0.7133220910623946,
+      "unlabeled": {
+        "pass": null,
+        "sample_count": 170,
+        "cpu_ns": 1700000000,
+        "cpu_s": 1.7,
+        "sample_records": 137,
+        "cpu_fraction": 0.2866779089376054
+      },
+      "passes": [
+        {
+          "pass": "inferTypes",
+          "sample_count": 68,
+          "cpu_ns": 680000000,
+          "cpu_s": 0.68,
+          "sample_records": 67,
+          "cpu_fraction": 0.11467116357504216
+        },
+        {
+          "pass": "inlineVariables",
+          "sample_count": 44,
+          "cpu_ns": 440000000,
+          "cpu_s": 0.44,
+          "sample_records": 44,
+          "cpu_fraction": 0.07419898819561552
+        },
+        {
+          "pass": "removeUnusedCode",
+          "sample_count": 32,
+          "cpu_ns": 320000000,
+          "cpu_s": 0.32,
+          "sample_records": 32,
+          "cpu_fraction": 0.05396290050590219
+        },
+        {
+          "pass": "checkTypes",
+          "sample_count": 24,
+          "cpu_ns": 240000000,
+          "cpu_s": 0.24,
+          "sample_records": 24,
+          "cpu_fraction": 0.04047217537942664
+        },
+        {
+          "pass": "checkAccessControls",
+          "sample_count": 16,
+          "cpu_ns": 160000000,
+          "cpu_s": 0.16,
+          "sample_records": 16,
+          "cpu_fraction": 0.026981450252951095
+        },
+        {
+          "pass": "typesToColors",
+          "sample_count": 15,
+          "cpu_ns": 150000000,
+          "cpu_s": 0.15,
+          "sample_records": 15,
+          "cpu_fraction": 0.025295109612141653
+        },
+        {
+          "pass": "disambiguateProperties",
+          "sample_count": 14,
+          "cpu_ns": 140000000,
+          "cpu_s": 0.14,
+          "sample_records": 14,
+          "cpu_fraction": 0.023608768971332208
+        },
+        {
+          "pass": "collapseObjectLiterals",
+          "sample_count": 13,
+          "cpu_ns": 130000000,
+          "cpu_s": 0.13,
+          "sample_records": 13,
+          "cpu_fraction": 0.021922428330522766
+        },
+        {
+          "pass": "inlineFunctions",
+          "sample_count": 13,
+          "cpu_ns": 130000000,
+          "cpu_s": 0.13,
+          "sample_records": 13,
+          "cpu_fraction": 0.021922428330522766
+        },
+        {
+          "pass": "flowSensitiveInlineVariables",
+          "sample_count": 11,
+          "cpu_ns": 110000000,
+          "cpu_s": 0.11,
+          "sample_records": 11,
+          "cpu_fraction": 0.01854974704890388
+        },
+        {
+          "pass": "peepholeOptimizations",
+          "sample_count": 11,
+          "cpu_ns": 110000000,
+          "cpu_s": 0.11,
+          "sample_records": 11,
+          "cpu_fraction": 0.01854974704890388
+        },
+        {
+          "pass": "optimizeCalls",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.016863406408094434
+        },
+        {
+          "pass": "earlyInlineVariables",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.013490725126475547
+        },
+        {
+          "pass": "inferConsts",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.013490725126475547
+        },
+        {
+          "pass": "checkControlFlow",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.011804384485666104
+        },
+        {
+          "pass": "inlineAndCollapseProperties",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.011804384485666104
+        },
+        {
+          "pass": "markPureFunctions",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.011804384485666104
+        },
+        {
+          "pass": "processDefines_CHECK",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.011804384485666104
+        },
+        {
+          "pass": "coalesceVariableNames",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.01011804384485666
+        },
+        {
+          "pass": "normalize",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.01011804384485666
+        },
+        {
+          "pass": "checkVariableReferences",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.008431703204047217
+        },
+        {
+          "pass": "deadAssignmentsElimination",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.008431703204047217
+        },
+        {
+          "pass": "processDefines_OPTIMIZE",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.008431703204047217
+        },
+        {
+          "pass": "closureRewriteModule",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.006745362563237774
+        },
+        {
+          "pass": "crossChunkCodeMotion",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.006745362563237774
+        },
+        {
+          "pass": "varCheckValidity",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.006745362563237774
+        },
+        {
+          "pass": "RewritePolyfills",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00505902192242833
+        },
+        {
+          "pass": "closureReplaceGetCssName",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00505902192242833
+        },
+        {
+          "pass": "crossChunkMethodMotion",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00505902192242833
+        },
+        {
+          "pass": "inlineSimpleMethods",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00505902192242833
+        },
+        {
+          "pass": "renameVars",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00505902192242833
+        },
+        {
+          "pass": "ambiguateProperties",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "checkConsts",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "checkGoogRequires",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "checkJsDocAndEs6Modules",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "checkStrictMode",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "checkVars",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "devirtualizeMethods",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "earlyPeepholeOptimizations",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "es6RewriteModule",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "gatherExternProperties",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "gatherGettersAndSetters",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "gatherModuleMetadata",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "inlineProperties",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.003372681281618887
+        },
+        {
+          "pass": "FindModuleDependencies",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "REWRITE_DYNAMIC_IMPORT",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "checkRegExp",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "checkSideEffects",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "checkSuper",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "checkTypeImportCodeReferences",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closureCheckModule",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closureCodeRemoval",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closureGoogScopeAliases",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closureOptimizePrimitives",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closurePrimitives",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "closureProvidesRequires",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "collapseVariableDeclarations",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "deadPropertyAssignmentElimination",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "denormalize",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "es6NormalizeClasses",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "generateExports",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "latePeepholeOptimizations",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "optimizeConstructors",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "removeCastNodes",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "renameProperties",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "replaceIdGenerators",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "replaceMessages",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "replaceToggles",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "rewriteCallerCodeLocation",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "rewriteGoogJsImports",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "stripSideEffectProtection",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        },
+        {
+          "pass": "suspiciousCode",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0016863406408094434
+        }
+      ]
+    },
+    "bundle": {
+      "path": "/workspace/jsgo-results/round2/structural-profiles/bundle/profile.cpu.pprof",
+      "sha256": "7f8644c7a2d05f1b072b8f88a3cbdf4c46da1e99f1996929dfb1a53584865c9d",
+      "sample_types": [
+        [
+          "samples",
+          "count"
+        ],
+        [
+          "cpu",
+          "nanoseconds"
+        ]
+      ],
+      "total_cpu_ns": 21180000000,
+      "total_cpu_s": 21.18,
+      "total_sample_count": 2118,
+      "labeled_cpu_ns": 16430000000,
+      "labeled_cpu_fraction": 0.775731822474032,
+      "unlabeled": {
+        "pass": null,
+        "sample_count": 475,
+        "cpu_ns": 4750000000,
+        "cpu_s": 4.75,
+        "sample_records": 316,
+        "cpu_fraction": 0.2242681775259679
+      },
+      "passes": [
+        {
+          "pass": "inlineFunctions",
+          "sample_count": 209,
+          "cpu_ns": 2090000000,
+          "cpu_s": 2.09,
+          "sample_records": 209,
+          "cpu_fraction": 0.09867799811142587
+        },
+        {
+          "pass": "removeUnusedCode",
+          "sample_count": 190,
+          "cpu_ns": 1900000000,
+          "cpu_s": 1.9,
+          "sample_records": 189,
+          "cpu_fraction": 0.08970727101038715
+        },
+        {
+          "pass": "inlineVariables",
+          "sample_count": 153,
+          "cpu_ns": 1530000000,
+          "cpu_s": 1.53,
+          "sample_records": 152,
+          "cpu_fraction": 0.07223796033994334
+        },
+        {
+          "pass": "flowSensitiveInlineVariables",
+          "sample_count": 145,
+          "cpu_ns": 1450000000,
+          "cpu_s": 1.45,
+          "sample_records": 145,
+          "cpu_fraction": 0.0684608120868744
+        },
+        {
+          "pass": "coalesceVariableNames",
+          "sample_count": 99,
+          "cpu_ns": 990000000,
+          "cpu_s": 0.99,
+          "sample_records": 97,
+          "cpu_fraction": 0.046742209631728045
+        },
+        {
+          "pass": "collapseObjectLiterals",
+          "sample_count": 93,
+          "cpu_ns": 930000000,
+          "cpu_s": 0.93,
+          "sample_records": 93,
+          "cpu_fraction": 0.043909348441926344
+        },
+        {
+          "pass": "invertContextualRenaming",
+          "sample_count": 76,
+          "cpu_ns": 760000000,
+          "cpu_s": 0.76,
+          "sample_records": 76,
+          "cpu_fraction": 0.03588290840415486
+        },
+        {
+          "pass": "deadAssignmentsElimination",
+          "sample_count": 69,
+          "cpu_ns": 690000000,
+          "cpu_s": 0.69,
+          "sample_records": 69,
+          "cpu_fraction": 0.032577903682719546
+        },
+        {
+          "pass": "inferConsts",
+          "sample_count": 67,
+          "cpu_ns": 670000000,
+          "cpu_s": 0.67,
+          "sample_records": 58,
+          "cpu_fraction": 0.03163361661945231
+        },
+        {
+          "pass": "peepholeOptimizations",
+          "sample_count": 58,
+          "cpu_ns": 580000000,
+          "cpu_s": 0.58,
+          "sample_records": 57,
+          "cpu_fraction": 0.027384324834749764
+        },
+        {
+          "pass": "normalize",
+          "sample_count": 39,
+          "cpu_ns": 390000000,
+          "cpu_s": 0.39,
+          "sample_records": 39,
+          "cpu_fraction": 0.018413597733711047
+        },
+        {
+          "pass": "renameVars",
+          "sample_count": 38,
+          "cpu_ns": 380000000,
+          "cpu_s": 0.38,
+          "sample_records": 36,
+          "cpu_fraction": 0.01794145420207743
+        },
+        {
+          "pass": "checkControlFlow",
+          "sample_count": 32,
+          "cpu_ns": 320000000,
+          "cpu_s": 0.32,
+          "sample_records": 32,
+          "cpu_fraction": 0.015108593012275733
+        },
+        {
+          "pass": "checkVariableReferences",
+          "sample_count": 29,
+          "cpu_ns": 290000000,
+          "cpu_s": 0.29,
+          "sample_records": 29,
+          "cpu_fraction": 0.013692162417374882
+        },
+        {
+          "pass": "latePeepholeOptimizations",
+          "sample_count": 29,
+          "cpu_ns": 290000000,
+          "cpu_s": 0.29,
+          "sample_records": 29,
+          "cpu_fraction": 0.013692162417374882
+        },
+        {
+          "pass": "denormalize",
+          "sample_count": 24,
+          "cpu_ns": 240000000,
+          "cpu_s": 0.24,
+          "sample_records": 24,
+          "cpu_fraction": 0.0113314447592068
+        },
+        {
+          "pass": "processDefines_CHECK",
+          "sample_count": 18,
+          "cpu_ns": 180000000,
+          "cpu_s": 0.18,
+          "sample_records": 18,
+          "cpu_fraction": 0.0084985835694051
+        },
+        {
+          "pass": "checkGoogRequires",
+          "sample_count": 14,
+          "cpu_ns": 140000000,
+          "cpu_s": 0.14,
+          "sample_records": 14,
+          "cpu_fraction": 0.0066100094428706326
+        },
+        {
+          "pass": "processDefines_OPTIMIZE",
+          "sample_count": 14,
+          "cpu_ns": 140000000,
+          "cpu_s": 0.14,
+          "sample_records": 14,
+          "cpu_fraction": 0.0066100094428706326
+        },
+        {
+          "pass": "closureRewriteModule",
+          "sample_count": 13,
+          "cpu_ns": 130000000,
+          "cpu_s": 0.13,
+          "sample_records": 13,
+          "cpu_fraction": 0.006137865911237016
+        },
+        {
+          "pass": "closureReplaceGetCssName",
+          "sample_count": 12,
+          "cpu_ns": 120000000,
+          "cpu_s": 0.12,
+          "sample_records": 12,
+          "cpu_fraction": 0.0056657223796034
+        },
+        {
+          "pass": "checkTypeImportCodeReferences",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.004721435316336166
+        },
+        {
+          "pass": "checkVars",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 9,
+          "cpu_fraction": 0.004721435316336166
+        },
+        {
+          "pass": "es6RewriteModule",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.004721435316336166
+        },
+        {
+          "pass": "RewritePolyfills",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.00424929178470255
+        },
+        {
+          "pass": "checkJsDocAndEs6Modules",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.00424929178470255
+        },
+        {
+          "pass": "postNormalizePeephole",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.00424929178470255
+        },
+        {
+          "pass": "FindModuleDependencies",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.003777148253068933
+        },
+        {
+          "pass": "convertToDottedProperties",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.003777148253068933
+        },
+        {
+          "pass": "typesToColors",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.003777148253068933
+        },
+        {
+          "pass": "varCheckValidity",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.003777148253068933
+        },
+        {
+          "pass": "checkAstValidity",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "checkConsts",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "checkSideEffects",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "checkStrictMode",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "es6NormalizeClasses",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "gatherGettersAndSetters",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "inlineAndCollapseProperties",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "suspiciousCode",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.0033050047214353163
+        },
+        {
+          "pass": "collapseVariableDeclarations",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.0028328611898017
+        },
+        {
+          "pass": "checkSuper",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.002360717658168083
+        },
+        {
+          "pass": "closureCheckModule",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.002360717658168083
+        },
+        {
+          "pass": "optimizeToEs6",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.002360717658168083
+        },
+        {
+          "pass": "closureGoogScopeAliases",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "closureProvidesRequires",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "gatherModuleMetadata",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "generateExports",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "j2clChecksPass",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "removePropertyRenamingCalls",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "renameLabels",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "rewriteCallerCodeLocation",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "stripSideEffectProtection",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.0018885741265344666
+        },
+        {
+          "pass": "closureOptimizePrimitives",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00141643059490085
+        },
+        {
+          "pass": "closurePrimitives",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00141643059490085
+        },
+        {
+          "pass": "peepholeTranspilationsPasses",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00141643059490085
+        },
+        {
+          "pass": "removeCastNodes",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00141643059490085
+        },
+        {
+          "pass": "replaceToggles",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.00141643059490085
+        },
+        {
+          "pass": "REWRITE_DYNAMIC_IMPORT",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.0009442870632672333
+        },
+        {
+          "pass": "declaredGlobalExternsOnWindow",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.00047214353163361664
+        },
+        {
+          "pass": "gatherExternProperties",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.00047214353163361664
+        },
+        {
+          "pass": "rewriteGoogJsImports",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.00047214353163361664
+        }
+      ]
+    },
+    "downlevel-whitespace": {
+      "path": "/workspace/jsgo-results/round2/structural-profiles/downlevel-whitespace/profile.cpu.pprof",
+      "sha256": "5b0eb67e3fece9daf3653e8335bb34d0bf4568e4b381e06a8ee0d9217f898ce4",
+      "sample_types": [
+        [
+          "samples",
+          "count"
+        ],
+        [
+          "cpu",
+          "nanoseconds"
+        ]
+      ],
+      "total_cpu_ns": 1390000000,
+      "total_cpu_s": 1.39,
+      "total_sample_count": 139,
+      "labeled_cpu_ns": 680000000,
+      "labeled_cpu_fraction": 0.4892086330935252,
+      "unlabeled": {
+        "pass": null,
+        "sample_count": 71,
+        "cpu_ns": 710000000,
+        "cpu_s": 0.71,
+        "sample_records": 70,
+        "cpu_fraction": 0.5107913669064749
+      },
+      "passes": [
+        {
+          "pass": "rewriteCommonJsModules",
+          "sample_count": 11,
+          "cpu_ns": 110000000,
+          "cpu_s": 0.11,
+          "sample_records": 11,
+          "cpu_fraction": 0.07913669064748201
+        },
+        {
+          "pass": "normalize",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.06474820143884892
+        },
+        {
+          "pass": "Es6RewriteClass",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.050359712230215826
+        },
+        {
+          "pass": "invertContextualRenaming",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.050359712230215826
+        },
+        {
+          "pass": "FindModuleDependencies",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.04316546762589928
+        },
+        {
+          "pass": "checkVariableReferences",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.04316546762589928
+        },
+        {
+          "pass": "es6RewriteModule",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.04316546762589928
+        },
+        {
+          "pass": "Es6RewriteBlockScopedDeclaration",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.02158273381294964
+        },
+        {
+          "pass": "RewritePolyfills",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.014388489208633094
+        },
+        {
+          "pass": "checkVars",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.014388489208633094
+        },
+        {
+          "pass": "gatherModuleMetadata",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.014388489208633094
+        },
+        {
+          "pass": "rewriteAsyncIteration",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.014388489208633094
+        },
+        {
+          "pass": "createModuleMap",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.007194244604316547
+        },
+        {
+          "pass": "es6NormalizeClasses",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.007194244604316547
+        },
+        {
+          "pass": "gatherGettersAndSetters",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.007194244604316547
+        },
+        {
+          "pass": "rewriteGoogJsImports",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.007194244604316547
+        },
+        {
+          "pass": "rewriteLogicalAssignmentOperatorsPass",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.007194244604316547
+        }
+      ]
+    },
+    "downlevel-simple": {
+      "path": "/workspace/jsgo-results/round2/structural-profiles/downlevel-simple/profile.cpu.pprof",
+      "sha256": "7d47f77dfc1aefb5f7f4a52f26550ab3c83c7732150c5f2992b093b3a6787e04",
+      "sample_types": [
+        [
+          "samples",
+          "count"
+        ],
+        [
+          "cpu",
+          "nanoseconds"
+        ]
+      ],
+      "total_cpu_ns": 4700000000,
+      "total_cpu_s": 4.7,
+      "total_sample_count": 470,
+      "labeled_cpu_ns": 3220000000,
+      "labeled_cpu_fraction": 0.6851063829787234,
+      "unlabeled": {
+        "pass": null,
+        "sample_count": 148,
+        "cpu_ns": 1480000000,
+        "cpu_s": 1.48,
+        "sample_records": 124,
+        "cpu_fraction": 0.3148936170212766
+      },
+      "passes": [
+        {
+          "pass": "removeUnusedCode",
+          "sample_count": 31,
+          "cpu_ns": 310000000,
+          "cpu_s": 0.31,
+          "sample_records": 31,
+          "cpu_fraction": 0.06595744680851064
+        },
+        {
+          "pass": "flowSensitiveInlineVariables",
+          "sample_count": 26,
+          "cpu_ns": 260000000,
+          "cpu_s": 0.26,
+          "sample_records": 26,
+          "cpu_fraction": 0.05531914893617021
+        },
+        {
+          "pass": "collapseObjectLiterals",
+          "sample_count": 19,
+          "cpu_ns": 190000000,
+          "cpu_s": 0.19,
+          "sample_records": 19,
+          "cpu_fraction": 0.04042553191489362
+        },
+        {
+          "pass": "inlineVariables",
+          "sample_count": 19,
+          "cpu_ns": 190000000,
+          "cpu_s": 0.19,
+          "sample_records": 19,
+          "cpu_fraction": 0.04042553191489362
+        },
+        {
+          "pass": "coalesceVariableNames",
+          "sample_count": 16,
+          "cpu_ns": 160000000,
+          "cpu_s": 0.16,
+          "sample_records": 16,
+          "cpu_fraction": 0.03404255319148936
+        },
+        {
+          "pass": "deadAssignmentsElimination",
+          "sample_count": 12,
+          "cpu_ns": 120000000,
+          "cpu_s": 0.12,
+          "sample_records": 12,
+          "cpu_fraction": 0.02553191489361702
+        },
+        {
+          "pass": "inlineFunctions",
+          "sample_count": 11,
+          "cpu_ns": 110000000,
+          "cpu_s": 0.11,
+          "sample_records": 11,
+          "cpu_fraction": 0.023404255319148935
+        },
+        {
+          "pass": "inferConsts",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.02127659574468085
+        },
+        {
+          "pass": "rewriteCommonJsModules",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.02127659574468085
+        },
+        {
+          "pass": "peepholeOptimizations",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.019148936170212766
+        },
+        {
+          "pass": "checkControlFlow",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.01702127659574468
+        },
+        {
+          "pass": "inlineAndCollapseProperties",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.01702127659574468
+        },
+        {
+          "pass": "normalize",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.01702127659574468
+        },
+        {
+          "pass": "processDefines_CHECK",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.01702127659574468
+        },
+        {
+          "pass": "renameVars",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.01702127659574468
+        },
+        {
+          "pass": "Es6RewriteClass",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.014893617021276596
+        },
+        {
+          "pass": "checkVariableReferences",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.014893617021276596
+        },
+        {
+          "pass": "es6RewriteModule",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.014893617021276596
+        },
+        {
+          "pass": "processDefines_OPTIMIZE",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.014893617021276596
+        },
+        {
+          "pass": "closureRewriteModule",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.01276595744680851
+        },
+        {
+          "pass": "invertContextualRenaming",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.010638297872340425
+        },
+        {
+          "pass": "latePeepholeOptimizations",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.010638297872340425
+        },
+        {
+          "pass": "Es6RewriteBlockScopedDeclaration",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.00851063829787234
+        },
+        {
+          "pass": "closureReplaceGetCssName",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.00851063829787234
+        },
+        {
+          "pass": "denormalize",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.00851063829787234
+        },
+        {
+          "pass": "typesToColors",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.00851063829787234
+        },
+        {
+          "pass": "FindModuleDependencies",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "RewritePolyfills",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkConsts",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkGoogRequires",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkJsDocAndEs6Modules",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkStrictMode",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkVars",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "rewriteGoogJsImports",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.006382978723404255
+        },
+        {
+          "pass": "checkAstValidity",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "checkSideEffects",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "collapseVariableDeclarations",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "convertToDottedProperties",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "es6NormalizeClasses",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "gatherGettersAndSetters",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "replaceToggles",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "rewriteAsyncIteration",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "varCheckValidity",
+          "sample_count": 2,
+          "cpu_ns": 20000000,
+          "cpu_s": 0.02,
+          "sample_records": 2,
+          "cpu_fraction": 0.00425531914893617
+        },
+        {
+          "pass": "Es6RewriteArrowFunction",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "checkSuper",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "checkTypeImportCodeReferences",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "closureCheckModule",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "closureGoogScopeAliases",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "closureOptimizePrimitives",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "closureProvidesRequires",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "createModuleMap",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "declaredGlobalExternsOnWindow",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "gatherExternProperties",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "gatherModuleMetadata",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "generateExports",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "j2clChecksPass",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "postNormalizePeephole",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "removeCastNodes",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "stripSideEffectProtection",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        },
+        {
+          "pass": "suspiciousCode",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.002127659574468085
+        }
+      ]
+    },
+    "checks-only": {
+      "path": "/workspace/jsgo-results/round2/structural-profiles/checks-only/profile.cpu.pprof",
+      "sha256": "c1b719f6a23850db5ceb63c6f36f86d8b807a6e73b988b3c1ff4ea66b6c8b616",
+      "sample_types": [
+        [
+          "samples",
+          "count"
+        ],
+        [
+          "cpu",
+          "nanoseconds"
+        ]
+      ],
+      "total_cpu_ns": 8570000000,
+      "total_cpu_s": 8.57,
+      "total_sample_count": 857,
+      "labeled_cpu_ns": 5850000000,
+      "labeled_cpu_fraction": 0.6826137689614936,
+      "unlabeled": {
+        "pass": null,
+        "sample_count": 272,
+        "cpu_ns": 2720000000,
+        "cpu_s": 2.72,
+        "sample_records": 218,
+        "cpu_fraction": 0.31738623103850644
+      },
+      "passes": [
+        {
+          "pass": "inferTypes",
+          "sample_count": 218,
+          "cpu_ns": 2180000000,
+          "cpu_s": 2.18,
+          "sample_records": 215,
+          "cpu_fraction": 0.2543757292882147
+        },
+        {
+          "pass": "checkTypes",
+          "sample_count": 69,
+          "cpu_ns": 690000000,
+          "cpu_s": 0.69,
+          "sample_records": 68,
+          "cpu_fraction": 0.08051341890315053
+        },
+        {
+          "pass": "checkAccessControls",
+          "sample_count": 52,
+          "cpu_ns": 520000000,
+          "cpu_s": 0.52,
+          "sample_records": 52,
+          "cpu_fraction": 0.060676779463243874
+        },
+        {
+          "pass": "processDefines_CHECK",
+          "sample_count": 43,
+          "cpu_ns": 430000000,
+          "cpu_s": 0.43,
+          "sample_records": 42,
+          "cpu_fraction": 0.050175029171528586
+        },
+        {
+          "pass": "checkControlFlow",
+          "sample_count": 34,
+          "cpu_ns": 340000000,
+          "cpu_s": 0.34,
+          "sample_records": 34,
+          "cpu_fraction": 0.039673278879813305
+        },
+        {
+          "pass": "closureRewriteModule",
+          "sample_count": 17,
+          "cpu_ns": 170000000,
+          "cpu_s": 0.17,
+          "sample_records": 17,
+          "cpu_fraction": 0.019836639439906652
+        },
+        {
+          "pass": "checkVariableReferences",
+          "sample_count": 14,
+          "cpu_ns": 140000000,
+          "cpu_s": 0.14,
+          "sample_records": 14,
+          "cpu_fraction": 0.01633605600933489
+        },
+        {
+          "pass": "inferConsts",
+          "sample_count": 12,
+          "cpu_ns": 120000000,
+          "cpu_s": 0.12,
+          "sample_records": 12,
+          "cpu_fraction": 0.014002333722287048
+        },
+        {
+          "pass": "checkJsDocAndEs6Modules",
+          "sample_count": 11,
+          "cpu_ns": 110000000,
+          "cpu_s": 0.11,
+          "sample_records": 11,
+          "cpu_fraction": 0.012835472578763127
+        },
+        {
+          "pass": "suspiciousCode",
+          "sample_count": 10,
+          "cpu_ns": 100000000,
+          "cpu_s": 0.1,
+          "sample_records": 10,
+          "cpu_fraction": 0.011668611435239206
+        },
+        {
+          "pass": "checkGoogRequires",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.010501750291715286
+        },
+        {
+          "pass": "checkStrictMode",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 9,
+          "cpu_fraction": 0.010501750291715286
+        },
+        {
+          "pass": "es6RewriteModule",
+          "sample_count": 9,
+          "cpu_ns": 90000000,
+          "cpu_s": 0.09,
+          "sample_records": 8,
+          "cpu_fraction": 0.010501750291715286
+        },
+        {
+          "pass": "checkSideEffects",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.009334889148191364
+        },
+        {
+          "pass": "checkVars",
+          "sample_count": 8,
+          "cpu_ns": 80000000,
+          "cpu_s": 0.08,
+          "sample_records": 8,
+          "cpu_fraction": 0.009334889148191364
+        },
+        {
+          "pass": "gatherModuleMetadata",
+          "sample_count": 7,
+          "cpu_ns": 70000000,
+          "cpu_s": 0.07,
+          "sample_records": 7,
+          "cpu_fraction": 0.008168028004667444
+        },
+        {
+          "pass": "checkConsts",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.007001166861143524
+        },
+        {
+          "pass": "checkTypeImportCodeReferences",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.007001166861143524
+        },
+        {
+          "pass": "closureCheckModule",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.007001166861143524
+        },
+        {
+          "pass": "j2clChecksPass",
+          "sample_count": 6,
+          "cpu_ns": 60000000,
+          "cpu_s": 0.06,
+          "sample_records": 6,
+          "cpu_fraction": 0.007001166861143524
+        },
+        {
+          "pass": "closureGoogScopeAliases",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 5,
+          "cpu_fraction": 0.005834305717619603
+        },
+        {
+          "pass": "closurePrimitives",
+          "sample_count": 5,
+          "cpu_ns": 50000000,
+          "cpu_s": 0.05,
+          "sample_records": 4,
+          "cpu_fraction": 0.005834305717619603
+        },
+        {
+          "pass": "checkSuper",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.004667444574095682
+        },
+        {
+          "pass": "gatherGettersAndSetters",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 3,
+          "cpu_fraction": 0.004667444574095682
+        },
+        {
+          "pass": "generateExports",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.004667444574095682
+        },
+        {
+          "pass": "rewriteCallerCodeLocation",
+          "sample_count": 4,
+          "cpu_ns": 40000000,
+          "cpu_s": 0.04,
+          "sample_records": 4,
+          "cpu_fraction": 0.004667444574095682
+        },
+        {
+          "pass": "REWRITE_DYNAMIC_IMPORT",
+          "sample_count": 3,
+          "cpu_ns": 30000000,
+          "cpu_s": 0.03,
+          "sample_records": 3,
+          "cpu_fraction": 0.003500583430571762
+        },
+        {
+          "pass": "createModuleMap",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0011668611435239206
+        },
+        {
+          "pass": "declaredGlobalExternsOnWindow",
+          "sample_count": 1,
+          "cpu_ns": 10000000,
+          "cpu_s": 0.01,
+          "sample_records": 1,
+          "cpu_fraction": 0.0011668611435239206
+        }
+      ]
+    }
+  },
+  "capture_environment": {
+    "flags": {
+      "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+      "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+      "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+      "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+      "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+      "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+      "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+      "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+      "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+      "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1",
+      "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE": "1",
+      "JSGO_EXPERIMENT_PROPERTY_ASCII_INDEX": "1",
+      "JSGO_EXPERIMENT_TYPED_INITIAL_FUSION": "1",
+      "JSGO_EXPERIMENT_NATIVE_DEPENDENCY_SCAN": "1",
+      "GODEBUG": "profstackdepth=512"
+    },
+    "runtime_gc": "default GC; diagnostic heap depth 512; jsgo_pass labels and SourceFile counters",
+    "affinity": [
+      0,
+      1
+    ],
+    "source_commit": "5b720eade60c0b3af3a6cebea49beb579ec55685",
+    "binary": "/workspace/jsgo-results/round2/bin/jsgo-structural-prof",
+    "sha256": "3aab1662f75788bc420dce42f3e156076ccc454c88530520a513fedbe448626c"
+  },
+  "environment_sha256": "451e052cf51303cb23a26fea54c7e9890dc989365eb12a5e3fecad03d45c265e"
+}

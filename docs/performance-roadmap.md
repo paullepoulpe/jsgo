@@ -209,7 +209,9 @@ and pass-level optimizations was implemented and verified step by step:
 1. **Idiomatic concurrency & lock elimination (`step1` & `step7`):**
    - Unified `prebuild_ast_parallel.go` and `prebuild_dependency_info_parallel.go`
      into a generic `parallelPrebuild[T, R]` worker pool using lock-free
-     `atomic.Int64` work-claiming and capped at `min(numParallelThreads, runtime.GOMAXPROCS(0), len(inputs))`.
+     `atomic.Int64` work-claiming and capped at `min(numParallelThreads, len(inputs))`.
+     This bounds compiler work items; it does not change `GOMAXPROCS` or cap all
+     runtime goroutines and OS threads.
    - Sharded `RhinoStringPool` (`internal/rhino/rhino_string_pool.go`) into 64
      `sync.RWMutex` shards keyed by `StringHashCode(s)` with an allocation-free
      read lock fast path.

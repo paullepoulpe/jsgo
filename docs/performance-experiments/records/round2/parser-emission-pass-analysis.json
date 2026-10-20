@@ -1,0 +1,142 @@
+{
+  "typed-app": {
+    "cpu_s": {
+      "total": 6.87,
+      "emitter_output": 0.08,
+      "normalize": 0.08,
+      "invert_names": 0.0,
+      "commonjs": 0.0,
+      "es6_modules": 0.03,
+      "scope": 0.53,
+      "reference": 0.72,
+      "map": 0.92,
+      "resolve": 0.0,
+      "line": 0.03
+    },
+    "sampled_alloc_MiB": {
+      "total": 1146.4845,
+      "emitter_output": 2.0035,
+      "normalize": 15.5851,
+      "invert_names": 0.0,
+      "commonjs": 0.0,
+      "es6_modules": 0.5131,
+      "scope": 96.8667,
+      "reference": 204.2402,
+      "map": 295.1788,
+      "resolve": 1.0001,
+      "line": 0.0
+    }
+  },
+  "bundle": {
+    "cpu_s": {
+      "total": 26.59,
+      "emitter_output": 0.34,
+      "normalize": 1.22,
+      "invert_names": 0.78,
+      "commonjs": 0.0,
+      "es6_modules": 0.07,
+      "scope": 2.36,
+      "reference": 3.83,
+      "map": 3.7,
+      "resolve": 0.0,
+      "line": 0.08
+    },
+    "sampled_alloc_MiB": {
+      "total": 4713.3922,
+      "emitter_output": 23.538,
+      "normalize": 429.786,
+      "invert_names": 326.6845,
+      "commonjs": 0.0,
+      "es6_modules": 0.5009,
+      "scope": 517.2564,
+      "reference": 923.953,
+      "map": 1218.7698,
+      "resolve": 0.0,
+      "line": 0.0
+    }
+  },
+  "downlevel-whitespace": {
+    "cpu_s": {
+      "total": 1.91,
+      "emitter_output": 0.11,
+      "normalize": 0.16,
+      "invert_names": 0.06,
+      "commonjs": 0.13,
+      "es6_modules": 0.06,
+      "scope": 0.15,
+      "reference": 0.06,
+      "map": 0.25,
+      "resolve": 0.08,
+      "line": 0.03
+    },
+    "sampled_alloc_MiB": {
+      "total": 332.2427,
+      "emitter_output": 2.0172,
+      "normalize": 48.0962,
+      "invert_names": 33.5356,
+      "commonjs": 35.0023,
+      "es6_modules": 13.5018,
+      "scope": 41.2919,
+      "reference": 16.9906,
+      "map": 81.0118,
+      "resolve": 44.0028,
+      "line": 0.0
+    }
+  },
+  "downlevel-simple": {
+    "cpu_s": {
+      "total": 5.25,
+      "emitter_output": 0.08,
+      "normalize": 0.17,
+      "invert_names": 0.06,
+      "commonjs": 0.11,
+      "es6_modules": 0.08,
+      "scope": 0.54,
+      "reference": 0.62,
+      "map": 0.76,
+      "resolve": 0.07,
+      "line": 0.0
+    },
+    "sampled_alloc_MiB": {
+      "total": 1044.5381,
+      "emitter_output": 0.0,
+      "normalize": 48.6858,
+      "invert_names": 27.0133,
+      "commonjs": 47.0282,
+      "es6_modules": 20.0176,
+      "scope": 157.8537,
+      "reference": 153.4894,
+      "map": 231.2645,
+      "resolve": 52.0034,
+      "line": 0.0
+    }
+  },
+  "checks-only": {
+    "cpu_s": {
+      "total": 10.2,
+      "emitter_output": 0.01,
+      "normalize": 0.0,
+      "invert_names": 0.0,
+      "commonjs": 0.0,
+      "es6_modules": 0.1,
+      "scope": 0.39,
+      "reference": 0.33,
+      "map": 0.84,
+      "resolve": 0.0,
+      "line": 0.0
+    },
+    "sampled_alloc_MiB": {
+      "total": 1430.5248,
+      "emitter_output": 0.0,
+      "normalize": 0.0,
+      "invert_names": 0.0,
+      "commonjs": 0.0,
+      "es6_modules": 0.5026,
+      "scope": 37.5091,
+      "reference": 63.46,
+      "map": 165.7918,
+      "resolve": 2.0001,
+      "line": 0.0
+    }
+  }
+}

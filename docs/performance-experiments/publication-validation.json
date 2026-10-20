@@ -1,0 +1,14 @@
+{
+  "archive_hashes": "PASS",
+  "measurement_records": 9038,
+  "source_snapshot_records": 136,
+  "source_worktrees": 120,
+  "design_note_versions": 71,
+  "saved_summary_files": 63,
+  "normalized_metric_rows": 553,
+  "source_history_secret_pattern_scan_blobs": 897,
+  "measurement_and_source_text_secret_pattern_scan": "PASS; credential patterns detected:0",
+  "bundle_import_into_main_only_object_database": "PASS; all120 HEADs and key intermediate measured commits recoverable",
+  "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+  "scope": "Documentation/archive validation only; no new compiler performance measurements or new compiler validation claims."
+}

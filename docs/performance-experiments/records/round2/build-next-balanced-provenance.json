@@ -1,0 +1,20 @@
+{
+  "source_commit": "9aee69c4a3b0b6cd9655016896bd64e80c13fd91",
+  "source_status": "",
+  "profile_path": "/workspace/jsgo-results/round2/next-balanced-pgo/balanced.pgo",
+  "profile_sha256": "bf41a4d79739dc07555dbeb4300672be5edb0cc5dcbf7365f37507d3f018e942",
+  "profile_training_commit": "eecbcf44af08ed6743de5ce69eddce675a71ee93",
+  "training_source_difference": "Production coalesce-wrapper splitting fix affects N>=2 only; other changes test-only. Profiles N1.",
+  "variants": {
+    "jsgo-next-balanced-l4": {
+      "path": "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-l4",
+      "sha256": "bfe23d2597582709701b05d8885d4a9be505b10b59011442d2b32498e3924fc8",
+      "build_info": "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-l4: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-gcflags=github.com/paullepoulpe/jsgo/internal/parsing=-l=4\n\tbuild\t-pgo=/workspace/jsgo-results/round2/next-balanced-pgo/balanced.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n"
+    },
+    "jsgo-next-balanced-newinliner": {
+      "path": "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-newinliner",
+      "sha256": "b5031c942e259b38146d3bd313772d8b5593e8b09b06a6d0588e9ce0408b92b4",
+      "build_info": "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-newinliner: go1.27.2-X:newinliner\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-pgo=/workspace/jsgo-results/round2/next-balanced-pgo/balanced.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOEXPERIMENT=newinliner\n\tbuild\tGOOS=linux\n"
+    }
+  }
+}

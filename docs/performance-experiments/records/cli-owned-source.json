@@ -1,0 +1,8 @@
+{
+  "source_commit": "3467f5a3",
+  "binary_sha256": "718fb05730d698b1b36e2c4b12a7834ab39acf57111bcb1c648d6844accb4b22",
+  "build_info": "/workspace/jsgo/bin/jsgo-cli-owned: go1.27.2\n\tpath\tgithub.com/paullepoulpe/jsgo/cmd/jsgo\n\tmod\tgithub.com/paullepoulpe/jsgo\t(devel)\t\n\tdep\tgolang.org/x/text\tv0.34.0\th1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-pgo=/workspace/jsgo-redesigns/cmd/jsgo/default.pgo\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tDefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,httpservecontentmaxranges=1,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0\n\tbuild\tGOAMD64=v1\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n",
+  "scope": "ordinary CLI only; no worker or parsed-extern cache",
+  "runtime_gc": "default",
+  "later_changes": "documentation and deletion of unused worker benchmark fixtures only"
+}

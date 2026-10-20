@@ -1,0 +1,15 @@
+{
+  "reason": "obsolete previous-source augmented-test archives from10:45; current92faV2source changes package hash; preserved all binaries and raw results",
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/ad/adc4ebb3bd23894f2abf4089b6fd92558309dabf7239798d1c5f1a1a2a27c2b2-d",
+      "bytes": 269747720,
+      "mtime": 1792406754.5670507
+    },
+    {
+      "path": "/workspace/toolchains/cache/af/af23558c7ea27a6a76e984b8d7c2b43159b3323dbf234a171295e11830e56e04-d",
+      "bytes": 239622034,
+      "mtime": 1792406745.5849607
+    }
+  ]
+}

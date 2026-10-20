@@ -1,0 +1,14 @@
+{
+  "production_source_commit": "ef904e295f253b23ed654de18f95a9f6e83a00d4",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-pass-storage-l4",
+  "binary_sha256": "9e108d5b571cff1a53edd55578b2ee61fb4e6ee7ac42a2fc0f07d341f0c490a8",
+  "runtime_gc": "default; all inherited runtimeGC knobs cleared",
+  "go": "1.27.2",
+  "pgo": "shipped default.pgo",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ]
+}

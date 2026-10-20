@@ -1,0 +1,56 @@
+{
+  "updated_utc": "2026-10-19T13:49:47.873218+00:00",
+  "user_steering": "STOP exploring GOGC changes; future comparisons DEFAULT runtime GC with matched controls. Code/design only.",
+  "active_timing": null,
+  "current_validated_source": "inlineBitSeta6afc95fCLI+jutiltests+focusedrace+15gates",
+  "source_followup": "/workspace/jsgo-structural-traversal-next HEAD690e1dea; timedCLIfrozen0fafa262 productionidentical lasttest-only690. Full5tasksN1/N2/N4allMATCH. Broadpreleaf6,270PASS51SKIP. Focusedallnewnormal/race rebuildinglastfixtureundefinedhelperfix.",
+  "current_results": "Round13 descriptor screen30MATCH; mixed/no broad win. Stronger guard-audit finding invalidates previous negative attribution for post-colorization native storage factors. Repairing with actualCLI activation evidence.",
+  "validation": "Round12 one-word923racePASS2SKIP/all15gates; descriptor jutil normal/racePASS+source review; recipe Rhino33normal+33racePASS; merged compiler validation pending",
+  "new_code_batch": [
+    "CLI-ownedSourceFileordinarycoldlock+atomicrawcodepublication+weakrestorationhandles",
+    "InlineFunctionssparsephase-ownedreference discoveryitinerary",
+    "privateASCIIPropertyMapindexsortedTreeMaporacle",
+    "fusedTypedScopeCreatorinitialanalyses",
+    "nativeboundedgoogdependencyregexmatcher"
+  ],
+  "pending": [],
+  "binary_paths": "/workspace/jsgo-results/round2/bin",
+  "go": "/workspace/toolchains/go1.27.2/bin/go; sourceenv.sh GOCACHE/GOPATH eachcall. /usr/bin/go isgame",
+  "doc_report": "/workspace/jsgo-results/round2/cli-toolchain-round3.md",
+  "active_builds": {},
+  "diagnostic_overlay": "Fresh builtinexternparse128/128BROWSER and5/5CUSTOM native acceptance;36bytes originalstatementfragments; no cache/reuse.",
+  "report_docs": [
+    "/workspace/jsgo-results/round2/inline-bitset-template-round10.md",
+    "/workspace/jsgo-results/round2/template-guard-v2-round11.md",
+    "/workspace/jsgo-structural-bitset-template/docs/experiments/inline-bitset-template-results.md"
+  ],
+  "next_source_candidates": [
+    "Native Array<?> recipecbd3d91c",
+    "Parallel CommonJS0096508c",
+    "FSIV exact use-cardinality awaiting source freeze",
+    "Two-word24B descriptor3c7ac3c0"
+  ],
+  "fresh_thread_result": "WhitespaceN1/N2/N4fresh12warm10Java/5Go done allMATCH. Java/Go speed .740/.778/.722; memory6.034/5.568/5.211. StillJavafaster; GoN2best on2CPUquota.",
+  "new_source": "/workspace/jsgo-structural-bitset-templatec7998d45",
+  "active_validation": {},
+  "prepared_timing": "one-word-bitset-screen-command.json; three bitset layouts, full five tasks, three rounds; not started",
+  "setup_note": "originalrequestednamealreadybelongs earlierexperiment; overwriteguardblockedsetup; newuniqueoutputname",
+  "source_production": "c7998d45",
+  "source_documentation": "837a92e7ee9b714b010a06573986431135b18eae",
+  "next_priorities": [
+    "Exact cardinality MaybeReachingVariableUse backend",
+    "Native Array<?> immutable recipe with fresh mutable graph",
+    "Bounded parallel CommonJS with diagnostic equivalence",
+    "Parser canonical string MRU locality diagnostic"
+  ],
+  "goal_status": "Comfortable warm-Java win NOT achieved; runtime GC tuning is excluded.",
+  "publication": "PR23 head d1cda1bb76cd4dbe27618a24224d04177f89a1c6 published and remote-verified; new experiments after this cut not yet published",
+  "new_prototypes": {
+    "FSIV_USE_CARDINALITY": "b4897118",
+    "ARRAY_UNKNOWN_RECIPE": "cbd3d91c",
+    "PARALLEL_COMMONJS": "0096508c"
+  },
+  "source_setup_failure": "First merged CLI32a2e421 failed because _js.go files selected GOOS=js; rename-only4bbbb8a9, original log preserved. No timed run.",
+  "prepared_validation": "Plain focused-fundamental-designs-overlay regenerated4bbbb8a9, production replacements0. Gating commands prepared for both binaries.",
+  "new_prototype_issues": "First combined race aborted: freshCLI quotient RejectedStock (unrelated runtimeLibraryTypedAsts guard), CommonJS repeated source-map print fixture panic. All state oracles passed, all15 productiongates match. Type recipe real input nohits, diagnostic investigation pending. No affected-factor speed claim."
+}

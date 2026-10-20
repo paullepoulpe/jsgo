@@ -1,0 +1,307 @@
+{
+ "typed-app": {
+  "java_warm_s": 3.7394,
+  "java_peak_rss_mb": 1090.1875,
+  "variants": {
+   "control4": {
+    "median_s": 5.2435115550033515,
+    "min_s": 5.235289955002372,
+    "max_s": 5.251733155004331,
+    "median_cpu_s": 6.5027855,
+    "median_peak_rss_mb": 252.494140625,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7131480422565045,
+    "memory_ratio_java_over_go": 4.317674450985094,
+    "all_outputs_match": true
+   },
+   "parser4": {
+    "median_s": 5.2333675874979235,
+    "min_s": 5.225914251990616,
+    "max_s": 5.240820923005231,
+    "median_cpu_s": 6.591118,
+    "median_peak_rss_mb": 253.12109375,
+    "speed_vs_first_variant": 1.0019383250528133,
+    "speed_vs_java_warm": 0.714530354973175,
+    "memory_ratio_java_over_go": 4.306980045988364,
+    "all_outputs_match": true
+   },
+   "recipe_shared4": {
+    "median_s": 5.274114949999785,
+    "min_s": 5.072600640996825,
+    "max_s": 5.475629259002744,
+    "median_cpu_s": 6.613080500000001,
+    "median_peak_rss_mb": 253.42578125,
+    "speed_vs_first_variant": 0.99419743496557,
+    "speed_vs_java_warm": 0.7090099543621348,
+    "memory_ratio_java_over_go": 4.301801871233256,
+    "all_outputs_match": true
+   },
+   "use_scalar4": {
+    "median_s": 5.116661874999409,
+    "min_s": 5.066901694997796,
+    "max_s": 5.166422055001021,
+    "median_cpu_s": 6.3865555,
+    "median_peak_rss_mb": 258.765625,
+    "speed_vs_first_variant": 1.02479149162147,
+    "speed_vs_java_warm": 0.7308280459709744,
+    "memory_ratio_java_over_go": 4.213030614093352,
+    "all_outputs_match": true
+   },
+   "compound4": {
+    "median_s": 5.158921681497304,
+    "min_s": 5.043402581999544,
+    "max_s": 5.274440780995064,
+    "median_cpu_s": 6.4497444999999995,
+    "median_peak_rss_mb": 251.71484375,
+    "speed_vs_first_variant": 1.0163968128861953,
+    "speed_vs_java_warm": 0.7248413972655409,
+    "memory_ratio_java_over_go": 4.331041760424587,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "bundle": {
+  "java_warm_s": 16.600099999999998,
+  "java_peak_rss_mb": 1696.55078125,
+  "variants": {
+   "control4": {
+    "median_s": 18.222259110509185,
+    "min_s": 17.850882046011975,
+    "max_s": 18.593636175006395,
+    "median_cpu_s": 23.055878999999997,
+    "median_peak_rss_mb": 622.037109375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.9109792534135545,
+    "memory_ratio_java_over_go": 2.7274108822134933,
+    "all_outputs_match": true
+   },
+   "parser4": {
+    "median_s": 18.438236293994123,
+    "min_s": 18.327120354995714,
+    "max_s": 18.549352232992533,
+    "median_cpu_s": 23.230794500000002,
+    "median_peak_rss_mb": 557.1875,
+    "speed_vs_first_variant": 0.9882864510443828,
+    "speed_vs_java_warm": 0.9003084533311432,
+    "memory_ratio_java_over_go": 3.044847167694896,
+    "all_outputs_match": true
+   },
+   "recipe_shared4": {
+    "median_s": 18.22792511949956,
+    "min_s": 18.060787993003032,
+    "max_s": 18.395062245996087,
+    "median_cpu_s": 23.100766,
+    "median_peak_rss_mb": 614.3203125,
+    "speed_vs_first_variant": 0.9996891577646261,
+    "speed_vs_java_warm": 0.9106960825860441,
+    "memory_ratio_java_over_go": 2.7616713084837157,
+    "all_outputs_match": true
+   },
+   "use_scalar4": {
+    "median_s": 18.22808393000014,
+    "min_s": 18.070685580998543,
+    "max_s": 18.385482279001735,
+    "median_cpu_s": 23.034406000000004,
+    "median_peak_rss_mb": 516.705078125,
+    "speed_vs_first_variant": 0.9996804480650121,
+    "speed_vs_java_warm": 0.9106881482303922,
+    "memory_ratio_java_over_go": 3.2834025696174303,
+    "all_outputs_match": true
+   },
+   "compound4": {
+    "median_s": 17.927018442496774,
+    "min_s": 17.868883807997918,
+    "max_s": 17.98515307699563,
+    "median_cpu_s": 22.635557499999997,
+    "median_peak_rss_mb": 650.6328125,
+    "speed_vs_first_variant": 1.0164690335405988,
+    "speed_vs_java_warm": 0.9259822012928118,
+    "memory_ratio_java_over_go": 2.607539534827872,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-whitespace": {
+  "java_warm_s": 0.93825,
+  "java_peak_rss_mb": 930.17578125,
+  "variants": {
+   "control4": {
+    "median_s": 1.291751105505682,
+    "min_s": 1.2619196340092458,
+    "max_s": 1.3215825770021183,
+    "median_cpu_s": 1.6453715,
+    "median_peak_rss_mb": 152.421875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7263396144977194,
+    "memory_ratio_java_over_go": 6.102639671963096,
+    "all_outputs_match": true
+   },
+   "parser4": {
+    "median_s": 1.3016549595049582,
+    "min_s": 1.2832147970038932,
+    "max_s": 1.3200951220060233,
+    "median_cpu_s": 1.6580314999999999,
+    "median_peak_rss_mb": 158.908203125,
+    "speed_vs_first_variant": 0.9923913369461268,
+    "speed_vs_java_warm": 0.7208131411083262,
+    "memory_ratio_java_over_go": 5.853541623136392,
+    "all_outputs_match": true
+   },
+   "recipe_shared4": {
+    "median_s": 1.3105177685065428,
+    "min_s": 1.294276341010118,
+    "max_s": 1.3267591960029677,
+    "median_cpu_s": 1.692686,
+    "median_peak_rss_mb": 153.46484375,
+    "speed_vs_first_variant": 0.985679962949112,
+    "speed_vs_java_warm": 0.7159384043065844,
+    "memory_ratio_java_over_go": 6.061165270954769,
+    "all_outputs_match": true
+   },
+   "use_scalar4": {
+    "median_s": 1.3121370269946055,
+    "min_s": 1.2234016150032403,
+    "max_s": 1.4008724389859708,
+    "median_cpu_s": 1.6748029999999998,
+    "median_peak_rss_mb": 157.259765625,
+    "speed_vs_first_variant": 0.9844635727294301,
+    "speed_vs_java_warm": 0.7150548919033418,
+    "memory_ratio_java_over_go": 5.914899959014867,
+    "all_outputs_match": true
+   },
+   "compound4": {
+    "median_s": 1.2809836489977897,
+    "min_s": 1.2310607330000494,
+    "max_s": 1.33090656499553,
+    "median_cpu_s": 1.6208304999999998,
+    "median_peak_rss_mb": 156.201171875,
+    "speed_vs_first_variant": 1.0084056158845716,
+    "speed_vs_java_warm": 0.7324449462989351,
+    "memory_ratio_java_over_go": 5.954985933104095,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "downlevel-simple": {
+  "java_warm_s": 2.8052,
+  "java_peak_rss_mb": 1118.35546875,
+  "variants": {
+   "control4": {
+    "median_s": 3.822585207002703,
+    "min_s": 3.7556854630092857,
+    "max_s": 3.8894849509961205,
+    "median_cpu_s": 4.782009,
+    "median_peak_rss_mb": 200.82421875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7338489132592975,
+    "memory_ratio_java_over_go": 5.56882768279162,
+    "all_outputs_match": true
+   },
+   "parser4": {
+    "median_s": 3.895261947000108,
+    "min_s": 3.8062385719968006,
+    "max_s": 3.984285322003416,
+    "median_cpu_s": 4.886666,
+    "median_peak_rss_mb": 196.259765625,
+    "speed_vs_first_variant": 0.9813422714604916,
+    "speed_vs_java_warm": 0.7201569594466922,
+    "memory_ratio_java_over_go": 5.69834303627407,
+    "all_outputs_match": true
+   },
+   "recipe_shared4": {
+    "median_s": 3.94612586650328,
+    "min_s": 3.8988816030032467,
+    "max_s": 3.9933701300033135,
+    "median_cpu_s": 4.9582695,
+    "median_peak_rss_mb": 196.1171875,
+    "speed_vs_first_variant": 0.9686931781499285,
+    "speed_vs_java_warm": 0.71087443606702,
+    "memory_ratio_java_over_go": 5.702485758674262,
+    "all_outputs_match": true
+   },
+   "use_scalar4": {
+    "median_s": 3.9200058360002004,
+    "min_s": 3.8871031979942927,
+    "max_s": 3.952908474006108,
+    "median_cpu_s": 4.95799,
+    "median_peak_rss_mb": 200.62890625,
+    "speed_vs_first_variant": 0.9751478357244231,
+    "speed_vs_java_warm": 0.7156111795135237,
+    "memory_ratio_java_over_go": 5.574248943751095,
+    "all_outputs_match": true
+   },
+   "compound4": {
+    "median_s": 3.750371405003534,
+    "min_s": 3.7093675780051854,
+    "max_s": 3.791375232001883,
+    "median_cpu_s": 4.6958465,
+    "median_peak_rss_mb": 196.91796875,
+    "speed_vs_first_variant": 1.0192551068149744,
+    "speed_vs_java_warm": 0.7479792524701582,
+    "memory_ratio_java_over_go": 5.679296185356371,
+    "all_outputs_match": true
+   }
+  }
+ },
+ "checks-only": {
+  "java_warm_s": 6.038,
+  "java_peak_rss_mb": 1360.0234375,
+  "variants": {
+   "control4": {
+    "median_s": 7.979168306497741,
+    "min_s": 7.950596014998155,
+    "max_s": 8.007740597997326,
+    "median_cpu_s": 9.9182625,
+    "median_peak_rss_mb": 654.89453125,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7567204711151445,
+    "memory_ratio_java_over_go": 2.0767060535749433,
+    "all_outputs_match": true
+   },
+   "parser4": {
+    "median_s": 8.166432489502768,
+    "min_s": 8.154967991999001,
+    "max_s": 8.177896987006534,
+    "median_cpu_s": 10.134235499999999,
+    "median_peak_rss_mb": 664.86328125,
+    "speed_vs_first_variant": 0.9770690343371186,
+    "speed_vs_java_warm": 0.7393681399756037,
+    "memory_ratio_java_over_go": 2.04556857906642,
+    "all_outputs_match": true
+   },
+   "recipe_shared4": {
+    "median_s": 7.9777289269986795,
+    "min_s": 7.965364464005688,
+    "max_s": 7.990093389991671,
+    "median_cpu_s": 9.807172,
+    "median_peak_rss_mb": 639.43359375,
+    "speed_vs_first_variant": 1.0001804247188932,
+    "speed_vs_java_warm": 0.7568570021934263,
+    "memory_ratio_java_over_go": 2.1269189651485996,
+    "all_outputs_match": true
+   },
+   "use_scalar4": {
+    "median_s": 8.04634390049614,
+    "min_s": 8.015180910995696,
+    "max_s": 8.077506889996585,
+    "median_cpu_s": 9.9266815,
+    "median_peak_rss_mb": 672.9765625,
+    "speed_vs_first_variant": 0.9916514140050293,
+    "speed_vs_java_warm": 0.7504029251878851,
+    "memory_ratio_java_over_go": 2.020907581755494,
+    "all_outputs_match": true
+   },
+   "compound4": {
+    "median_s": 8.028334166498098,
+    "min_s": 7.967089914003736,
+    "max_s": 8.08957841899246,
+    "median_cpu_s": 9.942862,
+    "median_peak_rss_mb": 628.81640625,
+    "speed_vs_first_variant": 0.9938759574550939,
+    "speed_vs_java_warm": 0.752086282755434,
+    "memory_ratio_java_over_go": 2.162830714946856,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

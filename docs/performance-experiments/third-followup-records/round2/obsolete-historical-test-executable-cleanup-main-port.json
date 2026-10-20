@@ -1,0 +1,35 @@
+{
+  "reason": "Only completed historical test/diagnostic executables; exact source, build/overlay manifests, successful/failed logs and hashes archived. No timed CLI binaries deleted. Rebuild from pinned source if needed. No process uses these executables.",
+  "files": [
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-post-colors-designs-focused-race.test",
+      "bytes": 65458504,
+      "sha256": "f382d9997dea16c29305f2e84071155551207a3a8d95e5867064c7a04cc99ae2"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-post-colors-kernel-focused-race.test",
+      "bytes": 65538565,
+      "sha256": "41bdfb4d303a3bb74e3a5c54e977cc55570ef92bc52b728476852d4e679b9ca9"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-post-colors-array-sharing-focused-race.test",
+      "bytes": 65555006,
+      "sha256": "64c9cdde5a9cd3c6fe9667fe7bb91252506705d141a6710ae8ca6521b0672c9f"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-array-shared-resolved-diagnostic.test",
+      "bytes": 52154169,
+      "sha256": "bab1b57774c6f7fde4bdb8f485ff0f6e754f6601be191656b88526c681bf6deb"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-post-colors-activation.test",
+      "bytes": 53354160,
+      "sha256": "6af4ae7a17fe55a2b7a092e164f9f741d0be6ca32ed79ac2f807d29d95144be5"
+    },
+    {
+      "path": "/workspace/jsgo-results/round2/bin/jscomp-array-recipe-details-frozen-v3.test",
+      "bytes": 53266082,
+      "sha256": "a5d80c64d0d4639bbfb6ba851b6f3ebe3bb94b62ddd5a64de91325a7d114e37a"
+    }
+  ]
+}

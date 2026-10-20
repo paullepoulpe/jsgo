@@ -1,0 +1,3467 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-19T14:34:39.120746+00:00",
+  "scope": "Explicit frozen follow-up prototype source refs and design notes. Recoverable history is not a correctness/performance endorsement; original publication remains untouched. No compiled binaries or measurement archive is included here.",
+  "base_main_ref_at_capture": "refs/remotes/origin/main",
+  "base_main": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+  "local_main_not_used": "c9872522ef49054007c7ded25ee33b634c0ea989",
+  "bundle": {
+    "path": "followup-prototype-history.bundle",
+    "bytes": 704532,
+    "sha256": "78ceec17d1fa674b88c72a7c54db628579f6f32d172c14a6de61b060662ee719",
+    "creation_revision_arguments": [
+      "refs/heads/perf/inline-one-word-bitset",
+      "refs/heads/perf/structural-one-word-control",
+      "refs/heads/perf/inline-two-word-descriptors",
+      "refs/heads/perf/fundamental-compiler-designs",
+      "refs/heads/perf/post-colors-design-integration",
+      "refs/heads/perf/post-colors-candidate-kernel",
+      "refs/heads/perf/array-specialization-reuse",
+      "refs/heads/perf/array-shared-resolved",
+      "refs/heads/perf/post-colors-array-sharing",
+      "refs/heads/perf/parallel-commonjs",
+      "refs/heads/perf/fsiv-use-cardinality",
+      "refs/heads/perf/output-phase-admission",
+      "refs/heads/perf/native-live-phase-admission",
+      "refs/heads/perf/post-colors-native-admission",
+      "refs/heads/perf/ruc-stock-colors",
+      "refs/heads/perf/parallel-inference-cfg",
+      "refs/heads/perf/parser-string-diagnostic",
+      "--not",
+      "refs/remotes/origin/main"
+    ],
+    "uses_all_refs": false,
+    "prerequisites": [
+      "123b46e8a8cb13747b9d06358a6c00d0c57842f7"
+    ],
+    "every_prerequisite_ancestor_of_published_main": true,
+    "head_count": 17,
+    "included_commit_count": 167,
+    "excluded_publication_commits": [
+      "7cb633acfcb2874c4ea086d918bde1ff47c0e37e",
+      "d1cda1bb76cd4dbe27618a24224d04177f89a1c6"
+    ],
+    "publication_ancestry_rejected_for_every_ref": true
+  },
+  "sources": [
+    {
+      "experiment": "one-word-bitset",
+      "ref": "refs/heads/perf/inline-one-word-bitset",
+      "head": "29b4e912ccaf8e2bef30aebf3c9b11e5186df0c5",
+      "tree": "b7af17cf710fe52aac87a5a3ff21a78362e8dc9a",
+      "worktree_snapshot_name": "jsgo-inline-one-word-bitset",
+      "worktree_branch": "refs/heads/perf/inline-one-word-bitset",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {},
+        "source_replacement_without_runtime_switch": true,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Source-level one-word replacement; package normal/race evidence in branch notes. Exact CLI screens are separate measurement records.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-one-word-bitset.md",
+          "sha256": "76bfad3d8092d9541a2776f3c2728fbf77544ddc16bc8a5c8e222e8189ac4149",
+          "browsable_path": "followup-design-notes/76bfad3d8092d954-inline-one-word-bitset.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-scratch-bound.md",
+          "sha256": "db65037e5508eaa6769a738b8e8d0e08cb6e0c307bef2ea95cc091a51271fabc",
+          "browsable_path": "followup-design-notes/db65037e5508eaa6-native-live-scratch-bound.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "integrated-one-word-control",
+      "ref": "refs/heads/perf/structural-one-word-control",
+      "head": "7e0ba5fb2e10ae81d6b3dd743043bd8467b5caf7",
+      "tree": "b55ac6f8e7440d97d35f50abf341a38ea1f7071f",
+      "worktree_snapshot_name": "jsgo-structural-one-word-control",
+      "worktree_branch": "refs/heads/perf/structural-one-word-control",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {},
+        "source_replacement_without_runtime_switch": true,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Integrated source used by the one-word CLI control screen; no runtime switch changes its BitSet representation.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-one-word-bitset.md",
+          "sha256": "3e691a186e2f85366ef3f11eda81828d4539bf2101a4082ef3d6281e844ac057",
+          "browsable_path": "followup-design-notes/3e691a186e2f8536-inline-one-word-bitset.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "two-word-descriptors",
+      "ref": "refs/heads/perf/inline-two-word-descriptors",
+      "head": "35141ea4faaa55e2d57155ae8f93ce187ff0b4ab",
+      "tree": "d8163ed9010b306636496a5c350dbebe8426e127",
+      "worktree_snapshot_name": "jsgo-inline-two-word-descriptors",
+      "worktree_branch": "refs/heads/perf/inline-two-word-descriptors",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {},
+        "source_replacement_without_runtime_switch": true,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Source-level two-word descriptor replacement; standalone package validation and design proof in branch notes.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset-descriptors.md",
+          "sha256": "50633a00a65533468d42f387a3086a41c09e9606ddf8e477bf9140684d19d028",
+          "browsable_path": "followup-design-notes/50633a00a6553346-inline-bitset-descriptors.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "initial-fundamental-designs",
+      "ref": "refs/heads/perf/fundamental-compiler-designs",
+      "head": "4bbbb8a9fd1392a1053bae44f3429beae3ad954b",
+      "tree": "17d973002ad2630ca8d27e81e466363f25c44703",
+      "worktree_snapshot_name": "jsgo-fundamental-compiler-designs",
+      "worktree_branch": "refs/heads/perf/fundamental-compiler-designs",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Historical initial integration. Several post-colors factors had inactive runtime-table guards, and the original fixed8/7 Array recipe missed real browser31/30 maps. Not evidence those factors were negatively measured.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-use-cardinality.md",
+          "sha256": "e63cffae940e1c8f4844dde55887a5230f2a494f01e1d0307337e8965a066c81",
+          "browsable_path": "followup-design-notes/e63cffae940e1c8f-fsiv-use-cardinality.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "939dc034ec6f67c6feada7670913142ddf2f52cdce4b014fb92d66c751ddc977",
+          "browsable_path": "followup-design-notes/939dc034ec6f67c6-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-commonjs.md",
+          "sha256": "041f0484f712c576014e66989a23b254110f6ab539c8e22a9fa92337c74ae4dd",
+          "browsable_path": "followup-design-notes/041f0484f712c576-parallel-commonjs.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "corrected-post-colors-integration",
+      "ref": "refs/heads/perf/post-colors-design-integration",
+      "head": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+      "tree": "3d1d95c81b2a49e1cae6473a325eca35f8de27f3",
+      "worktree_snapshot_name": "jsgo-post-colors-design-integration",
+      "worktree_branch": "refs/heads/perf/post-colors-design-integration",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_NATIVE_LIVE_VARIABLES": "1",
+          "JSGO_EXPERIMENT_COMPACT_INVERTER": "1",
+          "JSGO_EXPERIMENT_SCOPE_FIRST_ALLOCATION": "1",
+          "JSGO_EXPERIMENT_ASCII_OUTPUT_BUFFER": "1",
+          "JSGO_EXPERIMENT_REMOVE_UNUSED_TASKS": "1",
+          "JSGO_EXPERIMENT_REMOVE_UNUSED_INTRUSIVE_FIFO": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Corrected phase admission; real benchmark activation and Java artifact comparisons recorded separately. Source availability is not a performance endorsement.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "3a00411ef31cd0aa0b3c2310514d2a30d5f411aea3aa22998863325395ebc56e",
+          "browsable_path": "followup-design-notes/3a00411ef31cd0aa-ascii-output-buffer.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-use-cardinality.md",
+          "sha256": "7603ab3af6c2d39c2414183e98a6460f9389a06818ebd1e5d8a0823eaf5a5614",
+          "browsable_path": "followup-design-notes/7603ab3af6c2d39c-fsiv-use-cardinality.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "939dc034ec6f67c6feada7670913142ddf2f52cdce4b014fb92d66c751ddc977",
+          "browsable_path": "followup-design-notes/939dc034ec6f67c6-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-phase-admission.md",
+          "sha256": "87fc707d8855b2885b066d4a70c15b0b680327b7ebe00f19dd4776202bd87444",
+          "browsable_path": "followup-design-notes/87fc707d8855b288-native-live-phase-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-commonjs.md",
+          "sha256": "041f0484f712c576014e66989a23b254110f6ab539c8e22a9fa92337c74ae4dd",
+          "browsable_path": "followup-design-notes/041f0484f712c576-parallel-commonjs.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/post-colors-native-admission.md",
+          "sha256": "0a5dd1c54b9e6b07bdd77ac6c17a3ae2075bf244fb5cd882c3418a7e6d65b52a",
+          "browsable_path": "followup-design-notes/0a5dd1c54b9e6b07-post-colors-native-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "integrated-candidate-kernel",
+      "ref": "refs/heads/perf/post-colors-candidate-kernel",
+      "head": "22358ec4da55bab6ffb5c2ec732a1ef7e71485f5",
+      "tree": "c1f57791006c5adbc9fca8d3bbcb21308719fb85",
+      "worktree_snapshot_name": "jsgo-post-colors-candidate-kernel",
+      "worktree_branch": "refs/heads/perf/post-colors-candidate-kernel",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_INLINE_CANDIDATE_KERNEL": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Integrated private scope-free candidate kernel; focused race and CLI artifact gates reported centrally. Timing/RSS belong to separate records.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "3a00411ef31cd0aa0b3c2310514d2a30d5f411aea3aa22998863325395ebc56e",
+          "browsable_path": "followup-design-notes/3a00411ef31cd0aa-ascii-output-buffer.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-use-cardinality.md",
+          "sha256": "7603ab3af6c2d39c2414183e98a6460f9389a06818ebd1e5d8a0823eaf5a5614",
+          "browsable_path": "followup-design-notes/7603ab3af6c2d39c-fsiv-use-cardinality.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-candidate-kernel.md",
+          "sha256": "3baaf754d511dd3905c801ad6efa5fd4608feabd74b12b2b1a9f311dd392b9cb",
+          "browsable_path": "followup-design-notes/3baaf754d511dd39-inline-candidate-kernel.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "939dc034ec6f67c6feada7670913142ddf2f52cdce4b014fb92d66c751ddc977",
+          "browsable_path": "followup-design-notes/939dc034ec6f67c6-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-phase-admission.md",
+          "sha256": "87fc707d8855b2885b066d4a70c15b0b680327b7ebe00f19dd4776202bd87444",
+          "browsable_path": "followup-design-notes/87fc707d8855b288-native-live-phase-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-commonjs.md",
+          "sha256": "041f0484f712c576014e66989a23b254110f6ab539c8e22a9fa92337c74ae4dd",
+          "browsable_path": "followup-design-notes/041f0484f712c576-parallel-commonjs.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/post-colors-native-admission.md",
+          "sha256": "0a5dd1c54b9e6b07bdd77ac6c17a3ae2075bf244fb5cd882c3418a7e6d65b52a",
+          "browsable_path": "followup-design-notes/0a5dd1c54b9e6b07-post-colors-native-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "generalized-array-recipe",
+      "ref": "refs/heads/perf/array-specialization-reuse",
+      "head": "2a6fee387c246db2b0a64d9d32e007b468c792f8",
+      "tree": "a034a0fa2e3d53874adb2a8467a19c2fda9199ff",
+      "worktree_snapshot_name": "jsgo-array-specialization-reuse",
+      "worktree_branch": "refs/heads/perf/array-specialization-reuse",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Generalized bounded1..64 native binding recipe; focused Rhino normal50/race50 passed. Real browser31/30 fixture and full compiler gates require central validation; no speed claim from this source manifest.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "5227de2d8e1be5b0588a7a8677fd04b934ccd71b735e15125740055569b23ae3",
+          "browsable_path": "followup-design-notes/5227de2d8e1be5b0-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "array-shared-resolved",
+      "ref": "refs/heads/perf/array-shared-resolved",
+      "head": "ac401680c323ff95a2f136c044957df8c7e8056d",
+      "tree": "b690094cf6c312f038a7f2c3e4a85ff3774c1a47",
+      "worktree_snapshot_name": "jsgo-array-shared-resolved",
+      "worktree_branch": "refs/heads/perf/array-shared-resolved",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+          "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Source peer-reviewed sharing of private immutable resolved native vector. Build/test pending in integrated7b801 at archive preparation; no elapsed/RSS result.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-shared-resolved.md",
+          "sha256": "e49f4525694e295517917580cc9ba8445550d72f6c8931f62346b763d0d45c66",
+          "browsable_path": "followup-design-notes/e49f4525694e2955-native-array-shared-resolved.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "5227de2d8e1be5b0588a7a8677fd04b934ccd71b735e15125740055569b23ae3",
+          "browsable_path": "followup-design-notes/5227de2d8e1be5b0-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "integrated-array-sharing",
+      "ref": "refs/heads/perf/post-colors-array-sharing",
+      "head": "7b801677eae2491f2cc9def38603d9320b7884cf",
+      "tree": "d1af4791ebc7b01804525a62b31de988d15b8648",
+      "worktree_snapshot_name": "jsgo-post-colors-array-sharing",
+      "worktree_branch": "refs/heads/perf/post-colors-array-sharing",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+          "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Frozen integrated candidate; central CLI/focused-race build/test pending at archive preparation. No speed/RSS data claimed.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "3a00411ef31cd0aa0b3c2310514d2a30d5f411aea3aa22998863325395ebc56e",
+          "browsable_path": "followup-design-notes/3a00411ef31cd0aa-ascii-output-buffer.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-use-cardinality.md",
+          "sha256": "7603ab3af6c2d39c2414183e98a6460f9389a06818ebd1e5d8a0823eaf5a5614",
+          "browsable_path": "followup-design-notes/7603ab3af6c2d39c-fsiv-use-cardinality.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-candidate-kernel.md",
+          "sha256": "3baaf754d511dd3905c801ad6efa5fd4608feabd74b12b2b1a9f311dd392b9cb",
+          "browsable_path": "followup-design-notes/3baaf754d511dd39-inline-candidate-kernel.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-array-shared-resolved.md",
+          "sha256": "e49f4525694e295517917580cc9ba8445550d72f6c8931f62346b763d0d45c66",
+          "browsable_path": "followup-design-notes/e49f4525694e2955-native-array-shared-resolved.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-array-unknown-recipe.md",
+          "sha256": "5227de2d8e1be5b0588a7a8677fd04b934ccd71b735e15125740055569b23ae3",
+          "browsable_path": "followup-design-notes/5227de2d8e1be5b0-native-array-unknown-recipe.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-phase-admission.md",
+          "sha256": "87fc707d8855b2885b066d4a70c15b0b680327b7ebe00f19dd4776202bd87444",
+          "browsable_path": "followup-design-notes/87fc707d8855b288-native-live-phase-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-commonjs.md",
+          "sha256": "041f0484f712c576014e66989a23b254110f6ab539c8e22a9fa92337c74ae4dd",
+          "browsable_path": "followup-design-notes/041f0484f712c576-parallel-commonjs.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/post-colors-native-admission.md",
+          "sha256": "0a5dd1c54b9e6b07bdd77ac6c17a3ae2075bf244fb5cd882c3418a7e6d65b52a",
+          "browsable_path": "followup-design-notes/0a5dd1c54b9e6b07-post-colors-native-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "parallel-commonjs",
+      "ref": "refs/heads/perf/parallel-commonjs",
+      "head": "59db78991d38830d62b4fb484b15af151fc33cf0",
+      "tree": "86fefb398abddfadaa1831be9c06bab851f81fe5",
+      "worktree_snapshot_name": "jsgo-parallel-commonjs",
+      "worktree_branch": "refs/heads/perf/parallel-commonjs",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Bounded chunk-local CommonJS preparation; actual two-worker dispatch evidence recorded in branch notes. Public/custom fallbacks remain.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset-template-results.md",
+          "sha256": "4093ff57c861c49c89a5664ba302de62e85e00aa0ccd6b4f59bf0f528b08aa44",
+          "browsable_path": "design-notes/4093ff57c861c49c-inline-bitset-template-results.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-commonjs.md",
+          "sha256": "f2bffc97a1bc96487c612ff2dc049246e08f69e9d02b17aa6e53d7fd4f439fc0",
+          "browsable_path": "followup-design-notes/f2bffc97a1bc9648-parallel-commonjs.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "fsiv-use-cardinality",
+      "ref": "refs/heads/perf/fsiv-use-cardinality",
+      "head": "fcc17e2c41b42f8e3e9d1470d8b57053e30bb020",
+      "tree": "3811539916fe88636c7c7530ef0c989fd645ab5b",
+      "worktree_snapshot_name": "jsgo-fsiv-use-cardinality",
+      "worktree_branch": "refs/heads/perf/fsiv-use-projection",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [
+        " M internal/jscomp/flow_sensitive_inline_variables.go",
+        " M internal/jscomp/fsiv_use_cardinality.go",
+        "?? internal/jscomp/fsiv_use_projection.go",
+        "?? internal/jscomp/fsiv_use_projection_test.go"
+      ],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+          "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Exact full-variable empty/single/many quotient and corrected post-colors admission. Candidate-variable projection is unfinished and excluded.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-use-cardinality.md",
+          "sha256": "7603ab3af6c2d39c2414183e98a6460f9389a06818ebd1e5d8a0823eaf5a5614",
+          "browsable_path": "followup-design-notes/7603ab3af6c2d39c-fsiv-use-cardinality.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "ascii-output-phase-admission",
+      "ref": "refs/heads/perf/output-phase-admission",
+      "head": "c1961e28c737f7483f83229161584da83df174e4",
+      "tree": "ed67fc57e1bb8df3b888b3495aefdd5101745d41",
+      "worktree_snapshot_name": "jsgo-output-phase-admission",
+      "worktree_branch": "refs/heads/perf/output-phase-admission",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_ASCII_OUTPUT_BUFFER": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Corrects only irrelevant loaded-runtime-table exclusion; actual CLI activation, UTF8/maps and inert-supplier coverage prepared. Larger ASCII redesign unfinished and excluded.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "3a00411ef31cd0aa0b3c2310514d2a30d5f411aea3aa22998863325395ebc56e",
+          "browsable_path": "followup-design-notes/3a00411ef31cd0aa-ascii-output-buffer.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "native-liveness-phase-admission",
+      "ref": "refs/heads/perf/native-live-phase-admission",
+      "head": "fae2f6f780dfa3736646fd292524024f64cd02ca",
+      "tree": "bac3400d20c7fce636395efe46ec662246bf285e",
+      "worktree_snapshot_name": "jsgo-native-live-admission",
+      "worktree_branch": "refs/heads/perf/native-live-phase-admission",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_NATIVE_LIVE_VARIABLES": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Corrects stock post-colors admission for original native liveness engine. Does not silently promote rejected later word-publication variants.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-phase-admission.md",
+          "sha256": "87fc707d8855b2885b066d4a70c15b0b680327b7ebe00f19dd4776202bd87444",
+          "browsable_path": "followup-design-notes/87fc707d8855b288-native-live-phase-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "scope-and-inverter-phase-admission",
+      "ref": "refs/heads/perf/post-colors-native-admission",
+      "head": "01a99ca6d99b066833980938b895aed192c53399",
+      "tree": "7d1e3d9847b685c594980ff0b76ff934416182a3",
+      "worktree_snapshot_name": "jsgo-post-colors-native-admission",
+      "worktree_branch": "refs/heads/perf/post-colors-native-admission",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_SCOPE_FIRST_ALLOCATION": "1",
+          "JSGO_EXPERIMENT_COMPACT_INVERTER": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Narrow independent phase-guard corrections; actual stock CLI factory probes, inert-supplier/custom/failure coverage included. No blanket guard weakening.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/post-colors-native-admission.md",
+          "sha256": "0a5dd1c54b9e6b07bdd77ac6c17a3ae2075bf244fb5cd882c3418a7e6d65b52a",
+          "browsable_path": "followup-design-notes/0a5dd1c54b9e6b07-post-colors-native-admission.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "ruc-phase-admission",
+      "ref": "refs/heads/perf/ruc-stock-colors",
+      "head": "db77755f10c66f6c5035373d716e3cdb773c45dd",
+      "tree": "0d3798bd528cd3c2d416fcb6bf6d1cc14444fa39",
+      "worktree_snapshot_name": "jsgo-ruc-stock-colors",
+      "worktree_branch": "refs/heads/perf/ruc-stock-colors",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_REMOVE_UNUSED_TASKS": "1",
+          "JSGO_EXPERIMENT_REMOVE_UNUSED_INTRUSIVE_FIFO": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Corrects RUC task/intrusive-FIFO phase admission and includes untimed activation overlay instructions.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/ruc-stock-runtime-table.md",
+          "sha256": "e8bf201eabc1a44d47237d9d60733f7efc9bf027cee3496a322023cb44322276",
+          "browsable_path": "followup-design-notes/e8bf201eabc1a44d-ruc-stock-runtime-table.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    },
+    {
+      "experiment": "parallel-inference-cfg",
+      "ref": "refs/heads/perf/parallel-inference-cfg",
+      "head": "fe6d8fca4a83887cd10a16c4855335a10947acc3",
+      "tree": "4244fc7c4f82291c8e85ce393008fa6f7dd0c8fd",
+      "worktree_snapshot_name": "jsgo-parallel-inference-cfg",
+      "worktree_branch": "refs/heads/perf/parallel-inference-cfg",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {
+          "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+          "JSGO_EXPERIMENT_PARALLEL_INFERENCE_CFG": "1"
+        },
+        "source_replacement_without_runtime_switch": false,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Includes production prototype1fc98e8a and subsequent source/profile audit. Isolated source-only; unbuilt/untested and low measured CFG opportunity; no speed claim.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset-template-results.md",
+          "sha256": "4093ff57c861c49c89a5664ba302de62e85e00aa0ccd6b4f59bf0f528b08aa44",
+          "browsable_path": "design-notes/4093ff57c861c49c-inline-bitset-template-results.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-inference-cfg.md",
+          "sha256": "694f563e509223e15a7de5ec28ee89f46032d67210aebb680ab10d366ae8b496",
+          "browsable_path": "followup-design-notes/694f563e509223e1-parallel-inference-cfg.md",
+          "already_in_original_publication": false
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ],
+      "requested_production_commit": "1fc98e8a74f2f46ab8950e448f8adedf5a8e224b"
+    },
+    {
+      "experiment": "parser-string-diagnostic",
+      "ref": "refs/heads/perf/parser-string-diagnostic",
+      "head": "dd9e20758664bc95537f815cdc2ca0c05090703a",
+      "tree": "2a407165152041126e3f1fbd353f5b658b7462c9",
+      "worktree_snapshot_name": "jsgo-parser-string-diagnostic",
+      "worktree_branch": "refs/heads/perf/parser-string-diagnostic",
+      "source_snapshot": "Committed frozen Git tree only; uncommitted/untracked files are not silently included.",
+      "worktree_status_at_capture": [],
+      "runtime": {
+        "feature_flags": {},
+        "source_replacement_without_runtime_switch": true,
+        "ordinary_cli_only": true,
+        "default_gc_required": true,
+        "workers_or_preparse_cache": false,
+        "notes": "Feature switches identify this factor, not a complete timed invocation. CLI_SOURCE_LOCK and other baseline flags/toolchain/exact inputs must come from the matching measurement command. New sharing flag alone does not enable its base recipe."
+      },
+      "status_at_archive_preparation": "Untimed diagnostic overlay/source locality audit only; not a timed production optimization.",
+      "design_notes": [
+        {
+          "original_path": "docs/experiments/ascii-output-buffer.md",
+          "sha256": "c9d02353a26e8582957ec9ad1ba94970139e67dcc0264738dcbc6760f8b19cde",
+          "browsable_path": "design-notes/c9d02353a26e8582-ascii-output-buffer.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/cli-source-lock.md",
+          "sha256": "a1f385f734bf7e290ebe085a63c538df2db55b6cc3d02302ecb00c35642b0f7b",
+          "browsable_path": "design-notes/a1f385f734bf7e29-cli-source-lock.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/compact-contextual-inverter.md",
+          "sha256": "fb1ac7651575d2dcb4de46a27fe982f2f2216315ec8d24303b406b6cf7608947",
+          "browsable_path": "design-notes/fb1ac7651575d2dc-compact-contextual-inverter.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/contextual-inverter-noop.md",
+          "sha256": "b1ee0f81ce76fd68f12f6f66e0172919c589e143d6b9ce4d63f9d3ffc03c6fa3",
+          "browsable_path": "design-notes/b1ee0f81ce76fd68-contextual-inverter-noop.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/empty-pass-proofs.md",
+          "sha256": "abbcd48daa688019bdf532634d07209dd9106ad00c0b83cb4c3bb6f2b6292d02",
+          "browsable_path": "design-notes/abbcd48daa688019-empty-pass-proofs.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fresh-template-values.md",
+          "sha256": "fbad53902d1232ed21b76c4ca4afe2bcf036c2000d52b56f38965aa84801b53a",
+          "browsable_path": "design-notes/fbad53902d1232ed-fresh-template-values.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/fsiv-scope-window.md",
+          "sha256": "ced973f1ec407da0205f3b1fa026a63f21ac19acfb7eb6e537a3eb68c05e6c74",
+          "browsable_path": "design-notes/ced973f1ec407da0-fsiv-scope-window.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/function-fsiv-cohorts.md",
+          "sha256": "4371d3024aa391cf4469f514b0dd3a2fa83d04a62c7fc2043493393a4a972056",
+          "browsable_path": "design-notes/4371d3024aa391cf-function-fsiv-cohorts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-argument-facts.md",
+          "sha256": "23c62b33c12a6b1e0f433888045cbfaa41718b427627619dc4ad41ecbf3e8747",
+          "browsable_path": "design-notes/23c62b33c12a6b1e-inline-argument-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/inline-bitset.md",
+          "sha256": "91207ecade7964baf4563a0a84886afe550cbc6af477c82e2eef5d198418b7ac",
+          "browsable_path": "design-notes/91207ecade7964ba-inline-bitset.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/intrinsic-leaf-traversal.md",
+          "sha256": "caf0769065aa41d8f6b9780c4b0cdd0981c9c3dfb067726f67ec65abfa512a20",
+          "browsable_path": "design-notes/caf0769065aa41d8-intrinsic-leaf-traversal.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-dependency-scan.md",
+          "sha256": "e3f1ef929096a5e4028b6dbad36db6799acaefdce721d35c01ee940bc1a47fff",
+          "browsable_path": "design-notes/e3f1ef929096a5e4-native-dependency-scan.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-live-variables.md",
+          "sha256": "90215202eeecce48f462afc88a818e71c60cf0003214f1af2f39f165469f7e4a",
+          "browsable_path": "design-notes/90215202eeecce48-native-live-variables.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-reference-storage.md",
+          "sha256": "bd3517ac0b9cbc0764970795267e62be531ae8287b488e437792e30db7ef0a64",
+          "browsable_path": "design-notes/bd3517ac0b9cbc07-native-reference-storage.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/native-typed-declarations.md",
+          "sha256": "235dd2bff978edb31467c446a9347d21fcc53269b339cec8ec4cacee47e5915b",
+          "browsable_path": "design-notes/235dd2bff978edb3-native-typed-declarations.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-coalesce.md",
+          "sha256": "38cbe5b86a2c2f7459da119e820cc386e56d3e4f7044ad64b9336bbdebb25a3f",
+          "browsable_path": "design-notes/38cbe5b86a2c2f74-parallel-coalesce.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/parallel-peephole.md",
+          "sha256": "b7a8c6a2025ed36e55632b015ddc589f1be14a2530ffe18e2f9de73bf01c5d3f",
+          "browsable_path": "design-notes/b7a8c6a2025ed36e-parallel-peephole.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/readonly-callee-facts.md",
+          "sha256": "3025b13812291065653bf6ccf541568b05f7e915595c1419fa8f328e06718f08",
+          "browsable_path": "design-notes/3025b13812291065-readonly-callee-facts.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/reference-batches.md",
+          "sha256": "da3e2cc578e0b4663620f6588cbf6ba49afa852ed253bab71c2f6140932ab877",
+          "browsable_path": "design-notes/da3e2cc578e0b466-reference-batches.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-intrusive-fifo.md",
+          "sha256": "54774471a5af80c69fe2427481148de8f59c8811abd0a7fd4ee739c9ca4b268c",
+          "browsable_path": "design-notes/54774471a5af80c6-remove-unused-intrusive-fifo.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/remove-unused-tasks.md",
+          "sha256": "854b4463cae931960e0a8a745aa785a4d5b9a17a0d7152f2280320e64813fcf5",
+          "browsable_path": "design-notes/854b4463cae93196-remove-unused-tasks.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-first-allocation.md",
+          "sha256": "5ec3f9fe1f18f06a885084db2e272c65f27aa6b08577d2acf752e169c64cf7da",
+          "browsable_path": "design-notes/5ec3f9fe1f18f06a-scope-first-allocation.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/scope-recipes.md",
+          "sha256": "2b28b83a850df11b0fd5e49fb72b12ed012f8b40658dccbe4559de5231ad4b2f",
+          "browsable_path": "design-notes/2b28b83a850df11b-scope-recipes.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/stock-scope-insertion.md",
+          "sha256": "b87d9db47230ddf09e8cd9feb4576d957843db540ed3f8969fa8c80876f00eba",
+          "browsable_path": "design-notes/b87d9db47230ddf0-stock-scope-insertion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-inference-scope-schedule.md",
+          "sha256": "2ca6ae2ed93755300d7c1a23a29fa4bacc2bae6f2fbda8fc99812f9981dce027",
+          "browsable_path": "design-notes/2ca6ae2ed9375530-typed-inference-scope-schedule.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/experiments/typed-initial-analysis-fusion.md",
+          "sha256": "8bede602e7ad8dae368dcfea1677133a2f0a10cffbfeafe5f041f9892676b5dd",
+          "browsable_path": "design-notes/8bede602e7ad8dae-typed-initial-analysis-fusion.md",
+          "already_in_original_publication": true
+        },
+        {
+          "original_path": "docs/performance-roadmap.md",
+          "sha256": "a72dafac1e51e2f0ff8d7853c923e8499dc45b15b7883f482aeefcefb0af8738",
+          "browsable_path": "design-notes/a72dafac1e51e2f0-performance-roadmap.md",
+          "already_in_original_publication": true
+        }
+      ]
+    }
+  ],
+  "recovery_verification": {
+    "independent_repository": true,
+    "seeded_only_with_main_commit": "123b46e8a8cb13747b9d06358a6c00d0c57842f7",
+    "alternates_or_shared_objects": false,
+    "bundle_verify_exit": 0,
+    "recovered_ref_count": 17,
+    "every_ref_and_tree_oid_matched": true,
+    "connectivity_fsck_exit": 0,
+    "temporary_recovery_removed": true
+  },
+  "recovery_commands": [
+    [
+      "git",
+      "clone",
+      "--bare",
+      "https://github.com/paullepoulpe/jsgo.git",
+      "jsgo-recovery.git"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "cat-file",
+      "-e",
+      "123b46e8a8cb13747b9d06358a6c00d0c57842f7^{commit}"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "bundle",
+      "verify",
+      "/absolute/path/to/followup-prototype-history.bundle"
+    ],
+    [
+      "git",
+      "-C",
+      "jsgo-recovery.git",
+      "fetch",
+      "/absolute/path/to/followup-prototype-history.bundle",
+      "+refs/heads/perf/*:refs/heads/recovered/perf/*"
+    ]
+  ],
+  "design_notes": {
+    "manifest": "followup-design-notes.json",
+    "new_unique_note_count": 24,
+    "unchanged_note_source_links": 454,
+    "manifest_bytes": 188738,
+    "manifest_sha256": "681230ba1233c06262ca22b86aeaf69af577563e8427552dd568595c5b198c6d"
+  },
+  "private_text_scan": {
+    "status": "passed-no-high-confidence-matches",
+    "newly_bundled_text_blob_count": 446,
+    "new_browsable_note_count": 24,
+    "matching_text_not_logged": true,
+    "compiled_elf_or_pe_objects": 0,
+    "network_or_credentials_used": false
+  },
+  "deliberately_excluded_unfrozen_work": [
+    "FSIV candidate-variable projection",
+    "larger ASCII output specialization"
+  ],
+  "status_caveat": "Integrated sharing7b801 build/test pending at snapshot; no new elapsed/RSS claim. See separate raw measurement manifest/README maintained by publication owner for exact commands/results.",
+  "recovery_command_note": "Replace /absolute/path/to with the downloaded bundle directory; git -C resolves relative bundle paths inside its target repository."
+}

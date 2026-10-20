@@ -1,0 +1,15 @@
+{
+  "scope": "Fresh CLI; default GC, native9+CLI_SOURCE_LOCK. Native live OFF. Three rotating rounds, five tasks,N1,affinity0,1. Independent from three newer factor prototypes; all15 Java gates and standalone jutil normal/race pass. Full compiler race not yet repeated on descriptor layout; no default promotion.",
+  "variants": {
+    "inline2": {
+      "source": "a6afc95f",
+      "binary": "/workspace/jsgo-results/round2/bin/jsgo-inline-bitset-l4",
+      "sha256": "e82c86bf4f1df78cff2c5bcb5fec778f7030cf158d61aafa58552349e6277180"
+    },
+    "descriptors": {
+      "source": "3c7ac3c0",
+      "binary": "/workspace/jsgo-results/round2/bin/jsgo-bitset-descriptors-l4",
+      "sha256": "b78793ed8c86d8c802a349e7133f31da7d8b7d61c5c61134f5207a2820f99fc0"
+    }
+  }
+}

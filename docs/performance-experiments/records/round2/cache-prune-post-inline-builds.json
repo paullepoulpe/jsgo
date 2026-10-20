@@ -1,0 +1,20 @@
+{
+  "reason": "obsolete generated prior candidate cache; all builds complete; executable artifacts retained",
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/85/85fb78ba73c5d77b71ebecf64797327f4c3272907f43c480462bdfa9b4c212c4-d",
+      "bytes": 50578178,
+      "mtime": 1792399086.7679288
+    },
+    {
+      "path": "/workspace/toolchains/cache/24/24f6538e1f2e2678c44c07288a1483e21226f7498968d1e46815c4018d4d72b7-d",
+      "bytes": 269729896,
+      "mtime": 1792408591.685221
+    },
+    {
+      "path": "/workspace/toolchains/cache/a1/a10b869e0953a80d55650b97cf2e2d964a7c92acde1f2730f06a8e4124d966d7-d",
+      "bytes": 260883986,
+      "mtime": 1792408610.1114647
+    }
+  ]
+}

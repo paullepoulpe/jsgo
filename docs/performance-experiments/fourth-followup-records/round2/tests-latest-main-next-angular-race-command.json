@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "/tmp/jsgo-latest-main-next-binaries/jscomp-latest-main-next-focused-race.test",
+    "-test.run=^TestParallelCommonJSExactTruePinnedAngularAdmission$",
+    "-test.v",
+    "-test.timeout=120s"
+  ],
+  "env": {
+    "JSGO_COMMONJS_ANGULAR_AST_SOURCE": "/workspace/jsgo/.cache/bench-inputs/@angular/core@16.2.12/fesm2022/core.mjs"
+  },
+  "reason": "Focused run passed205 withone optionalfixture skipped; rerunonlythatcasewithpinnedsource configured."
+}

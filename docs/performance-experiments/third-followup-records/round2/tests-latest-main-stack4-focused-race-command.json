@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/jsgo-results/round2/bin/jscomp-latest-main-stack4-focused-race.test",
+    "-test.v",
+    "-test.count=1",
+    "-test.timeout=20m"
+  ],
+  "cwd": "/workspace/jsgo-main-traversal-stack4/internal/jscomp",
+  "env": {
+    "JSGO_COMMONJS_ANGULAR_AST_SOURCE": "/workspace/jsgo/.cache/bench-inputs/@angular/core@16.2.12/fesm2022/core.mjs"
+  },
+  "runtime": "defaultGC/noinheritedexperimentflags"
+}

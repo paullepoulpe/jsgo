@@ -1,0 +1,11 @@
+{
+  "analysis_only": true,
+  "source_commit": "5b720eade60c0b3af3a6cebea49beb579ec55685",
+  "environment": "/workspace/jsgo-results/round2/structural-profiles/environment.json",
+  "runtime_gc": "default",
+  "decoder": "/workspace/toolchains/go1.27.2/bin/go tool pprof -top -cum -nodefraction=0 -nodecount=10000 -tagfocus=jsgo_pass=inferTypes",
+  "method": "CFG builder cumulative ancestry under exact inferTypes phase label; inline wrapper not added again; CPU64 truncation makes ancestry observations lower bounds",
+  "checks-only": {"whole_cpu_s": 8.57, "inference_cpu_s": 2.18, "cfg_cpu_s": 0.11, "solver_cpu_s": 0.93, "cfg_fraction_whole": 0.012835472578763127, "cfg_fraction_inference": 0.05045871559633027},
+  "typed-app": {"whole_cpu_s": 5.93, "inference_cpu_s": 0.68, "cfg_cpu_s": 0.04, "solver_cpu_s": 0.24, "cfg_fraction_whole": 0.006745362563237774, "cfg_fraction_inference": 0.058823529411764705},
+  "recommendation": "Defer source-only prototype; observed whole-CPU opportunity small, no performance claim; prioritize real activation and larger allocation targets."
+}

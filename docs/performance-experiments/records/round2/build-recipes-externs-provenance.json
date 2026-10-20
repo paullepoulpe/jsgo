@@ -1,0 +1,14 @@
+{
+  "production_source_head": "641cb85dc38d95ea4b7028f4005ce648dedc8af7",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-recipes-externs-l4",
+  "binary_sha256": "6b913d1063cc31c3da01fe64ac48b7aa4e5dff84336d12394d29faa9b17556c0",
+  "go": "1.27.2",
+  "pgo": "shipped default.pgo",
+  "package_inline_flags": [
+    "internal/jscomp=-l=4",
+    "internal/rhino=-l=4",
+    "internal/jutil=-l=4",
+    "internal/parsing=-l=4"
+  ],
+  "runtime_gc": "default"
+}

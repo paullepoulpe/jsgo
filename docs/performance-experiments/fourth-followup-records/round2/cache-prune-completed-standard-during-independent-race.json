@@ -1,0 +1,5 @@
+{
+  "path": "/workspace/toolchains/cache/b6/b69a4d4714604fa78d26f4598424618eaf4b4b166eeeb85c098e9d13a6e4f869-d",
+  "bytes": 229629976,
+  "scope": "Completed non-race standard CLI package archive only; separate race build began after completedCLIartifact. CLI executable/source/results retained; race archive not removed."
+}

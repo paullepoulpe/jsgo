@@ -1,0 +1,34 @@
+{
+  "created_utc": "2026-10-19T14:30:41.293775+00:00",
+  "source_root": "/workspace/jsgo-array-shared-resolved",
+  "source_commit": "ac401680c323ff95a2f136c044957df8c7e8056d",
+  "runtime_gc": "default: GOGC,GOMEMLIMIT,GODEBUG explicitly unset",
+  "resource_limit": "GOMAXPROCS=1 and -p=1 only for small-package test resource coordination; not performance measurements",
+  "toolchain": "/workspace/toolchains/go1.27.2/bin/go",
+  "normal_command": ". /workspace/toolchains/env.sh\nenv -u GOGC -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=1 /workspace/toolchains/go1.27.2/bin/go test -p=1 ./internal/rhino -run '^TestNativeArray(UnknownRecipe|SharedResolved)' -count=1 -v",
+  "normal_log": "/workspace/jsgo-results/round2/array-shared-resolved-rhino-normal.log",
+  "normal_result": "PASS0.020s",
+  "race_command": ". /workspace/toolchains/env.sh\nenv -u GOGC -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=1 /workspace/toolchains/go1.27.2/bin/go test -race -p=1 ./internal/rhino -run '^TestNativeArray(UnknownRecipe|SharedResolved)' -count=1 -v",
+  "race_log": "/workspace/jsgo-results/round2/array-shared-resolved-rhino-race.log",
+  "race_result": "PASS1.088s",
+  "source_sha256": {
+    "internal/rhino/jstype_native_array_unknown_recipe.go": "65ec82cade9f64484690e82d57db5ad11fc0c1d88cffa1d7e6590e56d52cc0f4",
+    "internal/rhino/jstype_native_array_shared_resolved_test.go": "69e37186b03b616481272fa091b58b2c3e2bd4ebbcc6add1fd8e1132966baf3f",
+    "internal/jscomp/fresh_template_values.go": "e1ec58f97a9193712b85db9751f44e7628bd7ff9b8b3c3f7984c223f5c4cfd17",
+    "internal/jscomp/native_array_shared_resolved_test.go": "c3538f44dcd890856d7b4cbeefe4b613c20c0a840bfd1d1913b4a8c01ef57b84"
+  },
+  "normal_top_level_passes": 12,
+  "normal_sharing_tests_passed": [
+    "TestNativeArraySharedResolvedIdentityAndTypeOracle",
+    "TestNativeArraySharedResolvedPublicMutationIsolation",
+    "TestNativeArraySharedResolvedCopyBoundaries",
+    "TestNativeArraySharedResolvedRetainsOnlyNativePayload"
+  ],
+  "race_top_level_passes": 12,
+  "race_sharing_tests_passed": [
+    "TestNativeArraySharedResolvedIdentityAndTypeOracle",
+    "TestNativeArraySharedResolvedPublicMutationIsolation",
+    "TestNativeArraySharedResolvedCopyBoundaries",
+    "TestNativeArraySharedResolvedRetainsOnlyNativePayload"
+  ]
+}

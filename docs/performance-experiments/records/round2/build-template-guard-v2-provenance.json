@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-19T11:46:54.716991+00:00",
+  "source": "c7998d45ca65032c6fb65c925d92c29b3a3ba2b0",
+  "binary_sha256": "2886223244b1b1153a3958e084a1468dad38134ce4cf55d45b4ef43300b96ea0",
+  "runtime_gc": "default; envunset",
+  "representation": "inlineBitSet alternative +fresh template vector +cached guard/synchronized same-mutex counter plan; no owned-word V2 helper"
+}

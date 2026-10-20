@@ -1,0 +1,608 @@
+{
+  "typed-app": {
+    "cpu": {
+      "path": "/workspace/jsgo-results/round2/next-balanced-pgo/typed-app.merged.pprof",
+      "unit": "CPU seconds",
+      "buckets": {
+        "total": 1.41,
+        "flow": 0.17,
+        "flow_hamt": 0.09,
+        "inner_string_hamt": 0.08,
+        "flow_infer_slot": 0.02,
+        "overlay_infer": 0.02,
+        "outer_pointer_hamt": 0.07,
+        "flow_join": 0.05
+      },
+      "flow_leaf_top": [
+        [
+          "runtime.mapaccess2_faststr",
+          0.02
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.02
+        ],
+        [
+          "internal/jutil.StringHashCode",
+          0.01
+        ],
+        [
+          "internal/runtime/maps.ctrlGroup.matchH2",
+          0.01
+        ],
+        [
+          "runtime.memclrNoHeapPointers",
+          0.01
+        ],
+        [
+          "internal/rhino.JSTypeIterations_AnyTypeMatches[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.01
+        ],
+        [
+          "internal/runtime/maps.(*Map).directoryAt",
+          0.01
+        ],
+        [
+          "internal/rhino.(*SubtypeChecker).IsSubtypeDispatching",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*TypedScope).GetParent",
+          0.01
+        ],
+        [
+          "memeqbody",
+          0.01
+        ],
+        [
+          "internal/runtime/maps.memHashAES",
+          0.01
+        ],
+        [
+          "runtime.roundupsize",
+          0.01
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_EqualSlots",
+          0.01
+        ],
+        [
+          "runtime.mallocgc",
+          0.01
+        ],
+        [
+          "internal/jutil.ObjectsEquals",
+          0.01
+        ]
+      ],
+      "outer_hamt_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.02
+        ],
+        [
+          "internal/rhino.JSTypeIterations_AnyTypeMatches[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.01
+        ],
+        [
+          "internal/rhino.(*SubtypeChecker).IsSubtypeDispatching",
+          0.01
+        ],
+        [
+          "runtime.roundupsize",
+          0.01
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_EqualSlots",
+          0.01
+        ],
+        [
+          "internal/jutil.ObjectsEquals",
+          0.01
+        ]
+      ],
+      "inner_hamt_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.02
+        ],
+        [
+          "internal/jutil.StringHashCode",
+          0.01
+        ],
+        [
+          "internal/rhino.JSTypeIterations_AnyTypeMatches[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.01
+        ],
+        [
+          "internal/rhino.(*SubtypeChecker).IsSubtypeDispatching",
+          0.01
+        ],
+        [
+          "runtime.roundupsize",
+          0.01
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_EqualSlots",
+          0.01
+        ],
+        [
+          "runtime.mallocgc",
+          0.01
+        ]
+      ],
+      "nearest_flow_caller_top": [
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetSlot",
+          0.05
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).GetSlot",
+          0.03
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1.1",
+          0.03
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1",
+          0.02
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          0.01
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_EqualSlots",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).Infer",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetOverlayScopeForScope",
+          0.01
+        ]
+      ]
+    },
+    "alloc": {
+      "path": "/workspace/jsgo-results/round2/next-profiles/typed-app/profile.allocs.pprof",
+      "unit": "sampled alloc MiB",
+      "buckets": {
+        "total": 982.7234,
+        "flow": 9.0009,
+        "flow_hamt": 4.0002,
+        "outer_pointer_hamt": 2.0001,
+        "inner_string_hamt": 3.0002,
+        "flow_join": 2.0001,
+        "flow_infer_slot": 4.0002,
+        "overlay_infer": 2.5001,
+        "flow_with_scope": 0.5
+      },
+      "flow_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          2.0001
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope",
+          2.0001
+        ],
+        [
+          "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).add",
+          1.5005
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          1.0
+        ],
+        [
+          "internal/rhino.NewUnionType",
+          0.5001
+        ],
+        [
+          "internal/jscomp.NewTypedVar",
+          0.5
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.*uint8,go.shape.*uint8]",
+          0.5
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.5
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScope",
+          0.5
+        ]
+      ],
+      "outer_hamt_leaf_top": [
+        [
+          "internal/rhino.NewUnionType",
+          0.5001
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.*uint8,go.shape.*uint8]",
+          0.5
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.5
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          0.5
+        ]
+      ],
+      "inner_hamt_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          2.0001
+        ],
+        [
+          "internal/rhino.NewUnionType",
+          0.5001
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.5
+        ]
+      ],
+      "nearest_flow_caller_top": [
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).Infer",
+          2.0001
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope",
+          2.0001
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).InferQualifiedSlot",
+          1.5005
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1.1",
+          1.0001
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          1.0
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetSlot",
+          0.5
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).InferSlotType",
+          0.5
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScope",
+          0.5
+        ]
+      ]
+    }
+  },
+  "checks-only": {
+    "cpu": {
+      "path": "/workspace/jsgo-results/round2/next-balanced-pgo/checks-only.merged.pprof",
+      "unit": "CPU seconds",
+      "buckets": {
+        "total": 2.22,
+        "flow": 0.15,
+        "flow_hamt": 0.03,
+        "outer_pointer_hamt": 0.02,
+        "inner_string_hamt": 0.02,
+        "flow_join": 0.01,
+        "flow_infer_slot": 0.04,
+        "overlay_infer": 0.02
+      },
+      "flow_leaf_top": [
+        [
+          "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).find",
+          0.02
+        ],
+        [
+          "internal/runtime/maps.(*Map).directoryAt",
+          0.01
+        ],
+        [
+          "internal/runtime/maps.(*groupReference).key",
+          0.01
+        ],
+        [
+          "runtime.mapaccess2_faststr",
+          0.01
+        ],
+        [
+          "memeqbody",
+          0.01
+        ],
+        [
+          "internal/runtime/maps.ctrlGroup.matchH2",
+          0.01
+        ],
+        [
+          "internal/jutil.IsNil",
+          0.01
+        ],
+        [
+          "runtime.mallocgcSmallScanNoHeaderSC1",
+          0.01
+        ],
+        [
+          "runtime.mallocgcSmallScanNoHeaderSC4",
+          0.01
+        ],
+        [
+          "strings.IndexByte",
+          0.01
+        ],
+        [
+          "reflect.unpackEface",
+          0.01
+        ],
+        [
+          "runtime.mallocgcSmallScanNoHeaderSC5",
+          0.01
+        ],
+        [
+          "internal/jutil.StringHashCode",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*AbstractScopeBase[go.shape.*internal/jscomp.TypedScope,go.shape.*internal/jscomp.TypedVar]).GetOwnImplicitSlot",
+          0.01
+        ]
+      ],
+      "outer_hamt_leaf_top": [
+        [
+          "internal/jutil.IsNil",
+          0.01
+        ],
+        [
+          "runtime.mallocgcSmallScanNoHeaderSC1",
+          0.01
+        ]
+      ],
+      "inner_hamt_leaf_top": [
+        [
+          "runtime.mallocgcSmallScanNoHeaderSC1",
+          0.01
+        ],
+        [
+          "reflect.unpackEface",
+          0.01
+        ]
+      ],
+      "nearest_flow_caller_top": [
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetSlot",
+          0.05
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).GetSlot",
+          0.03
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetOverlayScopeForScope",
+          0.01
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1",
+          0.01
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlaySlot",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetOverlayScopeForName",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).Infer",
+          0.01
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope",
+          0.01
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).InferQualifiedSlot",
+          0.01
+        ]
+      ]
+    },
+    "alloc": {
+      "path": "/workspace/jsgo-results/round2/next-profiles/checks-only/profile.allocs.pprof",
+      "unit": "sampled alloc MiB",
+      "buckets": {
+        "total": 1088.6631,
+        "flow": 0.0,
+        "flow_infer_slot": 0.0,
+        "flow_hamt": 0.0,
+        "outer_pointer_hamt": 0.0,
+        "inner_string_hamt": 0.0,
+        "flow_join": 0.0,
+        "overlay_infer": 0.0,
+        "flow_with_scope": 0.0
+      },
+      "flow_leaf_top": [
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScope",
+          0.0
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.*uint8,go.shape.*uint8]",
+          0.0
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlaySlot",
+          0.0
+        ],
+        [
+          "internal/rhino.NewUnionType",
+          0.0
+        ],
+        [
+          "internal/jutil.(*LinkedHashMap[go.shape.string,go.shape.*uint8]).add",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewTypedVar",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope",
+          0.0
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1",
+          0.0
+        ],
+        [
+          "internal/rhino.templateTypeMapCopyOfTypes",
+          0.0
+        ],
+        [
+          "internal/jutil.NewArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.0
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.0
+        ],
+        [
+          "internal/rhino.HamtPMap_ReplaceChild[go.shape.string,go.shape.*uint8]",
+          0.0
+        ]
+      ],
+      "outer_hamt_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.*uint8,go.shape.*uint8]",
+          0.0
+        ],
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.0
+        ],
+        [
+          "internal/rhino.NewUnionType",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          0.0
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1",
+          0.0
+        ],
+        [
+          "internal/rhino.templateTypeMapCopyOfTypes",
+          0.0
+        ],
+        [
+          "internal/jutil.NewArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlaySlot",
+          0.0
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.0
+        ]
+      ],
+      "inner_hamt_leaf_top": [
+        [
+          "internal/rhino.newHamtPMap[go.shape.string,go.shape.*uint8]",
+          0.0
+        ],
+        [
+          "internal/rhino.NewUnionType",
+          0.0
+        ],
+        [
+          "internal/rhino.templateTypeMapCopyOfTypes",
+          0.0
+        ],
+        [
+          "internal/jutil.NewArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlaySlot",
+          0.0
+        ],
+        [
+          "internal/jutil.(*ArrayList[go.shape.2b3c85d0894d9dde91dda84d228808c1d739f50f1ed98948e4d5dd2287fe3ff6]).Add",
+          0.0
+        ],
+        [
+          "internal/rhino.HamtPMap_ReplaceChild[go.shape.string,go.shape.*uint8]",
+          0.0
+        ]
+      ],
+      "nearest_flow_caller_top": [
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScope",
+          0.0
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).InferSlotType",
+          0.0
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlaySlot",
+          0.0
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join.func1.1",
+          0.0
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).InferQualifiedSlot",
+          0.0
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope_OverlayScope).Infer",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope_OverlayScopeWithSlots",
+          0.0
+        ],
+        [
+          "internal/jscomp.LinkedFlowScope_Join",
+          0.0
+        ],
+        [
+          "internal/jscomp.(*LinkedFlowScope).GetSlot",
+          0.0
+        ],
+        [
+          "internal/jscomp.NewLinkedFlowScope",
+          0.0
+        ]
+      ]
+    }
+  }
+}

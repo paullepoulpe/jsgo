@@ -1,0 +1,178 @@
+{
+  "diagnostic_only": true,
+  "runtime_gc": "default",
+  "production_source_commit": "5b720eade60c0b3af3a6cebea49beb579ec55685",
+  "tasks": {
+    "checks-only": {
+      "ownership": [
+        {
+          "already_loaded_files": 0,
+          "change_handler_types": [
+            "*jscomp.RecentChange"
+          ],
+          "check_determinism": false,
+          "coding_convention_safe": true,
+          "coding_convention_type": "*jscomp.ClosureCodingConvention",
+          "debug_log_directory": null,
+          "default_redeclaration_handler_type": "*jscomp.SyntacticScopeCreator_DefaultRedeclarationHandler",
+          "error_handler_type": "<nil>",
+          "error_manager_safe": true,
+          "error_manager_type": "*jscomp.ThreadSafeDelegatingErrorManager",
+          "extern_files": 128,
+          "flag": "1",
+          "loader_types": {
+            "*jscomp.SourceFile_CodeLoader_OnDisk": 971,
+            "*jscomp.SourceFile_CodeLoader_Preloaded": 128
+          },
+          "rejection": "",
+          "runner_type": "*jscomp.CommandLineRunner",
+          "source_files": 971,
+          "threads": 1,
+          "tracer_mode": "OFF",
+          "wrapped_files": 1099
+        }
+      ],
+      "owned_cold_loads": 1110,
+      "monitor_cold_loads": 2,
+      "get_code_calls": 1115,
+      "owned_get_code_calls": 1113
+    },
+    "bundle": {
+      "ownership": [
+        {
+          "already_loaded_files": 0,
+          "change_handler_types": [
+            "*jscomp.RecentChange"
+          ],
+          "check_determinism": false,
+          "coding_convention_safe": true,
+          "coding_convention_type": "*jscomp.ClosureCodingConvention",
+          "debug_log_directory": null,
+          "default_redeclaration_handler_type": "*jscomp.SyntacticScopeCreator_DefaultRedeclarationHandler",
+          "error_handler_type": "<nil>",
+          "error_manager_safe": true,
+          "error_manager_type": "*jscomp.ThreadSafeDelegatingErrorManager",
+          "extern_files": 128,
+          "flag": "1",
+          "loader_types": {
+            "*jscomp.SourceFile_CodeLoader_OnDisk": 4,
+            "*jscomp.SourceFile_CodeLoader_Preloaded": 128
+          },
+          "rejection": "",
+          "runner_type": "*jscomp.CommandLineRunner",
+          "source_files": 4,
+          "threads": 1,
+          "tracer_mode": "OFF",
+          "wrapped_files": 132
+        }
+      ],
+      "owned_cold_loads": 135,
+      "monitor_cold_loads": 3,
+      "get_code_calls": 166,
+      "owned_get_code_calls": 163
+    },
+    "downlevel-whitespace": {
+      "ownership": [
+        {
+          "already_loaded_files": 0,
+          "change_handler_types": [
+            "*jscomp.RecentChange"
+          ],
+          "check_determinism": false,
+          "coding_convention_safe": true,
+          "coding_convention_type": "*jscomp.ClosureCodingConvention",
+          "debug_log_directory": null,
+          "default_redeclaration_handler_type": "*jscomp.SyntacticScopeCreator_DefaultRedeclarationHandler",
+          "error_handler_type": "<nil>",
+          "error_manager_safe": true,
+          "error_manager_type": "*jscomp.ThreadSafeDelegatingErrorManager",
+          "extern_files": 128,
+          "flag": "1",
+          "loader_types": {
+            "*jscomp.SourceFile_CodeLoader_OnDisk": 2094,
+            "*jscomp.SourceFile_CodeLoader_Preloaded": 128
+          },
+          "rejection": "",
+          "runner_type": "*jscomp.CommandLineRunner",
+          "source_files": 2094,
+          "threads": 1,
+          "tracer_mode": "OFF",
+          "wrapped_files": 2222
+        }
+      ],
+      "owned_cold_loads": 2355,
+      "monitor_cold_loads": 2,
+      "get_code_calls": 3224,
+      "owned_get_code_calls": 3222
+    },
+    "typed-app": {
+      "ownership": [
+        {
+          "already_loaded_files": 0,
+          "change_handler_types": [
+            "*jscomp.RecentChange"
+          ],
+          "check_determinism": false,
+          "coding_convention_safe": true,
+          "coding_convention_type": "*jscomp.ClosureCodingConvention",
+          "debug_log_directory": null,
+          "default_redeclaration_handler_type": "*jscomp.SyntacticScopeCreator_DefaultRedeclarationHandler",
+          "error_handler_type": "<nil>",
+          "error_manager_safe": true,
+          "error_manager_type": "*jscomp.ThreadSafeDelegatingErrorManager",
+          "extern_files": 128,
+          "flag": "1",
+          "loader_types": {
+            "*jscomp.SourceFile_CodeLoader_OnDisk": 974,
+            "*jscomp.SourceFile_CodeLoader_Preloaded": 128
+          },
+          "rejection": "",
+          "runner_type": "*jscomp.CommandLineRunner",
+          "source_files": 974,
+          "threads": 1,
+          "tracer_mode": "OFF",
+          "wrapped_files": 1102
+        }
+      ],
+      "owned_cold_loads": 1235,
+      "monitor_cold_loads": 4,
+      "get_code_calls": 1519,
+      "owned_get_code_calls": 1515
+    },
+    "downlevel-simple": {
+      "ownership": [
+        {
+          "already_loaded_files": 0,
+          "change_handler_types": [
+            "*jscomp.RecentChange"
+          ],
+          "check_determinism": false,
+          "coding_convention_safe": true,
+          "coding_convention_type": "*jscomp.ClosureCodingConvention",
+          "debug_log_directory": null,
+          "default_redeclaration_handler_type": "*jscomp.SyntacticScopeCreator_DefaultRedeclarationHandler",
+          "error_handler_type": "<nil>",
+          "error_manager_safe": true,
+          "error_manager_type": "*jscomp.ThreadSafeDelegatingErrorManager",
+          "extern_files": 128,
+          "flag": "1",
+          "loader_types": {
+            "*jscomp.SourceFile_CodeLoader_OnDisk": 2094,
+            "*jscomp.SourceFile_CodeLoader_Preloaded": 128
+          },
+          "rejection": "",
+          "runner_type": "*jscomp.CommandLineRunner",
+          "source_files": 2094,
+          "threads": 1,
+          "tracer_mode": "OFF",
+          "wrapped_files": 2222
+        }
+      ],
+      "owned_cold_loads": 2356,
+      "monitor_cold_loads": 22,
+      "get_code_calls": 3245,
+      "owned_get_code_calls": 3223
+    }
+  },
+  "conclusion": "All five stock CLI workloads activate owned source files. Modest macro screen result is not explained by wholesale fallback; earlier CPU sample shares were an upper-bound hypothesis, not predicted elapsed gain."
+}

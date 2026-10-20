@@ -1,0 +1,26 @@
+{
+  "tests-structural-new.log": {
+    "PASS": 113,
+    "FAIL": 0,
+    "SKIP": 0,
+    "final_pass": true
+  },
+  "tests-structural-legacy.log": {
+    "PASS": 4743,
+    "FAIL": 0,
+    "SKIP": 19,
+    "final_pass": true
+  },
+  "tests-structural-property-normal-fixed.log": {
+    "PASS": 7,
+    "FAIL": 0,
+    "SKIP": 0,
+    "final_pass": true
+  },
+  "tests-structural-property-race.log": {
+    "PASS": 15,
+    "FAIL": 0,
+    "SKIP": 0,
+    "final_pass": true
+  }
+}

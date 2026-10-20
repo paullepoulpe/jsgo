@@ -1,0 +1,17 @@
+{
+  "scope": "reproducible Go build-cache archives only; no active Go builds, all completed binaries/source/results retained",
+  "removed": [
+    {
+      "path": "/workspace/toolchains/cache/a3/a3f6c333065bae30e71797f3d773b97016a85099bee5da17a5e55ade85bd7cf3-d",
+      "bytes": 260599420
+    },
+    {
+      "path": "/workspace/toolchains/cache/f6/f6b5faee48c9b62479567bc069226918300b1793bafe0a7001b357c31ed28a40-d",
+      "bytes": 231486930
+    },
+    {
+      "path": "/workspace/toolchains/cache/c2/c21ca61de588b65cc4e9011936720eb18b0b6ea7eed38f3954fb1572c4e834c1-d",
+      "bytes": 229584066
+    }
+  ]
+}

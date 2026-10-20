@@ -1,0 +1,41 @@
+{
+  "source_only": false,
+  "scope": "fresh ordinary CLI extern parsing; no cached/preparsed AST",
+  "inventory_commit": "051fa548",
+  "archive_sha256": "db8c50e9328e75ead4eb8b4812bd56dc69495b9771d5b69e582d2ecbd4a99f68",
+  "observed_rejection": {
+    "file": "es3.js",
+    "source_bytes": 76751,
+    "utf16_offset": 6807,
+    "line": 275,
+    "source": "var arguments;",
+    "reason": "unsupported:identifier"
+  },
+  "later_binding": {
+    "line": 409,
+    "source": "function eval(code) {}",
+    "status": "source-confirmed later nativeBindingName rejection if only first binding delegated"
+  },
+  "source_proof": [
+    "Parser.PeekIdAt/EatId accept eval and arguments as non-keyword identifiers.",
+    "IRFactory.ProcessNameWithInlineCommentsOfToken constructs ordinary NAME nodes with source/JSDoc state; reserved keyword lists do not include these names.",
+    "IRFactory.ValidateAll includes parameter duplicate checks and structural/context checks, not strict eval/arguments binding rejection.",
+    "StrictModeCheck.NonExternChecks checks declaration names and visits source root only; extern declarations are exempt.",
+    "SyntacticScopeCreator and AbstractScope manage implicit function arguments later from lexical context/name, not extra parser flags.",
+    "Shared AnnotateCalls already handles direct eval/free-call metadata; native reference names permit eval and arguments."
+  ],
+  "prototype": {
+    "worktree": "/workspace/jsgo-native-extern-arguments",
+    "forms": [
+      "top-level EXTERN var arguments;",
+      "top-level EXTERN function eval(code) {}"
+    ],
+    "mechanism": "existing originalFragment(nativeOriginalStatement) before token/JSDoc consumption",
+    "nativeBindingName_changed": false,
+    "tests_run": true,
+    "commit": "ffc65958e84ef6e778ce704ca3990a871e7917d0",
+    "validation_provenance": "/workspace/jsgo-results/round2/extern-inventory-fragments-provenance.json",
+    "origin_guard": "IRFactory.sourceFile.IsExtern(), independent of parsed @externs"
+  },
+  "expected_gain": "unmeasured; byte coverage does not establish CPU improvement"
+}

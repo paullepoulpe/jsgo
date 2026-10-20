@@ -1,0 +1,12 @@
+{
+ "binary": "/workspace/jsgo/bin/gowarm-next127",
+ "sha256": "3843ea9f78f135941d6b71ae45466cd214eff1382d3a7259d789d8faa50a8d9a",
+ "affinity": [
+  0,
+  1
+ ],
+ "warmup": 10,
+ "iters": 30,
+ "extern_cache": true,
+ "gogc": "default"
+}

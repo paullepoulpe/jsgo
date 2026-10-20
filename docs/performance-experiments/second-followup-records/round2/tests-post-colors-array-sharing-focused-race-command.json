@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/workspace/jsgo-results/round2/bin/jscomp-post-colors-array-sharing-focused-race.test",
+    "-test.v",
+    "-test.count=1",
+    "-test.timeout=20m"
+  ],
+  "cwd": "/workspace/jsgo-post-colors-array-sharing/internal/jscomp",
+  "runtime": "defaultGC; no inherited experiment flags"
+}

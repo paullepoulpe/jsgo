@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/workspace/jsgo-results/jscomp-fsiv-final-race.test",
+    "bytes": 132060510,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-fsiv.test",
+    "bytes": 108569984,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-fsiv-race.test",
+    "bytes": 132054238,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-redesigns.test",
+    "bytes": 108185298,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-compound-final.test",
+    "bytes": 107033153,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-redesigns-next.test",
+    "bytes": 108240236,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-parallel.test",
+    "bytes": 106630361,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-compound-race.test",
+    "bytes": 130134131,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp-compound.test",
+    "bytes": 106823823,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  },
+  {
+    "path": "/workspace/jsgo-results/jscomp.test",
+    "bytes": 106578342,
+    "reason": "obsolete generated pre-round2 test executable; source and raw test logs retained"
+  }
+]

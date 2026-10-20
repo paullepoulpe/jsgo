@@ -1,0 +1,20 @@
+{
+  "reason": "Only obsolete >100MB compiler archive cache entries >15min old; active Rhino build cannot depend on jscomp; no source/binary/evidence removed",
+  "files": [
+    {
+      "path": "/workspace/toolchains/cache/98/985f8bbfc1bdde3b2af9738bd26b0c903ff22e827b1ab44151cf7726f64caf18-d",
+      "bytes": 272596014,
+      "mtime": 1792420372.4252853
+    },
+    {
+      "path": "/workspace/toolchains/cache/a0/a0bf4626d226a7ef258e1cc7e2d838cd045d82dc38cfd5dfd2aed4edcf8bc6ad-d",
+      "bytes": 261819422,
+      "mtime": 1792420381.9574265
+    },
+    {
+      "path": "/workspace/toolchains/cache/ca/cad05800d12526400e5e7049f19f64e4d39d22e1a05b584f5405bd0e8e329300-d",
+      "bytes": 240989378,
+      "mtime": 1792420648.4071796
+    }
+  ]
+}

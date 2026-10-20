@@ -1,0 +1,50 @@
+{
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "source_archive_sha256": "4d38166975b61466aa3b02b0d2d38160b855dd7f7e1f6171069fc84974bac45a",
+  "source_sha256": {
+    "com/google/javascript/jscomp/parsing/ParserRunner.java": "d986e77af8dec50b16e77495358e3a51534e1ee9eefa41783ed0277f43f7ee7c",
+    "com/google/javascript/rhino/JSDocInfo.java": "002a042ba3450371afa1bf3013dae56d1d9cc3946dec2426fcbdc7ca33f64d04",
+    "java/extern-cache/BuiltinExternCache.java": "c5255cca37e8eeb68b92f62bcf22e6882ac0e89b642d42f94659ae06c0f27435",
+    "java/CliWorker.java": "8823e7851340d45368a83780e96c5633b896ae09c54b1304821c14e27d1ce07e",
+    "java/extern-cache/BuiltinExternCacheTest.java": "a0ee10b73defe760dc0436d0cf76b3b15ac89c64ba136269ce483960e01eabc5"
+  },
+  "class_sha256": {
+    "CliWorker.class": "15c0aa5cffd3087fcf7b7e81978ee6a2b2bde4357a664cc1f00bd6d8ca1f1e9c",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCache$Group.class": "71fc65e13898790bf926b365b036af480f689db13ed3f1e3c526a95da08d6273",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCache$Key.class": "44a6f0dfe761020ea6602e112adc356b0d977e60a097b96da43f6382517092bd",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCache$RecordingReporter.class": "a4e02a0f4c35a3ab9dc53eaafe440f4a4c5f179358ca8b4e6c51206db07b734f",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCache.class": "44b90f10e87d0163ae4b637efb9915a24ddbf5e215388bc76362fbe6a1003794",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCacheTest$1.class": "7c250c77efe1c173737fdd63b511ba24a5344517e0f3f11feb04087abe3f1bfb",
+    "com/google/javascript/jscomp/parsing/BuiltinExternCacheTest.class": "65bce2a31491f2dfde066f6eaaafa8efeb9a7690cd85030f928489c8a5377e45",
+    "com/google/javascript/jscomp/parsing/ParserRunner$1.class": "6be4213c676426452916dfdd4bef4faea5a1a244240d0e9689941040f422c592",
+    "com/google/javascript/jscomp/parsing/ParserRunner$Es6ErrorReporter.class": "662776aa967a003b164e997561e54e1550109d8662fdacc88e71de60ce152bf2",
+    "com/google/javascript/jscomp/parsing/ParserRunner$ParseResult.class": "c718c32719af6a4d5a4fa0e968d79c983885ba7ef2d1922e8c65ed5cb027203a",
+    "com/google/javascript/jscomp/parsing/ParserRunner.class": "d33937fd24c6b0c0fb979b8a466226cabdd13dac3ea2a239f90b50798d7ca842",
+    "com/google/javascript/rhino/JSDocInfo$Bit.class": "dea3546cbc4bf6014f068a0bff5bd9503ee6dcc694bdb041de0660ed789d517e",
+    "com/google/javascript/rhino/JSDocInfo$Builder.class": "9d8c7b8cb5d15d39abd2771420f0b61e0ea1010d4817c9745ec1dbf76afced22",
+    "com/google/javascript/rhino/JSDocInfo$ComparableSourcePosition.class": "0472bde35c343c32ad8e9d2639dcfe5855c27ebef804f618f20ed75352344a76",
+    "com/google/javascript/rhino/JSDocInfo$IdGenerator.class": "87b4b1a286a0090b044a0064007dec1d74fa41a92a3c66b56e53a5da6995eb68",
+    "com/google/javascript/rhino/JSDocInfo$Marker.class": "5920188ab6efcbcd694ae40f6746b4913299e68d65b199f0aede8d1e76a312dd",
+    "com/google/javascript/rhino/JSDocInfo$MarkerListProperty.class": "219d508001e47fc7cf1a50637891ee5084338f1d299091ca1b59a62188890cd8",
+    "com/google/javascript/rhino/JSDocInfo$NamePosition.class": "52a16692f1836a958de5ed6d54111a42d3fa779d927ed49ac9a57fa8b3fae1c3",
+    "com/google/javascript/rhino/JSDocInfo$NodeMapProperty.class": "f692fbabe6891e6b4d90280838e1077da94a43d53b3e81a20f5991f266935fa1",
+    "com/google/javascript/rhino/JSDocInfo$PerFileClosureUnawareMode.class": "940a89ce5cf1dd261e644b81d5576dcf0db147996011cbec99013565e3b3860f",
+    "com/google/javascript/rhino/JSDocInfo$Property.class": "0b9a88b85a9c875ae4ba9b0a6b1cb2644262a03f2c6cb23fd632e7aa56e35aa5",
+    "com/google/javascript/rhino/JSDocInfo$StringPosition.class": "94d112889e7b228ce6761c5ee587fe0af815add901155a1c6f3bf8f24e9b6c77",
+    "com/google/javascript/rhino/JSDocInfo$TrimmedStringPosition.class": "c9c3d2c84aabf64c39f75a2edcc5dacc5fd77b385bad4bd40a5f07b86afaa524",
+    "com/google/javascript/rhino/JSDocInfo$TypeListProperty.class": "04bfe47a569237cb52d52d82c47f37a268bab975a41a56fca404b9b68795382d",
+    "com/google/javascript/rhino/JSDocInfo$TypeMapProperty.class": "e129d33a55b9eccfeb0d491dddb178481112bfab3b62289738fcfa9b2f04cb37",
+    "com/google/javascript/rhino/JSDocInfo$TypePosition.class": "726e5964cc3b29c8037dc90c42c8512f664ae6543d2477f63c999ff4143bd56d",
+    "com/google/javascript/rhino/JSDocInfo$TypeProperty.class": "00d336533eb2f957b21dfe490d9b002efb3f3f7a89dc0d2f89a5f627a8099f28",
+    "com/google/javascript/rhino/JSDocInfo$TypeTransform.class": "408213e3fdc06afdd4afbebb72cc952c974ff43326d97ae1326892d5411db8f3",
+    "com/google/javascript/rhino/JSDocInfo$Visibility.class": "dbc9bf8fc4c20c0916d1d145e8d751ec9eb62ccf2ab4597efc883435ae7fcc5b",
+    "com/google/javascript/rhino/JSDocInfo.class": "9431500d57b51ae44e0638cf2454b3f075b553e9fab61682a4ebe971ea5e0c5d"
+  },
+  "command": [
+    "java",
+    "-Djsgo.bench.externCache=true",
+    "-cp",
+    "/workspace/jsgo-results/java-worker-build/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+    "CliWorker"
+  ]
+}

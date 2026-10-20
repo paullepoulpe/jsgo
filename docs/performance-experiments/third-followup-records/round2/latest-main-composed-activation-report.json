@@ -1,0 +1,456 @@
+{
+  "kind": "untimed normal-build actual CLI activation evidence",
+  "source_commit": "a3a2f8f3",
+  "source_manifest": "/workspace/jsgo-results/round2/latest-main-focused-composed-activation-v3/manifest.json",
+  "diagnostic_binary": "/workspace/jsgo-results/round2/bin/jscomp-latest-main-composed-activation.test",
+  "build_command": "/workspace/jsgo-results/round2/latest-main-composed-activation-build-command.json",
+  "run_commands": "/workspace/jsgo-results/round2/latest-main-composed-activation-run-commands.json",
+  "screen_flag_source": "/workspace/jsgo-results/round2/latest-main-design-screen-command.json",
+  "flags": {
+    "JSGO_EXPERIMENT_ARRAY_UNKNOWN_RECIPE": "1",
+    "JSGO_EXPERIMENT_ARRAY_SHARED_RESOLVED": "1",
+    "JSGO_EXPERIMENT_PARSER_ASCII_SOURCE": "1",
+    "JSGO_EXPERIMENT_PARALLEL_COMMONJS": "1",
+    "JSGO_EXPERIMENT_COMMONJS_EXACT_TRUE_GUARD": "1",
+    "JSGO_EXPERIMENT_COMMONJS_RUN_POOL": "1",
+    "JSGO_EXPERIMENT_FSIV_USE_CARDINALITY": "1",
+    "JSGO_EXPERIMENT_FSIV_USE_PROJECTION": "1",
+    "JSGO_EXPERIMENT_FSIV_USE_SCALAR": "1"
+  },
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "compiler_threads": 2,
+  "build_pgo": "off",
+  "race": false,
+  "timed": false,
+  "runtime_override_record": "Run command records contain the nine factor flags only; build-only GC/MAX controls are not runtime settings. Effective runtime environment is not independently captured by these activation JSONs.",
+  "scope": [
+    "One fresh stock DoRun per task, with the same invocation collecting CommonJS, ASCII and FSIV counters.",
+    "AST admission/dispatch/node counts do not measure CPU coverage or speedup.",
+    "CommonJS run_sizes count queued scripts; active worker jobs remain bounded by N=2.",
+    "ASCII bytes are source payload counts, not allocated bytes or RSS.",
+    "FSIV byte fields are cumulative modeled/accounted per-function storage, not live/peak heap or RSS; MaxDenseBytes is a maximum across completed passes.",
+    "GatheredFunctions counts visits, not distinct source functions; zero native rejections is conditional on the lazy attempted subset.",
+    "The normal diagnostic source is a3, not the separately built compact4 timed binary; diagnostic elapsed fields and test durations are intentionally excluded.",
+    "Pinned Java-cold records are used only for artifact digests and exit status here; no cold/warm performance comparison is inferred."
+  ],
+  "cases": [
+    {
+      "task": "typed-app",
+      "report": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/activation-0.json",
+      "report_sha256": "7c6a1185c234c484df52bbaf0bbb9b4b8eed4673984d26b827b208464931bc3c",
+      "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-0.json",
+      "log": "/workspace/jsgo-results/round2/latest-main-composed-activation-0.log",
+      "compiler_threads": 2,
+      "exit": 0,
+      "commonjs_state": "pass-not-executed",
+      "commonjs_passes": [],
+      "ascii_parser": {
+        "backed": 392,
+        "backed_bytes": 4909018,
+        "parses": 407,
+        "source_bytes": 5559292
+      },
+      "fsiv": {
+        "Actions": 875,
+        "Admitted": 55,
+        "AttemptNodes": 2243,
+        "AttemptVariables": 585,
+        "Attempts": 55,
+        "CompletedPasses": 2,
+        "DenseBytes": 0,
+        "GatheredCandidates": 4359,
+        "GatheredFunctions": 1460,
+        "GenFacts": 1865,
+        "MaxDenseBytes": 0,
+        "Nodes": 2243,
+        "OriginalActions": 2392,
+        "OriginalDenseBytes": 367904,
+        "OriginalVariables": 572,
+        "ProjectedDenseBytes": 128792,
+        "ProjectedRuns": 55,
+        "Queries": 187,
+        "RejectedAST": 0,
+        "RejectedCollision": 0,
+        "RejectedGraph": 0,
+        "RejectedMemory": 0,
+        "RejectedNodes": 0,
+        "RejectedProjection": 0,
+        "RejectedScalar": 0,
+        "RejectedSteps": 0,
+        "RejectedStock": 0,
+        "ScalarActionBytes": 7000,
+        "ScalarPairs": 207,
+        "ScalarQueuePops": 16328,
+        "ScalarQueuePushes": 16328,
+        "ScalarRuns": 55,
+        "ScalarStateBytes": 40374,
+        "ScalarVariables": 194,
+        "SelectedGenFacts": 658,
+        "SingletonQueries": 30,
+        "SnapshotCandidates": 554,
+        "Steps": 16328,
+        "Variables": 194
+      },
+      "verification": {
+        "baseline": "/workspace/jsgo-results/round2/baseline/typed-app/java-cold.json",
+        "baseline_role": "pinned artifact/diagnostic/exit digests only; no performance data used",
+        "args_equal_case": true,
+        "artifacts": {
+          "out.js": {
+            "path": "/workspace/jsgo-results/round2/commonjs-activation-merged/cases/typed-app/threads-2/out.js",
+            "bytes": 219952,
+            "sha256": "b3a2686fd460cd5fdd2adddd999d954247c635dd93b2c7c9c7a64c8ea38c68da",
+            "expected_sha256": "b3a2686fd460cd5fdd2adddd999d954247c635dd93b2c7c9c7a64c8ea38c68da",
+            "match": true
+          },
+          "out.js.map": {
+            "path": "/workspace/jsgo-results/round2/commonjs-activation-merged/cases/typed-app/threads-2/out.js.map",
+            "bytes": 777164,
+            "sha256": "32f9c4b0931106c9e0831fbb117f763204d193a4745f84d801758b01512f8a65",
+            "expected_sha256": "32f9c4b0931106c9e0831fbb117f763204d193a4745f84d801758b01512f8a65",
+            "match": true
+          }
+        },
+        "diagnostics": {
+          "bytes": 1828,
+          "sha256": "ddc9e28bb8df9ad9d65730a0c684b0fd0e476658d2e4b97351ab79fa2664dbbe",
+          "expected_sha256": "ddc9e28bb8df9ad9d65730a0c684b0fd0e476658d2e4b97351ab79fa2664dbbe",
+          "match": true
+        },
+        "exit_match": true,
+        "stdout": "not retained by activation harness; not independently checked here"
+      }
+    },
+    {
+      "task": "bundle",
+      "report": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/activation-1.json",
+      "report_sha256": "15bb9c7f46929cc5a857938117526d4e349989a8d818715023a3a443b7db864f",
+      "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-1.json",
+      "log": "/workspace/jsgo-results/round2/latest-main-composed-activation-1.log",
+      "compiler_threads": 2,
+      "exit": 0,
+      "commonjs_state": "pass-not-executed",
+      "commonjs_passes": [],
+      "ascii_parser": {
+        "backed": 124,
+        "backed_bytes": 10860944,
+        "parses": 132,
+        "source_bytes": 13841169
+      },
+      "fsiv": {
+        "Actions": 13366,
+        "Admitted": 795,
+        "AttemptNodes": 38008,
+        "AttemptVariables": 10141,
+        "Attempts": 795,
+        "CompletedPasses": 2,
+        "DenseBytes": 0,
+        "GatheredCandidates": 68529,
+        "GatheredFunctions": 17685,
+        "GenFacts": 31415,
+        "MaxDenseBytes": 0,
+        "Nodes": 38008,
+        "OriginalActions": 39972,
+        "OriginalDenseBytes": 6842200,
+        "OriginalVariables": 9781,
+        "ProjectedDenseBytes": 2150096,
+        "ProjectedRuns": 795,
+        "Queries": 2480,
+        "RejectedAST": 0,
+        "RejectedCollision": 0,
+        "RejectedGraph": 0,
+        "RejectedMemory": 0,
+        "RejectedNodes": 0,
+        "RejectedProjection": 0,
+        "RejectedScalar": 0,
+        "RejectedSteps": 0,
+        "RejectedStock": 0,
+        "ScalarActionBytes": 106928,
+        "ScalarPairs": 3205,
+        "ScalarQueuePops": 272957,
+        "ScalarQueuePushes": 272957,
+        "ScalarRuns": 795,
+        "ScalarStateBytes": 684144,
+        "ScalarVariables": 3078,
+        "SelectedGenFacts": 10159,
+        "SingletonQueries": 313,
+        "SnapshotCandidates": 9581,
+        "Steps": 272957,
+        "Variables": 3078
+      },
+      "verification": {
+        "baseline": "/workspace/jsgo-results/round2/baseline/bundle/java-cold.json",
+        "baseline_role": "pinned artifact/diagnostic/exit digests only; no performance data used",
+        "args_equal_case": true,
+        "artifacts": {
+          "out.js": {
+            "path": "/workspace/jsgo-results/round2/commonjs-activation-merged/cases/bundle/threads-2/out.js",
+            "bytes": 4451332,
+            "sha256": "f545fcedd307cd2c0d1bee4264af3fc12bf5c52babb1c54bfd6c159256e83017",
+            "expected_sha256": "f545fcedd307cd2c0d1bee4264af3fc12bf5c52babb1c54bfd6c159256e83017",
+            "match": true
+          }
+        },
+        "diagnostics": {
+          "bytes": 11294,
+          "sha256": "d09d3452533386a3000805af4055b6dadc58bbcaf723c8c797a7701816b2fcf2",
+          "expected_sha256": "d09d3452533386a3000805af4055b6dadc58bbcaf723c8c797a7701816b2fcf2",
+          "match": true
+        },
+        "exit_match": true,
+        "stdout": "not retained by activation harness; not independently checked here"
+      }
+    },
+    {
+      "task": "downlevel-whitespace",
+      "report": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/activation-2.json",
+      "report_sha256": "c5fec728408f5e9a740c1f5ec9a98b418e79c51384a40de6694644328863c174",
+      "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-2.json",
+      "log": "/workspace/jsgo-results/round2/latest-main-composed-activation-2.log",
+      "compiler_threads": 2,
+      "exit": 0,
+      "commonjs_state": "pass-executed",
+      "commonjs_passes": [
+        {
+          "workers": 2,
+          "exact_true_guard": true,
+          "run_pool": true,
+          "accepted": true,
+          "completed": true,
+          "launches": 1,
+          "dispatched": 862,
+          "script_count": 862,
+          "eligible": 862,
+          "reasons": {
+            "dispatched": 862
+          },
+          "dispatched_nodes": 188633,
+          "dispatched_functions": 4138,
+          "run_sizes": [
+            862
+          ],
+          "active_job_limit": 2,
+          "runs": [
+            {
+              "size": 862,
+              "first": "node_modules/rxjs/dist/esm/internal/util/isFunction.js",
+              "last": "node_modules/core-js/stable/index.js"
+            }
+          ],
+          "largest_dispatched_jobs": [
+            {
+              "name": "node_modules/@angular/core/fesm2022/core.mjs",
+              "nodes": 79096,
+              "functions": 1932
+            },
+            {
+              "name": "node_modules/core-js/modules/web.url.constructor.js",
+              "nodes": 5299,
+              "functions": 51
+            },
+            {
+              "name": "node_modules/tslib/tslib.es6.js",
+              "nodes": 3280,
+              "functions": 85
+            }
+          ]
+        }
+      ],
+      "ascii_parser": {
+        "backed": 986,
+        "backed_bytes": 2900877,
+        "parses": 995,
+        "source_bytes": 4278306
+      },
+      "fsiv": {},
+      "verification": {
+        "baseline": "/workspace/jsgo-results/round2/baseline/downlevel-whitespace/java-cold.json",
+        "baseline_role": "pinned artifact/diagnostic/exit digests only; no performance data used",
+        "args_equal_case": true,
+        "artifacts": {
+          "out.js": {
+            "path": "/workspace/jsgo-results/round2/commonjs-activation-merged/cases/downlevel-whitespace/threads-2/out.js",
+            "bytes": 2652567,
+            "sha256": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940",
+            "expected_sha256": "8dc595d2dc5476e658bbc1efb9f585a5313ccf4160e57addb569ea10c995c940",
+            "match": true
+          }
+        },
+        "diagnostics": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "match": true
+        },
+        "exit_match": true,
+        "stdout": "not retained by activation harness; not independently checked here"
+      }
+    },
+    {
+      "task": "downlevel-simple",
+      "report": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/activation-3.json",
+      "report_sha256": "d8098a394a0ea86e09831c37e662ceae2e7cd99de635eb0ee58cb4663460e033",
+      "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-3.json",
+      "log": "/workspace/jsgo-results/round2/latest-main-composed-activation-3.log",
+      "compiler_threads": 2,
+      "exit": 0,
+      "commonjs_state": "pass-executed",
+      "commonjs_passes": [
+        {
+          "workers": 2,
+          "exact_true_guard": true,
+          "run_pool": true,
+          "accepted": true,
+          "completed": true,
+          "launches": 1,
+          "dispatched": 863,
+          "script_count": 863,
+          "eligible": 863,
+          "reasons": {
+            "dispatched": 863
+          },
+          "dispatched_nodes": 188634,
+          "dispatched_functions": 4138,
+          "run_sizes": [
+            863
+          ],
+          "active_job_limit": 2,
+          "runs": [
+            {
+              "size": 863,
+              "first": " [synthetic:input] ",
+              "last": "node_modules/core-js/stable/index.js"
+            }
+          ],
+          "largest_dispatched_jobs": [
+            {
+              "name": "node_modules/@angular/core/fesm2022/core.mjs",
+              "nodes": 79096,
+              "functions": 1932
+            },
+            {
+              "name": "node_modules/core-js/modules/web.url.constructor.js",
+              "nodes": 5299,
+              "functions": 51
+            },
+            {
+              "name": "node_modules/tslib/tslib.es6.js",
+              "nodes": 3280,
+              "functions": 85
+            }
+          ]
+        }
+      ],
+      "ascii_parser": {
+        "backed": 986,
+        "backed_bytes": 2900877,
+        "parses": 995,
+        "source_bytes": 4278306
+      },
+      "fsiv": {
+        "Actions": 2544,
+        "Admitted": 279,
+        "AttemptNodes": 6462,
+        "AttemptVariables": 1930,
+        "Attempts": 279,
+        "CompletedPasses": 2,
+        "DenseBytes": 0,
+        "GatheredCandidates": 10507,
+        "GatheredFunctions": 4311,
+        "GenFacts": 4622,
+        "MaxDenseBytes": 0,
+        "Nodes": 6462,
+        "OriginalActions": 6018,
+        "OriginalDenseBytes": 495584,
+        "OriginalVariables": 1804,
+        "ProjectedDenseBytes": 166016,
+        "ProjectedRuns": 279,
+        "Queries": 690,
+        "RejectedAST": 0,
+        "RejectedCollision": 0,
+        "RejectedGraph": 0,
+        "RejectedMemory": 0,
+        "RejectedNodes": 0,
+        "RejectedProjection": 0,
+        "RejectedScalar": 0,
+        "RejectedSteps": 0,
+        "RejectedStock": 0,
+        "ScalarActionBytes": 20352,
+        "ScalarPairs": 713,
+        "ScalarQueuePops": 21243,
+        "ScalarQueuePushes": 21243,
+        "ScalarRuns": 279,
+        "ScalarStateBytes": 116316,
+        "ScalarVariables": 687,
+        "SelectedGenFacts": 1901,
+        "SingletonQueries": 135,
+        "SnapshotCandidates": 1875,
+        "Steps": 21243,
+        "Variables": 687
+      },
+      "verification": {
+        "baseline": "/workspace/jsgo-results/round2/baseline/downlevel-simple/java-cold.json",
+        "baseline_role": "pinned artifact/diagnostic/exit digests only; no performance data used",
+        "args_equal_case": true,
+        "artifacts": {
+          "out.js": {
+            "path": "/workspace/jsgo-results/round2/commonjs-activation-merged/cases/downlevel-simple/threads-2/out.js",
+            "bytes": 2339265,
+            "sha256": "ce46ab80e34c0aff44440ba5db151492ad6a36f211e407fecb082264e2f88927",
+            "expected_sha256": "ce46ab80e34c0aff44440ba5db151492ad6a36f211e407fecb082264e2f88927",
+            "match": true
+          }
+        },
+        "diagnostics": {
+          "bytes": 4847,
+          "sha256": "597c5f5e4bda6a8ba736bcac35b1d9f50290f44ed75f06df0df1035c41cc34d7",
+          "expected_sha256": "597c5f5e4bda6a8ba736bcac35b1d9f50290f44ed75f06df0df1035c41cc34d7",
+          "match": true
+        },
+        "exit_match": true,
+        "stdout": "not retained by activation harness; not independently checked here"
+      }
+    },
+    {
+      "task": "checks-only",
+      "report": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/activation-4.json",
+      "report_sha256": "778acb6c9ed1cf5f17e1aa341bb4008c923ab6755b9f4bd2bdd9c618d3421244",
+      "case": "/workspace/jsgo-results/round2/latest-main-commonjs-ascii-activation/cases/case-4.json",
+      "log": "/workspace/jsgo-results/round2/latest-main-composed-activation-4.log",
+      "compiler_threads": 2,
+      "exit": 0,
+      "commonjs_state": "pass-not-executed",
+      "commonjs_passes": [],
+      "ascii_parser": {
+        "backed": 1055,
+        "backed_bytes": 12060140,
+        "parses": 1099,
+        "source_bytes": 19476443
+      },
+      "fsiv": {},
+      "verification": {
+        "baseline": "/workspace/jsgo-results/round2/baseline/checks-only/java-cold.json",
+        "baseline_role": "pinned artifact/diagnostic/exit digests only; no performance data used",
+        "args_equal_case": true,
+        "artifacts": {},
+        "diagnostics": {
+          "bytes": 4391,
+          "sha256": "849ad97cdbdd6a6d6f196f154b2826a4c1e80e7b808477108d748007511ac272",
+          "expected_sha256": "849ad97cdbdd6a6d6f196f154b2826a4c1e80e7b808477108d748007511ac272",
+          "match": true
+        },
+        "exit_match": true,
+        "stdout": "not retained by activation harness; not independently checked here"
+      }
+    }
+  ],
+  "verification_totals": {
+    "artifact_files_matched": 5,
+    "diagnostic_streams_matched": 5,
+    "exits_matched": 5,
+    "stdout_independently_retained": false
+  }
+}

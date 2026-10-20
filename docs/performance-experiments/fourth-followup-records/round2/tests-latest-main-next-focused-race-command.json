@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/tmp/jsgo-latest-main-next-binaries/jscomp-latest-main-next-focused-race.test",
+    "-test.v",
+    "-test.timeout=300s"
+  ],
+  "source": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+  "cwd": "/workspace/jsgo-main-next-integration/internal/jscomp",
+  "runtime": "default GC/GOMAXPROCS; all inherited JSGO_EXPERIMENT_* cleared; tests set their own factors"
+}

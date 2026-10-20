@@ -1,0 +1,30 @@
+{
+ "downlevel-whitespace": {
+  "java_warm_s": 0.8475,
+  "java_peak_rss_mb": 869.3203125,
+  "variants": {
+   "control": {
+    "median_s": 1.1704623690020526,
+    "min_s": 1.1487302870082203,
+    "max_s": 1.2419821840012446,
+    "median_cpu_s": 1.525141,
+    "median_peak_rss_mb": 163.10546875,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.7240728300582501,
+    "memory_ratio_java_over_go": 5.329804813794755,
+    "all_outputs_match": true
+   },
+   "commonjs": {
+    "median_s": 1.1872000319999643,
+    "min_s": 1.173745730004157,
+    "max_s": 1.221221929998137,
+    "median_cpu_s": 1.590802,
+    "median_peak_rss_mb": 164.05078125,
+    "speed_vs_first_variant": 0.9859015645664064,
+    "speed_vs_java_warm": 0.7138645360144545,
+    "memory_ratio_java_over_go": 5.29909279234231,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

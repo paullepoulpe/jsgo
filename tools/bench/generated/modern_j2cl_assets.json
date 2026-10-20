@@ -1,0 +1,23 @@
+{
+  "schema": "jsgo-modern-j2cl-assets-v1",
+  "distribution": "org.kie.j2cl.tools",
+  "version": "v20260527-1",
+  "license": "Apache-2.0; published Maven POMs and upstream generated source headers",
+  "provenance": "Published KIE-coordinate Maven distribution. Its POM describes a slightly modified Vertispan packaging fork of Google's J2CL. This is a real generated JRE fixture, not a pristine official Google binary or a production Java application.",
+  "assets": [
+    {
+      "name": "jre-20260527-jszip.zip",
+      "url": "https://repo.maven.apache.org/maven2/org/kie/j2cl/tools/jre/v20260527-1/jre-v20260527-1-jszip.zip",
+      "sha256": "54aac70c09de96df6ceb27324e6132cfa0b5f22cc6b0d63a9cd2ff1d4ad833e2",
+      "published_sha1": "94dff9d883f2df3070940176fd4e5c90530f2447",
+      "bytes": 2020999
+    },
+    {
+      "name": "bootstrap-20260527-jszip.zip",
+      "url": "https://repo.maven.apache.org/maven2/org/kie/j2cl/tools/bootstrap/v20260527-1/bootstrap-v20260527-1-jszip.zip",
+      "sha256": "446e93e1afc75c5b7a6fd2cd84e0488e185ab37cbea598719f88d7cd4b819440",
+      "published_sha1": "a862ebfcdade6f6f5250ae9f11118b0e82e06f44",
+      "bytes": 40858
+    }
+  ]
+}

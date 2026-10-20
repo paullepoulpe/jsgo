@@ -1,0 +1,190 @@
+{
+ "date": "2026-10-19 08:46 UTC",
+ "host": "347f45b57e6a",
+ "cpu": "AMD EPYC 9V74 80-Core Processor",
+ "cpus": 3,
+ "memory": "9.7 GiB",
+ "kernel": "6.18.55",
+ "os": "Debian GNU/Linux 13 (trixie)",
+ "java": [
+  "openjdk version \"21.0.12.1\" 2026-08-18",
+  "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+  "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+ ],
+ "go": "go version go1.27.2 linux/amd64",
+ "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+ "jsgo": {
+  "variants": {
+   "control": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-next-l4",
+    "sha256": "0184968dc697e21fc1283f49bd90e8db359e3aa3cf74c94bfbe3fd70beab3479"
+   },
+   "struct_base": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-structural-l4",
+    "sha256": "e07b06bd29e405e7e5e357d9bdcff2972253c20691067905423e40a5e1076a74"
+   },
+   "source": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-structural-l4",
+    "sha256": "e07b06bd29e405e7e5e357d9bdcff2972253c20691067905423e40a5e1076a74"
+   },
+   "compound": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-structural-l4",
+    "sha256": "e07b06bd29e405e7e5e357d9bdcff2972253c20691067905423e40a5e1076a74"
+   },
+   "pgo80": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-next-balanced-l4",
+    "sha256": "bfe23d2597582709701b05d8885d4a9be505b10b59011442d2b32498e3924fc8"
+   },
+   "compact": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-next-node64-l4",
+    "sha256": "b1b62be6c0422a245d862888cf0f68dd033b28198d505f40a6c3b934f13a2220"
+   },
+   "compact_header": {
+    "path": "/workspace/jsgo-results/round2/bin/jsgo-node64-header-l4",
+    "sha256": "88a8912cb44f039c77b940f5c06bb215ca27a1e5f00904c5dfb771940a09e287"
+   }
+  }
+ },
+ "nice": 10,
+ "locale": "C.UTF-8",
+ "loadavg_start": [
+  0.3,
+  1.05,
+  1.32
+ ],
+ "bench_commit": "e8d8d56e9015a171bedfc32670ee8b8ab9ebfbbe",
+ "cpu_affinity": [
+  0,
+  1
+ ],
+ "reference": "/workspace/jsgo-results/round2/baseline",
+ "runs": 2,
+ "seed": 20261018,
+ "variant_environment": {
+  "control": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1"
+  },
+  "struct_base": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1"
+  },
+  "source": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1"
+  },
+  "compound": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+   "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1",
+   "JSGO_EXPERIMENT_INLINE_DISCOVERY_TAPE": "1",
+   "JSGO_EXPERIMENT_PROPERTY_ASCII_INDEX": "1",
+   "JSGO_EXPERIMENT_TYPED_INITIAL_FUSION": "1",
+   "JSGO_EXPERIMENT_NATIVE_DEPENDENCY_SCAN": "1"
+  },
+  "pgo80": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1"
+  },
+  "compact": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1"
+  },
+  "compact_header": {
+   "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+   "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+   "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+   "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+   "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+   "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+   "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+   "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1"
+  }
+ },
+ "java_reference_machine": {
+  "date": "2026-10-18 22:08 UTC",
+  "host": "347f45b57e6a",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpus": 3,
+  "memory": "9.7 GiB",
+  "kernel": "6.18.55",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "java": [
+   "openjdk version \"21.0.12.1\" 2026-08-18",
+   "OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)",
+   "OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)"
+  ],
+  "go": "go version go1.27.2 linux/amd64",
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "jsgo": {
+   "source": "binary /workspace/jsgo-results/round2/bin/jsgo-main",
+   "sha256": "5f4dc046a4609c6ea27953c10da5d60bed265596a7ff48df712507e79ae9d5d9"
+  },
+  "nice": 10,
+  "locale": "C.UTF-8",
+  "loadavg_start": [
+   0.71,
+   0.39,
+   0.17
+  ],
+  "bench_commit": "b97e86bbc1f2208bbdfd68a5725770272e2e43cd",
+  "loadavg_end": [
+   1.4,
+   1.64,
+   1.27
+  ]
+ },
+ "ratio_direction": "Java / Go; above 1 favors Go for elapsed time and resident memory",
+ "java_ratio_scope": "stored JVM cohort; not a fresh paired-Java confidence estimate",
+ "memory_windows": {
+  "go": "median of fresh CLI process peak RSS",
+  "java": "peak of stored JVM lifetime including warmup"
+ },
+ "cpu.max": "200000 100000",
+ "cpuset.cpus.effective": "0-2",
+ "memory.max": "8589934592"
+}

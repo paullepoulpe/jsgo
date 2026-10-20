@@ -1,0 +1,455 @@
+{
+  "bundle": {
+    "heap": {
+      "total": [
+        76033851,
+        5071370244
+      ],
+      "buckets": {
+        "all_clone": [
+          321146,
+          25692072
+        ],
+        "clone_tree": [
+          314592,
+          25167744
+        ],
+        "clone_node": [
+          321146,
+          25692072
+        ],
+        "inlining_clone": [
+          294930,
+          23594760
+        ]
+      },
+      "leaf": [
+        [
+          "internal/rhino.NewNode",
+          [
+            321146,
+            25692072
+          ]
+        ]
+      ],
+      "owners": [
+        [
+          "InlineFunctions",
+          [
+            294930,
+            23594760
+          ]
+        ],
+        [
+          "InlineVariables",
+          [
+            19662,
+            1572984
+          ]
+        ],
+        [
+          "(no owning Process root identified)",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ],
+      "caller": [
+        [
+          "internal/jscomp.(*FunctionToBlockMutator).MutateInternal",
+          [
+            124526,
+            9962232
+          ]
+        ],
+        [
+          "internal/jscomp.(*InlineFunctions).ResolveInlineConflictsForFunction",
+          [
+            104864,
+            8389248
+          ]
+        ],
+        [
+          "internal/jscomp.(*InlineVariables_InliningBehavior).InlineWellDefinedVariable-range1",
+          [
+            26216,
+            2097312
+          ]
+        ],
+        [
+          "internal/jscomp.(*FunctionInjector).InlineReturnValue",
+          [
+            26216,
+            2097312
+          ]
+        ],
+        [
+          "internal/jscomp.(*FunctionToBlockMutator).AliasAndInlineArguments-range2",
+          [
+            19662,
+            1572984
+          ]
+        ],
+        [
+          "internal/jscomp.FunctionToBlockMutator_GetReplacementReturnStatement",
+          [
+            13108,
+            1048656
+          ]
+        ],
+        [
+          "internal/jscomp.(*FunctionArgumentInjector).InjectWithReplaceThis",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ]
+    },
+    "cpu": {
+      "total": [
+        21180000000
+      ],
+      "buckets": {
+        "all_clone": [
+          10000000
+        ],
+        "clone_tree": [
+          10000000
+        ],
+        "clone_node": [
+          10000000
+        ],
+        "inlining_clone": [
+          10000000
+        ]
+      },
+      "leaf": [
+        [
+          "internal/rhino.NewNode",
+          [
+            10000000
+          ]
+        ]
+      ],
+      "owners": [
+        [
+          "InlineFunctions",
+          [
+            10000000
+          ]
+        ]
+      ],
+      "caller": [
+        [
+          "internal/jscomp.(*FunctionInjector).InlineReturnValue",
+          [
+            10000000
+          ]
+        ]
+      ]
+    }
+  },
+  "typed-app": {
+    "heap": {
+      "total": [
+        19531812,
+        1315261615
+      ],
+      "buckets": {
+        "all_clone": [
+          108140,
+          7864896
+        ],
+        "clone_tree": [
+          95032,
+          6816240
+        ],
+        "clone_node": [
+          108140,
+          7864896
+        ],
+        "inlining_clone": [
+          88478,
+          6291912
+        ]
+      },
+      "leaf": [
+        [
+          "internal/rhino.NewNode",
+          [
+            91756,
+            7340592
+          ]
+        ],
+        [
+          "internal/rhino.(*Node).node_getExt",
+          [
+            16384,
+            524304
+          ]
+        ]
+      ],
+      "owners": [
+        [
+          "InlineFunctions",
+          [
+            88478,
+            6291912
+          ]
+        ],
+        [
+          "InlineVariables",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "Normalize",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "ProcessClosureProvidesAndRequires",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ],
+      "caller": [
+        [
+          "internal/jscomp.(*InlineFunctions).ResolveInlineConflictsForFunction",
+          [
+            39324,
+            3145968
+          ]
+        ],
+        [
+          "internal/jscomp.(*FunctionToBlockMutator).MutateInternal",
+          [
+            32770,
+            2621640
+          ]
+        ],
+        [
+          "internal/jscomp.(*InlineVariables_InliningBehavior).InlineWellDefinedVariable-range1",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "internal/jscomp.(*Normalize_NormalizeStatements).NormalizeAssignShorthand",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "internal/jscomp.(*ProcessClosureProvidesAndRequires_ProvidedName).SetSourceInfo",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "internal/jscomp.(*FunctionToBlockMutator).AliasAndInlineArguments-range2",
+          [
+            16384,
+            524304
+          ]
+        ]
+      ]
+    },
+    "cpu": {
+      "total": [
+        5930000000
+      ],
+      "buckets": {},
+      "leaf": [],
+      "owners": [],
+      "caller": []
+    }
+  },
+  "checks-only": {
+    "heap": {
+      "total": [
+        22972844,
+        1832776077
+      ],
+      "buckets": {
+        "all_clone": [
+          6554,
+          524328
+        ],
+        "clone_tree": [
+          6554,
+          524328
+        ],
+        "clone_node": [
+          6554,
+          524328
+        ]
+      },
+      "leaf": [
+        [
+          "internal/rhino.NewNode",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ],
+      "owners": [
+        [
+          "ScopedAliases",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ],
+      "caller": [
+        [
+          "internal/jscomp.(*ScopedAliases_AliasedNode).ApplyAlias",
+          [
+            6554,
+            524328
+          ]
+        ]
+      ]
+    },
+    "cpu": {
+      "total": [
+        8570000000
+      ],
+      "buckets": {},
+      "leaf": [],
+      "owners": [],
+      "caller": []
+    }
+  },
+  "downlevel-whitespace": {
+    "heap": {
+      "total": [
+        4358156,
+        420373275
+      ],
+      "buckets": {},
+      "leaf": [],
+      "owners": [],
+      "caller": []
+    },
+    "cpu": {
+      "total": [
+        1390000000
+      ],
+      "buckets": {},
+      "leaf": [],
+      "owners": [],
+      "caller": []
+    }
+  },
+  "downlevel-simple": {
+    "heap": {
+      "total": [
+        16078653,
+        1142020644
+      ],
+      "buckets": {
+        "all_clone": [
+          36046,
+          2097288
+        ],
+        "clone_tree": [
+          36046,
+          2097288
+        ],
+        "clone_node": [
+          36046,
+          2097288
+        ],
+        "inlining_clone": [
+          6554,
+          524328
+        ]
+      },
+      "leaf": [
+        [
+          "internal/rhino.NewNode",
+          [
+            19662,
+            1572984
+          ]
+        ],
+        [
+          "internal/rhino.(*Node).node_getExt",
+          [
+            16384,
+            524304
+          ]
+        ]
+      ],
+      "owners": [
+        [
+          "RewritePolyfills",
+          [
+            13108,
+            1048656
+          ]
+        ],
+        [
+          "InlineFunctions",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "Es6RewriteClass",
+          [
+            16384,
+            524304
+          ]
+        ]
+      ],
+      "caller": [
+        [
+          "internal/jscomp.(*ScriptNodeDeserializer).NewNodeFromTemplate",
+          [
+            13108,
+            1048656
+          ]
+        ],
+        [
+          "internal/jscomp.(*InlineFunctions).ResolveInlineConflictsForFunction",
+          [
+            6554,
+            524328
+          ]
+        ],
+        [
+          "internal/jscomp.(*Es6RewriteClass).GetQualifiedMemberAccess",
+          [
+            16384,
+            524304
+          ]
+        ]
+      ]
+    },
+    "cpu": {
+      "total": [
+        4700000000
+      ],
+      "buckets": {},
+      "leaf": [],
+      "owners": [],
+      "caller": []
+    }
+  }
+}

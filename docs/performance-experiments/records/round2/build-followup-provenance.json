@@ -1,0 +1,13 @@
+{
+  "production_source_commit": "5906ebbbe9a242e03921f3731092b244d9835207",
+  "binary": "/workspace/jsgo-results/round2/bin/jsgo-followup-l4",
+  "binary_sha256": "0e69d1d904198fd9c1d8f91adb4ee711fd9662bb4bb9bf11aacdd5e15b1256c9",
+  "runtime_gc": "default",
+  "pgo": "shipped",
+  "build_flags": [
+    "-p=1",
+    "-buildvcs=false",
+    "-gcflags=github.com/paullepoulpe/jsgo/internal/{jscomp,rhino,jutil,parsing}=-l=4"
+  ],
+  "test_only_followup_head": "b585e18a672df5000acd0904bf100e11f959696c"
+}

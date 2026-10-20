@@ -1,0 +1,31 @@
+{
+  "source": "baf328cba812a7ebadd2eb3f9912107382805e8a",
+  "cwd": "/workspace/jsgo-main-next-integration",
+  "build_only_memory_controls": {
+    "GOGC": "20",
+    "GOMAXPROCS": "1"
+  },
+  "timed_runtime": "defaultGC; no GOMAXPROCS override",
+  "cli": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "build",
+    "-p=1",
+    "-buildvcs=false",
+    "-o",
+    "/tmp/jsgo-latest-main-next-binaries/jsgo-latest-main-next-standard",
+    "./cmd/jsgo"
+  ],
+  "race": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "test",
+    "-p=1",
+    "-pgo=off",
+    "-buildvcs=false",
+    "-overlay=/workspace/jsgo-results/round2/focused-latest-main-next-overlay/overlay.json",
+    "-race",
+    "-c",
+    "-o",
+    "/tmp/jsgo-latest-main-next-binaries/jscomp-latest-main-next-focused-race.test",
+    "./internal/jscomp"
+  ]
+}

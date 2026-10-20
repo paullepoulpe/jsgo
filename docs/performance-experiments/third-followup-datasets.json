@@ -1,0 +1,52 @@
+[
+  {
+    "path": "round2/latest-main-design-screen/summary.json",
+    "browse": "third-followup-records/round2/latest-main-design-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "bd984ce937ef4c720a372bdd9cfbf88dbb851417b4845a8b4d5be18b1b3f3519",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-factor-screen/summary.json",
+    "browse": "third-followup-records/round2/latest-main-factor-screen/summary.json",
+    "keys": [
+      "typed-app",
+      "bundle",
+      "downlevel-whitespace",
+      "downlevel-simple",
+      "checks-only"
+    ],
+    "sha256": "563941569675a86771362a227a7bddd6c45c1f483627f15eb9e960b00bb9c972",
+    "change": "new",
+    "parseable_json": true
+  },
+  {
+    "path": "round2/latest-main-profiles-v2/summary.json",
+    "browse": "third-followup-records/round2/latest-main-profiles-v2/summary.json",
+    "keys": [
+      "kind",
+      "source_commit",
+      "source_root",
+      "binary",
+      "binary_sha256",
+      "pgo_sha256",
+      "runtime_gc",
+      "experiment_flags",
+      "affinity",
+      "started_utc",
+      "profile_sampling",
+      "jobs",
+      "finished_utc"
+    ],
+    "sha256": "1bd0d547a63e97ed9e1e40b9a7fbc4c331465e1f67c7ed7bcc6e59661fbbdf03",
+    "change": "new",
+    "parseable_json": true
+  }
+]

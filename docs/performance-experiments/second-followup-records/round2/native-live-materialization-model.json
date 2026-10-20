@@ -1,0 +1,72 @@
+{
+  "downlevel-whitespace": {
+    "source_commit": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+    "counts_path": "/workspace/jsgo-results/round2/array-recipe-diagnostic-overlay/runs/downlevel-whitespace/job-0/post-colors-activation.json",
+    "attempts": 0,
+    "native_runs": 0,
+    "native_nodes": 0,
+    "private_scratch_sets": 0,
+    "published_sets": 0,
+    "old_inline2_publication_payload_bytes_model": 0,
+    "naive_newmain_pub_payload_plus_temp_sizeclass_bytes_model": 0,
+    "embedded_newmain_pub_payload_bytes_model": 0,
+    "naive_newmain_extra_objects_model": 0,
+    "scratch_bound_byte_savings_inline2_or_ff40": 0
+  },
+  "downlevel-simple": {
+    "source_commit": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+    "counts_path": "/workspace/jsgo-results/round2/array-recipe-diagnostic-overlay/runs/downlevel-simple/job-0/post-colors-activation.json",
+    "attempts": 6063,
+    "native_runs": 6063,
+    "native_nodes": 69658,
+    "private_scratch_sets": 12126,
+    "published_sets": 139316,
+    "old_inline2_publication_payload_bytes_model": 7244432,
+    "naive_newmain_pub_payload_plus_temp_sizeclass_bytes_model": 20618768,
+    "embedded_newmain_pub_payload_bytes_model": 8358960,
+    "naive_newmain_extra_objects_model": 139316,
+    "scratch_bound_byte_savings_inline2_or_ff40": 0
+  },
+  "typed-app": {
+    "source_commit": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+    "counts_path": "/workspace/jsgo-results/round2/array-recipe-diagnostic-overlay/runs/typed-app/job-0/post-colors-activation.json",
+    "attempts": 2279,
+    "native_runs": 2279,
+    "native_nodes": 34992,
+    "private_scratch_sets": 4558,
+    "published_sets": 69984,
+    "old_inline2_publication_payload_bytes_model": 3639168,
+    "naive_newmain_pub_payload_plus_temp_sizeclass_bytes_model": 10357632,
+    "embedded_newmain_pub_payload_bytes_model": 4199040,
+    "naive_newmain_extra_objects_model": 69984,
+    "scratch_bound_byte_savings_inline2_or_ff40": 0
+  },
+  "checks-only": {
+    "source_commit": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+    "counts_path": "/workspace/jsgo-results/round2/array-recipe-diagnostic-overlay/runs/checks-only/job-0/post-colors-activation.json",
+    "attempts": 0,
+    "native_runs": 0,
+    "native_nodes": 0,
+    "private_scratch_sets": 0,
+    "published_sets": 0,
+    "old_inline2_publication_payload_bytes_model": 0,
+    "naive_newmain_pub_payload_plus_temp_sizeclass_bytes_model": 0,
+    "embedded_newmain_pub_payload_bytes_model": 0,
+    "naive_newmain_extra_objects_model": 0,
+    "scratch_bound_byte_savings_inline2_or_ff40": 0
+  },
+  "bundle": {
+    "source_commit": "9d190a2b20d05bc33b203b4370176129ac80dc80",
+    "counts_path": "/workspace/jsgo-results/round2/array-recipe-diagnostic-overlay/runs/bundle/job-0/post-colors-activation.json",
+    "attempts": 28981,
+    "native_runs": 28981,
+    "native_nodes": 428006,
+    "private_scratch_sets": 57962,
+    "published_sets": 856012,
+    "old_inline2_publication_payload_bytes_model": 44512624,
+    "naive_newmain_pub_payload_plus_temp_sizeclass_bytes_model": 126689776,
+    "embedded_newmain_pub_payload_bytes_model": 51360720,
+    "naive_newmain_extra_objects_model": 856012,
+    "scratch_bound_byte_savings_inline2_or_ff40": 0
+  }
+}

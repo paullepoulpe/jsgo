@@ -1,0 +1,48 @@
+{
+  "reason": "Recover build disk space; source branches and published archive retained; only exact clean snapshots without ignored files removed",
+  "actions": [
+    {
+      "path": "/workspace/jsgo-worker-clone-profile",
+      "action": "removed clean disposable checkout",
+      "head": "e864ed545650bbb796c2c992830a33d1683e9016",
+      "branch": "refs/heads/perf/frozen-extern-clone",
+      "recovery": "git worktree add /workspace/jsgo-worker-clone-profile perf/frozen-extern-clone"
+    },
+    {
+      "path": "/workspace/jsgo-node64-predicates",
+      "action": "removed clean disposable checkout",
+      "head": "75cd66222ceaefedc0f34b5fcc82ca09248ea284",
+      "branch": "refs/heads/perf/node64-predicates",
+      "recovery": "git worktree add /workspace/jsgo-node64-predicates perf/node64-predicates"
+    },
+    {
+      "path": "/workspace/jsgo-pass-chunks",
+      "action": "preserved",
+      "reason": "dirty/ignored files or not exact published snapshot"
+    },
+    {
+      "path": "/workspace/jsgo-scope-chunks",
+      "action": "removed clean disposable checkout",
+      "head": "e229c163206feca173d2dd02bcc9efc946647f24",
+      "branch": "refs/heads/perf/scope-chunks",
+      "recovery": "git worktree add /workspace/jsgo-scope-chunks perf/scope-chunks"
+    },
+    {
+      "path": "/workspace/jsgo-unicode15",
+      "action": "removed clean disposable checkout",
+      "head": "bc3d3ee2f65c150e2c215193641f048e24e75dbb",
+      "branch": "refs/heads/perf/unicode15",
+      "recovery": "git worktree add /workspace/jsgo-unicode15 perf/unicode15"
+    },
+    {
+      "path": "/workspace/jsgo-extern-cache",
+      "action": "preserved",
+      "reason": "dirty/ignored files or not exact published snapshot"
+    },
+    {
+      "path": "/workspace/jsgo-process-arena",
+      "action": "preserved",
+      "reason": "dirty/ignored files or not exact published snapshot"
+    }
+  ]
+}

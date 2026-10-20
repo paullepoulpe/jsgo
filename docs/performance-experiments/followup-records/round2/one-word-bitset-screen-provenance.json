@@ -1,0 +1,32 @@
+{
+  "variants": {
+    "slice": {
+      "binary": "/workspace/jsgo-results/round2/bin/jsgo-native-storage-priority-l4",
+      "sha256": "598cd028c8c4c266461d9fee5a95f72a9786cd395ccc7a6161c236e42eb106cd",
+      "source_commit": "b2e407f6"
+    },
+    "inline2": {
+      "binary": "/workspace/jsgo-results/round2/bin/jsgo-inline-bitset-l4",
+      "sha256": "e82c86bf4f1df78cff2c5bcb5fec778f7030cf158d61aafa58552349e6277180",
+      "source_commit": "a6afc95f"
+    },
+    "inline1": {
+      "binary": "/workspace/jsgo-results/round2/bin/jsgo-one-word-control-l4",
+      "sha256": "9c69d940cc46fda723f0da839416d9bcf9eba21a0fec959ff0561f3125b54440",
+      "source_commit": "7e0ba5fb"
+    }
+  },
+  "runtime_environment": {
+    "JSGO_EXPERIMENT_NATIVE_CFG": "1",
+    "JSGO_EXPERIMENT_NATIVE_LOCAL_FLOW": "1",
+    "JSGO_EXPERIMENT_NATIVE_REFERENCES": "1",
+    "JSGO_EXPERIMENT_INLINE_ARGUMENT_FACTS": "1",
+    "JSGO_EXPERIMENT_PARALLEL_FSIV": "1",
+    "JSGO_EXPERIMENT_NATIVE_PARSER": "1",
+    "JSGO_EXPERIMENT_NATIVE_PARSER_ALLOCATOR": "1",
+    "JSGO_EXPERIMENT_READONLY_CALLEE_FACTS": "1",
+    "JSGO_EXPERIMENT_FSIV_SCOPE_SHARING": "1",
+    "JSGO_EXPERIMENT_CLI_SOURCE_LOCK": "1"
+  },
+  "scope": "Fresh CLI; native liveness OFF to isolate unconditional generic BitSet layout. Default runtime GC. Same Go1.27.2 toolchain, shipped PGO and l4 gcflags. Full five tasks N1, three rotating rounds. Stored Java reference; no paired confidence claim."
+}

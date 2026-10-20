@@ -1,0 +1,252 @@
+{
+  "schema": "jsgo-googleapis-family-pin-v1",
+  "repository": "https://github.com/googleapis/googleapis",
+  "revision": "ba591f1d7fdedc610639425448756cd8a64adc0f",
+  "family": "google/cloud/bigquery/v2",
+  "license": "Apache-2.0; upstream LICENSE",
+  "files": [
+    {
+      "path": "google/cloud/bigquery/v2/arrow.proto",
+      "bytes": 3160,
+      "git_blob_sha1": "10086b1fe55954dfcb779f6f1a849926e7db591e"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/biglake_config.proto",
+      "bytes": 2361,
+      "git_blob_sha1": "03190a1ce9bec57f0788f98f443b9f3ab160d23d"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/clustering.proto",
+      "bytes": 1323,
+      "git_blob_sha1": "79438ad16719f9f164064cf5b4cb32f87a289162"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/data_format_options.proto",
+      "bytes": 1854,
+      "git_blob_sha1": "9780f536647f94ef74e94ef87f4f66506cd010b6"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/dataset.proto",
+      "bytes": 33017,
+      "git_blob_sha1": "629ff7b0c88d7231eaae31250661431101029fc3"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/dataset_reference.proto",
+      "bytes": 1333,
+      "git_blob_sha1": "fb0ecadbec293c50a59ce14c0d00ca8fbc8191e4"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/decimal_target_types.proto",
+      "bytes": 1277,
+      "git_blob_sha1": "37a6cb08d31d28c6f7140dcdc3d6c0b98ae20a5b"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/encryption_config.proto",
+      "bytes": 1322,
+      "git_blob_sha1": "df0d1ea58c1a6abb323f2dc2f1e083acc270812a"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/error.proto",
+      "bytes": 1161,
+      "git_blob_sha1": "1af1967dab14fcd6f2cc3a937d24fee5665be56d"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/external_catalog_dataset_options.proto",
+      "bytes": 1631,
+      "git_blob_sha1": "04ef452352401b858c96aac042853b62e90369e7"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/external_catalog_table_options.proto",
+      "bytes": 3870,
+      "git_blob_sha1": "4393bd1aefc96376603a566e5a199e02e2588ac3"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/external_data_config.proto",
+      "bytes": 28482,
+      "git_blob_sha1": "36a974bb4f4be9868add2c8d392dc141a8f61b66"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/external_dataset_reference.proto",
+      "bytes": 1735,
+      "git_blob_sha1": "a0fc651e46d39d15cf62147b7a0d65afd0c58cd7"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/file_set_specification_type.proto",
+      "bytes": 1380,
+      "git_blob_sha1": "ce0ab994d781379ce557e8b20b4f93988a3b73fc"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/gen_ai_stats.proto",
+      "bytes": 3012,
+      "git_blob_sha1": "f2d611fc650d3e0300c1bd54a74da0bfcc4c22be"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/hive_partitioning.proto",
+      "bytes": 3725,
+      "git_blob_sha1": "b91e09ba5a2b3171f1ad95b733593ce6a3fcf237"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job.proto",
+      "bytes": 45390,
+      "git_blob_sha1": "db7109060fb2e55f8bc3e17366e3d67b17f19be9"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job_config.proto",
+      "bytes": 43857,
+      "git_blob_sha1": "4776d2ffe5e5c044ee255b7073464e423a7cc966"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job_creation_reason.proto",
+      "bytes": 2130,
+      "git_blob_sha1": "8409dc597265cf986db0611f528f6fe3a6efb45d"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job_reference.proto",
+      "bytes": 1663,
+      "git_blob_sha1": "da814f6f75233a6a0c7ee2042b3eabe9d3d2f63e"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job_stats.proto",
+      "bytes": 71580,
+      "git_blob_sha1": "cf052f16be65bbfbd1acfe84774bc4da80ee7f85"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/job_status.proto",
+      "bytes": 1652,
+      "git_blob_sha1": "d83a3735c03c71d9abcc9f6481ccb93753361f3f"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/json_extension.proto",
+      "bytes": 1351,
+      "git_blob_sha1": "d3857cc557fe796f69ad6e876638b5ad891696f4"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/location_metadata.proto",
+      "bytes": 1217,
+      "git_blob_sha1": "55fcf2ebbae78ffdd6b90b0a396cde5e7d26dd85"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/managed_table_type.proto",
+      "bytes": 1195,
+      "git_blob_sha1": "16aa4483fd38fa10fa7fa0554595e6a2666b2483"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/map_target_type.proto",
+      "bytes": 1261,
+      "git_blob_sha1": "3e63fd643865d6c44f0a54fa38a1b1eb9a44d8aa"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/model.proto",
+      "bytes": 71317,
+      "git_blob_sha1": "d1de262544ac03fb86d8356869537b0aee8dfb54"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/model_reference.proto",
+      "bytes": 1411,
+      "git_blob_sha1": "a9da9ac325780903ab13b9b782fcc434909af295"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/partitioning_definition.proto",
+      "bytes": 2029,
+      "git_blob_sha1": "1970ac7fc9ede784ed4617cbc9ffb49b46628568"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/privacy_policy.proto",
+      "bytes": 8250,
+      "git_blob_sha1": "ea15b2103935ca725c202002842415d695b70b44"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/project.proto",
+      "bytes": 2240,
+      "git_blob_sha1": "d9bd0b4449f0255b11baeb83766c1c5bb5a3fa6d"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/property_graph_reference.proto",
+      "bytes": 1505,
+      "git_blob_sha1": "197ba9ced5c20a8f19a3565b571dac1ce7cbf243"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/query_parameter.proto",
+      "bytes": 3968,
+      "git_blob_sha1": "afb06b34da28e051c696c2e53ee4446201d2290e"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/range_partitioning.proto",
+      "bytes": 1793,
+      "git_blob_sha1": "4daa0a1a4696306cae9f99102e593d84e4678f57"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/restriction_config.proto",
+      "bytes": 1442,
+      "git_blob_sha1": "18de57d2293a3241adeef85c449bc36ea690235a"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/routine.proto",
+      "bytes": 24765,
+      "git_blob_sha1": "8d964e79c41d9bf46c2025b028fdf6f2173a18fb"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/routine_reference.proto",
+      "bytes": 1423,
+      "git_blob_sha1": "2d40b6cb92eccbd9a728e697c0afabb4a86e8738"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/row_access_policy.proto",
+      "bytes": 12108,
+      "git_blob_sha1": "d2148424d4914249be79abb1292834746ab2f611"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/row_access_policy_reference.proto",
+      "bytes": 1648,
+      "git_blob_sha1": "a06945537e013332390f766ce48a9296e6c6a0cb"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/session_info.proto",
+      "bytes": 1089,
+      "git_blob_sha1": "04228010109f95dd8b405934636e307d3b5427f3"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/standard_sql.proto",
+      "bytes": 4637,
+      "git_blob_sha1": "527087a9c5ec2b8bdcc5f663d294af3929968939"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/system_variable.proto",
+      "bytes": 1353,
+      "git_blob_sha1": "f9e98ec7da6f5f00cd1e3384e685cad4ce6ebb6e"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/table.proto",
+      "bytes": 31114,
+      "git_blob_sha1": "0d8b44b5fd7a9989b4d973c919f6911271112da2"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/table_constraints.proto",
+      "bytes": 2611,
+      "git_blob_sha1": "f188d920fbf4ea2bcf3d78a1499c976ef519a905"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/table_reference.proto",
+      "bytes": 1708,
+      "git_blob_sha1": "04f2034e58f45bb2e71b17f44aeacbf820fa2bb1"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/table_schema.proto",
+      "bytes": 13756,
+      "git_blob_sha1": "5fca75a59b9c4c27d212e6732d3de449b3de8d16"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/time_partitioning.proto",
+      "bytes": 1812,
+      "git_blob_sha1": "502b09c8434951ddd54f853c3e271919ff31e7e7"
+    },
+    {
+      "path": "google/cloud/bigquery/v2/udf_resource.proto",
+      "bytes": 1731,
+      "git_blob_sha1": "5e1f41bdcbb583036b3a6e038e3b392255fe5386"
+    }
+  ],
+  "protobuf_version": "v3.20.3",
+  "protobuf_archive_sha256": "9c0fd39c7a08dff543c643f0f4baf081988129a411b977a07c46221793605638",
+  "protoc_sha256": "7bf21b9e0a5390dbebe784a4aca1d64683af157b5a22847369737509e8e6cf30"
+}

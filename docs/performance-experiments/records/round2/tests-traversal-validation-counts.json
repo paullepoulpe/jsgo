@@ -1,0 +1,12 @@
+{
+  "tests-traversal-focused-fixed.log": {
+    "PASS": 760,
+    "FAIL": 0,
+    "SKIP": 2
+  },
+  "tests-traversal-focused-fixed-race.log": {
+    "PASS": 760,
+    "FAIL": 0,
+    "SKIP": 2
+  }
+}

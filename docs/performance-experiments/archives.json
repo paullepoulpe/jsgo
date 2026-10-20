@@ -1,0 +1,47 @@
+[
+  {
+    "path": "measurement-records.tar.gz",
+    "bytes": 23602613,
+    "sha256": "f02df58d7847b93c8b8f857535e228328cc15e658e7045d1a831283ad7d3fbfc"
+  },
+  {
+    "path": "prototype-sources.tar.gz",
+    "bytes": 14270725,
+    "sha256": "42c75baf474d6f31fc19390bdee82adf040e01b48917d5456b77bc8738419544"
+  },
+  {
+    "path": "prototype-history.bundle",
+    "bytes": 1287971,
+    "sha256": "efa5a584f1e10e8997561f1fef15bf85d540f816ee9b432b1ecb607191228cc5"
+  },
+  {
+    "path": "followup-measurement-records.tar.gz",
+    "bytes": 1415829,
+    "sha256": "3e86c6bedb7cfc22b110d389b6602260660899731c03816c153b0fd75d1118f1"
+  },
+  {
+    "path": "followup-prototype-history.bundle",
+    "bytes": 704532,
+    "sha256": "78ceec17d1fa674b88c72a7c54db628579f6f32d172c14a6de61b060662ee719"
+  },
+  {
+    "path": "second-followup-measurement-records.tar.gz",
+    "bytes": 305016,
+    "sha256": "6e3e82d65215df01d357b3403e8a75cad4cfefcffeddcdca13f88c370cf17d68"
+  },
+  {
+    "path": "third-followup-measurement-records.tar.gz",
+    "bytes": 2046569,
+    "sha256": "6774c8945c12402349d52e2aed57d8836ff284b87830c20b0d2414de199f94fc"
+  },
+  {
+    "path": "latest-main-prototype-history.bundle",
+    "bytes": 160681,
+    "sha256": "ccb1f8ec319866ba9f303e3844e012e75a57b30100a37ac26b5981a928eb9940"
+  },
+  {
+    "path": "fourth-followup-measurement-records.tar.gz",
+    "bytes": 556649,
+    "sha256": "ba9fb5d06f9b5c06acbff7b1222709d332e03ad37de36a67751129082da5eaa7"
+  }
+]

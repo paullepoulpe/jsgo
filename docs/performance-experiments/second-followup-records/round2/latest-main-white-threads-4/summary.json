@@ -1,0 +1,19 @@
+{
+ "downlevel-whitespace": {
+  "java_warm_s": 0.8475,
+  "java_peak_rss_mb": 869.3203125,
+  "variants": {
+   "main": {
+    "median_s": 1.240148547993158,
+    "min_s": 1.2154043210030068,
+    "max_s": 1.2869824430090375,
+    "median_cpu_s": 1.7120799999999998,
+    "median_peak_rss_mb": 164.05859375,
+    "speed_vs_first_variant": 1.0,
+    "speed_vs_java_warm": 0.6833858745159582,
+    "memory_ratio_java_over_go": 5.2988404485821095,
+    "all_outputs_match": true
+   }
+  }
+ }
+}

@@ -1,0 +1,15 @@
+{
+  "source": "61431bde",
+  "production_source": "b2e407f6",
+  "tests": {
+    "normal": {
+      "PASS": 923,
+      "SKIP": 2
+    },
+    "race": {
+      "PASS": 923,
+      "SKIP": 2
+    }
+  },
+  "cli_gates": "all5N1N2N4MATCH"
+}

@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "/workspace/toolchains/go1.27.2/bin/go",
+    "build",
+    "-p=1",
+    "-buildvcs=false",
+    "-o",
+    "/workspace/jsgo-results/round2/bin/jsgo-latest-main-standard",
+    "./cmd/jsgo"
+  ],
+  "cwd": "/workspace/jsgo-latest-main-control",
+  "source": "ff06ac15",
+  "Go": "1.27.2",
+  "build_only_memory_controls": {
+    "GOGC": "20",
+    "GOMAXPROCS": "1"
+  },
+  "runtime_controls": "unset (default GC/GOMAXPROCS)",
+  "note": "Standard compiler inlining, new shipped PGO; no historical package -l4 flags or native experiment flags"
+}

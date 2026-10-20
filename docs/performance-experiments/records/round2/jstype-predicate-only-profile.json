@@ -1,0 +1,144 @@
+{
+  "typed-app": {
+    "predicates_union_s": 0.12,
+    "predicates_flat_s": 0.08,
+    "to_maybe_union_s": 0.02,
+    "to_maybe_flat_s": 0.02,
+    "typeclass_union_s": 0.0,
+    "typeclass_flat_s": 0.0,
+    "all_predicate_union_s": 0.13,
+    "top_predicates_cum_s": [
+      [
+        "(*JSTypeBase).IsUnionType",
+        0.03,
+        0.03
+      ],
+      [
+        "(*JSTypeBase).IsFunctionType",
+        0.02,
+        0.01
+      ],
+      [
+        "(*UnionType).IsUnknownType",
+        0.02,
+        0.0
+      ],
+      [
+        "(*InstanceObjectType).IsUnknownType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).IsEmptyType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*PrototypeObjectTypeBase).IsFunctionPrototypeType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).IsObjectType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*FunctionTypeBase).ToMaybeFunctionType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*ProxyObjectTypeBase).ToMaybeEnumElementType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).IsEnumElementType",
+        0.01,
+        0.0
+      ]
+    ]
+  },
+  "checks-only": {
+    "predicates_union_s": 0.18,
+    "predicates_flat_s": 0.14,
+    "to_maybe_union_s": 0.05,
+    "to_maybe_flat_s": 0.04,
+    "typeclass_union_s": 0.0,
+    "typeclass_flat_s": 0.0,
+    "all_predicate_union_s": 0.21,
+    "top_predicates_cum_s": [
+      [
+        "(*JSTypeBase).IsUnionType",
+        0.04,
+        0.04
+      ],
+      [
+        "(*JSTypeBase).IsFunctionType",
+        0.03,
+        0.01
+      ],
+      [
+        "(*FunctionTypeBase).ToMaybeFunctionType",
+        0.03,
+        0.03
+      ],
+      [
+        "(*JSTypeBase).IsNamedType",
+        0.02,
+        0.02
+      ],
+      [
+        "(*JSTypeBase).IsEmptyType",
+        0.02,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).IsRecordType",
+        0.02,
+        0.02
+      ],
+      [
+        "(*FunctionTypeBase).IsUnknownType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*UnionType).ToMaybeUnionType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).ToMaybeObjectType",
+        0.01,
+        0.0
+      ],
+      [
+        "(*UnionType).IsUnknownType",
+        0.01,
+        0.0
+      ],
+      [
+        "(*ObjectTypeBase).IsUnknownType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*ProxyObjectTypeBase).IsUnknownType",
+        0.01,
+        0.0
+      ],
+      [
+        "(*JSTypeBase).IsObjectType",
+        0.01,
+        0.01
+      ],
+      [
+        "(*JSTypeBase).IsTemplatizedType",
+        0.01,
+        0.01
+      ]
+    ]
+  }
+}

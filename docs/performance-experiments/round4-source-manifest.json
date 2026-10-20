@@ -1,0 +1,578 @@
+{
+  "schema": "jsgo-round4-source-bundle-v1",
+  "prerequisite": "2262bb6a8a9d24ee34fdb52bd30c49269e4b5373",
+  "note": "Experimental source snapshots; individual validation and performance status documented in ROUND4.md and raw records. No compiler optimization promoted by this archive. Exact prerequisite already part of PR23.",
+  "bundle": "round4-prototype-sources.bundle",
+  "bundle_bytes": 220869,
+  "bundle_sha256": "1c49d4c6dce99c50db465e28d824344b4078be590524b6902685e5093559a3f0",
+  "verification": "The bundle contains these 9 refs:\nf272c29494c8797544f9f85a91648d5ee6a6666c refs/round4-snapshot/factors\n58795b0193ea578cd62c3764180c6de017f75073 refs/round4-snapshot/parallel\nf1141ca853a15a033fab1cdc45a0fa3939c5dacb refs/round4-snapshot/dae-scheduler\n134aebf9201ad838ffec376614ab29371b07080a refs/round4-snapshot/cfg-reuse\n28b0775b42da393f5e1860561ccf05115cd7d61a refs/round4-snapshot/node-census\n89f9ec4c7d3edd3af1746c7402b10babc372d157 refs/round4-snapshot/node-census-pairs\n1f7ff5d21aaf8ccf4981912a09e7b00dac54e187 refs/round4-snapshot/preorder-sites\n76ae3d9fd77347247e2ebb7af7baeef524579462 refs/round4-snapshot/corpus-paths\n136b27a52420beb3b960f8ecc430f91fbe0e9167 refs/round4-snapshot/bench\nThe bundle requires this ref:\n2262bb6a8a9d24ee34fdb52bd30c49269e4b5373 \nThe bundle uses this hash algorithm: sha1\ndocs/performance-experiments/round4-prototype-sources.bundle is okay\n",
+  "snapshots": [
+    {
+      "name": "factors",
+      "ref": "refs/round4-snapshot/factors",
+      "commit": "f272c29494c8797544f9f85a91648d5ee6a6666c",
+      "tree": "d1c56053dbebc40b6b55099772375334c230c7d7",
+      "changed_files": [
+        {
+          "path": "docs/coalesce-interference-scratch.md",
+          "bytes": 3902,
+          "sha256": "a696b6819f41687ab077c0d1ba0ca53e0d64d2b439e4b0dac3ac0c7338c99a98"
+        },
+        {
+          "path": "docs/data-flow-queue-reservation.md",
+          "bytes": 2775,
+          "sha256": "507f2c88bc96a5114e36e23144dd340432ab2097105567902667128e7fb6f413"
+        },
+        {
+          "path": "docs/round4-constant-preorder.md",
+          "bytes": 2765,
+          "sha256": "9534c6ac5e6eb786858e5a6fca29f23fccfd4d2ad30ef9acc167c10d9731b71e"
+        },
+        {
+          "path": "docs/round4-inline-cost-view.md",
+          "bytes": 2267,
+          "sha256": "b255eca975680d2a527fe9026a309212c745924c12ab49e1367fe1b5051334da"
+        },
+        {
+          "path": "docs/round4-inline-discovery-schedule.md",
+          "bytes": 4022,
+          "sha256": "b1514c4bec9966a3a9e1979722fb474133a084dda38c1d490e51ef5c8fb579fb"
+        },
+        {
+          "path": "docs/syntactic-scope-slabs.md",
+          "bytes": 5544,
+          "sha256": "1680a1bb37e94bb1db0f4dbf4471922c9de22184e7e3afb8a640f4f61c16aca1"
+        },
+        {
+          "path": "docs/typed-scope-nonlocal-lookup.md",
+          "bytes": 1597,
+          "sha256": "81a7ebbf5b613267e2b694140b0ae499fdaf933cf1e7758f8f399568f406f48c"
+        },
+        {
+          "path": "internal/jscomp/coalesce_interference_scratch.go",
+          "bytes": 2225,
+          "sha256": "0b5afcc09cdcd6d81cd5fd8a50410927edd8c64599d9d586a6d0c7e990fd174b"
+        },
+        {
+          "path": "internal/jscomp/coalesce_interference_scratch_test.go",
+          "bytes": 11683,
+          "sha256": "9e1cf6c3fc32acdec35ede40617d67487078e014d727dca2d0a78b6f31423022"
+        },
+        {
+          "path": "internal/jscomp/coalesce_variable_names.go",
+          "bytes": 30273,
+          "sha256": "816103cac1e770ed8f5e3b5ea63505151ce68f70cd697a99b57174a1c9cdac01"
+        },
+        {
+          "path": "internal/jscomp/data_flow_analysis.go",
+          "bytes": 22681,
+          "sha256": "3228fcba364b5ccb5883022d48231e502b39c2adde93abb94035cf7479d2a118"
+        },
+        {
+          "path": "internal/jscomp/data_flow_queue_reserve_factor.go",
+          "bytes": 192,
+          "sha256": "039ca17eafadee2d810c3cf4ff18a7d3ee93043b9ac728737286b49c21bbf22b"
+        },
+        {
+          "path": "internal/jscomp/data_flow_queue_reserve_test.go",
+          "bytes": 11139,
+          "sha256": "186f173e19c75b45c4f30bef080284e4a0d26ad612217a3b54283e3bcfeaae2e"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 120086,
+          "sha256": "d78f92d12c936312a8c5c2cef254ae453c6493096699e327ba9a210f1fe77368"
+        },
+        {
+          "path": "internal/jscomp/function_injector.go",
+          "bytes": 46167,
+          "sha256": "d70ab7592f87ab95ce4e02ce8ee576e57b72333779518c1aa4634b8ad5e198ec"
+        },
+        {
+          "path": "internal/jscomp/inline_cost_view_test.go",
+          "bytes": 9629,
+          "sha256": "81e5c194701946cfa5ba1f940525e122d42ab2dab32ad7e0e946b50826349445"
+        },
+        {
+          "path": "internal/jscomp/inline_discovery_schedule.go",
+          "bytes": 10277,
+          "sha256": "0c70178daf3acc42f01dd7d8551a44dad05c36801f5f04b7d3d49da7e683c026"
+        },
+        {
+          "path": "internal/jscomp/inline_discovery_schedule_test.go",
+          "bytes": 18728,
+          "sha256": "205d3a66f933431d0301b26b806e792329787bcfb600e4a2b4b7bd21dcc9f849"
+        },
+        {
+          "path": "internal/jscomp/inline_functions.go",
+          "bytes": 64052,
+          "sha256": "fcf1cd4253149d464322e07859f7a5831c8c4d4c1bbbf24ec7cd410f0737d74c"
+        },
+        {
+          "path": "internal/jscomp/inline_variables.go",
+          "bytes": 50755,
+          "sha256": "6e9188fd310b213a59fcbf276a67bcb0ed6227184a5b4c43f47b7525e5971f89"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 70447,
+          "sha256": "8314e388456c3a889a8694849f90391c9ad05e3ded988c327415659e03334369"
+        },
+        {
+          "path": "internal/jscomp/node_traversal_constant_preorder_test.go",
+          "bytes": 11263,
+          "sha256": "31d537f2ba9304443afa64b247b3541bdcbd253245c0a0b3a5397f96a8ec3e3f"
+        },
+        {
+          "path": "internal/jscomp/scope.go",
+          "bytes": 6242,
+          "sha256": "b0bebb5d1f6477996ab699976ef1900f049debd86bac5fc21a0915cf437d21d9"
+        },
+        {
+          "path": "internal/jscomp/syntactic_scope_creator.go",
+          "bytes": 19027,
+          "sha256": "faf92ba88380b445b31d12ea375fecdb00670afe74e4243444557865fe87c855"
+        },
+        {
+          "path": "internal/jscomp/syntactic_scope_slabs.go",
+          "bytes": 1585,
+          "sha256": "cb2d911d81b4eaa6119a84ef53572909f8dc9ba22576d77d49483d03f78c95dc"
+        },
+        {
+          "path": "internal/jscomp/syntactic_scope_slabs_test.go",
+          "bytes": 11837,
+          "sha256": "dfada17cb9eb14bbfd07ca29fb3885d3cf25a58ec13e6767ea6234952de014ff"
+        },
+        {
+          "path": "internal/jscomp/typed_scope.go",
+          "bytes": 15062,
+          "sha256": "510f77b68ce46c22eaa5e4eb77f566332a92758ca54cdacac09d06bd14965c66"
+        },
+        {
+          "path": "internal/jscomp/typed_scope_nonlocal_lookup.go",
+          "bytes": 932,
+          "sha256": "10962b7189338c0de7644a2078c9db57b5c3d7e4071a2072180ff434d5b331e9"
+        },
+        {
+          "path": "internal/jscomp/typed_scope_nonlocal_lookup_test.go",
+          "bytes": 8644,
+          "sha256": "3e877d47e96962adf97ba6bfbbae11bf77e74c3e1a9abcc5e0dde0350c175498"
+        }
+      ]
+    },
+    {
+      "name": "parallel",
+      "ref": "refs/round4-snapshot/parallel",
+      "commit": "58795b0193ea578cd62c3764180c6de017f75073",
+      "tree": "ea8b4c625ecb05cdb74aa4e51276827646076841",
+      "changed_files": [
+        {
+          "path": "internal/jscomp/source_file.go",
+          "bytes": 45906,
+          "sha256": "f602cf8559af3009df28e649cdcc7a1694ed616408cb03fe3c778304ae0378b1"
+        },
+        {
+          "path": "internal/jscomp/source_file_concurrent_test.go",
+          "bytes": 11101,
+          "sha256": "75f0fac73596c1efdc6f2e62840d3fa4a38edfb3818467244fc3b89546c26710"
+        },
+        {
+          "path": "tools/bench/java/SourceFileRestoreOracle.java",
+          "bytes": 1846,
+          "sha256": "8c105ac0ae30c5abc21907764d2bf0e71b9f682728a9767c264328906f84f338"
+        }
+      ]
+    },
+    {
+      "name": "dae-scheduler",
+      "ref": "refs/round4-snapshot/dae-scheduler",
+      "commit": "f1141ca853a15a033fab1cdc45a0fa3939c5dacb",
+      "tree": "9c0f3208fd003f7773d415ea9cefd394c5e7ca96",
+      "changed_files": [
+        {
+          "path": "docs/dae-read-only-scope-window.md",
+          "bytes": 3888,
+          "sha256": "29b575cbdc645e21fca2c172d7cde77cd989134510ca74892f931fe3a4371e96"
+        },
+        {
+          "path": "docs/parallel-dead-assignment-analysis.md",
+          "bytes": 6720,
+          "sha256": "774bfee0d7b2e09d2cd9006953455427fad2e117445f8a051d9fb6b379d724d9"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window.go",
+          "bytes": 8582,
+          "sha256": "c134f9e906c255e1ff8f282a46acb90ef91201f031fac71f776290fbd8284074"
+        },
+        {
+          "path": "internal/jscomp/dae_scope_window_test.go",
+          "bytes": 12093,
+          "sha256": "747e3646c85aecf43a3a1bfb96dec431253007a3dd747901e8aa6fe692179da1"
+        },
+        {
+          "path": "internal/jscomp/dead_assignments_elimination.go",
+          "bytes": 22473,
+          "sha256": "a9673a95094a5fbbc5e2fcb3de98199144e8bdb999c07ea3ca1b4cc10bdaa633"
+        },
+        {
+          "path": "internal/jscomp/default_pass_config.go",
+          "bytes": 119993,
+          "sha256": "c149f4ef1a0ac8664b7c21dfb087ef0de97eaa4345097745030c4b6dd43a84d2"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 68764,
+          "sha256": "4f76e050f6ae09f2e5b7e95bab6b4f07c7ae4d79480d09569da063610a032fd4"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments.go",
+          "bytes": 9335,
+          "sha256": "d21b82f043f38fc53c02521a65d8eff4b4306ddd8bd7dbfd555deb5eb0accc11"
+        },
+        {
+          "path": "internal/jscomp/parallel_dead_assignments_test.go",
+          "bytes": 18939,
+          "sha256": "99ff8e767a55e2041cdb07a600691548373e9f48da150b5e82fc2e302f8cb55c"
+        }
+      ]
+    },
+    {
+      "name": "cfg-reuse",
+      "ref": "refs/round4-snapshot/cfg-reuse",
+      "commit": "134aebf9201ad838ffec376614ab29371b07080a",
+      "tree": "d976975c197bfdfcc09b535b92f9d385d26f8715",
+      "changed_files": [
+        {
+          "path": "internal/jscomp/control_flow_analysis.go",
+          "bytes": 46502,
+          "sha256": "67717b3ac4d0687492e50c643ebafe9992bd89fab9c846622ce7500cb327b453"
+        },
+        {
+          "path": "internal/jscomp/dae_private_cfg_pool.go",
+          "bytes": 4065,
+          "sha256": "8dddfafc9ffb07dadaf1e1dd91486fb2ca3dd3646c4c4e18c97281f01464d230"
+        },
+        {
+          "path": "internal/jscomp/dae_private_cfg_pool_test.go",
+          "bytes": 9047,
+          "sha256": "01eed135932c82a5ea67bc2176d29cc49c270ef6ae9930b04bfa7294b3c93c7d"
+        }
+      ]
+    },
+    {
+      "name": "node-census",
+      "ref": "refs/round4-snapshot/node-census",
+      "commit": "28b0775b42da393f5e1860561ccf05115cd7d61a",
+      "tree": "fddc5ac1256319eb5e1a78c8e8f8451fc624ff04",
+      "changed_files": [
+        {
+          "path": "docs/node-cold-tuple-census.md",
+          "bytes": 4938,
+          "sha256": "cf61f66ac1cad45c9c661b8dd0231ed196e4732b25cd1c8f68bc03a36ab84548"
+        },
+        {
+          "path": "internal/jscomp/compiler.go",
+          "bytes": 187045,
+          "sha256": "7ff7a3d1837dbf476209bc300f6cfdbae6357681d120f39ab7561b4ca713a443"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_disabled.go",
+          "bytes": 254,
+          "sha256": "d8f95ad162af415b56bf103539deeb237b7cd3e9d9d2d5910944c651272fead2"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled.go",
+          "bytes": 1452,
+          "sha256": "d9b40e8b55b8b45f689f7a79eaeee51f13625117c185b16f6f56829c8c522be5"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled_test.go",
+          "bytes": 1608,
+          "sha256": "9746d2912963da4e90543ff3ee291952ceabe7e7b7b50f3e34d7ac953fe634aa"
+        },
+        {
+          "path": "internal/rhino/node_cold_census.go",
+          "bytes": 10169,
+          "sha256": "223d50c68408db9a1a98e3a683baf7acb7f2ca5f3d5c2d0d60d9512e46e59104"
+        },
+        {
+          "path": "internal/rhino/node_cold_census_test.go",
+          "bytes": 8268,
+          "sha256": "a4df9ed76ded0239ff0f9603bea881c918b78d3894c69bd6d679f997513fc996"
+        }
+      ]
+    },
+    {
+      "name": "node-census-pairs",
+      "ref": "refs/round4-snapshot/node-census-pairs",
+      "commit": "89f9ec4c7d3edd3af1746c7402b10babc372d157",
+      "tree": "b2df1545d70efaf329010fa84611d054f01308df",
+      "changed_files": [
+        {
+          "path": "docs/node-cold-tuple-census.md",
+          "bytes": 4938,
+          "sha256": "cf61f66ac1cad45c9c661b8dd0231ed196e4732b25cd1c8f68bc03a36ab84548"
+        },
+        {
+          "path": "internal/jscomp/compiler.go",
+          "bytes": 187045,
+          "sha256": "7ff7a3d1837dbf476209bc300f6cfdbae6357681d120f39ab7561b4ca713a443"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_disabled.go",
+          "bytes": 254,
+          "sha256": "d8f95ad162af415b56bf103539deeb237b7cd3e9d9d2d5910944c651272fead2"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled.go",
+          "bytes": 1452,
+          "sha256": "d9b40e8b55b8b45f689f7a79eaeee51f13625117c185b16f6f56829c8c522be5"
+        },
+        {
+          "path": "internal/jscomp/node_cold_census_enabled_test.go",
+          "bytes": 1608,
+          "sha256": "9746d2912963da4e90543ff3ee291952ceabe7e7b7b50f3e34d7ac953fe634aa"
+        },
+        {
+          "path": "internal/rhino/node_cold_census.go",
+          "bytes": 11447,
+          "sha256": "3aacd8122207075acfddde475a72b0cd417be7a3f60bdba1d0cbc5b1dad2db19"
+        },
+        {
+          "path": "internal/rhino/node_cold_census_test.go",
+          "bytes": 9589,
+          "sha256": "b22ee1d524c4bc2f602113e7ce6f09336f8b818d73519eafa81023582fbeb6ff"
+        }
+      ]
+    },
+    {
+      "name": "preorder-sites",
+      "ref": "refs/round4-snapshot/preorder-sites",
+      "commit": "1f7ff5d21aaf8ccf4981912a09e7b00dac54e187",
+      "tree": "740b8255843dccf2c848795a64b45cf09bf6c31e",
+      "changed_files": [
+        {
+          "path": "docs/round4-constant-preorder.md",
+          "bytes": 4054,
+          "sha256": "2e0c880010d2bd548005e105a55d7ea501076650ad1fbfd87108e823927bbb33"
+        },
+        {
+          "path": "internal/jscomp/node_traversal.go",
+          "bytes": 69235,
+          "sha256": "15cba61bfdb496c6d0faaf15bebe8c3656da6f8fb4f5c0f23d677cd44184db63"
+        },
+        {
+          "path": "internal/jscomp/node_traversal_constant_preorder.go",
+          "bytes": 1421,
+          "sha256": "002e0d4537138d1ee018b373f39fdbb0cedd52d527e42e1d34c9a725a6364d6b"
+        },
+        {
+          "path": "internal/jscomp/node_traversal_constant_preorder_test.go",
+          "bytes": 11263,
+          "sha256": "31d537f2ba9304443afa64b247b3541bdcbd253245c0a0b3a5397f96a8ec3e3f"
+        }
+      ]
+    },
+    {
+      "name": "corpus-paths",
+      "ref": "refs/round4-snapshot/corpus-paths",
+      "commit": "76ae3d9fd77347247e2ebb7af7baeef524579462",
+      "tree": "959702455cb1dccf8b4217fe9b3ef840b015c97e",
+      "changed_files": [
+        {
+          "path": "internal/jscomp/control_flow_analysis_oracle_test.go",
+          "bytes": 10015,
+          "sha256": "ef5a2c2f25b0cd87891e7e4ca33c8b6eb92ec82a509e7082b1f38c82e722aecb"
+        },
+        {
+          "path": "internal/jscomp/infra_dump_oracle_test.go",
+          "bytes": 22671,
+          "sha256": "d13194e9297647533b41eed0e584929cea8a828a25b6f79e15dca379bb839096"
+        },
+        {
+          "path": "internal/jscomp/inline_oracle_test.go",
+          "bytes": 12081,
+          "sha256": "c8ee3a9e2683bd993486456b053fb6aa8915402085befc6ee076ce0dfbd05797"
+        },
+        {
+          "path": "internal/jscomp/l11_optimize_oracle_test.go",
+          "bytes": 21085,
+          "sha256": "8a4413d37c2d2a44923100fd1894ca6009400488f5a2f4f873047a40a574c3ff"
+        },
+        {
+          "path": "internal/jscomp/normalize_oracle_test.go",
+          "bytes": 11277,
+          "sha256": "4da123b12e7c0812077c39cea1a3d63d3d4843a84c4493b7f6039ca5a7808a79"
+        },
+        {
+          "path": "internal/jscomp/oracle_corpus_root_test.go",
+          "bytes": 801,
+          "sha256": "08778d0ca0989668c670a38bb67e62af08e740ed3ff74fa8abb3eed4497bd9c6"
+        },
+        {
+          "path": "internal/jscomp/peephole_oracle_test.go",
+          "bytes": 14670,
+          "sha256": "089d6bd7bbbaa05e32e7614539efc2f405130d5444a2f3eb3d330ba2498733be"
+        },
+        {
+          "path": "internal/jscomp/remove_unused_oracle_test.go",
+          "bytes": 21590,
+          "sha256": "0c39e51ed2891736eaa64adc0f27d447116fe01f371cd71b0b266bb0541bd635"
+        },
+        {
+          "path": "internal/jscomp/scope_dump_test.go",
+          "bytes": 23377,
+          "sha256": "750b325806dc04a8ecb6540179048bb84ad7d6d1b367108e7ec7a0c290824546"
+        },
+        {
+          "path": "internal/jscomp/transpile_b_oracle_test.go",
+          "bytes": 14921,
+          "sha256": "924e62f3d8f490badec481c03128c903a21ac020df2472fe6568f1e1320c2a93"
+        },
+        {
+          "path": "internal/jscomp/transpile_oracle_test.go",
+          "bytes": 13382,
+          "sha256": "5654f87c26fd11227338efd0437cdfb776d0cb622e540374d5ffd84976cb7fc4"
+        },
+        {
+          "path": "internal/jscomp/transpile_runtime_oracle_test.go",
+          "bytes": 24897,
+          "sha256": "3fb55f706ee3df1fa9d1f7408fba620cd19ebb54c8f6b1bb9ff7aa763c29d9be"
+        }
+      ]
+    },
+    {
+      "name": "bench",
+      "ref": "refs/round4-snapshot/bench",
+      "commit": "136b27a52420beb3b960f8ecc430f91fbe0e9167",
+      "tree": "e5c7b10c1f44ec736f25fa82d2d771f99b6add3b",
+      "changed_files": [
+        {
+          "path": "docs/enterprise-benchmark.md",
+          "bytes": 9032,
+          "sha256": "0f8257e8936a90dc61b64d28fa7fa20312646bf46967c071245c65d11ca21840"
+        },
+        {
+          "path": "tools/bench/capped_cli.py",
+          "bytes": 1845,
+          "sha256": "284fac04572b51bccf17e6aa070439c7868a0559db923faef5ac7fd31110322c"
+        },
+        {
+          "path": "tools/bench/cgroup_exec.py",
+          "bytes": 760,
+          "sha256": "3b19b27b04a146b3793b917ab1eef30573ca92bcff06360acfb964ac7b6d025e"
+        },
+        {
+          "path": "tools/bench/enterprise_specs.py",
+          "bytes": 8103,
+          "sha256": "2666d0a6931ed37fdf71ea2e6fd83f3b5a481e728a290ece42350839073055bc"
+        },
+        {
+          "path": "tools/bench/generated/assets.json",
+          "bytes": 4242,
+          "sha256": "1cc82dec222063b3b5d0249dd9c2f32358f949cdb4cf3c2ac2e3b64715d1218c"
+        },
+        {
+          "path": "tools/bench/generated/j2cl_entry.js",
+          "bytes": 806,
+          "sha256": "c2d641c20893a92cb407a31cd43d89dc8dc59dc9085728502ae5f736f3935b7c"
+        },
+        {
+          "path": "tools/bench/generated/protobuf_entry.js",
+          "bytes": 2053,
+          "sha256": "4227b81572ee50c6ad736f97f22f0cb8b189b0baffcb81065c98139adb150425"
+        },
+        {
+          "path": "tools/bench/generated/soy_entry.js",
+          "bytes": 507,
+          "sha256": "d2a3f47c6480012b1c2a93ece1d19d3e34d422ed7a85acc145db388a12ff93ae"
+        },
+        {
+          "path": "tools/bench/generated/verify_semantics.js",
+          "bytes": 903,
+          "sha256": "efb75d48b1533d996ec80aba9fc227cbbcbd805261e7d98bf9204f1942c49761"
+        },
+        {
+          "path": "tools/bench/generated_fixtures.py",
+          "bytes": 15395,
+          "sha256": "5fbe5b73985793a91604c08fa0ab62611c7390a479127512cdb0bd77479c8891"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.md",
+          "bytes": 2978,
+          "sha256": "c4c30acd99363f8762fffe0b9687daa7338bc707ed573e51d6fa0c74f4891b37"
+        },
+        {
+          "path": "tools/bench/go_factor_screen.py",
+          "bytes": 14329,
+          "sha256": "c8ad2393bab3f070fc168d65d395c7b36189ffae63e360fe97228052c387ae58"
+        },
+        {
+          "path": "tools/bench/go_factor_screen_test.py",
+          "bytes": 5902,
+          "sha256": "dd7788ff68c0a7e513a82c381344e91e519ca7a70e6f5a7f4175f3f543edfce8"
+        },
+        {
+          "path": "tools/bench/java/CliDependencyInventory.java",
+          "bytes": 4198,
+          "sha256": "ea11ac2f33a48f9e15ad6073c8dab7d4de32d9b25f313853cde0226745e19bb0"
+        },
+        {
+          "path": "tools/bench/java/CliPaired.java",
+          "bytes": 4909,
+          "sha256": "3e9690c404b3352f5240323a6ab854e4ec53349272b34361db1d069d4c67c1cd"
+        },
+        {
+          "path": "tools/bench/limited_cli.py",
+          "bytes": 1671,
+          "sha256": "6b7b4d551cc9521d14b1b0088660cb111ea15aade76ef4f6300f6d11de310cf3"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.md",
+          "bytes": 2770,
+          "sha256": "2b90995ac8d8975d94a393ed3419d967699c6a0d6937e5b9a95d30580abf2bb1"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs.py",
+          "bytes": 10112,
+          "sha256": "be7a44dff74f77fd32e297805d97f3950bf09a52ab08ded4fe22f6fbbdc48847"
+        },
+        {
+          "path": "tools/bench/many_chunk_specs_test.py",
+          "bytes": 3762,
+          "sha256": "e9047b1b1b264b13d855891ebbfd44c4c8dd0067035947afba6959246ce95164"
+        },
+        {
+          "path": "tools/bench/paired_cli.py",
+          "bytes": 19633,
+          "sha256": "914a9c97eb5cb66fa786d01a2f43599b781327c89b51fe0e4fef3ab207fd0854"
+        },
+        {
+          "path": "tools/bench/paired_factors.md",
+          "bytes": 3956,
+          "sha256": "becf249f30b3a898eddf1ceecc99c06f8f5f6bf3758a0ae1277dc010beee4fd4"
+        },
+        {
+          "path": "tools/bench/paired_factors.py",
+          "bytes": 22133,
+          "sha256": "6c5f7b60e83c4531be527d5d01a91a1e0bf307455a3ac45d133001a3ae922159"
+        },
+        {
+          "path": "tools/bench/paired_factors_test.py",
+          "bytes": 5651,
+          "sha256": "92c28731cef2e41735f9b25c29b7d45689d24d24811ed787fbc2966b78093a39"
+        },
+        {
+          "path": "tools/bench/validate_budget.py",
+          "bytes": 2648,
+          "sha256": "b6415ff3a6bdc61688298ce02ce48f6a043274fd9c0a684eb18ddf533a20431a"
+        }
+      ]
+    }
+  ],
+  "recovery": [
+    "git bundle verify docs/performance-experiments/round4-prototype-sources.bundle",
+    "git fetch docs/performance-experiments/round4-prototype-sources.bundle 'refs/round4-snapshot/*:refs/heads/round4-archive/*'",
+    "git worktree add /tmp/jsgo-round4-recovery round4-archive/factors"
+  ]
+}
