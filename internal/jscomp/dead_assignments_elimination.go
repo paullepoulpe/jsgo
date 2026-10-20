@@ -30,8 +30,9 @@ import (
 type DeadAssignmentsElimination struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
-	compiler AbstractCompiler
-	liveness *LiveVariablesAnalysis
+	compiler     AbstractCompiler
+	scopeCreator *SyntacticScopeCreator
+	liveness     *LiveVariablesAnalysis
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (addFirst/peekFirst/removeFirst); the first element is the last one
 	// of the slice.
@@ -78,10 +79,11 @@ func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n *rhino.Node, pare
 	if len(d.functionStack) == 0 {
 		return
 	}
+	top := &d.functionStack[len(d.functionStack)-1]
 	if n.IsFunction() {
-		d.functionStackPeekFirst().containsFunction = true
-	} else if d.IsRemovableAssign(n) {
-		d.functionStackPeekFirst().containsRemovableAssign = true
+		top.containsFunction = true
+	} else if !top.containsRemovableAssign && d.IsRemovableAssign(n) {
+		top.containsRemovableAssign = true
 	}
 }
 
@@ -136,7 +138,10 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 
 	// Computes liveness information first.
 	cfg := d.GetControlFlowGraph(d.compiler)
-	scopeCreator := NewSyntacticScopeCreator(d.compiler)
+	if d.scopeCreator == nil {
+		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
+	}
+	scopeCreator := d.scopeCreator
 	allVarsDeclaredInFunction :=
 		NodeUtil_GetAllVarsDeclaredInFunction(d.compiler, scopeCreator, functionScope)
 	d.liveness =
@@ -265,10 +270,10 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		name := lhs.GetString()
 		scope := t.GetScope()
 		jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
-		if !allVarsInFn.ContainsKey(name) {
+		var_ := allVarsInFn.Get(name)
+		if var_ == nil {
 			return
 		}
-		var_ := allVarsInFn.Get(name)
 
 		if d.liveness.GetEscapedLocals().Contains(var_) {
 			return // Local variable that might be escaped due to closures.

@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"cmp"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -51,11 +52,11 @@ type ControlFlowAnalysis struct {
 	cfg ControlFlowGraph[*rhino.Node]
 
 	// Go-only: performance — astPosition is never iterated, only queried via
-	// Get(node) inside priorityComparator; a native map[*rhino.Node]int avoids
+	// Get(node) inside priorityComparator; a native map[*rhino.Node]int32 avoids
 	// boxing every AST position as a heap *int and maintaining linked-list nodes.
-	astPosition map[*rhino.Node]int
+	astPosition map[*rhino.Node]int32
 
-	astPositionCounter int
+	astPositionCounter int32
 	priorityCounter    int
 
 	shouldTraverseFunctions bool
@@ -117,6 +118,12 @@ type ControlFlowAnalysis struct {
 
 var cfaEmptyFinallyMap = jutil.NewSetMultimap[*rhino.Node, *rhino.Node]()
 
+var cfaAstPositionPool = sync.Pool{
+	New: func() any {
+		return make(map[*rhino.Node]int32, 64)
+	},
+}
+
 // newControlFlowAnalysis is the constructor. Should only be called from
 // within the Builder.
 //
@@ -145,7 +152,7 @@ func (c *ControlFlowAnalysis) putFinally(jump *rhino.Node, target *rhino.Node) {
 
 // astPositionOf is the key extractor of priorityComparator:
 // checkNotNull(astPosition.get(digraphNode.getValue()), digraphNode.getValue()).
-func (c *ControlFlowAnalysis) astPositionOf(digraphNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int {
+func (c *ControlFlowAnalysis) astPositionOf(digraphNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int32 {
 	p, ok := c.astPosition[digraphNode.GetValue()]
 	if !ok {
 		// checkNotNull(T, Object errorMessage)
@@ -199,7 +206,12 @@ func (b *ControlFlowAnalysis_Builder) SetIncludeEdgeAnnotations(includeEdgeAnnot
 func (b *ControlFlowAnalysis_Builder) ComputeCfg() ControlFlowGraph[*rhino.Node] {
 	jutil.CheckNotNullMsg(b.compiler, "Need to call setCompiler()")
 	jutil.CheckNotNullMsg(b.cfgRoot, "Need to call setCfgRoot()")
-	cfa := newControlFlowAnalysis(b.compiler, b.shouldTraverseFunctions, b.edgeAnnotations)
+	var cfa ControlFlowAnalysis
+	cfa.compiler = b.compiler
+	cfa.shouldTraverseFunctions = b.shouldTraverseFunctions
+	cfa.edgeAnnotations = b.edgeAnnotations
+	cfa.finallyMap = cfaEmptyFinallyMap
+	cfa.exceptionHandler = cfa.exceptionHandlerBuf[:0]
 	cfa.computeCfg(b.cfgRoot)
 	return cfa.cfg
 }
@@ -219,12 +231,16 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
-	c.astPosition = make(map[*rhino.Node]int, 16)
+	astPos := cfaAstPositionPool.Get().(map[*rhino.Node]int32)
+	if len(astPos) > 0 {
+		clear(astPos)
+	}
+	c.astPosition = astPos
 	c.astPositionCounter = 0
 	c.cfg = newControlFlowAnalysis_AstControlFlowGraph(ControlFlowAnalysis_ComputeFallThrough(root), c.edgeAnnotations)
 
 	// Traverse the graph.
-	NodeTraversal_Traverse(c.compiler, root, c)
+	c.traverse(root)
 
 	// Insert an implicit return last.
 	c.astPositionCounter++
@@ -249,6 +265,10 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	}
 
 	// Free our large table now that it is no longer needed
+	if len(astPos) <= 4096 {
+		clear(astPos)
+		cfaAstPositionPool.Put(astPos)
+	}
 	c.astPosition = nil
 
 	// At this point, all reachable nodes have been given a priority, but
@@ -267,16 +287,149 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	c.cfg.GetImplicitReturn().SetPriority(c.priorityCounter)
 }
 
-func (c *ControlFlowAnalysis) cfaSiftUp(worklist []DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch], i int, x DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) {
-	if i == 0 {
-		worklist[0] = x
+func (c *ControlFlowAnalysis) traverse(root *rhino.Node) {
+	jutil.CheckNotNull(c.compiler)
+	if root == nil {
+		b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
+		newNodeTraversal(&b).Traverse(root)
 		return
 	}
-	xPos := c.astPositionOf(x)
+	var currentNode *rhino.Node
+	var currentScript *rhino.Node
+	jutil.Try(func() {
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		currentNode = root
+		c.walkBranch(root, nil, &currentNode, &currentScript)
+	}, func(unexpectedException jutil.Throwable) {
+		b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
+		t := newNodeTraversal(&b)
+		t.InitTraversal(root)
+		if currentScript != nil {
+			t.currentScript = currentScript
+		}
+		t.currentNode = currentNode
+		t.ThrowUnexpectedException(unexpectedException)
+	})
+}
+
+func (c *ControlFlowAnalysis) walkBranch(n, parent *rhino.Node, currentNode, currentScript **rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		*currentNode = n
+		*currentScript = n
+		if c.ShouldTraverse(nil, n, parent) {
+			for child := n.GetFirstChild(); child != nil; {
+				next := child.GetNext()
+				c.walkBranch(child, n, currentNode, currentScript)
+				child = next
+			}
+			*currentNode = n
+			c.Visit(nil, n, parent)
+		}
+		return
+	case rhino.Token_FUNCTION:
+		*currentNode = n
+		if c.ShouldTraverse(nil, n, parent) {
+			fnName := n.GetFirstChild()
+			if parent != nil {
+				_ = NodeUtil_IsFunctionDeclaration(n)
+			}
+			args := fnName.GetNext()
+			body := args.GetNext()
+			c.walkBranch(fnName, n, currentNode, currentScript)
+			c.walkBranch(args, n, currentNode, currentScript)
+			c.walkBranch(body, n, currentNode, currentScript)
+			*currentNode = n
+			c.Visit(nil, n, parent)
+		}
+		return
+	case rhino.Token_CLASS:
+		*currentNode = n
+		if c.ShouldTraverse(nil, n, parent) {
+			className := n.GetFirstChild()
+			extendsClause := className.GetNext()
+			body := extendsClause.GetNext()
+			_ = NodeUtil_IsClassExpression(n)
+			c.walkBranch(extendsClause, n, currentNode, currentScript)
+			c.walkBranch(className, n, currentNode, currentScript)
+			c.walkBranch(body, n, currentNode, currentScript)
+			*currentNode = n
+			c.Visit(nil, n, parent)
+		}
+		return
+	case rhino.Token_CLASS_MEMBERS:
+		*currentNode = n
+		if !c.ShouldTraverse(nil, n, parent) {
+			return
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				c.walkBranch(child.GetFirstChild(), child, currentNode, currentScript)
+			}
+			child = next
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				*currentNode = n
+				if c.ShouldTraverse(nil, child, n) {
+					c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
+					*currentNode = n
+					c.Visit(nil, child, n)
+				}
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				*currentNode = n
+				if c.ShouldTraverse(nil, child, n) {
+					if child.HasTwoChildren() {
+						c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
+					}
+					*currentNode = n
+					c.Visit(nil, child, n)
+				}
+			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
+				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+				c.walkBranch(child, n, currentNode, currentScript)
+			default:
+				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+			}
+			child = next
+		}
+		*currentNode = n
+		c.Visit(nil, n, parent)
+		return
+	default:
+	}
+
+	*currentNode = n
+	if !c.ShouldTraverse(nil, n, parent) {
+		return
+	}
+	for child := n.GetFirstChild(); child != nil; {
+		next := child.GetNext()
+		c.walkBranch(child, n, currentNode, currentScript)
+		child = next
+	}
+	*currentNode = n
+	c.Visit(nil, n, parent)
+}
+
+type cfaWorkItem struct {
+	node DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]
+	pos  int32
+}
+
+func (c *ControlFlowAnalysis) cfaSiftUp(worklist []cfaWorkItem, i int, x cfaWorkItem) {
 	for i > 0 {
 		parent := (i - 1) / 2
 		p := worklist[parent]
-		if xPos >= c.astPositionOf(p) {
+		if x.pos >= p.pos {
 			break
 		}
 		worklist[i] = p
@@ -285,23 +438,23 @@ func (c *ControlFlowAnalysis) cfaSiftUp(worklist []DiGraph_DiGraphNode[*rhino.No
 	worklist[i] = x
 }
 
-func (c *ControlFlowAnalysis) cfaSiftDown(worklist []DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch], i int, x DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) {
+func (c *ControlFlowAnalysis) cfaSiftDown(worklist []cfaWorkItem, i int, x cfaWorkItem) {
 	n := len(worklist)
 	if 2*i+1 >= n {
 		worklist[i] = x
 		return
 	}
-	xPos := c.astPositionOf(x)
+	xPos := x.pos
 	for {
 		pick := 2*i + 1
 		if pick >= n {
 			break
 		}
 		smaller := worklist[pick]
-		smallerPos := c.astPositionOf(smaller)
+		smallerPos := smaller.pos
 		if sibling := pick + 1; sibling < n {
 			sib := worklist[sibling]
-			if sibPos := c.astPositionOf(sib); smallerPos > sibPos {
+			if sibPos := sib.pos; smallerPos > sibPos {
 				pick = sibling
 				smaller = sib
 				smallerPos = sibPos
@@ -324,15 +477,15 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 	if entry == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var worklistBuf [16]DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]
+	var worklistBuf [16]cfaWorkItem
 	worklist := worklistBuf[:1]
-	worklist[0] = entry
+	worklist[0] = cfaWorkItem{node: entry, pos: -1}
 
 	for len(worklist) > 0 {
 		n := len(worklist)
-		current := worklist[0]
+		current := worklist[0].node
 		last := worklist[n-1]
-		worklist[n-1] = nil
+		worklist[n-1] = cfaWorkItem{}
 		worklist = worklist[:n-1]
 		if n > 1 {
 			c.cfaSiftDown(worklist, 0, last)
@@ -349,8 +502,16 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 			if succ == nil {
 				panic(jutil.NewNullPointerException())
 			}
-			worklist = append(worklist, succ)
-			c.cfaSiftUp(worklist, len(worklist)-1, succ)
+			if len(worklist) == 0 {
+				worklist = append(worklist, cfaWorkItem{node: succ, pos: -1})
+			} else {
+				if worklist[0].pos < 0 {
+					worklist[0].pos = c.astPositionOf(worklist[0].node)
+				}
+				succPos := c.astPositionOf(succ)
+				worklist = append(worklist, cfaWorkItem{})
+				c.cfaSiftUp(worklist, len(worklist)-1, cfaWorkItem{node: succ, pos: succPos})
+			}
 		}
 	}
 }

@@ -46,16 +46,42 @@ type LinkedDirectedGraph[N comparable, E any] struct {
 
 	nodeSlab []LinkedDirectedGraph_LinkedDiGraphNode[N, E]
 	edgeSlab []LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
-	nodeBuf  [8]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeBuf  [8]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
+	nodeBuf  [4]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	edgeBuf  [4]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
 }
 
+type linkedDirectedSubGraph[N comparable, E any] struct {
+	graph *LinkedDirectedGraph[N, E]
+	nodes []*LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	buf   [8]*LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+}
+
 // Java: LinkedDirectedGraph.newSubGraph()
 func (g *LinkedDirectedGraph[N, E]) NewSubGraph() SubGraph[N, E] {
-	return NewGraph_SimpleSubGraph[N, E](g)
+	s := &linkedDirectedSubGraph[N, E]{graph: g}
+	s.nodes = s.buf[:0]
+	return s
+}
+
+func (s *linkedDirectedSubGraph[N, E]) IsIndependentOf(value N) bool {
+	node := s.graph.nodes.Get(value)
+	if node == nil {
+		return true
+	}
+	for _, n := range s.nodes {
+		if s.graph.isConnectedInDirectionOfNodesAny(n, node) ||
+			s.graph.isConnectedInDirectionOfNodesAny(node, n) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *linkedDirectedSubGraph[N, E]) AddNode(value N) {
+	s.nodes = append(s.nodes, s.graph.getLinkedNodeOrFail(value))
 }
 
 // Java: LinkedDirectedGraph.createWithoutAnnotations()
@@ -99,7 +125,7 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 
 func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 16), 256)
+		nextCap := min(max(cap(g.nodeSlab)*2, 8), 256)
 		g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
 	}
 	idx := len(g.nodeSlab)
@@ -117,7 +143,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 func (g *LinkedDirectedGraph[N, E]) newEdge(
 	src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 16), 256)
+		nextCap := min(max(cap(g.edgeSlab)*2, 8), 256)
 		g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
 	}
 	idx := len(g.edgeSlab)
@@ -638,11 +664,11 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 
 	value N
 
-	priority int
-
 	// AnnotatedLinkedDiGraphNode
-	annotated  bool
 	annotation Annotation
+
+	priority  int32
+	annotated bool
 }
 
 // newLinkedDirectedGraph_LinkedDiGraphNode is the constructor; nodeValue is
@@ -740,7 +766,7 @@ func (n *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetPriority() int {
 		// checkState(boolean, Object errorMessage)
 		panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
 	}
-	return n.priority
+	return int(n.priority)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.setPriority(int)
@@ -749,7 +775,7 @@ func (n *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) SetPriority(priority int) 
 		// checkArgument(boolean, Object errorMessage)
 		panic(jutil.NewIllegalArgumentExceptionMsg("priorities must be non-negative"))
 	}
-	n.priority = priority
+	n.priority = int32(priority)
 }
 
 // LinkedDirectedGraph_LinkedDiGraphEdge is a directed graph edge that
