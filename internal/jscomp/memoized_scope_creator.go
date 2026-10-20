@@ -69,9 +69,10 @@ func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
 
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
 func (m *MemoizedScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
-	if n == m.cache.lastNode && m.cache.lastScope != nil {
-		jutil.CheckState(parent == m.cache.lastScope.GetParentScope())
-		return m.cache.lastScope
+	if scope := m.cache.lastScope; n == m.cache.lastNode && scope != nil {
+		// Custom GetParentScope may reenter this creator and change the cache.
+		jutil.CheckState(parent == scope.GetParentScope())
+		return scope
 	}
 	var scope AbstractScope
 	if m.cache.scopesByScopeRoot != nil {
