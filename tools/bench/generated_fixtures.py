@@ -206,7 +206,10 @@ def specs(args):
         flags = ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes', '--jscomp_warning=checkVars',
                  '--language_out=ECMASCRIPT_2017', '--dependency_mode=PRUNE']
         if family == 'protobuf':
-            files = sorted(p for p in (fixture/'node_modules/google-protobuf').rglob('*.js') if p.is_file())
+            package = fixture/'node_modules/google-protobuf'
+            # Stock NODE resolution reads package main metadata only from
+            # explicit JSON inputs, as in the ordinary downlevel task.
+            files = sorted(p for p in package.rglob('*.js') if p.is_file())+[package/'package.json']
             flags += ['--process_common_js_modules', '--module_resolution=NODE', '--entry_point=generated/protobuf_entry.js']
         else:
             files = sorted(p for p in (fixture/family).rglob('*.js') if p.is_file())
@@ -228,12 +231,6 @@ def specs(args):
                             'relative': path.relative_to(fixture).as_posix(),
                             'bytes': path.stat().st_size, 'sha256': sha(path)})
         auxiliary_count = len(auxiliary)
-        if family == 'protobuf':
-            package = fixture/'node_modules/google-protobuf/package.json'
-            sources.append({'flag': 'package-metadata', 'link': 'generated',
-                            'relative': package.relative_to(fixture).as_posix(),
-                            'bytes': package.stat().st_size, 'sha256': sha(package)})
-            auxiliary_count += 1
         argv = replace_threads(flags+['--js_output_file=out.js', '--create_source_map=out.js.map', '--output_manifest=inputs.manifest'], args.threads)
         entry, expected = SEMANTICS[family]
         spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-'+family, 'argv': argv,
@@ -244,12 +241,14 @@ def specs(args):
                 'same_work': {'mode': 'ADVANCED, checkTypes and checkVars warnings, source map, manifest, explicit PRUNE entry',
                               'compiler_threads': args.threads, 'builtin_externs': externs, 'explicit_externs': [],
                               'source_count': len(sources)-auxiliary_count, 'auxiliary_input_count': auxiliary_count,
+                              'javascript_source_count': sum(s['flag'] == '--js' and s['relative'].endswith('.js') for s in sources),
+                              'json_source_count': sum(s['flag'] == '--js' and s['relative'].endswith('.json') for s in sources),
                               'source_bytes': sum(s['bytes'] for s in sources if s['flag'] == '--js'),
                               'generated_family': family, 'fixture_status': manifest['status'],
                               'limitations': 'real generated runtime/example fixture; not claimed to be a production enterprise application',
                               'j2cl_runtime': 'matching release JRE + 7 Closure bootstrap JS files; no duplicate full Closure tree' if family == 'j2cl' else None}}
         save(out/(spec['name']+'.json'), spec)
-        print(spec['name'], spec['same_work']['source_count'], 'JS sources,', auxiliary_count, 'auxiliary inputs,', spec['same_work']['source_bytes'], 'JS bytes; UNVALIDATED')
+        print(spec['name'], spec['same_work']['source_count'], 'compiler source inputs,', auxiliary_count, 'auxiliary inputs,', spec['same_work']['source_bytes'], 'source bytes; UNVALIDATED')
 
 
 def verify(args):
