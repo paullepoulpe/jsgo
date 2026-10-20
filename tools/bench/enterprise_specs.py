@@ -110,7 +110,8 @@ def main():
             argv += ['--chunk_output_path_prefix=chunks/', '--create_source_map=%outname%.map',
                      '--output_manifest=%outname%.inputs', '--output_chunk_dependencies=chunk-dependencies.json']
             artifacts = [f'chunks/{chunk["name"]}.js{suffix}' for chunk in chunks for suffix in ('', '.map', '.inputs')]
-            artifacts.append('chunk-dependencies.json')
+            artifacts += ['chunks/$weak$.js.inputs', 'chunk-dependencies.json']
+            absent_artifacts = ['chunks/$weak$.js', 'chunks/$weak$.js.map']
         else:
             argv += ['--output_manifest=inputs.manifest']
             artifacts = list(task.get('compare', []))

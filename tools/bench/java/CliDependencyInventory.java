@@ -14,6 +14,16 @@ public final class CliDependencyInventory {
     return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
   }
   public static void main(String[] args) throws Exception {
+    Path cg = Path.of("/sys/fs/cgroup");
+    String memory = Files.readString(cg.resolve("memory.max")).trim();
+    String swap = Files.readString(cg.resolve("memory.swap.max")).trim();
+    String cpu = Files.readString(cg.resolve("cpu.max")).trim();
+    String cpuset = Files.readString(cg.resolve("cpuset.cpus.effective")).trim();
+    String[] quota = cpu.split("\\s+");
+    if (!memory.equals("4294967296") || !swap.equals("0") || quota[0].equals("max")
+        || Long.parseLong(quota[0]) != 2*Long.parseLong(quota[1]) || !cpuset.equals("0-1")) {
+      throw new IllegalStateException("requires real4GiB,swap0,CPU2,affinity0-1 setup container");
+    }
     List<String> names = Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8);
     if (names.isEmpty() || new HashSet<>(names).size() != names.size()) {
       throw new IllegalArgumentException("need distinct nonempty original input paths");
@@ -54,6 +64,7 @@ public final class CliDependencyInventory {
     result.put("schema", "jsgo-stock-ast-dependencies-v1");
     result.put("stock_jar_sha256", sha(jar));
     result.put("method", "stock CompilerInput AST DepsFinder, SORT_ONLY, before rewrites; preparation only");
+    result.put("kernel_budget", Map.of("memory.max", memory, "memory.swap.max", swap, "cpu.max", cpu, "cpuset.cpus.effective", cpuset));
     result.put("files", files);
     result.put("errors", compiler.getErrors().stream().map(Object::toString).toList());
     result.put("warnings", compiler.getWarnings().stream().map(Object::toString).toList());
