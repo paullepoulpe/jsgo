@@ -11,6 +11,66 @@ no experimental optimization has been promoted. Earlier rounds retain their orig
 source, machine, PGO and measurement cohorts; their percentages are not
 additional improvements over this main.
 
+## Subsequent main syncs and completed 289058de results
+
+Main advanced again to `5de6e3359349d70e60c98788e5e62b78cf1cb0e7`:
+six further commits, 32 changed files and PGO SHA256
+`e11b868352b3ed0d585686fa63b47f3d04e62259535497237d4804c78a060462`.
+It is now merged into PR 23 and frozen for the next paired-JVM block.
+Its bundle N1 and N2 correctness invocations match all six stock-Java
+artifacts under the actual 4 GiB cap. Its full suite is in progress;
+no completed speed or warm-Java ratio for this second sync is claimed here.
+
+The intervening main `289058de` passed the complete all-package normal
+suite, including the test-only fail-closed corpus paths: 29,508 PASS events
+(3,802 top-level), 103 skipped events (37 top-level), zero failures across
+21 packages. All 3,839 expected top-level names/statuses match exactly;
+no missing, extra or changed outcomes. All 553 effective test-source files
+were retained. Its explicit 08:43:27–08:48:25 pause is recorded; unit-suite
+wall time is not a performance result. Full live-Java parity remains open.
+
+A quiet three-round alternating **Go-versus-Go** bundle screen found:
+
+| Source | Median seconds (min–max) | Median peak RSS MiB (min–max) | Time SD seconds | RSS SD MiB |
+|---|---:|---:|---:|---:|
+| 2262bb6a | 11.757 (11.730–11.760) | 423.05 (418.14–436.61) | 0.0169 | 9.57 |
+| 289058de | 10.000 (9.934–10.056) | 379.67 (376.25–381.90) | 0.0606 | 2.84 |
+
+The median same-round new/old time ratio is 0.8525 (**14.7% less time**);
+RSS is 0.8975 (**10.3% less peak RSS**). These are improvements already
+landed on main, not wins from our unpromoted experimental factors. All
+six runs match the same stock-Java oracle with identical argv/input identity.
+This screen supplies no fresh Java timing/RSS ratio; combining it with
+a prior Java cohort would not establish a new paired result.
+
+Fresh 289058de typed profiles and full/pair AST censuses now also match all
+six fresh stock-Java artifact digests; input manifests and argv match.
+The new metadata sharing reopens compact-node investigation. A layout model
+projects only a few MiB of slab savings for full 64+24 records versus
+8.60 MiB typed / 4.21 MiB bundle for 72+16 pair records, depending on slab
+versus standalone retention. These are structural models, not RSS/speed
+wins. A bounded COW diagnostic is source-only. Subsequent 5de6e335 changes
+require refreshed performance weights.
+
+SourceFile focused race validation passed all 42 top-level / 102 total
+checks with zero race warnings. A hex-spelling test expectation was corrected
+to supported decimal exponent spelling; the failed attempt remains retained.
+The combined DAE/scope/CFG candidate built normally and reached every one
+of 80 selected top-level tests: 79 passed and one test fixture panicked
+while bypassing warning-guard public ordering bookkeeping. Corrected public
+AddGuard and custom-source escape regression fixtures are frozen, unrun.
+No experimental compiler optimization is promoted.
+
+Generated protobuf CommonJS **SIMPLE** now passes Java/Go byte gates and
+independent execution of both compiled outputs, including real descriptor,
+Timestamp and Struct binary roundtrips. The earlier ADVANCED CommonJS
+fixture emitted byte-identical but broken code in both engines: preserve
+that failure, exclude it from performance claims. A separate genuine
+Closure-style protoc 3.20.3 fixture has passed generation and raw execution;
+its full ADVANCED compiler/compiled-runtime gates are still in progress.
+Soy generation, J2CL inputs and dependency-preserving 32-chunk construction
+are prepared; their remaining gates are explicitly pending.
+
 ## Verified base and remaining parity work
 
 The full, unfiltered `go test ./...` completed with exit 0 using Go 1.27.2:
@@ -215,3 +275,20 @@ separate unvalidated concurrency/layout diagnostics; a snapshot is not a
 promotion or proof of correctness. The SourceFile snapshot predates the
 new race-run fixture correction. Later cuts will retain that correction and
 the final race evidence. Earlier archives remain byte-for-byte unchanged.
+
+## Second completed evidence cut
+
+[round4-measurement-records-v2.tar.gz](round4-measurement-records-v2.tar.gz)
+adds 771 completed new/changed files (198,900,043 original bytes), with
+480 SHA256 blobs; 16 rebuildable binaries/classes are excluded with hashes.
+Active 5de full-suite logs and upcoming timed trials are excluded.
+SHA256: `11f0f2071d966c3b65d62efae6db2b83614c9a2162de9ad48dbf30f5b3956375`.
+Use the same verifier as v1, changing the archive filename. Both cuts were
+fully verified; the benchmark tooling now passes 22 lightweight tests.
+
+[round4-source-manifest-v2.json](round4-source-manifest-v2.json) records
+eleven additional frozen source snapshots in
+[round4-prototype-sources-v2.bundle](round4-prototype-sources-v2.bundle).
+The manifest labels source-only hypotheses and validated preparation
+separately; recovery prerequisites 2262bb6a, 289058de and 5de6e335 are all
+in PR 23 history. Earlier archives and source bundles remain unchanged.

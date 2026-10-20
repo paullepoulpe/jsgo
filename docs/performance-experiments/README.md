@@ -1,10 +1,10 @@
 # Performance experiment record
 
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
-PR #23 is synchronized with main `289058de`. Completed normal/corpus gates,
+PR #23 is synchronized with main `5de6e335`. Completed normal/corpus gates,
 paired baseline and negative factor screens belong to earlier `2262bb6a`:
 Java/Go time 0.9551 (Go slower), Java/Go RSS 3.5708 (Go smaller) on the capped
-ADVANCED bundle. The newer main needs fresh validation and measurements.
+ADVANCED bundle. The intervening289058de passed29,508 normalchecks and cut bundle time14.7% /peakRSS10.3% in a separate Go-vs-Go screen. Newest5de6e335 full validation and paired JVM measurements are in progress.
 The raw evidence and recoverable source snapshots are now published. The sections below
 preserve the completed October 19 investigation and its original cohorts.
 
