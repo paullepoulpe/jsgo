@@ -3,8 +3,10 @@ package jscomp
 import (
 	"fmt"
 	"iter"
+	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -72,7 +74,7 @@ func TestInferConstsPreservesScopeRetainedByDefaultHandler(t *testing.T) {
 			SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER = h
 			js := rhino.IR_Root(rhino.IR_ScriptOfNodes(
 				rhino.IR_Var(rhino.IR_Name("a")), rhino.IR_Var(rhino.IR_Name("a"))))
-			sentinel := &struct{}{}
+			sentinel := jutil.NewRuntimeException("scope-owner callback panic")
 			if mode == "panic" {
 				h.afterCapture = func() { panic(sentinel) }
 			} else if mode == "reenter" {
@@ -83,8 +85,12 @@ func TestInferConstsPreservesScopeRetainedByDefaultHandler(t *testing.T) {
 			func() {
 				if mode == "panic" {
 					defer func() {
-						if got := recover(); got != sentinel {
-							t.Fatalf("callback panic = %v", got)
+						got := recover()
+						wrapped, ok := got.(jutil.IRuntimeException)
+						// InferConsts enters NodeTraversal, whose established public
+						// contract wraps callback failures with node context.
+						if !ok || wrapped.GetCause() != sentinel || !strings.HasPrefix(wrapped.GetMessage(), "INTERNAL COMPILER ERROR.\nPlease report this problem.\n\n"+sentinel.GetMessage()) {
+							t.Fatalf("callback panic wrapping/cause changed: %v", got)
 						}
 					}()
 				}
