@@ -14,13 +14,15 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–4 below):
-  after four rounds of systematic substrate, data-structure, and pass-level
-  optimizations, `jsgo` is **1.46×–4.90× faster than cold Java (`java -jar`)**
-  and **1.12×–1.47× faster than a warm JIT-compiled JVM** across all 11
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–5 below):
+  after five rounds of systematic substrate, data-structure, and pass-level
+  optimizations, `jsgo` is **1.59×–5.10× faster than cold Java (`java -jar`)**
+  and **1.20×–1.64× faster than a warm JIT-compiled JVM** across all 11
   whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` and
   26-library / 36.1 MB `bundle-mega` `ADVANCED` builds), while using
-  **2.7×–9.8× less peak RSS** than warm Java.
+  **2.7×–10.0× less peak RSS** than warm Java. Even single-threaded (`t=1`),
+  `jsgo` matches or beats 4-thread warm Java (`1.00×–1.60×`) across all 11
+  benchmarks.
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
   1:1 port, `jsgo` was 0.65–0.74× of warm Java's speed, trailing in the
@@ -452,6 +454,56 @@ formatting:
 | **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 12.21 s / 12.11 s | **10.22 s** / **10.07 s** | **−16.3%** / **−16.8%** | 20.78 s | 12.41 s | **2.03×** / **2.06× faster** | **1.21×** / **1.23× faster** (−2.34 s) | **716–717 MiB** vs 2,422 / 2,850+ MiB (**3.4× / 4.0× lower**) |
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 7.66 s / 7.44 s | **6.76 s** / **6.52 s** | **−11.8%** / **−12.4%** | 15.26 s | 8.67 s | **2.26×** / **2.34× faster** | **1.28×** / **1.33× faster** (−2.15 s) | **497–569 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.0× lower**) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 6.25 s / 6.07 s | **5.21 s** / **5.03 s** | **−16.7%** / **−17.2%** | 11.30 s | 6.79 s | **2.17×** / **2.25× faster** | **1.30×** / **1.35× faster** (−1.76 s) | **363–389 MiB** vs 1,600 / 3,795 MiB (**4.1× / 9.8× lower**) |
+
+## Round 5: `typed-mega` & `bundle-mega` Profile-Driven Optimizations (2026-10-20)
+
+Profiling Round 4 on the new 44.6 MB `typed-mega` (4,385 files) and 36.1 MB
+`bundle-mega` (26 UMD libraries) benchmarks exposed five major allocation and
+CPU hotspots across code printing, reference collection, scope slot allocation,
+CFG/interference graphs, type/color serialization, and variable normalization/renaming:
+
+1. **`CodePrinter`, `CodeGenerator`, and `SourceMap` (`Subagent 5A`):**
+   - **Progressive Mapping Slabs & Inline Buffers (`code_printer.go`):** `ToSourceArray` creates a separate `CodePrinter` for each of the 4,385 `SCRIPT` nodes in `typed-mega`; previously, `allocMapping` allocated a 4,096-entry `SourceMap_Mapping` slab (`98 KB`) on the first `SCRIPT` node even for the ~3,500 empty/pruned scripts (`3.20 GB` / `20.5%` of total allocations on `typed-mega`). Adding inline `mappingBuf [16]SourceMap_Mapping` + progressive slab growth (`64 -> 256 -> 1024 -> 4096`) and an inline `codeASCIIBuf [128]byte` / `codeASCII []byte` fast path cut `typed-mega` peak RSS at `t=4` by **662 MiB (−25.3%)** (`2,612 MiB → 1,950 MiB`).
+   - **Zero-Escape `SourceMap.AddMappingOfNodePositions` (`source_map.go`):** Outlined the non-V3 interface fallback into a `//go:noinline` helper and cached `generatorV3`, `lastSourceFile`, and `lastFixedSourceFileName`, eliminating 4 heap escapes per mapped AST node (`234 MB` flat on `bundle-mega`).
+   - **$O(1)$ Bounded `childCount` in `CodeGenerator` (`code_generator.go`):** Replaced $O(N)$ `node.GetChildCount()` walks on every `SCRIPT`, `BLOCK`, `OBJECTLIT`, and `ARRAYLIT` node in `AddNodeWithContextAndComments` with a bounded $O(1)$ check (`0..5`).
+2. **`ReferenceCollector`, `Scope` Slot Sizing, `ScanVars`, and `NodeTraversal` (`Subagent 5B`):**
+   - **Pointer-Keyed `ReferenceCollector` (`reference_collector.go`):** Replaced eager 24-byte `scopedVarKey{scopeRoot, name}` map hashing (`771 MB` on `bundle-mega`) and heap `cols` slice growth (`228 MB`) with pointer-keyed `refByVar map[*Var]*ReferenceCollection` and $O(1)$ `argumentsRefs` / active-traversal scope lookup.
+   - **Accurate `Scope.declareNewVar` Arena Slot Sizing (`scope.go`):** Fixed `declareNewVar` so global scopes don't waste a 6-slot arena buffer, function parameter scopes (`s.rootNode.IsFunction()`) size slots by parameter count, and function block scopes (`s.IsFunctionBlockScope()`, where local `var`/`let`/`const` declarations live) allocate up to 8 arena slots instead of `2`, eliminating `LinkedHashMap.addSlow` heap reallocations on functions with 3–8 local variables.
+   - **256-Entry Token Tables in `ScanVars` & `NodeTraversal` (`syntactic_scope_creator.go`, `node_traversal.go`):** Added `scanVarsTokenKind`, `nodeTraversalBlockScopeToken`, and `nodeTraversalSpecialToken` lookup tables so `CreatesBlockScope` inlines into `TraverseBranch` and `ScanVars` skips recursive calls on expression/leaf subtrees.
+3. **`ControlFlowAnalysis`, `LinkedDirectedGraph`, `LinkedUndirectedGraph`, `CoalesceVariableNames`, and `DAE` (`Subagent 5C`):**
+   - **Pooled `astPosition` & Direct AST Walker in `ControlFlowAnalysis` (`control_flow_analysis.go`):** Pooled `astPosition` (`map[*rhino.Node]int32`), stack-allocated `ControlFlowAnalysis` in `ComputeCfg()`, stored `pos int32` inside `cfaWorkItem` (eliminating map lookups in `cfaSiftUp`/`cfaSiftDown`), and replaced `NodeTraversal` in `computeCfg` with a direct scope-free AST walker.
+   - **44% Smaller `AstControlFlowGraph` & Zero-Alloc `linkedUndirectedSubGraph` (`graph_linked_directed_graph.go`, `graph_linked_undirected_graph.go`):** Shrunk `ControlFlowAnalysis_AstControlFlowGraph` from `1,904 B` to `1,104 B` and implemented `linkedUndirectedSubGraph` for `LinkedUndirectedGraph.NewSubGraph()`, eliminating 100% of `neighborList()` slice allocations (`192 MB` on `bundle-mega`) during `GreedyGraphColoring.Color`.
+   - **Word-Level `BitSet.Or` in `CoalesceVariableNames` (`coalesce_variable_names.go`):** Replaced $O(V)$ per-node escaped-var loops and nested `NextSetBit` loops with word-level `BitSet.Or` and $O(1)$ token/parent checks; skipped candidate traversal in `DeadPropertyAssignmentElimination` when a function has `< 2` property writes.
+4. **`JSTypeRegistry.CanPropertyBeDefined`, `UnionType`, `CheckAccessControls`, and `ConvertTypesToColors` (`Subagent 5D`):**
+   - **Zero-Alloc `CanPropertyBeDefined` (`jstype_js_type_registry.go`):** Eliminated the `associatedTypes := []JSType{}` slice allocation (`305 MB` on `bundle-mega`) and `.ToSlice()` copies by iterating `nonRefTypesIndexedByProperty` and `eachRefTypeIndexedByProperty` directly and short-circuiting on the first match, and checking `droppedPropertiesOfUnions.Contains(propertyName)` before scanning `rec.GetPropertyMap().entries`.
+   - **Inline `UnionType` Alternates (`jstype_union_type.go`), `CheckAccessControls` (`check_access_controls.go`), and `ConvertTypesToColors` (`serialization_convert_types_to_colors.go`):** Added `inlineAlternates [4]JSType` to `UnionType` / `UnionType_Builder`, reused `scratchPropRef` with early token filtering in `CheckAccessControls`, and pre-populated `colorsByPointer []*colors.Color` with a direct AST walk in `ConvertTypesToColors`.
+5. **`InferConsts`, `Normalize`, `Denormalize`, `RenameVars`, and `Es6RewriteClass` (`Subagent 5E`):**
+   - **Specialized `inferConstsCollector` & `denormalizeVarInliner` (`infer_consts.go`, `denormalize.go`):** Replaced full `ReferenceCollector` runs in `InferConsts` and `Denormalize` Pass 2 with lightweight single-pass collectors indexing state per `Var` via `v.nameHash`.
+   - **Fast Undo-Stack Contextual Renamer in `Normalize` (`normalize.go`):** Replaced 7 per-node helper calls in `DoStatementNormalizations` with a single token switch and implemented `useFastContextualRenamer` using a flat `nameUsage` + `activeReplacements` + undo stack instead of per-scope `ContextualRenamer` maps and $O(\text{depth})$ stack walks.
+   - **$O(1)$ Indexed `RenameVars` (`rename_vars.go`) & `Es6RewriteClass` (`es6_rewrite_class.go`):** Cached per-`Var` `*RenameVars_Assignment` resolution in `var_.nameHash`, added `localByIndex []*RenameVars_Assignment` (eliminating `"L " + strconv.Itoa(idx)` string formatting and hashing), eliminated `originalNameByNode`, and reused `metadataBuf` in `Es6RewriteClass`.
+
+### Final measured results — Round 5 (`t=1` and `t=4`, interleaved, N=3, PGO enabled)
+
+#### Standard 5 Benchmarks
+
+| Benchmark | Original (`c9872522`) | Round 4 (`289058de` `t=1`/`t=4`) | **Round 5 (`t=1` / `t=4`)** | Round 5 vs Round 4 (`t=1`/`t=4`) | Total vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-app`** | 2.86 s | 1.95 s / 1.82 s | **1.80 s** / **1.68 s** | **−7.5%** / **−8.0%** | **−37.1%** / **−41.3%** | 6.14 s / 2.18 s | **3.65×** / **1.30×** | **238–245 MiB** vs 758 / 1,871 MiB (**3.1× / 7.6× lower**) |
+| **`bundle`** (12.6 MB) | 11.82 s | 6.75 s / 6.62 s | **6.05 s** / **5.92 s** | **−10.3%** / **−10.6%** | **−48.8%** / **−49.9%** | 16.40 s / 8.68 s | **2.77×** / **1.47×** | **571–593 MiB** vs 2,151 / 2,343 MiB (**3.6× / 4.1× lower**) |
+| **`downlevel-whitespace`** | 0.86 s | 0.61 s / 0.52 s | **0.60 s** / **0.50 s** | **−2.0%** / **−3.4%** | **−30.2%** / **−41.9%** | 2.55 s / 0.60 s | **5.10×** / **1.20×** | **146–152 MiB** vs 553 / 1,437 MiB (**3.6× / 9.8× lower**) |
+| **`downlevel-simple`** | 2.39 s | 1.52 s / 1.43 s | **1.42 s** / **1.32 s** | **−6.6%** / **−7.3%** | **−40.6%** / **−44.8%** | 4.68 s / 1.60 s | **3.55×** / **1.21×** | **192–197 MiB** vs 613 / 1,489 MiB (**3.1× / 7.8× lower**) |
+| **`checks-only`** | 4.40 s | 3.23 s / 2.82 s | **3.03 s** / **2.64 s** | **−6.0%** / **−6.5%** | **−31.1%** / **−40.0%** | 6.55 s / 3.20 s | **2.48×** / **1.21×** | **671–682 MiB** vs 1,591 / 3,562 MiB (**2.3× / 5.3× lower**) |
+
+#### Large & Mega Real-World `ADVANCED` Benchmarks
+
+| Benchmark | Workload (`--compilation_level=ADVANCED`) | Round 4 (`289058de` `t=1`/`t=4`) | **Round 5 (`t=1` / `t=4`)** | Round 5 vs Round 4 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 27.47 s / 26.09 s | **25.23 s** / **24.00 s** | **−8.2%** / **−8.0%** | 38.18 s | 29.53 s | **1.51×** / **1.59× faster** | **1.17×** / **1.23× faster** (−5.53 s) | **1,899–1,950 MiB** vs 6,608 / 6,881 MiB (**3.4× / 3.5× lower**, −662 MiB vs R4) |
+| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (27,597 warnings → 13.09 MB JS + 33.99 MB map) | 37.52 s / 36.59 s | **33.56 s** / **32.70 s** | **−10.6%** / **−10.6%** | 66.71 s | 53.60 s | **1.99×** / **2.04× faster** | **1.60×** / **1.64× faster** (−20.90 s) | **2,407–2,477 MiB** vs 4,421 / 6,775 MiB (**1.8× / 2.7× lower**) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 15.91 s / 15.27 s | **14.66 s** / **14.00 s** | **−7.8%** / **−8.3%** | 31.60 s | 20.21 s | **2.16×** / **2.26× faster** | **1.38×** / **1.44× faster** (−6.21 s) | **1,098–1,179 MiB** vs 1,603 / 4,724 MiB (**1.4× / 4.0× lower**, −288 MiB vs R4) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 10.20 s / 10.03 s | **9.08 s** / **8.94 s** | **−11.0%** / **−10.9%** | 20.78 s | 12.41 s | **2.29×** / **2.32× faster** | **1.37×** / **1.39× faster** (−3.47 s) | **643–667 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.4× lower**) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 6.76 s / 6.53 s | **6.21 s** / **5.97 s** | **−8.2%** / **−8.5%** | 15.26 s | 8.67 s | **2.46×** / **2.56× faster** | **1.40×** / **1.45× faster** (−2.70 s) | **495–529 MiB** vs 1,341 / 2,852 MiB (**2.5× / 5.4× lower**) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 5.18 s / 4.98 s | **4.65 s** / **4.47 s** | **−10.2%** / **−10.3%** | 11.30 s | 6.79 s | **2.43×** / **2.53× faster** | **1.46×** / **1.52× faster** (−2.32 s) | **363–381 MiB** vs 1,600 / 3,795 MiB (**4.2× / 10.0× lower**) |
 
 ## Smaller open items
 
