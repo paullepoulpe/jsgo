@@ -1546,11 +1546,12 @@ type GlobalNamespace_Name struct {
 	//   2: slice in refsSlice (with lazy refsIndex when len > 24)
 	//   3: historically promoted (>8 refs); public reads are snapshots. The
 	//      mutable compatibility map is materialized only if explicitly requested.
-	refsBuf   [4]*GlobalNamespace_Ref
-	refsSlice []*GlobalNamespace_Ref
-	refsIndex map[*rhino.Node]int
-	refsMap   *jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref]
-	refsState uint8
+	refsBuf          [4]*GlobalNamespace_Ref
+	refsSlice        []*GlobalNamespace_Ref
+	refsIndex        map[*rhino.Node]int
+	refsMap          *jutil.LinkedHashMap[*rhino.Node, *GlobalNamespace_Ref]
+	refsState        uint8
+	refsSliceExposed bool
 
 	globalSets              int32
 	localSets               int32
@@ -1872,8 +1873,16 @@ func (n *GlobalNamespace_Name) putNewRef(node *rhino.Node, ref *GlobalNamespace_
 			n.refsIndex = idxMap
 		}
 	}
-	if len(n.refsSlice) > 8 {
+	if len(n.refsSlice) > 8 && n.refsState != 3 {
+		// Old promotion copied entries into a map. An earlier small public
+		// slice must not retain a writable alias into promoted storage.
+		if n.refsSliceExposed {
+			next := make([]*GlobalNamespace_Ref, len(n.refsSlice), cap(n.refsSlice))
+			copy(next, n.refsSlice)
+			n.refsSlice = next
+		}
 		n.refsState = 3
+		n.refsSliceExposed = false
 	}
 }
 
@@ -2280,6 +2289,7 @@ func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
 		copy(refs, n.refsSlice)
 		return refs
 	}
+	n.refsSliceExposed = true
 	return n.refsSlice
 }
 
