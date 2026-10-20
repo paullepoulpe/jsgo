@@ -203,7 +203,10 @@ def specs(args):
                         for p in (closure/prefix).rglob('*.js') if not p.name.endswith('_test.js'))
     externs = embedded_externs(args.jar, Path(bench.REPO))
     for family in manifest['families']:
-        flags = ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes', '--jscomp_warning=checkVars',
+        # Published CommonJS generated code relies on reflective global export
+        # paths; preserve those names in the normal SIMPLE bundler build.
+        level = 'SIMPLE' if family == 'protobuf' else 'ADVANCED'
+        flags = ['--compilation_level='+level, '--jscomp_warning=checkTypes', '--jscomp_warning=checkVars',
                  '--language_out=ECMASCRIPT_2017', '--dependency_mode=PRUNE']
         if family == 'protobuf':
             package = fixture/'node_modules/google-protobuf'
@@ -233,18 +236,19 @@ def specs(args):
         auxiliary_count = len(auxiliary)
         argv = replace_threads(flags+['--js_output_file=out.js', '--create_source_map=out.js.map', '--output_manifest=inputs.manifest'], args.threads)
         entry, expected = SEMANTICS[family]
-        spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-'+family, 'argv': argv,
+        spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-'+family+('-simple' if family == 'protobuf' else ''), 'argv': argv,
                 'links': links, 'inputs': sources, 'artifacts': ['out.js', 'out.js.map', 'inputs.manifest'],
                 'fixture_manifest_sha256': sha(fixture/'fixture-manifest.json'),
                 'semantic_check': {'script': str(HERE/'generated/verify_semantics.js'), 'entry': entry, 'expected': expected,
                                    'required': 'run independently on stock Java and Go outputs before a valid performance claim'},
-                'same_work': {'mode': 'ADVANCED, checkTypes and checkVars warnings, source map, manifest, explicit PRUNE entry',
+                'same_work': {'mode': level+', checkTypes and checkVars warnings, source map, manifest, explicit PRUNE entry',
                               'compiler_threads': args.threads, 'builtin_externs': externs, 'explicit_externs': [],
                               'source_count': len(sources)-auxiliary_count, 'auxiliary_input_count': auxiliary_count,
                               'javascript_source_count': sum(s['flag'] == '--js' and s['relative'].endswith('.js') for s in sources),
                               'json_source_count': sum(s['flag'] == '--js' and s['relative'].endswith('.json') for s in sources),
                               'source_bytes': sum(s['bytes'] for s in sources if s['flag'] == '--js'),
                               'generated_family': family, 'fixture_status': manifest['status'],
+                              'protobuf_distribution': 'genuine CommonJS npm generated messages + packaged runtime; SIMPLE preserves reflective exported names' if family == 'protobuf' else None,
                               'limitations': 'real generated runtime/example fixture; not claimed to be a production enterprise application',
                               'j2cl_runtime': 'matching release JRE + 7 Closure bootstrap JS files; no duplicate full Closure tree' if family == 'j2cl' else None}}
         save(out/(spec['name']+'.json'), spec)
