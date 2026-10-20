@@ -4,9 +4,9 @@ Investigation resumed on 2026-10-20 from main
 `2262bb6a8a9d24ee34fdb52bd30c49269e4b5373`. At 08:25 UTC, remote main
 had advanced to `289058def0873f349f80e49e6777afe3091e18a9`: five
 optimization commits, 49 changed files and a new shipped PGO profile. That
-main is now merged into PR 23. **Every measurement below still belongs to
-2262bb6a**, and does not establish the performance or correctness of 289058de.
-The latest main needs a fresh full gate and paired baseline. This page records completed baseline measurements and ongoing experiments;
+main is now merged into PR 23. The original baseline and seven-factor screen
+belong to `2262bb6a`; later sync results below identify their own source.
+This page records completed baseline measurements and ongoing experiments;
 no experimental optimization has been promoted. Earlier rounds retain their original
 source, machine, PGO and measurement cohorts; their percentages are not
 additional improvements over this main.
