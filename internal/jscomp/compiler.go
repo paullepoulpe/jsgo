@@ -190,7 +190,7 @@ type Compiler struct {
 
 	// There is exactly one cached resolvedSourceMap, which you can think of
 	// as a cache of size one.
-	resolvedSourceMap *compiler_ResolvedSourceMap
+	resolvedSourceMap compiler_ResolvedSourceMap
 
 	typedAstFilesystem *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 
@@ -325,8 +325,9 @@ func compiler_pathJoiner(parts []string) string {
 //
 // Java: Compiler.ResolvedSourceMap
 type compiler_ResolvedSourceMap struct {
-	originalPath  *string
-	sourceMapPath *string
+	hasCached     bool
+	originalPath  string
+	sourceMapPath string
 	relativePath  string
 }
 
@@ -386,7 +387,7 @@ func (c *Compiler) initFields() {
 	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
-	c.resolvedSourceMap = &compiler_ResolvedSourceMap{}
+	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
 	c.validityCheck = PassFactory_Builder_().
 		SetName("validityCheck").
 		SetRunInFixedPointLoop(true).
@@ -3145,7 +3146,7 @@ func (c *Compiler) ToSourceOfNode(n *rhino.Node) string {
 	// something else. Use the legacy license tracking implementation to match existing expectations
 	// about what licenses are included in the resulting JS.
 	lt := NewCompiler_ScriptNodeLicensesOnlyTracker(c)
-	code := c.toSourceAndMappings(n, false, lt).source
+	code := c.toSourceWithoutMappings(n, false, lt)
 	for license := range lt.EmitLicenses().All() {
 		sb.Append("/*\n").Append(license).Append("*/\n")
 	}
@@ -3419,6 +3420,16 @@ func (c *Compiler) toSourceAndMappings(
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
 	return builder.BuildWithSourceMappings()
+}
+
+func (c *Compiler) toSourceWithoutMappings(
+	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
+	builder := NewCodePrinter_Builder(n)
+	builder.SetCompilerOptions(c.options)
+	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
+	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
+	builder.SetLicenseTracker(licenseTracker)
+	return builder.Build()
 }
 
 // Java: Compiler.getLicenseForFile(AbstractCompiler, String)
@@ -4046,23 +4057,38 @@ func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 // Java: Compiler.getSourceMapping(String, int, int)
 func (c *Compiler) GetSourceMapping(
 	sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
-	if sourceName == nil || c.inputSourceMaps.IsEmpty() {
+	if sourceName == nil {
 		return nil
 	}
-	sourceMap := c.inputSourceMaps.Get(*sourceName)
-	if sourceMap == nil {
+	result, _, hasInputMap, isDefaultEmpty := c.getSourceMappingValue(*sourceName, lineNumber, columnNumber)
+	if !hasInputMap {
 		return nil
+	}
+	if isDefaultEmpty {
+		return sourcemap.Mapping_OriginalMapping_GetDefaultInstance()
+	}
+	return &result
+}
+
+func (c *Compiler) getSourceMappingValue(
+	sourceName string, lineNumber int, columnNumber int) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
+	if c.inputSourceMaps.IsEmpty() {
+		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
+	}
+	sourceMap := c.inputSourceMaps.Get(sourceName)
+	if sourceMap == nil {
+		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
 
 	// JSCompiler uses 1-indexing for lineNumber and 0-indexing for columnNumber.
 	// Sourcemaps use 1-indexing for both.
 	consumer := sourceMap.GetSourceMap(c.errorManager)
 	if consumer == nil {
-		return nil
+		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
-	result := consumer.GetMappingForLine(lineNumber, columnNumber+1)
-	if result == nil {
-		return sourcemap.Mapping_OriginalMapping_GetDefaultInstance()
+	result, identifierPtr, ok := consumer.GetMappingForLineValue(lineNumber, columnNumber+1)
+	if !ok {
+		return sourcemap.Mapping_OriginalMapping{}, nil, true, true
 	}
 
 	// First check to see if the original file was loaded from an input source map.
@@ -4071,8 +4097,9 @@ func (c *Compiler) GetSourceMapping(
 	var relativePath string
 
 	// Resolving the paths to a source file is expensive, so check the cache first.
-	if c.resolvedSourceMap.originalPath != nil && sourceMapOriginalPath == *c.resolvedSourceMap.originalPath &&
-		c.resolvedSourceMap.sourceMapPath != nil && resultOriginalPath == *c.resolvedSourceMap.sourceMapPath {
+	if c.resolvedSourceMap.hasCached &&
+		sourceMapOriginalPath == c.resolvedSourceMap.originalPath &&
+		resultOriginalPath == c.resolvedSourceMap.sourceMapPath {
 		relativePath = c.resolvedSourceMap.relativePath
 	} else {
 		relativePath = compiler_resolveSibling(sourceMapOriginalPath, resultOriginalPath)
@@ -4086,15 +4113,14 @@ func (c *Compiler) GetSourceMapping(
 		}
 
 		// Cache this resolved source for the next caller.
-		c.resolvedSourceMap.originalPath = &sourceMapOriginalPath
-		c.resolvedSourceMap.sourceMapPath = &resultOriginalPath
+		c.resolvedSourceMap.hasCached = true
+		c.resolvedSourceMap.originalPath = sourceMapOriginalPath
+		c.resolvedSourceMap.sourceMapPath = resultOriginalPath
 		c.resolvedSourceMap.relativePath = relativePath
 	}
 
-	return result.ToBuilder().
-		SetOriginalFile(relativePath).
-		SetColumnPosition(result.GetColumnPosition() - 1).
-		Build()
+	result.SetOriginalFileAndColumnInPlace(relativePath, result.GetColumnPosition()-1)
+	return result, identifierPtr, true, false
 }
 
 // Java: Compiler.getSourceLine(String, int)

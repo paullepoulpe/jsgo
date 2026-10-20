@@ -180,7 +180,7 @@ func (c *CrossChunkReferenceCollector) release() {
 				if len(c.vars)*16 < len(c.table) {
 					mask := uint32(len(c.table) - 1)
 					for _, kv := range c.vars {
-						slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+						slot := rcHashVarPtr(kv) & mask
 						for c.table[slot].v != nil {
 							c.table[slot] = rcTableEntry{}
 							slot = (slot + 1) & mask
@@ -665,7 +665,7 @@ func (c *CrossChunkReferenceCollector) initTable() {
 	table := c.table
 	mask := uint32(len(table) - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -678,7 +678,7 @@ func (c *CrossChunkReferenceCollector) growTable() {
 	newTable := make([]rcTableEntry, newCap)
 	mask := uint32(newCap - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for newTable[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -694,7 +694,7 @@ func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceC
 	if c.table != nil {
 		table := c.table
 		mask := uint32(len(table) - 1)
-		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+		for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
 			e := table[slot]
 			if e.v == v {
 				return e.col
@@ -730,7 +730,7 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 		}
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -739,7 +739,7 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 		c.initTable()
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}

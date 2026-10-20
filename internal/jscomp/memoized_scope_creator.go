@@ -97,6 +97,15 @@ func (m *MemoizedScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) 
 	return scope
 }
 
+func (m *MemoizedScopeCreator) EnableArenaPool() {
+	if m == nil {
+		return
+	}
+	if sc, ok := m.delegate.(*SyntacticScopeCreator); ok && sc != nil {
+		sc.EnableArenaPool()
+	}
+}
+
 func (m *MemoizedScopeCreator) ReleaseArena() {
 	if m == nil {
 		return

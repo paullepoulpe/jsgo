@@ -46,10 +46,7 @@ type Scanner struct {
 	typeParameterLevel int
 
 	// Go-only: performance — the plain, identifier, and literal tokens (see newToken).
-	tokens         jutil.Slab[TokenBase]
-	identifiers    jutil.Slab[IdentifierToken]
-	literals       jutil.Slab[LiteralTokenBase]
-	stringLiterals jutil.Slab[StringLiteralToken]
+	arena *ParseArena
 }
 
 // sliceString returns the string for s.contents[start:end], slicing
@@ -67,7 +64,7 @@ func (s *Scanner) sliceString(start, end int) string {
 // positions (see LineNumberScanner.getTokenSourcePosition): they become
 // garbage with the parse trees.
 func (s *Scanner) newToken(type_ TokenType, location *SourceRange) *TokenBase {
-	t := s.tokens.New()
+	t := s.arena.tokens.New()
 	t.InitTokenBase(t, type_, location)
 	return t
 }
@@ -77,7 +74,7 @@ func (s *Scanner) newToken(type_ TokenType, location *SourceRange) *TokenBase {
 //
 // Go-only: performance — see newToken.
 func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *IdentifierToken {
-	t := s.identifiers.New()
+	t := s.arena.identifiers.New()
 	t.InitIdentifierToken(location, value)
 	return t
 }
@@ -87,7 +84,7 @@ func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *Ident
 //
 // Go-only: performance — see newToken.
 func (s *Scanner) newLiteralToken(type_ TokenType, value string, location *SourceRange) *LiteralTokenBase {
-	t := s.literals.New()
+	t := s.arena.literals.New()
 	t.InitLiteralTokenBase(t, type_, value, location)
 	return t
 }
@@ -97,7 +94,7 @@ func (s *Scanner) newLiteralToken(type_ TokenType, value string, location *Sourc
 //
 // Go-only: performance — see newToken.
 func (s *Scanner) newStringLiteralToken(value string, location *SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
-	t := s.stringLiterals.New()
+	t := s.arena.stringLiterals.New()
 	t.InitLiteralTokenBase(t, TokenType_STRING, value, location)
 	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
 	return t
@@ -107,12 +104,20 @@ func (s *Scanner) newStringLiteralToken(value string, location *SourceRange, has
 //
 // Java: Scanner(ErrorReporter, CommentRecorder, SourceFile, int)
 func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentRecorder, file *SourceFile, offset int) *Scanner {
-	s := &Scanner{}
+	return NewScannerInArena(errorReporter, commentRecorder, file, offset, nil)
+}
+
+// NewScannerInArena constructs a Scanner backed by arena.
+func NewScannerInArena(errorReporter ErrorReporter, commentRecorder Scanner_CommentRecorder, file *SourceFile, offset int, arena *ParseArena) *Scanner {
+	if arena == nil {
+		arena = &ParseArena{}
+	}
+	s := &Scanner{arena: arena}
 	s.lookahead = s.lookaheadBuf[:0]
 	s.errorReporter = errorReporter
 	s.commentRecorder = commentRecorder
 	s.source = file
-	s.lineNumberScanner = NewLineNumberScanner(s.source)
+	s.lineNumberScanner = NewLineNumberScannerInArena(s.source, arena)
 	// To help reason about the expected JVM performance unwrap "file" values.
 	// The scanner is key to the parsing speed.
 	s.contents = file.ContentsUTF16

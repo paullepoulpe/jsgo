@@ -20,6 +20,8 @@
 
 package jutil
 
+import "unicode/utf16"
+
 // Go-only: language-adapter — Gson is a library dependency of Closure; it is
 // ported here as Java-semantics runtime. The reader keeps Gson's 1024-char
 // buffer and refill logic because they are observable (a number longer than
@@ -74,28 +76,21 @@ type JavaReader interface {
 
 // StringReader is java.io.StringReader.
 type StringReader struct {
-	str  []uint16
 	next int
 
-	// Go-only: performance — the string is converted to UTF-16 on the first
-	// read (s holds it until then), so that CharStreams_ToString can return
-	// it as it is.
-	s         string
-	converted bool
+	// Go-only: performance — the string is decoded incrementally in Read
+	// (s holds it from the start), so that CharStreams_ToString can return
+	// an unread StringReader's string as it is, and Read never allocates a
+	// full []uint16 slice.
+	s            string
+	converted    bool
+	pendingLo    uint16
+	hasPendingLo bool
 }
 
 // NewStringReader is new StringReader(String).
 func NewStringReader(s string) *StringReader {
 	return &StringReader{s: s}
-}
-
-// convert makes str hold the string's UTF-16 units.
-func (r *StringReader) convert() {
-	if !r.converted {
-		r.str = StringToUTF16(r.s)
-		r.s = ""
-		r.converted = true
-	}
 }
 
 // Read is StringReader.read(char[], int, int).
@@ -106,14 +101,53 @@ func (r *StringReader) Read(cbuf []uint16, off, length int) int {
 	if length == 0 {
 		return 0
 	}
-	r.convert()
-	if r.next >= len(r.str) {
+	r.converted = true
+	if !r.hasPendingLo && r.next >= len(r.s) {
 		return -1
 	}
-	n := min(len(r.str)-r.next, length)
-	copy(cbuf[off:off+n], r.str[r.next:r.next+n])
-	r.next += n
-	return n
+	dst := cbuf[off : off+length]
+	written := 0
+	if r.hasPendingLo {
+		dst[0] = r.pendingLo
+		r.hasPendingLo = false
+		written = 1
+	}
+	s := r.s
+	next := r.next
+	for written < length && next < len(s) {
+		if s[next] < 0x80 {
+			rem := min(length-written, len(s)-next)
+			i := 0
+			for ; i < rem && s[next+i] < 0x80; i++ {
+				dst[written+i] = uint16(s[next+i])
+			}
+			written += i
+			next += i
+			continue
+		}
+		ru, sz := decodeWTF8(s[next:])
+		next += sz
+		if ru >= 0x10000 {
+			hi, lo := utf16.EncodeRune(ru)
+			dst[written] = uint16(hi)
+			written++
+			if written < length {
+				dst[written] = uint16(lo)
+				written++
+			} else {
+				r.pendingLo = uint16(lo)
+				r.hasPendingLo = true
+			}
+		} else {
+			dst[written] = uint16(ru)
+			written++
+		}
+	}
+	r.next = next
+	if !r.hasPendingLo && next >= len(s) {
+		r.s = ""
+	}
+	return written
 }
 
 // Close is StringReader.close().
@@ -166,9 +200,10 @@ type JsonReader struct {
 
 	// Use a manual buffer to easily read and unread upcoming characters, and
 	// also so we can create strings without an intermediate StringBuilder.
-	buffer []uint16
-	pos    int
-	limit  int
+	buffer  []uint16
+	builder []uint16
+	pos     int
+	limit   int
 
 	lineNumber int
 	lineStart  int
@@ -785,14 +820,18 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 					return StringFromUTF16(buffer[start : start+length])
 				} else {
 					builder = append(builder, buffer[start:start+length]...)
+					r.builder = builder[:0]
 					return StringFromUTF16(builder)
 				}
 			} else if c == '\\' {
 				r.pos = p
 				length := p - start - 1
 				if !haveBuilder {
-					estimatedLength := (length + 1) * 2
-					builder = make([]uint16, 0, max(estimatedLength, 16))
+					estimatedLength := max((length+1)*2, 16)
+					if cap(r.builder) < estimatedLength {
+						r.builder = make([]uint16, 0, estimatedLength)
+					}
+					builder = r.builder[:0]
 					haveBuilder = true
 				}
 				builder = append(builder, buffer[start:start+length]...)
@@ -807,13 +846,17 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 		}
 
 		if !haveBuilder {
-			estimatedLength := (p - start) * 2
-			builder = make([]uint16, 0, max(estimatedLength, 16))
+			estimatedLength := max((p-start)*2, 16)
+			if cap(r.builder) < estimatedLength {
+				r.builder = make([]uint16, 0, estimatedLength)
+			}
+			builder = r.builder[:0]
 			haveBuilder = true
 		}
 		builder = append(builder, buffer[start:p]...)
 		r.pos = p
 		if !r.fillBuffer(1) {
+			r.builder = builder[:0]
 			panic(r.syntaxError("Unterminated string"))
 		}
 	}
@@ -849,7 +892,11 @@ findNonLiteralCharacter:
 		// use a StringBuilder when the value is too long. This is too long to
 		// be a number!
 		if !haveBuilder {
-			builder = make([]uint16, 0, max(i, 16))
+			estimatedLength := max(i, 16)
+			if cap(r.builder) < estimatedLength {
+				r.builder = make([]uint16, 0, estimatedLength)
+			}
+			builder = r.builder[:0]
 			haveBuilder = true
 		}
 		builder = append(builder, r.buffer[r.pos:r.pos+i]...)
@@ -865,6 +912,7 @@ findNonLiteralCharacter:
 		result = StringFromUTF16(r.buffer[r.pos : r.pos+i])
 	} else {
 		builder = append(builder, r.buffer[r.pos:r.pos+i]...)
+		r.builder = builder[:0]
 		result = StringFromUTF16(builder)
 	}
 	r.pos += i

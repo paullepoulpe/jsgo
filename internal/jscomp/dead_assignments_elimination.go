@@ -65,7 +65,12 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 	jutil.CheckNotNull(root)
 	jutil.CheckState(d.compiler.GetLifeCycleStage().IsNormalized())
 	sc := NewSyntacticScopeCreator(d.compiler)
-	defer sc.ReleaseArena()
+	sc.EnableArenaPool()
+	d.scopeCreator = sc
+	defer func() {
+		d.scopeCreator = nil
+		sc.ReleaseArena()
+	}()
 	b := NodeTraversal_Builder{
 		compiler:     d.compiler,
 		callback:     d,

@@ -137,6 +137,7 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	normStmts := NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange, nil)
 	normStmts.initFastContextualRenamer()
 	sc1 := NewSyntacticScopeCreator(n.compiler)
+	sc1.EnableArenaPool()
 	b1 := NodeTraversal_Builder{
 		compiler:     n.compiler,
 		callback:     normStmts,
@@ -146,6 +147,7 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	sc1.ReleaseArena()
 
 	sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
+	sc2.EnableArenaPool()
 	defer sc2.ReleaseArena()
 	b2 := NodeTraversal_Builder{
 		compiler:     n.compiler,

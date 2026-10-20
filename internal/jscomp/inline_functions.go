@@ -178,6 +178,7 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
 
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
 
 	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}

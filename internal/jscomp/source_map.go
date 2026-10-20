@@ -43,7 +43,8 @@ type SourceMap struct {
 	// that inputs to this compilation job have been generated from, and used
 	// to create a source map that maps all the way back to original inputs.
 	// nil if no such mapping is wanted.
-	mapping SourceFileMapping
+	mapping         SourceFileMapping
+	compilerMapping *Compiler
 }
 
 // SourceMap_Format is an enumeration of available source map formats
@@ -244,6 +245,28 @@ func (s *SourceMap) AddMappingOfNodePositions(
 			s.lastSourceFile = sourceFile
 			s.lastFixedSourceFileName = sourceFileName
 		}
+	} else if s.compilerMapping != nil {
+		sourceFileName = sourceFile.GetName()
+		sourceMapping, identifierPtr, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValue(sourceFileName, lineNo, charNo)
+		if !hasInputMap {
+			// The source file does not have a input map. We consider this to be an
+			// original source range and include it in the output map.
+		} else if isDefaultEmpty {
+			// The source file does have an input map, but it does not map the
+			// location. We consider this to be a synthetic code range and do not
+			// include it in the output map.
+			// TODO b/452676030 - Report the sourceless mapping.
+			return
+		} else {
+			// The source file mapped our code range to its original source location.
+			sourceFileName = sourceMapping.GetOriginalFile()
+			lineNo = sourceMapping.GetLineNumber()
+			charNo = sourceMapping.GetColumnPosition()
+			if identifierPtr != nil {
+				originalName = identifierPtr
+			}
+		}
+		sourceFileName = s.fixupSourceLocation(sourceFileName)
 	} else {
 		sourceFileName = sourceFile.GetName()
 		sourceMapping := s.mapping.GetSourceMapping(sourceFileName, lineNo, charNo)
@@ -421,4 +444,9 @@ func (s *SourceMap) SetPrefixMappings(sourceMapLocationMappings []SourceMap_Loca
 // Java: SourceMap.setSourceFileMapping(SourceFileMapping)
 func (s *SourceMap) SetSourceFileMapping(mapping SourceFileMapping) {
 	s.mapping = mapping
+	if cm, ok := mapping.(*compiler_sourceFileMapping); ok {
+		s.compilerMapping = cm.c
+	} else {
+		s.compilerMapping = nil
+	}
 }

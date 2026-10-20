@@ -124,11 +124,16 @@ func ParserRunner_Parse(
 	sourceName := sourceFile.GetName()
 	var result *ParserRunner_ParseResult
 	jutil.Try(func() {
-		file := parser.NewSourceFile(sourceName, sourceString)
+		arena := parser.AcquireParseArena()
+		file := parser.NewSourceFileInArena(sourceName, sourceString, arena)
+		defer func() {
+			file.ContentsUTF16 = nil
+			arena.Release()
+		}()
 		keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
 		es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
 		es6config := ParserRunner_NewParserConfig(config)
-		p := parser.NewParser(es6config, es6ErrorReporter, file)
+		p := parser.NewParserInArena(es6config, es6ErrorReporter, file, arena)
 		tree := p.ParseProgram()
 		var root *rhino.Node
 		comments := []*parser.Comment{}
@@ -144,7 +149,11 @@ func ParserRunner_Parse(
 				comments = p.GetComments()
 				builder := make([]*parser.SourceRange, 0, len(tree.SourceElements))
 				for _, element := range tree.SourceElements {
-					builder = append(builder, element.GetParseTreeBase().Location)
+					loc := element.GetParseTreeBase().Location
+					builder = append(builder, parser.NewSourceRange(
+						parser.NewSourcePosition(loc.Start.Source, loc.Start.Offset, loc.Start.Line, loc.Start.Column),
+						parser.NewSourcePosition(loc.End.Source, loc.End.Offset, loc.End.Line, loc.End.Column),
+					))
 				}
 				topLevelStatementRanges = builder
 			}

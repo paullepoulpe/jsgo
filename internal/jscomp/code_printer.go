@@ -558,16 +558,21 @@ func codePrinter_MappedCodePrinter_adjustEndPositionVal(
 	}
 	col := endPosition.GetColumn()
 	if col > lineLengths[line] {
-		jutil.CheckStateMsg2(
-			false,
-			"End position %s points to a column larger than line length %s",
-			&endPosition,
-			lineLengths[line])
+		codePrinter_panicBadEndPosition(endPosition, lineLengths[line])
 	}
 	if col == lineLengths[line] {
 		return sourcemap.MakeFilePosition(line+1, 0)
 	}
 	return endPosition
+}
+
+//go:noinline
+func codePrinter_panicBadEndPosition(endPosition sourcemap.FilePosition, lineLen int) {
+	jutil.CheckStateMsg2(
+		false,
+		"End position %s points to a column larger than line length %s",
+		&endPosition,
+		lineLen)
 }
 
 // CodePrinter_MappedCodePrinter_AdjustEndPosition adjusts end position of a

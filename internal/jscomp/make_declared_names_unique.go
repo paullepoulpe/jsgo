@@ -292,7 +292,15 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.process(Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs *rhino.Node, js *rhino.Node) {
-	NodeTraversal_Traverse(c.compiler, js, c)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: sc,
+	}
+	b.Traverse(js)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.getOriginalName(String)

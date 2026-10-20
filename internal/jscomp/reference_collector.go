@@ -23,11 +23,20 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func rcHashVarPtr(v *Var) uint32 {
+	x := uint64(uintptr(unsafe.Pointer(v)) >> 4)
+	x ^= x >> 33
+	x *= 0xff51afd7ed558ccd
+	x ^= x >> 33
+	return uint32(x)
+}
 
 type scopedVarKey struct {
 	scopeRoot *rhino.Node
@@ -217,7 +226,7 @@ func (c *ReferenceCollector) release() {
 			if len(c.vars)*16 < len(c.table) {
 				mask := uint32(len(c.table) - 1)
 				for _, kv := range c.vars {
-					slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+					slot := rcHashVarPtr(kv) & mask
 					for c.table[slot].v != nil {
 						c.table[slot] = rcTableEntry{}
 						slot = (slot + 1) & mask
@@ -500,7 +509,7 @@ func (c *ReferenceCollector) initTable() {
 	table := c.table
 	mask := uint32(len(table) - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -513,7 +522,7 @@ func (c *ReferenceCollector) growTable() {
 	newTable := make([]rcTableEntry, newCap)
 	mask := uint32(newCap - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for newTable[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -528,7 +537,7 @@ func (c *ReferenceCollector) growTable() {
 func (c *ReferenceCollector) tableGet(v *Var) *ReferenceCollection {
 	table := c.table
 	mask := uint32(len(table) - 1)
-	for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+	for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
 		e := table[slot]
 		if e.v == v {
 			return e.col
@@ -569,7 +578,8 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	if c.table != nil {
 		table := c.table
 		mask := uint32(len(table) - 1)
-		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+		h := rcHashVarPtr(v)
+		for slot := h & mask; ; slot = (slot + 1) & mask {
 			e := table[slot]
 			if e.v == v {
 				c.lastVar = v
@@ -581,7 +591,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 					c.growTable()
 					table = c.table
 					mask = uint32(len(table) - 1)
-					slot = uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+					slot = h & mask
 					for table[slot].v != nil {
 						slot = (slot + 1) & mask
 					}
@@ -609,7 +619,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 		c.initTable()
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -863,8 +873,19 @@ func (t referenceCollector_staticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
 
 // Java: ReferenceCollector.maybeJumpToHoistedFunction(Var, NodeTraversal)
 func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
-	fnNode := var_.GetParentNode()
-	if fnNode == nil || !fnNode.IsFunction() || !NodeUtil_IsHoistedFunctionDeclaration(fnNode) {
+	nameNode := var_.nameNode
+	if nameNode == nil {
+		return
+	}
+	fnNode := nameNode.GetParent()
+	if fnNode == nil || !fnNode.IsFunction() {
+		return
+	}
+	c.maybeJumpToHoistedFunctionSlow(var_, fnNode, t)
+}
+
+func (c *ReferenceCollector) maybeJumpToHoistedFunctionSlow(var_ *Var, fnNode *rhino.Node, t *NodeTraversal) {
+	if !NodeUtil_IsHoistedFunctionDeclaration(fnNode) {
 		return
 	}
 	varScope := var_.getScopeS()

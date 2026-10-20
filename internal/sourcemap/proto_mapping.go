@@ -171,6 +171,13 @@ func (m *Mapping_OriginalMapping) GetColumnPosition() int {
 	return m.columnPosition_
 }
 
+// SetOriginalFileAndColumnInPlace mutates OriginalFile and ColumnPosition in place.
+func (m *Mapping_OriginalMapping) SetOriginalFileAndColumnInPlace(originalFile string, columnPosition int) {
+	m.originalFile_ = originalFile
+	m.columnPosition_ = columnPosition
+	m.bitField0_ |= mapping_originalFileBit | mapping_columnPositionBit
+}
+
 // Java: OriginalMapping.hasIdentifier()
 func (m *Mapping_OriginalMapping) HasIdentifier() bool {
 	return (m.bitField0_ & mapping_identifierBit) != 0

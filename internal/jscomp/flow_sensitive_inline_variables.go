@@ -419,6 +419,7 @@ func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 // Java: FlowSensitiveInlineVariables.process(Node, Node)
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer func() {
 		f.escapedSet.Clear()
 		sc.ReleaseArena()
