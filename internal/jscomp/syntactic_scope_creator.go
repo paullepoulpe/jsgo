@@ -269,6 +269,48 @@ func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n 
 	}
 }
 
+var scanVarsTokenKind = [256]uint8{
+	rhino.Token_VAR:          1,
+	rhino.Token_LET:          1,
+	rhino.Token_CONST:        1,
+	rhino.Token_IMPORT:       1,
+	rhino.Token_EXPORT:       1,
+	rhino.Token_FUNCTION:     1,
+	rhino.Token_CLASS:        1,
+	rhino.Token_CATCH:        1,
+	rhino.Token_SCRIPT:       1,
+	rhino.Token_MODULE_BODY:  1,
+	rhino.Token_ROOT:         1,
+	rhino.Token_BLOCK:        1,
+	rhino.Token_SWITCH_BODY:  1,
+	rhino.Token_FOR:          1,
+	rhino.Token_FOR_IN:       1,
+	rhino.Token_FOR_OF:       1,
+	rhino.Token_FOR_AWAIT_OF: 1,
+	rhino.Token_DO:           1,
+	rhino.Token_WHILE:        1,
+	rhino.Token_WITH:         1,
+	rhino.Token_IF:           1,
+	rhino.Token_LABEL:        1,
+	rhino.Token_TRY:          1,
+	rhino.Token_SWITCH:       1,
+	rhino.Token_CASE:         1,
+	rhino.Token_DEFAULT_CASE: 1,
+	rhino.Token_EXPR_RESULT:  2,
+}
+
+func scanVarsBlockCreatesScope(n *rhino.Node) bool {
+	parent := n.GetParent()
+	if parent == nil {
+		return false
+	}
+	pt := parent.GetToken()
+	if (pt == rhino.Token_BLOCK || pt == rhino.Token_SCRIPT) && n.IsSyntheticBlock() {
+		return false
+	}
+	return pt != rhino.Token_CASE && pt != rhino.Token_DEFAULT_CASE && pt != rhino.Token_CATCH
+}
+
 // ScanVars scans and gather variables declarations under a Node.
 //
 // n is the node; hoistScope the scope that is the hoist target for vars, if
@@ -341,6 +383,14 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 			return
 		}
 		s.setInputId(n.GetInputId())
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if scanVarsTokenKind[uint8(child.GetToken())] != 0 {
+				s.ScanVars(child, hoistScope, blockScope)
+			}
+			child = next
+		}
+		return
 	case rhino.Token_MODULE_BODY:
 		// Module bodies are not part of global scope, but may declare an implicit goog namespace.
 		if hoistScope.IsGlobal() {
@@ -368,32 +418,38 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 			}
 		}
 		return
-	default:
-	}
-
-	// Variables can only occur in statement-level nodes, so
-	// we only need to traverse children in a couple special cases.
-	child := n.GetFirstChild()
-	if child == nil || !NodeUtil_IsShallowStatementTree(n) {
-		return
-	}
-
-	if blockScope != nil {
-		if n != blockScope.GetRootNode() && NodeUtil_CreatesBlockScope(n) {
+	case rhino.Token_BLOCK:
+		if blockScope != nil {
+			if n != blockScope.GetRootNode() && scanVarsBlockCreatesScope(n) {
+				if hoistScope == nil {
+					// We only enter new blocks when scanning for hoisted vars
+					return
+				}
+				blockScope = nil
+			}
+		} else if hoistScope == nil && scanVarsBlockCreatesScope(n) {
+			// We only enter new blocks when scanning for hoisted vars
+			return
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+		if blockScope == nil || n != blockScope.GetRootNode() {
 			if hoistScope == nil {
 				// We only enter new blocks when scanning for hoisted vars
 				return
 			}
 			blockScope = nil
 		}
-	} else if hoistScope == nil && NodeUtil_CreatesBlockScope(n) {
-		// We only enter new blocks when scanning for hoisted vars
+	case rhino.Token_ROOT, rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_IF,
+		rhino.Token_LABEL, rhino.Token_TRY, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
+	default:
 		return
 	}
 
-	for child != nil {
+	for child := n.GetFirstChild(); child != nil; {
 		next := child.GetNext()
-		s.ScanVars(child, hoistScope, blockScope)
+		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
+			s.ScanVars(child, hoistScope, blockScope)
+		}
 		child = next
 	}
 }
@@ -426,8 +482,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	input := s.getInput()
 	if v != nil ||
 		!syntacticScopeCreator_ScopeScanner_isShadowingAllowed(name, sc) ||
-		((sc.IsFunctionScope() ||
-			sc.IsFunctionBlockScope()) && name == syntacticScopeCreator_ARGUMENTS) {
+		(name == syntacticScopeCreator_ARGUMENTS &&
+			(sc.IsFunctionScope() || sc.IsFunctionBlockScope())) {
 		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
 	} else {
 		sc.declareNewVar(name, n, input)

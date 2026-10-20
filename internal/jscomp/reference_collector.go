@@ -56,13 +56,15 @@ type ReferenceCollector struct {
 	// hence the Object map.
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
 
-	vars           []*Var
-	cols           []*ReferenceCollection
-	varsBuf        [8]*Var
-	colsBuf        [8]*ReferenceCollection
-	refByKey       map[scopedVarKey]*ReferenceCollection
-	lastVar        *Var
-	lastCollection *ReferenceCollection
+	vars            []*Var
+	varsBuf         [16]*Var
+	colsBuf         [16]*ReferenceCollection
+	refByVar        map[*Var]*ReferenceCollection
+	refByKey        map[scopedVarKey]*ReferenceCollection
+	argumentsRefs   map[*rhino.Node]*ReferenceCollection
+	lastVar         *Var
+	lastCollection  *ReferenceCollection
+	activeTraversal *NodeTraversal
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
@@ -124,7 +126,6 @@ func NewReferenceCollectorWithVarFilter(
 		varFilter:    varFilter,
 	}
 	c.vars = c.varsBuf[:0]
-	c.cols = c.colsBuf[:0]
 	c.blockStack = c.blockStackBuf[:0]
 	c.refSlab = c.refBuf[:0]
 	c.colSlab = c.colBuf[:0]
@@ -202,34 +203,48 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	if v == c.lastVar && v != nil {
 		return c.lastCollection
 	}
-	key := scopedVarKey{scopeRoot: v.scope.GetRootNode(), name: v.name}
-	if c.refByKey != nil {
-		if col := c.refByKey[key]; col != nil {
+	if c.refByVar != nil {
+		if col := c.refByVar[v]; col != nil {
 			c.lastVar = v
 			c.lastCollection = col
 			return col
 		}
 	} else {
 		for i, kv := range c.vars {
-			if kv == v || (kv.name == key.name && kv.scope.GetRootNode() == key.scopeRoot) {
-				col := c.cols[i]
+			if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
+				col := c.colsBuf[i]
 				c.lastVar = v
 				c.lastCollection = col
 				return col
 			}
 		}
 		if len(c.vars) == len(c.varsBuf) {
-			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, 32)
+			c.refByVar = make(map[*Var]*ReferenceCollection, 128)
 			for i, kv := range c.vars {
-				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = c.cols[i]
+				c.refByVar[kv] = c.colsBuf[i]
 			}
+			newVars := make([]*Var, len(c.varsBuf), 128)
+			copy(newVars, c.vars)
+			c.vars = newVars
 		}
 	}
 	col := c.allocReferenceCollection()
-	c.vars = append(c.vars, v)
-	c.cols = append(c.cols, col)
+	if c.refByVar != nil {
+		c.refByVar[v] = col
+		c.vars = append(c.vars, v)
+	} else {
+		idx := len(c.vars)
+		c.vars = append(c.vars, v)
+		c.colsBuf[idx] = col
+	}
+	if v.name == Var_ARGUMENTS {
+		if c.argumentsRefs == nil {
+			c.argumentsRefs = make(map[*rhino.Node]*ReferenceCollection, 4)
+		}
+		c.argumentsRefs[v.scope.GetRootNode()] = col
+	}
 	if c.refByKey != nil {
-		c.refByKey[key] = col
+		c.refByKey[scopedVarKey{scopeRoot: v.scope.GetRootNode(), name: v.name}] = col
 	}
 	if c.referenceMap != nil {
 		c.referenceMap.Put(v, col)
@@ -239,14 +254,66 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	return col
 }
 
-func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, name string) *ReferenceCollection {
-	key := scopedVarKey{scopeRoot: scopeRoot, name: name}
-	if c.refByKey != nil {
-		return c.refByKey[key]
+func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
+	if s := v.scope; s != nil {
+		if s.implicitVars != nil {
+			if imp := AbstractScope_ImplicitVar_Of(v.name); imp != nil {
+				if canon := s.implicitVars[*imp]; canon != nil && canon != v {
+					if c.refByVar != nil {
+						if col := c.refByVar[canon]; col != nil {
+							c.lastVar = v
+							c.lastCollection = col
+							return col
+						}
+					} else {
+						for i, kv := range c.vars {
+							if kv == canon {
+								col := c.colsBuf[i]
+								c.lastVar = v
+								c.lastCollection = col
+								return col
+							}
+						}
+					}
+				}
+			}
+		}
+		if t := c.activeTraversal; t != nil {
+			if d := int(s.depth); d < len(t.scopes) && t.scopes[d].scope == s {
+				return nil
+			}
+		}
+		if s == c.narrowScope {
+			return nil
+		}
 	}
-	for i, kv := range c.vars {
-		if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
-			return c.cols[i]
+	return c.getReferencesByScopedName(v.scope.GetRootNode(), v.name)
+}
+
+func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, name string) *ReferenceCollection {
+	if name == Var_ARGUMENTS {
+		if c.argumentsRefs != nil {
+			return c.argumentsRefs[scopeRoot]
+		}
+		if c.referenceMap == nil {
+			return nil
+		}
+	}
+	if c.refByVar == nil {
+		for i, kv := range c.vars {
+			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
+				return c.colsBuf[i]
+			}
+		}
+	} else {
+		if c.refByKey == nil {
+			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, len(c.vars))
+			for kv, col := range c.refByVar {
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = col
+			}
+		}
+		if col := c.refByKey[scopedVarKey{scopeRoot: scopeRoot, name: name}]; col != nil {
+			return col
 		}
 	}
 	if c.referenceMap != nil {
@@ -262,11 +329,26 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 func (c *ReferenceCollector) ensureRawReferenceMap() *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection] {
 	if c.referenceMap == nil {
 		c.referenceMap = jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
-		for i, v := range c.vars {
-			c.referenceMap.Put(v, c.cols[i])
+		if c.refByVar != nil {
+			for _, v := range c.vars {
+				c.referenceMap.Put(v, c.refByVar[v])
+			}
+		} else {
+			for i, v := range c.vars {
+				c.referenceMap.Put(v, c.colsBuf[i])
+			}
 		}
 	}
 	return c.referenceMap
+}
+
+func (c *ReferenceCollector) builderVal() NodeTraversal_Builder {
+	return NodeTraversal_Builder{
+		compiler:                                       c.compiler,
+		callback:                                       c.callback,
+		scopeCreator:                                   c.scopeCreator,
+		obeyDestructuringAndDefaultValueExecutionOrder: true,
+	}
 }
 
 // Process is a convenience method for running this pass over a tree with
@@ -274,7 +356,8 @@ func (c *ReferenceCollector) ensureRawReferenceMap() *jutil.ObjectLinkedHashMap[
 //
 // Java: ReferenceCollector.process(Node, Node)
 func (c *ReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
-	c.CreateTraversalBuilder().TraverseRoots(externs, root)
+	b := c.builderVal()
+	b.TraverseRoots(externs, root)
 }
 
 // ProcessRoot is the one-argument process overload.
@@ -284,7 +367,8 @@ func (c *ReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
 //
 // Java: ReferenceCollector.process(Node)
 func (c *ReferenceCollector) ProcessRoot(root *rhino.Node) {
-	c.CreateTraversalBuilder().Traverse(root)
+	b := c.builderVal()
+	b.Traverse(root)
 }
 
 // ProcessScope targets reference collection to a particular scope.
@@ -296,7 +380,8 @@ func (c *ReferenceCollector) ProcessScope(scope *Scope) {
 	if shouldAddToBlockStack {
 		c.PushNewBlock(scope.GetRootNode())
 	}
-	c.CreateTraversalBuilder().TraverseAtScope(scope)
+	b := c.builderVal()
+	b.TraverseAtScope(scope)
 	if shouldAddToBlockStack {
 		c.PopLastBlock(scope.GetRootNode())
 	}
@@ -346,7 +431,23 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
-	return c.getReferencesByScopedName(v.scope.GetRootNode(), v.name)
+	if c.refByVar != nil {
+		if col := c.refByVar[v]; col != nil {
+			c.lastVar = v
+			c.lastCollection = col
+			return col
+		}
+	} else {
+		for i, kv := range c.vars {
+			if kv == v {
+				col := c.colsBuf[i]
+				c.lastVar = v
+				c.lastCollection = col
+				return col
+			}
+		}
+	}
+	return c.getReferencesSlow(v)
 }
 
 // AsStaticSymbolTable returns this collector as the Java
@@ -432,7 +533,8 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	 * function NAME nodes
 	 */
 	c.AddReference(var_, fnNode.GetFirstChild(), t)
-	c.CreateTraversalBuilder().TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
+	b := c.builderVal()
+	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 
 	c.blockStack = oldBlockStack
 }
@@ -482,8 +584,8 @@ func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() or processScope() and removed in visit().
-	if t.IsHoistScope() {
-		cb.c.PushNewBlock(t.GetScopeRoot())
+	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
+		cb.c.PushNewBlock(root)
 	}
 }
 
@@ -491,10 +593,13 @@ func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 //
 // Java: ReferenceCollector.CollectorCallback.exitScope(NodeTraversal)
 func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
-	if t.IsHoistScope() {
-		cb.c.PopLastBlock(t.GetScopeRoot())
+	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
+		cb.c.PopLastBlock(root)
 	}
+	prevTraversal := cb.c.activeTraversal
+	cb.c.activeTraversal = t
 	cb.c.behavior.AfterExitScope(t, &cb.c.referenceMapWrapper)
+	cb.c.activeTraversal = prevTraversal
 }
 
 // Visit: for each node, update the block stack and reference collection as
@@ -502,12 +607,14 @@ func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 //
 // Java: ReferenceCollector.CollectorCallback.visit(NodeTraversal, Node, Node)
 func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if n.IsName() || n.IsImportStar() {
-		if (parent.IsImportSpec() && n != parent.GetLastChild()) ||
-			(parent.IsExportSpec() && n != parent.GetFirstChild()) {
-			// The n in `import {n as x}` or `export {x as n}` are not references, even though
-			// they are represented in the AST as NAME nodes.
-			return
+	if tok := n.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
+		if parent != nil {
+			if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
+				(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild()) {
+				// The n in `import {n as x}` or `export {x as n}` are not references, even though
+				// they are represented in the AST as NAME nodes.
+				return
+			}
 		}
 
 		scope := t.GetScope()
@@ -544,38 +651,39 @@ func (c *ReferenceCollector) PopLastBlock(root *rhino.Node) {
 	jutil.CheckStateMsg1(base.JSCompObjects_Identical(root, last.GetRoot()), "%s", root)
 }
 
+var refCollectorParentBoundaryKind = [256]uint8{
+	rhino.Token_DO:               1,
+	rhino.Token_FOR:              1,
+	rhino.Token_FOR_IN:           1,
+	rhino.Token_FOR_OF:           1,
+	rhino.Token_FOR_AWAIT_OF:     1,
+	rhino.Token_TRY:              1,
+	rhino.Token_WHILE:            1,
+	rhino.Token_WITH:             1,
+	rhino.Token_CLASS:            1,
+	rhino.Token_SWITCH_BODY:      1,
+	rhino.Token_AND:              2,
+	rhino.Token_HOOK:             2,
+	rhino.Token_IF:               2,
+	rhino.Token_OR:               2,
+	rhino.Token_COALESCE:         2,
+	rhino.Token_OPTCHAIN_GETPROP: 2,
+	rhino.Token_OPTCHAIN_GETELEM: 2,
+	rhino.Token_OPTCHAIN_CALL:    2,
+	rhino.Token_DEFAULT_VALUE:    2,
+}
+
 // referenceCollector_isBlockBoundary returns true if this node marks the
 // start of a new basic block
 //
 // Java: ReferenceCollector.isBlockBoundary(Node, Node)
 func referenceCollector_isBlockBoundary(n *rhino.Node, parent *rhino.Node) bool {
 	if parent != nil {
-		switch parent.GetToken() {
-		case rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
-			rhino.Token_TRY, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_CLASS, rhino.Token_SWITCH_BODY:
-			// NOTE: TRY has up to 3 child blocks:
-			// TRY
-			//   BLOCK
-			//   BLOCK
-			//     CATCH
-			//   BLOCK
-			// Note that there is an explicit CATCH token but no explicit
-			// FINALLY token. For simplicity, we consider each BLOCK
-			// a separate basic BLOCK.
+		switch refCollectorParentBoundaryKind[uint8(parent.GetToken())] {
+		case 1:
 			return true
-		case rhino.Token_AND,
-			rhino.Token_HOOK,
-			rhino.Token_IF,
-			rhino.Token_OR,
-			rhino.Token_COALESCE,
-			rhino.Token_OPTCHAIN_GETPROP,
-			rhino.Token_OPTCHAIN_GETELEM,
-			rhino.Token_OPTCHAIN_CALL,
-			rhino.Token_DEFAULT_VALUE:
-			// The first child of a conditional is not a boundary,
-			// but all the rest of the children are.
+		case 2:
 			return n != parent.GetFirstChild()
-		default:
 		}
 	}
 
