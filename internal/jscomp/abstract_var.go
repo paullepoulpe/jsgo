@@ -187,6 +187,14 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) {
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
+	// Public reinitialization must not rename an existing declaration key.
+	// Fresh arena variables have no old scope and keep the constructor fast path.
+	var noScope S
+	if b.scope != noScope && b.name != name {
+		if oldScope, untyped := any(b.scope).(*Scope); untyped && oldScope != nil {
+			oldScope.useKeyedVars()
+		}
+	}
 	b.name = name // Java: checkNotNull(name); a Go string is never null.
 	flags := uint32(index+1) & varIndexMask
 	if implicitGoogNamespaceDefinition != nil {

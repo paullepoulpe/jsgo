@@ -1146,9 +1146,9 @@ func (c *DefaultPassConfig) initFields() {
 						SetCompiler(compiler).
 						SetConsiderExterns(false).
 						// Remove unused return values.
-						AddPass(NewOptimizeReturns(compiler).AsCallGraphCompilerPass()).
+						AddPass(newOptimizeCallsPrivateReturns(compiler)).
 						// Remove all parameters that are constants or unused.
-						AddPass(NewOptimizeParameters(compiler).AsCallGraphCompilerPass()).
+						AddPass(newOptimizeCallsPrivateParameters(compiler)).
 						Build()
 				}).
 			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
@@ -1166,7 +1166,7 @@ func (c *DefaultPassConfig) initFields() {
 						SetCompiler(compiler).
 						SetConsiderExterns(false).
 						// Remove redundant constructor definitions.
-						AddPass(NewOptimizeConstructors(compiler).AsCallGraphCompilerPass()).
+						AddPass(newOptimizeCallsPrivateConstructors(compiler)).
 						Build()
 				}).
 			Build()

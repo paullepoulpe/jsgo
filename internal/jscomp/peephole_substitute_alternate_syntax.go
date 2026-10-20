@@ -79,6 +79,9 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node *rhino.Node) *r
 		}
 		return node
 	case rhino.Token_NAME:
+		if node.GetString() != "undefined" {
+			return node
+		}
 		return p.TryReplaceUndefined(node)
 	case rhino.Token_ARRAYLIT:
 		return p.TryMinimizeArrayLiteral(node)
@@ -89,7 +92,7 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node *rhino.Node) *r
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_COALESCE:
 		return p.TryRotateAssociativeOperator(node)
 	case rhino.Token_MUL:
-		if p.MayHaveSideEffects(node) {
+		if !p.late || p.MayHaveSideEffects(node) {
 			return node
 		}
 		return p.TryRotateCommutativeOperator(node)
@@ -107,18 +110,13 @@ var peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS = jutil.NewLinkedHashSet(
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeWindowRefs(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(node *rhino.Node) *rhino.Node {
-	// Normalization needs to be done to ensure there's no shadowing.
-	if !p.IsASTNormalized() {
-		return node
-	}
-
 	jutil.CheckArgument(node.IsGetProp())
 
-	if node.GetFirstChild().IsName() {
-		nameNode := node.GetFirstChild()
-
+	nameNode := node.GetFirstChild()
+	if nameNode.IsName() && "window" == nameNode.GetString() {
+		// Normalization needs to be done to ensure there's no shadowing.
 		// Since normalization has run we know we're referring to the global window.
-		if "window" == nameNode.GetString() && peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS.Contains(node.GetString()) {
+		if p.IsASTNormalized() && peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS.Contains(node.GetString()) {
 			newNameNode := rhino.IR_Name(node.GetString())
 			parentNode := node.GetParent()
 
@@ -240,6 +238,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldImmediateCallToBoundFunction(
 	// Rewriting "(fn.bind(a,b))()" to "fn.call(a,b)" makes it inlinable
 	jutil.CheckState(n.IsCall())
 	callTarget := n.GetFirstChild()
+	if !callTarget.IsCall() {
+		return n
+	}
 	bind := p.GetCodingConvention().DescribeFunctionBind(callTarget, false)
 	if bind != nil {
 		// replace the call target
@@ -334,8 +335,8 @@ func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(n *rhino.Node) *rhino.
 // Java: PeepholeSubstituteAlternateSyntax.tryReplaceUndefined(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(n *rhino.Node) *rhino.Node {
 	// TODO(johnlenz): consider doing this as a normalization.
-	if p.IsASTNormalized() &&
-		NodeUtil_IsUndefined(n) &&
+	if NodeUtil_IsUndefined(n) &&
+		p.IsASTNormalized() &&
 		!NodeUtil_IsLValue(n) {
 		replacement := NodeUtil_NewUndefinedNode(n)
 		n.ReplaceWith(replacement)
@@ -347,14 +348,22 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(n *rhino.Node) *
 
 // Java: PeepholeSubstituteAlternateSyntax.tryReduceCall(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryReduceCall(node *rhino.Node) *rhino.Node {
-	result := p.TryFoldLiteralConstructor(node)
-	if result == node {
-		result = p.TryFoldSimpleFunctionCall(node)
-		if result == node {
-			result = p.TryFoldImmediateCallToBoundFunction(node)
-		}
+	callTarget := node.GetFirstChild()
+	if callTarget == nil {
+		return node
 	}
-	return result
+	switch callTarget.GetToken() {
+	case rhino.Token_NAME:
+		result := p.TryFoldLiteralConstructor(node)
+		if result == node {
+			result = p.TryFoldSimpleFunctionCall(node)
+		}
+		return result
+	case rhino.Token_CALL:
+		return p.TryFoldImmediateCallToBoundFunction(node)
+	default:
+		return node
+	}
 }
 
 // TryReduceReturn reduces "return undefined" or "return void 0" to simply
@@ -416,7 +425,7 @@ func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(n *rhino
 	// If name normalization has been run then we know that
 	// new Object() does in fact refer to what we think it is
 	// and not some custom-defined Object().
-	if p.IsASTNormalized() && n.GetFirstChild().IsName() {
+	if n.GetFirstChild().IsName() && p.IsASTNormalized() {
 		className := n.GetFirstChild().GetString()
 		if peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS.Contains(className) {
 			return true
@@ -449,35 +458,35 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldLiteralConstructor(n *rhino.N
 	// Object() really refers to the built-in Object constructor
 	// and not a user-defined constructor with the same name.
 
-	if p.IsASTNormalized() && constructorNameNode.IsName() {
-
+	if constructorNameNode.IsName() {
 		className := constructorNameNode.GetString()
+		if ("Object" == className || "Array" == className) && p.IsASTNormalized() {
+			constructorHasArgs := constructorNameNode.GetNext() != nil
 
-		constructorHasArgs := constructorNameNode.GetNext() != nil
+			if "Object" == className && !constructorHasArgs {
+				// "Object()" --> "{}"
+				newLiteralNode = rhino.IR_Objectlit()
+			} else if "Array" == className {
+				// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
+				arg0 := constructorNameNode.GetNext()
+				action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(arg0)
 
-		if "Object" == className && !constructorHasArgs {
-			// "Object()" --> "{}"
-			newLiteralNode = rhino.IR_Objectlit()
-		} else if "Array" == className {
-			// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
-			arg0 := constructorNameNode.GetNext()
-			action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(arg0)
-
-			if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS ||
-				action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS {
-				newLiteralNode = rhino.IR_Arraylit()
-				n.RemoveFirstChild() // discard the function name
-				elements := n.RemoveChildren()
-				if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS {
-					newLiteralNode.AddChildrenToFront(elements)
+				if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS ||
+					action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS {
+					newLiteralNode = rhino.IR_Arraylit()
+					n.RemoveFirstChild() // discard the function name
+					elements := n.RemoveChildren()
+					if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS {
+						newLiteralNode.AddChildrenToFront(elements)
+					}
 				}
 			}
-		}
 
-		if newLiteralNode != nil {
-			n.ReplaceWith(newLiteralNode)
-			p.ReportChangeToEnclosingScope(newLiteralNode)
-			return newLiteralNode
+			if newLiteralNode != nil {
+				n.ReplaceWith(newLiteralNode)
+				p.ReportChangeToEnclosingScope(newLiteralNode)
+				return newLiteralNode
+			}
 		}
 	}
 	return n

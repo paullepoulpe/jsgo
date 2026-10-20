@@ -427,7 +427,19 @@ func (r *RenameVars) Process(externs *rhino.Node, root *rhino.Node) {
 	r.varAssignments = r.varAssignments[:0]
 
 	// Do variable reference counting.
-	NodeTraversal_Traverse(r.compiler, root, &RenameVars_ProcessVars{outer: r})
+	sc := NewSyntacticScopeCreator(r.compiler)
+	sc.EnableArenaPool()
+	b := NodeTraversal_Builder{
+		compiler:     r.compiler,
+		callback:     &RenameVars_ProcessVars{outer: r},
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
+	if r.localBleedingFunctions != nil {
+		r.localBleedingFunctions.Clear()
+		r.localBleedingFunctionsPerScope.Clear()
+	}
+	sc.ReleaseArena()
 
 	// Make sure that new names don't overlap with extern names.
 	for name := range r.externNames.All() {

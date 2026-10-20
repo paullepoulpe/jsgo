@@ -66,6 +66,7 @@ type FlowSensitiveInlineVariables struct {
 	cfgStorage          ControlFlowAnalysis_AstControlFlowGraph
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
+	allVarsMap          jutil.LinkedHashMap[string, *Var]
 	candidateVarsMap    jutil.LinkedHashMap[string, *Var]
 	namesToCheckSet     jutil.LinkedHashSet[string]
 	escapedSet          jutil.ObjectLinkedHashSet[*Var]
@@ -213,6 +214,44 @@ func (f *FlowSensitiveInlineVariables) ShouldTraverse(t *NodeTraversal, n *rhino
 	return !n.IsScript() || !t.GetInput().IsExtern()
 }
 
+func fsivSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CLASS, rhino.Token_CATCH:
+		return true
+	case rhino.Token_FUNCTION:
+		return !NodeUtil_IsFunctionExpression(n)
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if fsivSubtreeHasBlockScopeDecls(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func fsivHasNestedBlockScopeDecls(fnNode *rhino.Node, fnBody *rhino.Node) bool {
+	for p := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); p != nil; p = p.GetNext() {
+		if !p.IsName() && fsivSubtreeHasBlockScopeDecls(p) {
+			return true
+		}
+	}
+	for stmt := fnBody.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+		switch stmt.GetToken() {
+		case rhino.Token_FUNCTION:
+			continue
+		case rhino.Token_CLASS, rhino.Token_CATCH:
+			return true
+		default:
+			for c := stmt.GetFirstChild(); c != nil; c = c.GetNext() {
+				if fsivSubtreeHasBlockScopeDecls(c) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Java: FlowSensitiveInlineVariables.enterScope(NodeTraversal)
 func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 
@@ -220,7 +259,7 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		return // Don't even brother. All global variables are likely escaped.
 	}
 
-	if !t.GetScope().IsFunctionBlockScope() {
+	if !t.InFunctionBlockScope() {
 		return // Only want to do the following if its a function block scope.
 	}
 
@@ -230,7 +269,8 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		return
 	}
 
-	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE < t.GetScope().GetVarCount() {
+	scope := t.GetScope()
+	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE < scope.GetVarCount() {
 		return
 	}
 
@@ -244,11 +284,40 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		creator = t.GetScopeCreator()
 	}
 	scopeCreator := creator.(*SyntacticScopeCreator)
-	scope := t.GetScope()
-	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, scope.GetParent())
-	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
+	fnScope := scope.GetParent()
+	var allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	if !fsivHasNestedBlockScopeDecls(functionScopeRoot, t.GetScopeRoot()) {
+		f.allVarsMap.Clear()
+		for v := range fnScope.GetVarIterable() {
+			f.allVarsMap.Put(v.GetName(), v)
+		}
+		for v := range scope.GetVarIterable() {
+			f.allVarsMap.Put(v.GetName(), v)
+		}
+		allVarsInFn = &f.allVarsMap
+	} else {
+		allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, fnScope)
+		allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
+	}
 	if allVarsInFn.IsEmpty() {
 		return
+	}
+
+	f.escapedSet.Clear()
+	escaped := &f.escapedSet
+	DataFlowAnalysis_ComputeEscaped(
+		fnScope, escaped, f.compiler, scopeCreator, allVarsInFn)
+	if escaped.Size() >= allVarsInFn.Size() {
+		hasUnescaped := false
+		for v := range allVarsInFn.Values() {
+			if !escaped.Contains(v) {
+				hasUnescaped = true
+				break
+			}
+		}
+		if !hasUnescaped {
+			return
+		}
 	}
 
 	// Compute the forward reaching definition.
@@ -258,11 +327,6 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		/* shouldTraverseFunctions= */ false,
 		/* edgeAnnotations= */ true,
 		&f.cfgStorage)
-
-	f.escapedSet.Clear()
-	escaped := &f.escapedSet
-	DataFlowAnalysis_ComputeEscaped(
-		scope.GetParent(), escaped, f.compiler, scopeCreator, allVarsInFn)
 
 	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef = &f.reachingDefStorage
@@ -307,8 +371,9 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 			// a conservative heuristic here: For each candidate "other", we back off if its set of
 			// dependencies cannot contain all of "c"'s dependencies.
 			if !c.defMetadata.depends.IsEmpty() {
+				scopeVar := scope.GetVar(c.varName)
 				for other := range f.candidates.All() {
-					if other.defMetadata.depends.Contains(t.GetScope().GetVar(c.varName)) &&
+					if other.defMetadata.depends.Contains(scopeVar) &&
 						!flowSensitiveInlineVariables_containsAll(other.defMetadata.depends, c.defMetadata.depends) {
 						f.candidates.Remove(other)
 					}
@@ -375,6 +440,7 @@ func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 // Java: FlowSensitiveInlineVariables.process(Node, Node)
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer func() {
 		f.escapedSet.Clear()
 		sc.ReleaseArena()
@@ -403,6 +469,7 @@ type FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback struct {
 	outer *FlowSensitiveInlineVariables
 
 	cfgNode *rhino.Node
+	inState *MustBeReachingVariableDef_MustDef
 }
 
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback()
@@ -413,6 +480,7 @@ func NewFlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback(outer *Flow
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback.setCfgNode(Node)
 func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) SetCfgNode(cfgNode *rhino.Node) {
 	cb.cfgNode = cfgNode
+	cb.inState = nil
 }
 
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback.visit(NodeTraversal, Node, Node)
@@ -437,15 +505,23 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		}
 
 		name := n.GetString()
-		// This pass only runs on local scopes.
-		if cb.outer.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, true) {
+		// Preserve the convention callback for every eligible local NAME, even
+		// when reaching definitions later reject it. Custom conventions can
+		// observe call order or raise an exception here.
+		if cb.outer.compiler.GetCodingConvention().IsExportedWithLocal(name, true) {
 			return
 		}
 
-		def := cb.outer.reachingDef.GetDef(name, cb.cfgNode)
+		var def *MustBeReachingVariableDef_Definition
+		if cb.inState != nil {
+			def = cb.outer.reachingDef.getDefFromMustDef(name, cb.inState)
+		} else {
+			def = cb.outer.reachingDef.GetDef(name, cb.cfgNode)
+		}
 		// TODO(nicksantos): We need to add some notion of @const outer
 		// scope vars. We can inline those just fine.
-		if def != nil && !def.node.IsFunction() && !cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
+		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
+			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
 			cb.outer.candidates.Add(cb.outer.allocCandidate(name, def, n, cb.cfgNode))
 		}
 	}
@@ -474,6 +550,10 @@ func NewFlowSensitiveInlineVariables_GatherCandidates(outer *FlowSensitiveInline
 
 // Java: FlowSensitiveInlineVariables.GatherCandidates.visit(NodeTraversal, Node, Node)
 func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
+		return
+	}
 	graphNode := g.outer.cfg.GetDiGraphNode(n)
 	if graphNode == nil {
 		// Not a CFG node.
@@ -481,8 +561,12 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	}
 	cfgNode := n
 
-	g.gatherCb.SetCfgNode(cfgNode)
-	traverseCfgNode(g.outer.compiler, cfgNode, g.gatherCb)
+	g.gatherCb.cfgNode = cfgNode
+	state := graphNode.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef])
+	g.gatherCb.inState = state.GetIn()
+	var currentNode *rhino.Node
+	walkCfgNodeBranch(cfgNode, nil, g.gatherCb, &currentNode)
+	g.gatherCb.inState = nil
 }
 
 func fsivTraverseGatherCandidates(compiler AbstractCompiler, root *rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates) {
@@ -523,49 +607,46 @@ func fsivWalkGatherCandidates(n, parent *rhino.Node, cb *FlowSensitiveInlineVari
 			child = next
 		}
 	case rhino.Token_FUNCTION:
-		fnName := n.GetFirstChild()
-		if parent != nil {
-			_ = NodeUtil_IsFunctionDeclaration(n)
+		if parent == nil {
+			fnName := n.GetFirstChild()
+			args := fnName.GetNext()
+			body := args.GetNext()
+			fsivWalkGatherCandidates(fnName, n, cb, currentNode)
+			fsivWalkGatherCandidates(args, n, cb, currentNode)
+			fsivWalkGatherCandidates(body, n, cb, currentNode)
 		}
-		args := fnName.GetNext()
-		body := args.GetNext()
-		fsivWalkGatherCandidates(fnName, n, cb, currentNode)
-		fsivWalkGatherCandidates(args, n, cb, currentNode)
-		fsivWalkGatherCandidates(body, n, cb, currentNode)
-	case rhino.Token_CLASS:
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
-		_ = NodeUtil_IsClassExpression(n)
-		fsivWalkGatherCandidates(extendsClause, n, cb, currentNode)
-		fsivWalkGatherCandidates(className, n, cb, currentNode)
-		fsivWalkGatherCandidates(body, n, cb, currentNode)
-	case rhino.Token_CLASS_MEMBERS:
+	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				fsivWalkGatherCandidates(child.GetFirstChild(), child, cb, currentNode)
-			}
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
 			child = next
 		}
-		for child := n.GetFirstChild(); child != nil; {
+	case rhino.Token_IF:
+		for child := n.GetSecondChild(); child != nil; {
 			next := child.GetNext()
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				*currentNode = n
-				if child.HasTwoChildren() {
-					fsivWalkGatherCandidates(child.GetLastChild(), child, cb, currentNode)
-				}
-				*currentNode = n
-				cb.Visit(nil, child, n)
-			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
-				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-				fsivWalkGatherCandidates(child, n, cb, currentNode)
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
-			}
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
 			child = next
 		}
+	case rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
+		if second := n.GetSecondChild(); second != nil {
+			fsivWalkGatherCandidates(second, n, cb, currentNode)
+		}
+	case rhino.Token_DO, rhino.Token_DEFAULT_CASE:
+		if first := n.GetFirstChild(); first != nil {
+			fsivWalkGatherCandidates(first, n, cb, currentNode)
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		if first := n.GetFirstChild(); first != nil {
+			fsivWalkGatherCandidates(first, n, cb, currentNode)
+			if last := n.GetLastChild(); last != nil && last != first {
+				fsivWalkGatherCandidates(last, n, cb, currentNode)
+			}
+		}
+	case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
+		rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE,
+		rhino.Token_DEBUGGER, rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
+		// ControlFlowAnalysis does not enter expressions or classes, so no child of
+		// these nodes is in the CFG.
 	default:
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
@@ -767,14 +848,65 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 	c.outer.compiler.ReportChangeToEnclosingScope(useParent)
 }
 
+func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent *rhino.Node) {
+	if parent != nil && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return
+	}
+	switch n.GetToken() {
+	case rhino.Token_CLASS:
+		className := n.GetFirstChild()
+		extendsClause := className.GetNext()
+		body := extendsClause.GetNext()
+		c.findDefWalk(extendsClause, n)
+		c.findDefWalk(className, n)
+		c.findDefWalk(body, n)
+	case rhino.Token_CLASS_MEMBERS:
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				c.findDefWalk(child.GetFirstChild(), child)
+			}
+		}
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if !ControlFlowGraph_IsEnteringNewCfgNode(child) && child.HasTwoChildren() {
+					c.findDefWalk(child.GetLastChild(), child)
+				}
+			default:
+				c.findDefWalk(child, n)
+			}
+		}
+	default:
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			c.findDefWalk(child, n)
+		}
+	}
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		if n.GetString() == c.varName && n.HasChildren() {
+			c.def = n
+		}
+	case rhino.Token_ASSIGN:
+		lhs := n.GetFirstChild()
+		if lhs.IsName() && lhs.GetString() == c.varName {
+			c.def = n
+		}
+	}
+}
+
 // GetDefinition sets the def node.
 //
 // n is a node that has a corresponding CFG node in the CFG.
 //
 // Java: FlowSensitiveInlineVariables.Candidate.getDefinition(Node)
 func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n *rhino.Node) {
-	gatherCb := flowSensitiveInlineVariables_definitionCallback{candidate: c}
-	traverseCfgNode(c.outer.compiler, n, &gatherCb)
+	jutil.CheckNotNull(c.outer.compiler)
+	if n == nil {
+		gatherCb := flowSensitiveInlineVariables_definitionCallback{candidate: c}
+		traverseCfgNode(c.outer.compiler, n, &gatherCb)
+		return
+	}
+	c.findDefWalk(n, nil)
 }
 
 // flowSensitiveInlineVariables_definitionCallback is the anonymous
@@ -802,16 +934,62 @@ func (cb *flowSensitiveInlineVariables_definitionCallback) Visit(t *NodeTraversa
 	}
 }
 
+func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode *rhino.Node) {
+	if parent != nil && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return
+	}
+	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				c.countUseWalk(child.GetFirstChild(), child, cfgNode)
+			}
+		}
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if !ControlFlowGraph_IsEnteringNewCfgNode(child) && child.HasTwoChildren() {
+					c.countUseWalk(child.GetLastChild(), child, cfgNode)
+				}
+			default:
+				c.countUseWalk(child, n, cfgNode)
+			}
+		}
+		return
+	}
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		c.countUseWalk(child, n, cfgNode)
+	}
+	if n.IsName() && n.GetString() == c.varName {
+		if parent != nil && parent.IsAssign() && (parent.GetFirstChild() == n) &&
+			fsivIsAssignChain(parent, cfgNode) {
+			return
+		}
+		c.numUsesWithinCfgNode++
+	}
+}
+
+func fsivIsAssignChain(child *rhino.Node, ancestor *rhino.Node) bool {
+	for n := child; n != ancestor; n = n.GetParent() {
+		if !n.IsAssign() {
+			return false
+		}
+	}
+	return true
+}
+
 // GetNumUseInUseCfgNode computes the number of uses of the variable varName
 // and store it in numUseWithinUseCfgNode.
 //
 // Java: FlowSensitiveInlineVariables.Candidate.getNumUseInUseCfgNode(Node)
 func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode *rhino.Node) {
-
 	c.numUsesWithinCfgNode = 0
-	gatherCb := flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
-
-	traverseCfgNode(c.outer.compiler, cfgNode, &gatherCb)
+	jutil.CheckNotNull(c.outer.compiler)
+	if cfgNode == nil {
+		gatherCb := flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
+		traverseCfgNode(c.outer.compiler, cfgNode, &gatherCb)
+		return
+	}
+	c.countUseWalk(cfgNode, nil, cfgNode)
 }
 
 // flowSensitiveInlineVariables_numUseCallback is the anonymous

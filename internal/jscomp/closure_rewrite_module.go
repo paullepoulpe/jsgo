@@ -893,18 +893,38 @@ func (m *ClosureRewriteModule) Process(externs *rhino.Node, root *rhino.Node) {
 	// state can be complete before doing any updating also queue up
 	// scriptDescriptions for later use in ScriptUpdater runs.
 
+	sc := NewSyntacticScopeCreator(m.compiler)
+	sc.EnableArenaPool()
+	defer func() {
+		m.globalScope = nil
+		sc.ReleaseArena()
+	}()
+	unwrap := ClosureRewriteModule_UnwrapGoogLoadModule{outer: m}
+	preprocessor := ClosureRewriteModule_ScriptPreprocessor{outer: m}
+	recorder := ClosureRewriteModule_ScriptRecorder{outer: m}
+	bPrep := NodeTraversal_Builder{
+		compiler:     m.compiler,
+		callback:     &preprocessor,
+		scopeCreator: sc,
+	}
+	bRec := NodeTraversal_Builder{
+		compiler:     m.compiler,
+		callback:     &recorder,
+		scopeCreator: sc,
+	}
+
 	scriptDescriptions := jutil.NewArrayList[*ClosureRewriteModule_ScriptDescription]()
 	for _, parent := range []*rhino.Node{externs, root} {
 		for script := parent.GetFirstChild(); script != nil; script = script.GetNext() {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
-			NodeTraversal_Traverse(m.compiler, script, &ClosureRewriteModule_UnwrapGoogLoadModule{outer: m})
+			NodeTraversal_Traverse(m.compiler, script, &unwrap)
 
 			m.PushScript(NewClosureRewriteModule_ScriptDescription()) // sets currentScript
 
 			m.currentScript.rootNode = script
 			scriptDescriptions.Add(m.currentScript)
-			NodeTraversal_Traverse(m.compiler, script, &ClosureRewriteModule_ScriptPreprocessor{outer: m})
-			NodeTraversal_Traverse(m.compiler, script, &ClosureRewriteModule_ScriptRecorder{outer: m})
+			bPrep.Traverse(script)
+			bRec.Traverse(script)
 			m.PopScript()
 		}
 	}
@@ -918,7 +938,12 @@ func (m *ClosureRewriteModule) Process(externs *rhino.Node, root *rhino.Node) {
 	// and unspool the scriptDescriptions that were queued up by all the
 	// recording.
 
-	NodeTraversal_TraverseRoots(m.compiler, m.NewScriptUpdater(scriptDescriptions), externs, root)
+	bUpd := NodeTraversal_Builder{
+		compiler:     m.compiler,
+		callback:     m.NewScriptUpdater(scriptDescriptions),
+		scopeCreator: sc,
+	}
+	bUpd.TraverseRoots(externs, root)
 	m.DeclareSyntheticExterns()
 	for call := range m.googModuleGetCalls.All() {
 		m.UpdateGoogModuleGetCall(call)

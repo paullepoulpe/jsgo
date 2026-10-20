@@ -45,7 +45,15 @@ func NewEs6CheckModule(compiler AbstractCompiler) *Es6CheckModule {
 
 // Java: Es6CheckModule.process(Node, Node)
 func (e *Es6CheckModule) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Traverse(e.compiler, root, e)
+	sc := NewSyntacticScopeCreator(e.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     e.compiler,
+		callback:     e,
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
 }
 
 // Java: Es6CheckModule.visit(NodeTraversal, Node, Node)

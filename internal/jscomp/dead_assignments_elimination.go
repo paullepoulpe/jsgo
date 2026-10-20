@@ -65,7 +65,12 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 	jutil.CheckNotNull(root)
 	jutil.CheckState(d.compiler.GetLifeCycleStage().IsNormalized())
 	sc := NewSyntacticScopeCreator(d.compiler)
-	defer sc.ReleaseArena()
+	sc.EnableArenaPool()
+	d.scopeCreator = sc
+	defer func() {
+		d.scopeCreator = nil
+		sc.ReleaseArena()
+	}()
 	b := NodeTraversal_Builder{
 		compiler:     d.compiler,
 		callback:     d,
@@ -146,26 +151,55 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 		return
 	}
 
-	// Computes liveness information first.
-	cfg := d.getControlFlowGraph(t, d.compiler)
+	// Computes liveness information first. Public/expert CFG callbacks keep
+	// their original order and independently owned analysis state.
+	var cfg ControlFlowGraph[*rhino.Node]
+	if !d.canReuseControlFlowGraph(t, d.compiler) {
+		cfg = d.getControlFlowGraph(t, d.compiler)
+	}
 	if d.scopeCreator == nil {
 		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
 	}
 	scopeCreator := d.scopeCreator
+	var allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction
 	if d.canReuseControlFlowGraph(t, d.compiler) {
-		allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
+		allVarsDeclaredInFunction = d.varsFinder.collect(d.compiler, scopeCreator, functionScope, true)
+	} else {
+		allVarsDeclaredInFunction = NodeUtil_GetAllVarsDeclaredInFunction(d.compiler, scopeCreator, functionScope)
+	}
+	if d.canReuseControlFlowGraph(t, d.compiler) && allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
+		return
+	}
+	if cfg == nil {
+		cfg = d.getControlFlowGraph(t, d.compiler)
+	}
+	if d.canReuseControlFlowGraph(t, d.compiler) {
 		d.livenessStorage.Reset(
 			cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
 		d.liveness = &d.livenessStorage
 	} else {
 		// Public CFG annotations retain their flow states, lattices and Var map.
-		allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(d.compiler, scopeCreator, functionScope)
 		d.liveness = NewLiveVariablesAnalysis(
 			cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
 	}
-	d.liveness.Analyze()
 	allVarsInFn := d.liveness.GetAllVariables()
+	if d.canReuseControlFlowGraph(t, d.compiler) && allVarsEscaped(allVarsInFn, d.liveness.GetEscapedLocals()) {
+		return
+	}
+	d.liveness.Analyze()
 	d.TryRemoveDeadAssignments(t, cfg, allVarsInFn)
+}
+
+func allVarsEscaped(allVarsInFn *jutil.LinkedHashMap[string, *Var], escaped *jutil.ObjectLinkedHashSet[*Var]) bool {
+	if escaped.Size() < allVarsInFn.Size() {
+		return false
+	}
+	for v := range allVarsInFn.Values() {
+		if !escaped.Contains(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // IsRemovableAssign matches all assignment operators and increment/decrement

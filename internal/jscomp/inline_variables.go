@@ -76,9 +76,20 @@ var inlineVariables_Mode_names = [...]string{"CONSTANTS_ONLY", "LOCALS_ONLY", "A
 // inlineVariables_Mode_varPredicate is the enum field varPredicate, indexed
 // by ordinal.
 var inlineVariables_Mode_varPredicate = [...]func(*Var) bool{
-	func(v *Var) bool { return v.IsDeclaredOrInferredConst() },
+	inlineVariables_isDeclaredOrInferredConst,
 	func(v *Var) bool { return v.IsLocal() },
 	func(*Var) bool { return true },
+}
+
+func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
+	n := v.nameNode
+	if n == nil {
+		return false
+	}
+	if n.GetConstantVarFlags()&(rhino.Node_ConstantVarFlags_DECLARED|rhino.Node_ConstantVarFlags_INFERRED) != 0 {
+		return true
+	}
+	return n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 }
 
 // Java: InlineVariables.Mode.values()
@@ -312,9 +323,7 @@ type InlineVariables_InliningBehavior struct {
 
 // Java: InlineVariables.InliningBehavior()
 func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
-	b := &InlineVariables_InliningBehavior{
-		outer: outer,
-	}
+	b := &InlineVariables_InliningBehavior{outer: outer}
 	b.handledVars = b.handledVarsBuf[:0]
 	b.scopeExpertSlab = b.scopeExpertBuf[:0]
 	b.retryExpertSlab = b.retryExpertBuf[:0]
@@ -451,19 +460,26 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	}
 	mayBeAParameterModifiedViaArguments :=
 		b.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)
+	isLocalScope := scope.IsLocal()
+	wrapper, _ := referenceMap.(*ReferenceCollector_ReferenceMapWrapper)
 	for v := range scope.GetVarIterable() {
-		referenceInfo := referenceMap.GetReferences(v)
-		b.analyzeVarForScope(scope, v, referenceInfo, mayBeAParameterModifiedViaArguments)
+		var referenceInfo *ReferenceCollection
+		if wrapper != nil {
+			referenceInfo = wrapper.GetReferences(v)
+		} else {
+			referenceInfo = referenceMap.GetReferences(v)
+		}
+		b.analyzeVarForScope(scope, v, referenceInfo, mayBeAParameterModifiedViaArguments, isLocalScope)
 	}
 }
 
 // analyzeVarForScope owns scratch only until this variable and its synchronous
 // alias retries finish. Reentry uses a separate stable expert instead.
-func (b *InlineVariables_InliningBehavior) analyzeVarForScope(scope *Scope, v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) {
+func (b *InlineVariables_InliningBehavior) analyzeVarForScope(scope *Scope, v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool, isLocal bool) {
 	wasInUse := b.scratchExpertInUse
 	b.scratchExpertInUse = true
 	defer func() { b.scratchExpertInUse = wasInUse }()
-	expert := b.createVarExpert(v, referenceInfo, mayBeAParameterModifiedViaArguments, !wasInUse)
+	expert := b.createVarExpertForScope(v, referenceInfo, mayBeAParameterModifiedViaArguments, isLocal, !wasInUse, true)
 	analysis := expert.Analyze()
 	if analysis.ShouldWaitForAliasedVar() {
 		// We need to wait for the aliased variable to be handled.
@@ -781,6 +797,14 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 	if InlineVariables_HasNoInlineAnnotation(e.v) || e.IsReferencedWeakly() {
 		return e.GetNegativeInlineVarAnalysis()
 	}
+	if e.referenceInfo.references.Size() == 1 && !e.isDeclaredOrInferredConstant {
+		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+			return e.GetNegativeInlineVarAnalysis()
+		}
+		if firstChild := e.declaration.nameNode.GetFirstChild(); firstChild == nil || !firstChild.IsName() {
+			return e.GetNegativeInlineVarAnalysis()
+		}
+	}
 	initialization := e.GetInitialization()
 	var initValue *rhino.Node
 	if initialization != nil {
@@ -1067,17 +1091,17 @@ func (b *InlineVariables_InliningBehavior) CreateVarExpert(
 }
 
 // createVarExpert permits scratch only for the private, synchronous driver.
+// Public callers retain the original lazy locality query after early returns.
 func (b *InlineVariables_InliningBehavior) createVarExpert(
 	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool, useScratch bool) InlineVariables_VarExpert {
+	return b.createVarExpertForScope(v, referenceInfo, mayBeAParameterModifiedViaArguments, false, useScratch, false)
+}
+
+func (b *InlineVariables_InliningBehavior) createVarExpertForScope(
+	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool, isLocal bool, useScratch bool, localityKnown bool) InlineVariables_VarExpert {
 	if referenceInfo == nil {
 		// If we couldn't collect any reference info, don't try to inline and assume it's unsafe
 		// to inline aliases of this variable, too.
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
-	}
-
-	isDeclaredOrInferredConstant := v.IsDeclaredOrInferredConst()
-	if !isDeclaredOrInferredConstant && b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
-		// If we're only inlining constants, then we shouldn't inline an alias.
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
 	}
 
@@ -1086,14 +1110,23 @@ func (b *InlineVariables_InliningBehavior) createVarExpert(
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
 	}
 
-	if b.outer.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, v.IsLocal()) {
+	isDeclaredOrInferredConstant := inlineVariables_isDeclaredOrInferredConst(v)
+	if !isDeclaredOrInferredConstant && b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+		// If we're only inlining constants, then we shouldn't inline an alias.
+		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
+	}
+
+	if !localityKnown {
+		isLocal = v.IsLocal()
+	}
+	if b.outer.compiler.GetCodingConvention().IsExportedWithLocal(v.name /* local= */, isLocal) {
 		// If the variable is exported, it might be assigned a new value by code we cannot see,
 		// so aliases to it are creating snapshots of its state.
 		// We cannot inline this variable or its aliases.
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
 	}
 
-	if b.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(v.GetNameNode()) {
+	if b.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(v.nameNode) {
 		// It's not terribly likely that anything creates an alias of our special property rename
 		// function, but its value never changes, so it should be safe to inline aliases to it.
 		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT

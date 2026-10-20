@@ -59,7 +59,18 @@ func NewConstCheck(compiler AbstractCompiler) *ConstCheck {
 
 // Java: ConstCheck.process(Node, Node)
 func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer func() {
+		c.initializedConstants.Clear()
+		sc.ReleaseArena()
+	}()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: sc,
+	}
+	b.TraverseRoots(externs, root)
 }
 
 // Java: ConstCheck.visit(NodeTraversal, Node, Node)

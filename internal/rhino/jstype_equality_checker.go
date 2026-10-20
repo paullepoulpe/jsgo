@@ -155,6 +155,17 @@ func (c *EqualityChecker) Check(left JSType, right JSType) bool {
 	return c.AreEqualCaching(left, right)
 }
 
+func equalityChecker_AreIdentityEqual(left JSType, right JSType) bool {
+	if left == right {
+		return true
+	}
+	c := EqualityChecker{
+		eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_IDENTITY],
+		hasRun:   true,
+	}
+	return c.AreEqualInternal(left, right)
+}
+
 // CheckParameters returns whether the parameters (ignoring any other
 // aspects) of the two types are equal.
 //
@@ -230,18 +241,33 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 		}
 	}
 
-	if left.IsUnionType() && right.IsUnionType() {
-		return c.AreUnionEqual(left.ToMaybeUnionType(), right.ToMaybeUnionType())
-	} else if left.IsUnionType() {
+	if left.IsUnionType() {
+		if right.IsUnionType() {
+			return c.AreUnionEqual(left.ToMaybeUnionType(), right.ToMaybeUnionType())
+		}
 		leftAlts := left.ToMaybeUnionType().GetAlternates()
 		if len(leftAlts) == 1 {
 			return c.AreEqualInternal(leftAlts[0], right)
 		}
+		if proxyObjectType, ok := right.(ProxyObjectType); ok {
+			if _, isTemplate := right.(*TemplateType); !isTemplate {
+				return c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) &&
+					c.AreEqualCaching(left, proxyObjectType.GetReferencedTypeInternal())
+			}
+		}
+		return false
 	} else if right.IsUnionType() {
 		rightAlts := right.ToMaybeUnionType().GetAlternates()
 		if len(rightAlts) == 1 {
 			return c.AreEqualInternal(left, rightAlts[0])
 		}
+		if proxyObjectType, ok := left.(ProxyObjectType); ok {
+			if _, isTemplate := left.(*TemplateType); !isTemplate {
+				return c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) &&
+					c.AreEqualCaching(proxyObjectType.GetReferencedTypeInternal(), right)
+			}
+		}
+		return false
 	}
 
 	if left.IsFunctionType() && right.IsFunctionType() {
@@ -255,15 +281,17 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 		}
 	}
 
-	if !c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) {
-		return false
-	}
-
 	if left.IsRecordType() && right.IsRecordType() {
+		if !c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) {
+			return false
+		}
 		return c.AreRecordEqual(left.ToMaybeRecordType(), right.ToMaybeRecordType())
 	}
 
 	if left.IsNominalType() && right.IsNominalType() {
+		if !c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) {
+			return false
+		}
 		leftUnwrapped := EqualityChecker_UnwrapNominalTypeProxies(left.ToObjectType())
 		rightUnwrapped := EqualityChecker_UnwrapNominalTypeProxies(right.ToObjectType())
 
@@ -287,11 +315,17 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 	// unwrapped.
 	if proxyObjectType, ok := left.(ProxyObjectType); ok {
 		if _, isTemplate := left.(*TemplateType); !isTemplate {
+			if !c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) {
+				return false
+			}
 			return c.AreEqualCaching(proxyObjectType.GetReferencedTypeInternal(), right)
 		}
 	}
 	if proxyObjectType, ok := right.(ProxyObjectType); ok {
 		if _, isTemplate := right.(*TemplateType); !isTemplate {
+			if !c.AreTypeMapEqual(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()) {
+				return false
+			}
 			return c.AreEqualCaching(left, proxyObjectType.GetReferencedTypeInternal())
 		}
 	}
@@ -489,7 +523,13 @@ func jsTypeStringSetsEqual(a, b []string) bool {
 
 // Java: EqualityChecker.areTypeMapEqual(TemplateTypeMap, TemplateTypeMap)
 func (c *EqualityChecker) AreTypeMapEqual(left *TemplateTypeMap, right *TemplateTypeMap) bool {
+	if left == right {
+		return true
+	}
 	leftKeys := left.GetTemplateKeys()
+	if len(leftKeys) == 0 {
+		return true
+	}
 	leftValues := left.GetTemplateValues()
 	rightKeys := right.GetTemplateKeys()
 	rightValues := right.GetTemplateValues()

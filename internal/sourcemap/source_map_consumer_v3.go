@@ -204,12 +204,24 @@ func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sec
 //
 // Java: SourceMapConsumerV3.getMappingForLine(int, int)
 func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping_OriginalMapping {
+	m, _, ok := c.GetMappingForLineValue(lineNumber, column)
+	if !ok {
+		return nil
+	}
+	return &m
+}
+
+// GetMappingForLineValue returns the original mapping for the line number and
+// column position (both 1-based) by value without heap allocation, along with
+// a non-empty identifier pointer (if any) and a boolean indicating whether a
+// mapping was found.
+func (c *SourceMapConsumerV3) GetMappingForLineValue(lineNumber, column int) (Mapping_OriginalMapping, *string, bool) {
 	// Normalize the line and column numbers to 0.
 	ln := int32(lineNumber) - 1
 	col := int32(column) - 1
 
 	if ln < 0 || int(ln) >= c.mappings.GetParsedLineCount() {
-		return nil
+		return Mapping_OriginalMapping{}, nil, false
 	}
 
 	start := c.mappings.GetLineStart(int(ln))
@@ -217,16 +229,16 @@ func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping
 
 	// If the line is empty return the previous mapping.
 	if start == end {
-		return c.GetPreviousMapping(int(ln))
+		return c.getPreviousMappingValue(int(ln))
 	}
 
 	if c.mappings.GetGeneratedColumn(start) > col {
-		return c.GetPreviousMapping(int(ln))
+		return c.getPreviousMappingValue(int(ln))
 	}
 
 	index := c.Search(col, start, end-c.mappings.GetEntrySize())
 	jutil.CheckStateMsg1(index >= 0, "unexpected:%s", index)
-	return c.GetOriginalMappingForEntry(index, Mapping_OriginalMapping_Precision_EXACT)
+	return c.getOriginalMappingForEntryValue(index, Mapping_OriginalMapping_Precision_EXACT)
 }
 
 // GetOriginalSources returns the sources (elements may be nil).
@@ -643,7 +655,21 @@ func (b *SourceMapConsumerV3_MappingBuilder) EntryComplete() bool {
 
 // Java: SourceMapConsumerV3.MappingBuilder.nextValue()
 func (b *SourceMapConsumerV3_MappingBuilder) NextValue() int32 {
-	return Base64VLQ_Decode(b.content)
+	var result int32
+	var shift int32
+	in := b.content
+	for {
+		c := in.Next()
+		digit := Base64_FromBase64(c)
+		continuation := (digit & Base64VLQ_VLQ_CONTINUATION_BIT) != 0
+		digit &= Base64VLQ_VLQ_BASE_MASK
+		result = result + jutil.Shl32(digit, int64(shift))
+		shift = shift + Base64VLQ_VLQ_BASE_SHIFT
+		if !continuation {
+			break
+		}
+	}
+	return Base64VLQ_FromVLQSigned(result)
 }
 
 // Search performs a binary search on the array to find a section that
@@ -675,9 +701,17 @@ func (c *SourceMapConsumerV3) Search(target int32, start, end int) int {
 
 // Java: SourceMapConsumerV3.getPreviousMapping(int)
 func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_OriginalMapping {
+	m, _, ok := c.getPreviousMappingValue(lineNumber)
+	if !ok {
+		return nil
+	}
+	return &m
+}
+
+func (c *SourceMapConsumerV3) getPreviousMappingValue(lineNumber int) (Mapping_OriginalMapping, *string, bool) {
 	for {
 		if lineNumber == 0 {
-			return nil
+			return Mapping_OriginalMapping{}, nil, false
 		}
 		lineNumber--
 		if c.mappings.GetLineStart(lineNumber) != c.mappings.GetLineStart(lineNumber+1) {
@@ -685,7 +719,7 @@ func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_Origin
 		}
 	}
 	index := c.mappings.GetLineStart(lineNumber+1) - c.mappings.GetEntrySize()
-	return c.GetOriginalMappingForEntry(index, Mapping_OriginalMapping_Precision_APPROXIMATE_LINE)
+	return c.getOriginalMappingForEntryValue(index, Mapping_OriginalMapping_Precision_APPROXIMATE_LINE)
 }
 
 // GetOriginalMappingForEntry creates an "OriginalMapping" object for the
@@ -693,22 +727,43 @@ func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_Origin
 //
 // Java: SourceMapConsumerV3.getOriginalMappingForEntry(int, OriginalMapping.Precision)
 func (c *SourceMapConsumerV3) GetOriginalMappingForEntry(index int, precision Mapping_OriginalMapping_Precision) *Mapping_OriginalMapping {
+	m, _, ok := c.getOriginalMappingForEntryValue(index, precision)
+	if !ok {
+		return nil
+	}
+	return &m
+}
+
+func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(index int, precision Mapping_OriginalMapping_Precision) (Mapping_OriginalMapping, *string, bool) {
 	sourceFileId := c.mappings.GetSourceFileId(index)
 	if sourceFileId == SourceMapConsumerV3_UNMAPPED {
-		return nil
-	} else {
-		// Adjust the line/column here to be start at 1.
-		x := Mapping_OriginalMapping_NewBuilder().
-			SetOriginalFile(*c.sources[sourceFileId]).
-			SetLineNumber(int(c.mappings.GetSourceLine(index) + 1)).
-			SetColumnPosition(int(c.mappings.GetSourceColumn(index) + 1)).
-			SetPrecision(precision)
-		nameId := c.mappings.GetNameId(index)
-		if nameId != SourceMapConsumerV3_UNMAPPED {
-			x.SetIdentifier(*c.names[nameId])
-		}
-		return x.Build()
+		return Mapping_OriginalMapping{}, nil, false
 	}
+	// Adjust the line/column here to be start at 1.
+	origFile := *c.sources[sourceFileId]
+	lineNum := int(c.mappings.GetSourceLine(index) + 1)
+	colPos := int(c.mappings.GetSourceColumn(index) + 1)
+	prec := int32(precision.GetNumber())
+	bitField := int32(mapping_originalFileBit | mapping_lineNumberBit | mapping_columnPositionBit | mapping_precisionBit)
+	var identifier string
+	var identifierPtr *string
+	nameId := c.mappings.GetNameId(index)
+	if nameId != SourceMapConsumerV3_UNMAPPED {
+		namePtr := c.names[nameId]
+		identifier = *namePtr
+		bitField |= mapping_identifierBit
+		if identifier != "" {
+			identifierPtr = namePtr
+		}
+	}
+	return Mapping_OriginalMapping{
+		bitField0_:      bitField,
+		originalFile_:   origFile,
+		lineNumber_:     lineNum,
+		columnPosition_: colPos,
+		identifier_:     identifier,
+		precision_:      prec,
+	}, identifierPtr, true
 }
 
 // CreateReverseMapping reverses the source map; the created mapping will
@@ -757,7 +812,9 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 // string.
 type SourceMapConsumerV3_StringCharIterator struct {
 	// Go-only: language-adapter — the Java String as UTF-16 code units, so
-	// that charAt is O(1).
+	// that charAt is O(1); when content is pure ASCII (all valid Base64VLQ
+	// strings), ascii holds it directly without a []uint16 allocation.
+	ascii   string
 	content []uint16
 	length  int
 	current int
@@ -768,22 +825,35 @@ type SourceMapConsumerV3_StringCharIterator struct {
 //
 // Java: SourceMapConsumerV3.StringCharIterator(String)
 func NewSourceMapConsumerV3_StringCharIterator(content string) *SourceMapConsumerV3_StringCharIterator {
-	it := &SourceMapConsumerV3_StringCharIterator{}
-	it.content = jutil.StringToUTF16(content)
-	it.length = len(it.content)
-	return it
+	if jutil.IsASCII(content) {
+		return &SourceMapConsumerV3_StringCharIterator{
+			ascii:  content,
+			length: len(content),
+		}
+	}
+	u := jutil.StringToUTF16(content)
+	return &SourceMapConsumerV3_StringCharIterator{
+		content: u,
+		length:  len(u),
+	}
 }
 
 // Java: SourceMapConsumerV3.StringCharIterator.next()
 func (it *SourceMapConsumerV3_StringCharIterator) Next() uint16 {
 	i := it.current
 	it.current++
-	return it.content[i]
+	if it.content != nil {
+		return it.content[i]
+	}
+	return uint16(it.ascii[i])
 }
 
 // Java: SourceMapConsumerV3.StringCharIterator.peek()
 func (it *SourceMapConsumerV3_StringCharIterator) Peek() uint16 {
-	return it.content[it.current]
+	if it.content != nil {
+		return it.content[it.current]
+	}
+	return uint16(it.ascii[it.current])
 }
 
 // Java: SourceMapConsumerV3.StringCharIterator.hasNext()

@@ -113,11 +113,14 @@ func hamtIsNull[V any](v V) bool { return jutil.IsNil(any(v)) }
 // minus() compares against EMPTY and empty() is always the same object).
 var hamtPMap_EMPTY = map[reflect.Type]any{}
 
+const debugHamtPMap = false
+
 // Java: HamtPMap(K, int, V, int, HamtPMap<K, V>[])
 func newHamtPMap[K any, V any](key K, keyIsNull bool, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	m := &HamtPMap[K, V]{key: key, keyIsNull: keyIsNull, hash: hash, value: value, mask: mask, children: children}
-
-	m.CheckInvariants()
+	if debugHamtPMap {
+		m.CheckInvariants()
+	}
 	return m
 }
 
@@ -346,7 +349,11 @@ func (m *HamtPMap[K, V]) Minus(key K) PMap[K, V] {
 // Go-only: language-adapter — see PlusMap.
 func (m *HamtPMap[K, V]) MinusMap(key K) *HamtPMap[K, V] {
 	if !m.IsEmpty() {
-		return m.MinusWithHash(key, HamtPMap_Hash(key), nil)
+		res := m.minusWithHash(key, HamtPMap_Hash(key), nil)
+		if res != nil {
+			return res
+		}
+		return HamtPMap_Empty[K, V]()
 	}
 	return m
 }
@@ -357,15 +364,20 @@ func (m *HamtPMap[K, V]) MinusMap(key K) *HamtPMap[K, V] {
 //
 // Java: HamtPMap.minus(K, int, V[])
 func (m *HamtPMap[K, V]) MinusWithHash(key K, hash int32, value []V) *HamtPMap[K, V] {
+	res := m.minusWithHash(key, hash, value)
+	if res != nil {
+		return res
+	}
+	return HamtPMap_Empty[K, V]()
+}
+
+func (m *HamtPMap[K, V]) minusWithHash(key K, hash int32, value []V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
 		result := HamtPMap_DeleteRoot(m.mask, m.children)
 		if value != nil {
 			value[0] = m.value
 		}
-		if result != nil {
-			return result
-		}
-		return HamtPMap_Empty[K, V]()
+		return result
 	}
 	bucket := HamtPMap_Bucket(hash)
 	bucketMask := jutil.Shl32(1, int64(bucket))
@@ -376,10 +388,10 @@ func (m *HamtPMap[K, V]) MinusWithHash(key K, hash int32, value []V) *HamtPMap[K
 	hash = HamtPMap_Shift(hash)
 	index := m.Index(bucketMask)
 	child := m.children[index]
-	newChild := child.MinusWithHash(key, hash, value)
+	newChild := child.minusWithHash(key, hash, value)
 	if newChild == child {
 		return m
-	} else if newChild == HamtPMap_Empty[K, V]() {
+	} else if newChild == nil {
 		return m.WithChildren(m.mask&^bucketMask, HamtPMap_DeleteChild(m.children, index))
 	} else {
 		return m.WithChildren(m.mask, HamtPMap_ReplaceChild(m.children, index, newChild))
@@ -388,19 +400,31 @@ func (m *HamtPMap[K, V]) MinusWithHash(key K, hash int32, value []V) *HamtPMap[K
 
 // Java: HamtPMap.reconcile(PMap<K, V>, Reconciler<K, V>)
 func (m *HamtPMap[K, V]) Reconcile(that PMap[K, V], joiner PMap_Reconciler[K, V]) PMap[K, V] {
+	return m.ReconcileMap(that.(*HamtPMap[K, V]), joiner)
+}
+
+// ReconcileMap is reconcile(PMap<K, V>, Reconciler<K, V>) with its concrete
+// *HamtPMap parameter and return type.
+func (m *HamtPMap[K, V]) ReconcileMap(that *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
+	if m == that {
+		return m
+	}
 	var t1, t2 *HamtPMap[K, V]
 	if !m.IsEmpty() {
 		t1 = m
 	}
 	if !that.IsEmpty() {
-		t2 = that.(*HamtPMap[K, V])
+		t2 = that
 	}
-	result := HamtPMap_ReconcileTrees(
-		t1,
-		t2,
-		func(k K, v1 V, v2 V) V { return jutil.CheckNotNull(joiner(k, v1, v2)) })
+	result := hamtPMap_ReconcileTrees(t1, t2, joiner, true)
 	if result != nil {
 		return result
+	}
+	if m.IsEmpty() {
+		return m
+	}
+	if that.IsEmpty() {
+		return that
 	}
 	return HamtPMap_Empty[K, V]()
 }
@@ -410,26 +434,68 @@ func (m *HamtPMap[K, V]) Reconcile(that PMap[K, V], joiner PMap_Reconciler[K, V]
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
 func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
+	return hamtPMap_ReconcileTrees(t1, t2, joiner, false)
+}
+
+func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null V
 	if t1 == t2 {
 		return t1
 	} else if t1 == nil {
 		newValue := joiner(t2.key, null, t2.value)
-		newChildren := append([]*HamtPMap[K, V](nil), t2.children...)
-		for i := 0; i < len(newChildren); i++ {
-			newChildren[i] = HamtPMap_ReconcileTrees(nil, newChildren[i], joiner)
+		if checkNotNull {
+			jutil.CheckNotNull(newValue)
 		}
-		if !hamtIsNull(newValue) {
+		var newChildrenBuf [16]*HamtPMap[K, V]
+		n := len(t2.children)
+		sameChildren := true
+		for i := 0; i < n; i++ {
+			c := hamtPMap_ReconcileTrees(nil, t2.children[i], joiner, checkNotNull)
+			newChildrenBuf[i] = c
+			if c != t2.children[i] {
+				sameChildren = false
+			}
+		}
+		if sameChildren && jutil.ObjectsEquals(t2.value, newValue) {
+			return t2
+		}
+		var newChildren []*HamtPMap[K, V]
+		if sameChildren {
+			newChildren = t2.children
+		} else {
+			newChildren = make([]*HamtPMap[K, V], n)
+			copy(newChildren, newChildrenBuf[:n])
+		}
+		if checkNotNull || !hamtIsNull(newValue) {
 			return newHamtPMap(t2.key, t2.keyIsNull, t2.hash, newValue, t2.mask, newChildren)
 		}
 		return HamtPMap_DeleteRoot(t2.mask, newChildren)
 	} else if t2 == nil {
 		newValue := joiner(t1.key, t1.value, null)
-		newChildren := append([]*HamtPMap[K, V](nil), t1.children...)
-		for i := 0; i < len(newChildren); i++ {
-			newChildren[i] = HamtPMap_ReconcileTrees(newChildren[i], nil, joiner)
+		if checkNotNull {
+			jutil.CheckNotNull(newValue)
 		}
-		if !hamtIsNull(newValue) {
+		var newChildrenBuf [16]*HamtPMap[K, V]
+		n := len(t1.children)
+		sameChildren := true
+		for i := 0; i < n; i++ {
+			c := hamtPMap_ReconcileTrees(t1.children[i], nil, joiner, checkNotNull)
+			newChildrenBuf[i] = c
+			if c != t1.children[i] {
+				sameChildren = false
+			}
+		}
+		if sameChildren && jutil.ObjectsEquals(t1.value, newValue) {
+			return t1
+		}
+		var newChildren []*HamtPMap[K, V]
+		if sameChildren {
+			newChildren = t1.children
+		} else {
+			newChildren = make([]*HamtPMap[K, V], n)
+			copy(newChildren, newChildrenBuf[:n])
+		}
+		if checkNotNull || !hamtIsNull(newValue) {
 			return newHamtPMap(t1.key, t1.keyIsNull, t1.hash, newValue, t1.mask, newChildren)
 		}
 		return HamtPMap_DeleteRoot(t1.mask, newChildren)
@@ -444,44 +510,48 @@ func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 	key := t1.key
 	keyIsNull := t1.keyIsNull
 	hash := t1.hash
+	var t1Val, t2Val V
+	var vacatedBit1, vacatedBit2 int32
 	if hashCmp < 0 {
-		// t1.key is missing from t2
-		t2 = t2.VacateRoot()
+		// t1.key is missing from t2; inline t2.VacateRoot() without allocating intermediate root/slice
+		vacatedBit2 = jutil.Shl32(1, int64(HamtPMap_Bucket(t2.hash)))
 		sameChildrenAs2 = false
+		t1Val = t1.value
 	} else if hashCmp > 0 {
-		// t2.key is missing from t1
-		t1 = t1.VacateRoot()
+		// t2.key is missing from t1; inline t1.VacateRoot() without allocating intermediate root/slice
+		vacatedBit1 = jutil.Shl32(1, int64(HamtPMap_Bucket(t1.hash)))
 		sameChildrenAs1 = false
 		key = t2.key
 		keyIsNull = t2.keyIsNull
 		hash = t2.hash
-	} else if !t2.keyEquals(t1.key) {
-		// Hash collision: try to rearrange t2 to have the same root as t1
-		t2 = t2.Pivot(t1.key, t1.hash)
-		sameChildrenAs2 = false
+		t2Val = t2.value
+	} else {
+		if !t2.keyEquals(t1.key) {
+			// Hash collision: try to rearrange t2 to have the same root as t1
+			t2 = t2.Pivot(t1.key, t1.hash)
+			sameChildrenAs2 = false
+		}
+		t1Val = t1.value
+		t2Val = t2.value
 	}
 	// Note: one or the other (but not both) tree may have a null key at root.
 
 	var newValue V
-	if jutil.ObjectsEquals(t1.value, t2.value) {
-		newValue = t1.value
+	if vacatedBit1 == 0 && vacatedBit2 == 0 && jutil.ObjectsEquals(t1Val, t2Val) {
+		newValue = t1Val
 	} else {
-		mergeKey := t1.key
-		if t1.keyIsNull {
-			mergeKey = t2.key
+		newValue = joiner(key, t1Val, t2Val)
+		if checkNotNull {
+			jutil.CheckNotNull(newValue)
 		}
-		newValue = joiner(mergeKey, t1.value, t2.value)
 	}
-	newMask := t1.mask | t2.mask
-	sameChildrenAs1 = sameChildrenAs1 && (newMask == t1.mask)
-	sameChildrenAs2 = sameChildrenAs2 && (newMask == t2.mask)
+	t1Mask := t1.mask | vacatedBit1
+	t2Mask := t2.mask | vacatedBit2
+	newMask := t1Mask | t2Mask
+	sameChildrenAs1 = sameChildrenAs1 && (newMask == t1Mask)
+	sameChildrenAs2 = sameChildrenAs2 && (newMask == t2Mask)
 
-	var newChildren []*HamtPMap[K, V]
-	if newMask != 0 {
-		newChildren = make([]*HamtPMap[K, V], bits.OnesCount32(uint32(newMask)))
-	} else {
-		newChildren = HamtPMap_EmptyChildren[K, V]()
-	}
+	var newChildrenBuf [16]*HamtPMap[K, V]
 	mask := newMask
 	index := 0
 	for mask != 0 {
@@ -489,20 +559,68 @@ func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 		mask &^= childBit
 		child1 := t1.GetChild(childBit)
 		child2 := t2.GetChild(childBit)
-		newChildren[index] = HamtPMap_ReconcileTrees(child1, child2, joiner)
-		sameChildrenAs1 = sameChildrenAs1 && (newChildren[index] == child1)
-		sameChildrenAs2 = sameChildrenAs2 && (newChildren[index] == child2)
-		if newChildren[index] != nil {
+		var reconciled *HamtPMap[K, V]
+		if childBit == vacatedBit2 {
+			if (t2.mask & vacatedBit2) != 0 {
+				vacatedChild2 := child2.PlusWithHash(t2.key, HamtPMap_Shift(t2.hash), t2.value)
+				reconciled = hamtPMap_ReconcileTrees(child1, vacatedChild2, joiner, checkNotNull)
+			} else if child1 == nil {
+				v := joiner(t2.key, null, t2.value)
+				if checkNotNull {
+					jutil.CheckNotNull(v)
+				}
+				if checkNotNull || !hamtIsNull(v) {
+					reconciled = newHamtPMap(t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
+				}
+			} else {
+				vacatedChild2 := newHamtPMap(t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), t2.value, 0, HamtPMap_EmptyChildren[K, V]())
+				reconciled = hamtPMap_ReconcileTrees(child1, vacatedChild2, joiner, checkNotNull)
+			}
+		} else if childBit == vacatedBit1 {
+			if (t1.mask & vacatedBit1) != 0 {
+				vacatedChild1 := child1.PlusWithHash(t1.key, HamtPMap_Shift(t1.hash), t1.value)
+				reconciled = hamtPMap_ReconcileTrees(vacatedChild1, child2, joiner, checkNotNull)
+			} else if child2 == nil {
+				v := joiner(t1.key, t1.value, null)
+				if checkNotNull {
+					jutil.CheckNotNull(v)
+				}
+				if checkNotNull || !hamtIsNull(v) {
+					reconciled = newHamtPMap(t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
+				}
+			} else {
+				vacatedChild1 := newHamtPMap(t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), t1.value, 0, HamtPMap_EmptyChildren[K, V]())
+				reconciled = hamtPMap_ReconcileTrees(vacatedChild1, child2, joiner, checkNotNull)
+			}
+		} else {
+			reconciled = hamtPMap_ReconcileTrees(child1, child2, joiner, checkNotNull)
+		}
+		newChildrenBuf[index] = reconciled
+		sameChildrenAs1 = sameChildrenAs1 && (reconciled == child1)
+		sameChildrenAs2 = sameChildrenAs2 && (reconciled == child2)
+		if reconciled != nil {
 			index++
 		} else {
 			newMask &^= childBit
 		}
 	}
-	if sameChildrenAs1 && jutil.ObjectsEquals(t1.value, newValue) {
+	if sameChildrenAs1 && jutil.ObjectsEquals(t1Val, newValue) {
 		return t1
-	} else if sameChildrenAs2 && jutil.ObjectsEquals(t2.value, newValue) {
+	} else if sameChildrenAs2 && jutil.ObjectsEquals(t2Val, newValue) {
 		return t2
-	} else if hamtIsNull(newValue) {
+	}
+	var newChildren []*HamtPMap[K, V]
+	if sameChildrenAs1 {
+		newChildren = t1.children
+	} else if sameChildrenAs2 {
+		newChildren = t2.children
+	} else if index == 0 {
+		newChildren = HamtPMap_EmptyChildren[K, V]()
+	} else {
+		newChildren = make([]*HamtPMap[K, V], index)
+		copy(newChildren, newChildrenBuf[:index])
+	}
+	if !checkNotNull && hamtIsNull(newValue) {
 		return HamtPMap_DeleteRoot(newMask, newChildren)
 	}
 	return newHamtPMap(key, keyIsNull, hash, newValue, newMask, newChildren)
@@ -513,12 +631,21 @@ func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 //
 // Java: HamtPMap.equivalent(PMap<K, V>, BiPredicate<V, V>)
 func (m *HamtPMap[K, V]) Equivalent(that PMap[K, V], equivalence func(V, V) bool) bool {
+	return m.EquivalentMap(that.(*HamtPMap[K, V]), equivalence)
+}
+
+// EquivalentMap is equivalent(PMap<K, V>, BiPredicate<V, V>) with its concrete
+// *HamtPMap parameter type.
+func (m *HamtPMap[K, V]) EquivalentMap(that *HamtPMap[K, V], equivalence func(V, V) bool) bool {
+	if m == that {
+		return true
+	}
 	var t1, t2 *HamtPMap[K, V]
 	if !m.IsEmpty() {
 		t1 = m
 	}
 	if !that.IsEmpty() {
-		t2 = that.(*HamtPMap[K, V])
+		t2 = that
 	}
 	return HamtPMap_EquivalentTrees(t1, t2, equivalence)
 }
@@ -642,7 +769,8 @@ func HamtPMap_CompareUnsigned(left int32, right int32) int32 {
 //
 // Java: HamtPMap.pivot(K, int)
 func (m *HamtPMap[K, V]) Pivot(key K, hash int32) *HamtPMap[K, V] {
-	return m.PivotWithParent(key, hash, nil, make([]V, 1))
+	var result [1]V
+	return m.PivotWithParent(key, hash, nil, result[:])
 }
 
 // PivotWithParent is the internal recursive version of pivot.
@@ -680,8 +808,8 @@ func (m *HamtPMap[K, V]) PivotWithParent(key K, hash int32, parent *HamtPMap[K, 
 			if (m.mask & searchMask) != 0 {
 				index := m.Index(searchMask)
 				child := newChildren[index]
-				newChild := child.MinusWithHash(key, HamtPMap_Shift(hash), result)
-				if !newChild.IsEmpty() {
+				newChild := child.minusWithHash(key, HamtPMap_Shift(hash), result)
+				if newChild != nil {
 					newChildren = HamtPMap_ReplaceChild(newChildren, index, newChild)
 				} else {
 					newChildren = HamtPMap_DeleteChild(newChildren, index)

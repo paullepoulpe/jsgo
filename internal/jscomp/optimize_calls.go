@@ -131,11 +131,27 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 
 	references := NewOptimizeCalls_ReferenceMap()
-	NodeTraversal_TraverseRoots(
-		o.compiler, NewOptimizeCalls_ReferenceMapBuildingCallback(o, references), externs, root)
+	sc := NewSyntacticScopeCreator(o.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     o.compiler,
+		callback:     NewOptimizeCalls_ReferenceMapBuildingCallback(o, references),
+		scopeCreator: sc,
+	}
+	b.TraverseRoots(externs, root)
 	o.EliminateAccessorsFrom(references)
 
 	for _, pass := range o.passes {
+		switch pass.(type) {
+		case optimizeCallsPrivateReturns, optimizeCallsPrivateParameters, optimizeCallsPrivateConstructors:
+			// These adapters own fresh, unexposed default-pass objects and borrow
+			// this scope only until their synchronous Process call returns.
+		default:
+			// A custom pass may retain the map and call GetGlobalScope later.
+			// Protect its scopes and Vars before publishing even the map itself.
+			sc.markArenaEscaped()
+		}
 		pass.Process(externs, root, references)
 	}
 }
@@ -602,6 +618,21 @@ func OptimizeCalls_SafeSet(set *jutil.LinkedHashSet[string]) *jutil.LinkedHashSe
 	return optimizeCalls_emptyStringSet
 }
 
+type ocRefCacheEntry struct {
+	key  string
+	list *jutil.ArrayList[*rhino.Node]
+	skip bool
+}
+
+func ocCacheIdx(s string) uint32 {
+	n := len(s)
+	h := uint32(n)*2654435761 ^ uint32(s[0])*374761393 ^ uint32(s[n-1])*668265263
+	if n > 2 {
+		h ^= uint32(s[n>>1]) * 2246822519
+	}
+	return (h ^ (h >> 9)) & 511
+}
+
 // OptimizeCalls_ReferenceMapBuildingCallback is the inner class
 // ReferenceMapBuildingCallback.
 type OptimizeCalls_ReferenceMapBuildingCallback struct {
@@ -612,13 +643,17 @@ type OptimizeCalls_ReferenceMapBuildingCallback struct {
 	lastSkippedName string
 	lastExternProp  string
 	hasExternProp   bool
+	nameCache       [512]ocRefCacheEntry
+	propCache       [512]ocRefCacheEntry
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback(ReferenceMap)
 func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, references *OptimizeCalls_ReferenceMap) *OptimizeCalls_ReferenceMapBuildingCallback {
-	c := &OptimizeCalls_ReferenceMapBuildingCallback{outer: outer}
-	c.externProps = OptimizeCalls_SafeSet(outer.compiler.GetExternProperties())
-	c.references = references
+	c := &OptimizeCalls_ReferenceMapBuildingCallback{
+		outer:       outer,
+		externProps: OptimizeCalls_SafeSet(outer.compiler.GetExternProperties()),
+		references:  references,
+	}
 	return c
 }
 
@@ -689,8 +724,19 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 	if name == "" || name == c.lastSkippedName {
 		return
 	}
-	if c.references.lastNameList != nil && name == c.references.lastNameKey {
+	if c.references.lastNameList != nil && name == mLastNameKey(c.references) {
 		c.references.lastNameList.Add(n)
+		return
+	}
+	idx := ocCacheIdx(name)
+	if e := &c.nameCache[idx]; e.key == name {
+		if e.skip {
+			c.lastSkippedName = name
+			return
+		}
+		c.references.lastNameKey = name
+		c.references.lastNameList = e.list
+		e.list.Add(n)
 		return
 	}
 	// TODO(b/129503101): Why are we limiting ourselves to global names?
@@ -699,15 +745,49 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 		// As every name declaration is unique due to normalizations, it is only necessary to build
 		// the global scope and ask it if it knows about a name as it can never be shadowed.
 		c.references.AddNameReference(name, n)
+		c.nameCache[idx] = ocRefCacheEntry{key: name, list: c.references.lastNameList}
 	} else {
 		c.lastSkippedName = name
+		c.nameCache[idx] = ocRefCacheEntry{key: name, skip: true}
 	}
+}
+
+func mLastNameKey(m *OptimizeCalls_ReferenceMap) string {
+	return m.lastNameKey
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n *rhino.Node) {
 	if c.references.lastPropList != nil && name == c.references.lastPropKey {
 		c.references.lastPropList.Add(n)
+		return
+	}
+	if name != "" {
+		idx := ocCacheIdx(name)
+		if e := &c.propCache[idx]; e.key == name {
+			if e.skip {
+				c.lastExternProp = name
+				c.hasExternProp = true
+				return
+			}
+			c.references.lastPropKey = name
+			c.references.lastPropList = e.list
+			e.list.Add(n)
+			return
+		}
+		if !c.outer.considerExterns {
+			if c.hasExternProp && name == c.lastExternProp {
+				return
+			}
+			if c.externProps.Contains(name) {
+				c.lastExternProp = name
+				c.hasExternProp = true
+				c.propCache[idx] = ocRefCacheEntry{key: name, skip: true}
+				return
+			}
+		}
+		c.references.AddPropReference(name, n)
+		c.propCache[idx] = ocRefCacheEntry{key: name, list: c.references.lastPropList}
 		return
 	}
 	if !c.outer.considerExterns {

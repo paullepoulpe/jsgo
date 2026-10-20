@@ -36,6 +36,9 @@ type SerializeTypesToPointers struct {
 	propertiesReferencedInAst *jutil.LinkedHashSet[string]
 	typePointersByJstype      *base.LinkedIdentityHashMap[rhino.JSType, int]
 	typePool                  *TypePool
+	lastProp                  string
+	hasLastProp               bool
+	lastType                  rhino.JSType
 }
 
 var serializeTypesToPointers_GSON = jutil.NewGson()
@@ -78,8 +81,8 @@ func SerializeTypesToPointers_Create(
 // Java: SerializeTypesToPointers.gatherTypesOnAst(Node)
 func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
 	jutil.CheckStateMsg(s.typePool == nil, "Cannot call process() twice")
-	NodeTraversal_Traverse(s.compiler, root, &serializeTypesToPointers_PropertySearchCallback{outer: s})
-	NodeTraversal_Traverse(s.compiler, root, &serializeTypesToPointers_TypeSearchCallback{outer: s})
+	s.gatherPropertiesWalk(root)
+	s.gatherTypesWalk(root)
 
 	// these types are only used when debug logging is enabled, but we always serialize them as not
 	// to have a different TypePool with and without debug logging.
@@ -91,6 +94,67 @@ func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
 	s.typePool = s.jstypeReconserializer.GenerateTypePool()
 
 	s.logSerializationDebugInfo(s.jstypeReconserializer, s.typePool)
+}
+
+func (s *SerializeTypesToPointers) gatherPropertiesWalk(n *rhino.Node) {
+	if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		s.gatherPropertiesWalk(c)
+	}
+	switch n.GetToken() {
+	case rhino.Token_GETPROP, // "name" from (someObject.name)
+		rhino.Token_OPTCHAIN_GETPROP: // "name" from (someObject?.name)
+		prop := n.GetString()
+		if !s.hasLastProp || prop != s.lastProp {
+			s.lastProp = prop
+			s.hasLastProp = true
+			s.propertiesReferencedInAst.Add(prop)
+		}
+	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
+		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
+		rhino.Token_MEMBER_FIELD_DEF,    // "name" from class C { name = 0; }
+		rhino.Token_GETTER_DEF,          // "name" from class C { get name() {} }
+		rhino.Token_SETTER_DEF:          // "name" from class C { set name(n) {} }
+		if !n.IsQuotedStringKey() {
+			prop := n.GetString()
+			if !s.hasLastProp || prop != s.lastProp {
+				s.lastProp = prop
+				s.hasLastProp = true
+				s.propertiesReferencedInAst.Add(prop)
+			}
+		}
+	default:
+	}
+}
+
+func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
+	if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		s.gatherTypesWalk(c)
+	}
+	if n.IsRoot() {
+		// the ROOT node is given the 'global this' type for use during typechecking, but this is
+		// not needed for optimizations. (The 'global this' type will still be serialized if
+		// referenced in actual code though.)
+		return
+	}
+	if type_ := n.GetJSType(); type_ != nil && type_ != s.lastType {
+		s.lastType = type_
+		if _, ok := s.typePointersByJstype.Lookup(type_); !ok {
+			s.typePointersByJstype.Put(type_, s.jstypeReconserializer.SerializeType(type_))
+		}
+	}
+	if n.IsName() {
+		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+			// Shadow roots are structured as
+			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+			s.gatherTypesWalk(shadow.GetFirstFirstChild().GetFirstChild())
+		}
+	}
 }
 
 // serializeTypesToPointers_PropertySearchCallback finds all unquoted

@@ -668,14 +668,17 @@ func (f *FeatureSet) WithoutFeatures(featureToRemove FeatureSet_Feature, moreFea
 //
 // Java: FeatureSet.without(FeatureSet)
 func (f *FeatureSet) Without(other *FeatureSet) *FeatureSet {
-	return NewFeatureSet(FeatureSet_Difference(f.features, other.features))
+	if !f.ContainsAtLeastOneOf(other) {
+		return f
+	}
+	return &FeatureSet{features: FeatureSet_Difference(f.features, other.features)}
 }
 
 // WithoutTypes returns this set minus the TypeScript features.
 //
 // Java: FeatureSet.withoutTypes()
 func (f *FeatureSet) WithoutTypes() *FeatureSet {
-	return NewFeatureSet(FeatureSet_Difference(f.features, FeatureSet_LangVersion_TYPESCRIPT.Features()))
+	return &FeatureSet{features: FeatureSet_Difference(f.features, FeatureSet_LangVersion_TYPESCRIPT.Features())}
 }
 
 // Union returns a new FeatureSet including all features of both this and
@@ -683,7 +686,13 @@ func (f *FeatureSet) WithoutTypes() *FeatureSet {
 //
 // Java: FeatureSet.union(FeatureSet)
 func (f *FeatureSet) Union(other *FeatureSet) *FeatureSet {
-	return NewFeatureSet(FeatureSet_Union(f.features, other.features))
+	if f == other || f.Contains(other) {
+		return f
+	}
+	if other.Contains(f) {
+		return other
+	}
+	return &FeatureSet{features: FeatureSet_Union(f.features, other.features)}
 }
 
 // ContainsAtLeastOneOf reports whether this FeatureSet contains at least one
@@ -712,7 +721,7 @@ func (f *FeatureSet) Contains(other *FeatureSet) bool {
 //
 // Java: FeatureSet.contains(Feature)
 func (f *FeatureSet) ContainsFeature(feature FeatureSet_Feature) bool {
-	return f.features.ContainsAll(jutil.NewEnumSet(feature))
+	return f.features.Contains(feature)
 }
 
 // FeatureSet_EmptyEnumSet returns an empty feature set.
@@ -767,7 +776,7 @@ func (f *FeatureSet) With(feature FeatureSet_Feature) *FeatureSet {
 	if f.features.Contains(feature) {
 		return f
 	}
-	return NewFeatureSet(FeatureSet_Add(f.features, feature))
+	return &FeatureSet{features: FeatureSet_Add(f.features, feature)}
 }
 
 // WithFeatures returns a feature set combining all the features from this
@@ -775,7 +784,21 @@ func (f *FeatureSet) With(feature FeatureSet_Feature) *FeatureSet {
 //
 // Java: FeatureSet.with(Feature...)
 func (f *FeatureSet) WithFeatures(newFeatures ...FeatureSet_Feature) *FeatureSet {
-	return NewFeatureSet(FeatureSet_Union(f.features, jutil.NewEnumSet(newFeatures...)))
+	allContained := true
+	for _, feat := range newFeatures {
+		if !f.features.Contains(feat) {
+			allContained = false
+			break
+		}
+	}
+	if allContained {
+		return f
+	}
+	result := FeatureSet_EnumSetOf(f.features)
+	for _, feat := range newFeatures {
+		result.Add(feat)
+	}
+	return &FeatureSet{features: result}
 }
 
 // WithEnumSet returns a feature set combining all the features from this
@@ -783,7 +806,10 @@ func (f *FeatureSet) WithFeatures(newFeatures ...FeatureSet_Feature) *FeatureSet
 //
 // Java: FeatureSet.with(Set<Feature>)
 func (f *FeatureSet) WithEnumSet(newFeatures *jutil.EnumSet[FeatureSet_Feature]) *FeatureSet {
-	return NewFeatureSet(FeatureSet_Union(f.features, newFeatures))
+	if f.features.ContainsAll(newFeatures) {
+		return f
+	}
+	return &FeatureSet{features: FeatureSet_Union(f.features, newFeatures)}
 }
 
 // WithFeatureSet returns a feature set combining all the features from this
@@ -791,7 +817,13 @@ func (f *FeatureSet) WithEnumSet(newFeatures *jutil.EnumSet[FeatureSet_Feature])
 //
 // Java: FeatureSet.with(FeatureSet)
 func (f *FeatureSet) WithFeatureSet(newFeatures *FeatureSet) *FeatureSet {
-	return NewFeatureSet(FeatureSet_Union(f.features, newFeatures.features))
+	if f == newFeatures || f.Contains(newFeatures) {
+		return f
+	}
+	if newFeatures.Contains(f) {
+		return newFeatures
+	}
+	return &FeatureSet{features: FeatureSet_Union(f.features, newFeatures.features)}
 }
 
 // Has reports whether this FeatureSet includes feature.

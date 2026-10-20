@@ -66,14 +66,16 @@ type Parser struct {
 	errorReporter        ErrorReporter
 	config               *Parser_Config
 	commentRecorder      *Parser_CommentRecorder
+	commentRecorderVal   Parser_CommentRecorder
 	functionContextStack []Parser_FunctionFlavor
+	functionContextBuf   [8]Parser_FunctionFlavor
 	features             *FeatureSet
 	lastSourcePosition   *SourcePosition
 	// Go-only: language-adapter — nil is Java null.
 	sourceMapURL *string
 
-	// Go-only: performance — the parse trees' ranges (see GetTreeLocation).
-	treeLocations jutil.Slab[SourceRange]
+	// Go-only: performance — the parse arena for positions, ranges, tokens, and trees.
+	arena *ParseArena
 }
 
 // Parser_FunctionFlavor is Parser.FunctionFlavor: indicates the type of
@@ -123,13 +125,22 @@ func (f Parser_FunctionFlavor) IsGenerator() bool { return parser_FunctionFlavor
 //
 // Java: Parser(Config, ErrorReporter, SourceFile)
 func NewParser(config *Parser_Config, errorReporter ErrorReporter, source *SourceFile) *Parser {
-	p := &Parser{}
-	p.commentRecorder = NewParser_CommentRecorder(p)
-	p.functionContextStack = []Parser_FunctionFlavor{}
+	return NewParserInArena(config, errorReporter, source, nil)
+}
+
+// NewParserInArena constructs a Parser backed by arena.
+func NewParserInArena(config *Parser_Config, errorReporter ErrorReporter, source *SourceFile, arena *ParseArena) *Parser {
+	if arena == nil {
+		arena = &ParseArena{}
+	}
+	p := &Parser{arena: arena}
+	p.commentRecorderVal.this = p
+	p.commentRecorder = &p.commentRecorderVal
+	p.functionContextStack = p.functionContextBuf[:0]
 	p.features = FeatureSet_BARE_MINIMUM
 	p.config = config
 	p.errorReporter = errorReporter
-	p.scanner = NewScanner(errorReporter, p.commentRecorder, source, 0)
+	p.scanner = NewScannerInArena(errorReporter, p.commentRecorder, source, 0, arena)
 	p.functionContextStack = append(p.functionContextStack, Parser_FunctionFlavor_NORMAL)
 	p.lastSourcePosition = p.scanner.GetPosition()
 	return p
@@ -284,7 +295,7 @@ func (p *Parser) ParseProgram() *ProgramTree {
 	start := p.lastSourcePosition
 	sourceElements := p.ParseGlobalSourceElements()
 	p.Eat(TokenType_END_OF_FILE)
-	return NewProgramTree(p.GetTreeLocation(start), sourceElements, p.commentRecorder.GetComments())
+	return p.newProgramTree(p.GetTreeLocation(start), sourceElements, p.commentRecorder.GetComments())
 }
 
 // Java: Parser.parseGlobalSourceElements()
@@ -586,7 +597,7 @@ func (p *Parser) ParseClass(isExpression bool) ParseTree {
 	p.Eat(TokenType_OPEN_CURLY)
 	elements := p.ParseClassElements()
 	p.Eat(TokenType_CLOSE_CURLY)
-	return NewClassDeclarationTree(p.GetTreeLocation(start), name, superClass, elements)
+	return p.newClassDeclarationTree(p.GetTreeLocation(start), name, superClass, elements)
 }
 
 // Java: Parser.parseClassElements()
@@ -725,7 +736,7 @@ func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, is
 		kind = FunctionDeclarationTree_Kind_MEMBER
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(kind).
+	builder := p.newFunctionBuilder(kind).
 		SetIsClassMember(elementInfo.isClassMember).
 		SetStatic(elementInfo.isStatic)
 	if elementInfo.HasName() {
@@ -738,7 +749,7 @@ func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, is
 		return function
 	} else {
 		jutil.CheckState(elementInfo.HasNameExpr())
-		return NewComputedPropertyMethodTree(
+		return p.newComputedPropertyMethodTree(
 			p.GetTreeLocation(elementInfo.start), elementInfo.GetNameExpr(), function)
 	}
 }
@@ -792,7 +803,7 @@ func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTr
 	if p.PeekPropertyName(0) {
 		if p.PeekIdOrKeyword() {
 			name := p.EatIdOrKeywordAsId()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_MEMBER).
+			builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_MEMBER).
 				SetAsync(true).
 				SetGenerator(generator).
 				SetIsClassMember(elementInfo.isClassMember).
@@ -808,7 +819,7 @@ func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTr
 			// { 123() {} }
 			// Treat these as if they were computed properties.
 			var nameExpr ParseTree = p.ParseLiteralExpression()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+			builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
 				SetAsync(true).
 				SetGenerator(generator).
 				SetIsClassMember(elementInfo.isClassMember).
@@ -818,13 +829,13 @@ func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTr
 				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
 
 			var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
-			return NewComputedPropertyMethodTree(
+			return p.newComputedPropertyMethodTree(
 				p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
 		}
 	} else {
 		// expect '[' to start computed property name
 		nameExpr := p.ParseComputedPropertyName()
-		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+		builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
 			SetAsync(true).
 			SetGenerator(generator).
 			SetIsClassMember(elementInfo.isClassMember).
@@ -833,7 +844,7 @@ func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTr
 			builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
 
 		var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
-		return NewComputedPropertyMethodTree(
+		return p.newComputedPropertyMethodTree(
 			p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
 	}
 }
@@ -917,7 +928,7 @@ func (p *Parser) ParseFunctionDeclaration() ParseTree {
 	p.Eat(Keywords_FUNCTION.Type())
 	isGenerator := p.EatOpt(TokenType_STAR) != nil
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).SetName(p.EatId())
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_DECLARATION).SetName(p.EatId())
 	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
 	return builder.Build(p.GetTreeLocation(start))
 }
@@ -928,7 +939,7 @@ func (p *Parser) ParseFunctionExpression() ParseTree {
 	p.Eat(Keywords_FUNCTION.Type())
 	isGenerator := p.EatOpt(TokenType_STAR) != nil
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
 		SetName(p.EatIdOpt())
 	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
 
@@ -945,7 +956,7 @@ func (p *Parser) ParseAsyncFunctionDeclaration() ParseTree {
 		p.Eat(TokenType_STAR)
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_DECLARATION).
 		SetName(p.EatId()).
 		SetAsync(true)
 
@@ -964,7 +975,7 @@ func (p *Parser) ParseAsyncFunctionExpression() ParseTree {
 		p.Eat(TokenType_STAR)
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
 		SetName(p.EatIdOpt()).
 		SetAsync(true)
 
@@ -1036,7 +1047,7 @@ func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
 	}
 
 	p.Eat(TokenType_CLOSE_PAREN)
-	return NewFormalParameterListTree(
+	return p.newFormalParameterListTree(
 		p.GetTreeLocation(listStart), result, trailingComma, commaPositions)
 }
 
@@ -1067,7 +1078,7 @@ func (p *Parser) ParseFunctionBody() *BlockTree {
 	p.Eat(TokenType_OPEN_CURLY)
 	result := p.ParseSourceElementList()
 	p.Eat(TokenType_CLOSE_CURLY)
-	return NewBlockTree(p.GetTreeLocation(start), result)
+	return p.newBlockTree(p.GetTreeLocation(start), result)
 }
 
 // Java: Parser.parseSourceElementList()
@@ -1220,7 +1231,7 @@ func (p *Parser) ParseBlock() *BlockTree {
 	// Spec says Statement list. However functions are also embedded in the wild.
 	result := p.ParseSourceElementList()
 	p.Eat(TokenType_CLOSE_CURLY)
-	return NewBlockTree(p.GetTreeLocation(start), result)
+	return p.newBlockTree(p.GetTreeLocation(start), result)
 }
 
 // Java: Parser.parseStatementList()
@@ -1239,7 +1250,7 @@ func (p *Parser) ParseVariableStatement() *VariableStatementTree {
 	start := p.GetTreeStartLocation()
 	declarations := p.ParseVariableDeclarationList()
 	p.EatPossiblyImplicitSemiColon()
-	return NewVariableStatementTree(p.GetTreeLocation(start), declarations)
+	return p.newVariableStatementTree(p.GetTreeLocation(start), declarations)
 }
 
 // Java: Parser.parseVariableDeclarationList()
@@ -1275,7 +1286,7 @@ func (p *Parser) ParseVariableDeclarationListWithExpression(expressionIn Parser_
 		p.Eat(TokenType_COMMA)
 		declarations = append(declarations, p.ParseVariableDeclaration(token, expressionIn))
 	}
-	return NewVariableDeclarationListTree(p.GetTreeLocation(start), token, declarations)
+	return p.newVariableDeclarationListTree(p.GetTreeLocation(start), token, declarations)
 }
 
 // Java: Parser.parseVariableDeclaration(TokenType, Expression)
@@ -1298,7 +1309,7 @@ func (p *Parser) ParseVariableDeclaration(binding TokenType, expressionIn Parser
 		// also require intializers, but are handled separately in checkVanillaForInitializers
 		p.MaybeReportNoInitializer(binding, lvalue)
 	}
-	return NewVariableDeclarationTree(p.GetTreeLocation(start), lvalue, initializer)
+	return p.newVariableDeclarationTree(p.GetTreeLocation(start), lvalue, initializer)
 }
 
 // Java: Parser.parseInitializer(Expression)
@@ -1313,7 +1324,7 @@ func (p *Parser) ParseInitializer(expressionIn Parser_Expression) ParseTree {
 func (p *Parser) ParseEmptyStatement() *EmptyStatementTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_SEMI_COLON)
-	return NewEmptyStatementTree(p.GetTreeLocation(start))
+	return p.newEmptyStatementTree(p.GetTreeLocation(start))
 }
 
 // 12.4 Expression Statement
@@ -1323,7 +1334,7 @@ func (p *Parser) ParseExpressionStatement() *ExpressionStatementTree {
 	start := p.GetTreeStartLocation()
 	expression := p.ParseExpression()
 	p.EatPossiblyImplicitSemiColon()
-	return NewExpressionStatementTree(p.GetTreeLocation(start), expression)
+	return p.newExpressionStatementTree(p.GetTreeLocation(start), expression)
 }
 
 // 12.5 If Statement
@@ -1341,7 +1352,7 @@ func (p *Parser) ParseIfStatement() *IfStatementTree {
 		p.Eat(TokenType_ELSE)
 		elseClause = p.ParseStatement()
 	}
-	return NewIfStatementTree(p.GetTreeLocation(start), condition, ifClause, elseClause)
+	return p.newIfStatementTree(p.GetTreeLocation(start), condition, ifClause, elseClause)
 }
 
 // 12.6 Iteration Statements
@@ -1374,7 +1385,7 @@ func (p *Parser) ParseWhileStatement() ParseTree {
 	condition := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
 	body := p.ParseStatement()
-	return NewWhileStatementTree(p.GetTreeLocation(start), condition, body)
+	return p.newWhileStatementTree(p.GetTreeLocation(start), condition, body)
 }
 
 // 12.6.3 The for Statement
@@ -1486,7 +1497,7 @@ func (p *Parser) ParseForOfStatement(start *SourcePosition, initializer ParseTre
 	collection := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
 	body := p.ParseStatement()
-	return NewForOfStatementTree(p.GetTreeLocation(start), initializer, collection, body)
+	return p.newForOfStatementTree(p.GetTreeLocation(start), initializer, collection, body)
 }
 
 // Java: Parser.parseForAwaitOfStatement(SourcePosition, ParseTree)
@@ -1537,7 +1548,7 @@ func (p *Parser) PeekVariableDeclarationList() bool {
 // Java: Parser.parseForStatement(SourcePosition, ParseTree)
 func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initializer ParseTree) ParseTree {
 	if initializer == nil {
-		initializer = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		initializer = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_SEMI_COLON)
 
@@ -1545,7 +1556,7 @@ func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initial
 	if !p.Peek(TokenType_SEMI_COLON) {
 		condition = p.ParseExpression()
 	} else {
-		condition = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		condition = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_SEMI_COLON)
 
@@ -1553,11 +1564,11 @@ func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initial
 	if !p.Peek(TokenType_CLOSE_PAREN) {
 		increment = p.ParseExpression()
 	} else {
-		increment = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		increment = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
 	body := p.ParseStatement()
-	return NewForStatementTree(p.GetTreeLocation(start), initializer, condition, increment, body)
+	return p.newForStatementTree(p.GetTreeLocation(start), initializer, condition, increment, body)
 }
 
 // 12.6.4 The for-in Statement
@@ -1568,7 +1579,7 @@ func (p *Parser) ParseForInStatement(start *SourcePosition, initializer ParseTre
 	collection := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
 	body := p.ParseStatement()
-	return NewForInStatementTree(p.GetTreeLocation(start), initializer, collection, body)
+	return p.newForInStatementTree(p.GetTreeLocation(start), initializer, collection, body)
 }
 
 // 12.7 The continue Statement
@@ -1582,7 +1593,7 @@ func (p *Parser) ParseContinueStatement() ParseTree {
 		name = p.EatIdOpt()
 	}
 	p.EatPossiblyImplicitSemiColon()
-	return NewContinueStatementTree(p.GetTreeLocation(start), name)
+	return p.newContinueStatementTree(p.GetTreeLocation(start), name)
 }
 
 // 12.8 The break Statement
@@ -1596,7 +1607,7 @@ func (p *Parser) ParseBreakStatement() ParseTree {
 		name = p.EatIdOpt()
 	}
 	p.EatPossiblyImplicitSemiColon()
-	return NewBreakStatementTree(p.GetTreeLocation(start), name)
+	return p.newBreakStatementTree(p.GetTreeLocation(start), name)
 }
 
 // 12.9 The return Statement
@@ -1610,7 +1621,7 @@ func (p *Parser) ParseReturnStatement() ParseTree {
 		expression = p.ParseExpression()
 	}
 	p.EatPossiblyImplicitSemiColon()
-	return NewReturnStatementTree(p.GetTreeLocation(start), expression)
+	return p.newReturnStatementTree(p.GetTreeLocation(start), expression)
 }
 
 // 12.10 The with Statement
@@ -1638,7 +1649,7 @@ func (p *Parser) ParseSwitchStatement() ParseTree {
 	p.Eat(TokenType_OPEN_CURLY)
 	caseClauses := p.ParseCaseClauses()
 	p.Eat(TokenType_CLOSE_CURLY)
-	return NewSwitchStatementTree(p.GetTreeLocation(start), expression, caseClauses)
+	return p.newSwitchStatementTree(p.GetTreeLocation(start), expression, caseClauses)
 }
 
 // Java: Parser.parseCaseClauses()
@@ -1654,7 +1665,7 @@ func (p *Parser) ParseCaseClauses() []ParseTree {
 			expression := p.ParseExpression()
 			p.Eat(TokenType_COLON)
 			statements := p.ParseCaseStatementsOpt()
-			result = append(result, NewCaseClauseTree(p.GetTreeLocation(start), expression, statements))
+			result = append(result, p.newCaseClauseTree(p.GetTreeLocation(start), expression, statements))
 		case TokenType_DEFAULT:
 			if foundDefaultClause {
 				p.ReportError("Switch statements may have at most one default clause")
@@ -1703,7 +1714,7 @@ func (p *Parser) ParseThrowStatement() ParseTree {
 		value = p.ParseExpression()
 	}
 	p.EatPossiblyImplicitSemiColon()
-	return NewThrowStatementTree(p.GetTreeLocation(start), value)
+	return p.newThrowStatementTree(p.GetTreeLocation(start), value)
 }
 
 // 12.14 Try Statement
@@ -1724,7 +1735,7 @@ func (p *Parser) ParseTryStatement() ParseTree {
 	if catchBlock == nil && finallyBlock == nil {
 		p.ReportError("'catch' or 'finally' expected.")
 	}
-	return NewTryStatementTree(p.GetTreeLocation(start), body, catchBlock, finallyBlock)
+	return p.newTryStatementTree(p.GetTreeLocation(start), body, catchBlock, finallyBlock)
 }
 
 // Java: Parser.parseCatch()
@@ -1732,7 +1743,7 @@ func (p *Parser) ParseCatch() *CatchTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_CATCH)
 
-	var exception ParseTree = NewEmptyStatementTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+	var exception ParseTree = p.newEmptyStatementTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 
 	if p.PeekToken().GetTokenBase().Type == TokenType_OPEN_PAREN {
 		p.Eat(TokenType_OPEN_PAREN)
@@ -1747,7 +1758,7 @@ func (p *Parser) ParseCatch() *CatchTree {
 	}
 
 	catchBody := p.ParseBlock()
-	return NewCatchTree(p.GetTreeLocation(start), exception, catchBody)
+	return p.newCatchTree(p.GetTreeLocation(start), exception, catchBody)
 }
 
 // Java: Parser.parseFinallyBlock()
@@ -1815,7 +1826,7 @@ func (p *Parser) ParseSuperExpression() *SuperExpressionTree {
 func (p *Parser) ParseThisExpression() *ThisExpressionTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_THIS)
-	return NewThisExpressionTree(p.GetTreeLocation(start))
+	return p.newThisExpressionTree(p.GetTreeLocation(start))
 }
 
 // ParseDynamicImportExpression parses import(...).
@@ -1839,7 +1850,7 @@ func (p *Parser) ParseDynamicImportExpression() *DynamicImportTree {
 func (p *Parser) ParseIdentifierExpression() *IdentifierExpressionTree {
 	start := p.GetTreeStartLocation()
 	identifier := p.EatId()
-	return NewIdentifierExpressionTree(p.GetTreeLocation(start), identifier)
+	return p.newIdentifierExpressionTree(p.GetTreeLocation(start), identifier)
 }
 
 // Java: Parser.parseLiteralExpression()
@@ -1860,7 +1871,7 @@ func (p *Parser) ParseLiteralExpression() *LiteralExpressionTree {
 		p.RecordFeatureUsed(FeatureSet_Feature_BIGINT)
 	}
 
-	return NewLiteralExpressionTree(p.GetTreeLocation(start), literal)
+	return p.newLiteralExpressionTree(p.GetTreeLocation(start), literal)
 }
 
 // ParseTemplateLiteral constructs a template literal expression tree.
@@ -1931,7 +1942,7 @@ func (p *Parser) ParseRegularExpressionLiteral() ParseTree {
 	start := p.GetTreeStartLocation()
 	literal := p.NextRegularExpressionLiteralToken()
 	p.RecordFeatureUsed(FeatureSet_Feature_REGEXP_SYNTAX)
-	return NewLiteralExpressionTree(p.GetTreeLocation(start), literal)
+	return p.newLiteralExpressionTree(p.GetTreeLocation(start), literal)
 }
 
 // Java: Parser.parseArrayInitializer()
@@ -2032,7 +2043,7 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 			commaStart := p.GetTreeStartLocation()
 			trailingCommaToken = p.Eat(TokenType_COMMA)
 			// Consider the empty element to start & end immediately before the comma token.
-			elements = append(elements, NewNullTree(NewSourceRange(commaStart, commaStart)))
+			elements = append(elements, p.newNullTree(p.newSourceRange(commaStart, commaStart)))
 
 		} else {
 			if p.Peek(TokenType_ELLIPSIS) {
@@ -2050,7 +2061,7 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 
 	p.MaybeReportTrailingComma(trailingCommaToken)
 
-	return NewArrayLiteralExpressionTree(
+	return p.newArrayLiteralExpressionTree(
 		p.GetTreeLocation(start), elements, trailingCommaToken != nil)
 }
 
@@ -2074,7 +2085,7 @@ func (p *Parser) ParseObjectLiteral() ParseTree {
 
 	p.MaybeReportTrailingComma(commaToken)
 
-	return NewObjectLiteralExpressionTree(
+	return p.newObjectLiteralExpressionTree(
 		p.GetTreeLocation(start), result, commaToken != nil)
 }
 
@@ -2144,10 +2155,10 @@ func (p *Parser) ParseObjectLiteralPropertyAssignment() ParseTree {
 			value := p.ParseAssignmentExpression()
 			return NewComputedPropertyDefinitionTree(p.GetTreeLocation(start), name, value)
 		} else {
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
+			builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
 			p.ParseFunctionTail(builder, Parser_FunctionFlavor_NORMAL)
 			var value ParseTree = builder.Build(p.GetTreeLocation(start))
-			return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
+			return p.newComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
 		}
 	} else {
 		panic(jutil.NewRuntimeException("unreachable"))
@@ -2168,11 +2179,11 @@ func (p *Parser) ParseObjectLiteralPropertyAssignmentGenerator() ParseTree {
 		p.Eat(TokenType_STAR)
 
 		name := p.ParseComputedPropertyName()
-		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
+		builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
 
 		p.ParseFunctionTail(builder, Parser_FunctionFlavor_GENERATOR)
 		var value ParseTree = builder.Build(p.GetTreeLocation(start))
-		return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
+		return p.newComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
 	}
 }
 
@@ -2295,7 +2306,7 @@ func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
 		} else if name.AsIdentifier().IsKeyword() {
 			p.ReportErrorAtToken(name, "Cannot use keyword in short object literal")
 		} else if p.Peek(TokenType_EQUAL) {
-			idTree := NewIdentifierExpressionTree(p.GetTreeLocation(start), name.(*IdentifierToken))
+			idTree := p.newIdentifierExpressionTree(p.GetTreeLocation(start), name.(*IdentifierToken))
 			p.Eat(TokenType_EQUAL)
 			defaultValue := p.ParseAssignmentExpression()
 			return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
@@ -2305,7 +2316,7 @@ func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
 	if colon != nil {
 		value = p.ParseAssignmentExpression()
 	}
-	return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
+	return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
 }
 
 // 12.2 Primary Expression
@@ -2328,7 +2339,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 	if p.Peek(TokenType_CLOSE_PAREN) {
 		p.Eat(TokenType_CLOSE_PAREN)
 		if p.Peek(TokenType_ARROW) {
-			return NewFormalParameterListTree(
+			return p.newFormalParameterListTree(
 				p.GetTreeLocation(start),
 				[]ParseTree{},
 				/* hasTrailingComma= */ false,
@@ -2343,7 +2354,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 		params := []ParseTree{p.ParseParameter()}
 		p.Eat(TokenType_CLOSE_PAREN)
 		if p.Peek(TokenType_ARROW) {
-			return NewFormalParameterListTree(
+			return p.newFormalParameterListTree(
 				p.GetTreeLocation(start),
 				params,
 				/* hasTrailingComma= */ false,
@@ -2375,12 +2386,12 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 			p.Eat(TokenType_COMMA)
 			// Since we already parsed as an expression, we will guaranteed reparse this expression
 			// as an arrow function parameter list, but just leave it as a comma expression for now.
-			result = NewCommaExpressionTree(
+			result = p.newCommaExpressionTree(
 				p.GetTreeLocation(start), []ParseTree{result, p.ParseParameter()})
 		}
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
-	return NewParenExpressionTree(p.GetTreeLocation(start), result)
+	return p.newParenExpressionTree(p.GetTreeLocation(start), result)
 }
 
 // Java: Parser.parseMissingPrimaryExpression()
@@ -2488,7 +2499,7 @@ func (p *Parser) Parse(expressionIn Parser_Expression) ParseTree {
 			p.Eat(TokenType_COMMA)
 			exprs = append(exprs, p.ParseAssignment(expressionIn))
 		}
-		return NewCommaExpressionTree(p.GetTreeLocation(start), exprs)
+		return p.newCommaExpressionTree(p.GetTreeLocation(start), exprs)
 	}
 	return result
 }
@@ -2539,7 +2550,7 @@ func (p *Parser) ParseAssignment(expressionIn Parser_Expression) ParseTree {
 		}
 		operator := p.NextToken()
 		right := p.ParseAssignment(expressionIn)
-		return NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		return p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2591,7 +2602,7 @@ func (p *Parser) CompleteArrowFunctionParseAtArrow(leftOfArrow ParseTree, expres
 	p.Eat(TokenType_ARROW)
 	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_NORMAL)
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_ARROW).
 		SetFormalParameterList(arrowFormalParameters).
 		SetFunctionBody(arrowFunctionBody)
 	return builder.Build(p.GetTreeLocation(arrowFormalParameters.Location.Start))
@@ -2605,7 +2616,7 @@ func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *Formal
 		arrowParameterList = leftOfArrow.AsFormalParameterList()
 	case ParseTreeType_IDENTIFIER_EXPRESSION:
 		// e.g. x => x + 1
-		arrowParameterList = NewFormalParameterListTree(
+		arrowParameterList = p.newFormalParameterListTree(
 			leftOfArrow.GetParseTreeBase().Location,
 			[]ParseTree{leftOfArrow},
 			/* hasTrailingComma= */ false,
@@ -2656,7 +2667,7 @@ func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTr
 	} else {
 		// async arg =>
 		singleParameter := p.ParseIdentifierExpression()
-		arrowParameterList = NewFormalParameterListTree(
+		arrowParameterList = p.newFormalParameterListTree(
 			singleParameter.Location,
 			[]ParseTree{singleParameter},
 			/* hasTrailingComma= */ false,
@@ -2668,7 +2679,7 @@ func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTr
 	p.Eat(TokenType_ARROW)
 	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_ASYNCHRONOUS)
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
+	builder := p.newFunctionBuilder(FunctionDeclarationTree_Kind_ARROW).
 		SetAsync(true).
 		SetFormalParameterList(arrowParameterList).
 		SetFunctionBody(arrowFunctionBody)
@@ -2803,7 +2814,7 @@ func (p *Parser) ParseConditional(expressionIn Parser_Expression) ParseTree {
 		left := p.ParseAssignment(expressionIn)
 		p.Eat(TokenType_COLON)
 		right := p.ParseAssignment(expressionIn)
-		return NewConditionalExpressionTree(p.GetTreeLocation(start), condition, left, right)
+		return p.newConditionalExpressionTree(p.GetTreeLocation(start), condition, left, right)
 	}
 	return condition
 }
@@ -2830,7 +2841,7 @@ func (p *Parser) ParseNullishCoalesce(expressionIn Parser_Expression, left Parse
 	for p.Peek(TokenType_QUESTION_QUESTION) {
 		operator := p.Eat(TokenType_QUESTION_QUESTION)
 		right := p.ParseBitwiseOR(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	if p.Peek(TokenType_AND) || p.Peek(TokenType_OR) {
 		p.ReportError("Logical OR and logical AND require parentheses when used with '??'")
@@ -2847,7 +2858,7 @@ func (p *Parser) ParseLogicalOR(expressionIn Parser_Expression) ParseTree {
 	for p.Peek(TokenType_OR) {
 		operator := p.Eat(TokenType_OR)
 		right := p.ParseLogicalAND(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2861,7 +2872,7 @@ func (p *Parser) ParseLogicalAND(expressionIn Parser_Expression) ParseTree {
 	for p.Peek(TokenType_AND) {
 		operator := p.Eat(TokenType_AND)
 		right := p.ParseBitwiseOR(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2875,7 +2886,7 @@ func (p *Parser) ParseBitwiseOR(expressionIn Parser_Expression) ParseTree {
 	for p.Peek(TokenType_BAR) {
 		operator := p.Eat(TokenType_BAR)
 		right := p.ParseBitwiseXOR(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2889,7 +2900,7 @@ func (p *Parser) ParseBitwiseXOR(expressionIn Parser_Expression) ParseTree {
 	for p.Peek(TokenType_CARET) {
 		operator := p.Eat(TokenType_CARET)
 		right := p.ParseBitwiseAND(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2903,7 +2914,7 @@ func (p *Parser) ParseBitwiseAND(expressionIn Parser_Expression) ParseTree {
 	for p.Peek(TokenType_AMPERSAND) {
 		operator := p.Eat(TokenType_AMPERSAND)
 		right := p.ParseEquality(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2917,7 +2928,7 @@ func (p *Parser) ParseEquality(expressionIn Parser_Expression) ParseTree {
 	for p.PeekEqualityOperator() {
 		operator := p.NextToken()
 		right := p.ParseRelational(expressionIn)
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2941,7 +2952,7 @@ func (p *Parser) ParseRelational(expressionIn Parser_Expression) ParseTree {
 	for p.PeekRelationalOperator(expressionIn) {
 		operator := p.NextToken()
 		right := p.ParseShiftExpression()
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2967,7 +2978,7 @@ func (p *Parser) ParseShiftExpression() ParseTree {
 	for p.PeekShiftOperator() {
 		operator := p.NextToken()
 		right := p.ParseAdditiveExpression()
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -2991,7 +3002,7 @@ func (p *Parser) ParseAdditiveExpression() ParseTree {
 	for p.PeekAdditiveOperator() {
 		operator := p.NextToken()
 		right := p.ParseMultiplicativeExpression()
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -3015,7 +3026,7 @@ func (p *Parser) ParseMultiplicativeExpression() ParseTree {
 	for p.PeekMultiplicativeOperator() {
 		operator := p.NextToken()
 		right := p.ParseExponentiationExpression()
-		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		left = p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	}
 	return left
 }
@@ -3049,7 +3060,7 @@ func (p *Parser) ParseExponentiationExpression() ParseTree {
 		}
 		operator := p.NextToken()
 		right := p.ParseExponentiationExpression()
-		return NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+		return p.newBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
 	} else {
 		return left
 	}
@@ -3063,7 +3074,7 @@ func (p *Parser) ParseUnaryExpression() ParseTree {
 	if p.PeekUnaryOperator() {
 		operator := p.NextToken()
 		operand := p.ParseUnaryExpression()
-		return NewUnaryExpressionTree(p.GetTreeLocation(start), operator, operand)
+		return p.newUnaryExpressionTree(p.GetTreeLocation(start), operator, operand)
 	} else if p.PeekAwaitExpression() {
 		return p.ParseAwaitExpression()
 	} else {
@@ -3103,13 +3114,13 @@ func (p *Parser) ParseUpdateExpression() ParseTree {
 	if p.PeekUpdateOperator() {
 		operator := p.NextToken()
 		operand := p.ParseUnaryExpression()
-		return UpdateExpressionTree_Prefix(p.GetTreeLocation(start), operator, operand)
+		return p.newUpdateExpressionTreePrefix(p.GetTreeLocation(start), operator, operand)
 	} else {
 		lhs := p.ParseLeftHandSideExpression()
 		if p.PeekUpdateOperator() && !p.PeekImplicitSemiColon() {
 			// newline not allowed before an update operator.
 			operator := p.NextToken()
-			return UpdateExpressionTree_Postfix(p.GetTreeLocation(start), operator, lhs)
+			return p.newUpdateExpressionTreePostfix(p.GetTreeLocation(start), operator, lhs)
 		} else {
 			return lhs
 		}
@@ -3171,16 +3182,16 @@ func (p *Parser) ParseLeftHandSideExpression() ParseTree {
 			switch p.PeekType() {
 			case TokenType_OPEN_PAREN:
 				arguments := p.ParseArguments()
-				operand = NewCallExpressionTree(p.GetTreeLocation(start), operand, arguments)
+				operand = p.newCallExpressionTree(p.GetTreeLocation(start), operand, arguments)
 			case TokenType_OPEN_SQUARE:
 				p.Eat(TokenType_OPEN_SQUARE)
 				member := p.ParseExpression()
 				p.Eat(TokenType_CLOSE_SQUARE)
-				operand = NewMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
+				operand = p.newMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
 			case TokenType_PERIOD:
 				p.Eat(TokenType_PERIOD)
 				id := p.EatIdOrKeywordAsId()
-				operand = NewMemberExpressionTree(p.GetTreeLocation(start), operand, id)
+				operand = p.newMemberExpressionTree(p.GetTreeLocation(start), operand, id)
 			case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
 				operand = p.ParseTemplateLiteral(operand)
 			default:
@@ -3337,11 +3348,11 @@ func (p *Parser) ParseMemberExpressionNoNew() ParseTree {
 			p.Eat(TokenType_OPEN_SQUARE)
 			member := p.ParseExpression()
 			p.Eat(TokenType_CLOSE_SQUARE)
-			operand = NewMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
+			operand = p.newMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
 		case TokenType_PERIOD:
 			p.Eat(TokenType_PERIOD)
 			id := p.EatIdOrKeywordAsId()
-			operand = NewMemberExpressionTree(p.GetTreeLocation(start), operand, id)
+			operand = p.newMemberExpressionTree(p.GetTreeLocation(start), operand, id)
 		case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
 			operand = p.ParseTemplateLiteral(operand)
 		default:
@@ -3379,7 +3390,7 @@ func (p *Parser) ParseNewExpression() ParseTree {
 		if p.Peek(TokenType_OPEN_PAREN) {
 			arguments = p.ParseArguments()
 		}
-		return NewNewExpressionTree(
+		return p.newNewExpressionTree(
 			p.GetTreeLocation(start),
 			operand,
 			arguments,
@@ -3439,7 +3450,7 @@ func (p *Parser) ParseArguments() *ArgumentListTree {
 		}
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
-	return NewArgumentListTree(
+	return p.newArgumentListTree(
 		p.GetTreeLocation(start), arguments, trailingComma, commaPositions)
 }
 
@@ -3545,7 +3556,7 @@ func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
 		if p.Peek(TokenType_COMMA) {
 			nullStart := p.GetTreeStartLocation()
 			p.Eat(TokenType_COMMA)
-			elements = append(elements, NewNullTree(p.GetTreeLocation(nullStart)))
+			elements = append(elements, p.newNullTree(p.GetTreeLocation(nullStart)))
 		} else {
 			elements = append(elements, p.ParsePatternAssignmentTarget(kind))
 
@@ -3624,12 +3635,12 @@ func (p *Parser) ParseObjectPatternField(kind Parser_PatternKind) ParseTree {
 				p.ReportError("cannot use keyword '%s' here.", idToken)
 			}
 			if p.Peek(TokenType_EQUAL) {
-				idTree := NewIdentifierExpressionTree(p.GetTreeLocation(start), idToken)
+				idTree := p.newIdentifierExpressionTree(p.GetTreeLocation(start), idToken)
 				p.Eat(TokenType_EQUAL)
 				defaultValue := p.ParseAssignmentExpression()
 				return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
 			}
-			return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), identifierTokenAsToken(idToken), nil)
+			return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), identifierTokenAsToken(idToken), nil)
 		}
 		name = identifierTokenAsToken(idToken)
 	} else {
@@ -3638,7 +3649,7 @@ func (p *Parser) ParseObjectPatternField(kind Parser_PatternKind) ParseTree {
 
 	p.Eat(TokenType_COLON)
 	value := p.ParsePatternAssignmentTarget(kind)
-	return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
+	return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
 }
 
 // ParsePatternAssignmentTarget parses a PatternAssignmentTarget: the
@@ -3916,7 +3927,7 @@ func (p *Parser) GetTreeEndLocation() *SourcePosition {
 func (p *Parser) GetTreeLocation(start *SourcePosition) *SourceRange {
 	// Go-only: performance — one range per parse tree, from a slab like the
 	// tokens' (see LineNumberScanner.getTokenSourcePosition).
-	r := p.treeLocations.New()
+	r := p.arena.ranges.New()
 	r.Start, r.End = start, p.GetTreeEndLocation()
 	return r
 }

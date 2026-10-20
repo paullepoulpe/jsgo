@@ -244,7 +244,7 @@ func (c *SubtypeChecker) IsSubtypeDispatching(subtype JSType, supertype JSType) 
 // Java: SubtypeChecker.isWellKnownSymbolSubtype(KnownSymbolType, JSType)
 func (c *SubtypeChecker) IsWellKnownSymbolSubtype(subtype *KnownSymbolType, supertype JSType) bool {
 	if supertype.IsKnownSymbolValueType() {
-		return subtype.Equals(supertype)
+		return equalityChecker_AreIdentityEqual(subtype, supertype)
 	}
 	if supertype.IsSymbolValueType() {
 		return true
@@ -270,7 +270,7 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 	}
 
 	// Reflexive case.
-	if jutil.ObjectsEquals(subtype, supertype) {
+	if equalityChecker_AreIdentityEqual(subtype, supertype) {
 		return true
 	}
 
@@ -291,12 +291,20 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 	// Union decomposition.
 	if subtype.IsUnionType() {
 		// All alternates must be subtypes.
-		return JSTypeIterations_AllTypesMatchInUnion(
-			func(sub JSType) bool { return c.IsSubtypeCaching(sub, supertype) }, subtype.ToMaybeUnionType())
+		for _, sub := range subtype.ToMaybeUnionType().GetAlternates() {
+			if !c.IsSubtypeCaching(sub, supertype) {
+				return false
+			}
+		}
+		return true
 	} else if supertype.IsUnionType() {
 		// Some alternate must be a supertype.
-		return JSTypeIterations_AnyTypeMatchesInUnion(
-			func(sup JSType) bool { return c.IsSubtypeCaching(subtype, sup) }, supertype.ToMaybeUnionType())
+		for _, sup := range supertype.ToMaybeUnionType().GetAlternates() {
+			if c.IsSubtypeCaching(subtype, sup) {
+				return true
+			}
+		}
+		return false
 	}
 
 	if !subtype.IsObjectType() || !supertype.IsObjectType() {
@@ -316,7 +324,7 @@ func (c *SubtypeChecker) IsObjectSubtypeHelper(subtype ObjectType, supertype Obj
 		templatizedSuperType := supertype.ToMaybeTemplatizedType()
 		superTypeReferencedType := templatizedSuperType.GetReferencedType()
 		subTypeReferencedType := templatizedSubType.GetReferencedType()
-		if subTypeReferencedType.Equals(superTypeReferencedType) {
+		if equalityChecker_AreIdentityEqual(subTypeReferencedType, superTypeReferencedType) {
 			subAndSuperAreSameBaseType = true
 		}
 	}
@@ -475,7 +483,7 @@ func (c *SubtypeChecker) CheckPropertyPresence(
 // Java: SubtypeChecker.isNativeArrayType(ObjectType)
 func (c *SubtypeChecker) IsNativeArrayType(type_ ObjectType) bool {
 	unwrapped := SubtypeChecker_GetObjectTypeIfNative(type_)
-	return unwrapped != nil && unwrapped.Equals(c.registry.GetNativeType(JSTypeNative_ARRAY_TYPE))
+	return unwrapped != nil && equalityChecker_AreIdentityEqual(unwrapped, c.registry.GetNativeType(JSTypeNative_ARRAY_TYPE))
 }
 
 // Java: SubtypeChecker.isFunctionSubtype(FunctionType, JSType)
@@ -621,8 +629,8 @@ func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, nonArrowSupertyp
 
 // Java: SubtypeChecker.isEnumSubtype(EnumType, JSType)
 func (c *SubtypeChecker) IsEnumSubtype(subtype *EnumType, supertype JSType) bool {
-	return supertype.Equals(c.registry.GetNativeType(JSTypeNative_OBJECT_TYPE)) ||
-		subtype.Equals(c.registry.GetNativeType(JSTypeNative_OBJECT_PROTOTYPE)) ||
+	return equalityChecker_AreIdentityEqual(supertype, c.registry.GetNativeType(JSTypeNative_OBJECT_TYPE)) ||
+		equalityChecker_AreIdentityEqual(subtype, c.registry.GetNativeType(JSTypeNative_OBJECT_PROTOTYPE)) ||
 		c.IsSubtypeHelper(subtype, supertype)
 }
 
@@ -736,7 +744,14 @@ func SubtypeChecker_IsBivariantType(type_ JSType) bool {
 		return false
 	}
 	name := unwrapped.GetReferenceName()
-	return name != nil && SubtypeChecker_BIVARIANT_TYPES.Contains(*name)
+	if name == nil {
+		return false
+	}
+	switch *name {
+	case "Object", "IArrayLike", "Array":
+		return true
+	}
+	return false
 }
 
 // SubtypeChecker_GetTemplateKeyIfCovariantType determines if the specified
@@ -806,12 +821,12 @@ func (c *SubtypeChecker) ShouldTreatThisTypesAsCovariant(subtype FunctionType, s
 
 	// If one of the 'this' types is covariant of the other, then we'll treat
 	// them as covariant (see comment above).
-	return c.HackTemporarilyChangeSubtypingMode(
-		JSType_SubtypingMode_NORMAL,
-		func() bool {
-			return c.IsSubtypeCaching(supertype.GetTypeOfThis(), subtype.GetTypeOfThis()) ||
-				c.IsSubtypeCaching(subtype.GetTypeOfThis(), supertype.GetTypeOfThis())
-		})
+	originalMode := c.subtypingMode
+	c.subtypingMode = &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL]
+	res := c.IsSubtypeCaching(supertype.GetTypeOfThis(), subtype.GetTypeOfThis()) ||
+		c.IsSubtypeCaching(subtype.GetTypeOfThis(), supertype.GetTypeOfThis())
+	c.subtypingMode = originalMode
+	return res
 }
 
 // Java: SubtypeChecker.hackTemporarilyChangeSubtypingMode(SubtypingMode, BooleanSupplier)
@@ -894,7 +909,7 @@ func (k *SubtypeChecker_CacheKey) Equals(other any) bool {
 	// collisions. Identity is insufficient in the case of recursive
 	// parameterized types because new equivalent copies of the type are
 	// generated on-the-fly to compute the types of various properties.
-	return jutil.ObjectsEquals(k.left, that.left) && jutil.ObjectsEquals(k.right, that.right)
+	return equalityChecker_AreIdentityEqual(k.left, that.left) && equalityChecker_AreIdentityEqual(k.right, that.right)
 }
 
 // Java: SubtypeChecker.CacheKey(JSType, JSType)

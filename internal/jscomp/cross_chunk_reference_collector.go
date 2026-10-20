@@ -148,6 +148,9 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 
 func (c *CrossChunkReferenceCollector) enableArenaPool() {
 	c.poolable = true
+	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
+		sc.EnableArenaPool()
+	}
 	ca := c.getCCArena()
 	if cap(ca.topLevelStatements) > 0 {
 		c.topLevelStatements = ca.topLevelStatements[:0]
@@ -172,11 +175,11 @@ func (c *CrossChunkReferenceCollector) release() {
 	if a := c.arena; a != nil {
 		c.arena = nil
 		if len(c.table) > 0 && len(c.vars) > 0 {
-			if len(c.table) <= 524288 {
+			if len(c.table) <= 2097152 {
 				if len(c.vars)*16 < len(c.table) {
 					mask := uint32(len(c.table) - 1)
 					for _, kv := range c.vars {
-						slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+						slot := rcHashVarPtr(kv) & mask
 						for c.table[slot].v != nil {
 							c.table[slot] = rcTableEntry{}
 							slot = (slot + 1) & mask
@@ -192,7 +195,7 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		c.table = nil
 		if cap(c.vars) > len(c.varsBuf) {
-			if cap(c.vars) <= 262144 {
+			if cap(c.vars) <= 1048576 {
 				clear(c.vars)
 				a.vars = c.vars[:0]
 				clear(c.cols)
@@ -205,9 +208,9 @@ func (c *CrossChunkReferenceCollector) release() {
 		c.vars = nil
 		c.cols = nil
 		const (
-			maxRetainedRefChunks = 80
-			maxRetainedColChunks = 48
-			maxRetainedBlkChunks = 48
+			maxRetainedRefChunks = 256
+			maxRetainedColChunks = 192
+			maxRetainedBlkChunks = 224
 		)
 		if a.refChunkIdx > 0 {
 			a.refChunks[a.refChunkIdx-1] = c.refSlab
@@ -635,17 +638,17 @@ func (c *CrossChunkReferenceCollector) initTable() {
 	if c.poolable {
 		a := c.getArena()
 		if len(a.table) == 0 {
-			a.table = make([]rcTableEntry, 1024)
+			a.table = make([]rcTableEntry, 8192)
 		}
 		c.table = a.table
 		if cap(a.vars) > len(c.vars) {
 			c.vars = append(a.vars[:0], c.vars...)
 			c.cols = append(a.cols[:0], c.cols...)
 		} else {
-			newVars := make([]*Var, len(c.vars), 128)
+			newVars := make([]*Var, len(c.vars), 4096)
 			copy(newVars, c.vars)
 			c.vars = newVars
-			newCols := make([]*ReferenceCollection, len(c.cols), 128)
+			newCols := make([]*ReferenceCollection, len(c.cols), 4096)
 			copy(newCols, c.cols)
 			c.cols = newCols
 		}
@@ -661,7 +664,7 @@ func (c *CrossChunkReferenceCollector) initTable() {
 	table := c.table
 	mask := uint32(len(table) - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -674,7 +677,7 @@ func (c *CrossChunkReferenceCollector) growTable() {
 	newTable := make([]rcTableEntry, newCap)
 	mask := uint32(newCap - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for newTable[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -690,7 +693,7 @@ func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceC
 	if c.table != nil {
 		table := c.table
 		mask := uint32(len(table) - 1)
-		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+		for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
 			e := table[slot]
 			if e.v == v {
 				return e.col
@@ -735,7 +738,7 @@ func (c *CrossChunkReferenceCollector) registerReferencesForNewVar(v *Var, col *
 		}
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -744,7 +747,7 @@ func (c *CrossChunkReferenceCollector) registerReferencesForNewVar(v *Var, col *
 		c.initTable()
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}

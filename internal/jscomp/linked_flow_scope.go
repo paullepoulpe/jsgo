@@ -50,12 +50,62 @@ func NewLinkedFlowScope(
 	scopes rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope],
 	syntacticScope *TypedScope,
 	functionScope *TypedScope) *LinkedFlowScope {
-	l := &LinkedFlowScope{}
-	l.inputProvider = inputProvider
-	l.scopes = scopes
-	l.syntacticScope = syntacticScope
-	l.functionScope = functionScope
-	return l
+	return &LinkedFlowScope{
+		inputProvider:  inputProvider,
+		scopes:         scopes,
+		syntacticScope: syntacticScope,
+		functionScope:  functionScope,
+	}
+}
+
+func newLinkedFlowScope(
+	inputProvider CompilerInputProvider,
+	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
+	syntacticScope *TypedScope,
+	functionScope *TypedScope) *LinkedFlowScope {
+	return NewLinkedFlowScope(inputProvider, scopes, syntacticScope, functionScope)
+}
+
+// Keep native map calls concrete while accepting other persistent-map
+// implementations through the exported constructors. Binary operations retain
+// PMap's requirement that both maps use the same implementation.
+func linkedFlowScopeMapGet[K, V any](m rhino.PMap[K, V], key K) V {
+	if native, ok := m.(*rhino.HamtPMap[K, V]); ok {
+		return native.Get(key)
+	}
+	return m.Get(key)
+}
+
+func linkedFlowScopeMapPlus[K, V any](m rhino.PMap[K, V], key K, value V) rhino.PMap[K, V] {
+	if native, ok := m.(*rhino.HamtPMap[K, V]); ok {
+		return native.PlusMap(key, value)
+	}
+	return m.Plus(key, value)
+}
+
+func linkedFlowScopeMapMinus[K, V any](m rhino.PMap[K, V], key K) rhino.PMap[K, V] {
+	if native, ok := m.(*rhino.HamtPMap[K, V]); ok {
+		return native.MinusMap(key)
+	}
+	return m.Minus(key)
+}
+
+func linkedFlowScopeMapReconcile[K, V any](left, right rhino.PMap[K, V], joiner rhino.PMap_Reconciler[K, V]) rhino.PMap[K, V] {
+	if a, ok := left.(*rhino.HamtPMap[K, V]); ok {
+		if b, ok := right.(*rhino.HamtPMap[K, V]); ok {
+			return a.ReconcileMap(b, joiner)
+		}
+	}
+	return left.Reconcile(right, joiner)
+}
+
+func linkedFlowScopeMapEquivalent[K, V any](left, right rhino.PMap[K, V], equivalent func(V, V) bool) bool {
+	if a, ok := left.(*rhino.HamtPMap[K, V]); ok {
+		if b, ok := right.(*rhino.HamtPMap[K, V]); ok {
+			return a.EquivalentMap(b, equivalent)
+		}
+	}
+	return left.Equivalent(right, equivalent)
 }
 
 // TrimScopes returns the scope map, trimmed to the common ancestor between
@@ -66,6 +116,13 @@ func NewLinkedFlowScope(
 //
 // Java: LinkedFlowScope.trimScopes(TypedScope)
 func (l *LinkedFlowScope) TrimScopes(scope *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	return l.trimScopesMap(scope)
+}
+
+func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	if native, ok := l.scopes.(*rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]); ok {
+		return l.trimNativeScopesMap(scope, native)
+	}
 	thisScope := l.syntacticScope
 	thatScope := scope
 	thisDepth := thisScope.GetDepth()
@@ -88,6 +145,38 @@ func (l *LinkedFlowScope) TrimScopes(scope *TypedScope) rhino.PMap[*TypedScope, 
 	return result
 }
 
+func (l *LinkedFlowScope) trimNativeScopesMap(scope *TypedScope, scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	thisScope := l.syntacticScope
+	thatScope := scope
+	if thisScope == thatScope || scopes.IsEmpty() {
+		return scopes
+	}
+	thisDepth := thisScope.GetDepth()
+	thatDepth := thatScope.GetDepth()
+	result := scopes
+	for thatDepth > thisDepth {
+		thatScope = thatScope.GetParent()
+		thatDepth--
+	}
+	for thisDepth > thatDepth {
+		result = result.MinusMap(thisScope)
+		if result.IsEmpty() {
+			return result
+		}
+		thisScope = thisScope.GetParent()
+		thisDepth--
+	}
+	for thisScope != thatScope && thisScope != nil && thatScope != nil {
+		result = result.MinusMap(thisScope)
+		if result.IsEmpty() {
+			return result
+		}
+		thisScope = thisScope.GetParent()
+		thatScope = thatScope.GetParent()
+	}
+	return result
+}
+
 // FlowsFromBottom: whether this flows from a bottom scope.
 //
 // Java: LinkedFlowScope.flowsFromBottom()
@@ -100,8 +189,8 @@ func (l *LinkedFlowScope) FlowsFromBottom() bool {
 // Java: LinkedFlowScope.createEntryLattice(CompilerInputProvider, TypedScope)
 func LinkedFlowScope_CreateEntryLattice(
 	inputProvider CompilerInputProvider, scope *TypedScope) *LinkedFlowScope {
-	return NewLinkedFlowScope(
-		inputProvider, rhino.HamtPMap_Empty[*TypedScope, *LinkedFlowScope_OverlayScope](), scope, scope)
+	return newLinkedFlowScope(
+		inputProvider, LinkedFlowScope_EMPTY_SCOPES, scope, scope)
 }
 
 // Java: LinkedFlowScope.inferSlotType(String, JSType)
@@ -111,9 +200,9 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowS
 	// Aggressively remove empty scopes to maintain a reasonable equivalence.
 	var newScopes rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope]
 	if !newScope.slots.IsEmpty() {
-		newScopes = l.scopes.Plus(scope.scope, newScope)
+		newScopes = linkedFlowScopeMapPlus(l.scopes, scope.scope, newScope)
 	} else {
-		newScopes = l.scopes.Minus(scope.scope)
+		newScopes = linkedFlowScopeMapMinus(l.scopes, scope.scope)
 	}
 	if newScopes != l.scopes {
 		return NewLinkedFlowScope(l.inputProvider, newScopes, l.syntacticScope, l.functionScope)
@@ -258,7 +347,7 @@ func (l *LinkedFlowScope) GetOverlayScopeForName(name string, create bool) *Link
 //
 // Java: LinkedFlowScope.getOverlayScopeForScope(TypedScope, boolean)
 func (l *LinkedFlowScope) GetOverlayScopeForScope(scope *TypedScope, create bool) *LinkedFlowScope_OverlayScope {
-	overlay := l.scopes.Get(scope)
+	overlay := linkedFlowScopeMapGet(l.scopes, scope)
 	if overlay == nil && create {
 		overlay = NewLinkedFlowScope_OverlayScope(scope)
 	}
@@ -290,7 +379,7 @@ func (l *LinkedFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.J
 func (l *LinkedFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
 	typedScope := scope.(*TypedScope)
 	if typedScope != l.syntacticScope {
-		return NewLinkedFlowScope(l.inputProvider, l.TrimScopes(typedScope), typedScope, l.functionScope)
+		return NewLinkedFlowScope(l.inputProvider, l.trimScopesMap(typedScope), typedScope, l.functionScope)
 	}
 	return l
 }
@@ -369,7 +458,7 @@ func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
 	} else {
 		functionScope = j.result.functionScope
 	}
-	joinedScopes := LinkedFlowScope_Join(j.result, linkedInput, common)
+	joinedScopes := linkedFlowScope_JoinMap(j.result, linkedInput, common)
 	if joinedScopes == j.result.scopes &&
 		common == j.result.syntacticScope &&
 		functionScope == j.result.functionScope {
@@ -413,6 +502,9 @@ func (l *LinkedFlowScope) Equals(other any) bool {
 	if !ok || that == nil {
 		return false
 	}
+	if l == that {
+		return true
+	}
 
 	// If two flow scopes are in the same function, then they could have
 	// two possible function scopes: the real one and the BOTTOM scope.
@@ -423,7 +515,7 @@ func (l *LinkedFlowScope) Equals(other any) bool {
 	// to propagate the entry lattice a little bit further than it
 	// really needs to. Everything will still come out ok.
 	return l.functionScope == that.functionScope &&
-		l.scopes.Equivalent(that.scopes, LinkedFlowScope_EqualScopes)
+		linkedFlowScopeMapEquivalent(l.scopes, that.scopes, LinkedFlowScope_EqualScopes)
 }
 
 // Java: LinkedFlowScope.equalScopes(OverlayScope, OverlayScope)
@@ -431,7 +523,7 @@ func LinkedFlowScope_EqualScopes(left *LinkedFlowScope_OverlayScope, right *Link
 	if left == right {
 		return true
 	}
-	return left.slots.Equivalent(right.slots, LinkedFlowScope_EqualSlots)
+	return linkedFlowScopeMapEquivalent(left.slots, right.slots, LinkedFlowScope_EqualSlots)
 }
 
 // LinkedFlowScope_EqualSlots determines whether two slots are meaningfully
@@ -450,54 +542,69 @@ func (l *LinkedFlowScope) HashCode() int32 {
 // Java: LinkedFlowScope.join(LinkedFlowScope, LinkedFlowScope, TypedScope)
 func LinkedFlowScope_Join(
 	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
-	return linkedA.
-		TrimScopes(commonParent).
-		Reconcile(
-			linkedB.TrimScopes(commonParent),
-			func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
-				var slotsA, slotsB rhino.PMap[string, *LinkedFlowScope_OverlaySlot]
+	return linkedFlowScope_JoinMap(linkedA, linkedB, commonParent)
+}
+
+func linkedFlowScope_JoinMap(
+	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	scopesA := linkedA.trimScopesMap(commonParent)
+	scopesB := linkedB.trimScopesMap(commonParent)
+	if scopesA == scopesB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
+		return scopesA
+	}
+	return linkedFlowScopeMapReconcile(
+		scopesA, scopesB,
+		func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
+			if scopeA == scopeB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
+				return scopeA
+			}
+			var slotsA, slotsB rhino.PMap[string, *LinkedFlowScope_OverlaySlot]
+			if scopeA != nil {
+				slotsA = scopeA.slots
+			} else {
+				slotsA = LinkedFlowScope_EMPTY_SLOTS
+			}
+			if scopeB != nil {
+				slotsB = scopeB.slots
+			} else {
+				slotsB = LinkedFlowScope_EMPTY_SLOTS
+			}
+			// TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
+			// for the purpose of (a) passing to the joined OverlayScope constructor, and
+			// (b) joining types only present in one scope.
+			var typedScopeA *TypedScope
+			if !linkedA.FlowsFromBottom() {
 				if scopeA != nil {
-					slotsA = scopeA.slots
+					typedScopeA = scopeA.scope
 				} else {
-					slotsA = LinkedFlowScope_EMPTY_SLOTS
+					typedScopeA = scopeB.scope
 				}
+			}
+			var typedScopeB *TypedScope
+			if !linkedB.FlowsFromBottom() {
 				if scopeB != nil {
-					slotsB = scopeB.slots
+					typedScopeB = scopeB.scope
 				} else {
-					slotsB = LinkedFlowScope_EMPTY_SLOTS
+					typedScopeB = scopeA.scope
 				}
-				// TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
-				// for the purpose of (a) passing to the joined OverlayScope constructor, and
-				// (b) joining types only present in one scope.
-				var typedScopeA *TypedScope
-				if !linkedA.FlowsFromBottom() {
-					if scopeA != nil {
-						typedScopeA = scopeA.scope
-					} else {
-						typedScopeA = scopeB.scope
-					}
+			}
+			bestScope := typedScopeA
+			if bestScope == nil {
+				bestScope = typedScopeB
+			}
+			if bestScope == nil {
+				if scopeA != nil {
+					bestScope = scopeA.scope
+				} else {
+					bestScope = scopeB.scope
 				}
-				var typedScopeB *TypedScope
-				if !linkedB.FlowsFromBottom() {
-					if scopeB != nil {
-						typedScopeB = scopeB.scope
-					} else {
-						typedScopeB = scopeA.scope
-					}
-				}
-				bestScope := typedScopeA
-				if bestScope == nil {
-					bestScope = typedScopeB
-				}
-				if bestScope == nil {
-					if scopeA != nil {
-						bestScope = scopeA.scope
-					} else {
-						bestScope = scopeB.scope
-					}
-				}
-				reconciledSlots := slotsA.Reconcile(
-					slotsB,
+			}
+			var reconciledSlots rhino.PMap[string, *LinkedFlowScope_OverlaySlot]
+			if slotsA == slotsB && typedScopeA == typedScopeB {
+				reconciledSlots = slotsA
+			} else {
+				reconciledSlots = linkedFlowScopeMapReconcile(
+					slotsA, slotsB,
 					func(slotKey string, slotA *LinkedFlowScope_OverlaySlot, slotB *LinkedFlowScope_OverlaySlot) *LinkedFlowScope_OverlaySlot {
 						// There are 5 different join cases:
 						// 1) The type is present in joinedScopeA, not in joinedScopeB,
@@ -567,14 +674,15 @@ func LinkedFlowScope_Join(
 						}
 						return NewLinkedFlowScope_OverlaySlot(name, joinedType)
 					})
-				if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
-					return scopeA
-				}
-				if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
-					return scopeB
-				}
-				return NewLinkedFlowScope_OverlayScopeWithSlots(bestScope, reconciledSlots)
-			})
+			}
+			if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
+				return scopeA
+			}
+			if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
+				return scopeB
+			}
+			return NewLinkedFlowScope_OverlayScopeWithSlots(bestScope, reconciledSlots)
+		})
 }
 
 // LinkedFlowScope_OverlayScope is the overlay of one syntactic scope.
@@ -583,29 +691,43 @@ type LinkedFlowScope_OverlayScope struct {
 	slots rhino.PMap[string, *LinkedFlowScope_OverlaySlot]
 }
 
+// Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
+func (o *LinkedFlowScope_OverlayScope) Equals(other any) bool {
+	that, ok := other.(*LinkedFlowScope_OverlayScope)
+	return ok && o == that
+}
+
 // Java: LinkedFlowScope.OverlayScope(TypedScope)
 func NewLinkedFlowScope_OverlayScope(scope *TypedScope) *LinkedFlowScope_OverlayScope {
-	o := &LinkedFlowScope_OverlayScope{}
-	o.scope = jutil.CheckNotNull(scope)
-	o.slots = LinkedFlowScope_EMPTY_SLOTS
-	return o
+	if native, ok := LinkedFlowScope_EMPTY_SLOTS.(*rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]); ok {
+		return newLinkedFlowScope_OverlayScopeWithSlots(scope, native)
+	}
+	return NewLinkedFlowScope_OverlayScopeWithSlots(scope, LinkedFlowScope_EMPTY_SLOTS)
 }
 
 // Java: LinkedFlowScope.OverlayScope(TypedScope, PMap<String, OverlaySlot>)
 func NewLinkedFlowScope_OverlayScopeWithSlots(
 	scope *TypedScope, slots rhino.PMap[string, *LinkedFlowScope_OverlaySlot]) *LinkedFlowScope_OverlayScope {
-	o := &LinkedFlowScope_OverlayScope{}
-	o.scope = jutil.CheckNotNull(scope)
-	o.slots = slots
-	return o
+	return &LinkedFlowScope_OverlayScope{
+		scope: jutil.CheckNotNull(scope),
+		slots: slots,
+	}
+}
+
+func newLinkedFlowScope_OverlayScopeWithSlots(
+	scope *TypedScope, slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]) *LinkedFlowScope_OverlayScope {
+	return NewLinkedFlowScope_OverlayScopeWithSlots(scope, slots)
 }
 
 // Java: LinkedFlowScope.OverlayScope.infer(String, JSType)
 func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *LinkedFlowScope_OverlayScope {
 	// TODO(sdh): variants that do or don't clobber properties (i.e. look up and modify instead)
-	slot := o.slots.Get(name)
+	slot := linkedFlowScopeMapGet(o.slots, name)
 	if slot != nil && base.JSCompObjects_Identical(type_, slot.type_) {
 		return o
+	}
+	if native, ok := o.slots.(*rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]); ok {
+		return newLinkedFlowScope_OverlayScopeWithSlots(o.scope, native.PlusMap(name, NewLinkedFlowScope_OverlaySlot(name, type_)))
 	}
 	return NewLinkedFlowScope_OverlayScopeWithSlots(o.scope, o.slots.Plus(name, NewLinkedFlowScope_OverlaySlot(name, type_)))
 }
@@ -615,7 +737,7 @@ func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *L
 //
 // Java: LinkedFlowScope.OverlayScope.getSlot(String)
 func (o *LinkedFlowScope_OverlayScope) GetSlot(name string) rhino.StaticTypedSlot {
-	slot := o.slots.Get(name)
+	slot := linkedFlowScopeMapGet(o.slots, name)
 	if slot != nil {
 		return slot
 	}
@@ -632,12 +754,18 @@ type LinkedFlowScope_OverlaySlot struct {
 	type_ rhino.JSType
 }
 
+// Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
+func (s *LinkedFlowScope_OverlaySlot) Equals(other any) bool {
+	that, ok := other.(*LinkedFlowScope_OverlaySlot)
+	return ok && s == that
+}
+
 // Java: LinkedFlowScope.OverlaySlot(String, JSType)
 func NewLinkedFlowScope_OverlaySlot(name string, type_ rhino.JSType) *LinkedFlowScope_OverlaySlot {
-	s := &LinkedFlowScope_OverlaySlot{}
-	s.name = name
-	s.type_ = type_
-	return s
+	return &LinkedFlowScope_OverlaySlot{
+		name:  name,
+		type_: type_,
+	}
 }
 
 // Java: LinkedFlowScope.OverlaySlot.getName()
@@ -670,4 +798,5 @@ func (s *LinkedFlowScope_OverlaySlot) GetScope() rhino.StaticScope {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
+var LinkedFlowScope_EMPTY_SCOPES *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] = rhino.HamtPMap_Empty[*TypedScope, *LinkedFlowScope_OverlayScope]()
 var LinkedFlowScope_EMPTY_SLOTS rhino.PMap[string, *LinkedFlowScope_OverlaySlot] = rhino.HamtPMap_Empty[string, *LinkedFlowScope_OverlaySlot]()

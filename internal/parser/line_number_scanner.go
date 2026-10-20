@@ -39,15 +39,22 @@ type LineNumberScanner struct {
 	// Last token position only: token/tree locations are immutable and nearby
 	// queries often repeat the same offset. Comments keep independent positions.
 	lastTokenPosition *SourcePosition
-	tokenPositions    jutil.Slab[SourcePosition]
-	tokenRanges       jutil.Slab[SourceRange]
+	arena             *ParseArena
 }
 
 // NewLineNumberScanner constructs a LineNumberScanner.
 //
 // Java: LineNumberScanner(SourceFile)
 func NewLineNumberScanner(sourceFile *SourceFile) *LineNumberScanner {
-	l := &LineNumberScanner{lastLine: -1, lastLineStart: -1, nextLineStart: 0}
+	return NewLineNumberScannerInArena(sourceFile, nil)
+}
+
+// NewLineNumberScannerInArena constructs a LineNumberScanner backed by arena.
+func NewLineNumberScannerInArena(sourceFile *SourceFile, arena *ParseArena) *LineNumberScanner {
+	if arena == nil {
+		arena = &ParseArena{}
+	}
+	l := &LineNumberScanner{lastLine: -1, lastLineStart: -1, nextLineStart: 0, arena: arena}
 	l.sourceFile = sourceFile
 	l.contents = sourceFile.ContentsUTF16
 	l.sourceLength = len(l.contents)
@@ -81,7 +88,7 @@ func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *Source
 		if p := l.lastTokenPosition; p != nil && p.Offset == offset {
 			return p
 		}
-		p := l.tokenPositions.New()
+		p := l.arena.positions.New()
 		p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
 		l.lastTokenPosition = p
 		return p
@@ -115,7 +122,7 @@ func (l *LineNumberScanner) getTokenSourcePosition(offset int) *SourcePosition {
 func (l *LineNumberScanner) getTokenSourceRange(startOffset, endOffset int) *SourceRange {
 	start := l.getTokenSourcePosition(startOffset)
 	end := l.getTokenSourcePosition(endOffset)
-	r := l.tokenRanges.New()
+	r := l.arena.ranges.New()
 	r.Start, r.End = start, end
 	return r
 }

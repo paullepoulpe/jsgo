@@ -536,7 +536,17 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 	// To be explicitly set to false if the node is not typeable.
 	typeable := true
 
-	tc.validator.ExpectWellFormedTemplatizedType(n)
+	if nodeType := n.GetJSType(); nodeType != nil {
+		switch nodeType.GetTypeClass() {
+		case rhino.JSTypeClass_ENUM_ELEMENT,
+			rhino.JSTypeClass_FUNCTION,
+			rhino.JSTypeClass_NAMED,
+			rhino.JSTypeClass_UNION,
+			rhino.JSTypeClass_TEMPLATIZED,
+			rhino.JSTypeClass_TEMPLATE:
+			tc.validator.ExpectWellFormedTemplatizedType(n)
+		}
+	}
 
 	switch n.GetToken() {
 	case rhino.Token_CAST:
@@ -878,17 +888,19 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		tc.EnsureTyped(n)
 	}
 
-	// Visit the body of blockless arrow functions
-	if NodeUtil_IsBlocklessArrowFunctionResult(n) {
-		tc.VisitImplicitReturnExpression(t, n)
-	}
+	if p := n.GetParent(); p != nil {
+		// Visit the body of blockless arrow functions
+		if p.IsFunction() && n == p.GetLastChild() && !n.IsBlock() {
+			tc.VisitImplicitReturnExpression(t, n)
+		}
 
-	// Visit the loop initializer of a for-of loop
-	// We do this check here, instead of when visiting FOR_OF, in order to get the correct
-	// TypedScope.
-	if (n.GetParent().IsForOf() || n.GetParent().IsForAwaitOf()) &&
-		n.GetParent().GetFirstChild() == n {
-		tc.CheckForOfTypes(t, n.GetParent())
+		// Visit the loop initializer of a for-of loop
+		// We do this check here, instead of when visiting FOR_OF, in order to get the correct
+		// TypedScope.
+		if (p.IsForOf() || p.IsForAwaitOf()) &&
+			p.GetFirstChild() == n {
+			tc.CheckForOfTypes(t, p)
+		}
 	}
 
 	// Don't count externs since the user's code may not even use that part.
@@ -3379,15 +3391,18 @@ func (tc *TypeCheck) GetNativeType(typeId rhino.JSTypeNative) rhino.JSType {
 //
 // Java: TypeCheck.checkJsdocInfoContainsObjectWithBadKey(Node)
 func (tc *TypeCheck) CheckJsdocInfoContainsObjectWithBadKey(n *rhino.Node) {
-	if n.GetJSDocInfo() != nil {
-		info := n.GetJSDocInfo()
-		tc.CheckTypeContainsObjectWithBadKey(n, info.GetType())
-		tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
-		tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
-		if info.GetParameterCount() > 0 {
-			for param := range info.GetParameterNames().All() {
-				tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterType(param))
-			}
+	if info := n.GetJSDocInfo(); info != nil {
+		tc.checkJsdocInfoContainsObjectWithBadKeySlow(n, info)
+	}
+}
+
+func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n *rhino.Node, info *rhino.JSDocInfo) {
+	tc.CheckTypeContainsObjectWithBadKey(n, info.GetType())
+	tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
+	tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
+	if info.GetParameterCount() > 0 {
+		for param := range info.GetParameterNames().All() {
+			tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterType(param))
 		}
 	}
 }
@@ -3665,24 +3680,16 @@ func NewTypeCheck_DebugTypeLogger(outer *TypeCheck) *TypeCheck_DebugTypeLogger {
 
 // Java: TypeCheck.DebugTypeLogger.maybeStartLoggingAt(Node)
 func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n *rhino.Node) {
-	// We don't log outside debug mode.
-	if !l.outer.compiler.IsDebugLoggingEnabled() {
-		return
-	}
-
-	// We're already logging.
-	if l.parentNode != nil {
+	// We don't log outside debug mode, or if we're already logging.
+	if l.typeLogFile == nil || l.parentNode != nil {
 		return
 	}
 
 	// We only start logging on @logTypeInCompiler.
 	info := n.GetJSDocInfo()
-	if info == nil || !info.GetLogTypeInCompiler() {
-		return
+	if info != nil && info.GetLogTypeInCompiler() {
+		l.parentNode = n
 	}
-
-	// Otherwise start logging here.
-	l.parentNode = n
 }
 
 // Java: TypeCheck.DebugTypeLogger.stopLoggingIfThisIsWhereWeStarted(Node)

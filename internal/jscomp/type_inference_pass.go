@@ -255,6 +255,12 @@ func (p *TypeInferencePass) ComputeCfg(n *rhino.Node) ControlFlowGraph[*rhino.No
 // Inference consumes this graph before the next scope; public ComputeCfg owns
 // its result independently of this private cache.
 func (p *TypeInferencePass) computeReusableCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
+	if p.reusableCFG.nodes.Size() > 64 {
+		p.reusableCFG.nodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
+	}
+	if p.reusableCFA.astPositionCounter > 128 {
+		p.reusableCFA.astPosition = nil
+	}
 	return p.reusableCFA.ComputeReusableCfg(
 		p.compiler,
 		n,

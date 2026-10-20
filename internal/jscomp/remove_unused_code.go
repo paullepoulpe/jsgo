@@ -103,15 +103,28 @@ type propRemovableList struct {
 	tail *RemoveUnusedCode_RemovableBase
 }
 
+type rucVarCacheEntry struct {
+	v    *Var
+	info RemoveUnusedCode_VarInfo
+}
+
+func rucVarCacheIdx(v *Var) uint32 {
+	return (uint32(uintptr(unsafe.Pointer(v))>>4) * 0x9e3779b1) >> 21
+}
+
 type removeUnusedCodeArena struct {
 	worklist     []RemoveUnusedCode_Continuation
 	worklistHead int
 	worklistSize int
 
-	varBuckets []*RemoveUnusedCode_RealVarInfo
-	varInfos   []*RemoveUnusedCode_RealVarInfo
+	varBuckets  []*RemoveUnusedCode_RealVarInfo
+	varInfos    []*RemoveUnusedCode_RealVarInfo
+	lastVar     *Var
+	lastVarInfo RemoveUnusedCode_VarInfo
+	varPtrCache [2048]rucVarCacheEntry
 
 	pinnedPropertyNames map[string]struct{}
+	lastPinnedProp      string
 	propRemovables      map[string]propRemovableList
 	propRemovableKeys   []string
 
@@ -138,16 +151,24 @@ func (a *removeUnusedCodeArena) reset() {
 	a.worklistHead = 0
 	a.worklistSize = 0
 
+	a.lastVar = nil
+	a.lastVarInfo = nil
+	clear(a.varPtrCache[:])
 	if len(a.varBuckets) > 0 {
-		mask := uint32(len(a.varBuckets) - 1)
-		for _, info := range a.varInfos {
-			a.varBuckets[info.hash&mask] = nil
+		if len(a.varInfos)*8 < len(a.varBuckets) {
+			mask := uint32(len(a.varBuckets) - 1)
+			for _, info := range a.varInfos {
+				a.varBuckets[info.hash&mask] = nil
+			}
+		} else {
+			clear(a.varBuckets)
 		}
 	}
 	clear(a.varInfos)
 	a.varInfos = a.varInfos[:0]
 
 	clear(a.pinnedPropertyNames)
+	a.lastPinnedProp = ""
 	clear(a.propRemovables)
 	clear(a.propRemovableKeys)
 	a.propRemovableKeys = a.propRemovableKeys[:0]
@@ -175,7 +196,7 @@ var removeUnusedCodeArenaPool = sync.Pool{
 	New: func() any {
 		return &removeUnusedCodeArena{
 			worklist:               make([]RemoveUnusedCode_Continuation, 512),
-			varBuckets:             make([]*RemoveUnusedCode_RealVarInfo, 4096),
+			varBuckets:             make([]*RemoveUnusedCode_RealVarInfo, 16384),
 			varInfos:               make([]*RemoveUnusedCode_RealVarInfo, 0, 2048),
 			pinnedPropertyNames:    make(map[string]struct{}, 256),
 			propRemovables:         make(map[string]propRemovableList, 256),
@@ -254,6 +275,7 @@ type RemoveUnusedCode struct {
 	preserveFunctionExpressionNames bool
 
 	externProperties *jutil.LinkedHashSet[string]
+	accessorSummary  *AccessorSummary
 	// Non-nil only when the exported implicit-property list differs from its default.
 	customImplicitProperties map[string]struct{}
 
@@ -268,7 +290,10 @@ type RemoveUnusedCode struct {
 	// static methods on global names such as "Array.from" and "Math.fround",
 	// and instance properties such as "String.prototype.repeat" and
 	// "Promise.prototype.finally".
-	polyfills *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
+	polyfills       *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
+	hasPolyfills    bool
+	polyfillLenMask [256]uint64
+	polyfillEndMask [256]uint64
 
 	guardedUsages         *jutil.LinkedHashSet[*rhino.Node]
 	guardedUsagesComputed bool
@@ -306,11 +331,13 @@ func isImplicitlyUsedProperty(name string) bool {
 
 // Java: RemoveUnusedCode(Builder)
 func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
+	sc := NewSyntacticScopeCreator(builder.compiler)
+	sc.EnableArenaPool()
 	r := &RemoveUnusedCode{
 		compiler:                        builder.compiler,
 		astAnalyzer:                     builder.compiler.GetAstAnalyzer(),
 		codingConvention:                builder.compiler.GetCodingConvention(),
-		scopeCreator:                    NewSyntacticScopeCreator(builder.compiler),
+		scopeCreator:                    sc,
 		removeLocalVars:                 builder.removeLocalVars,
 		removeGlobals:                   builder.removeGlobals,
 		preserveFunctionExpressionNames: builder.preserveFunctionExpressionNames,
@@ -531,6 +558,7 @@ func RemoveUnusedCode_RemovalLogRecord_GetLoggableFunctionNameSupplier(argList *
 func (r *RemoveUnusedCode) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	r.externProperties = r.compiler.GetExternProperties()
+	r.accessorSummary = r.compiler.GetAccessorSummary()
 
 	arena := acquireRUCArena()
 	r.removeUnusedCodeArena = *arena
@@ -706,7 +734,6 @@ func hasBlockScopedDeclarationsChild(n *rhino.Node) bool {
 //
 // Java: RemoveUnusedCode.traverseNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
-	parent := n.GetParent()
 	type_ := n.GetToken()
 	switch type_ {
 	case rhino.Token_CATCH:
@@ -723,7 +750,7 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 						AddContinuation(NewRemoveUnusedCode_Continuation(r, n, scope)).
 						BuildFunctionDeclaration(n)
 				varInfo.AddRemovable(functionDeclaration)
-				if parent.IsExport() {
+				if n.GetParent().IsExport() {
 					varInfo.SetIsExplicitlyNotRemovable(func() string { return "exported class" })
 				}
 			} else {
@@ -785,6 +812,7 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 		// The only cases that should reach this point are parameter declarations and references
 		// to names. The name node does not have children in these cases.
 		jutil.CheckState(!n.HasChildren())
+		parent := n.GetParent()
 		// the parameter declaration is not a read of the name
 		if !parent.IsParamList() {
 			// var|let|const name;
@@ -825,6 +853,37 @@ func (r *RemoveUnusedCode) TraverseInstanceof(instanceofNode *rhino.Node, scope 
 	}
 }
 
+func (r *RemoveUnusedCode) addPolyfillMask(name string) {
+	r.hasPolyfills = true
+	if len(name) > 0 {
+		shift := uint(len(name))
+		if shift >= 64 {
+			shift = 63
+		}
+		mask := uint64(1) << shift
+		r.polyfillLenMask[name[0]] |= mask
+		r.polyfillEndMask[name[len(name)-1]] |= mask
+	} else {
+		r.polyfillLenMask[0] |= 1
+		r.polyfillEndMask[0] |= 1
+	}
+}
+
+func (r *RemoveUnusedCode) mightHavePolyfill(name string) bool {
+	if !r.hasPolyfills {
+		return false
+	}
+	if len(name) == 0 {
+		return (r.polyfillLenMask[0] & 1) != 0
+	}
+	shift := uint(len(name))
+	if shift >= 64 {
+		shift = 63
+	}
+	mask := uint64(1) << shift
+	return (r.polyfillLenMask[name[0]]&mask) != 0 && (r.polyfillEndMask[name[len(name)-1]]&mask) != 0
+}
+
 // TraverseNormalOrOptChainGetProp traverses `expr.prop` or `expr?.prop`.
 //
 // Note that this method is called only for RHS nodes. Property references
@@ -840,7 +899,7 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp *rhino.Node, 
 	objectNode := getProp.GetFirstChild()
 	propertyName := getProp.GetString()
 
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
+	if r.mightHavePolyfill(propertyName) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
 		for info := range r.polyfills.Get(propertyName).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(getProp)
@@ -972,15 +1031,16 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode *rhino.Node
 
 // Java: RemoveUnusedCode.traverseNameNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNameNode(n *rhino.Node, scope *Scope) RemoveUnusedCode_VarInfo {
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(n.GetString()) {
-		for info := range r.polyfills.Get(n.GetString()).All() {
+	name := n.GetString()
+	if r.mightHavePolyfill(name) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(name) {
+		for info := range r.polyfills.Get(name).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(n)
 			}
 		}
 	}
 
-	return r.TraverseVar(r.GetVarForNameNode(n, scope))
+	return r.TraverseVar(jutil.CheckNotNullMsg1(scope.GetVar(name), "%s", n))
 }
 
 // Java: RemoveUnusedCode.traverseCall(Node, Scope)
@@ -1006,7 +1066,9 @@ func (r *RemoveUnusedCode) TraverseCall(callNode *rhino.Node, scope *Scope) {
 		if r.polyfills == nil {
 			r.polyfills = jutil.HashMultimap_Create[string, RemoveUnusedCode_PolyfillInfo]()
 		}
-		r.polyfills.Put(info.GetRemoveUnusedCode_PolyfillInfoBase().key, info)
+		key := info.GetRemoveUnusedCode_PolyfillInfoBase().key
+		r.addPolyfillMask(key)
+		r.polyfills.Put(key, info)
 		// Only traverse the callee (to mark it as used).  The arguments may be traversed later.
 		r.TraverseNode(callNode.GetFirstChild(), scope)
 	} else if NodeUtil_IsGoogWeakUsageCall(callNode) &&
@@ -1794,17 +1856,28 @@ func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
 }
 
 func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
+	if propertyName == r.lastPinnedProp && propertyName != "" {
+		return true
+	}
 	if r.customImplicitProperties == nil {
 		if isImplicitlyUsedProperty(propertyName) {
+			r.lastPinnedProp = propertyName
 			return true
 		}
 	} else if _, ok := r.customImplicitProperties[propertyName]; ok {
+		r.lastPinnedProp = propertyName
 		return true
 	}
 	if _, ok := r.pinnedPropertyNames[propertyName]; ok {
+		r.lastPinnedProp = propertyName
 		return true
 	}
-	return r.externProperties != nil && r.externProperties.Contains(propertyName)
+	if r.externProperties != nil && r.externProperties.Contains(propertyName) {
+		r.pinnedPropertyNames[propertyName] = struct{}{}
+		r.lastPinnedProp = propertyName
+		return true
+	}
+	return false
 }
 
 // Java: RemoveUnusedCode.markPropertyNameAsPinned(String)
@@ -1813,6 +1886,7 @@ func (r *RemoveUnusedCode) MarkPropertyNameAsPinned(propertyName string) {
 		return
 	}
 	r.pinnedPropertyNames[propertyName] = struct{}{}
+	r.lastPinnedProp = propertyName
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
 	if list, ok := r.propRemovables[propertyName]; ok {
@@ -1870,8 +1944,15 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable RemoveUnusedC
 func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop *rhino.Node, usage AccessorSummary_PropertyAccessKind) bool {
 	// Other node types may make sense in the future.
 	jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
+	if r.assumeGettersArePure && !usage.HasSetter() {
+		return false
+	}
 	propName := getprop.GetString()
-	recorded := r.compiler.GetAccessorSummary().GetKind(propName)
+	summary := r.accessorSummary
+	if summary == nil {
+		summary = r.compiler.GetAccessorSummary()
+	}
+	recorded := summary.GetKind(propName)
 	if (recorded.HasGetter() && usage.HasGetter() && !r.assumeGettersArePure) ||
 		(recorded.HasSetter() && usage.HasSetter()) {
 		r.MarkPropertyNameAsPinned(propName)
@@ -2003,7 +2084,9 @@ func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList *rhino.No
 //
 // Java: RemoveUnusedCode.traverseVar(Var)
 func (r *RemoveUnusedCode) TraverseVar(var_ *Var) RemoveUnusedCode_VarInfo {
-	jutil.CheckNotNull(var_)
+	if var_ == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	if r.removeLocalVars && var_.IsArguments() {
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
@@ -2047,22 +2130,17 @@ func RemoveUnusedCode_NameOfParam(param *rhino.Node) *rhino.Node {
 	}
 }
 
-func hashVarKey(s string, scopeRoot *rhino.Node) uint32 {
-	h := uint32(2166136261)
-	for i := 0; i < len(s); i++ {
-		h ^= uint32(s[i])
-		h *= 16777619
-	}
-	p := uint64(uintptr(unsafe.Pointer(scopeRoot)))
-	p ^= p >> 33
-	p *= 0xff51afd7ed558ccd
-	p ^= p >> 33
-	return h ^ uint32(p)
+func hashVar(v *Var) uint32 {
+	h := uint32(v.HashCode())
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	h ^= h >> 13
+	return h
 }
 
 func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 	r.varInfos = append(r.varInfos, v)
-	if len(r.varInfos)*4 > len(r.varBuckets)*3 {
+	if len(r.varInfos)*4 > len(r.varBuckets)*3 && len(r.varBuckets) < 262144 {
 		newCap := len(r.varBuckets) * 2
 		newBuckets := make([]*RemoveUnusedCode_RealVarInfo, newCap)
 		mask := uint32(newCap - 1)
@@ -2088,50 +2166,71 @@ func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 //
 // Java: RemoveUnusedCode.getVarInfo(Var)
 func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
-	jutil.CheckNotNull(var_)
-	isGlobal := var_.IsGlobal()
-	name := var_.GetName()
+	if var_ == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
+			name := var_.GetName()
 			r.unremovableLog.LogSupplier(func() string { return name + ": extern" })
 		}
 		return r.canonicalUnremovableVarInfo
-	} else if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
+	}
+	isGlobal := var_.IsGlobal()
+	name := var_.GetName()
+	// Coding conventions are extensible and may classify each lookup differently.
+	// Preserve their callback before arguments handling or private cache hits.
+	if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
 		if r.unremovableLog.IsLogging() {
 			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
 		}
 		return r.canonicalUnremovableVarInfo
-	} else if var_.IsArguments() {
+	}
+	if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
-	} else {
-		scopeRoot := var_.GetScopeRoot()
-		h := hashVarKey(name, scopeRoot)
-		if len(r.varBuckets) == 0 {
-			r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 1024)
-		}
-		mask := uint32(len(r.varBuckets) - 1)
-		for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
-			if cur.var_ == var_ || (cur.scopeRoot == scopeRoot && cur.hash == h && cur.varName == name) {
-				return cur
-			}
-		}
-
-		varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, scopeRoot, name, h)
-		if var_.GetParentNode().IsParamList() {
-			varInfo.SetHasNonLocalOrNonLiteralValue()
-		}
-		// Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because each
-		// varInfo needs to track what value is assigned to it for the purpose of correctly allowing
-		// or preventing removal of properties set on it.
-		if !r.removeGlobals && isGlobal {
-			varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing globals" })
-		} else if !r.removeLocalVars && !isGlobal {
-			varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
-		}
-		r.putVarInfo(varInfo)
-		return varInfo
 	}
+	if var_ == r.lastVar {
+		return r.lastVarInfo
+	}
+	cacheIdx := rucVarCacheIdx(var_)
+	if slot := &r.varPtrCache[cacheIdx]; slot.v == var_ {
+		r.lastVar = var_
+		r.lastVarInfo = slot.info
+		return slot.info
+	}
+	scopeRoot := var_.GetScopeRoot()
+	h := hashVar(var_)
+	if len(r.varBuckets) == 0 {
+		r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 16384)
+	}
+	mask := uint32(len(r.varBuckets) - 1)
+	for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
+		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && cur.varName == name) {
+			r.lastVar = var_
+			r.lastVarInfo = cur
+			r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: cur}
+			return cur
+		}
+	}
+
+	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, scopeRoot, name, h)
+	if var_.GetParentNode().IsParamList() {
+		varInfo.SetHasNonLocalOrNonLiteralValue()
+	}
+	// Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because each
+	// varInfo needs to track what value is assigned to it for the purpose of correctly allowing
+	// or preventing removal of properties set on it.
+	if !r.removeGlobals && isGlobal {
+		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing globals" })
+	} else if !r.removeLocalVars && !isGlobal {
+		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
+	}
+	r.putVarInfo(varInfo)
+	r.lastVar = var_
+	r.lastVarInfo = varInfo
+	r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: varInfo}
+	return varInfo
 }
 
 // RemoveUnreferencedVarsAndPolyfills removes any vars in the scope that were
@@ -2197,6 +2296,14 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 		}
 		for _, polyfill := range removed {
 			r.polyfills.Remove(polyfill.GetRemoveUnusedCode_PolyfillInfoBase().key, polyfill)
+		}
+		if len(removed) > 0 {
+			r.hasPolyfills = false
+			r.polyfillLenMask = [256]uint64{}
+			r.polyfillEndMask = [256]uint64{}
+			for key := range r.polyfills.KeySet() {
+				r.addPolyfillMask(key)
+			}
 		}
 	}
 }
@@ -3581,14 +3688,12 @@ func (c *RemoveUnusedCode_ClassSetupCall) String() string {
 
 // Java: RemoveUnusedCode.alreadyRemoved(Node)
 func RemoveUnusedCode_AlreadyRemoved(n *rhino.Node) bool {
-	parent := n.GetParent()
-	if parent == nil {
-		return true
+	for parent := n.GetParent(); parent != nil; parent = parent.GetParent() {
+		if parent.IsRoot() {
+			return false
+		}
 	}
-	if parent.IsRoot() {
-		return false
-	}
-	return RemoveUnusedCode_AlreadyRemoved(parent)
+	return true
 }
 
 // RemoveUnusedCode_VarInfo tracks whether a variable is removable or not,

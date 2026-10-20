@@ -23,11 +23,20 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func rcHashVarPtr(v *Var) uint32 {
+	x := uint64(uintptr(unsafe.Pointer(v)) >> 4)
+	x ^= x >> 33
+	x *= 0xff51afd7ed558ccd
+	x ^= x >> 33
+	return uint32(x)
+}
 
 type scopedVarKey struct {
 	scopeRoot *rhino.Node
@@ -53,7 +62,7 @@ type referenceCollectorArena struct {
 	argumentsRefs map[*rhino.Node]*ReferenceCollection
 }
 
-var cachedRCArena atomic.Pointer[referenceCollectorArena]
+var cachedRCArenas [2]atomic.Pointer[referenceCollectorArena]
 
 var referenceCollectorArenaPool = sync.Pool{
 	New: func() any {
@@ -62,15 +71,19 @@ var referenceCollectorArenaPool = sync.Pool{
 }
 
 func acquireRCArena() *referenceCollectorArena {
-	if a := cachedRCArena.Swap(nil); a != nil {
-		return a
+	for i := range cachedRCArenas {
+		if a := cachedRCArenas[i].Swap(nil); a != nil {
+			return a
+		}
 	}
 	return referenceCollectorArenaPool.Get().(*referenceCollectorArena)
 }
 
 func releaseRCArena(a *referenceCollectorArena) {
-	if cachedRCArena.CompareAndSwap(nil, a) {
-		return
+	for i := range cachedRCArenas {
+		if cachedRCArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	referenceCollectorArenaPool.Put(a)
 }
@@ -187,6 +200,9 @@ func NewReferenceCollectorWithVarFilter(
 
 func (c *ReferenceCollector) enableArenaPool() {
 	c.poolable = true
+	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
+		sc.EnableArenaPool()
+	}
 }
 
 func (c *ReferenceCollector) getArena() *referenceCollectorArena {
@@ -206,11 +222,11 @@ func (c *ReferenceCollector) release() {
 	}
 	c.arena = nil
 	if len(c.table) > 0 && len(c.vars) > 0 {
-		if len(c.table) <= 524288 {
+		if len(c.table) <= 2097152 {
 			if len(c.vars)*16 < len(c.table) {
 				mask := uint32(len(c.table) - 1)
 				for _, kv := range c.vars {
-					slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+					slot := rcHashVarPtr(kv) & mask
 					for c.table[slot].v != nil {
 						c.table[slot] = rcTableEntry{}
 						slot = (slot + 1) & mask
@@ -226,7 +242,7 @@ func (c *ReferenceCollector) release() {
 	}
 	c.table = nil
 	if cap(c.vars) > len(c.varsBuf) {
-		if cap(c.vars) <= 262144 {
+		if cap(c.vars) <= 1048576 {
 			clear(c.vars)
 			a.vars = c.vars[:0]
 			clear(c.cols)
@@ -257,9 +273,9 @@ func (c *ReferenceCollector) release() {
 	}
 	c.argumentsRefs = nil
 	const (
-		maxRetainedRefChunks = 80
-		maxRetainedColChunks = 48
-		maxRetainedBlkChunks = 48
+		maxRetainedRefChunks = 256
+		maxRetainedColChunks = 192
+		maxRetainedBlkChunks = 224
 	)
 	if a.refChunkIdx > 0 {
 		a.refChunks[a.refChunkIdx-1] = c.refSlab
@@ -467,17 +483,17 @@ func (c *ReferenceCollector) initTable() {
 	if c.poolable {
 		a := c.getArena()
 		if len(a.table) == 0 {
-			a.table = make([]rcTableEntry, 1024)
+			a.table = make([]rcTableEntry, 8192)
 		}
 		c.table = a.table
 		if cap(a.vars) > len(c.vars) {
 			c.vars = append(a.vars[:0], c.vars...)
 			c.cols = append(a.cols[:0], c.cols...)
 		} else {
-			newVars := make([]*Var, len(c.vars), 128)
+			newVars := make([]*Var, len(c.vars), 4096)
 			copy(newVars, c.vars)
 			c.vars = newVars
-			newCols := make([]*ReferenceCollection, len(c.cols), 128)
+			newCols := make([]*ReferenceCollection, len(c.cols), 4096)
 			copy(newCols, c.cols)
 			c.cols = newCols
 		}
@@ -493,7 +509,7 @@ func (c *ReferenceCollector) initTable() {
 	table := c.table
 	mask := uint32(len(table) - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -506,7 +522,7 @@ func (c *ReferenceCollector) growTable() {
 	newTable := make([]rcTableEntry, newCap)
 	mask := uint32(newCap - 1)
 	for i, kv := range c.vars {
-		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		slot := rcHashVarPtr(kv) & mask
 		for newTable[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -521,7 +537,7 @@ func (c *ReferenceCollector) growTable() {
 func (c *ReferenceCollector) tableGet(v *Var) *ReferenceCollection {
 	table := c.table
 	mask := uint32(len(table) - 1)
-	for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+	for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
 		e := table[slot]
 		if e.v == v {
 			return e.col
@@ -562,7 +578,8 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	if c.table != nil {
 		table := c.table
 		mask := uint32(len(table) - 1)
-		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+		h := rcHashVarPtr(v)
+		for slot := h & mask; ; slot = (slot + 1) & mask {
 			e := table[slot]
 			if e.v == v {
 				c.lastVar = v
@@ -574,7 +591,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 					c.growTable()
 					table = c.table
 					mask = uint32(len(table) - 1)
-					slot = uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+					slot = h & mask
 					for table[slot].v != nil {
 						slot = (slot + 1) & mask
 					}
@@ -602,7 +619,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 		c.initTable()
 		table := c.table
 		mask := uint32(len(table) - 1)
-		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		slot := rcHashVarPtr(v) & mask
 		for table[slot].v != nil {
 			slot = (slot + 1) & mask
 		}
@@ -856,8 +873,19 @@ func (t referenceCollector_staticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
 
 // Java: ReferenceCollector.maybeJumpToHoistedFunction(Var, NodeTraversal)
 func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
-	fnNode := var_.GetParentNode()
-	if fnNode == nil || !fnNode.IsFunction() || !NodeUtil_IsHoistedFunctionDeclaration(fnNode) {
+	nameNode := var_.nameNode
+	if nameNode == nil {
+		return
+	}
+	fnNode := nameNode.GetParent()
+	if fnNode == nil || !fnNode.IsFunction() {
+		return
+	}
+	c.maybeJumpToHoistedFunctionSlow(var_, fnNode, t)
+}
+
+func (c *ReferenceCollector) maybeJumpToHoistedFunctionSlow(var_ *Var, fnNode *rhino.Node, t *NodeTraversal) {
+	if !NodeUtil_IsHoistedFunctionDeclaration(fnNode) {
 		return
 	}
 	varScope := var_.getScopeS()
