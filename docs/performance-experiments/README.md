@@ -1,22 +1,29 @@
 # Performance experiment record
 
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
-PR #23 is synchronized with main `5de6e335`. On the capped ADVANCED bundle,
-three settled, independently restarted JVM cohorts give **Java/Go time
-1.2269** (95% cohort interval 1.2096–1.2534) and **Java/Go peak RSS 3.7956**
-(3.4900–4.0768). Go takes **18.5% less time** and uses **73.7% less peak RSS**;
-all 15 alternating pairs match output. This win belongs to landed main
-changes. The full `5de6e335` normal suite passes 29,508 checks; genuine J2CL,
-Soy, protobuf and 32-chunk byte gates pass. Broader performance and live-Java
-parity work remains open. The intervening `289058de` also passed 29,508 normal
-checks. Earlier baseline
-and factor results below retain their original sources and cohorts.
-The raw evidence and recoverable source snapshots are now published. The sections below
-preserve the completed October 19 investigation and its original cohorts.
+The strongest completed typed comparison (`1fe9acbb`) uses three independently
+restarted, settled JVM cohorts and 30 alternating byte-identical pairs:
+**Java/Go time 1.1079 and peak RSS 2.1474**, or 9.74% less Go time and 53.43%
+less Go RSS. This is one workload/host and Java21, not broad JVM superiority.
+The subsequent `42aaa853` Go-only screen improves typed time about3.4% versus
+that old Go build; historical Java times are not mixed with new Go clocks.
+
+The next integration `3a996604` passes the complete normal suite: 3,857 tests
+passed, with37 existing skips, across575 effective files and21 packages. Latest
+main `e5d0987a` is integrated locally at `4159dc5b`, source-reviewed with runtime,
+strict CLI parity and fresh timing still pending. Compiler code on PR23 stays
+at its earlier verified integration until those gates pass. The measured bare
+Node64 redesign regresses typed/bundle time by5.3%/8.1% and is not promoted.
+[The v9 record](round4-publication-v9.json) and [80-state source manifest](round4-source-manifest-v9.json)
+preserve the experiment, failed attempts, new source fixes and pending plans.
+
+The sections below preserve the completed October19 investigation and its
+original cohorts. Their statements about final workload results and paused work
+refer to that historical cut; the continued October20 work is documented above.
 
 This publishes the saved experiments through the final clean-main design/thread screens and requested wrap-up, rounds20–21 (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.
 
-**Warm Java has not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
+**Historical October19 cut: warm Java had not been beaten across the workloads. The 3.7% figure was the latest isolated typed-app improvement, not the overall improvement. No exhaustive search or proof that further gains are impossible is claimed.** This PR publishes evidence and reproduction material; prototype compiler changes in archives are not applied to the PR's compiler/library tree.
 
 ## Latest-main synchronization (2026-10-19)
 

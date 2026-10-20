@@ -236,3 +236,31 @@ Then prove actual ordinary CLI activation/optimized source bytes and remaining
 fragment/fallback work, including N1/N2 and race gates. Only afterward compare
 paired default-GC CLI time and peak RSS independently. No cached-worker baseline,
 GC tuning, semantic shortcut or speed prediction is implied by these ideas.
+
+
+### Latest-main checkpoint: e5d0987a / 4159dc5b
+
+The bare Node64/cap128 experiment is now **measured and rejected for promotion**:
+mean paired elapsed ratios are 1.053216 typed and 1.080983 bundle; peak-RSS ratios
+are 1.032740 and 1.017659. All sixteen rows match the Java bytes, four balanced
+pairs per task, default runtime, actual 4 GiB/two-CPU caps. Complete codegen,
+failed infrastructure attempts and stopped/OOM evidence are in records v9.
+Header size alone did not predict compiler speed or RSS.
+
+Open follow-ups remain source-only: specialize common cold-field setters and
+hoist template decoding without changing value-copy/nonzero-init/panic behavior;
+measure cap127 allocator geometry; rebase container-growth and traversal factors;
+and run a metadata-only scope-pool census only if new profiles still justify it.
+The private ArrayList pilot targets only about 0.24%/0.12% of old sampled bytes
+and can increase partially filled-block retention, so it is lower priority.
+No modeled allocation reduction is an elapsed/RSS gain until measured.
+
+Two newer upstream rounds changed scopes, parser arenas, streaming output,
+template maps, type caches and PGO. The f1 integration passes full normal tests;
+the latest e5 integration is source-reviewed but runtime validation is pending
+at this checkpoint. Validate and profile the latest correct compiler first.
+Do not time the stock template shortcut that skips function-signature work.
+Keep ordinary CLI versus freshly warmed Java, generated BigQuery/protobuf,
+large many-chunk builds, memory caps, variance and RSS ratios as the measurement
+priorities. Previous madvise/futex hypotheses no longer dominate the completed
+42aaa853 profile and must not drive speculative redesigns without new evidence.

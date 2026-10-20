@@ -1,5 +1,107 @@
 # Round 4: verified baselines and enterprise benchmark protocol
 
+The latest source checkpoint integrates main `e5d0987a` at `4159dc5b` with
+compatibility and ownership corrections. It is **source-reviewed, not yet
+runtime-validated** at this checkpoint. The preceding main `f1c0cd2e`
+integration `3a996604` passes the full normal suite: **575 effective files,
+3,894 top-level tests = 3,857 PASS + 37 existing SKIP, 21 packages**. All original
+nested test names/statuses and the previously verified test-source hashes are
+preserved. No new skip or OOM occurred. Full live-Java corpus parity, the race
+suite, and a fresh latest-main JVM comparison remain outstanding.
+
+The bare 64-byte AST-node experiment is now measured and **rejected for
+promotion**: four balanced pairs per workload made typed compilation 5.32%
+slower and bundle compilation 8.10% slower. Peak-RSS paired means rose 3.27%
+and 1.77%, respectively, with substantial memory variance. Details and raw
+records follow under “Measured compact-node experiment.” These are Go-only
+comparisons on the earlier `42aaa853` baseline, not Java results.
+
+The strongest completed typed warm-JVM result remains **9.74% less elapsed
+time and 53.43% less peak process RSS** at `1fe9acbb`, on one host/workload.
+The later `42aaa853` Go-only screen adds about 3.4% less typed time versus that
+old Go build, but historical Java times cannot establish a new-main win.
+All later source integration, failed attempts, negative controls, and open
+prototype plans are preserved in the append-only v9 records/source bundle.
+
+### Measured compact-node experiment
+
+The Node64/cap128 candidate `1d0f7d04` reduces the node header from 80 to 64
+bytes, moving optional fields into immutable cold records behind the existing
+API. It passed the selected Rhino/parser/jutil gates, Rhino and parser race
+and checkptr checks, and three CLI six-digest Java gates. These selected checks
+are not a full candidate jscomp or external-Java corpus run.
+
+The macro screen uses default Go runtime settings, actual 4 GiB memory caps,
+two CPUs, the same shipped PGO as baseline `42aaa853`, and four balanced
+same-round pairs per task. Every one of 16 rows matches all six Java digests;
+all eight paired elapsed comparisons regress. No compiler/profile/build job
+or heavy sibling work overlaps timing; stopped-container/process and zero-OOM
+proofs are retained.
+
+| Workload/build | Mean elapsed ± sample SD | Mean peak RSS ± sample SD |
+| --- | ---: | ---: |
+| Typed N1 / baseline | 30.266 ± 0.413 s | 1113.24 ± 41.43 MiB |
+| Typed N1 / Node64 | 31.873 ± 0.132 s | 1148.26 ± 24.28 MiB |
+| Bundle N1 / baseline | 8.121 ± 0.195 s | 369.31 ± 9.59 MiB |
+| Bundle N1 / Node64 | 8.777 ± 0.159 s | 375.62 ± 1.07 MiB |
+
+Mean same-round candidate/baseline ratios are **1.053216 time / 1.032740 RSS**
+for typed, and **1.080983 time / 1.017659 RSS** for bundle. The SDs of paired
+ratios are 0.012629/0.050968 and 0.016292/0.028596, respectively. Ratios above
+one are worse; ratios of separate absolute means need not equal these paired
+means. Four pairs provide screening evidence, not confidence intervals or a
+fresh-Java comparison.
+
+Actual code generation explains a plausible gap, not a quantified cause:
+getters inline but add tag/decode branches; common setters still take cold-field
+helpers/allocations, and some IR factory paths miss inlining. The complete
+assembly is retained; missing symbols in a focused excerpt are not proof of
+inlining. A source-only refinement specializes empty/single-field setters and
+hoists repeated decoding while preserving nonzero receiver initialization,
+value-copy semantics and panic publication order. It is **unrun**. Cap127 and
+Node80 variants also remain unrun. Retrying any of them needs a latest-main
+port, independent correctness gates and new paired measurements.
+
+### Subsequent main integrations and exact validation boundary
+
+Main `f1c0cd2e` and then `e5d0987a` both changed code and shipped PGO. The local
+integration retains upstream private fastpaths while protecting published
+scope/variable, parser-source and output-buffer lifetimes, callback chronology,
+custom PMap implementations and JSDoc semantics. A template-map shortcut also
+matched function types through an overly broad interface and skipped function
+signature substitution. The corrected implementation passes the full Rhino
+suite; an isolated production-only negative control reproduces the three
+expected function-signature failures. Ordinary compiler work cannot be skipped
+and counted as a speed win.
+
+The completed `3a996604` normal run preserves every prior test vector, all
+original nested event multiplicities, and 37 added regression roots. Earlier
+attempts remain separately recorded: an intentional stop after discovering the
+function-type bug, an invalid new fixture corrected without production changes,
+and a disk-headroom guard stop. None is relabelled a passing run. Build-only
+GC/CPU settings limit build resource pressure; the unchanged execution wrapper
+clears those settings for actual test binaries. No runtime GOGC tuning is used.
+
+Latest `4159dc5b` is source-complete and reviewed with a derived expectation of
+581 effective files and 3,906 top-level roots (3,869 PASS + the same 37 SKIP).
+These are **prospective counts, not executed tests** at this cut. The prepared
+rollout requires its full normal suite, one ordinary CLI build, three strict
+six-digest Java gates, and a balanced 16-row old/new Go screen. Raw stock-main
+builds are excluded from timing while the proven function-signature shortcut
+remains present. The comparison measures repaired code plus shipped PGO as a
+package; opaque upstream profile percentages are not imported.
+
+A fresh latest-main JVM comparison, current allocation/CPU profiles, generated
+BigQuery/protobuf timing and many-chunk enterprise runs remain pending. Old
+scope-tail allocation models and the earlier madvise hypothesis must be checked
+against those new profiles before more pool-policy changes. Source-only plans
+for container growth, traversal, private ArrayList storage, compact-node cold
+fastpaths and scope-pool diagnostics are preserved without performance claims.
+
+The following sections preserve earlier completed checkpoints and their source
+identities. Their validation and timing claims do not transfer to later main.
+
+
 The validated integration now follows main`abcf69a0` at`42aaa853`. Its full
 normal suite passes570 effective files/3885 top-level roots (3848PASS/37original
 SKIP), all28 new regressions,21 packages and the exact original nested inventory.
@@ -15,7 +117,7 @@ This comparison includes changed main code and shipped PGO together.
 
 The completed fresh typed warm-JVM results immediately below belong to previous
 main`bb521c0f` plus fixes`1fe9acbb`, notabcf. No historical Java times are combined
-with the new Go-only screen. Experimental redesign factors remain unmeasured.
+with the new Go-only screen. Other redesign factors remain unmeasured; the later Node64 result above regresses.
 
 The completed post-screen sync was `bb521c0f26b2fdeec9622247531174826e9fd23c`.
 The confirmed warm-JVM bundle win below belongs to frozen `5de6e335`.
@@ -24,7 +126,7 @@ and typed N1 CLI byte gates. The fixes also pass the complete normal suite.
 The latest-main Go-only screen, profiles and fresh three-JVM typed comparison
 are complete. Fixed Go takes **9.74% less elapsed time** and **53.43% less
 peak process RSS** than warm Java on this typed workload; all30 pairs match
-Java's bytes and favor Go. Experimental redesign factors remain unmeasured.
+Java's bytes and favor Go. Other redesign factors remain unmeasured; the later Node64 result above regresses.
 
 The compatibility negative control uses unchanged `bb521c0f` production
 code, all original tests, and 17 new public-API regression roots. Fourteen
@@ -1029,3 +1131,31 @@ Java25LTS is a useful further stock comparator, but only21 is installed and no
 25/27 runtime or download was performed. No result here claims superiority over
 all JVM versions or representative workloads. Current generated/chunked
 benchmark and complete live parity commands are preserved for actual execution.
+
+
+## Ninth closed evidence checkpoint
+
+[round4-measurement-records-v9.tar.gz](round4-measurement-records-v9.tar.gz)
+adds **805 new/changed closed records**, 554 unique blobs
+(502,084,003 bytes), and 13 excluded rebuildable
+artifacts with full hashes. Archive SHA256:
+`216dc09dcd155f55980881672ded4a9038b6a9575336437ba44cb44b5c771387`.
+The standard streaming verifier checks every payload; cuts1–8 remain unchanged.
+The cut includes the actual Node64 package/race/checkptr/CLI/codegen/screen
+results, failed attempts, full frozen3a normal result and raw inventory, negative
+template-function control, latest-main source reviews/fixes and unrun plans.
+
+[round4-source-manifest-v9.json](round4-source-manifest-v9.json) preserves all
+64 earlier source states and appends16 (80 total), including both new upstream
+main revisions and each separate merge, ownership correction and fixture fix.
+The [source bundle](round4-prototype-sources-v9.bundle) SHA256 is
+`547452c931f79ae7d1eb5bf83d400a4f232287976199c858ba63a8f3610de9d1`.
+No Node prototype or unvalidated latest-main production change is promoted.
+Fresh-Java/profile preparations active during this checkpoint are explicitly
+excluded from the closed cut; they remain pending work.
+
+Disk recovery metadata preserves64 old rebuildable ELF files losslessly in
+local gzip archives outside the published cut, with original/archive hashes,
+metadata and exact restore instructions. These1.37GB payloads are not Git
+artifacts; logs, source prototypes and ordinary measurement records remain
+published. Current verified C1/Node/new-main gate binaries were not removed.

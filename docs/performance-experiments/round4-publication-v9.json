@@ -1,0 +1,39 @@
+{
+  "archive": "/workspace/jsgo-publish-records/docs/performance-experiments/round4-measurement-records-v9.tar.gz",
+  "sha256": "216dc09dcd155f55980881672ded4a9038b6a9575336437ba44cb44b5c771387",
+  "files": 805,
+  "excluded_files": 13,
+  "unique_blobs": 554,
+  "source_bytes": 741006714,
+  "blob_bytes": 502084003,
+  "verification": {
+    "archive": "/workspace/jsgo-publish-records/docs/performance-experiments/round4-measurement-records-v9.tar.gz",
+    "archive_sha256": "216dc09dcd155f55980881672ded4a9038b6a9575336437ba44cb44b5c771387",
+    "files": 805,
+    "excluded_files": 13,
+    "unique_blobs": 554,
+    "source_bytes": 741006714,
+    "blob_bytes": 502084003
+  },
+  "previous_versions_unchanged": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "source_snapshots": 80,
+  "round8_normal_at_cut": {
+    "status": "PASS",
+    "source": "3a9966047d96e14f6fc034ede9b33ccbe332c75b",
+    "path": "main-f1c0cd2e-sync-v1/benchmark-preparation-v1/normal-v4/main-f1-integrated-normal-inventory-and-stopped-proof.json",
+    "stdout_path": "main-f1c0cd2e-sync-v1/benchmark-preparation-v1/normal-v4/main-f1-integrated-normal.stdout",
+    "normal_only_not_controls_or_Java": true
+  },
+  "round9_runtime_validation_complete": false,
+  "experimental_promotion": false,
+  "fresh_Java_timing_rows": 0
+}
