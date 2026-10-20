@@ -740,7 +740,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 	if root == "" {
 		return
 	}
-	if sc.varHash == nil {
+	if !sc.keyedVars && sc.varHash == nil {
 		s.flushSmallVarsForMore()
 	}
 	// Conditionally report a redeclaration if the root name has already been declared as a normal
