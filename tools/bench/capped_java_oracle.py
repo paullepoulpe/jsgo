@@ -89,6 +89,9 @@ def invoke(helper, engine, root, spec, args):
     except BaseException as error:
         failure = {'type': type(error).__name__, 'message': str(error), 'mode': MODE,
                    'outer_state': helper.outer_state()}
+        if isinstance(error, subprocess.CalledProcessError):
+            failure['subprocess'] = {'argv': error.cmd, 'exit': error.returncode,
+                                     'stdout': error.stdout, 'stderr': error.stderr}
         if cid is not None:
             try:
                 failure['container_inspect'] = json.loads(engine.call('inspect', cid, capture_output=True, text=True).stdout)

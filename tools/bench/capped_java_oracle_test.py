@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -42,7 +43,7 @@ class Process:
 
 
 class OracleTest(unittest.TestCase):
-    def exercise(self, root, *, ready='READY\t4294967296\t0\t200000 100000\t0-1', exit_code=0, oom=0, required=True):
+    def exercise(self, root, *, ready='READY\t4294967296\t0\t200000 100000\t0-1', exit_code=0, oom=0, required=True, create_error=False):
         driver = root/'driver'; driver.mkdir(); (driver/'CliPaired.class').write_bytes(b'model-class')
         helper, records, frozen_driver = oracle.factors.freeze_helpers(root, driver)
         args = SimpleNamespace(binary='/bin/true', readonly_bind=[], image='model@sha256:abc',
@@ -52,7 +53,10 @@ class OracleTest(unittest.TestCase):
         calls = []
         def docker(*argv, **kwargs):
             calls.append(argv)
-            if argv[0] == 'create': return SimpleNamespace(stdout='model-container\n')
+            if argv[0] == 'create':
+                if create_error:
+                    raise subprocess.CalledProcessError(1, ['docker', 'create'], output='', stderr='socket permission denied')
+                return SimpleNamespace(stdout='model-container\n')
             if argv[0] == 'inspect':
                 return SimpleNamespace(stdout=json.dumps([{'Image': 'model-image-digest', 'State': {'OOMKilled': bool(oom)},
                     'HostConfig': {'Memory': 4294967296, 'MemorySwap': 4294967296, 'NanoCpus': 2000000000,
@@ -121,6 +125,16 @@ class OracleTest(unittest.TestCase):
                 oracle.main(['--spec', 'unused', '--binary', '/bin/true', '--jar', 'unused', '--driver', 'unused',
                              '--java-home', 'unused', '--image', 'unused', '--out', str(root)])
             self.assertEqual('retain', marker.read_text())
+
+    def test_container_create_failure_retains_complete_subprocess_diagnostics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.exercise(root, create_error=True)
+            details = json.loads((root/'failure.json').read_text())['subprocess']
+            self.assertEqual({'argv': ['docker', 'create'], 'exit': 1, 'stdout': '',
+                              'stderr': 'socket permission denied'}, details)
+            self.assertFalse((root/'stock-java-oracle-digests.json').exists())
 
     def test_unpinned_image_preserves_preflight_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
