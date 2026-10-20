@@ -2091,21 +2091,31 @@ func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 // Java: RemoveUnusedCode.getVarInfo(Var)
 func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 	jutil.CheckNotNull(var_)
-	if var_ == r.lastVar {
-		return r.lastVarInfo
-	}
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
 			name := var_.GetName()
 			r.unremovableLog.LogSupplier(func() string { return name + ": extern" })
 		}
 		return r.canonicalUnremovableVarInfo
-	} else if var_.IsArguments() {
+	}
+	isGlobal := var_.IsGlobal()
+	name := var_.GetName()
+	// Coding conventions are extensible and may classify each lookup differently.
+	// Preserve their callback before arguments handling or private cache hits.
+	if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
+		if r.unremovableLog.IsLogging() {
+			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
+		}
+		return r.canonicalUnremovableVarInfo
+	}
+	if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
 	}
+	if var_ == r.lastVar {
+		return r.lastVarInfo
+	}
 	scopeRoot := var_.GetScopeRoot()
-	name := var_.GetName()
 	h := hashVar(var_)
 	if len(r.varBuckets) == 0 {
 		r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 16384)
@@ -2117,14 +2127,6 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 			r.lastVarInfo = cur
 			return cur
 		}
-	}
-
-	isGlobal := var_.IsGlobal()
-	if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
-		if r.unremovableLog.IsLogging() {
-			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
-		}
-		return r.canonicalUnremovableVarInfo
 	}
 
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, scopeRoot, name, h)
