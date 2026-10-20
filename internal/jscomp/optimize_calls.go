@@ -143,6 +143,15 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	o.EliminateAccessorsFrom(references)
 
 	for _, pass := range o.passes {
+		switch pass.(type) {
+		case optimizeCallsPrivateReturns, optimizeCallsPrivateParameters, optimizeCallsPrivateConstructors:
+			// These adapters own fresh, unexposed default-pass objects and borrow
+			// this scope only until their synchronous Process call returns.
+		default:
+			// A custom pass may retain the map and call GetGlobalScope later.
+			// Protect its scopes and Vars before publishing even the map itself.
+			sc.markArenaEscaped()
+		}
 		pass.Process(externs, root, references)
 	}
 }
@@ -627,25 +636,23 @@ func ocCacheIdx(s string) uint32 {
 // OptimizeCalls_ReferenceMapBuildingCallback is the inner class
 // ReferenceMapBuildingCallback.
 type OptimizeCalls_ReferenceMapBuildingCallback struct {
-	outer            *OptimizeCalls
-	codingConvention CodingConvention
-	externProps      *jutil.LinkedHashSet[string]
-	references       *OptimizeCalls_ReferenceMap
-	globalScope      *Scope
-	lastSkippedName  string
-	lastExternProp   string
-	hasExternProp    bool
-	nameCache        [512]ocRefCacheEntry
-	propCache        [512]ocRefCacheEntry
+	outer           *OptimizeCalls
+	externProps     *jutil.LinkedHashSet[string]
+	references      *OptimizeCalls_ReferenceMap
+	globalScope     *Scope
+	lastSkippedName string
+	lastExternProp  string
+	hasExternProp   bool
+	nameCache       [512]ocRefCacheEntry
+	propCache       [512]ocRefCacheEntry
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback(ReferenceMap)
 func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, references *OptimizeCalls_ReferenceMap) *OptimizeCalls_ReferenceMapBuildingCallback {
 	c := &OptimizeCalls_ReferenceMapBuildingCallback{
-		outer:            outer,
-		codingConvention: outer.compiler.GetCodingConvention(),
-		externProps:      OptimizeCalls_SafeSet(outer.compiler.GetExternProperties()),
-		references:       references,
+		outer:       outer,
+		externProps: OptimizeCalls_SafeSet(outer.compiler.GetExternProperties()),
+		references:  references,
 	}
 	return c
 }
@@ -661,7 +668,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *
 		// If we are using goog.reflect.objectProperty on this symbol, we will assume that it
 		// gets referenced.
 		fnName := n.GetFirstChild()
-		if c.codingConvention.IsPropertyRenameFunction(fnName) {
+		if c.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(fnName) {
 			propName := NodeUtil_GetArgumentForCallOrNew(n, 0)
 			if propName != nil {
 				c.MaybeAddPropReference(propName.GetString(), n)

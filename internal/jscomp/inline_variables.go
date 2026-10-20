@@ -289,8 +289,7 @@ type handledVarAnalysisEntry struct {
 // scope. When exiting the scope, inspects all variables in that scope, and
 // inlines any that we can.
 type InlineVariables_InliningBehavior struct {
-	outer            *InlineVariables
-	codingConvention CodingConvention
+	outer *InlineVariables
 
 	// Records the analyses of variables that have already been handled in
 	// the current scope.
@@ -324,14 +323,7 @@ type InlineVariables_InliningBehavior struct {
 
 // Java: InlineVariables.InliningBehavior()
 func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
-	var cc CodingConvention
-	if outer != nil && outer.compiler != nil {
-		cc = outer.compiler.GetCodingConvention()
-	}
-	b := &InlineVariables_InliningBehavior{
-		outer:            outer,
-		codingConvention: cc,
-	}
+	b := &InlineVariables_InliningBehavior{outer: outer}
 	b.handledVars = b.handledVarsBuf[:0]
 	b.scopeExpertSlab = b.scopeExpertBuf[:0]
 	b.retryExpertSlab = b.retryExpertBuf[:0]
@@ -1124,23 +1116,17 @@ func (b *InlineVariables_InliningBehavior) createVarExpertForScope(
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
 	}
 
-	cc := b.codingConvention
-	if cc == nil {
-		cc = b.outer.compiler.GetCodingConvention()
-		b.codingConvention = cc
-	}
-
 	if !localityKnown {
 		isLocal = v.IsLocal()
 	}
-	if cc.IsExportedWithLocal(v.name /* local= */, isLocal) {
+	if b.outer.compiler.GetCodingConvention().IsExportedWithLocal(v.name /* local= */, isLocal) {
 		// If the variable is exported, it might be assigned a new value by code we cannot see,
 		// so aliases to it are creating snapshots of its state.
 		// We cannot inline this variable or its aliases.
 		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
 	}
 
-	if cc.IsPropertyRenameFunction(v.nameNode) {
+	if b.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(v.nameNode) {
 		// It's not terribly likely that anything creates an alias of our special property rename
 		// function, but its value never changes, so it should be safe to inline aliases to it.
 		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT
@@ -1462,33 +1448,7 @@ func (b *InlineVariables_InliningBehavior) IsValidReference(reference *Reference
 
 // Java: InlineVariables.hasNoInlineAnnotation(Var)
 func InlineVariables_HasNoInlineAnnotation(var_ *Var) bool {
-	n := var_.nameNode
-	if n == nil {
-		return false
-	}
-	if info := n.GetJSDocInfo(); info != nil {
-		return info.IsNoInline()
-	}
-	parent := n.GetParent()
-	if parent == nil {
-		return false
-	}
-	switch parent.GetToken() {
-	case rhino.Token_PARAM_LIST:
-		return false
-	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS:
-		if parent.GetFirstChild() == n {
-			if info := parent.GetJSDocInfo(); info != nil {
-				return info.IsNoInline()
-			}
-			if gp := parent.GetParent(); gp != nil && gp.IsExport() {
-				info := gp.GetJSDocInfo()
-				return info != nil && info.IsNoInline()
-			}
-			return false
-		}
-	}
-	jsDocInfo := NodeUtil_GetBestJSDocInfo(n)
+	jsDocInfo := var_.GetJSDocInfo()
 	return jsDocInfo != nil && jsDocInfo.IsNoInline()
 }
 
