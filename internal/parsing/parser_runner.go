@@ -126,8 +126,11 @@ func ParserRunner_Parse(
 	jutil.Try(func() {
 		arena := parser.AcquireParseArena()
 		file := parser.NewSourceFileInArena(sourceName, sourceString, arena)
+		publishedSource := false
 		defer func() {
-			file.ContentsUTF16 = nil
+			if !publishedSource {
+				file.ContentsUTF16 = nil
+			}
 			arena.Release()
 		}()
 		keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
@@ -157,6 +160,12 @@ func ParserRunner_Parse(
 				}
 				topLevelStatementRanges = builder
 			}
+		}
+		if len(comments) > 0 || len(topLevelStatementRanges) > 0 {
+			// These views expose an immutable SourceFile that can be passed
+			// to another parser or scanner after this parse has completed.
+			arena.DetachUTF16Buffer()
+			publishedSource = true
 		}
 		result = NewParserRunner_ParseResultWithTopLevelStatementRanges(
 			root, comments, topLevelStatementRanges, features, p.GetSourceMapURL())

@@ -150,6 +150,15 @@ func AcquireParseArena() *ParseArena {
 	return parseArenaPool.Get().(*ParseArena)
 }
 
+// DetachUTF16Buffer transfers the current UTF-16 backing storage to its
+// SourceFile. Release still resets the transient parser objects, but later
+// parses will allocate a new buffer instead of changing the published file.
+func (a *ParseArena) DetachUTF16Buffer() {
+	if a != nil {
+		a.utf16Buf = nil
+	}
+}
+
 // Release resets the arena and returns it to the pool.
 func (a *ParseArena) Release() {
 	if a == nil {
