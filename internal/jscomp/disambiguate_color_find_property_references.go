@@ -36,7 +36,10 @@ import (
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	propIndex *jutil.LinkedHashMap[string, *PropertyClustering]
+	propIndex    *jutil.LinkedHashMap[string, *PropertyClustering]
+	propSlab     jutil.Slab[PropertyClustering]
+	lastPropName string
+	lastProp     *PropertyClustering
 
 	colorGraphNodeFactory *ColorGraphNodeFactory
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector
@@ -61,7 +64,7 @@ type ColorFindPropertyReferences_IsPropertyReflector func(nameNode *rhino.Node) 
 func NewColorFindPropertyReferences(
 	colorGraphNodeFactory *ColorGraphNodeFactory, isPropertyReflector ColorFindPropertyReferences_IsPropertyReflector) *ColorFindPropertyReferences {
 	return &ColorFindPropertyReferences{
-		propIndex:             jutil.NewLinkedHashMap[string, *PropertyClustering](),
+		propIndex:             jutil.NewLinkedHashMapWithCapacity[string, *PropertyClustering](1024),
 		colorGraphNodeFactory: colorGraphNodeFactory,
 		isPropertyReflector:   isPropertyReflector,
 	}
@@ -219,16 +222,32 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 //
 // Java: ColorFindPropertyReferences.registerPropertyUse(NodeTraversal, Node, Color)
 func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site *rhino.Node, owner *colors.Color) {
-	prop :=
-		r.propIndex.ComputeIfAbsent(site.GetString(), NewPropertyClustering)
+	propName := site.GetString()
+	var prop *PropertyClustering
+	if r.lastProp != nil && propName == r.lastPropName {
+		prop = r.lastProp
+	} else {
+		prop = r.propIndex.Get(propName)
+		if prop == nil {
+			prop = r.propSlab.New()
+			prop.init(propName)
+			r.propIndex.PutNew(propName, prop)
+		}
+		r.lastPropName = propName
+		r.lastProp = prop
+	}
 	flatOwner := r.colorGraphNodeFactory.CreateNode(owner)
 
-	// Set the initial condition for flowing this property along the graph.
-	flatOwner.GetAssociatedProps().Put(prop, ColorGraphNode_PropAssociation_AST)
-	// Make sure there's a cluster for this name/type combination.
-	prop.GetClusters().Add(flatOwner)
+	if prop.lastOwner != flatOwner {
+		prop.lastOwner = flatOwner
+		// Set the initial condition for flowing this property along the graph.
+		if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
+			// Make sure there's a cluster for this name/type combination.
+			prop.clusters.Add(flatOwner)
+		}
+	}
 	// Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
-	prop.GetUseSites().Put(site, flatOwner)
+	prop.useSites.Put(site, flatOwner)
 
 	// Track the cluster of types whose properties must keep their original name after
 	// disambiguation. Note: an "enum type" is the type of an enum object like "{STOP: 0, GO: 1}".
@@ -237,6 +256,10 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	// in externs if the property node didn't have an externs source file. Related: b/186056977.
 	if t.GetCurrentScript().IsFromExterns() ||
 		(owner != nil && owner.GetPropertiesKeepOriginalName()) {
-		prop.RegisterOriginalNameType(flatOwner)
+		if prop.originalNameClusterRep == nil {
+			prop.originalNameClusterRep = flatOwner
+		} else if prop.originalNameClusterRep != flatOwner {
+			prop.clusters.Union(prop.originalNameClusterRep, flatOwner)
+		}
 	}
 }

@@ -33,9 +33,6 @@ import (
 // Source Map Revision 3 Proposal:
 // https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit?usp=sharing
 type SourceMapGeneratorV3 struct {
-	// A pre-order traversal ordered list of mappings stored in this map.
-	mappings []*SourceMapGeneratorV3_Mapping
-
 	// A map of source names to source name index
 	sourceFileMap *jutil.LinkedHashMap[string, int]
 
@@ -77,9 +74,15 @@ type SourceMapGeneratorV3 struct {
 	// values on the source entry.
 	sourceRootPath *string
 
-	mappingSlab []SourceMapGeneratorV3_Mapping
-	mappingBuf  [16]SourceMapGeneratorV3_Mapping
-	mappingsBuf [16]*SourceMapGeneratorV3_Mapping
+	mappingChunks          [][]SourceMapGeneratorV3_Mapping
+	mappingSlab            []SourceMapGeneratorV3_Mapping
+	addedSourceFiles       []string
+	lastAddedSourceFile    string
+	hasLastAddedSourceFile bool
+	lastAddedSourceFileIdx int32
+	mappingChunksBuf       [16][]SourceMapGeneratorV3_Mapping
+	addedSourceFilesBuf    [16]string
+	mappingBuf             [16]SourceMapGeneratorV3_Mapping
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -105,8 +108,10 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 // Java: SourceMapGeneratorV3()
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g := &SourceMapGeneratorV3{}
-	g.mappings = g.mappingsBuf[:0:len(g.mappingsBuf)]
+	g.mappingChunks = g.mappingChunksBuf[:0:len(g.mappingChunksBuf)]
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
+	g.addedSourceFiles = g.addedSourceFilesBuf[:0:len(g.addedSourceFilesBuf)]
+	g.lastAddedSourceFileIdx = -1
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
@@ -125,10 +130,15 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 // Java: SourceMapGeneratorV3.reset()
 func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
-	clear(g.mappings)
-	g.mappings = g.mappings[:0]
+	clear(g.mappingChunks)
+	g.mappingChunks = g.mappingChunks[:0]
 	clear(g.mappingBuf[:])
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
+	clear(g.addedSourceFiles)
+	g.addedSourceFiles = g.addedSourceFiles[:0]
+	g.lastAddedSourceFile = ""
+	g.hasLastAddedSourceFile = false
+	g.lastAddedSourceFileIdx = -1
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
@@ -144,14 +154,15 @@ func (g *SourceMapGeneratorV3) Reset() {
 
 func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
 	if len(g.mappingSlab) == cap(g.mappingSlab) {
+		if len(g.mappingSlab) > 0 {
+			g.mappingChunks = append(g.mappingChunks, g.mappingSlab)
+		}
 		newCap := min(max(cap(g.mappingSlab)*4, 64), 16384)
 		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 0, newCap)
 	}
 	i := len(g.mappingSlab)
 	g.mappingSlab = g.mappingSlab[:i+1]
-	m := &g.mappingSlab[i]
-	m.id = SourceMapGeneratorV3_UNMAPPED
-	return m
+	return &g.mappingSlab[i]
 }
 
 // Validate sets whether to perform (potentially costly) validation on the
@@ -253,20 +264,12 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 			jutil.IntAdd(endPosition.GetColumn(), endOffsetPosition))
 	}
 
-	// Create the new mapping.
-	mapping := g.allocMapping()
-	mapping.sourceFile = sourceName
-	mapping.originalPosition = sourceStartPosition
-	mapping.originalName = symbolName
-	mapping.startPosition = adjustedStart
-	mapping.endPosition = adjustedEnd
-
 	// Validate the mappings are in a proper order.
 	if g.lastMapping != nil {
-		lastLine := g.lastMapping.startPosition.GetLine()
-		lastColumn := g.lastMapping.startPosition.GetColumn()
-		nextLine := mapping.startPosition.GetLine()
-		nextColumn := mapping.startPosition.GetColumn()
+		lastLine := g.lastMapping.startLine
+		lastColumn := g.lastMapping.startCol
+		nextLine := int32(adjustedStart.GetLine())
+		nextColumn := int32(adjustedStart.GetColumn())
 		// Go-only: language-adapter — the message arguments are boxed only on
 		// failure (PORTING.md §5); jutil.CheckStateMsg throws exactly as
 		// Preconditions.checkState(boolean, String, Object...).
@@ -274,12 +277,33 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 			jutil.CheckStateMsg(false,
 				"Incorrect source mappings order, previous : (%s,%s)\n"+
 					"new : (%s,%s)",
-				lastLine, lastColumn, nextLine, nextColumn)
+				int(lastLine), int(lastColumn), int(nextLine), int(nextColumn))
 		}
 	}
 
+	var sourceFileIdx int32
+	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
+		sourceFileIdx = g.lastAddedSourceFileIdx
+	} else {
+		sourceFileIdx = int32(len(g.addedSourceFiles))
+		g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
+		g.lastAddedSourceFile = sourceName
+		g.lastAddedSourceFileIdx = sourceFileIdx
+		g.hasLastAddedSourceFile = true
+	}
+
+	// Create the new mapping.
+	mapping := g.allocMapping()
+	mapping.sourceFileIdx = sourceFileIdx
+	mapping.originalLine = int32(sourceStartPosition.GetLine())
+	mapping.originalCol = int32(sourceStartPosition.GetColumn())
+	mapping.originalName = symbolName
+	mapping.startLine = int32(adjustedStart.GetLine())
+	mapping.startCol = int32(adjustedStart.GetColumn())
+	mapping.endLine = int32(adjustedEnd.GetLine())
+	mapping.endCol = int32(adjustedEnd.GetColumn())
+
 	g.lastMapping = mapping
-	g.mappings = append(g.mappings, mapping)
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
@@ -614,77 +638,63 @@ func SourceMapGeneratorV3_AppendFieldStartWithFirst(out io.StringWriter, name st
 // Java: SourceMapGeneratorV3.appendFieldEnd(Appendable)
 func SourceMapGeneratorV3_AppendFieldEnd(out io.StringWriter) {}
 
-var sourceMapGeneratorV3_usedMappingCheck SourceMapGeneratorV3_UsedMappingCheck
-
 // PrepMappings assigns sequential ids to used mappings, and returns the last
 // line mapped.
 //
 // Java: SourceMapGeneratorV3.prepMappings()
 func (g *SourceMapGeneratorV3) PrepMappings() int {
-	// Mark any unused mappings.
-	NewSourceMapGeneratorV3_MappingTraversal(g).Traverse(&sourceMapGeneratorV3_usedMappingCheck)
-
-	// Renumber used mappings and keep track of the last line.
-	id := 0
-	maxLine := 0
-	for _, m := range g.mappings {
-		if m.used {
-			m.id = id
-			id++
-			endPositionLine := m.endPosition.GetLine()
-			maxLine = max(maxLine, endPositionLine)
-		}
-	}
+	var check SourceMapGeneratorV3_UsedMappingCheck
+	t := SourceMapGeneratorV3_MappingTraversal{outer: g}
+	t.Traverse(&check)
 
 	// Adjust for the prefix.
-	return jutil.IntAdd(maxLine, g.prefixPosition.GetLine())
+	return jutil.IntAdd(check.maxLine, g.prefixPosition.GetLine())
 }
 
 // SourceMapGeneratorV3_Mapping is a mapping from a given position in an
 // input source file to a given position in the generated code.
 type SourceMapGeneratorV3_Mapping struct {
-	// A unique ID for this mapping for record keeping purposes.
-	id int
-
-	// The source file index.
-	sourceFile string
-
-	// The position of the code in the input source file. Both the line
-	// number and the character index are indexed by 1 for legacy reasons via
-	// the Rhino Node class.
-	originalPosition FilePosition
-
-	// The starting position of the code in the generated source file which
-	// this mapping represents. Indexed by 0.
-	startPosition FilePosition
-
-	// The ending position of the code in the generated source file which
-	// this mapping represents. Indexed by 0.
-	endPosition FilePosition
-
 	// The original name of the token found at the position represented by
 	// this mapping (if any).
 	originalName *string
 
-	// Whether the mapping is actually used by the source map.
-	used bool
+	// Index into SourceMapGeneratorV3.addedSourceFiles.
+	sourceFileIdx int32
+
+	// The position of the code in the input source file.
+	originalLine int32
+	originalCol  int32
+
+	// The starting position of the code in the generated source file which
+	// this mapping represents. Indexed by 0.
+	startLine int32
+	startCol  int32
+
+	// The ending position of the code in the generated source file which
+	// this mapping represents. Indexed by 0.
+	endLine int32
+	endCol  int32
 }
 
 // NewSourceMapGeneratorV3_Mapping constructs an unused mapping.
 //
 // Java: SourceMapGeneratorV3.Mapping()
 func NewSourceMapGeneratorV3_Mapping() *SourceMapGeneratorV3_Mapping {
-	return &SourceMapGeneratorV3_Mapping{id: SourceMapGeneratorV3_UNMAPPED}
+	return &SourceMapGeneratorV3_Mapping{}
 }
 
 // SourceMapGeneratorV3_UsedMappingCheck marks any visited mapping as
 // "used".
-type SourceMapGeneratorV3_UsedMappingCheck struct{}
+type SourceMapGeneratorV3_UsedMappingCheck struct {
+	maxLine int
+}
 
 // Java: SourceMapGeneratorV3.UsedMappingCheck.visit(Mapping, int, int, int, int)
-func (*SourceMapGeneratorV3_UsedMappingCheck) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
+func (c *SourceMapGeneratorV3_UsedMappingCheck) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
 	if m != nil {
-		m.used = true
+		if endLine := int(m.endLine); endLine > c.maxLine {
+			c.maxLine = endLine
+		}
 	}
 }
 
@@ -724,7 +734,24 @@ func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_
 	// allows the building of the source map in O(n) time.
 	var stackBuf [64]*SourceMapGeneratorV3_Mapping
 	stack := stackBuf[:0]
-	for _, m := range t.outer.mappings {
+	for _, chunk := range t.outer.mappingChunks {
+		for i := range chunk {
+			m := &chunk[i]
+			for len(stack) > 0 && !t.IsOverlapped(stack[len(stack)-1], m) {
+				previous := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				t.MaybeVisit(v, previous)
+			}
+			var parent *SourceMapGeneratorV3_Mapping
+			if len(stack) > 0 {
+				parent = stack[len(stack)-1]
+			}
+			t.MaybeVisitParent(v, parent, m)
+			stack = append(stack, m)
+		}
+	}
+	for i := range t.outer.mappingSlab {
+		m := &t.outer.mappingSlab[i]
 		// Find the closest ancestor of the current mapping:
 		// An overlapping mapping is an ancestor of the current mapping, any
 		// non-overlapping mappings are siblings (or cousins) and must be
@@ -762,6 +789,10 @@ func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedLine(p FilePosition) 
 	return jutil.IntAdd(p.GetLine(), t.outer.prefixPosition.GetLine())
 }
 
+func (t *SourceMapGeneratorV3_MappingTraversal) getAdjustedLine(rawLine int32) int {
+	return int(rawLine + int32(t.outer.prefixPosition.GetLine()))
+}
+
 // GetAdjustedCol returns the column adjusted for the prefix position.
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.getAdjustedCol(FilePosition)
@@ -775,15 +806,22 @@ func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedCol(p FilePosition) i
 	return jutil.IntAdd(rawCol, t.outer.prefixPosition.GetColumn())
 }
 
+func (t *SourceMapGeneratorV3_MappingTraversal) getAdjustedCol(rawLine, rawCol int32) int {
+	if rawLine != 0 {
+		return int(rawCol)
+	}
+	return int(rawCol + int32(t.outer.prefixPosition.GetColumn()))
+}
+
 // IsOverlapped returns whether m1 ends before m2 starts.
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.isOverlapped(Mapping, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) IsOverlapped(m1, m2 *SourceMapGeneratorV3_Mapping) bool {
 	// No need to use adjusted values here, relative positions are sufficient.
-	l1 := m1.endPosition.GetLine()
-	l2 := m2.startPosition.GetLine()
-	c1 := m1.endPosition.GetColumn()
-	c2 := m2.startPosition.GetColumn()
+	l1 := m1.endLine
+	l2 := m2.startLine
+	c1 := m1.endCol
+	c2 := m2.startCol
 
 	return (l1 == l2 && c1 >= c2) || l1 > l2
 }
@@ -793,8 +831,8 @@ func (t *SourceMapGeneratorV3_MappingTraversal) IsOverlapped(m1, m2 *SourceMapGe
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisit(MappingVisitor, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisit(v SourceMapGeneratorV3_MappingVisitor, m *SourceMapGeneratorV3_Mapping) {
-	nextLine := t.GetAdjustedLine(m.endPosition)
-	nextCol := t.GetAdjustedCol(m.endPosition)
+	nextLine := t.getAdjustedLine(m.endLine)
+	nextCol := t.getAdjustedCol(m.endLine, m.endCol)
 	// If this anything remaining in this mapping beyond the current line and
 	// column position, write it out now.
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
@@ -807,8 +845,8 @@ func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisit(v SourceMapGeneratorV
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisitParent(MappingVisitor, Mapping, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisitParent(v SourceMapGeneratorV3_MappingVisitor, parent, m *SourceMapGeneratorV3_Mapping) {
-	nextLine := t.GetAdjustedLine(m.startPosition)
-	nextCol := t.GetAdjustedCol(m.startPosition)
+	nextLine := t.getAdjustedLine(m.startLine)
+	nextCol := t.getAdjustedCol(m.startLine, m.startCol)
 	// If the previous value is null, no mapping exists.
 	jutil.CheckState(t.line < nextLine || t.col <= nextCol)
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
@@ -1039,13 +1077,13 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 	l.previousColumn = column
 	if m != nil {
 		// The relative source file id
-		sourceId := l.outer.GetSourceId(m.sourceFile)
+		sourceId := l.outer.GetSourceId(l.outer.addedSourceFiles[m.sourceFileIdx])
 		l.writeVLQ(int32(sourceId - l.previousSourceFileId))
 		l.previousSourceFileId = sourceId
 
 		// The relative source file line and column
-		srcline := m.originalPosition.GetLine()
-		srcColumn := m.originalPosition.GetColumn()
+		srcline := int(m.originalLine)
+		srcColumn := int(m.originalCol)
 		l.writeVLQ(int32(srcline - l.previousSourceLine))
 		l.previousSourceLine = srcline
 
@@ -1069,7 +1107,8 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 	// Start the first line.
 	l.OpenLine(true)
 
-	NewSourceMapGeneratorV3_MappingTraversal(l.outer).Traverse(l)
+	t := SourceMapGeneratorV3_MappingTraversal{outer: l.outer}
+	t.Traverse(l)
 
 	// And close the final line.
 	l.CloseLine(true)

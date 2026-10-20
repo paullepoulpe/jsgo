@@ -44,6 +44,7 @@ func NewInferConsts(compiler AbstractCompiler) *InferConsts {
 // Java: InferConsts.process(Node, Node)
 func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
+	defer scopeCreator.ReleaseArena()
 	collector := newInferConstsCollector(c.compiler, scopeCreator)
 	collector.processRoot(js)
 

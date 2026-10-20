@@ -38,6 +38,9 @@ type DeadAssignmentsElimination struct {
 	// of the slice.
 	functionStack    []DeadAssignmentsElimination_BailoutInformation
 	functionStackBuf [8]DeadAssignmentsElimination_BailoutInformation
+
+	livenessStorage LiveVariablesAnalysis
+	varsFinder      lvaAllVarsFinder
 }
 
 // DeadAssignmentsElimination_BailoutInformation is the nested class
@@ -61,7 +64,14 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 	jutil.CheckNotNull(externs)
 	jutil.CheckNotNull(root)
 	jutil.CheckState(d.compiler.GetLifeCycleStage().IsNormalized())
-	NodeTraversal_Traverse(d.compiler, root, d)
+	sc := NewSyntacticScopeCreator(d.compiler)
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     d.compiler,
+		callback:     d,
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
 }
 
 // functionStackPeekFirst is ArrayDeque.peekFirst() (null when empty).
@@ -142,11 +152,10 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
 	}
 	scopeCreator := d.scopeCreator
-	allVarsDeclaredInFunction :=
-		NodeUtil_GetAllVarsDeclaredInFunction(d.compiler, scopeCreator, functionScope)
-	d.liveness =
-		NewLiveVariablesAnalysis(
-			cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
+	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
+	d.livenessStorage.Reset(
+		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
+	d.liveness = &d.livenessStorage
 	d.liveness.Analyze()
 	allVarsInFn := d.liveness.GetAllVariables()
 	d.TryRemoveDeadAssignments(t, cfg, allVarsInFn)

@@ -190,7 +190,9 @@ func (r *ReplaceCssNames) Process(externs *rhino.Node, root *rhino.Node) {
 		}
 		getCssNameInstance.ReplaceWithExpression()
 	}
-	NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_CountCssNamesBySymbol{outer: r})
+	if !r.classesObjectsQualifiedNames.IsEmpty() {
+		NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_CountCssNamesBySymbol{outer: r})
+	}
 }
 
 // GatherGetCssNameInstances creates a list of objects representing all the
@@ -239,7 +241,7 @@ func (f *ReplaceCssNames_FindSetCssNameTraversal) Visit(t *NodeTraversal, n *rhi
 type ReplaceCssNames_GatherCssNamesTraversal struct {
 	outer                  *ReplaceCssNames
 	listOfCssNameInstances *jutil.ArrayList[*ReplaceCssNames_GetCssNameInstance]
-	traversalState         *ReplaceCssNames_GatherCssNamesTraversal_TraversalState
+	traversalState         ReplaceCssNames_GatherCssNamesTraversal_TraversalState
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal()
@@ -247,26 +249,28 @@ func NewReplaceCssNames_GatherCssNamesTraversal(outer *ReplaceCssNames) *Replace
 	return &ReplaceCssNames_GatherCssNamesTraversal{
 		outer:                  outer,
 		listOfCssNameInstances: jutil.NewArrayList[*ReplaceCssNames_GetCssNameInstance](),
-		traversalState:         &ReplaceCssNames_GatherCssNamesTraversal_TraversalState{},
 	}
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal.shouldTraverse(NodeTraversal, Node, Node)
 func (g *ReplaceCssNames_GatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	r := g.outer
-	sassGeneratedCssTsExpert := g.CreateSassGeneratedCssTsExpert(n)
-	if sassGeneratedCssTsExpert.sassGeneratedCssTsValidationError != nil {
-		r.compiler.Report(sassGeneratedCssTsExpert.sassGeneratedCssTsValidationError)
+	jsdoc := n.GetJSDocInfo()
+	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
+	if hasSassGeneratedCssTsJsDoc && (!n.IsScript() || r.IsNotInCssClosureFile(n)) {
+		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR))
 		// Skip all nodes that are descendants of this one, since we found an invalid
 		// @sassGeneratedCssTs JSDoc annotation, and are in an invalid state.
 		return false
 	}
 	if n.IsScript() {
-		g.traversalState.inSassGeneratedCssTsScript = sassGeneratedCssTsExpert.hasSassGeneratedCssTsJsDoc
+		g.traversalState.inSassGeneratedCssTsScript = hasSassGeneratedCssTsJsDoc
 		g.traversalState.cssClosureClassesQualifiedName = nil
-	} else if g.traversalState.inSassGeneratedCssTsScript &&
-		sassGeneratedCssTsExpert.isCssClosureClassesAssignment {
-		g.traversalState.cssClosureClassesQualifiedName = sassGeneratedCssTsExpert.cssClosureClassesQualifiedName
+	} else if g.traversalState.inSassGeneratedCssTsScript && n.IsAssign() {
+		assignmentTarget := n.GetFirstChild()
+		if assignmentTarget.IsGetProp() && assignmentTarget.GetString() == "classes" {
+			g.traversalState.cssClosureClassesQualifiedName = assignmentTarget.GetQualifiedName()
+		}
 	}
 	return true
 }
@@ -287,11 +291,11 @@ func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n *rhi
 // Java: ReplaceCssNames.GatherCssNamesTraversal.createSassGeneratedCssTsExpert(Node)
 func (g *ReplaceCssNames_GatherCssNamesTraversal) CreateSassGeneratedCssTsExpert(n *rhino.Node) *ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert {
 	r := g.outer
-	hasSassGeneratedCssTsJsDoc := n.GetJSDocInfo() != nil && n.GetJSDocInfo().IsSassGeneratedCssTs()
+	jsdoc := n.GetJSDocInfo()
+	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
 
 	var sassGeneratedCssTsValidationError *JSError
-	isInvalidSassGeneratedCssTsJsDoc := !n.IsScript() || r.IsNotInCssClosureFile(n)
-	if hasSassGeneratedCssTsJsDoc && isInvalidSassGeneratedCssTsJsDoc {
+	if hasSassGeneratedCssTsJsDoc && (!n.IsScript() || r.IsNotInCssClosureFile(n)) {
 		sassGeneratedCssTsValidationError = JSError_MakeWithNode(n, ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR)
 	}
 
@@ -624,6 +628,9 @@ func (c *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse(t *NodeTraversal,
 // Java: ReplaceCssNames.CountCssNamesBySymbol.visit(NodeTraversal, Node, Node)
 func (c *ReplaceCssNames_CountCssNamesBySymbol) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	r := c.outer
+	if r.classesObjectsQualifiedNames.IsEmpty() || !n.IsQualifiedName() {
+		return
+	}
 	classesObjectQualifiedName := n.GetQualifiedName()
 	if classesObjectQualifiedName == nil ||
 		!r.classesObjectsQualifiedNames.Contains(*classesObjectQualifiedName) {

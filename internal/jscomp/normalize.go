@@ -136,13 +136,23 @@ func Normalize_IsFunctionExpressionNameNode(n *rhino.Node) bool {
 func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	normStmts := NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange, nil)
 	normStmts.initFastContextualRenamer()
-	NodeTraversal_TraverseRoots(n.compiler, normStmts, externs, root)
+	sc1 := NewSyntacticScopeCreator(n.compiler)
+	b1 := NodeTraversal_Builder{
+		compiler:     n.compiler,
+		callback:     normStmts,
+		scopeCreator: sc1,
+	}
+	b1.TraverseRoots(externs, root)
+	sc1.ReleaseArena()
 
-	NodeTraversal_Builder_().
-		SetCompiler(n.compiler).
-		SetCallback(NewNormalize_PropagateConstantPropertyOverVars(n.compiler, n.assertOnChange)).
-		SetScopeCreator(NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))).
-		TraverseRoots(externs, root)
+	sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
+	defer sc2.ReleaseArena()
+	b2 := NodeTraversal_Builder{
+		compiler:     n.compiler,
+		callback:     NewNormalize_PropagateConstantPropertyOverVars(n.compiler, n.assertOnChange),
+		scopeCreator: sc2,
+	}
+	b2.TraverseRoots(externs, root)
 
 	if !n.compiler.GetLifeCycleStage().IsNormalized() {
 		n.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)

@@ -19,8 +19,10 @@
 package jscomp
 
 import (
+	"iter"
 	"math"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -70,39 +72,66 @@ type CodePrinter_MappedCodePrinterBase struct {
 
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/peek/pop) is a slice whose top is its last element. nil is null.
-	mappings            []*SourceMap_Mapping
-	allMappings         []*SourceMap_Mapping // nil is null
-	// The ordered list of finalized mappings since the last line break. See
-	// #reportLineCut.
-	completeMappings    []*SourceMap_Mapping // nil is null
-	mappingSlab         []SourceMap_Mapping
-	mappingBuf          [16]SourceMap_Mapping
-	mappingsBuf         [16]*SourceMap_Mapping
-	allMappingsBuf      [16]*SourceMap_Mapping
-	completeMappingsBuf [16]*SourceMap_Mapping
-	// The index into allMappings to find the mappings added since the last
-	// line break. See #reportLineCut.
-	firstCandidateMappingForCut int
-	createSrcMap                bool
-	sourceMapDetailLevel        SourceMap_DetailLevel
-	licenseTracker              CodePrinter_LicenseTracker // nil is null
-	codeASCIIBuf                [128]byte
-	codeASCII                   []byte
-	codeUTF16                   *jutil.StringBuilder
-	codeFrozen                  bool
-	lineLengthThreshold         int
-	lineLength                  int
-	lineIndex                   int
+	mappings []*SourceMap_Mapping
+	// The ordered list of finalized mappings that started before the last line
+	// break and ended since the last line break. See #reportLineCut.
+	completeMappings     []*SourceMap_Mapping // nil is null
+	mappingChunks        [][]SourceMap_Mapping
+	mappingSlab          []SourceMap_Mapping
+	mappingChunksBuf     [16][]SourceMap_Mapping
+	mappingBuf           [32]SourceMap_Mapping
+	mappingsBuf          [64]*SourceMap_Mapping
+	completeMappingsBuf  [16]*SourceMap_Mapping
+	cutChunkIdx          int
+	cutElemIdx           int
+	cutStackDepth        int
+	createSrcMap         bool
+	sourceMapDetailLevel SourceMap_DetailLevel
+	licenseTracker       CodePrinter_LicenseTracker // nil is null
+	codeASCIIBuf         [128]byte
+	codeASCII            []byte
+	codeUTF16            *jutil.StringBuilder
+	codeFrozen           bool
+	lineLengthThreshold  int
+	lineLength           int
+	lineIndex            int
+}
+
+const codePrinter_mappingSlabSize = 512
+
+var codePrinter_mappingSlabPool = sync.Pool{
+	New: func() any {
+		return new([codePrinter_mappingSlabSize]SourceMap_Mapping)
+	},
 }
 
 func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
 	if len(m.mappingSlab) == cap(m.mappingSlab) {
-		newCap := min(max(cap(m.mappingSlab)*4, 64), 4096)
-		m.mappingSlab = make([]SourceMap_Mapping, 0, newCap)
+		if len(m.mappingSlab) > 0 {
+			m.mappingChunks = append(m.mappingChunks, m.mappingSlab)
+		}
+		arr := codePrinter_mappingSlabPool.Get().(*[codePrinter_mappingSlabSize]SourceMap_Mapping)
+		m.mappingSlab = arr[:0:codePrinter_mappingSlabSize]
 	}
 	i := len(m.mappingSlab)
 	m.mappingSlab = m.mappingSlab[:i+1]
 	return &m.mappingSlab[i]
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) releaseMappingSlabs() {
+	for i, chunk := range m.mappingChunks {
+		if cap(chunk) == codePrinter_mappingSlabSize {
+			clear(chunk[:cap(chunk)])
+			codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(chunk[:cap(chunk)]))
+		}
+		m.mappingChunks[i] = nil
+	}
+	m.mappingChunks = m.mappingChunks[:0]
+	if cap(m.mappingSlab) == codePrinter_mappingSlabSize {
+		clear(m.mappingSlab[:cap(m.mappingSlab)])
+		codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(m.mappingSlab[:cap(m.mappingSlab)]))
+	}
+	m.mappingSlab = nil
 }
 
 // GetCodePrinter_MappedCodePrinterBase gives access to the base fields
@@ -123,7 +152,9 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
-	m.firstCandidateMappingForCut = 0
+	m.cutChunkIdx = 0
+	m.cutElemIdx = 0
+	m.cutStackDepth = 0
 	m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
 	m.codeUTF16 = nil
 	m.codeFrozen = false
@@ -141,13 +172,14 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.createSrcMap = createSrcMap
 	m.sourceMapDetailLevel = sourceMapDetailLevel
 	if createSrcMap {
+		m.mappingChunks = m.mappingChunksBuf[:0:len(m.mappingChunksBuf)]
 		m.mappingSlab = m.mappingBuf[:0:len(m.mappingBuf)]
 		m.mappings = m.mappingsBuf[:0:len(m.mappingsBuf)]
-		m.allMappings = m.allMappingsBuf[:0:len(m.allMappingsBuf)]
 		m.completeMappings = m.completeMappingsBuf[:0:len(m.completeMappingsBuf)]
 	} else {
+		m.mappingChunks = nil
+		m.mappingSlab = nil
 		m.mappings = nil
-		m.allMappings = nil
 		m.completeMappings = nil
 	}
 	m.licenseTracker = licenseTracker
@@ -269,8 +301,8 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node)
 		mapping := m.allocMapping()
 		mapping.node = node
 		mapping.start = sourcemap.MakeFilePosition(line, index)
+		mapping.end = sourcemap.MakeFilePosition(-1, -1)
 		m.mappings = append(m.mappings, mapping)
-		m.allMappings = append(m.allMappings, mapping)
 	}
 }
 
@@ -287,25 +319,20 @@ func (m *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node *rhino.Node) {
 		index := m.GetCurrentCharIndex()
 		jutil.CheckState(line >= 0)
 		mapping.end = sourcemap.MakeFilePosition(line, index)
-		m.completeMappings = append(m.completeMappings, mapping)
+		if len(m.mappings) < m.cutStackDepth {
+			m.cutStackDepth = len(m.mappings)
+			m.completeMappings = append(m.completeMappings, mapping)
+		}
 	}
 }
 
-// GetSourceMappings returns a list of sourcemap mappings that were
-// generated while printing this code. Only useful if createSrcMap was true
-// for this MappedCodePrinter.
-//
-// Java: CodePrinter.MappedCodePrinter.getSourceMappings(String)
-func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*SourceMap_Mapping {
-	if !m.createSrcMap {
-		return nil
-	}
-	if len(m.allMappings) == 0 || code == "" {
-		return m.allMappings
+func (m *CodePrinter_MappedCodePrinterBase) adjustSourceMappings(code string) {
+	if !m.createSrcMap || (len(m.mappingChunks) == 0 && len(m.mappingSlab) == 0) || code == "" {
+		return
 	}
 	lineEndPos := strings.IndexByte(code, '\n')
 	if lineEndPos == -1 {
-		return m.allMappings
+		return
 	}
 	var stackBuf [64]int
 	var lineLengths []int
@@ -328,10 +355,62 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 			lineEndPos += lineStartPos
 		}
 	}
-	for _, mapping := range m.allMappings {
-		mapping.end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, mapping.end)
+	for _, chunk := range m.mappingChunks {
+		for i := range chunk {
+			chunk[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, chunk[i].end)
+		}
 	}
-	return m.allMappings
+	for i := range m.mappingSlab {
+		m.mappingSlab[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, m.mappingSlab[i].end)
+	}
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) iterMappings(yield func(int, *SourceMap_Mapping) bool) {
+	if !m.createSrcMap {
+		return
+	}
+	idx := 0
+	for _, chunk := range m.mappingChunks {
+		for i := range chunk {
+			if !yield(idx, &chunk[i]) {
+				return
+			}
+			idx++
+		}
+	}
+	for i := range m.mappingSlab {
+		if !yield(idx, &m.mappingSlab[i]) {
+			return
+		}
+		idx++
+	}
+	m.releaseMappingSlabs()
+}
+
+// GetSourceMappings returns a list of sourcemap mappings that were
+// generated while printing this code. Only useful if createSrcMap was true
+// for this MappedCodePrinter.
+//
+// Java: CodePrinter.MappedCodePrinter.getSourceMappings(String)
+func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*SourceMap_Mapping {
+	if !m.createSrcMap {
+		return nil
+	}
+	m.adjustSourceMappings(code)
+	total := len(m.mappingSlab)
+	for _, chunk := range m.mappingChunks {
+		total += len(chunk)
+	}
+	out := make([]*SourceMap_Mapping, 0, total)
+	for _, chunk := range m.mappingChunks {
+		for i := range chunk {
+			out = append(out, &chunk[i])
+		}
+	}
+	for i := range m.mappingSlab {
+		out = append(out, &m.mappingSlab[i])
+	}
+	return out
 }
 
 // ReportLineCut reports to the code consumer that the given line has been
@@ -341,27 +420,33 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 // Java: CodePrinter.MappedCodePrinter.reportLineCut(int, int)
 func (m *CodePrinter_MappedCodePrinterBase) ReportLineCut(lineIndex int, charIndex int) {
 	if m.createSrcMap {
-		// To avoid iterating over every mapping, every time we cut a line
-		// (which can get excessively expensive for large files), we keep
-		// track of mappings that must be before the next cut. For the start
-		// of mappings, we can use the order in allMappings. However, mapping
-		// ends do not have their own entry in the list so we must track
-		// those separately.
-
-		mappingCount := len(m.allMappings)
-		for i := m.firstCandidateMappingForCut; i < mappingCount; i++ {
-			mapping := m.allMappings[i]
-			mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
+		for m.cutChunkIdx < len(m.mappingChunks) {
+			chunk := m.mappingChunks[m.cutChunkIdx]
+			for i := m.cutElemIdx; i < len(chunk); i++ {
+				mapping := &chunk[i]
+				mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
+				if mapping.end.GetLine() >= 0 {
+					mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
+				}
+			}
+			m.cutChunkIdx++
+			m.cutElemIdx = 0
 		}
-		m.firstCandidateMappingForCut = mappingCount
+		for i := m.cutElemIdx; i < len(m.mappingSlab); i++ {
+			mapping := &m.mappingSlab[i]
+			mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
+			if mapping.end.GetLine() >= 0 {
+				mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
+			}
+		}
+		m.cutElemIdx = len(m.mappingSlab)
 
 		for _, mapping := range m.completeMappings {
 			mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
 		}
-		// To avoid iterating over every mapping, every time we cut a line,
-		// keep track of mappings that must end before the next cut.
 		clear(m.completeMappings)
 		m.completeMappings = m.completeMappings[:0]
+		m.cutStackDepth = len(m.mappings)
 	}
 }
 
@@ -1219,26 +1304,28 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	source, _ := b.buildSourceAndMappings()
+	source, _ := b.buildSourceAndMappings(false)
 	return source
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
 func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
-	source, mappings := b.buildSourceAndMappings()
+	source, mappings := b.buildSourceAndMappings(true)
 	return &CodePrinter_SourceAndMappings{
 		source:   source,
 		mappings: mappings,
 	}
 }
 
-func (b *CodePrinter_Builder) buildSourceAndMappings() (string, []*SourceMap_Mapping) {
+func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
+
+func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string, iter.Seq2[int, *SourceMap_Mapping]) {
 	if b.root == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
 	options := b.getOptions()
 	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
-	gatherSourceMap := options.ShouldGatherSourceMapInfo()
+	gatherSourceMap := wantMappings && options.ShouldGatherSourceMapInfo()
 
 	var mcp CodePrinter_MappedCodePrinter
 	if outputFormat == CodePrinter_Format_COMPACT {
@@ -1276,9 +1363,13 @@ func (b *CodePrinter_Builder) buildSourceAndMappings() (string, []*SourceMap_Map
 	mcp.EndFile()
 
 	source := mcp.GetCode()
-	var mappings []*SourceMap_Mapping
+	var mappings iter.Seq2[int, *SourceMap_Mapping]
 	if gatherSourceMap {
-		mappings = mcp.GetSourceMappings(source)
+		base := mcp.GetCodePrinter_MappedCodePrinterBase()
+		base.adjustSourceMappings(source)
+		mappings = base.iterMappings
+	} else if wantMappings {
+		mappings = codePrinter_emptyMappingsSeq
 	}
 	return source, mappings
 }
@@ -1319,7 +1410,7 @@ func CodePrinter_Format_FromOptions(options *CompilerOptions, outputTypes bool, 
 // SourceMap Mappings for that source.
 type CodePrinter_SourceAndMappings struct {
 	source   string
-	mappings []*SourceMap_Mapping // nil is null
+	mappings iter.Seq2[int, *SourceMap_Mapping] // nil is null
 }
 
 // Java: CodePrinter.SourceAndMappings()
@@ -1375,7 +1466,11 @@ func CodePrinter_ToSource(
 	result.source = mcp.GetCode()
 
 	if options.ShouldGatherSourceMapInfo() {
-		result.mappings = mcp.GetSourceMappings(result.source)
+		base := mcp.GetCodePrinter_MappedCodePrinterBase()
+		base.adjustSourceMappings(result.source)
+		result.mappings = base.iterMappings
+	} else {
+		result.mappings = codePrinter_emptyMappingsSeq
 	}
 
 	return result

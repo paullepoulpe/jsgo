@@ -64,6 +64,10 @@ func CheckMissingReturn_GoesThroughTrueCondition(
 	return true
 }
 
+func checkMissingReturn_isReturn(input *rhino.Node) bool {
+	return input != nil && input.IsReturn()
+}
+
 // Java: CheckMissingReturn(AbstractCompiler)
 func NewCheckMissingReturn(compiler AbstractCompiler) *CheckMissingReturn {
 	c := &CheckMissingReturn{}
@@ -96,12 +100,14 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		return
 	}
 
-	test := NewCheckPathsBetweenNodesInclusive[*rhino.Node, ControlFlowGraph_Branch](
-		cfg,
-		cfg.GetEntry(),
-		cfg.GetImplicitReturn(),
-		func(input *rhino.Node) bool { return input != nil && input.IsReturn() },
-		CheckMissingReturn_GoesThroughTrueCondition)
+	test := CheckPathsBetweenNodes[*rhino.Node, ControlFlowGraph_Branch]{
+		graph:         cfg,
+		start:         cfg.GetEntry(),
+		end:           cfg.GetImplicitReturn(),
+		nodePredicate: checkMissingReturn_isReturn,
+		edgePredicate: CheckMissingReturn_GoesThroughTrueCondition,
+		inclusive:     true,
+	}
 
 	if !test.AllPathsSatisfyPredicate() {
 		c.compiler.Report(
