@@ -1,12 +1,14 @@
 # Performance experiment record
 
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
-PR #23 is synchronized with main `5de6e335`. Completed normal/corpus gates,
-paired baseline and negative factor screens belong to earlier `2262bb6a`:
-Java/Go time 0.9551 (Go slower), Java/Go RSS 3.5708 (Go smaller) on the capped
-ADVANCED bundle. The intervening `289058de` passed 29,508 normal checks and
-cut bundle time by 14.7% and peak RSS by 10.3% in a separate Go-versus-Go
-screen. Full validation and paired JVM measurements for `5de6e335` are in progress.
+PR #23 is synchronized with main `5de6e335`. On the capped ADVANCED bundle,
+three settled, independently restarted JVM cohorts give **Java/Go time
+1.2269** (95% cohort interval 1.2096–1.2534) and **Java/Go peak RSS 3.7956**
+(3.4900–4.0768). Go takes **18.5% less time** and uses **73.7% less peak RSS**;
+all 15 alternating pairs match output. This win belongs to landed main
+changes. Full `5de6e335` validation and broader workload gates are in progress.
+The intervening `289058de` passed 29,508 normal checks. Earlier baseline
+and factor results below retain their original sources and cohorts.
 The raw evidence and recoverable source snapshots are now published. The sections below
 preserve the completed October 19 investigation and its original cohorts.
 

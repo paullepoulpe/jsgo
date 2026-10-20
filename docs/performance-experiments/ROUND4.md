@@ -18,8 +18,51 @@ six further commits, 32 changed files and PGO SHA256
 `e11b868352b3ed0d585686fa63b47f3d04e62259535497237d4804c78a060462`.
 It is now merged into PR 23 and frozen for the next paired-JVM block.
 Its bundle N1 and N2 correctness invocations match all six stock-Java
-artifacts under the actual 4 GiB cap. Its full suite is in progress;
-no completed speed or warm-Java ratio for this second sync is claimed here.
+artifacts under the actual 4 GiB cap. Its full suite is in progress.
+The completed N1 paired-JVM block below establishes a win on this bundle.
+
+### Completed 5de6e335 warm-JVM comparison
+
+Three independently restarted JVMs each settled after 21 warmup requests,
+then completed five alternating Java/Go pairs. All 15 pairs match every
+required output byte, stream and exit. Each Java request creates a fresh
+stock compiler and reparses externs; Go is a fresh CLI. Both use compiler
+N=1, default runtime GC, a two-CPU budget and a verified 4 GiB kernel cap.
+
+| JVM cohort | Java median s (SD) | Go median s (SD) | Java peak RSS MiB | Go median peak RSS MiB | Java/Go time | Java/Go RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 11.573 (0.323) | 9.567 (0.190) | 1555.47 | 381.54 | 1.2096 | 4.0768 |
+| 2 | 11.334 (0.178) | 9.304 (0.187) | 1332.92 | 381.93 | 1.2182 | 3.4900 |
+| 3 | 11.596 (0.115) | 9.252 (0.321) | 1477.89 | 384.56 | 1.2534 | 3.8431 |
+
+The geometric mean Java/Go time ratio is **1.2269**, with a 95% restarted-
+cohort bootstrap interval of **1.2096–1.2534**. Go takes **18.5% less elapsed
+time** (geometric means of cohort medians: Java 11.500 s, Go 9.373 s).
+Java/Go peak RSS is **3.7956** (interval **3.4900–4.0768**), corresponding to
+**73.7% less peak RSS** for Go. Java RSS covers the warm JVM lifetime,
+including warmup and JIT; Go RSS is the median fresh-process lifetime peak.
+These are process-memory comparisons, not per-compilation live-heap ratios.
+
+All three cohorts favor Go, with no outer OOM-counter increase. Only three
+independent JVM cohorts underpin the intervals; this is a confirmed result
+on the 11-library ADVANCED bundle, not a result for the larger typed,
+many-chunk or generated-code workloads. The compiler and PGO are unchanged
+stock main: **the measured win belongs to changes landed on main**, not to
+the unpromoted prototypes archived in this PR. Raw evidence is
+`paired-main5de-bundle-advanced-t1-v1/` in the third measurement delta below.
+
+A separate three-round Go-only screen compares `289058de` with `5de6e335`:
+median elapsed time 10.260 → 8.884 s (SD 0.213 → 0.124 s), and median peak
+RSS 378.92 → 390.05 MiB (SD 0.35 → 8.16 MiB). Median same-round new/old
+ratios are **0.86585 time** and **1.02989 RSS**: 13.4% less time with about
+3.0% higher RSS. All six invocations match the same Java oracle. This screen
+and the earlier 2262→289 screen are separate sessions; their percentages
+must not be multiplied into a purported measured overall improvement.
+
+The full `5de6e335` suite was explicitly paused from 09:18:49 to 09:42:48 UTC
+for the quiet timing block, then resumed automatically. Its wall time is
+not a performance measurement. A post-block fetch confirmed main still
+points to this measured source.
 
 The intervening main `289058de` passed the complete all-package normal
 suite, including the test-only fail-closed corpus paths: 29,508 PASS events
@@ -66,8 +109,10 @@ independent execution of both compiled outputs, including real descriptor,
 Timestamp and Struct binary roundtrips. The earlier ADVANCED CommonJS
 fixture emitted byte-identical but broken code in both engines: preserve
 that failure, exclude it from performance claims. A separate genuine
-Closure-style protoc 3.20.3 fixture has passed generation and raw execution;
-its full ADVANCED compiler/compiled-runtime gates are still in progress.
+Closure-style protoc 3.20.3 fixture has now passed generation, raw execution,
+all six ADVANCED Java/Go byte gates and independent execution of both
+compiled outputs under the verified cap (zero OOM events). This is a
+correctness diagnostic; it supplies no settled-JVM performance ratio.
 Soy generation, J2CL inputs and dependency-preserving 32-chunk construction
 are prepared; their remaining gates are explicitly pending.
 
@@ -292,3 +337,33 @@ eleven additional frozen source snapshots in
 The manifest labels source-only hypotheses and validated preparation
 separately; recovery prerequisites 2262bb6a, 289058de and 5de6e335 are all
 in PR 23 history. Earlier archives and source bundles remain unchanged.
+
+## Third completed evidence cut
+
+[round4-measurement-records-v3.tar.gz](round4-measurement-records-v3.tar.gz)
+adds 719 completed new/changed files (364,561,319 original bytes), deduplicated
+to 240 blobs. It contains every sample and artifact from the completed 5de
+screen and three-cohort warm-JVM block, the genuine Closure protobuf
+ADVANCED runtime gates, and the latest source/profile audits. One rebuildable
+class file is excluded with its hash. Active full-suite and new generated
+fixture attempts are excluded from this cut.
+
+Archive SHA256: `02fe85d92d23deae0e4bb01a92e6a8afc994de886c623bc4dc32302b7315db9f`.
+The same verifier validates all paths and payload hashes. All 28 benchmark
+tool checks pass on the publication tree.
+
+[round4-source-manifest-v3.json](round4-source-manifest-v3.json) records 14
+frozen snapshots in [round4-prototype-sources-v3.bundle](round4-prototype-sources-v3.bundle),
+including the earlier states, new post-callback DAE admission checks and the
+5de COW diagnostic port. Both new compiler variants are **source-only**:
+they have not passed Go compilation, normal/race tests, byte gates or timing.
+The benchmark queue helper has passed its six Python model checks.
+
+The new audits put historical DAE at only 1.27–1.79% of sampled CPU, and
+Java-style string hashing below 1%. Neither cumulative traversal time nor
+asynchronous GC can be credited wholesale to one proposed optimization.
+An index-linked AST audit records a bounded-region design, identity,
+value-copy and strong-edge constraints, and a measurable break-even test;
+it is not an implemented layout or an RSS result. Current-main profiles and
+actual COW allocation-event counts are the next useful gates before larger
+rewrites. Earlier archives remain unchanged.
