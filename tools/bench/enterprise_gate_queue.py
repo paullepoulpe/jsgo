@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
+import paired_cli as control
 HERE = Path(__file__).resolve().parent
 PINNED_JAR = 'd6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6'
 SCOPE = 'Sequential diagnostic correctness/setup only; clocks are not performance evidence'
@@ -63,13 +64,24 @@ def validate_spec(spec, semantics):
 
 def run_step(command, root, label, pins):
     check_pins(pins)
+    before = control.outer_state()
+    save(root/(label+'.outer-before.json'), before)
     save(root/(label+'.command.json'), {'argv': command, 'scope': SCOPE})
     with (root/(label+'.stdout')).open('wb') as stdout, (root/(label+'.stderr')).open('wb') as stderr:
         completed = subprocess.run(command, stdout=stdout, stderr=stderr)
     save(root/(label+'.exit.json'), {'exit': completed.returncode, 'scope': SCOPE})
+    after = control.outer_state()
+    save(root/(label+'.outer-after.json'), after)
+    assert_no_outer_oom(before, after)
     check_pins(pins)
     if completed.returncode:
         raise RuntimeError(label+' failed; original artifacts/logs retained')
+
+
+def assert_no_outer_oom(before, after):
+    for event in ('oom', 'oom_kill'):
+        if control.event_count(before.get('memory.events', ''), event) != control.event_count(after.get('memory.events', ''), event):
+            raise RuntimeError('outer workspace cgroup '+event+' changed; correctness gate invalidated')
 
 
 def kernel(memory, swap, cpu, cpuset):
@@ -146,6 +158,8 @@ def execute(plan, out):
         raise ValueError('unchanged repository-pinned stock Java jar required')
     out.mkdir(parents=True)
     save(out/'plan.json', plan)
+    before = control.outer_state()
+    save(out/'outer-before.json', before)
     results = []
     try:
         for task in plan['tasks']:
@@ -167,8 +181,12 @@ def execute(plan, out):
             save(root/'validation.json', proof)
             results.append({'name': task['name'], 'status': 'PASS', 'validation': str(root/'validation.json')})
             save(out/'progress.json', {'scope': SCOPE, 'completed': results})
+        after = control.outer_state()
+        save(out/'outer-after.json', after)
+        assert_no_outer_oom(before, after)
     except BaseException as error:
-        save(out/'failure.json', {'type': type(error).__name__, 'message': str(error), 'completed': results, 'scope': SCOPE})
+        save(out/'failure.json', {'type': type(error).__name__, 'message': str(error), 'completed': results,
+                                 'outer_state': control.outer_state(), 'scope': SCOPE})
         raise
     save(out/'result.json', {'status': 'PASS', 'scope': SCOPE, 'tasks': results})
 

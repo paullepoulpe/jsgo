@@ -53,6 +53,12 @@ class GateQueueTest(unittest.TestCase):
                      ('4294967296', '0', '200000 100000', '0-3')]:
             with self.assertRaises(ValueError): queue.kernel(*args)
 
+    def test_outer_oom_invalidates_an_otherwise_successful_task(self):
+        before = {'memory.events': 'oom 2\noom_kill 1\n'}
+        queue.assert_no_outer_oom(before, before)
+        for events in ['oom 3\noom_kill 1\n', 'oom 2\noom_kill 2\n']:
+            with self.assertRaises(RuntimeError): queue.assert_no_outer_oom(before, {'memory.events': events})
+
 
 if __name__ == '__main__':
     unittest.main()
