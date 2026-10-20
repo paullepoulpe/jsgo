@@ -178,7 +178,15 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		state = &coalesceScopeState{}
 		c.scopeStates[depth] = state
 	}
-	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), t.GetScopeCreator(), t.GetScope())
+	var scopeCreator ScopeCreator
+	if c.canReuseControlFlowGraph(t, c.compiler) {
+		// This finder is private to the exact stock pass and consumes the
+		// creator synchronously; publishing it would disable arena release.
+		scopeCreator = t.getScopeCreator()
+	} else {
+		scopeCreator = t.GetScopeCreator()
+	}
+	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), scopeCreator, t.GetScope())
 	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(allVarsDeclaredInFunction.GetAllVariablesInOrder()) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return

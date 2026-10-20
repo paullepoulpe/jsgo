@@ -1960,6 +1960,14 @@ func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() *rhino.Node 
 // Java: NodeTraversal.getScopeCreator()
 func (t *NodeTraversal) GetScopeCreator() ScopeCreator {
 	creator := t.getScopeCreator()
+	// Public callers may retain this creator, its scopes and initialized value
+	// copies beyond a pass's explicit ReleaseArena.
+	switch c := creator.(type) {
+	case *SyntacticScopeCreator:
+		c.markArenaEscaped()
+	case *MemoizedScopeCreator:
+		c.markArenaEscaped()
+	}
 	if ssc, ok := creator.(*SyntacticScopeCreator); ok && ssc == &t.defaultScopeCreator {
 		// A callback may keep this creator after the traversal is released to
 		// its pool. Preserve the creator's current state and independently
