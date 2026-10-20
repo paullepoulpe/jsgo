@@ -14,14 +14,14 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–5 below):
-  after five rounds of systematic substrate, data-structure, and pass-level
-  optimizations, `jsgo` is **1.59×–5.10× faster than cold Java (`java -jar`)**
-  and **1.20×–1.64× faster than a warm JIT-compiled JVM** across all 11
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–7 below):
+  after seven rounds of systematic substrate, data-structure, pass-level, and
+  inter-pass arena optimizations, `jsgo` is **1.62×–5.20× faster than cold Java (`java -jar`)**
+  and **1.22×–1.80× faster than a warm JIT-compiled JVM** across all 11
   whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` and
   26-library / 36.1 MB `bundle-mega` `ADVANCED` builds), while using
-  **2.7×–10.0× less peak RSS** than warm Java. Even single-threaded (`t=1`),
-  `jsgo` matches or beats 4-thread warm Java (`1.00×–1.60×`) across all 11
+  **2.9×–10.2× less peak RSS** than warm Java. Even single-threaded (`t=1`),
+  `jsgo` matches or beats 4-thread warm Java (`1.02×–1.75×`) across all 11
   benchmarks.
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
@@ -551,6 +551,49 @@ Total `alloc_space` on `bundle-mega` dropped by **−3.79 GB (−22.1%)** from `
 | **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 9.08 s / 8.96 s | **8.53 s** / **8.41 s** | **−6.1%** / **−6.1%** | 20.78 s | 12.41 s | **2.44×** / **2.47× faster** | **1.45×** / **1.48× faster** (−4.00 s) | **648–649 MiB** vs 2,422 / 2,850+ MiB (**3.7× / 4.4× lower**) |
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 6.22 s / 5.97 s | **5.88 s** / **5.66 s** | **−5.4%** / **−5.2%** | 15.26 s | 8.67 s | **2.60×** / **2.70× faster** | **1.47×** / **1.53× faster** (−3.01 s) | **495–501 MiB** vs 1,341 / 2,852 MiB (**2.7× / 5.7× lower**) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 4.69 s / 4.49 s | **4.39 s** / **4.23 s** | **−6.5%** / **−5.9%** | 11.30 s | 6.79 s | **2.57×** / **2.67× faster** | **1.55×** / **1.61× faster** (−2.56 s) | **368–408 MiB** vs 1,600 / 3,795 MiB (**3.9× / 9.3× lower**) |
+
+## Round 7: Inter-Pass Arena Retention, Reusable CFG/Liveness State, and Pass-Level Slabs (`−4.35 GB` / `−29.2%` `alloc_space` on `bundle-mega`, `−3.12 GB` / `−30.0%` on `typed-mega`) (2026-10-20)
+
+Profiling Round 6 (`d68a146b`) on `bundle-mega` (`14.92 GB` `alloc_space`) and `typed-mega` (`10.40 GB` `alloc_space`) showed that `sync.Pool`-backed arenas (`scopeArena`, `referenceCollectorArena`, `removeUnusedCodeArena`) were being evicted every 2 GC cycles (`runtime.poolCleanup`) between compiler passes, and that `ControlFlowAnalysis`, `CoalesceVariableNames`, `DeadAssignmentsElimination`, `CrossChunkCodeMotion`, `CodePrinter`, `SourceMapGeneratorV3`, `ReplaceCssNames`, `GlobalNamespace`, and `DisambiguateProperties` were still allocating per-invocation state:
+
+1. **GC-Proof 1-Slot `atomic.Pointer` Inter-Pass Arena Cache & Scaled Chunk Limits (`scope.go`, `reference_collector.go`, `cross_chunk_reference_collector.go`, `remove_unused_code.go`, `memoized_scope_creator.go`):**
+   - **Why `sync.Pool` Alone Fails Across Multi-Pass Compilations:** Between two invocations of `InlineVariables` or `RemoveUnusedCode`, 5–10 other passes execute and trigger 1–2 Go GC cycles (`30–34` GC cycles across `179–204` passes in `bundle-mega` / `typed-mega`). Go's `runtime.poolCleanup` moves `local` to `victim` on GC #1 and drops `victim` on GC #2. Placing a 1-slot `atomic.Pointer[Arena]` cache (`cachedScopeArena`, `cachedRCArena`, `cachedCCAArena`, `cachedRUCArena`) in front of `sync.Pool` retains a single cleared, zero-pointer arena across GC cycles while falling back to `sync.Pool` under concurrent compilations.
+   - **Scaled `scopeArena` & `rucSlab` Retention Limits:** Raised `scopeArena` chunk retention (`maxScopeChunkSize = 1024, maxScopeChunks = 80`, `maxVarChunkSize = 2048, maxVarChunks = 80`, `maxSlotChunkSize = 2048, maxSlotChunks = 80`) and `rucSlab` `maxRetainedChunks` (`8 → 40`), and wired `ReleaseArena()` into `MemoizedScopeCreator`, `CoalesceVariableNames`, `FlowSensitiveInlineVariables`, `DeadAssignmentsElimination`, `InferConsts`, `Normalize`, and `VarCheck`.
+2. **Reusable `ControlFlowAnalysis` / `AstControlFlowGraph` & `LiveVariablesAnalysis` State (`Subagent 7C`, `node_traversal.go`, `type_inference_pass.go`, `coalesce_variable_names.go`, `dead_assignments_elimination.go`, `live_variables_analysis.go`, `check_unreachable_code.go`, `check_missing_return.go`):**
+   - Replaced per-scope `ComputeCfg()` allocations in `NodeTraversal.GetControlFlowGraph` (`1,284 MB` on `bundle-mega`) and `TypeInferencePass.ComputeCfg` with `t.cfaStorage.ComputeReusableCfg(..., &t.cfgStorage)`, cutting `ControlFlowAnalysis` allocations by **−97.7%** (`1,284 MB → 30 MB`).
+   - Replaced per-function `LiveVariablesAnalysis`, `CombinedLiveVariablesAnalysis`, and `UndirectedGraph` allocations in `CoalesceVariableNames` and `DeadAssignmentsElimination` with per-depth reusable `coalesceScopeState` (`−22.1%` `coalesceVariableNames` pass time on `bundle-mega`, `−21.3%` on `typed-mega`).
+3. **Pooled `CrossChunkReferenceCollector` / `CrossChunkCodeMotion` Arenas (`Subagent 7B`, `reference_collector.go`, `cross_chunk_reference_collector.go`, `cross_chunk_code_motion.go`):**
+   - Added `crossChunkArena` slabbing `TopLevelStatement`, `GlobalSymbol`, `DeclarationStatementGroup`, and `GlobalSymbolCycle` and indexing `symbolsByVarIndex` by `Var.index` (`−41.2%` `crossChunkCodeMotion` pass time on `typed-mega`, `−32.3%` on `bundle-mega`).
+4. **Pooled `CodePrinter` Buffers, `SourceMapGeneratorV3` Mapping Slabs, and Direct AST Walk in `ReplaceCssNames` (`Subagent 7D`, `code_printer.go`, `source_map_generator_v3.go`, `replace_css_names.go`, `node_util.go`):**
+   - Pooled `CodePrinter` buffers (`codePrinterBufferPool`) and added 4,096-entry `Mapping` slabs in `SourceMapGeneratorV3`, cutting `CodePrinter` allocations by **−44.5%** (`1,040 MB → 577 MB`).
+   - Replaced full `NodeTraversal` in `ReplaceCssNames` with a direct recursive AST walker (`−55.9%` pass time on `typed-mega`, `−55.8%` on `bundle-mega`).
+5. **`GlobalNamespace` Ref Slabs & Pre-Sized `DisambiguateProperties` (`Subagent 7E`, `global_namespace.go`, `disambiguate_color_find_property_references.go`, `disambiguate_property_clustering.go`, `memoized_scope_creator.go`, `optimize_calls.go`):**
+   - Replaced per-ref heap allocations in `GlobalNamespace` with a `jutil.Slab[GlobalNamespace_Ref]`, pre-sized `PropClustering` maps in `DisambiguateProperties` (`−14.8%` pass time on `typed-mega`, `−13.1%` on `bundle-mega`), and added a `[8]memoizedScopeEntry` inline buffer + `lastNode`/`lastScope` cache in `MemoizedScopeCreator`.
+
+Total `alloc_space` dropped by **−4.35 GB (−29.2%)** on `bundle-mega` (`14.92 GB → 10.57 GB`) and **−3.12 GB (−30.0%)** on `typed-mega` (`10.40 GB → 7.28 GB`).
+
+### Final measured results — Round 7 (`t=1` and `t=4`, interleaved, N=3, PGO enabled)
+
+#### Standard 5 Benchmarks
+
+| Benchmark | Original (`c9872522`) | Round 6 (`d68a146b` `t=1`/`t=4`) | **Round 7 (`t=1` / `t=4`)** | Round 7 vs Round 6 (`t=1`/`t=4`) | Total vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-app`** | 2.86 s | 1.73 s / 1.61 s | **1.69 s** / **1.57 s** | **−2.5%** / **−2.5%** | **−40.9%** / **−45.1%** | 6.14 s / 2.18 s | **3.91×** / **1.39×** | **260–265 MiB** vs 758 / 1,871 MiB (**2.9× / 7.1× lower**) |
+| **`bundle`** (12.6 MB) | 11.82 s | 5.59 s / 5.48 s | **5.47 s** / **5.32 s** | **−2.2%** / **−2.9%** | **−53.7%** / **−55.0%** | 16.40 s / 8.68 s | **3.08×** / **1.63×** | **597–622 MiB** vs 2,151 / 2,343 MiB (**3.5× / 3.9× lower**) |
+| **`downlevel-whitespace`** | 0.86 s | 0.59 s / 0.49 s | **0.59 s** / **0.49 s** | **−0.2%** / **+0.4%** | **−31.4%** / **−43.0%** | 2.55 s / 0.60 s | **5.20×** / **1.22×** | **165–166 MiB** vs 553 / 1,437 MiB (**3.3× / 8.7× lower**) |
+| **`downlevel-simple`** | 2.39 s | 1.35 s / 1.26 s | **1.30 s** / **1.20 s** | **−4.0%** / **−4.6%** | **−45.6%** / **−49.8%** | 4.68 s / 1.60 s | **3.90×** / **1.33×** | **207–215 MiB** vs 613 / 1,489 MiB (**2.9× / 7.2× lower**) |
+| **`checks-only`** | 4.40 s | 2.98 s / 2.61 s | **2.98 s** / **2.59 s** | **−0.1%** / **−0.8%** | **−32.3%** / **−41.1%** | 6.55 s / 3.20 s | **2.53×** / **1.24×** | **650–687 MiB** vs 1,591 / 3,562 MiB (**2.4× / 5.5× lower**) |
+
+#### Large & Mega Real-World `ADVANCED` Benchmarks
+
+| Benchmark | Workload (`--compilation_level=ADVANCED`) | Round 6 (`d68a146b` `t=1`/`t=4`) | **Round 7 (`t=1` / `t=4`)** | Round 7 vs Round 6 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 24.08 s / 22.92 s | **23.63 s** / **22.35 s** | **−1.9%** / **−2.5%** | 38.18 s | 29.53 s | **1.62×** / **1.71× faster** | **1.25×** / **1.32× faster** (−7.18 s) | **1,846–1,932 MiB** vs 6,608 / 6,881 MiB (**3.4× / 3.6× lower**) |
+| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (27,597 warnings → 13.09 MB JS + 33.99 MB map) | 31.29 s / 30.39 s | **30.63 s** / **29.82 s** | **−2.1%** / **−1.9%** | 66.71 s | 53.60 s | **2.18×** / **2.24× faster** | **1.75×** / **1.80× faster** (−23.78 s) | **2,283–2,365 MiB** vs 4,421 / 6,775 MiB (**1.9× / 2.9× lower**, −62 MiB vs R6) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 14.08 s / 13.40 s | **13.64 s** / **12.97 s** | **−3.2%** / **−3.2%** | 31.60 s | 20.21 s | **2.32×** / **2.44× faster** | **1.48×** / **1.56× faster** (−7.24 s) | **1,114–1,120 MiB** vs 1,603 / 4,724 MiB (**1.4× / 4.2× lower**, −61 MiB vs R6) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 8.51 s / 8.38 s | **8.31 s** / **8.18 s** | **−2.3%** / **−2.4%** | 20.78 s | 12.41 s | **2.50×** / **2.54× faster** | **1.49×** / **1.52× faster** (−4.23 s) | **602 MiB** vs 2,422 / 2,850+ MiB (**4.0× / 4.7× lower**, −41 MiB vs R6) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.89 s / 5.64 s | **5.69 s** / **5.47 s** | **−3.5%** / **−3.0%** | 15.26 s | 8.67 s | **2.68×** / **2.79× faster** | **1.52×** / **1.59× faster** (−3.20 s) | **486–500 MiB** vs 1,341 / 2,852 MiB (**2.7× / 5.7× lower**, −21 MiB vs R6) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 4.37 s / 4.22 s | **4.27 s** / **4.09 s** | **−2.4%** / **−3.1%** | 11.30 s | 6.79 s | **2.65×** / **2.76× faster** | **1.59×** / **1.66× faster** (−2.70 s) | **370–371 MiB** vs 1,600 / 3,795 MiB (**4.3× / 10.2× lower**) |
 
 ## Smaller open items
 

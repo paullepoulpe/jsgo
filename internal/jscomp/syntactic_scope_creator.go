@@ -37,6 +37,18 @@ type SyntacticScopeCreator struct {
 	arena                         *scopeArena
 }
 
+func (c *SyntacticScopeCreator) ReleaseArena() {
+	if c == nil {
+		return
+	}
+	if c.arena != nil {
+		c.arena.release()
+		c.arena = nil
+	}
+	c.lastInputId = nil
+	c.lastInput = nil
+}
+
 // The arguments variable is special, in that it's declared for every function,
 // but not explicitly declared.
 const syntacticScopeCreator_ARGUMENTS = "arguments"
@@ -89,13 +101,13 @@ func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope)
 
 // Java: SyntacticScopeCreator.createScope(Node, Scope)
 func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope) *Scope {
+	if c.arena == nil {
+		c.arena = acquireScopeArena()
+	}
 	var scope *Scope
 	if parent == nil {
-		scope = newScope(n)
+		scope = newScopeInArena(n, c.arena)
 	} else {
-		if c.arena == nil {
-			c.arena = &scopeArena{}
-		}
 		scope = newScopeWithParentInArena(parent, n, c.arena)
 	}
 	// Go-only: performance — the scanner, which nothing keeps, is a local
@@ -192,15 +204,15 @@ func (s *SyntacticScopeCreator_ScopeScanner) getInput() *CompilerInput {
 
 func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsExact() {
 	sc := s.scope
-	n := s.smallLen
+	k := s.smallLen
 	s.smallLen = 0
 	if sc.arena != nil {
-		sc.vars.InitWithBuffer(sc.arena.allocVarSlots(n))
+		sc.vars.InitWithBuffer(sc.arena.allocVarSlots(k))
 	} else {
-		sc.vars = *jutil.NewLinkedHashMapWithCapacity[string, *Var](n)
+		sc.vars = *jutil.NewLinkedHashMapWithCapacity[string, *Var](k)
 	}
 	sc.varsInitialized = true
-	for i := 0; i < n; i++ {
+	for i := 0; i < k; i++ {
 		v := s.smallVars[i]
 		sc.vars.PutNew(v.name, v)
 	}
@@ -214,8 +226,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsForMore() {
 	if n <= k {
 		n = k + 4
 	}
-	if sc.arena != nil && n <= 52 {
-		sc.vars.InitWithBuffer(sc.arena.allocVarSlots(n))
+	if sc.arena != nil {
+		sc.arena.initLargeVars(sc, n)
 	} else {
 		sc.vars = *jutil.NewLinkedHashMapWithCapacity[string, *Var](n)
 	}

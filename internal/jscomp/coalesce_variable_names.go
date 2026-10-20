@@ -20,12 +20,32 @@ package jscomp
 
 import (
 	"cmp"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var coalescePreallocatedColors = func() [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]GraphColoring_Color {
+	var arr [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]GraphColoring_Color
+	for i := range arr {
+		arr[i].value = i
+	}
+	return arr
+}()
+
+type coalesceScopeState struct {
+	varsFinder        lvaAllVarsFinder
+	liveness          LiveVariablesAnalysis
+	interferenceGraph LinkedUndirectedGraph[*Var, any]
+	coloring          GraphColoring_GreedyGraphColoring[*Var, any]
+	worklistBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	subgraphBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	colorToNodeBuf    [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]**Var
+	superNodeVals     [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*Var
+}
 
 // CoalesceVariableNames reuses variable names if possible.
 //
@@ -54,18 +74,24 @@ type CoalesceVariableNames struct {
 	// Go-only: language-adapter — the ArrayDeques used as stacks
 	// (push/pop/peek at the front); the front is the last element of the
 	// slice.
-	colorings      []GraphColoring[*Var, any]
-	liveAnalyses   []*LiveVariablesAnalysis
-	usePseudoNames bool
-	astFactory     *AstFactory
-	liveness       *LiveVariablesAnalysis
+	colorings       []GraphColoring[*Var, any]
+	coloringsBuf    [8]GraphColoring[*Var, any]
+	liveAnalyses    []*LiveVariablesAnalysis
+	liveAnalysesBuf [8]*LiveVariablesAnalysis
+	usePseudoNames  bool
+	astFactory      *AstFactory
+	liveness        *LiveVariablesAnalysis
 
 	coloringTieBreaker func(a, b *Var) int
 
 	// A stack of shouldOptimizeScope results.
 	//
 	// Go-only: language-adapter — see colorings.
-	shouldOptimizeScopeStack []bool
+	shouldOptimizeScopeStack    []bool
+	shouldOptimizeScopeStackBuf [16]bool
+
+	scopeStates    []*coalesceScopeState
+	scopeStatesBuf [4]*coalesceScopeState
 
 	interferenceBitSetBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]jutil.BitSet
 	graphNodesBuf         [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
@@ -82,7 +108,7 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 		// comparingInt((Var arg) -> liveness.getVarIndex(arg.getName()))
 		return cmp.Compare(c.liveness.GetVarIndex(a.GetName()), c.liveness.GetVarIndex(b.GetName()))
 	}
-	c.shouldOptimizeScopeStack = nil
+	c.shouldOptimizeScopeStack = c.shouldOptimizeScopeStackBuf[:0]
 
 	// The code is normalized at this point in the compilation process. This allows us to use the
 	// fact that all variables have been given unique names. We can hoist coalesced variables to
@@ -90,8 +116,9 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 
 	c.compiler = compiler
-	c.colorings = nil
-	c.liveAnalyses = nil
+	c.colorings = c.coloringsBuf[:0]
+	c.liveAnalyses = c.liveAnalysesBuf[:0]
+	c.scopeStates = c.scopeStatesBuf[:0]
 	c.usePseudoNames = usePseudoNames
 	c.astFactory = compiler.CreateAstFactory()
 	c.scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
@@ -102,11 +129,13 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckNotNull(externs)
 	jutil.CheckNotNull(root)
-	NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(c).
-		SetScopeCreator(c.scopeCreator).
-		Traverse(root)
+	defer c.scopeCreator.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: c.scopeCreator,
+	}
+	b.Traverse(root)
 	c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
 }
 
@@ -134,8 +163,17 @@ func CoalesceVariableNames_ShouldOptimizeScope(t *NodeTraversal) *NodeUtil_AllVa
 
 // Java: CoalesceVariableNames.enterScopeWithCfg(NodeTraversal)
 func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
-	allVarsDeclaredInFunction := CoalesceVariableNames_ShouldOptimizeScope(t)
-	if allVarsDeclaredInFunction == nil {
+	if !t.GetScopeRoot().IsFunction() {
+		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
+		return
+	}
+	depth := len(c.liveAnalyses)
+	for len(c.scopeStates) <= depth {
+		c.scopeStates = append(c.scopeStates, &coalesceScopeState{})
+	}
+	state := c.scopeStates[depth]
+	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), t.GetScopeCreator(), t.GetScope())
+	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(allVarsDeclaredInFunction.GetAllVariablesInOrder()) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
@@ -147,9 +185,8 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	// live variables analysis is based off of the control flow graph
 	cfg := c.GetControlFlowGraph(c.compiler)
 
-	c.liveness =
-		NewLiveVariablesAnalysis(
-			cfg, scope, nil, c.compiler, c.scopeCreator, allVarsDeclaredInFunction)
+	state.liveness.Reset(cfg, scope, nil, c.compiler, c.scopeCreator, allVarsDeclaredInFunction)
+	c.liveness = &state.liveness
 
 	if parser.FeatureSet_ES3.Contains(c.compiler.GetOptions().GetOutputFeatureSet()) {
 		// If the function has exactly 2 params, mark them as escaped. This is a work-around for a
@@ -168,14 +205,12 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	// The interference graph has the function's variables as its nodes and any interference
 	// between the variables as the edges. Interference between two variables means that they are
 	// alive at overlapping times, which means that their variable names cannot be coalesced.
-	interferenceGraph :=
-		c.ComputeVariableNamesInterferenceGraph(cfg, c.liveness.GetEscapedLocals())
+	c.computeVariableNamesInterferenceGraphInto(cfg, c.liveness.GetEscapedLocals(), &state.interferenceGraph)
 
 	// Color any interfering variables with different colors and any variables that can be safely
 	// coalesced wih the same color.
-	var coloring GraphColoring[*Var, any] = NewGraphColoring_GreedyGraphColoringWithTieBreaker[*Var, any](interferenceGraph, c.coloringTieBreaker)
-	coloring.Color()
-	c.colorings = append(c.colorings, coloring)
+	state.colorInterferenceGraph()
+	c.colorings = append(c.colorings, &state.coloring)
 }
 
 // Java: CoalesceVariableNames.exitScopeWithCfg(NodeTraversal)
@@ -220,9 +255,24 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		// This is not a local.
 		return
 	}
-	coalescedVar := coloringsPeek.GetPartitionSuperNode(var_)
 
 	if !c.usePseudoNames {
+		cb := coloringsPeek.GetGraphColoringBase()
+		color := graphColoring_colorOf(vNode.GetAnnotation())
+		headNode := cb.colorToNodeMap[color.value]
+		if headNode == nil {
+			depth := len(c.colorings) - 1
+			if depth < len(c.scopeStates) && color.value < len(c.scopeStates[depth].superNodeVals) {
+				slot := &c.scopeStates[depth].superNodeVals[color.value]
+				*slot = var_
+				cb.colorToNodeMap[color.value] = slot
+			} else {
+				vCopy := var_
+				cb.colorToNodeMap[color.value] = &vCopy
+			}
+			return
+		}
+		coalescedVar := *headNode
 		if vNode.GetValue().Equals(coalescedVar) {
 			// The coalesced name is itself, nothing to do.
 			return
@@ -233,6 +283,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		c.compiler.ReportChangeToEnclosingScope(n)
 		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
+		coalescedVar := coloringsPeek.GetPartitionSuperNode(var_)
 		// This code block is slow but since usePseudoName is for debugging,
 		// we should not sacrifice performance for non-debugging compilation to
 		// make this fast.
@@ -344,6 +395,148 @@ func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n *rhino.Nod
 func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 	cfg ControlFlowGraph[*rhino.Node], escaped *jutil.ObjectLinkedHashSet[*Var]) UndiGraph[*Var, any] {
 	interferenceGraph := LinkedUndirectedGraph_Create[*Var, any]()
+	c.computeVariableNamesInterferenceGraphInto(cfg, escaped, interferenceGraph)
+	return interferenceGraph
+}
+
+func coalesceResetInterferenceGraph(g *LinkedUndirectedGraph[*Var, any]) {
+	if !g.nodes.HasBacking() {
+		g.useNodeAnnotations = true
+		g.useEdgeAnnotations = true
+		g.nodes.InitWithBuffer(g.nodeSlots[:])
+		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
+		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
+		g.InitUndiGraphBase(g)
+		return
+	}
+	g.nodes.Clear()
+	for i := range g.nodeSlab {
+		g.nodeSlab[i].value = nil
+		g.nodeSlab[i].annotation = nil
+		g.nodeSlab[i].neighborEdges.Clear()
+	}
+	g.nodeSlab = g.nodeSlab[:0]
+	clear(g.edgeSlab)
+	g.edgeSlab = g.edgeSlab[:0]
+}
+
+func coalesceCreateInterferenceNode(
+	g *LinkedUndirectedGraph[*Var, any], nodeValue *Var,
+) *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any] {
+	if n := g.nodes.Get(nodeValue); n != nil {
+		return n
+	}
+	if len(g.nodeSlab) == cap(g.nodeSlab) {
+		nextCap := min(max(cap(g.nodeSlab)*2, 16), 256)
+		g.nodeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], 0, nextCap)
+	}
+	idx := len(g.nodeSlab)
+	g.nodeSlab = g.nodeSlab[:idx+1]
+	n := &g.nodeSlab[idx]
+	n.value = nodeValue
+	n.annotated = true
+	n.annotation = nil
+	if cap(n.neighborEdges.Slice()) == 0 {
+		n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
+	} else {
+		n.neighborEdges.Clear()
+	}
+	g.nodes.PutNew(nodeValue, n)
+	return n
+}
+
+func coalesceConnectInterferenceNodes(
+	g *LinkedUndirectedGraph[*Var, any],
+	src *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
+	dest *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
+) {
+	if len(g.edgeSlab) == cap(g.edgeSlab) {
+		nextCap := min(max(cap(g.edgeSlab)*2, 16), 8192)
+		g.edgeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphEdge[*Var, any], 0, nextCap)
+	}
+	idx := len(g.edgeSlab)
+	g.edgeSlab = g.edgeSlab[:idx+1]
+	e := &g.edgeSlab[idx]
+	e.nodeA = src
+	e.nodeB = dest
+	e.value = nil
+	e.annotated = true
+	e.annotation = nil
+	src.neighborEdges.Add(e)
+	dest.neighborEdges.Add(e)
+}
+
+func coalesceCompareNodesByDegreeDesc(
+	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
+) int {
+	return right.neighborEdges.Size() - left.neighborEdges.Size()
+}
+
+func (s *coalesceScopeState) colorInterferenceGraph() {
+	g := &s.interferenceGraph
+	s.coloring.InitGraphColoringBase(g)
+	s.coloring.tieBreaker = nil
+
+	var worklist []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	if g.nodes.Size() <= len(s.worklistBuf) {
+		worklist = s.worklistBuf[:0]
+	} else {
+		worklist = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], 0, g.nodes.Size())
+	}
+	for n := range g.nodes.Values() {
+		worklist = append(worklist, n)
+	}
+
+	// Sort nodes by degree. Since g.nodes were inserted in orderedVariables
+	// order (which equals liveness.GetVarIndex) and SortStableFunc is stable,
+	// ties are already in ascending GetVarIndex order.
+	slices.SortStableFunc(worklist, coalesceCompareNodesByDegreeDesc)
+
+	count := 0
+	for len(worklist) > 0 {
+		var color *GraphColoring_Color
+		if count < len(coalescePreallocatedColors) {
+			color = &coalescePreallocatedColors[count]
+		} else {
+			color = NewGraphColoring_Color(count)
+		}
+		subNodes := s.subgraphBuf[:0]
+		kept := worklist[:0]
+		for _, node := range worklist {
+			independent := true
+			if !node.neighborEdges.IsEmpty() {
+				for _, n := range subNodes {
+					if g.isConnectedNodesAny(n, node) {
+						independent = false
+						break
+					}
+				}
+			}
+			if independent {
+				subNodes = append(subNodes, node)
+				node.annotation = color
+			} else {
+				kept = append(kept, node)
+			}
+		}
+		clear(worklist[len(kept):])
+		worklist = kept
+		count++
+	}
+	if count <= len(s.colorToNodeBuf) {
+		clear(s.colorToNodeBuf[:count])
+		s.coloring.colorToNodeMap = s.colorToNodeBuf[:count]
+	} else {
+		s.coloring.colorToNodeMap = make([]**Var, count)
+	}
+}
+
+func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
+	cfg ControlFlowGraph[*rhino.Node],
+	escaped *jutil.ObjectLinkedHashSet[*Var],
+	interferenceGraph *LinkedUndirectedGraph[*Var, any],
+) {
+	coalesceResetInterferenceGraph(interferenceGraph)
 
 	// First create a node for each non-escaped variable. We add these nodes in the order in which
 	// they appear in the code because we want the names that appear earlier in the code to be used
@@ -397,7 +590,7 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 			continue
 		}
 
-		graphNodes[vIndex] = interferenceGraph.createLinkedNode(v)
+		graphNodes[vIndex] = coalesceCreateInterferenceNode(interferenceGraph, v)
 	}
 
 	var assignToBuf [8]int
@@ -456,11 +649,10 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 			if (v1IsParam && orderedVariables[v2Index].IsParam()) || bits1.Get(v2Index) {
 				// Add an edge between variable pairs that are both parameters
 				// because we don't want parameters to share a name.
-				interferenceGraph.connectLinkedNodes(node1, nil, node2)
+				coalesceConnectInterferenceNodes(interferenceGraph, node1, node2)
 			}
 		}
 	}
-	return interferenceGraph
 }
 
 // IsInMultipleLvalueDecl returns whether this variable's declaration also

@@ -163,36 +163,37 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 	for name := range o.compiler.GetAccessorSummary().GetAccessors().Keys() {
 		references.props.Remove(name)
 	}
+	references.lastPropList = nil
 }
 
 type optimizeCalls_refListSlot struct {
 	list jutil.ArrayList[*rhino.Node]
-	buf  [4]*rhino.Node
+	buf  [2]*rhino.Node
 }
 
 // OptimizeCalls_ReferenceMap is a reference map for global symbols and
 // properties.
 type OptimizeCalls_ReferenceMap struct {
-	globalScope *Scope
-	names       *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
-	props       *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
-	listSlab    []optimizeCalls_refListSlot
+	globalScope  *Scope
+	names        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
+	props        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
+	listSlab     jutil.Slab[optimizeCalls_refListSlot]
+	lastNameKey  string
+	lastNameList *jutil.ArrayList[*rhino.Node]
+	lastPropKey  string
+	lastPropList *jutil.ArrayList[*rhino.Node]
 }
 
 // Java: OptimizeCalls.ReferenceMap()
 func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
 	return &OptimizeCalls_ReferenceMap{
-		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](1024),
-		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](1024),
+		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](256),
+		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](512),
 	}
 }
 
 func (m *OptimizeCalls_ReferenceMap) allocRefList() *jutil.ArrayList[*rhino.Node] {
-	if len(m.listSlab) == 0 {
-		m.listSlab = make([]optimizeCalls_refListSlot, 512)
-	}
-	slot := &m.listSlab[0]
-	m.listSlab = m.listSlab[1:]
+	slot := m.listSlab.New()
 	slot.list.InitWithBuffer(slot.buf[:])
 	return &slot.list
 }
@@ -209,12 +210,34 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[stri
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node) {
-	m.AddReference(m.names, name, n)
+	if m.lastNameList != nil && name == m.lastNameKey {
+		m.lastNameList.Add(n)
+		return
+	}
+	refs := m.names.Get(name)
+	if refs == nil {
+		refs = m.allocRefList()
+		m.names.PutNew(name, refs)
+	}
+	m.lastNameKey = name
+	m.lastNameList = refs
+	refs.Add(n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node) {
-	m.AddReference(m.props, name, n)
+	if m.lastPropList != nil && name == m.lastPropKey {
+		m.lastPropList.Add(n)
+		return
+	}
+	refs := m.props.Get(name)
+	if refs == nil {
+		refs = m.allocRefList()
+		m.props.PutNew(name, refs)
+	}
+	m.lastPropKey = name
+	m.lastPropList = refs
+	refs.Add(n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
@@ -582,10 +605,13 @@ func OptimizeCalls_SafeSet(set *jutil.LinkedHashSet[string]) *jutil.LinkedHashSe
 // OptimizeCalls_ReferenceMapBuildingCallback is the inner class
 // ReferenceMapBuildingCallback.
 type OptimizeCalls_ReferenceMapBuildingCallback struct {
-	outer       *OptimizeCalls
-	externProps *jutil.LinkedHashSet[string]
-	references  *OptimizeCalls_ReferenceMap
-	globalScope *Scope
+	outer           *OptimizeCalls
+	externProps     *jutil.LinkedHashSet[string]
+	references      *OptimizeCalls_ReferenceMap
+	globalScope     *Scope
+	lastSkippedName string
+	lastExternProp  string
+	hasExternProp   bool
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback(ReferenceMap)
@@ -660,7 +686,11 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode *rhino
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddNameReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name string, n *rhino.Node) {
-	if name == "" {
+	if name == "" || name == c.lastSkippedName {
+		return
+	}
+	if c.references.lastNameList != nil && name == c.references.lastNameKey {
+		c.references.lastNameList.Add(n)
 		return
 	}
 	// TODO(b/129503101): Why are we limiting ourselves to global names?
@@ -669,14 +699,28 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 		// As every name declaration is unique due to normalizations, it is only necessary to build
 		// the global scope and ask it if it knows about a name as it can never be shadowed.
 		c.references.AddNameReference(name, n)
+	} else {
+		c.lastSkippedName = name
 	}
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n *rhino.Node) {
-	if c.outer.considerExterns || !c.externProps.Contains(name) {
-		c.references.AddPropReference(name, n)
+	if c.references.lastPropList != nil && name == c.references.lastPropKey {
+		c.references.lastPropList.Add(n)
+		return
 	}
+	if !c.outer.considerExterns {
+		if c.hasExternProp && name == c.lastExternProp {
+			return
+		}
+		if c.externProps.Contains(name) {
+			c.lastExternProp = name
+			c.hasExternProp = true
+			return
+		}
+	}
+	c.references.AddPropReference(name, n)
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.shouldTraverse(NodeTraversal, Node, Node)
@@ -695,6 +739,12 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) EnterScope(t *NodeTraversal
 	if t.InGlobalScope() {
 		c.globalScope = t.GetScope()
 		c.references.globalScope = c.globalScope
+		if varCount := c.globalScope.GetVarCount(); varCount > 256 && c.references.names.IsEmpty() {
+			c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
+			if varCount > 512 && c.references.props.IsEmpty() {
+				c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount, 1024))
+			}
+		}
 	}
 }
 

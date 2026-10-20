@@ -28,7 +28,8 @@ import (
 type CheckUnreachableCode struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
-	compiler AbstractCompiler
+	compiler     AbstractCompiler
+	reachability GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -66,7 +67,9 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 			c.compiler.Report(JSError_MakeWithNode(n, CheckUnreachableCode_UNREACHABLE_CODE))
 			// From now on, we are going to assume the user fixed the error and not
 			// give more warning related to code section reachable from this node.
-			NewGraphReachability[*rhino.Node, ControlFlowGraph_Branch](cfg).Recompute(n)
+			c.reachability.graph = cfg
+			c.reachability.edgePredicate = nil
+			c.reachability.Recompute(n)
 
 			// Saves time by not traversing children.
 			return false
@@ -77,9 +80,9 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 
 // Java: CheckUnreachableCode.initScope(ControlFlowGraph<Node>)
 func (c *CheckUnreachableCode) InitScope(controlFlowGraph ControlFlowGraph[*rhino.Node]) {
-	NewGraphReachabilityWithPredicate[*rhino.Node, ControlFlowGraph_Branch](
-		controlFlowGraph, CheckUnreachableCode_IsReachable).
-		Compute(controlFlowGraph.GetEntry().GetValue())
+	c.reachability.graph = controlFlowGraph
+	c.reachability.edgePredicate = CheckUnreachableCode_IsReachable
+	c.reachability.Compute(controlFlowGraph.GetEntry().GetValue())
 }
 
 // Java: CheckUnreachableCode.isReachable(EdgeTuple<Node, Branch>)

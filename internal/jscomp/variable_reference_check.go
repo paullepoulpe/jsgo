@@ -102,9 +102,14 @@ func NewVariableReferenceCheck(compiler AbstractCompiler) *VariableReferenceChec
 
 // Java: VariableReferenceCheck.process(Node, Node)
 func (v *VariableReferenceCheck) Process(externs *rhino.Node, root *rhino.Node) {
-	NewReferenceCollector(
-		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), NewSyntacticScopeCreator(v.compiler)).
-		Process(externs, root)
+	sc := NewSyntacticScopeCreator(v.compiler)
+	callback := NewReferenceCollector(
+		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc)
+	callback.enableArenaPool()
+	callback.Process(externs, root)
+	v.blocksWithDeclarations.Clear()
+	callback.release()
+	sc.ReleaseArena()
 }
 
 // VariableReferenceCheck_ReferenceCheckingBehavior is behavior that checks

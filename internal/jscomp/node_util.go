@@ -6592,12 +6592,12 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	compiler AbstractCompiler, scopeCreator ScopeCreator, scope *Scope) *NodeUtil_AllVarsDeclaredInFunction {
 	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
 
-	nameVarMap := jutil.NewLinkedHashMap[string, *Var]()
-
 	finder := &nodeUtil_getAllVarsDeclaredInFunction_finder{
-		nameVarMap: nameVarMap,
-		scope:      scope,
+		scope: scope,
 	}
+	finder.result.mapStorage.InitWithBuffer(finder.slotBuf[:])
+	finder.result.allVarsInFn = &finder.result.mapStorage
+	finder.result.orderedVars = finder.varBuf[:0:len(finder.varBuf)]
 
 	NodeTraversal_Builder_().
 		SetCompiler(compiler).
@@ -6605,23 +6605,35 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 		SetScopeCreator(scopeCreator).
 		TraverseAtScope(scope)
 
-	return NewNodeUtil_AllVarsDeclaredInFunction(nameVarMap, finder.orderedVars)
+	jutil.CheckState(finder.result.allVarsInFn.IsEmpty() == (len(finder.result.orderedVars) == 0))
+	return &finder.result
 }
 
 // nodeUtil_getAllVarsDeclaredInFunction_finder is the anonymous
 // ScopedCallback of getAllVarsDeclaredInFunction.
 type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
-	nameVarMap  *jutil.LinkedHashMap[string, *Var]
-	orderedVars []*Var
-	scope       *Scope
+	result  NodeUtil_AllVarsDeclaredInFunction
+	scope   *Scope
+	slotBuf [8]jutil.LhmSlot[string, *Var]
+	varBuf  [8]*Var
 }
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.enterScope(NodeTraversal)
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) EnterScope(t *NodeTraversal) {
 	currentScope := t.GetScope()
+	n := currentScope.GetVarCount()
+	if n == 0 {
+		return
+	}
+	if need := len(f.result.orderedVars) + n; need > cap(f.result.orderedVars) {
+		newCap := max(need, 2*cap(f.result.orderedVars))
+		buf := make([]*Var, len(f.result.orderedVars), newCap)
+		copy(buf, f.result.orderedVars)
+		f.result.orderedVars = buf
+	}
 	for v := range currentScope.GetVarIterable() {
-		f.nameVarMap.Put(v.GetName(), v)
-		f.orderedVars = append(f.orderedVars, v)
+		f.result.mapStorage.Put(v.GetName(), v)
+		f.result.orderedVars = append(f.result.orderedVars, v)
 	}
 }
 
@@ -6645,6 +6657,7 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n
 type NodeUtil_AllVarsDeclaredInFunction struct {
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	orderedVars []*Var
+	mapStorage  jutil.LinkedHashMap[string, *Var]
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction(Map<String, Var>, List<Var>)
