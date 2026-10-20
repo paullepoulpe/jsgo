@@ -750,7 +750,7 @@ func TestScopeDumpOracle(t *testing.T) {
 	}
 	root := os.Getenv("SCOPE_ROOT")
 	if root == "" {
-		root = scopeDumpCorpus()
+		root = scopeDumpCorpus(t)
 	}
 	paths := strings.Split(oracle, ",")
 	sort.Strings(paths)
