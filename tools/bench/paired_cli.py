@@ -39,6 +39,36 @@ def sha(path):
     return h.hexdigest()
 
 
+def java_runtime_dependencies(java_home):
+    """Freeze external config/data reached through installed JDK symlinks.
+
+    Debian keeps runtime settings outside JAVA_HOME. Mount only those exact
+    runtime target files, never all of /etc or JDK source/documentation trees.
+    Mount at the symlink's lexical destination, so another external symlink in
+    the host's target chain is not required inside the container.
+    """
+    home = Path(java_home).resolve()
+    result = {}
+    for directory in ('conf', 'lib'):
+        for link in sorted((home/directory).rglob('*')):
+            if not link.is_symlink():
+                continue
+            raw = link.readlink()
+            target = Path(os.path.normpath(str(raw if raw.is_absolute() else link.parent/raw)))
+            physical = link.resolve(strict=True)
+            if target.is_relative_to(home) and physical.is_relative_to(home):
+                continue
+            if not physical.is_file():
+                raise ValueError('external JDK runtime directory requires explicit audited binding: '+str(link))
+            row = {'link': str(link), 'mount_target': str(target), 'source': str(physical),
+                   'bytes': physical.stat().st_size, 'sha256': sha(physical)}
+            previous = result.get(str(target))
+            if previous is not None and previous['sha256'] != row['sha256']:
+                raise ValueError('ambiguous JDK symlink destination')
+            result[str(target)] = row
+    return list(result.values())
+
+
 def outer_state():
     root = Path('/sys/fs/cgroup')
     return {name: (root/name).read_text().strip() for name in
@@ -98,6 +128,9 @@ class Engine:
                 '--workdir='+str(work)]
         for path in sorted(bindings):
             argv += ['--mount', 'type=bind,src='+path+',dst='+path+',readonly']
+        if java:
+            for row in java_runtime_dependencies(a.java_home):
+                argv += ['--mount', 'type=bind,src='+row['source']+',dst='+row['mount_target']+',readonly']
         argv += ['--mount', 'type=bind,src='+str(work)+',dst='+str(work)]
         argv += ['--env', 'LC_ALL=C.UTF-8', a.image] + command
         cid = self.call(*argv, capture_output=True, text=True).stdout.strip()
@@ -236,9 +269,11 @@ def main():
         if not Path(item).is_absolute():
             p.error('paths must be absolute')
     binary_hash = sha(a.binary)
+    java_dependencies = java_runtime_dependencies(a.java_home)
     save(root/'metadata.json', vars(a) | {'spec': spec, 'input_manifest': identity,
          'go_binary_sha256': binary_hash, 'driver_class_sha256': sha(Path(a.driver)/'CliPaired.class'),
          'driver_source_sha256': sha(HERE/'java/CliPaired.java'),
+         'java_runtime_dependencies': java_dependencies,
          'java_binary_sha256': sha(Path(a.java_home)/'bin/java'), 'java_flags': ['-Xmx3g'],
          'memory_windows': {'java': 'warm JVM lifetime process VmHWM, including warmup/JIT',
                             'go': 'fresh process wait4 lifetime peak; container memory.peak includes helper/page cache'},
@@ -247,7 +282,7 @@ def main():
     engine, rng, cohorts, reference = Engine(a), random.Random(a.seed), [], None
     try:
         for index in range(a.cohorts):
-            if sha(a.binary) != binary_hash or input_identity(spec) != identity:
+            if sha(a.binary) != binary_hash or input_identity(spec) != identity or java_runtime_dependencies(a.java_home) != java_dependencies:
                 raise ValueError('source inputs or executable changed')
             directory = root/f'cohort-{index+1}'
             jwork = directory/'java'

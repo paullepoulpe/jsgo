@@ -37,7 +37,10 @@ insufficient enforcement.
 
 The pinned Python container image supplies the same userspace for both engines.
 The installed JDK is mounted read-only, preserving its actual version and binary
-identity; the Go binary, input directories, driver and jar are also read-only.
+identity. External runtime configuration/data reached through JDK symlinks
+(such as Debian security settings and trust store) are mounted individually
+read-only, SHA-256 recorded and revalidated between cohorts. The Go binary,
+input directories, driver and jar are also read-only.
 Network access is disabled during compilation. `validate_budget.py` verifies the
 actual 4 GiB kernel settings and a separate 64 MiB allocation canary that must be
 OOM-killed. It does not allocate 4 GiB merely to test the limit.
