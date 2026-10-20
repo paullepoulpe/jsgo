@@ -12,7 +12,8 @@ import (
 
 type retainedSourceCommentRecorder struct{}
 
-func (retainedSourceCommentRecorder) RecordComment(parser.Comment_Type, *parser.SourceRange, string) {}
+func (retainedSourceCommentRecorder) RecordComment(parser.Comment_Type, *parser.SourceRange, string) {
+}
 
 func retainedSourceConfig(mode Config_JsDocParsing) *Config {
 	return ParserRunner_CreateConfigWithModes(Config_LanguageMode_ES_NEXT, mode,
