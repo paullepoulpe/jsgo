@@ -373,7 +373,7 @@ func TestInlineGolden(t *testing.T) {
 	if n := inlineOracleCompare(t, golden, jsDir, func(rel string) bool { return hand[rel] }); n != len(hand) {
 		t.Errorf("compared %d hand-written files, want %d", n, len(hand))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
+	corpus := oracleTestCorpusRoot(t)
 	if _, err := os.Stat(corpus); err != nil {
 		t.Logf("corpus not present; golden corpus files skipped")
 		return
@@ -388,7 +388,7 @@ func TestInlineOracle(t *testing.T) {
 	}
 	root := os.Getenv("INLINE_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	n := inlineOracleCompare(t, dump, root, nil)
 	t.Logf("compared %d files", n)
