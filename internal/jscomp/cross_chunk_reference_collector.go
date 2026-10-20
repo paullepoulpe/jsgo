@@ -20,10 +20,58 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type crossChunkArena struct {
+	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
+	stmtChunks         [][]CrossChunkReferenceCollector_TopLevelStatement
+	stmtChunkIdx       int
+	stmtRefsChunks     [][]*Reference
+	stmtRefsChunkIdx   int
+	stmtVarsChunks     [][]*Var
+	stmtVarsChunkIdx   int
+	symbolsByVarIndex  []*CrossChunkCodeMotion_GlobalSymbol
+	symSlab            []CrossChunkCodeMotion_GlobalSymbol
+	symChunks          [][]CrossChunkCodeMotion_GlobalSymbol
+	symChunkIdx        int
+	dsgSlab            []CrossChunkCodeMotion_DeclarationStatementGroup
+	dsgChunks          [][]CrossChunkCodeMotion_DeclarationStatementGroup
+	dsgChunkIdx        int
+	cycleSlab          []CrossChunkCodeMotion_GlobalSymbolCycle
+	cycleChunks        [][]CrossChunkCodeMotion_GlobalSymbolCycle
+	cycleChunkIdx      int
+	componentContents  []*CrossChunkCodeMotion_GlobalSymbol
+	componentRoots     []*CrossChunkCodeMotion_GlobalSymbol
+	cycles             []*CrossChunkCodeMotion_GlobalSymbolCycle
+}
+
+var cachedCCAArena atomic.Pointer[crossChunkArena]
+
+var crossChunkArenaPool = sync.Pool{
+	New: func() any {
+		return &crossChunkArena{}
+	},
+}
+
+func acquireCCArena() *crossChunkArena {
+	if a := cachedCCAArena.Swap(nil); a != nil {
+		return a
+	}
+	return crossChunkArenaPool.Get().(*crossChunkArena)
+}
+
+func releaseCCArena(a *crossChunkArena) {
+	if cachedCCAArena.CompareAndSwap(nil, a) {
+		return
+	}
+	crossChunkArenaPool.Put(a)
+}
 
 // CrossChunkReferenceCollector collects global variable references for use
 // by CrossChunkCodeMotion.
@@ -36,8 +84,21 @@ type CrossChunkReferenceCollector struct {
 	// root or name).
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
 
+	vars           []*Var
+	cols           []*ReferenceCollection
+	varsBuf        [16]*Var
+	colsBuf        [16]*ReferenceCollection
+	table          []rcTableEntry
+	lastVar        *Var
+	lastCollection *ReferenceCollection
+	maxVarIndex    int
+	arena          *referenceCollectorArena
+	ccArena        *crossChunkArena
+	poolable       bool
+
 	// The stack of basic blocks and scopes the current traversal is in.
-	blockStack []*BasicBlock
+	blockStack    []*BasicBlock
+	blockStackBuf [16]*BasicBlock
 
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
@@ -49,21 +110,646 @@ type CrossChunkReferenceCollector struct {
 
 	statementCounter       int
 	topLevelStatementDraft *CrossChunkReferenceCollector_TopLevelStatementDraft
+	draftVal               CrossChunkReferenceCollector_TopLevelStatementDraft
+	draftRefsBuf           [16]*Reference
+	draftVarsBuf           [16]*Var
+
+	refSlab      []Reference
+	refBuf       [8]Reference
+	colSlab      []ReferenceCollection
+	colBuf       [2]ReferenceCollection
+	blockSlab    []BasicBlock
+	blockBuf     [8]BasicBlock
+	stmtSlab     []CrossChunkReferenceCollector_TopLevelStatement
+	stmtBuf      [4]CrossChunkReferenceCollector_TopLevelStatement
+	stmtRefsSlab []*Reference
+	stmtVarsSlab []*Var
 }
 
 // NewCrossChunkReferenceCollector: constructor initializes block stack.
 //
 // Java: CrossChunkReferenceCollector(AbstractCompiler, ScopeCreator)
 func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCreator) *CrossChunkReferenceCollector {
-	return &CrossChunkReferenceCollector{
-		varsByName:             jutil.NewLinkedHashMap[string, *Var](),
-		referenceMap:           jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection](),
-		topLevelStatements:     []*CrossChunkReferenceCollector_TopLevelStatement{},
-		statementCounter:       0,
-		topLevelStatementDraft: nil,
-		compiler:               compiler,
-		scopeCreator:           creator,
+	c := &CrossChunkReferenceCollector{
+		compiler:     compiler,
+		scopeCreator: creator,
+		maxVarIndex:  -1,
 	}
+	c.vars = c.varsBuf[:0]
+	c.cols = c.colsBuf[:0]
+	c.blockStack = c.blockStackBuf[:0]
+	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
+	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
+	c.refSlab = c.refBuf[:0]
+	c.colSlab = c.colBuf[:0]
+	c.blockSlab = c.blockBuf[:0]
+	c.stmtSlab = c.stmtBuf[:0]
+	return c
+}
+
+func (c *CrossChunkReferenceCollector) enableArenaPool() {
+	c.poolable = true
+	ca := c.getCCArena()
+	if cap(ca.topLevelStatements) > 0 {
+		c.topLevelStatements = ca.topLevelStatements[:0]
+	}
+}
+
+func (c *CrossChunkReferenceCollector) getArena() *referenceCollectorArena {
+	if c.arena == nil {
+		c.arena = acquireRCArena()
+	}
+	return c.arena
+}
+
+func (c *CrossChunkReferenceCollector) getCCArena() *crossChunkArena {
+	if c.ccArena == nil {
+		c.ccArena = acquireCCArena()
+	}
+	return c.ccArena
+}
+
+func (c *CrossChunkReferenceCollector) release() {
+	if a := c.arena; a != nil {
+		c.arena = nil
+		if len(c.table) > 0 && len(c.vars) > 0 {
+			if len(c.table) <= 524288 {
+				if len(c.vars)*16 < len(c.table) {
+					mask := uint32(len(c.table) - 1)
+					for _, kv := range c.vars {
+						slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+						for c.table[slot].v != nil {
+							c.table[slot] = rcTableEntry{}
+							slot = (slot + 1) & mask
+						}
+					}
+				} else {
+					clear(c.table)
+				}
+				a.table = c.table
+			} else {
+				a.table = nil
+			}
+		}
+		c.table = nil
+		if cap(c.vars) > len(c.varsBuf) {
+			if cap(c.vars) <= 262144 {
+				clear(c.vars)
+				a.vars = c.vars[:0]
+				clear(c.cols)
+				a.cols = c.cols[:0]
+			} else {
+				a.vars = nil
+				a.cols = nil
+			}
+		}
+		c.vars = nil
+		c.cols = nil
+		const (
+			maxRetainedRefChunks = 80
+			maxRetainedColChunks = 48
+			maxRetainedBlkChunks = 48
+		)
+		if a.refChunkIdx > 0 {
+			a.refChunks[a.refChunkIdx-1] = c.refSlab
+		}
+		for i := 0; i < a.refChunkIdx && i < maxRetainedRefChunks; i++ {
+			ch := a.refChunks[i]
+			clear(ch)
+			a.refChunks[i] = ch[:0]
+		}
+		if len(a.refChunks) > maxRetainedRefChunks {
+			clear(a.refChunks[maxRetainedRefChunks:])
+			a.refChunks = a.refChunks[:maxRetainedRefChunks]
+		}
+		if a.colChunkIdx > 0 {
+			a.colChunks[a.colChunkIdx-1] = c.colSlab
+		}
+		for i := 0; i < a.colChunkIdx && i < maxRetainedColChunks; i++ {
+			ch := a.colChunks[i]
+			for j := range ch {
+				col := &ch[j]
+				if col.references != nil {
+					col.refsList.Clear()
+					clear(col.refsBuf[:])
+					if cap(col.refsList.Slice()) > 64 {
+						col.refsList.InitWithBuffer(col.refsBuf[:])
+					}
+				}
+			}
+			a.colChunks[i] = ch[:0]
+		}
+		if len(a.colChunks) > maxRetainedColChunks {
+			clear(a.colChunks[maxRetainedColChunks:])
+			a.colChunks = a.colChunks[:maxRetainedColChunks]
+		}
+		if a.blkChunkIdx > 0 {
+			a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
+		}
+		for i := 0; i < a.blkChunkIdx && i < maxRetainedBlkChunks; i++ {
+			ch := a.blkChunks[i]
+			clear(ch)
+			a.blkChunks[i] = ch[:0]
+		}
+		if len(a.blkChunks) > maxRetainedBlkChunks {
+			clear(a.blkChunks[maxRetainedBlkChunks:])
+			a.blkChunks = a.blkChunks[:maxRetainedBlkChunks]
+		}
+		a.refChunkIdx = 0
+		a.colChunkIdx = 0
+		a.blkChunkIdx = 0
+		releaseRCArena(a)
+	}
+	if ca := c.ccArena; ca != nil {
+		c.ccArena = nil
+		if cap(c.topLevelStatements) > 0 {
+			if cap(c.topLevelStatements) <= 131072 {
+				clear(c.topLevelStatements)
+				ca.topLevelStatements = c.topLevelStatements[:0]
+			} else {
+				ca.topLevelStatements = nil
+			}
+		}
+		c.topLevelStatements = nil
+		const (
+			maxRetainedStmtChunks     = 32
+			maxRetainedStmtRefsChunks = 64
+			maxRetainedSymChunks      = 64
+			maxRetainedDsgChunks      = 64
+			maxRetainedCycleChunks    = 64
+		)
+		if ca.stmtChunkIdx > 0 {
+			ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab
+		}
+		for i := 0; i < ca.stmtChunkIdx && i < maxRetainedStmtChunks; i++ {
+			ch := ca.stmtChunks[i]
+			clear(ch)
+			ca.stmtChunks[i] = ch[:0]
+		}
+		if len(ca.stmtChunks) > maxRetainedStmtChunks {
+			clear(ca.stmtChunks[maxRetainedStmtChunks:])
+			ca.stmtChunks = ca.stmtChunks[:maxRetainedStmtChunks]
+		}
+		if ca.stmtRefsChunkIdx > 0 {
+			ca.stmtRefsChunks[ca.stmtRefsChunkIdx-1] = c.stmtRefsSlab
+		}
+		for i := 0; i < ca.stmtRefsChunkIdx && i < maxRetainedStmtRefsChunks; i++ {
+			ch := ca.stmtRefsChunks[i]
+			clear(ch)
+			ca.stmtRefsChunks[i] = ch[:0]
+		}
+		if len(ca.stmtRefsChunks) > maxRetainedStmtRefsChunks {
+			clear(ca.stmtRefsChunks[maxRetainedStmtRefsChunks:])
+			ca.stmtRefsChunks = ca.stmtRefsChunks[:maxRetainedStmtRefsChunks]
+		}
+		if ca.stmtVarsChunkIdx > 0 {
+			ca.stmtVarsChunks[ca.stmtVarsChunkIdx-1] = c.stmtVarsSlab
+		}
+		for i := 0; i < ca.stmtVarsChunkIdx && i < maxRetainedStmtRefsChunks; i++ {
+			ch := ca.stmtVarsChunks[i]
+			clear(ch)
+			ca.stmtVarsChunks[i] = ch[:0]
+		}
+		if len(ca.stmtVarsChunks) > maxRetainedStmtRefsChunks {
+			clear(ca.stmtVarsChunks[maxRetainedStmtRefsChunks:])
+			ca.stmtVarsChunks = ca.stmtVarsChunks[:maxRetainedStmtRefsChunks]
+		}
+		if ca.symChunkIdx > 0 {
+			ca.symChunks[ca.symChunkIdx-1] = ca.symSlab
+		}
+		for i := 0; i < ca.symChunkIdx && i < maxRetainedSymChunks; i++ {
+			ch := ca.symChunks[i]
+			clear(ch)
+			ca.symChunks[i] = ch[:0]
+		}
+		if len(ca.symChunks) > maxRetainedSymChunks {
+			clear(ca.symChunks[maxRetainedSymChunks:])
+			ca.symChunks = ca.symChunks[:maxRetainedSymChunks]
+		}
+		ca.symSlab = nil
+		if ca.dsgChunkIdx > 0 {
+			ca.dsgChunks[ca.dsgChunkIdx-1] = ca.dsgSlab
+		}
+		for i := 0; i < ca.dsgChunkIdx && i < maxRetainedDsgChunks; i++ {
+			ch := ca.dsgChunks[i]
+			clear(ch)
+			ca.dsgChunks[i] = ch[:0]
+		}
+		if len(ca.dsgChunks) > maxRetainedDsgChunks {
+			clear(ca.dsgChunks[maxRetainedDsgChunks:])
+			ca.dsgChunks = ca.dsgChunks[:maxRetainedDsgChunks]
+		}
+		ca.dsgSlab = nil
+		if ca.cycleChunkIdx > 0 {
+			ca.cycleChunks[ca.cycleChunkIdx-1] = ca.cycleSlab
+		}
+		for i := 0; i < ca.cycleChunkIdx && i < maxRetainedCycleChunks; i++ {
+			ch := ca.cycleChunks[i]
+			clear(ch)
+			ca.cycleChunks[i] = ch[:0]
+		}
+		if len(ca.cycleChunks) > maxRetainedCycleChunks {
+			clear(ca.cycleChunks[maxRetainedCycleChunks:])
+			ca.cycleChunks = ca.cycleChunks[:maxRetainedCycleChunks]
+		}
+		ca.cycleSlab = nil
+		if len(ca.symbolsByVarIndex) > 0 {
+			if cap(ca.symbolsByVarIndex) <= 262144 {
+				clear(ca.symbolsByVarIndex)
+				ca.symbolsByVarIndex = ca.symbolsByVarIndex[:0]
+			} else {
+				ca.symbolsByVarIndex = nil
+			}
+		}
+		if cap(ca.componentContents) > 262144 {
+			ca.componentContents = nil
+		}
+		if cap(ca.componentRoots) > 262144 {
+			ca.componentRoots = nil
+		}
+		if len(ca.cycles) > 0 {
+			if cap(ca.cycles) <= 262144 {
+				clear(ca.cycles)
+				ca.cycles = ca.cycles[:0]
+			} else {
+				ca.cycles = nil
+			}
+		}
+		ca.stmtChunkIdx = 0
+		ca.stmtRefsChunkIdx = 0
+		ca.stmtVarsChunkIdx = 0
+		ca.symChunkIdx = 0
+		ca.dsgChunkIdx = 0
+		ca.cycleChunkIdx = 0
+		releaseCCArena(ca)
+	}
+	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
+		sc.ReleaseArena()
+	}
+}
+
+func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
+	if len(c.refSlab) == cap(c.refSlab) {
+		if c.poolable {
+			a := c.getArena()
+			if a.refChunkIdx > 0 {
+				a.refChunks[a.refChunkIdx-1] = c.refSlab
+			}
+			if a.refChunkIdx < len(a.refChunks) {
+				c.refSlab = a.refChunks[a.refChunkIdx][:0]
+				a.refChunkIdx++
+			} else {
+				newCap := 256
+				if cap(c.refSlab) >= 256 {
+					newCap = min(cap(c.refSlab)*2, 4096)
+				}
+				c.refSlab = make([]Reference, 0, newCap)
+				a.refChunks = append(a.refChunks, c.refSlab)
+				a.refChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(c.refSlab) >= 256 {
+				newCap = min(cap(c.refSlab)*2, 4096)
+			}
+			c.refSlab = make([]Reference, 0, newCap)
+		}
+	}
+	idx := len(c.refSlab)
+	c.refSlab = c.refSlab[:idx+1]
+	r := &c.refSlab[idx]
+	r.nameNode = n
+	r.basicBlock = basicBlock
+	r.scope = scope
+	r.inputId = inputId
+	return r
+}
+
+func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceCollection {
+	if len(c.colSlab) == cap(c.colSlab) {
+		if c.poolable {
+			a := c.getArena()
+			if a.colChunkIdx > 0 {
+				a.colChunks[a.colChunkIdx-1] = c.colSlab
+			}
+			if a.colChunkIdx < len(a.colChunks) {
+				c.colSlab = a.colChunks[a.colChunkIdx][:0]
+				a.colChunkIdx++
+			} else {
+				newCap := 64
+				if cap(c.colSlab) >= 64 {
+					newCap = min(cap(c.colSlab)*2, 2048)
+				}
+				c.colSlab = make([]ReferenceCollection, 0, newCap)
+				a.colChunks = append(a.colChunks, c.colSlab)
+				a.colChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(c.colSlab) >= 64 {
+				newCap = min(cap(c.colSlab)*2, 2048)
+			}
+			c.colSlab = make([]ReferenceCollection, 0, newCap)
+		}
+	}
+	idx := len(c.colSlab)
+	c.colSlab = c.colSlab[:idx+1]
+	col := &c.colSlab[idx]
+	if col.references != nil {
+		col.refsList.Clear()
+		return col
+	}
+	return initReferenceCollection(col)
+}
+
+func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
+	if len(c.blockSlab) == cap(c.blockSlab) {
+		if c.poolable {
+			a := c.getArena()
+			if a.blkChunkIdx > 0 {
+				a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
+			}
+			if a.blkChunkIdx < len(a.blkChunks) {
+				c.blockSlab = a.blkChunks[a.blkChunkIdx][:0]
+				a.blkChunkIdx++
+			} else {
+				newCap := 64
+				if cap(c.blockSlab) >= 64 {
+					newCap = min(cap(c.blockSlab)*2, 1024)
+				}
+				c.blockSlab = make([]BasicBlock, 0, newCap)
+				a.blkChunks = append(a.blkChunks, c.blockSlab)
+				a.blkChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(c.blockSlab) >= 64 {
+				newCap = min(cap(c.blockSlab)*2, 1024)
+			}
+			c.blockSlab = make([]BasicBlock, 0, newCap)
+		}
+	}
+	idx := len(c.blockSlab)
+	c.blockSlab = c.blockSlab[:idx+1]
+	return initBasicBlock(&c.blockSlab[idx], parent, root)
+}
+
+func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
+	if cap(c.stmtRefsSlab)-len(c.stmtRefsSlab) < n {
+		if c.poolable {
+			ca := c.getCCArena()
+			if ca.stmtRefsChunkIdx > 0 {
+				ca.stmtRefsChunks[ca.stmtRefsChunkIdx-1] = c.stmtRefsSlab
+			}
+			if ca.stmtRefsChunkIdx < len(ca.stmtRefsChunks) {
+				ch := ca.stmtRefsChunks[ca.stmtRefsChunkIdx]
+				if cap(ch) < n {
+					ch = make([]*Reference, 0, max(n, 4096))
+					ca.stmtRefsChunks[ca.stmtRefsChunkIdx] = ch
+				}
+				c.stmtRefsSlab = ch[:0]
+				ca.stmtRefsChunkIdx++
+			} else {
+				newCap := 256
+				if cap(c.stmtRefsSlab) >= 256 {
+					newCap = min(cap(c.stmtRefsSlab)*2, 4096)
+				}
+				if newCap < n {
+					newCap = n
+				}
+				c.stmtRefsSlab = make([]*Reference, 0, newCap)
+				ca.stmtRefsChunks = append(ca.stmtRefsChunks, c.stmtRefsSlab)
+				ca.stmtRefsChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(c.stmtRefsSlab) >= 256 {
+				newCap = min(cap(c.stmtRefsSlab)*2, 4096)
+			}
+			if newCap < n {
+				newCap = n
+			}
+			c.stmtRefsSlab = make([]*Reference, 0, newCap)
+		}
+	}
+	off := len(c.stmtRefsSlab)
+	c.stmtRefsSlab = c.stmtRefsSlab[:off+n]
+	return c.stmtRefsSlab[off : off+n : off+n]
+}
+
+func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
+	if cap(c.stmtVarsSlab)-len(c.stmtVarsSlab) < n {
+		if c.poolable {
+			ca := c.getCCArena()
+			if ca.stmtVarsChunkIdx > 0 {
+				ca.stmtVarsChunks[ca.stmtVarsChunkIdx-1] = c.stmtVarsSlab
+			}
+			if ca.stmtVarsChunkIdx < len(ca.stmtVarsChunks) {
+				ch := ca.stmtVarsChunks[ca.stmtVarsChunkIdx]
+				if cap(ch) < n {
+					ch = make([]*Var, 0, max(n, 4096))
+					ca.stmtVarsChunks[ca.stmtVarsChunkIdx] = ch
+				}
+				c.stmtVarsSlab = ch[:0]
+				ca.stmtVarsChunkIdx++
+			} else {
+				newCap := 256
+				if cap(c.stmtVarsSlab) >= 256 {
+					newCap = min(cap(c.stmtVarsSlab)*2, 4096)
+				}
+				if newCap < n {
+					newCap = n
+				}
+				c.stmtVarsSlab = make([]*Var, 0, newCap)
+				ca.stmtVarsChunks = append(ca.stmtVarsChunks, c.stmtVarsSlab)
+				ca.stmtVarsChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(c.stmtVarsSlab) >= 256 {
+				newCap = min(cap(c.stmtVarsSlab)*2, 4096)
+			}
+			if newCap < n {
+				newCap = n
+			}
+			c.stmtVarsSlab = make([]*Var, 0, newCap)
+		}
+	}
+	off := len(c.stmtVarsSlab)
+	c.stmtVarsSlab = c.stmtVarsSlab[:off+n]
+	return c.stmtVarsSlab[off : off+n : off+n]
+}
+
+func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
+	if len(c.stmtSlab) == cap(c.stmtSlab) {
+		if c.poolable {
+			ca := c.getCCArena()
+			if ca.stmtChunkIdx > 0 {
+				ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab
+			}
+			if ca.stmtChunkIdx < len(ca.stmtChunks) {
+				c.stmtSlab = ca.stmtChunks[ca.stmtChunkIdx][:0]
+				ca.stmtChunkIdx++
+			} else {
+				newCap := 64
+				if cap(c.stmtSlab) >= 64 {
+					newCap = min(cap(c.stmtSlab)*2, 2048)
+				}
+				c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
+				ca.stmtChunks = append(ca.stmtChunks, c.stmtSlab)
+				ca.stmtChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(c.stmtSlab) >= 64 {
+				newCap = min(cap(c.stmtSlab)*2, 2048)
+			}
+			c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
+		}
+	}
+	idx := len(c.stmtSlab)
+	c.stmtSlab = c.stmtSlab[:idx+1]
+	s := &c.stmtSlab[idx]
+	var refs []*Reference
+	var vars []*Var
+	if n := len(draft.nonDeclarationReferences); n > 0 {
+		refs = c.allocStmtRefs(n)
+		copy(refs, draft.nonDeclarationReferences)
+		if len(draft.nonDeclarationVars) == n {
+			vars = c.allocStmtVars(n)
+			copy(vars, draft.nonDeclarationVars)
+		}
+	}
+	s.outer = c
+	s.originalOrder = draft.originalOrder
+	s.chunk = draft.chunk
+	s.statementNode = draft.statementNode
+	s.nonDeclarationReferences = refs
+	s.nonDeclarationVars = vars
+	s.declaredNameReference = draft.declaredNameReference
+	s.declaredVar = draft.declaredVar
+	s.declaredValueNode = draft.declaredValueNode
+	return s
+}
+
+func (c *CrossChunkReferenceCollector) initTable() {
+	if c.poolable {
+		a := c.getArena()
+		if len(a.table) == 0 {
+			a.table = make([]rcTableEntry, 1024)
+		}
+		c.table = a.table
+		if cap(a.vars) > len(c.vars) {
+			c.vars = append(a.vars[:0], c.vars...)
+			c.cols = append(a.cols[:0], c.cols...)
+		} else {
+			newVars := make([]*Var, len(c.vars), 128)
+			copy(newVars, c.vars)
+			c.vars = newVars
+			newCols := make([]*ReferenceCollection, len(c.cols), 128)
+			copy(newCols, c.cols)
+			c.cols = newCols
+		}
+	} else {
+		c.table = make([]rcTableEntry, 64)
+		newVars := make([]*Var, len(c.vars), 64)
+		copy(newVars, c.vars)
+		c.vars = newVars
+		newCols := make([]*ReferenceCollection, len(c.cols), 64)
+		copy(newCols, c.cols)
+		c.cols = newCols
+	}
+	table := c.table
+	mask := uint32(len(table) - 1)
+	for i, kv := range c.vars {
+		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		for table[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		table[slot] = rcTableEntry{v: kv, col: c.cols[i]}
+	}
+}
+
+func (c *CrossChunkReferenceCollector) growTable() {
+	newCap := len(c.table) * 2
+	newTable := make([]rcTableEntry, newCap)
+	mask := uint32(newCap - 1)
+	for i, kv := range c.vars {
+		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		for newTable[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		newTable[slot] = rcTableEntry{v: kv, col: c.cols[i]}
+	}
+	c.table = newTable
+	if c.arena != nil {
+		c.arena.table = newTable
+	}
+}
+
+func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceCollection {
+	if c.table != nil {
+		table := c.table
+		mask := uint32(len(table) - 1)
+		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+			e := table[slot]
+			if e.v == v {
+				return e.col
+			}
+			if e.v == nil {
+				return nil
+			}
+		}
+	}
+	for i, kv := range c.vars {
+		if kv == v {
+			return c.cols[i]
+		}
+	}
+	return nil
+}
+
+func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *ReferenceCollection {
+	if idx := v.GetIndex(); idx > c.maxVarIndex {
+		c.maxVarIndex = idx
+	}
+	if c.varsByName != nil {
+		if c.varsByName.ContainsKey(v.name) {
+			jutil.CheckState(jutil.ObjectsEquals(c.varsByName.Get(v.name), v))
+		} else {
+			c.varsByName.Put(v.name, v)
+		}
+	}
+	col := c.allocReferenceCollection()
+	if c.table != nil {
+		if (len(c.vars)+1)*2 > len(c.table) {
+			c.growTable()
+		}
+		table := c.table
+		mask := uint32(len(table) - 1)
+		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		for table[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		table[slot] = rcTableEntry{v: v, col: col}
+	} else if len(c.vars) == len(c.varsBuf) {
+		c.initTable()
+		table := c.table
+		mask := uint32(len(table) - 1)
+		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		for table[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		table[slot] = rcTableEntry{v: v, col: col}
+	}
+	c.vars = append(c.vars, v)
+	c.cols = append(c.cols, col)
+	if c.referenceMap != nil {
+		c.referenceMap.Put(v, col)
+	}
+	c.lastVar = v
+	c.lastCollection = col
+	return col
 }
 
 // Process is a convenience method for running this pass over a tree with
@@ -71,12 +757,13 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 //
 // Java: CrossChunkReferenceCollector.process(Node, Node)
 func (c *CrossChunkReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
-	jutil.CheckStateMsg(len(c.topLevelStatements) == 0, "process() called more than once")
-	NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(c).
-		SetScopeCreator(c.scopeCreator).
-		TraverseRoots(externs, root)
+	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: c.scopeCreator,
+	}
+	b.TraverseRoots(externs, root)
 }
 
 // ProcessRoot is the one-argument overload process(Node).
@@ -86,31 +773,67 @@ func (c *CrossChunkReferenceCollector) Process(externs *rhino.Node, root *rhino.
 //
 // Java: CrossChunkReferenceCollector.process(Node)
 func (c *CrossChunkReferenceCollector) ProcessRoot(root *rhino.Node) {
-	jutil.CheckStateMsg(len(c.topLevelStatements) == 0, "process() called more than once")
-	NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(c).
-		SetScopeCreator(c.scopeCreator).
-		Traverse(root)
+	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: c.scopeCreator,
+	}
+	b.Traverse(root)
 }
 
 // GetAllSymbols gets the variables that were referenced in this callback.
 //
 // Java: CrossChunkReferenceCollector.getAllSymbols()
 func (c *CrossChunkReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
-	return c.referenceMap.Keys()
+	if c.referenceMap != nil {
+		return c.referenceMap.Keys()
+	}
+	return slices.Values(c.vars)
 }
 
 // GetReferences gets the reference collection for the given variable.
 //
 // Java: CrossChunkReferenceCollector.getReferences(Var)
 func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
-	return c.referenceMap.Get(v)
+	if v == nil {
+		if c.referenceMap != nil {
+			return c.referenceMap.Get(nil)
+		}
+		return nil
+	}
+	if v == c.lastVar {
+		return c.lastCollection
+	}
+	if col := c.getExistingReferences(v); col != nil {
+		c.lastVar = v
+		c.lastCollection = col
+		return col
+	}
+	for i, kv := range c.vars {
+		if kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode() {
+			col := c.cols[i]
+			c.lastVar = v
+			c.lastCollection = col
+			return col
+		}
+	}
+	if c.referenceMap != nil {
+		return c.referenceMap.Get(v)
+	}
+	return nil
 }
 
 // Java: CrossChunkReferenceCollector.getGlobalVariableNamesMap()
 func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.LinkedHashMap[string, *Var] {
-	return jutil.NewLinkedHashMapFrom(c.varsByName)
+	if c.varsByName != nil {
+		return jutil.NewLinkedHashMapFrom(c.varsByName)
+	}
+	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
+	for _, v := range c.vars {
+		out.Put(v.name, v)
+	}
+	return out
 }
 
 // Visit, for each node, updates the block stack and reference collection as
@@ -120,32 +843,41 @@ func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.Linked
 func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	if c.topLevelStatementDraft != nil {
 		if n == c.topLevelStatementDraft.statementNode {
-			c.topLevelStatements = append(c.topLevelStatements, NewCrossChunkReferenceCollector_TopLevelStatement(c, c.topLevelStatementDraft))
+			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(c.topLevelStatementDraft))
 			c.topLevelStatementDraft = nil
 		} else if n.IsName() {
-			varName := n.GetString()
-			v := t.GetScope().GetVar(varName)
+			scope := t.GetScope()
+			v := scope.GetVar(n.GetString())
 
-			if v != nil {
-				// Only global, non-exported names can be moved
-				if v.IsGlobal() &&
-					!c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
-					if c.varsByName.ContainsKey(varName) {
-						jutil.CheckState(jutil.ObjectsEquals(c.varsByName.Get(varName), v))
+			if v != nil && v.IsGlobal() {
+				var col *ReferenceCollection
+				if v == c.lastVar {
+					col = c.lastCollection
+				} else {
+					col = c.getExistingReferences(v)
+					if col == nil {
+						if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
+							goto checkBoundary
+						}
+						col = c.createReferencesForNewVar(v)
 					} else {
-						c.varsByName.Put(varName, v)
+						c.lastVar = v
+						c.lastCollection = col
 					}
-					reference := NewReference(n, t, crossChunkReferenceCollector_peek(c.blockStack))
-					if reference.GetNode() == c.topLevelStatementDraft.declaredNameNode {
-						c.topLevelStatementDraft.declaredNameReference = reference
-					} else {
-						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
-					}
-					c.AddReferenceToCollection(v, reference)
 				}
+				reference := c.allocReference(n, scope, crossChunkReferenceCollector_peek(c.blockStack), t.GetInput().GetInputId())
+				if n == c.topLevelStatementDraft.declaredNameNode {
+					c.topLevelStatementDraft.declaredNameReference = reference
+					c.topLevelStatementDraft.declaredVar = v
+				} else {
+					c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
+					c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
+				}
+				col.Add(reference)
 			}
 		}
 	}
+checkBoundary:
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
 		crossChunkReferenceCollector_pop(&c.blockStack)
 	}
@@ -164,7 +896,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, NewBasicBlock(parent, n))
+		c.blockStack = append(c.blockStack, c.allocBasicBlock(parent, n))
 	}
 }
 
@@ -185,15 +917,23 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, NewBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
+		c.blockStack = append(c.blockStack, c.allocBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
 	}
 	return true
 }
 
 // Java: CrossChunkReferenceCollector.initializeDraftStatement(JSChunk, Node)
 func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
-	draft :=
-		NewCrossChunkReferenceCollector_TopLevelStatementDraft(c.statementCounter, chunk, statementNode)
+	draft := &c.draftVal
+	refs := draft.nonDeclarationReferences[:0]
+	vars := draft.nonDeclarationVars[:0]
+	*draft = CrossChunkReferenceCollector_TopLevelStatementDraft{
+		originalOrder:            c.statementCounter,
+		chunk:                    chunk,
+		statementNode:            statementNode,
+		nonDeclarationReferences: refs,
+		nonDeclarationVars:       vars,
+	}
 	c.statementCounter++
 	// Determine whether this statement declares a name or not.
 	// If so, save its name node and value node, if any.
@@ -319,29 +1059,37 @@ func crossChunkReferenceCollector_peek[T any](list []T) T {
 	return list[len(list)-1]
 }
 
+var crossChunkParentBoundaryKind = [256]uint8{
+	rhino.Token_DO:           1,
+	rhino.Token_FOR:          1,
+	rhino.Token_FOR_IN:       1,
+	rhino.Token_FOR_OF:       1,
+	rhino.Token_FOR_AWAIT_OF: 1,
+	rhino.Token_TRY:          1,
+	rhino.Token_WHILE:        1,
+	rhino.Token_WITH:         1,
+	rhino.Token_CLASS:        1,
+	rhino.Token_AND:          2,
+	rhino.Token_HOOK:         2,
+	rhino.Token_IF:           2,
+	rhino.Token_OR:           2,
+	rhino.Token_SWITCH:       2,
+	rhino.Token_COALESCE:     2,
+}
+
 // CrossChunkReferenceCollector_IsBlockBoundary returns true if this node
 // marks the start of a new basic block.
 //
 // Java: CrossChunkReferenceCollector.isBlockBoundary(Node, Node)
 func CrossChunkReferenceCollector_IsBlockBoundary(n *rhino.Node, parent *rhino.Node) bool {
 	if parent != nil {
-		switch parent.GetToken() {
-		case rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_TRY, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_CLASS:
-			// NOTE: TRY has up to 3 child blocks:
-			// TRY
-			//   BLOCK
-			//   BLOCK
-			//     CATCH
-			//   BLOCK
-			// Note that there is an explicit CATCH token but no explicit
-			// FINALLY token. For simplicity, we consider each BLOCK
-			// a separate basic BLOCK.
+		switch crossChunkParentBoundaryKind[uint8(parent.GetToken())] {
+		case 1:
 			return true
-		case rhino.Token_AND, rhino.Token_HOOK, rhino.Token_IF, rhino.Token_OR, rhino.Token_SWITCH, rhino.Token_COALESCE:
+		case 2:
 			// The first child of a conditional is not a boundary,
 			// but all the rest of the children are.
 			return n != parent.GetFirstChild()
-		default:
 		}
 	}
 
@@ -350,15 +1098,19 @@ func CrossChunkReferenceCollector_IsBlockBoundary(n *rhino.Node, parent *rhino.N
 
 // Java: CrossChunkReferenceCollector.addReferenceToCollection(Var, Reference)
 func (c *CrossChunkReferenceCollector) AddReferenceToCollection(v *Var, reference *Reference) {
-	// Create collection if none already
-	referenceInfo := c.referenceMap.Get(v)
-	if referenceInfo == nil {
-		referenceInfo = NewReferenceCollection()
-		c.referenceMap.Put(v, referenceInfo)
+	var col *ReferenceCollection
+	if v == c.lastVar && v != nil {
+		col = c.lastCollection
+	} else {
+		col = c.getExistingReferences(v)
+		if col == nil {
+			col = c.createReferencesForNewVar(v)
+		} else {
+			c.lastVar = v
+			c.lastCollection = col
+		}
 	}
-
-	// Add this particular reference
-	referenceInfo.Add(reference)
+	col.Add(reference)
 }
 
 // Java: CrossChunkReferenceCollector.getTopLevelStatements()
@@ -521,7 +1273,9 @@ type CrossChunkReferenceCollector_TopLevelStatement struct {
 	chunk                    *JSChunk
 	statementNode            *rhino.Node
 	nonDeclarationReferences []*Reference
+	nonDeclarationVars       []*Var
 	declaredNameReference    *Reference
+	declaredVar              *Var
 	declaredValueNode        *rhino.Node
 }
 
@@ -533,7 +1287,9 @@ func NewCrossChunkReferenceCollector_TopLevelStatement(outer *CrossChunkReferenc
 		chunk:                    draft.chunk,
 		statementNode:            draft.statementNode,
 		nonDeclarationReferences: draft.nonDeclarationReferences,
+		nonDeclarationVars:       draft.nonDeclarationVars,
 		declaredNameReference:    draft.declaredNameReference,
+		declaredVar:              draft.declaredVar,
 		declaredValueNode:        draft.declaredValueNode,
 	}
 }
@@ -588,9 +1344,11 @@ type CrossChunkReferenceCollector_TopLevelStatementDraft struct {
 	chunk                    *JSChunk
 	statementNode            *rhino.Node
 	nonDeclarationReferences []*Reference
+	nonDeclarationVars       []*Var
 	declaredValueNode        *rhino.Node
 	declaredNameNode         *rhino.Node
 	declaredNameReference    *Reference
+	declaredVar              *Var
 }
 
 // Java: CrossChunkReferenceCollector.TopLevelStatementDraft(int, JSChunk, Node)

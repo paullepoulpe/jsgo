@@ -33,23 +33,32 @@ import (
 type PropertyClustering struct {
 	name string
 
-	useSites *jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode]
+	useSites    jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode]
+	useSitesBuf [8]jutil.LhmSlot[*rhino.Node, *ColorGraphNode]
 
-	clusters *StandardUnionFind[*ColorGraphNode]
+	clusters    StandardUnionFind[*ColorGraphNode]
+	clustersMap jutil.LinkedHashMap[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]]
+	clustersBuf [4]jutil.LhmSlot[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]]
 
 	originalNameClusterRep *ColorGraphNode
+	lastOwner              *ColorGraphNode
 
 	lastInvalidation Invalidation
+}
+
+func (p *PropertyClustering) init(name string) {
+	p.name = name
+	p.useSites.InitWithBuffer(p.useSitesBuf[:])
+	p.clustersMap.InitWithBuffer(p.clustersBuf[:])
+	p.clusters.elmap = &p.clustersMap
 }
 
 // Java: PropertyClustering(String)
 func NewPropertyClustering(name string) *PropertyClustering {
 	// checkNotNull(name): a Go string is never null.
-	return &PropertyClustering{
-		name:     name,
-		useSites: jutil.NewLinkedHashMap[*rhino.Node, *ColorGraphNode](),
-		clusters: NewStandardUnionFind[*ColorGraphNode](),
-	}
+	p := &PropertyClustering{}
+	p.init(name)
+	return p
 }
 
 // Java: PropertyClustering.getName()
@@ -65,12 +74,12 @@ func (p *PropertyClustering) GetName() string {
 //
 // Java: PropertyClustering.getUseSites()
 func (p *PropertyClustering) GetUseSites() *jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode] {
-	return p.useSites
+	return &p.useSites
 }
 
 // Java: PropertyClustering.getClusters()
 func (p *PropertyClustering) GetClusters() *StandardUnionFind[*ColorGraphNode] {
-	return p.clusters
+	return &p.clusters
 }
 
 // GetOriginalNameClusterRep is the current representative of the cluster
@@ -131,8 +140,10 @@ func (p *PropertyClustering) RegisterOriginalNameType(type_ *ColorGraphNode) {
 	jutil.CheckState(!p.IsInvalidated())
 	if p.originalNameClusterRep == nil {
 		p.originalNameClusterRep = type_
+		p.clusters.Add(type_)
+	} else if p.originalNameClusterRep != type_ {
+		p.clusters.Union(p.originalNameClusterRep, type_)
 	}
-	p.clusters.Union(p.originalNameClusterRep, type_)
 }
 
 // String is for debugging only (@DoNotCall).

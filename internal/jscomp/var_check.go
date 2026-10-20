@@ -144,7 +144,9 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 
 // Java: VarCheck.process(Node, Node)
 func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
-	var scopeCreator ScopeCreator = v.CreateScopeCreator()
+	sc := v.CreateScopeCreator()
+	defer sc.ReleaseArena()
+	var scopeCreator ScopeCreator = sc
 
 	// Don't run externs-checking in sanity check mode. Normalization will
 	// remove duplicate VAR declarations, which will make

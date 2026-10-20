@@ -36,6 +36,8 @@ type TypeInferencePass struct {
 	scopeCreator            *TypedScopeCreator
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup
 	reusableTypeInference   TypeInference
+	reusableCFA             ControlFlowAnalysis
+	reusableCFG             ControlFlowAnalysis_AstControlFlowGraph
 
 	// (stepCount, Token) -> populationCount
 	//
@@ -103,20 +105,24 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 		jutil.CheckState(p.topScope == nil)
 		p.topScope = p.scopeCreator.CreateScope(inferenceRoot, nil).(*TypedScope)
 
-		NodeTraversal_Builder_().
-			SetCompiler(p.compiler).
-			SetCallback(newTypeInferencePass_FirstScopeBuildingCallback()).
-			SetScopeCreator(p.scopeCreator).
-			TraverseWithScope(inferenceRoot, p.topScope)
+		var firstCb TypeInferencePass_FirstScopeBuildingCallback
+		b1 := NodeTraversal_Builder{
+			compiler:     p.compiler,
+			callback:     &firstCb,
+			scopeCreator: p.scopeCreator,
+		}
+		b1.TraverseWithScope(inferenceRoot, p.topScope)
 		p.scopeCreator.ResolveWeakImportsPreResolution()
 	}()
 	p.scopeCreator.FinishAndFreeze()
 
-	NodeTraversal_Builder_().
-		SetCompiler(p.compiler).
-		SetCallback(newTypeInferencePass_SecondScopeBuildingCallback(p)).
-		SetScopeCreator(p.scopeCreator).
-		TraverseWithScope(inferenceRoot, p.topScope)
+	secondCb := TypeInferencePass_SecondScopeBuildingCallback{outer: p}
+	b2 := NodeTraversal_Builder{
+		compiler:     p.compiler,
+		callback:     &secondCb,
+		scopeCreator: p.scopeCreator,
+	}
+	b2.TraverseWithScope(inferenceRoot, p.topScope)
 
 	// Normalize TypedVars to have the '?' type instead of null after inference is complete. This
 	// currently cannot be done any earlier because it breaks inference of variables assigned in
@@ -239,9 +245,10 @@ func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, 
 
 // Java: TypeInferencePass.computeCfg(Node)
 func (p *TypeInferencePass) ComputeCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
-	return ControlFlowAnalysis_Builder_().
-		SetCompiler(p.compiler).
-		SetCfgRoot(n).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	return p.reusableCFA.ComputeReusableCfg(
+		p.compiler,
+		n,
+		/* shouldTraverseFunctions= */ false,
+		/* edgeAnnotations= */ true,
+		&p.reusableCFG)
 }

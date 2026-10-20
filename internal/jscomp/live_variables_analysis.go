@@ -181,33 +181,83 @@ func NewLiveVariablesAnalysis(
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) *LiveVariablesAnalysis {
 	l := &LiveVariablesAnalysis{}
-	l.InitDataFlowAnalysisBase(l, cfg)
+	l.Reset(cfg, jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction)
+	return l
+}
+
+// Reset resets l for reuse on a new function scope while retaining slab,
+// queue, set, and map capacities.
+func (l *LiveVariablesAnalysis) Reset(
+	cfg ControlFlowGraph[*rhino.Node],
+	jsScope *Scope,
+	jsScopeChild *Scope,
+	compiler AbstractCompiler,
+	scopeCreator ScopeCreator,
+	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
+	l.ResetDataFlowAnalysisBase(l, cfg)
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
+	l.escapedSet.Clear()
 	l.escaped = &l.escapedSet
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
-	if len(l.orderedVars) <= len(l.scopeVariablesSlots) {
+	if !l.scopeVariablesMap.HasBacking() {
 		l.scopeVariablesMap.InitWithBuffer(l.scopeVariablesSlots[:])
-		l.scopeVariables = &l.scopeVariablesMap
 	} else {
-		l.scopeVariables = jutil.NewLinkedHashMapWithCapacity[string, int](len(l.orderedVars))
+		l.scopeVariablesMap.Clear()
 	}
+	l.scopeVariables = &l.scopeVariablesMap
 	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
 	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
-	l.latticeSlab = l.latticeBuf[:0:len(l.latticeBuf)]
+	if cap(l.latticeSlab) == 0 {
+		l.latticeSlab = l.latticeBuf[:0:len(l.latticeBuf)]
+	} else {
+		l.latticeSlab = l.latticeSlab[:0]
+	}
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
 	l.AddScopeVariables()
-	return l
+}
+
+type lvaAllVarsFinder struct {
+	finder nodeUtil_getAllVarsDeclaredInFunction_finder
+}
+
+func (f *lvaAllVarsFinder) collect(
+	compiler AbstractCompiler, scopeCreator ScopeCreator, scope *Scope,
+) *NodeUtil_AllVarsDeclaredInFunction {
+	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
+	if !f.finder.result.mapStorage.HasBacking() {
+		f.finder.result.mapStorage.InitWithBuffer(f.finder.slotBuf[:])
+		f.finder.result.allVarsInFn = &f.finder.result.mapStorage
+	} else {
+		f.finder.result.mapStorage.Clear()
+	}
+	if cap(f.finder.result.orderedVars) == 0 {
+		f.finder.result.orderedVars = f.finder.varBuf[:0]
+	} else {
+		clear(f.finder.result.orderedVars)
+		f.finder.result.orderedVars = f.finder.result.orderedVars[:0]
+	}
+	f.finder.scope = scope
+
+	b := NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     &f.finder,
+		scopeCreator: scopeCreator,
+	}
+	b.TraverseAtScope(scope)
+
+	jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
+	return &f.finder.result
 }
 
 func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
 	if len(l.latticeSlab) == cap(l.latticeSlab) {
-		nextCap := min(max(cap(l.latticeSlab)*2, 16), 256)
+		nextCap := min(max(cap(l.latticeSlab)*2, 16), 2048)
 		l.latticeSlab = make([]LiveVariablesAnalysis_LiveVariableLattice, 0, nextCap)
 	}
 	idx := len(l.latticeSlab)

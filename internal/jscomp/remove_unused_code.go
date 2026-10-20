@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
@@ -82,7 +83,7 @@ func (s *rucSlab[T]) reset() {
 	if limit >= len(s.chunks) {
 		limit = len(s.chunks) - 1
 	}
-	const maxRetainedChunks = 8
+	const maxRetainedChunks = 40
 	for i := 0; i < limit && i < maxRetainedChunks; i++ {
 		clear(s.chunks[i])
 	}
@@ -168,6 +169,8 @@ func (a *removeUnusedCodeArena) reset() {
 	a.vanillaForDeclSlab.reset()
 }
 
+var cachedRUCArena atomic.Pointer[removeUnusedCodeArena]
+
 var removeUnusedCodeArenaPool = sync.Pool{
 	New: func() any {
 		return &removeUnusedCodeArena{
@@ -180,6 +183,20 @@ var removeUnusedCodeArenaPool = sync.Pool{
 			allFunctionParamScopes: make([]*Scope, 0, 512),
 		}
 	},
+}
+
+func acquireRUCArena() *removeUnusedCodeArena {
+	if a := cachedRUCArena.Swap(nil); a != nil {
+		return a
+	}
+	return removeUnusedCodeArenaPool.Get().(*removeUnusedCodeArena)
+}
+
+func releaseRUCArena(a *removeUnusedCodeArena) {
+	if cachedRUCArena.CompareAndSwap(nil, a) {
+		return
+	}
+	removeUnusedCodeArenaPool.Put(a)
 }
 
 // RemoveUnusedCode is garbage collection for variable and function
@@ -515,13 +532,16 @@ func (r *RemoveUnusedCode) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	r.externProperties = r.compiler.GetExternProperties()
 
-	arena := removeUnusedCodeArenaPool.Get().(*removeUnusedCodeArena)
+	arena := acquireRUCArena()
 	r.removeUnusedCodeArena = *arena
 	defer func() {
+		if r.scopeCreator != nil {
+			r.scopeCreator.ReleaseArena()
+		}
 		*arena = r.removeUnusedCodeArena
 		arena.reset()
 		r.removeUnusedCodeArena = removeUnusedCodeArena{}
-		removeUnusedCodeArenaPool.Put(arena)
+		releaseRUCArena(arena)
 	}()
 
 	removalLogFile :=

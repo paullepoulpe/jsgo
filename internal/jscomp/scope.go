@@ -19,8 +19,27 @@
 package jscomp
 
 import (
+	"sync"
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+const (
+	minScopeChunkSize    = 16
+	maxScopeChunkSize    = 1024
+	maxScopeChunks       = 80
+	minVarChunkSize      = 32
+	maxVarChunkSize      = 2048
+	maxVarChunks         = 80
+	minSlotChunkSize     = 64
+	maxSlotChunkSize     = 2048
+	maxSlotChunks        = 80
+	maxLargeSlotSize     = 4096
+	minImplicitChunkSize = 8
+	maxImplicitChunkSize = 128
+	maxImplicitChunks    = 32
 )
 
 // Scope contains information about a variable scope in JavaScript. Scopes
@@ -44,26 +63,155 @@ type Scope struct {
 // scopeArena slab-allocates Scope, Var, and LinkedHashMap slot slices for a
 // SyntacticScopeCreator and its descendant scopes.
 type scopeArena struct {
-	scopeChunk    []Scope
-	scopeUsed     int
-	varChunk      []Var
-	varUsed       int
-	slotChunk     []jutil.LhmSlot[string, *Var]
-	slotUsed      int
-	implicitChunk [][4]*Var
-	implicitUsed  int
+	scopeChunk       []Scope
+	scopeUsed        int
+	scopeChunks      [][]Scope
+	scopeChunkIdx    int
+	varChunk         []Var
+	varUsed          int
+	varChunks        [][]Var
+	varChunkIdx      int
+	slotChunk        []jutil.LhmSlot[string, *Var]
+	slotUsed         int
+	slotChunks       [][]jutil.LhmSlot[string, *Var]
+	slotChunkIdx     int
+	largeSlots       []jutil.LhmSlot[string, *Var]
+	largeSlotsUsed   int
+	implicitChunk    [][4]*Var
+	implicitUsed     int
+	implicitChunks   [][][4]*Var
+	implicitChunkIdx int
+
+	globalVars    jutil.LinkedHashMap[string, *Var]
+	globalVarsCap int
+	globalScope   *Scope
+}
+
+var cachedScopeArena atomic.Pointer[scopeArena]
+
+var scopeArenaPool = sync.Pool{
+	New: func() any {
+		return &scopeArena{}
+	},
+}
+
+func acquireScopeArena() *scopeArena {
+	if a := cachedScopeArena.Swap(nil); a != nil {
+		return a
+	}
+	return scopeArenaPool.Get().(*scopeArena)
+}
+
+func (a *scopeArena) release() {
+	if a == nil {
+		return
+	}
+	if a.globalScope != nil {
+		gv := a.globalScope.vars
+		a.globalScope = nil
+		if sz := gv.Size(); sz > a.globalVarsCap {
+			a.globalVarsCap = sz
+		}
+		if a.globalVarsCap <= 16384 {
+			gv.Clear()
+			a.globalVars = gv
+		} else {
+			a.globalVars = jutil.LinkedHashMap[string, *Var]{}
+			a.globalVarsCap = 0
+		}
+	}
+
+	for i := 0; i < a.scopeChunkIdx && i < maxScopeChunks; i++ {
+		if i == a.scopeChunkIdx-1 {
+			clear(a.scopeChunks[i][:a.scopeUsed])
+		} else {
+			clear(a.scopeChunks[i])
+		}
+	}
+	if len(a.scopeChunks) > maxScopeChunks {
+		clear(a.scopeChunks[maxScopeChunks:])
+		a.scopeChunks = a.scopeChunks[:maxScopeChunks]
+	}
+	a.scopeChunk = nil
+	a.scopeUsed = 0
+	a.scopeChunkIdx = 0
+
+	for i := 0; i < a.varChunkIdx && i < maxVarChunks; i++ {
+		if i == a.varChunkIdx-1 {
+			clear(a.varChunks[i][:a.varUsed])
+		} else {
+			clear(a.varChunks[i])
+		}
+	}
+	if len(a.varChunks) > maxVarChunks {
+		clear(a.varChunks[maxVarChunks:])
+		a.varChunks = a.varChunks[:maxVarChunks]
+	}
+	a.varChunk = nil
+	a.varUsed = 0
+	a.varChunkIdx = 0
+
+	for i := 0; i < a.slotChunkIdx && i < maxSlotChunks; i++ {
+		if i == a.slotChunkIdx-1 {
+			clear(a.slotChunks[i][:a.slotUsed])
+		} else {
+			clear(a.slotChunks[i])
+		}
+	}
+	if len(a.slotChunks) > maxSlotChunks {
+		clear(a.slotChunks[maxSlotChunks:])
+		a.slotChunks = a.slotChunks[:maxSlotChunks]
+	}
+	a.slotChunk = nil
+	a.slotUsed = 0
+	a.slotChunkIdx = 0
+
+	if a.largeSlotsUsed > 0 {
+		clear(a.largeSlots[:a.largeSlotsUsed])
+		a.largeSlotsUsed = 0
+	}
+
+	for i := 0; i < a.implicitChunkIdx && i < maxImplicitChunks; i++ {
+		if i == a.implicitChunkIdx-1 {
+			clear(a.implicitChunks[i][:a.implicitUsed])
+		} else {
+			clear(a.implicitChunks[i])
+		}
+	}
+	if len(a.implicitChunks) > maxImplicitChunks {
+		clear(a.implicitChunks[maxImplicitChunks:])
+		a.implicitChunks = a.implicitChunks[:maxImplicitChunks]
+	}
+	a.implicitChunk = nil
+	a.implicitUsed = 0
+	a.implicitChunkIdx = 0
+
+	if cachedScopeArena.CompareAndSwap(nil, a) {
+		return
+	}
+	scopeArenaPool.Put(a)
 }
 
 func (a *scopeArena) allocScope() *Scope {
 	if a.scopeUsed == len(a.scopeChunk) {
-		n := 4 * len(a.scopeChunk)
-		if n < 8 {
-			n = 8
-		} else if n > 256 {
-			n = 256
+		if a.scopeChunkIdx < len(a.scopeChunks) {
+			a.scopeChunk = a.scopeChunks[a.scopeChunkIdx]
+			a.scopeChunkIdx++
+			a.scopeUsed = 1
+			return &a.scopeChunk[0]
 		}
-		a.scopeChunk = make([]Scope, n)
-		a.scopeUsed = 0
+		n := 4 * len(a.scopeChunk)
+		if n < minScopeChunkSize {
+			n = minScopeChunkSize
+		} else if n > maxScopeChunkSize {
+			n = maxScopeChunkSize
+		}
+		ch := make([]Scope, n)
+		a.scopeChunks = append(a.scopeChunks, ch)
+		a.scopeChunkIdx = len(a.scopeChunks)
+		a.scopeChunk = ch
+		a.scopeUsed = 1
+		return &ch[0]
 	}
 	s := &a.scopeChunk[a.scopeUsed]
 	a.scopeUsed++
@@ -72,14 +220,24 @@ func (a *scopeArena) allocScope() *Scope {
 
 func (a *scopeArena) allocVar() *Var {
 	if a.varUsed == len(a.varChunk) {
-		n := 4 * len(a.varChunk)
-		if n < 16 {
-			n = 16
-		} else if n > 512 {
-			n = 512
+		if a.varChunkIdx < len(a.varChunks) {
+			a.varChunk = a.varChunks[a.varChunkIdx]
+			a.varChunkIdx++
+			a.varUsed = 1
+			return &a.varChunk[0]
 		}
-		a.varChunk = make([]Var, n)
-		a.varUsed = 0
+		n := 4 * len(a.varChunk)
+		if n < minVarChunkSize {
+			n = minVarChunkSize
+		} else if n > maxVarChunkSize {
+			n = maxVarChunkSize
+		}
+		ch := make([]Var, n)
+		a.varChunks = append(a.varChunks, ch)
+		a.varChunkIdx = len(a.varChunks)
+		a.varChunk = ch
+		a.varUsed = 1
+		return &ch[0]
 	}
 	v := &a.varChunk[a.varUsed]
 	a.varUsed++
@@ -87,34 +245,107 @@ func (a *scopeArena) allocVar() *Var {
 }
 
 func (a *scopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *Var] {
+	if n <= 0 {
+		return nil
+	}
+	if n > maxSlotChunkSize {
+		if n <= maxLargeSlotSize {
+			if len(a.largeSlots)-a.largeSlotsUsed >= n {
+				u := a.largeSlotsUsed
+				a.largeSlotsUsed = u + n
+				return a.largeSlots[u : u+n : u+n]
+			}
+			if a.largeSlotsUsed == 0 {
+				a.largeSlots = make([]jutil.LhmSlot[string, *Var], maxLargeSlotSize)
+				a.largeSlotsUsed = n
+				return a.largeSlots[:n:n]
+			}
+		}
+		return make([]jutil.LhmSlot[string, *Var], n)
+	}
 	if len(a.slotChunk)-a.slotUsed < n {
+		if a.slotChunkIdx < len(a.slotChunks) {
+			ch := a.slotChunks[a.slotChunkIdx]
+			if len(ch) < n {
+				size := 4 * len(ch)
+				if size < minSlotChunkSize {
+					size = minSlotChunkSize
+				}
+				if size < n {
+					size = n
+				}
+				if size > maxSlotChunkSize {
+					size = maxSlotChunkSize
+				}
+				ch = make([]jutil.LhmSlot[string, *Var], size)
+				a.slotChunks[a.slotChunkIdx] = ch
+			}
+			a.slotChunkIdx++
+			a.slotChunk = ch
+			a.slotUsed = n
+			return ch[:n:n]
+		}
 		size := 4 * len(a.slotChunk)
-		if size < 32 {
-			size = 32
-		} else if size > 512 {
-			size = 512
+		if size < minSlotChunkSize {
+			size = minSlotChunkSize
+		} else if size > maxSlotChunkSize {
+			size = maxSlotChunkSize
 		}
 		if size < n {
 			size = n
 		}
-		a.slotChunk = make([]jutil.LhmSlot[string, *Var], size)
-		a.slotUsed = 0
+		ch := make([]jutil.LhmSlot[string, *Var], size)
+		a.slotChunks = append(a.slotChunks, ch)
+		a.slotChunkIdx = len(a.slotChunks)
+		a.slotChunk = ch
+		a.slotUsed = n
+		return ch[:n:n]
 	}
 	u := a.slotUsed
 	a.slotUsed = u + n
 	return a.slotChunk[u : u+n : u+n]
 }
 
+func (a *scopeArena) initLargeVars(sc *Scope, n int) {
+	if sc.parent == nil && a.globalScope == nil {
+		if a.globalVarsCap > 0 {
+			sc.vars = a.globalVars
+			a.globalVars = jutil.LinkedHashMap[string, *Var]{}
+			a.globalScope = sc
+			return
+		}
+		cap := 256
+		for cap < n {
+			cap *= 2
+		}
+		sc.vars = *jutil.NewLinkedHashMapWithCapacity[string, *Var](cap)
+		a.globalVarsCap = cap
+		a.globalScope = sc
+		return
+	}
+	sc.vars.InitWithBuffer(a.allocVarSlots(n))
+}
+
 func (a *scopeArena) allocImplicitVars() *[4]*Var {
 	if a.implicitUsed == len(a.implicitChunk) {
-		n := 4 * len(a.implicitChunk)
-		if n < 8 {
-			n = 8
-		} else if n > 128 {
-			n = 128
+		if a.implicitChunkIdx < len(a.implicitChunks) {
+			a.implicitChunk = a.implicitChunks[a.implicitChunkIdx]
+			a.implicitChunkIdx++
+			a.implicitUsed = 1
+			return &a.implicitChunk[0]
 		}
-		a.implicitChunk = make([][4]*Var, n)
-		a.implicitUsed = 0
+		n := 4 * len(a.implicitChunk)
+		if n < minImplicitChunkSize {
+			n = minImplicitChunkSize
+		} else if n > maxImplicitChunkSize {
+			n = maxImplicitChunkSize
+		}
+		ch := make([][4]*Var, n)
+		a.implicitChunks = append(a.implicitChunks, ch)
+		a.implicitChunkIdx = len(a.implicitChunks)
+		a.implicitChunk = ch
+		a.implicitUsed = 1
+		return &ch[0]
 	}
 	p := &a.implicitChunk[a.implicitUsed]
 	a.implicitUsed++
@@ -616,7 +847,12 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 	// declaration site.
 	var_ := s.getOwnSlotV(name)
 	if var_ == nil {
-		var_ = Var_CreateImplicitGoogNamespace(name, s, definition)
+		if s.arena != nil {
+			var_ = s.arena.allocVar()
+			initVar(var_, name, nil, s, -1, nil, definition)
+		} else {
+			var_ = Var_CreateImplicitGoogNamespace(name, s, definition)
+		}
 		s.DeclareInternal(name, var_)
 	} else if var_.IsImplicitGoogNamespace() {
 		var_.AddImplicitGoogNamespaceDefinition(definition)

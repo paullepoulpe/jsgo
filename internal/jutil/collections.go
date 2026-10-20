@@ -372,7 +372,7 @@ func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 
 //go:noinline
 func (h *LinkedHashMap[K, V]) buildIndex() {
-	idxMap := make(map[K]int, max(2*int(h.size), 2))
+	idxMap := make(map[K]int, max(cap(h.slots), 2*int(h.size), 2))
 	for i := int(h.first); i < len(h.slots); i++ {
 		if h.m == nil || i >= len(h.m.removed) || !h.m.removed[i] {
 			idxMap[h.slots[i].key] = i + 1

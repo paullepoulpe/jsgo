@@ -345,6 +345,11 @@ type NodeTraversal_AbstractCfgCallback interface {
 	GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase
 }
 
+type nodeTraversal_reusableCfg struct {
+	cfa ControlFlowAnalysis
+	cfg ControlFlowAnalysis_AstControlFlowGraph
+}
+
 // NodeTraversal_AbstractCfgCallbackBase holds the fields and methods of
 // AbstractCfgCallback; subclasses embed it and call
 // InitNodeTraversal_AbstractCfgCallbackBase with themselves.
@@ -354,7 +359,11 @@ type NodeTraversal_AbstractCfgCallbackBase struct {
 	// Go-only: language-adapter — the ArrayDeque<Object> used as a stack
 	// (push/peek/pop at the end); each element is a *rhino.Node (a CFG root
 	// whose graph is not built yet) or a ControlFlowGraph[*rhino.Node].
-	cfgs []any
+	cfgs    []any
+	cfgsBuf [8]any
+
+	reusableCFAs    []*nodeTraversal_reusableCfg
+	reusableCFAsBuf [4]*nodeTraversal_reusableCfg
 }
 
 // InitNodeTraversal_AbstractCfgCallbackBase is the implicit
@@ -363,7 +372,10 @@ type NodeTraversal_AbstractCfgCallbackBase struct {
 // Java: NodeTraversal.AbstractCfgCallback()
 func (b *NodeTraversal_AbstractCfgCallbackBase) InitNodeTraversal_AbstractCfgCallbackBase(self NodeTraversal_AbstractCfgCallback) {
 	b.self = self
-	b.cfgs = nil
+	b.cfgs = b.cfgsBuf[:0]
+	if cap(b.reusableCFAs) == 0 {
+		b.reusableCFAs = b.reusableCFAsBuf[:0]
+	}
 }
 
 // GetNodeTraversal_AbstractCfgCallbackBase gives access to the base through
@@ -378,18 +390,23 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCall
 func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[*rhino.Node] {
 	var result ControlFlowGraph[*rhino.Node]
 	var o any
-	if len(b.cfgs) > 0 {
-		o = b.cfgs[len(b.cfgs)-1]
+	idx := len(b.cfgs) - 1
+	if idx >= 0 {
+		o = b.cfgs[idx]
 	}
 	jutil.CheckState(o != nil)
 	if cfgRoot, ok := o.(*rhino.Node); ok {
-		result = ControlFlowAnalysis_Builder_().
-			SetCompiler(compiler).
-			SetCfgRoot(cfgRoot).
-			SetIncludeEdgeAnnotations(true).
-			ComputeCfg()
-		b.cfgs = b.cfgs[:len(b.cfgs)-1]
-		b.cfgs = append(b.cfgs, result)
+		for len(b.reusableCFAs) <= idx {
+			b.reusableCFAs = append(b.reusableCFAs, &nodeTraversal_reusableCfg{})
+		}
+		rc := b.reusableCFAs[idx]
+		result = rc.cfa.ComputeReusableCfg(
+			compiler,
+			cfgRoot,
+			/* shouldTraverseFunctions= */ false,
+			/* edgeAnnotations= */ true,
+			&rc.cfg)
+		b.cfgs[idx] = result
 	} else {
 		result = o.(ControlFlowGraph[*rhino.Node])
 	}
