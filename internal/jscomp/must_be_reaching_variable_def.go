@@ -45,7 +45,8 @@ type MustBeReachingVariableDef struct {
 	escaped     *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	// Go-only: performance — local variable IDs shared by lattice states.
-	layout *mustDefLayout
+	layout        *mustDefLayout
+	layoutStorage mustDefLayout
 
 	emptyLattice MustBeReachingVariableDef_MustDef
 	joinOp       MustBeReachingVariableDef_MustDefJoin
@@ -60,6 +61,124 @@ type MustBeReachingVariableDef struct {
 	defBuf      [8]MustBeReachingVariableDef_Definition
 }
 
+func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string, *Var]) {
+	if vars == nil || vars.Size() > 64 {
+		d.layout = nil
+		return
+	}
+	if vars.Size() == 0 {
+		d.layout = emptyMustDefLayout
+		return
+	}
+	l := &d.layoutStorage
+	clear(l.vars)
+	if cap(l.vars) < vars.Size() {
+		l.vars = make([]*Var, 0, max(vars.Size(), 16))
+	} else {
+		l.vars = l.vars[:0]
+	}
+	if l.ids == nil {
+		l.ids = make(map[*Var]uint8, max(vars.Size(), 16))
+	} else {
+		clear(l.ids)
+	}
+	for v := range vars.Values() {
+		l.ids[v] = uint8(len(l.vars))
+		l.vars = append(l.vars, v)
+	}
+	d.layout = l
+}
+
+func resetMustDefMap(m *mustDefMap, layout *mustDefLayout) {
+	m.layout = layout
+	m.present = 0
+	if layout != nil {
+		n := len(layout.vars)
+		if n > 0 {
+			if cap(m.values) >= n && cap(m.order) >= n {
+				clear(m.values[:n])
+				m.values = m.values[:n]
+				m.order = m.order[:0]
+			} else if n <= len(m.valuesBuf) {
+				clear(m.valuesBuf[:n])
+				m.values = m.valuesBuf[:n]
+				m.order = m.orderBuf[:0:len(m.orderBuf)]
+			} else {
+				m.values = make([]*MustBeReachingVariableDef_Definition, n, 64)
+				m.order = make([]uint8, 0, 64)
+			}
+		} else {
+			if len(m.values) > 0 {
+				clear(m.values)
+				m.values = m.values[:0]
+			}
+			m.order = m.order[:0]
+		}
+		return
+	}
+	if len(m.values) > 0 {
+		clear(m.values)
+		m.values = m.values[:0]
+	}
+	m.order = m.order[:0]
+	if m.fallback == nil {
+		m.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	} else {
+		m.fallback.Clear()
+	}
+}
+
+func cloneMustDefMapInto(src, dst *mustDefMap) {
+	if src.layout != nil {
+		dst.layout = src.layout
+		dst.present = src.present
+		if len(src.values) == 0 {
+			if len(dst.values) > 0 {
+				clear(dst.values)
+				dst.values = dst.values[:0]
+			}
+			dst.order = dst.order[:0]
+			return
+		}
+		if cap(dst.values) < len(src.values) {
+			if len(src.values) <= len(dst.valuesBuf) {
+				dst.values = dst.valuesBuf[:len(src.values)]
+			} else {
+				dst.values = make([]*MustBeReachingVariableDef_Definition, len(src.values), 64)
+			}
+		} else {
+			dst.values = dst.values[:len(src.values)]
+		}
+		copy(dst.values, src.values)
+		if cap(dst.order) < len(src.values) {
+			if len(src.values) <= len(dst.orderBuf) {
+				dst.order = dst.orderBuf[:len(src.order):len(dst.orderBuf)]
+			} else {
+				dst.order = make([]uint8, len(src.order), 64)
+			}
+		} else {
+			dst.order = dst.order[:len(src.order)]
+		}
+		copy(dst.order, src.order)
+		return
+	}
+	dst.layout = nil
+	dst.present = 0
+	if len(dst.values) > 0 {
+		clear(dst.values)
+		dst.values = dst.values[:0]
+	}
+	dst.order = dst.order[:0]
+	if dst.fallback == nil {
+		dst.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	} else {
+		dst.fallback.Clear()
+	}
+	for v, d := range src.fallback.All() {
+		dst.fallback.Put(v, d)
+	}
+}
+
 // Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
 func NewMustBeReachingVariableDef(
 	cfg ControlFlowGraph[*rhino.Node],
@@ -67,33 +186,54 @@ func NewMustBeReachingVariableDef(
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MustBeReachingVariableDef {
 	d := &MustBeReachingVariableDef{}
-	d.InitDataFlowAnalysisBase(d, cfg)
+	d.Reset(cfg, compiler, escaped, allVarsInFn)
+	return d
+}
+
+// Reset resets d for reuse on a new function scope while retaining slab and
+// layout capacities.
+func (d *MustBeReachingVariableDef) Reset(
+	cfg ControlFlowGraph[*rhino.Node],
+	compiler AbstractCompiler,
+	escaped *jutil.ObjectLinkedHashSet[*Var],
+	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
+	d.ResetDataFlowAnalysisBase(d, cfg)
 	d.compiler = compiler
 	d.escaped = escaped
 	d.allVarsInFn = allVarsInFn
-	d.layout = newMustDefLayout(allVarsInFn)
-	d.emptyLattice.reachingDef.init(d.layout)
+	d.initLayout(allVarsInFn)
+	resetMustDefMap(&d.emptyLattice.reachingDef, d.layout)
 	d.depCallback.outer = d
-	d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
-	d.defSlab = d.defBuf[:0:len(d.defBuf)]
-	return d
+	d.depCallback.def = nil
+	d.flowInput = nil
+	d.flowOutput = nil
+	if cap(d.mustDefSlab) == 0 {
+		d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
+	} else {
+		d.mustDefSlab = d.mustDefSlab[:0]
+	}
+	if cap(d.defSlab) == 0 {
+		d.defSlab = d.defBuf[:0:len(d.defBuf)]
+	} else {
+		d.defSlab = d.defSlab[:0]
+	}
 }
 
 func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
 	if len(d.mustDefSlab) == cap(d.mustDefSlab) {
-		nextCap := min(max(cap(d.mustDefSlab)*2, 16), 256)
+		nextCap := min(max(cap(d.mustDefSlab)*2, 16), 2048)
 		d.mustDefSlab = make([]MustBeReachingVariableDef_MustDef, 0, nextCap)
 	}
 	idx := len(d.mustDefSlab)
 	d.mustDefSlab = d.mustDefSlab[:idx+1]
 	m := &d.mustDefSlab[idx]
-	m.reachingDef.init(d.layout)
+	resetMustDefMap(&m.reachingDef, d.layout)
 	return m
 }
 
 func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
 	if len(d.defSlab) == cap(d.defSlab) {
-		nextCap := min(max(cap(d.defSlab)*2, 16), 256)
+		nextCap := min(max(cap(d.defSlab)*2, 16), 2048)
 		d.defSlab = make([]MustBeReachingVariableDef_Definition, 0, nextCap)
 	}
 	idx := len(d.defSlab)
@@ -101,6 +241,7 @@ func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeRea
 	def := &d.defSlab[idx]
 	def.node = node
 	def.unknownDependencies = false
+	def.dependsSet.Clear()
 	def.depends = &def.dependsSet
 	return def
 }
@@ -109,7 +250,7 @@ func (d *MustBeReachingVariableDef) ensureMutable(def *MustBeReachingVariableDef
 	if def != nil && def == d.flowInput {
 		if d.flowOutput == d.flowInput {
 			cloned := d.allocMustDef()
-			d.flowInput.reachingDef.cloneInto(&cloned.reachingDef)
+			cloneMustDefMapInto(&d.flowInput.reachingDef, &cloned.reachingDef)
 			d.flowOutput = cloned
 		}
 		return d.flowOutput

@@ -115,6 +115,31 @@ func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], 
 	g.useEdgeAnnotations = useEdgeAnnotations
 }
 
+// ResetLinkedDirectedGraph resets g for reuse while retaining backing slab and
+// map capacities.
+func (g *LinkedDirectedGraph[N, E]) ResetLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
+	g.InitDiGraphBase(self)
+	g.nodeAnnotationStack = nil
+	g.edgeAnnotationStack = nil
+	if !g.nodes.HasBacking() {
+		g.nodes.InitWithBuffer(g.nodeSlots[:])
+	} else {
+		g.nodes.Clear()
+	}
+	if cap(g.nodeSlab) == 0 {
+		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
+	} else {
+		g.nodeSlab = g.nodeSlab[:0]
+	}
+	if cap(g.edgeSlab) == 0 {
+		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
+	} else {
+		g.edgeSlab = g.edgeSlab[:0]
+	}
+	g.useNodeAnnotations = useNodeAnnotations
+	g.useEdgeAnnotations = useEdgeAnnotations
+}
+
 // getLinkedNodeOrFail is getNodeOrFail(N) with the LinkedDiGraphNode cast.
 func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	if n := g.nodes.Get(val); n != nil {
@@ -125,7 +150,7 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 
 func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 8), 256)
+		nextCap := min(max(cap(g.nodeSlab)*2, 8), 2048)
 		g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
 	}
 	idx := len(g.nodeSlab)
@@ -134,8 +159,17 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 	n.value = nodeValue
 	n.priority = -1
 	n.annotated = g.useNodeAnnotations
-	n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])
-	n.outEdgeList.InitWithBuffer(n.outEdgeBuffer[:])
+	n.annotation = nil
+	if cap(n.inEdgeList.Slice()) == 0 {
+		n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])
+	} else {
+		n.inEdgeList.Clear()
+	}
+	if cap(n.outEdgeList.Slice()) == 0 {
+		n.outEdgeList.InitWithBuffer(n.outEdgeBuffer[:])
+	} else {
+		n.outEdgeList.Clear()
+	}
 	return n
 }
 
@@ -143,7 +177,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 func (g *LinkedDirectedGraph[N, E]) newEdge(
 	src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 8), 256)
+		nextCap := min(max(cap(g.edgeSlab)*2, 8), 2048)
 		g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
 	}
 	idx := len(g.edgeSlab)
@@ -153,6 +187,7 @@ func (g *LinkedDirectedGraph[N, E]) newEdge(
 	e.destNode = dest
 	e.value = edgeValue
 	e.annotated = g.useEdgeAnnotations
+	e.annotation = nil
 	return e
 }
 

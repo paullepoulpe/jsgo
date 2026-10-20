@@ -41,8 +41,9 @@ type MinimizedCondition struct {
 	// condition.
 	negative *MinimizedCondition_MeasuredNode
 
-	nodes     [8]MinimizedCondition_MeasuredNode
+	nodes     [32]MinimizedCondition_MeasuredNode
 	nodesUsed int
+	overflow  []MinimizedCondition_MeasuredNode
 }
 
 var minimizedCondition_unoptimizedNeg = &MinimizedCondition_MeasuredNode{
@@ -50,14 +51,39 @@ var minimizedCondition_unoptimizedNeg = &MinimizedCondition_MeasuredNode{
 	changed: true,
 }
 
+var minimizedCondition_NOT_PRECEDENCE = NodeUtil_Precedence(rhino.Token_NOT)
+
+func (c *MinimizedCondition) reset() {
+	c.positive = nil
+	c.negative = nil
+	c.nodesUsed = 0
+	if c.overflow != nil {
+		c.overflow = c.overflow[:0]
+	}
+}
+
 func (c *MinimizedCondition) allocNode() *MinimizedCondition_MeasuredNode {
-	if c != nil && c.nodesUsed < len(c.nodes) {
+	if c == nil {
+		return &MinimizedCondition_MeasuredNode{}
+	}
+	if c.nodesUsed < len(c.nodes) {
 		m := &c.nodes[c.nodesUsed]
 		c.nodesUsed++
-		m.mc = c
+		*m = MinimizedCondition_MeasuredNode{mc: c}
 		return m
 	}
-	return &MinimizedCondition_MeasuredNode{mc: c}
+	if len(c.overflow) == cap(c.overflow) {
+		newCap := cap(c.overflow) * 2
+		if newCap < 64 {
+			newCap = 64
+		}
+		c.overflow = make([]MinimizedCondition_MeasuredNode, 0, newCap)
+	}
+	i := len(c.overflow)
+	c.overflow = c.overflow[:i+1]
+	m := &c.overflow[i]
+	*m = MinimizedCondition_MeasuredNode{mc: c}
+	return m
 }
 
 // MinimizedCondition_MinimizationStyle: definitions of the style of
@@ -106,16 +132,20 @@ func newMinimizedCondition(p *MinimizedCondition_MeasuredNode, n *MinimizedCondi
 //
 // Java: MinimizedCondition.fromConditionNode(Node)
 func MinimizedCondition_FromConditionNode(n *rhino.Node) *MinimizedCondition {
+	return MinimizedCondition_FromConditionNodeInto(n, &MinimizedCondition{})
+}
+
+func MinimizedCondition_FromConditionNodeInto(n *rhino.Node, c *MinimizedCondition) *MinimizedCondition {
 	jutil.CheckState(n.HasParent())
 	switch n.GetToken() {
 	case rhino.Token_NOT, rhino.Token_AND, rhino.Token_OR, rhino.Token_HOOK, rhino.Token_COMMA:
-		c := &MinimizedCondition{}
+		c.reset()
 		pos, neg := minimizedCondition_computeMinimizedConditionInto(n, c)
 		c.positive = pos
 		c.negative = neg
 		return c
 	default:
-		return MinimizedCondition_Unoptimized(n)
+		return MinimizedCondition_UnoptimizedInto(n, c)
 	}
 }
 
@@ -138,7 +168,7 @@ func MinimizedCondition_FromConditionNode(n *rhino.Node) *MinimizedCondition {
 // Java: MinimizedCondition.getMinimized(MinimizationStyle)
 func (c *MinimizedCondition) GetMinimized(style MinimizedCondition_MinimizationStyle) *MinimizedCondition_MeasuredNode {
 	if style == MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED ||
-		c.positive.node.IsNot() ||
+		c.positive.IsNot() ||
 		c.positive.length <= c.negative.length {
 		return c.positive
 	} else {
@@ -158,14 +188,19 @@ func (c *MinimizedCondition) GetMinimized(style MinimizedCondition_MinimizationS
 //
 // Java: MinimizedCondition.unoptimized(Node)
 func MinimizedCondition_Unoptimized(n *rhino.Node) *MinimizedCondition {
+	return MinimizedCondition_UnoptimizedInto(n, &MinimizedCondition{})
+}
+
+func MinimizedCondition_UnoptimizedInto(n *rhino.Node, c *MinimizedCondition) *MinimizedCondition {
 	jutil.CheckNotNull(n.GetParent())
-	c := &MinimizedCondition{
-		negative:  minimizedCondition_unoptimizedNeg,
-		nodesUsed: 1,
-	}
+	c.reset()
+	c.negative = minimizedCondition_unoptimizedNeg
 	pos := &c.nodes[0]
-	pos.node = n
-	pos.mc = c
+	c.nodesUsed = 1
+	*pos = MinimizedCondition_MeasuredNode{
+		node: n,
+		mc:   c,
+	}
 	c.positive = pos
 	return c
 }
@@ -219,11 +254,10 @@ func minimizedCondition_computeMinimizedConditionInto(n *rhino.Node, c *Minimize
 		} else {
 			complementToken = rhino.Token_AND
 		}
-		complementNode := rhino.NewNode(complementToken).Srcref(n)
 		leftPos, leftNeg := minimizedCondition_computeMinimizedConditionInto(n.GetFirstChild(), c)
 		rightPos, rightNeg := minimizedCondition_computeMinimizedConditionInto(n.GetLastChild(), c)
-		posTree := minimizedCondition_MeasuredNode_addNode2(c, n, leftPos, rightPos)
-		negComplementTree := minimizedCondition_MeasuredNode_addNode2(c, complementNode, leftNeg, rightNeg)
+		posTree := minimizedCondition_MeasuredNode_addNode2(c, n, 0, leftPos, rightPos)
+		negComplementTree := minimizedCondition_MeasuredNode_addNode2(c, n, complementToken, leftNeg, rightNeg)
 		positive := MinimizedCondition_PickBest(
 			posTree,
 			negComplementTree.negateIn(c))
@@ -247,8 +281,8 @@ func minimizedCondition_computeMinimizedConditionInto(n *rhino.Node, c *Minimize
 		lhs := n.GetFirstChild()
 		rhsPos, rhsNeg := minimizedCondition_computeMinimizedConditionInto(lhs.GetNext(), c)
 		lhsMeasured := minimizedCondition_MeasuredNode_forNodeIn(c, lhs)
-		positive := minimizedCondition_MeasuredNode_addNode2(c, n, lhsMeasured, rhsPos)
-		negative := minimizedCondition_MeasuredNode_addNode2(c, n, lhsMeasured, rhsNeg)
+		positive := minimizedCondition_MeasuredNode_addNode2(c, n, 0, lhsMeasured, rhsPos)
+		negative := minimizedCondition_MeasuredNode_addNode2(c, n, 0, lhsMeasured, rhsNeg)
 		return positive, negative.changeIn(c)
 	default:
 		pos := minimizedCondition_MeasuredNode_forNodeIn(c, n)
@@ -268,8 +302,16 @@ type MinimizedCondition_MeasuredNode struct {
 	extraChildren []*MinimizedCondition_MeasuredNode
 	length        int
 	numChildren   int32
+	virtualToken  rhino.Token
 	changed       bool
 	hasChildren   bool
+}
+
+func (m *MinimizedCondition_MeasuredNode) token() rhino.Token {
+	if m.virtualToken != 0 {
+		return m.virtualToken
+	}
+	return m.node.GetToken()
 }
 
 // Java: MinimizedCondition.MeasuredNode(Node, MeasuredNode[], int, boolean)
@@ -310,7 +352,7 @@ func (m *MinimizedCondition_MeasuredNode) IsChanged() bool {
 
 // Java: MinimizedCondition.MeasuredNode.isNot()
 func (m *MinimizedCondition_MeasuredNode) IsNot() bool {
-	return m.node.IsNot()
+	return m.token() == rhino.Token_NOT
 }
 
 // Java: MinimizedCondition.MeasuredNode.withoutNot()
@@ -332,7 +374,7 @@ func (m *MinimizedCondition_MeasuredNode) Negate() *MinimizedCondition_MeasuredN
 }
 
 func (m *MinimizedCondition_MeasuredNode) negateIn(c *MinimizedCondition) *MinimizedCondition_MeasuredNode {
-	switch m.node.GetToken() {
+	switch m.token() {
 	case rhino.Token_EQ:
 		return m.updateTokenIn(c, rhino.Token_NE)
 	case rhino.Token_NE:
@@ -369,36 +411,12 @@ func (m *MinimizedCondition_MeasuredNode) UpdateToken(token rhino.Token) *Minimi
 }
 
 func (m *MinimizedCondition_MeasuredNode) updateTokenIn(c *MinimizedCondition, token rhino.Token) *MinimizedCondition_MeasuredNode {
-	newNode := rhino.NewNode(token).Srcref(m.node)
-	if m.hasChildren {
-		out := c.allocNode()
-		*out = *m
-		out.mc = c
-		out.node = newNode
-		out.changed = true
-		return out
-	}
-	if !m.node.HasChildren() {
-		out := c.allocNode()
-		out.node = newNode
-		out.length = m.length
-		out.changed = true
-		return out
-	}
-	first := m.node.GetFirstChild()
-	if first.GetNext() != nil && first.GetNext().GetNext() == nil {
-		out := c.allocNode()
-		out.node = newNode
-		out.length = m.length
-		out.changed = true
-		out.hasChildren = true
-		out.numChildren = 2
-		out.child0 = minimizedCondition_MeasuredNode_forNodeIn(c, first)
-		out.child1 = minimizedCondition_MeasuredNode_forNodeIn(c, first.GetNext())
-		return out
-	}
-	return newMinimizedCondition_MeasuredNodeIn(
-		c, newNode, MinimizedCondition_MeasuredNode_NormalizeChildren(m.node, nil), m.length, true)
+	out := c.allocNode()
+	*out = *m
+	out.mc = c
+	out.virtualToken = token
+	out.changed = true
+	return out
 }
 
 // Java: MinimizedCondition.MeasuredNode.addNot()
@@ -407,8 +425,19 @@ func (m *MinimizedCondition_MeasuredNode) AddNot() *MinimizedCondition_MeasuredN
 }
 
 func (m *MinimizedCondition_MeasuredNode) addNotIn(c *MinimizedCondition) *MinimizedCondition_MeasuredNode {
-	return minimizedCondition_MeasuredNode_addNode1(
-		c, rhino.NewNode(rhino.Token_NOT).Srcref(m.node), m).changeIn(c)
+	cost := m.length + 1
+	if m.IsLowerPrecedenceThan(minimizedCondition_NOT_PRECEDENCE) {
+		cost += 2
+	}
+	out := c.allocNode()
+	out.node = m.node
+	out.virtualToken = rhino.Token_NOT
+	out.length = cost
+	out.changed = true
+	out.hasChildren = true
+	out.numChildren = 1
+	out.child0 = m
+	return out
 }
 
 // Java: MinimizedCondition.MeasuredNode.change()
@@ -458,7 +487,7 @@ func minimizedCondition_MeasuredNode_estimateCostOneLevel(n *rhino.Node, childre
 //
 // Java: MinimizedCondition.MeasuredNode.isLowerPrecedenceThan(int)
 func (m *MinimizedCondition_MeasuredNode) IsLowerPrecedenceThan(precedence int) bool {
-	return NodeUtil_Precedence(m.node.GetToken()) < precedence
+	return NodeUtil_Precedence(m.token()) < precedence
 }
 
 // minimizedCondition_MeasuredNode_addNode: the returned MeasuredNode is
@@ -495,12 +524,16 @@ func minimizedCondition_MeasuredNode_addNode1(c *MinimizedCondition, parent *rhi
 	return m
 }
 
-func minimizedCondition_MeasuredNode_addNode2(c *MinimizedCondition, parent *rhino.Node, c0, c1 *MinimizedCondition_MeasuredNode) *MinimizedCondition_MeasuredNode {
+func minimizedCondition_MeasuredNode_addNode2(c *MinimizedCondition, parent *rhino.Node, virtualToken rhino.Token, c0, c1 *MinimizedCondition_MeasuredNode) *MinimizedCondition_MeasuredNode {
 	cost := c0.length + c1.length
-	if parent.IsNot() {
+	tok := virtualToken
+	if tok == 0 {
+		tok = parent.GetToken()
+	}
+	if tok == rhino.Token_NOT {
 		cost++
 	}
-	parentPrecedence := NodeUtil_Precedence(parent.GetToken())
+	parentPrecedence := NodeUtil_Precedence(tok)
 	if c0.IsLowerPrecedenceThan(parentPrecedence) {
 		cost += 2
 	}
@@ -509,6 +542,7 @@ func minimizedCondition_MeasuredNode_addNode2(c *MinimizedCondition, parent *rhi
 	}
 	m := c.allocNode()
 	m.node = parent
+	m.virtualToken = virtualToken
 	m.length = cost
 	m.changed = c0.changed || c1.changed
 	m.hasChildren = true
@@ -566,7 +600,7 @@ func minimizedCondition_MeasuredNode_forNodeIn(c *MinimizedCondition, n *rhino.N
 // Java: MinimizedCondition.MeasuredNode.willChange(Node)
 func (m *MinimizedCondition_MeasuredNode) WillChange(original *rhino.Node) bool {
 	jutil.CheckNotNull(original)
-	return original != m.node || m.IsChanged()
+	return m.virtualToken != 0 || original != m.node || m.IsChanged()
 }
 
 // ApplyTo updates the AST for the result of this MeasuredNode. This can
@@ -602,25 +636,38 @@ func (m *MinimizedCondition_MeasuredNode) SafeDetach(n *rhino.Node) *rhino.Node 
 //
 // Java: MinimizedCondition.MeasuredNode.buildReplacement()
 func (m *MinimizedCondition_MeasuredNode) BuildReplacement() *rhino.Node {
+	origNode := m.node
+	targetNode := origNode
+	if m.virtualToken != 0 {
+		targetNode = rhino.NewNode(m.virtualToken).Srcref(origNode)
+		m.node = targetNode
+		m.virtualToken = 0
+		if !m.hasChildren {
+			for origNode.HasChildren() {
+				targetNode.AddChildToBack(origNode.RemoveFirstChild())
+			}
+			return targetNode
+		}
+	}
 	if m.hasChildren {
-		m.node.DetachChildren()
+		targetNode.DetachChildren()
 		switch m.numChildren {
 		case 0:
 		case 1:
-			m.node.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
 		case 2:
-			m.node.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
-			m.node.AddChildToBack(m.SafeDetach(m.child1.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child1.BuildReplacement()))
 		case 3:
-			m.node.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
-			m.node.AddChildToBack(m.SafeDetach(m.child1.BuildReplacement()))
-			m.node.AddChildToBack(m.SafeDetach(m.child2.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child0.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child1.BuildReplacement()))
+			targetNode.AddChildToBack(m.SafeDetach(m.child2.BuildReplacement()))
 		default:
 			for _, child := range m.extraChildren {
 				replacementChild := m.SafeDetach(child.BuildReplacement())
-				m.node.AddChildToBack(replacementChild)
+				targetNode.AddChildToBack(replacementChild)
 			}
 		}
 	}
-	return m.node
+	return targetNode
 }

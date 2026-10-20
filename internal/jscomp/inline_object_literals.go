@@ -54,7 +54,9 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		NewInlineObjectLiterals_InliningBehavior(o),
 		NewSyntacticScopeCreator(o.compiler),
 		inlineObjectLiterals_isLocalVar)
+	callback.enableArenaPool()
 	callback.Process(externs, root)
+	callback.release()
 }
 
 // InlineObjectLiterals_InliningBehavior builds up information about nodes in

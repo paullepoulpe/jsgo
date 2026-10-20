@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 	"slices"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -30,6 +31,29 @@ import (
 type scopedVarKey struct {
 	scopeRoot *rhino.Node
 	name      string
+}
+
+type rcTableEntry struct {
+	v   *Var
+	col *ReferenceCollection
+}
+
+type referenceCollectorArena struct {
+	vars        []*Var
+	cols        []*ReferenceCollection
+	table       []rcTableEntry
+	refChunks   [][]Reference
+	refChunkIdx int
+	colChunks   [][]ReferenceCollection
+	colChunkIdx int
+	blkChunks   [][]BasicBlock
+	blkChunkIdx int
+}
+
+var referenceCollectorArenaPool = sync.Pool{
+	New: func() any {
+		return &referenceCollectorArena{}
+	},
 }
 
 // ReferenceCollector is a helper class for passes that want to access all
@@ -57,14 +81,17 @@ type ReferenceCollector struct {
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
 
 	vars            []*Var
+	cols            []*ReferenceCollection
 	varsBuf         [16]*Var
 	colsBuf         [16]*ReferenceCollection
-	refByVar        map[*Var]*ReferenceCollection
+	table           []rcTableEntry
 	refByKey        map[scopedVarKey]*ReferenceCollection
 	argumentsRefs   map[*rhino.Node]*ReferenceCollection
 	lastVar         *Var
 	lastCollection  *ReferenceCollection
 	activeTraversal *NodeTraversal
+	arena           *referenceCollectorArena
+	poolable        bool
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
@@ -126,6 +153,7 @@ func NewReferenceCollectorWithVarFilter(
 		varFilter:    varFilter,
 	}
 	c.vars = c.varsBuf[:0]
+	c.cols = c.colsBuf[:0]
 	c.blockStack = c.blockStackBuf[:0]
 	c.refSlab = c.refBuf[:0]
 	c.colSlab = c.colBuf[:0]
@@ -136,13 +164,109 @@ func NewReferenceCollectorWithVarFilter(
 	return c
 }
 
+func (c *ReferenceCollector) enableArenaPool() {
+	c.poolable = true
+}
+
+func (c *ReferenceCollector) getArena() *referenceCollectorArena {
+	if c.arena == nil {
+		c.arena = referenceCollectorArenaPool.Get().(*referenceCollectorArena)
+	}
+	return c.arena
+}
+
+func (c *ReferenceCollector) release() {
+	a := c.arena
+	if a == nil {
+		return
+	}
+	c.arena = nil
+	if len(c.table) > 0 && len(c.vars) > 0 {
+		if len(c.table) <= 65536 {
+			clear(c.table)
+			a.table = c.table
+		} else {
+			a.table = nil
+		}
+	}
+	c.table = nil
+	if cap(c.vars) > len(c.varsBuf) {
+		if cap(c.vars) <= 32768 {
+			clear(c.vars[:cap(c.vars)])
+			a.vars = c.vars[:0]
+			clear(c.cols[:cap(c.cols)])
+			a.cols = c.cols[:0]
+		} else {
+			a.vars = nil
+			a.cols = nil
+		}
+	}
+	c.vars = nil
+	c.cols = nil
+	const maxRetainedChunks = 12
+	for i := 0; i < a.refChunkIdx && i < maxRetainedChunks; i++ {
+		ch := a.refChunks[i]
+		clear(ch[:cap(ch)])
+	}
+	if len(a.refChunks) > maxRetainedChunks {
+		clear(a.refChunks[maxRetainedChunks:])
+		a.refChunks = a.refChunks[:maxRetainedChunks]
+	}
+	for i := 0; i < a.colChunkIdx && i < maxRetainedChunks; i++ {
+		ch := a.colChunks[i]
+		full := ch[:cap(ch)]
+		for j := range full {
+			col := &full[j]
+			if col.references != nil {
+				col.refsList.Clear()
+				clear(col.refsBuf[:])
+				if cap(col.refsList.Slice()) > 64 {
+					col.refsList.InitWithBuffer(col.refsBuf[:])
+				}
+			}
+		}
+	}
+	if len(a.colChunks) > maxRetainedChunks {
+		clear(a.colChunks[maxRetainedChunks:])
+		a.colChunks = a.colChunks[:maxRetainedChunks]
+	}
+	for i := 0; i < a.blkChunkIdx && i < maxRetainedChunks; i++ {
+		ch := a.blkChunks[i]
+		clear(ch[:cap(ch)])
+	}
+	if len(a.blkChunks) > maxRetainedChunks {
+		clear(a.blkChunks[maxRetainedChunks:])
+		a.blkChunks = a.blkChunks[:maxRetainedChunks]
+	}
+	a.refChunkIdx = 0
+	a.colChunkIdx = 0
+	a.blkChunkIdx = 0
+	referenceCollectorArenaPool.Put(a)
+}
+
 func (c *ReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
 	if len(c.refSlab) == cap(c.refSlab) {
-		newCap := 256
-		if cap(c.refSlab) >= 256 {
-			newCap = min(cap(c.refSlab)*2, 4096)
+		if c.poolable {
+			a := c.getArena()
+			if a.refChunkIdx < len(a.refChunks) {
+				c.refSlab = a.refChunks[a.refChunkIdx][:0]
+				a.refChunkIdx++
+			} else {
+				newCap := 256
+				if cap(c.refSlab) >= 256 {
+					newCap = min(cap(c.refSlab)*2, 4096)
+				}
+				c.refSlab = make([]Reference, 0, newCap)
+				a.refChunks = append(a.refChunks, c.refSlab)
+				a.refChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(c.refSlab) >= 256 {
+				newCap = min(cap(c.refSlab)*2, 4096)
+			}
+			c.refSlab = make([]Reference, 0, newCap)
 		}
-		c.refSlab = make([]Reference, 0, newCap)
 	}
 	idx := len(c.refSlab)
 	c.refSlab = c.refSlab[:idx+1]
@@ -156,24 +280,61 @@ func (c *ReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBl
 
 func (c *ReferenceCollector) allocReferenceCollection() *ReferenceCollection {
 	if len(c.colSlab) == cap(c.colSlab) {
-		newCap := 64
-		if cap(c.colSlab) >= 64 {
-			newCap = min(cap(c.colSlab)*2, 1024)
+		if c.poolable {
+			a := c.getArena()
+			if a.colChunkIdx < len(a.colChunks) {
+				c.colSlab = a.colChunks[a.colChunkIdx][:0]
+				a.colChunkIdx++
+			} else {
+				newCap := 64
+				if cap(c.colSlab) >= 64 {
+					newCap = min(cap(c.colSlab)*2, 2048)
+				}
+				c.colSlab = make([]ReferenceCollection, 0, newCap)
+				a.colChunks = append(a.colChunks, c.colSlab)
+				a.colChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(c.colSlab) >= 64 {
+				newCap = min(cap(c.colSlab)*2, 2048)
+			}
+			c.colSlab = make([]ReferenceCollection, 0, newCap)
 		}
-		c.colSlab = make([]ReferenceCollection, 0, newCap)
 	}
 	idx := len(c.colSlab)
 	c.colSlab = c.colSlab[:idx+1]
-	return initReferenceCollection(&c.colSlab[idx])
+	col := &c.colSlab[idx]
+	if col.references != nil {
+		col.refsList.Clear()
+		return col
+	}
+	return initReferenceCollection(col)
 }
 
 func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
 	if len(c.blockSlab) == cap(c.blockSlab) {
-		newCap := 64
-		if cap(c.blockSlab) >= 64 {
-			newCap = min(cap(c.blockSlab)*2, 1024)
+		if c.poolable {
+			a := c.getArena()
+			if a.blkChunkIdx < len(a.blkChunks) {
+				c.blockSlab = a.blkChunks[a.blkChunkIdx][:0]
+				a.blkChunkIdx++
+			} else {
+				newCap := 64
+				if cap(c.blockSlab) >= 64 {
+					newCap = min(cap(c.blockSlab)*2, 1024)
+				}
+				c.blockSlab = make([]BasicBlock, 0, newCap)
+				a.blkChunks = append(a.blkChunks, c.blockSlab)
+				a.blkChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(c.blockSlab) >= 64 {
+				newCap = min(cap(c.blockSlab)*2, 1024)
+			}
+			c.blockSlab = make([]BasicBlock, 0, newCap)
 		}
-		c.blockSlab = make([]BasicBlock, 0, newCap)
 	}
 	idx := len(c.blockSlab)
 	c.blockSlab = c.blockSlab[:idx+1]
@@ -199,44 +360,76 @@ func (c *ReferenceCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
 	return exists
 }
 
-func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection {
-	if v == c.lastVar && v != nil {
-		return c.lastCollection
-	}
-	if c.refByVar != nil {
-		if col := c.refByVar[v]; col != nil {
-			c.lastVar = v
-			c.lastCollection = col
-			return col
+func (c *ReferenceCollector) initTable() {
+	if c.poolable {
+		a := c.getArena()
+		if len(a.table) == 0 {
+			a.table = make([]rcTableEntry, 1024)
 		}
-	} else {
-		for i, kv := range c.vars {
-			if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
-				col := c.colsBuf[i]
-				c.lastVar = v
-				c.lastCollection = col
-				return col
-			}
-		}
-		if len(c.vars) == len(c.varsBuf) {
-			c.refByVar = make(map[*Var]*ReferenceCollection, 128)
-			for i, kv := range c.vars {
-				c.refByVar[kv] = c.colsBuf[i]
-			}
-			newVars := make([]*Var, len(c.varsBuf), 128)
+		c.table = a.table
+		if cap(a.vars) > len(c.vars) {
+			c.vars = append(a.vars[:0], c.vars...)
+			c.cols = append(a.cols[:0], c.cols...)
+		} else {
+			newVars := make([]*Var, len(c.vars), 128)
 			copy(newVars, c.vars)
 			c.vars = newVars
+			newCols := make([]*ReferenceCollection, len(c.cols), 128)
+			copy(newCols, c.cols)
+			c.cols = newCols
+		}
+	} else {
+		c.table = make([]rcTableEntry, 64)
+		newVars := make([]*Var, len(c.vars), 64)
+		copy(newVars, c.vars)
+		c.vars = newVars
+		newCols := make([]*ReferenceCollection, len(c.cols), 64)
+		copy(newCols, c.cols)
+		c.cols = newCols
+	}
+	table := c.table
+	mask := uint32(len(table) - 1)
+	for i, kv := range c.vars {
+		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		for table[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		table[slot] = rcTableEntry{v: kv, col: c.cols[i]}
+	}
+}
+
+func (c *ReferenceCollector) growTable() {
+	newCap := len(c.table) * 2
+	newTable := make([]rcTableEntry, newCap)
+	mask := uint32(newCap - 1)
+	for i, kv := range c.vars {
+		slot := uint32(jutil.IdentityHashCodeOfPointer(kv)) & mask
+		for newTable[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		newTable[slot] = rcTableEntry{v: kv, col: c.cols[i]}
+	}
+	c.table = newTable
+	if c.arena != nil {
+		c.arena.table = newTable
+	}
+}
+
+func (c *ReferenceCollector) tableGet(v *Var) *ReferenceCollection {
+	table := c.table
+	mask := uint32(len(table) - 1)
+	for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+		e := table[slot]
+		if e.v == v {
+			return e.col
+		}
+		if e.v == nil {
+			return nil
 		}
 	}
-	col := c.allocReferenceCollection()
-	if c.refByVar != nil {
-		c.refByVar[v] = col
-		c.vars = append(c.vars, v)
-	} else {
-		idx := len(c.vars)
-		c.vars = append(c.vars, v)
-		c.colsBuf[idx] = col
-	}
+}
+
+func (c *ReferenceCollector) recordNewVarCol(v *Var, col *ReferenceCollection) {
 	if v.name == Var_ARGUMENTS {
 		if c.argumentsRefs == nil {
 			c.argumentsRefs = make(map[*rhino.Node]*ReferenceCollection, 4)
@@ -249,6 +442,72 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	if c.referenceMap != nil {
 		c.referenceMap.Put(v, col)
 	}
+}
+
+func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection {
+	if v == c.lastVar && v != nil {
+		return c.lastCollection
+	}
+	if c.table != nil {
+		table := c.table
+		mask := uint32(len(table) - 1)
+		for slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask; ; slot = (slot + 1) & mask {
+			e := table[slot]
+			if e.v == v {
+				c.lastVar = v
+				c.lastCollection = e.col
+				return e.col
+			}
+			if e.v == nil {
+				if (len(c.vars)+1)*2 > len(table) {
+					c.growTable()
+					table = c.table
+					mask = uint32(len(table) - 1)
+					slot = uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+					for table[slot].v != nil {
+						slot = (slot + 1) & mask
+					}
+				}
+				col := c.allocReferenceCollection()
+				table[slot] = rcTableEntry{v: v, col: col}
+				c.vars = append(c.vars, v)
+				c.cols = append(c.cols, col)
+				c.recordNewVarCol(v, col)
+				c.lastVar = v
+				c.lastCollection = col
+				return col
+			}
+		}
+	}
+	for i, kv := range c.vars {
+		if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
+			col := c.cols[i]
+			c.lastVar = v
+			c.lastCollection = col
+			return col
+		}
+	}
+	if len(c.vars) == len(c.varsBuf) {
+		c.initTable()
+		table := c.table
+		mask := uint32(len(table) - 1)
+		slot := uint32(jutil.IdentityHashCodeOfPointer(v)) & mask
+		for table[slot].v != nil {
+			slot = (slot + 1) & mask
+		}
+		col := c.allocReferenceCollection()
+		table[slot] = rcTableEntry{v: v, col: col}
+		c.vars = append(c.vars, v)
+		c.cols = append(c.cols, col)
+		c.recordNewVarCol(v, col)
+		c.lastVar = v
+		c.lastCollection = col
+		return col
+	}
+	col := c.allocReferenceCollection()
+	c.vars = append(c.vars, v)
+	c.cols = append(c.cols, col)
+	c.recordNewVarCol(v, col)
 	c.lastVar = v
 	c.lastCollection = col
 	return col
@@ -259,8 +518,8 @@ func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
 		if s.implicitVars != nil {
 			if imp := AbstractScope_ImplicitVar_Of(v.name); imp != nil {
 				if canon := s.implicitVars[*imp]; canon != nil && canon != v {
-					if c.refByVar != nil {
-						if col := c.refByVar[canon]; col != nil {
+					if c.table != nil {
+						if col := c.tableGet(canon); col != nil {
 							c.lastVar = v
 							c.lastCollection = col
 							return col
@@ -268,7 +527,7 @@ func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
 					} else {
 						for i, kv := range c.vars {
 							if kv == canon {
-								col := c.colsBuf[i]
+								col := c.cols[i]
 								c.lastVar = v
 								c.lastCollection = col
 								return col
@@ -299,17 +558,17 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 			return nil
 		}
 	}
-	if c.refByVar == nil {
+	if len(c.vars) <= len(c.varsBuf) {
 		for i, kv := range c.vars {
 			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
-				return c.colsBuf[i]
+				return c.cols[i]
 			}
 		}
 	} else {
 		if c.refByKey == nil {
 			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, len(c.vars))
-			for kv, col := range c.refByVar {
-				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = col
+			for i, kv := range c.vars {
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = c.cols[i]
 			}
 		}
 		if col := c.refByKey[scopedVarKey{scopeRoot: scopeRoot, name: name}]; col != nil {
@@ -329,14 +588,8 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 func (c *ReferenceCollector) ensureRawReferenceMap() *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection] {
 	if c.referenceMap == nil {
 		c.referenceMap = jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
-		if c.refByVar != nil {
-			for _, v := range c.vars {
-				c.referenceMap.Put(v, c.refByVar[v])
-			}
-		} else {
-			for i, v := range c.vars {
-				c.referenceMap.Put(v, c.colsBuf[i])
-			}
+		for i, v := range c.vars {
+			c.referenceMap.Put(v, c.cols[i])
 		}
 	}
 	return c.referenceMap
@@ -431,8 +684,8 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
-	if c.refByVar != nil {
-		if col := c.refByVar[v]; col != nil {
+	if c.table != nil {
+		if col := c.tableGet(v); col != nil {
 			c.lastVar = v
 			c.lastCollection = col
 			return col
@@ -440,7 +693,7 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	} else {
 		for i, kv := range c.vars {
 			if kv == v {
-				col := c.colsBuf[i]
+				col := c.cols[i]
 				c.lastVar = v
 				c.lastCollection = col
 				return col
@@ -696,12 +949,15 @@ func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversa
 }
 
 func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *NodeTraversal, scope *Scope) {
-	if !c.varFilter(v) {
-		return
+	var collection *ReferenceCollection
+	if v == c.lastVar && v != nil {
+		collection = c.lastCollection
+	} else {
+		if !c.varFilter(v) {
+			return
+		}
+		collection = c.getOrCreateReferences(v)
 	}
-
-	// Create collection if none already
-	collection := c.getOrCreateReferences(v)
 
 	// Add this particular reference
 	if len(c.blockStack) == 0 {

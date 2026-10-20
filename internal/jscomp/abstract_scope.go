@@ -738,7 +738,9 @@ func (b *AbstractScopeBase[S, V]) GetClosestContainerScope() S {
 	scope := b.GetClosestHoistScope()
 	if scope.IsFunctionBlockScope() {
 		scope = scope.GetParent()
-		jutil.CheckStateMsg1(!scope.IsBlockScope(), "%s", scope)
+		if scope.IsBlockScope() {
+			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
+		}
 	}
 	return scope
 }
@@ -758,12 +760,17 @@ func (b *AbstractScopeBase[S, V]) ThisScope() S {
 //
 // Java: AbstractScope.checkChildScope(S)
 func (b *AbstractScopeBase[S, V]) CheckChildScope(parent S) {
-	jutil.CheckNotNull(parent)
-	jutil.CheckArgumentMsg1(NodeUtil_CreatesScope(b.rootNode), "%s", b.rootNode)
-	jutil.CheckArgumentMsg1(
-		b.rootNode != parent.GetRootNode(),
-		"rootNode should not be the parent's root node: %s",
-		b.rootNode)
+	var null S
+	if parent == null {
+		panic(jutil.NewNullPointerException())
+	}
+	if !NodeUtil_CreatesScope(b.rootNode) {
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", b.rootNode)))
+	}
+	if b.rootNode == parent.GetRootNode() {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			jutil.LenientFormat("rootNode should not be the parent's root node: %s", b.rootNode)))
+	}
 }
 
 // CheckRootScope performs simple validity checks on when constructing a
@@ -772,8 +779,9 @@ func (b *AbstractScopeBase[S, V]) CheckChildScope(parent S) {
 // Java: AbstractScope.checkRootScope()
 func (b *AbstractScopeBase[S, V]) CheckRootScope() {
 	// TODO(tbreisacher): Can we tighten this to just NodeUtil.createsScope?
-	jutil.CheckArgumentMsg1(
-		NodeUtil_CreatesScope(b.rootNode) || b.rootNode.IsScript() || b.rootNode.IsRoot(), "%s", b.rootNode)
+	if !NodeUtil_CreatesScope(b.rootNode) && !b.rootNode.IsScript() && !b.rootNode.IsRoot() {
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", b.rootNode)))
+	}
 }
 
 // GetCommonParent returns the nearest common parent between two scopes.
