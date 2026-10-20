@@ -49,7 +49,11 @@ type JSTypeReconserializer struct {
 	typeToRecordCache *base.LinkedIdentityHashMap[rhino.JSType, *JSTypeReconserializer_SeenTypeRecord]
 	seenTypeRecords   *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
 	// Go-only: language-adapter — LinkedHashMultimap<Integer, Integer>.
-	disambiguateEdges *jutil.SetMultimap[int, int]
+	disambiguateEdges *jutil.LinkedHashMap[int, *jutil.LinkedHashSet[int]]
+
+	scratchInstances  *jutil.LinkedHashSet[int]
+	scratchPrototypes *jutil.LinkedHashSet[int]
+	scratchOwnProps   *jutil.LinkedHashSet[int]
 
 	state JSTypeReconserializer_State
 }
@@ -124,7 +128,7 @@ func newJSTypeReconserializer(
 	// Field initializers.
 	s.typeToRecordCache = base.NewLinkedIdentityHashMap[rhino.JSType, *JSTypeReconserializer_SeenTypeRecord]()
 	s.seenTypeRecords = jutil.NewLinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]()
-	s.disambiguateEdges = jutil.NewSetMultimap[int, int]()
+	s.disambiguateEdges = jutil.NewLinkedHashMap[int, *jutil.LinkedHashSet[int]]()
 	s.state = JSTypeReconserializer_State_COLLECTING_TYPES
 	// Constructor body.
 	s.registry = registry
@@ -139,6 +143,15 @@ func newJSTypeReconserializer(
 	s.unknownRecord = s.seenTypeRecords.Get(colors.StandardColors_UNKNOWN.GetId())
 	s.topFunctionRecord = s.seenTypeRecords.Get(colors.StandardColors_TOP_FUNCTION.GetId())
 	return s
+}
+
+func (s *JSTypeReconserializer) putDisambiguateEdge(subtype, supertype int) {
+	set := s.disambiguateEdges.Get(subtype)
+	if set == nil {
+		set = jutil.NewLinkedHashSet[int]()
+		s.disambiguateEdges.PutNew(subtype, set)
+	}
+	set.Add(supertype)
 }
 
 // JSTypeReconserializer_Create initializes a JSTypeReconserializer
@@ -176,6 +189,10 @@ func (s *JSTypeReconserializer) SerializeType(type_ rhino.JSType) int {
 
 // Java: JSTypeReconserializer.recordType(JSType)
 func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
+	if jstypeRecord := s.typeToRecordCache.Get(type_); jstypeRecord != nil {
+		return jstypeRecord
+	}
+
 	var forwardedType rhino.JSType
 	if type_.IsNamedType() {
 		forwardedType = type_.ToMaybeNamedType().GetReferencedType()
@@ -210,11 +227,6 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 		return s.topFunctionRecord
 	}
 
-	jstypeRecord := s.typeToRecordCache.Get(type_)
-	if jstypeRecord != nil {
-		return jstypeRecord
-	}
-
 	if type_.IsUnionType() {
 		return s.RecordUnionType(type_.ToMaybeUnionType())
 	} else if type_.IsObjectType() {
@@ -235,7 +247,9 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 			altRecords.Add(alt)
 		} else {
 			// Flatten out any nested unions. They are possible due to proxy-like types.
-			altRecords.AddAll(alt.unionMembers.ToSlice()...)
+			for member := range alt.unionMembers.All() {
+				altRecords.Add(member)
+			}
 		}
 	}
 
@@ -252,7 +266,7 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 	record := s.GetOrCreateRecord(unionId, type_)
 
 	if record.unionMembers == nil {
-		record.unionMembers = jutil.NewLinkedHashSet(altRecords.ToSlice()...)
+		record.unionMembers = altRecords
 	} else if s.serializationMode.RunValidation() {
 		if !altRecords.Equals(record.unionMembers) {
 			jutil.CheckStateMsg3(
@@ -312,12 +326,26 @@ func (s *JSTypeReconserializer) RecordObjectType(type_ rhino.ObjectType) *JSType
 // Java: JSTypeReconserializer.addSupertypeEdges(ObjectType, Integer)
 func (s *JSTypeReconserializer) AddSupertypeEdges(subtype rhino.ObjectType, serializedSubtype int) {
 	// disambiguateEdges.putAll(serializedSubtype, ownAncestorInterfacesOf(subtype))
-	for _, ancestor := range s.OwnAncestorInterfacesOf(subtype) {
-		s.disambiguateEdges.Put(serializedSubtype, ancestor)
+	if ctorType := subtype.GetConstructor(); ctorType != nil {
+		ext := ctorType.GetExtendedInterfaces()
+		imp := ctorType.GetOwnImplementedInterfaces()
+		if len(ext)+len(imp) > 0 {
+			var buf [8]int
+			ancestors := buf[:0]
+			for _, ancestor := range ext {
+				ancestors = append(ancestors, s.SerializeType(ancestor))
+			}
+			for _, ancestor := range imp {
+				ancestors = append(ancestors, s.SerializeType(ancestor))
+			}
+			for _, ancestor := range ancestors {
+				s.putDisambiguateEdge(serializedSubtype, ancestor)
+			}
+		}
 	}
-	if subtype.GetImplicitPrototype() != nil {
-		supertype := s.SerializeType(subtype.GetImplicitPrototype())
-		s.disambiguateEdges.Put(serializedSubtype, supertype)
+	if implicitProto := subtype.GetImplicitPrototype(); implicitProto != nil {
+		supertype := s.SerializeType(implicitProto)
+		s.putDisambiguateEdge(serializedSubtype, supertype)
 	}
 }
 
@@ -326,12 +354,12 @@ func (s *JSTypeReconserializer) GetOrCreateRecord(id colors.ColorId, jstype rhin
 	jutil.CheckNotNull(jstype)
 	jutil.CheckState(JSTypeReconserializer_State_COLLECTING_TYPES == s.state || JSTypeReconserializer_State_GENERATING_POOL == s.state)
 
-	record := s.seenTypeRecords.ComputeIfAbsent(
-		id,
-		func(unused colors.ColorId) *JSTypeReconserializer_SeenTypeRecord {
-			pointer := s.seenTypeRecords.Size()
-			return newJSTypeReconserializer_SeenTypeRecord(id, pointer)
-		})
+	record := s.seenTypeRecords.Get(id)
+	if record == nil {
+		pointer := s.seenTypeRecords.Size()
+		record = newJSTypeReconserializer_SeenTypeRecord(id, pointer)
+		s.seenTypeRecords.PutNew(id, record)
+	}
 	s.typeToRecordCache.Put(jstype, record)
 	record.jstypes = append(record.jstypes, jstype)
 
@@ -345,19 +373,82 @@ func (s *JSTypeReconserializer) ReconcileUnionTypes(seen *JSTypeReconserializer_
 		members = append(members, int32(r.pointer))
 	}
 	slices.Sort(members)
-	return TypeProto_NewBuilder().
-		SetUnion(
-			UnionTypeProto_NewBuilder().
-				AddAllUnionMember(members).
-				Build()).
-		Build()
+	unionProto := &UnionTypeProto{
+		unionMember_: members,
+		frozen:       true,
+		memoizedSize: -1,
+	}
+	return &TypeProto{
+		union_:       unionProto,
+		kindCase_:    TypeProto_UNION_FIELD_NUMBER,
+		frozen:       true,
+		memoizedSize: -1,
+	}
 }
 
 // Java: JSTypeReconserializer.reconcileObjectTypes(SeenTypeRecord)
 func (s *JSTypeReconserializer) ReconcileObjectTypes(seen *JSTypeReconserializer_SeenTypeRecord) *TypeProto {
-	instancePointers := jutil.NewLinkedHashSet[int]()
-	prototypePointers := jutil.NewLinkedHashSet[int]()
-	ownProperties := jutil.NewLinkedHashSet[int]()
+	if len(seen.jstypes) == 1 {
+		type_ := seen.jstypes[0]
+		objType := jutil.CheckNotNullMsg1(type_.ToMaybeObjectType(), "%s", type_)
+
+		var instanceTypes []int32
+		var prototypes []int32
+		isClosureAssert := false
+		isConstructor := false
+
+		if objType.IsFunctionType() {
+			fnType := objType.ToMaybeFunctionType()
+			if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
+				instanceTypes = []int32{int32(s.SerializeType(fnType.GetInstanceType()))}
+				prototypes = []int32{int32(s.SerializeType(fnType.GetPrototype()))}
+				isConstructor = fnType.IsConstructor()
+			}
+			isClosureAssert = JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
+		}
+
+		var ownProps []int32
+		for _, ownProperty := range objType.GetOwnPropertyNames() {
+			if s.shouldPropagatePropertyName(ownProperty) {
+				ownProps = append(ownProps, int32(s.stringPoolBuilder.Put(ownProperty)))
+			}
+		}
+
+		isInvalidating := s.invalidatingTypes.IsInvalidating(objType)
+		propertiesKeepOriginalName := objType.IsEnumType()
+
+		objectProto := &ObjectTypeProto{
+			instanceType_:               instanceTypes,
+			ownProperty_:                ownProps,
+			prototype_:                  prototypes,
+			closureAssert_:              isClosureAssert,
+			isInvalidating_:             isInvalidating,
+			markedConstructor_:          isConstructor,
+			propertiesKeepOriginalName_: propertiesKeepOriginalName,
+			uuid_:                       seen.colorId.AsByteString(),
+			frozen:                      true,
+			memoizedSize:                -1,
+		}
+		return &TypeProto{
+			object_:      objectProto,
+			kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
+			frozen:       true,
+			memoizedSize: -1,
+		}
+	}
+
+	if s.scratchInstances == nil {
+		s.scratchInstances = jutil.NewLinkedHashSet[int]()
+		s.scratchPrototypes = jutil.NewLinkedHashSet[int]()
+		s.scratchOwnProps = jutil.NewLinkedHashSet[int]()
+	} else {
+		s.scratchInstances.Clear()
+		s.scratchPrototypes.Clear()
+		s.scratchOwnProps.Clear()
+	}
+	instancePointers := s.scratchInstances
+	prototypePointers := s.scratchPrototypes
+	ownProperties := s.scratchOwnProps
 	isClosureAssert := false
 	isConstructor := false
 	isInvalidating := false
@@ -398,22 +489,32 @@ func (s *JSTypeReconserializer) ReconcileObjectTypes(seen *JSTypeReconserializer
 		propertiesKeepOriginalName = propertiesKeepOriginalName || objType.IsEnumType()
 	}
 
-	objectProto := ObjectTypeProto_NewBuilder().
-		AddAllInstanceType(jsTypeReconserializer_int32s(instancePointers)).
-		AddAllOwnProperty(jsTypeReconserializer_int32s(ownProperties)).
-		AddAllPrototype(jsTypeReconserializer_int32s(prototypePointers)).
-		SetClosureAssert(isClosureAssert).
-		SetIsInvalidating(isInvalidating).
-		SetMarkedConstructor(isConstructor).
-		SetPropertiesKeepOriginalName(propertiesKeepOriginalName).
-		SetUuid(seen.colorId.AsByteString()).
-		Build()
-	return TypeProto_NewBuilder().SetObject(objectProto).Build()
+	objectProto := &ObjectTypeProto{
+		instanceType_:               jsTypeReconserializer_int32s(instancePointers),
+		ownProperty_:                jsTypeReconserializer_int32s(ownProperties),
+		prototype_:                  jsTypeReconserializer_int32s(prototypePointers),
+		closureAssert_:              isClosureAssert,
+		isInvalidating_:             isInvalidating,
+		markedConstructor_:          isConstructor,
+		propertiesKeepOriginalName_: propertiesKeepOriginalName,
+		uuid_:                       seen.colorId.AsByteString(),
+		frozen:                      true,
+		memoizedSize:                -1,
+	}
+	return &TypeProto{
+		object_:      objectProto,
+		kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
+		frozen:       true,
+		memoizedSize: -1,
+	}
 }
 
 // jsTypeReconserializer_int32s is the Iterable<Integer> handed to a proto's
 // addAll: the set's elements in order, as int32.
 func jsTypeReconserializer_int32s(set *jutil.LinkedHashSet[int]) []int32 {
+	if set.IsEmpty() {
+		return nil
+	}
 	out := make([]int32, 0, set.Size())
 	for v := range set.All() {
 		out = append(out, int32(v))
@@ -433,14 +534,19 @@ func jsTypeReconserializer_int32s(set *jutil.LinkedHashSet[int]) []int32 {
 func (s *JSTypeReconserializer) OwnAncestorInterfacesOf(type_ rhino.ObjectType) []int {
 	ctorType := type_.GetConstructor()
 	if ctorType == nil {
-		return []int{}
+		return nil
+	}
+	ext := ctorType.GetExtendedInterfaces()
+	imp := ctorType.GetOwnImplementedInterfaces()
+	if len(ext)+len(imp) == 0 {
+		return nil
 	}
 
-	ancestors := []int{}
-	for _, ancestor := range ctorType.GetExtendedInterfaces() {
+	ancestors := make([]int, 0, len(ext)+len(imp))
+	for _, ancestor := range ext {
 		ancestors = append(ancestors, s.SerializeType(ancestor))
 	}
-	for _, ancestor := range ctorType.GetOwnImplementedInterfaces() {
+	for _, ancestor := range imp {
 		ancestors = append(ancestors, s.SerializeType(ancestor))
 	}
 	return ancestors
@@ -504,10 +610,10 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 	jutil.CheckState(s.state == JSTypeReconserializer_State_COLLECTING_TYPES)
 	s.CheckValidLinearTime()
 
-	builder := TypePool_NewBuilder()
+	var debugInfoProto *TypePool_DebugInfo
 
 	if s.serializationMode.IncludeDebugInfo() {
-		debugInfo := builder.GetDebugInfoBuilder()
+		debugInfo := TypePool_DebugInfo_NewBuilder()
 		// Key by source ref to deduplicate the strings, which are pretty long.
 		for location, types := range s.invalidatingTypes.
 			GetMismatchLocations().
@@ -528,6 +634,7 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 			slices.Sort(involvedColors)
 			mismatch.AddAllInvolvedColor(involvedColors)
 		}
+		debugInfoProto = debugInfo.Build()
 	}
 
 	s.state = JSTypeReconserializer_State_GENERATING_POOL
@@ -536,28 +643,45 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 	// which would throw ConcurrentModificationException if reconciliation
 	// recorded a new type; recordObjectType serializes instance types and
 	// prototypes ahead of time so that it never does.
+	numTypes := s.seenTypeRecords.Size() - len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	var types []*TypeProto
+	if numTypes > 0 {
+		types = make([]*TypeProto, 0, numTypes)
+	}
 	for seen := range s.seenTypeRecords.Values() {
 		if colors.StandardColors_AXIOMATIC_COLORS.ContainsKey(seen.colorId) {
 			jutil.CheckStateMsg1(TypePointers_IsAxiomatic(seen.pointer), "Missing .type for SeenTypeRecord %s", seen)
 			continue
 		}
 		if seen.unionMembers != nil {
-			builder.AddType(s.ReconcileUnionTypes(seen))
+			types = append(types, s.ReconcileUnionTypes(seen))
 		} else {
-			builder.AddType(s.ReconcileObjectTypes(seen))
+			types = append(types, s.ReconcileObjectTypes(seen))
 		}
 	}
 
-	for subtype := range s.disambiguateEdges.KeySet() {
-		for supertype := range s.disambiguateEdges.Get(subtype).All() {
-			builder.AddDisambiguationEdgesFromBuilder(
-				SubtypingEdge_NewBuilder().SetSubtype(int32(subtype)).SetSupertype(int32(supertype)))
+	var disambiguationEdges []*SubtypingEdge
+	for subtype, supertypes := range s.disambiguateEdges.All() {
+		subtypeI32 := int32(subtype)
+		for supertype := range supertypes.All() {
+			disambiguationEdges = append(disambiguationEdges, &SubtypingEdge{
+				subtype_:     subtypeI32,
+				supertype_:   int32(supertype),
+				frozen:       true,
+				memoizedSize: -1,
+			})
 		}
 	}
 
 	s.state = JSTypeReconserializer_State_FINISHED
 	s.CheckValidLinearTime()
-	return builder.Build()
+	return &TypePool{
+		type_:                types,
+		disambiguationEdges_: disambiguationEdges,
+		debugInfo_:           debugInfoProto,
+		frozen:               true,
+		memoizedSize:         -1,
+	}
 }
 
 // GetColorIdToJSTypeMapForDebugging returns a map from
@@ -586,7 +710,8 @@ type JSTypeReconserializer_SeenTypeRecord struct {
 	// to deduplicate using a set. The likely cause is that the caches head of
 	// these lists have low hit-rates for unions, and that union
 	// reconciliation doesn't actually look at most entries in this list.
-	jstypes []rhino.JSType
+	jstypes   []rhino.JSType
+	jstypeBuf [2]rhino.JSType
 
 	// Java: @Nullable ImmutableSet<SeenTypeRecord> unionMembers (nil is null).
 	unionMembers *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]
@@ -594,11 +719,11 @@ type JSTypeReconserializer_SeenTypeRecord struct {
 
 // Java: JSTypeReconserializer.SeenTypeRecord(ColorId, int)
 func newJSTypeReconserializer_SeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
-	r := &JSTypeReconserializer_SeenTypeRecord{}
-	r.jstypes = []rhino.JSType{}
-	r.unionMembers = nil
-	r.colorId = colorId
-	r.pointer = pointer
+	r := &JSTypeReconserializer_SeenTypeRecord{
+		colorId: colorId,
+		pointer: pointer,
+	}
+	r.jstypes = r.jstypeBuf[:0]
 	return r
 }
 
