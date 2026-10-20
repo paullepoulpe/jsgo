@@ -1,6 +1,23 @@
 # Round 4: verified baselines and enterprise benchmark protocol
 
-The post-screen main sync is now `bb521c0f26b2fdeec9622247531174826e9fd23c`.
+The validated integration now follows main`abcf69a0` at`42aaa853`. Its full
+normal suite passes570 effective files/3885 top-level roots (3848PASS/37original
+SKIP), all28 new regressions,21 packages and the exact original nested inventory.
+BundleN1/N2 and typedN1 CLI gates match all6 Java digests, with default runtime
+settings, actual4GiB caps, zero OOM deltas and stopped-process proof.
+
+A fresh18-row balanced Go-only screen measures the new integration against
+previously validated`1fe9acbb`: median same-round elapsed ratios are0.965857
+(typed;3.41% less) and0.967770 (bundle;3.22% less). RSS ratios are0.998205
+(typed;flat) and0.920322 (bundle;7.97% less). Three samples/build/task make this
+a screen, with raw SD/ranges retained, not a confidence or fresh-JVM result.
+This comparison includes changed main code and shipped PGO together.
+
+The completed fresh typed warm-JVM results immediately below belong to previous
+main`bb521c0f` plus fixes`1fe9acbb`, notabcf. No historical Java times are combined
+with the new Go-only screen. Experimental redesign factors remain unmeasured.
+
+The completed post-screen sync was `bb521c0f26b2fdeec9622247531174826e9fd23c`.
 The confirmed warm-JVM bundle win below belongs to frozen `5de6e335`.
 Both stock main and the integrated compatibility fixes pass bundle N1/N2
 and typed N1 CLI byte gates. The fixes also pass the complete normal suite.
@@ -54,7 +71,156 @@ Owner-wide history and additional getter/registration work may erase the
 header saving; actual latest-main retained/allocation evidence is required
 before any compiler integration.
 
-### Latest-main Go-only screen
+### Next main integration: abcf69a0 / 42aaa853
+
+Main advanced after the completed typed timing block. Stock `abcf69a0` builds
+with shipped PGO SHA256`4cdc6cd7b1a056ff180beba14cd600f9afc03dca0df1d3ffe5de5f7d99ecedd4`
+and passes all six Java digests on bundle N1/N2 and typed N1, with default
+runtime settings, actual4GiB caps, zero OOM deltas and stopped-process proof.
+Its binary SHA is`9376ee254b2060b589cf97132f0a893bbca91ca6d27f8e5f2844d4566892c093`.
+These are correctness runs; neither their clocks nor upstream macOS percentages
+are local performance measurements. The new PGO records Darwin/arm64 Go1.27.1
+paths but lacks an exact collection-task/weight/revision manifest. Code and
+shipped PGO must therefore be treated together in the next comparison.
+
+The integration at`ae9008f20f505b457aacece60b1b9063bfe78b36` retains the previous
+four compatibility fixes and adds separate corrections for published scope/
+creator/cache lifetimes, owned CFGs and analysis annotations, repeatable public
+printer mappings, self-contained source-map names, mutable namespace map and
+snapshot handoff, owned public collector drafts/equal-Var lookup, and original
+export-classification callbacks. Private stock compiler paths retain arena,
+CFG/liveness and mapping reuse. Independent source reviews and activation
+controls accompany these changes; source review is not runtime validation.
+
+The isolated mapping fix`079a0934` passes its complete53-root sourcemap package,
+including three common lifetime/arithmetic controls and an actual40-byte compact
+record assertion. The older validated1fe passes52 roots. Pre-fix615 reproduces
+fresh and retained replay index panics, while the arithmetic positive passes.
+The original working-directory error and administrative disk stops are retained;
+the corrected run uses the same binary, and no test was omitted. This validates
+the isolated component branch, not the entire new integration. Existing inline16
+generator Mapping clearing on Reset predates abcf and is unchanged; the replay
+repair covers dynamic records and copies. Public printer ownership is separate.
+
+The final integration inventory is frozen:570 effective test files,3885 expected
+top-level roots (3848PASS/37SKIP),21 packages. All559 prior effective files and
+3857 prior roots are preserved, with28 new roots added. The first615 pre-fix compiler run reproduced19 intended failures. One new
+scope test instead failed because its function fixture lacked an AST parent;
+that attempt is retained and excluded as regression evidence. A test-only
+correction is frozen at`f5ba292ae7c7b1ce00a6463c5d2cbd4841aa4e5f`; all1037
+production files remain byte-identical toae9008. The corrected case is being
+rebuilt, with19 unchanged negative test bodies explicitly verified for reuse.
+The older1fe positive control then exposed a second test error: traversal
+wraps callback panics, while the new test expected the raw sentinel. The test
+now asserts the established RuntimeException wrapper/cause contract. Sixteen
+positive roots passed before that stop; the remaining root was not executed.
+The full unfiltered candidate suite then ran first at`42aaa853`:3848PASS,
+37unchanged skips, all28new roots PASS and21packages, with every original nested
+name/status event matching1fe exactly and no OOM/still-running processes. This
+includes actual private-reuse activation controls. The combined historical
+negative/positive proof remains explicitly incomplete: the corrected test version
+has not been rerun on the two control compilers. The prior raw dispositions,
+fixture failures and launcher errors remain preserved without relabelling them.
+
+The integrated normal CLI SHA256 is
+`c1ce317e909b539e780ce16bb798ea233e7632195e7be13daf62c5115f7472fb`.
+It passes bundleN1/N2 andtypedN1 strict6-digest gates with actual4GiB caps,
+default runtime settings, zero OOM and stopped-process proof. Current PR
+production/effective tests match the validated42aaa source exactly. Local PR production/test sources
+match the frozen integration exactly (1037 production Go files and570 effective
+test files, including the physical counterpart of the overlay-only corpus helper).
+No new full-suite or performance claim follows from this equivalence.
+
+The new base changes the open-factor queue. Scope/Var caps are now1024/2048,
+whose large backing arrays already occupy exact allocator pages. The old186/341
+factor loses its proposed density advantage and would reduce80-chunk retention
+by roughly5–6 times; it is deferred pending fresh measured tail evidence. New
+source-only Node64/default128, Node64/cap127, Node80/cap127, ordered-map growth
+and traversal-layout variants retain byte-identical factor code/tests on the
+new integration. Their builds, actual inlining, Java gates and time/RSS results
+remain pending. Older frozen variants stay preserved.
+
+Resource housekeeping preserves the evidence: only the rebuildable Go cache was
+cleaned after a build disk guard; subsequently closed published CLI outputs were hash-checked before and after
+replacing duplicate files with hard links. The latest pass verifies750
+JS/map/manifest paths against cuts1–7 and retains23 unique contents, recovering
+about1.49GB in that pass (earlier dedup passes are retained separately). Every
+path, byte and mode remains unchanged. Logs, binaries, source and active outputs are untouched.
+This is disk storage housekeeping, not a compiler memory improvement.
+
+### Fresh42 CPU/allocation profiles
+
+Separate main-only diagnostic build`361a7851...` retains all1036 other production
+Go blobs and the same4cdc PGO as normalCLI`c1ce317e...`. TypedN1 andbundleN1
+both match all6 Java artifacts under actual4GiB/defaultGC/CPU2. Captures,
+12pprof tables and custom decoders are complete/stopped with zero OOM deltas.
+The initial analysis-only read-only-cache error is retained; a workspace-cache
+runner decodes the same captures successfully. No capture was rerun or selected
+because of its timing. Instrumented clocks/RSS are diagnostic, not benchmarks.
+
+| Profile | Sampled CPU seconds | Sampled cumulative alloc MiB | Sampled objects |
+|---|---:|---:|---:|
+| Typed |34.61|4182.08|25,418,477|
+| Bundle |8.90|1358.99|7,795,218|
+
+| Attribution view | Typed CPU | Bundle CPU |
+|---|---:|---:|
+| GetNext flat |16.32%|7.53%|
+| NodeTraversal methods flat |7.11%|9.21%|
+| GC-scan stack union |9.77%|10.00%|
+| madvise |0.087%|0%|
+| futex |0%|0%|
+| Other syscall stack union |0.231%|0.112%|
+
+The disjoint-priority tables, overlapping unions/intersections and exact source
+owners are retained in the profile analysis. These views are not a sum of
+removable costs. GetNext is already one inlined pointer load; no hardware-counter
+cache-miss attribution was performed. Traversal-inclusive66% includes actual
+pass callback work; callback-source-line flat1.24%/1.80% is not pure dispatch.
+
+Typed allocation sites include AST/IR slab191.32MiB, scopeArena.allocScope187.86,
+SourcePosition slab170.77, ArrayList.Add156.83 and string/pointer ordered-map
+addSlow149.15. Cumulative sampled bytes are about28% below the earlier1fe profile,
+but live retention/GC pacing and separate captures prevent treating that as an
+RSS or elapsed result. Scope-tail retention needs a census before changing the
+80-chunk policy. Pointer locality is a current experimental lead; the physical
+Node64 factor still has no measured time/RSS result at this cut.
+
+### abcf integration: completed Go-only screen
+
+All18 rows (three balanced rounds per workload across oldfixed1fe, stockabcf
+and fixed42aaa) match the same pinned Java bytes. Each variant occupies each
+order position once per task. No builds, profiles, archives or heavy audits
+overlap the block. Every row uses fresh CLI/defaultGC/actual4GiB/CPU2; all
+inner/outer OOM deltas are zero and all owned runtimes/containers are stopped.
+
+| Workload / source | Median seconds (sample SD) | Median peak RSS MiB (sample SD) |
+|---|---:|---:|
+| Typed / old fixed1fe |32.877 (0.328)|1097.15 (47.19)|
+| Typed / stockabcf |31.222 (0.822)|1145.75 (17.75)|
+| Typed / fixed42aaa |31.647 (0.319)|1093.79 (45.43)|
+| Bundle / old fixed1fe |8.650 (0.030)|390.34 (5.15)|
+| Bundle / stockabcf |8.385 (0.221)|381.82 (11.74)|
+| Bundle / fixed42aaa |8.413 (0.093)|359.24 (11.32)|
+
+| Workload / numerator ÷ denominator | Median same-round time ratio | Median same-round RSS ratio |
+|---|---:|---:|
+| Typed / stockabcf ÷ oldfixed1fe |0.958561|1.070808|
+| Typed / fixed42aaa ÷ oldfixed1fe |0.965857|0.998205|
+| Typed / fixed42aaa ÷ stockabcf |0.999007|0.957221|
+| Bundle / stockabcf ÷ oldfixed1fe |0.969391|0.992517|
+| Bundle / fixed42aaa ÷ oldfixed1fe |0.967770|0.920322|
+| Bundle / fixed42aaa ÷ stockabcf |0.998334|0.926913|
+
+Ratios use same-round observations and therefore need not equal ratios of the
+separately displayed medians. Raw samples, ranges, variance, CPU data and row
+mapping are retained in`main-abcf69a0-go-screen-preparation-v2`. These small
+samples show no clear elapsed penalty for the compatibility fixes and lower RSS
+in this screen; individual fixes have not been isolated as causes. Main code
+and shipped PGO changed together. There are no Java timing observations or
+confidence intervals in this screen; fresh Java must be measured separately.
+
+### Previous bb main Go-only screen
 
 The complete 18-row screen compares frozen `5de6e335`, stock `bb521c0f`
 and fixed `1fe9acbb` in three balanced rounds on each workload. Each binary
@@ -830,3 +996,36 @@ optimization commit with new PGO, inter-pass caches and reusable analysis/pass
 storage. Synchronization and source review are next. All completed timing and
 full-normal results on this page remain attached to their named frozen source;
 they do not validate or measure this new main or import its commit-title gains.
+
+
+## Eighth completed evidence cut
+
+[round4-measurement-records-v8.tar.gz](round4-measurement-records-v8.tar.gz)
+adds1,271 new/changed closed records (424,833,516 original bytes),858 unique
+blobs (97,239,454 bytes) and9 excluded rebuildable binaries/classes with hashes.
+Archive SHA256:
+`db0c601ef14aa9651d74ef40c161a011979234c306d5d5081102f54959c6b153`.
+Every payload hash passes verification. Earlier cuts remain unchanged. This
+cut includes the latest main merge/fixes, full570-file normal inventory,
+3CLI byte gates,18-row Go-only screen with RSS/variance, fresh diagnostic
+profiles, native string-map assembly audit, full live-parity/enterprise
+preparations, source-equivalence/reclamation records, and all retained fixture,
+launcher, analysis and administrative failures.
+
+[round4-source-manifest-v8.json](round4-source-manifest-v8.json) fingerprints
+64 recoverable source states in
+[round4-prototype-sources-v8.bundle](round4-prototype-sources-v8.bundle),
+SHA256`534a130efd6f0f0f3f0e4d42b96a33f34c83c66a383742c2c9acd162a9c06263`.
+
+The admission is deliberately a partial review cut: completed currentnormal,
+CLI and Go-only measurements pass, while corrected-source combined control
+rebuilds, broader live-Java/race parity, fresh current JVM timings and factor
+macro results remain open. Earlier20 negative/16positive control results retain
+theirf5ba source identity; they are not relabelled42aaa. At cut time the separate
+Node64 controller was prepared; its actual experiment starts after this cut.
+
+Java21.0.12.1 is the measured JVM. Artifact/helper class files require21;
+Java25LTS is a useful further stock comparator, but only21 is installed and no
+25/27 runtime or download was performed. No result here claims superiority over
+all JVM versions or representative workloads. Current generated/chunked
+benchmark and complete live parity commands are preserved for actual execution.

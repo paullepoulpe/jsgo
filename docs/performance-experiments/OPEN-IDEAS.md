@@ -1,13 +1,30 @@
 # Open performance ideas
 
-The current frozen baseline is `1fe9acbb`: main `bb521c0f` plus four validated
+The next integration is`42aaa853` on main`abcf69a0` (production-identical
+to`ae9008f2`; two new test fixtures corrected). Full normal and three strict
+Java CLI byte gates now pass; all28 new regression roots pass. All completed warm-JVM results below retain their
+named earlier source. New source-only factors target this integration; none
+has yet produced a new performance result. The old Scope186/Var341 factor is
+deferred because new page-aligned large chunks remove its density rationale.
+
+The prior fully validated frozen baseline was `1fe9acbb`: main `bb521c0f` plus four validated
 compatibility corrections. It passes the full normal suite and three Java
 CLI byte gates. An 18-row Go-only screen now measures the main update and
 compatibility cost separately. Three completed fresh typed JVM cohorts give
 fixed Go a Java/Go time ratio1.10789 and RSS ratio2.14739, with every byte
 matching. These results include main optimizations, not the unrun factors.
 
-Fresh fixed-main profiles attribute 13.40% of typed CPU to traversal methods,
+The fresh18-row Go-only screen on42aaa measures3.41% less typed elapsed time
+and3.22% less bundle elapsed against1fe, with flat typed RSS and7.97% less
+bundle RSS (median same-round ratios; three samples/build/task, raw variation
+retained). All18 match Java's bytes. A fresh warm-JVM comparison on42aaa is
+still needed. The experimental Node/slab/container/traversal factors remain
+unmeasured and unpromoted. Fresh42aaa CPU/alloc profiles now pass both Java gates and are decoded/stopped:
+GetNext16.32% flattyped CPU, GCscan union9.77%, madvise+otherSyscalls0.318%.
+Typed sampled allocation4182.08MiB vs prior5788.92 is diagnostic cumulative
+traffic, not a prediction of elapsed/RSS. The older attribution below is historical.
+
+Historical1fe fixed-main profiles attribute 13.40% of typed CPU to traversal methods,
 8.99% to the inlined GetNext load and a 14.16% union to GC scan stacks. These
 are attribution views, not additive removable budgets. Typed allocations
 total 5788.92 MiB, including scope 382.12 MiB, string/pointer LinkedHashMap
@@ -17,6 +34,14 @@ growth, a physical Node64 metadata union, and cap127 node slabs. Node80/cap127
 is a separate control for Node64/cap127; Node64/default128 remains separate.
 Their tests, actual allocation-path inlining and timings remain pending. No
 GC tuning is part of these factors.
+
+A native assembly audit of the exact stockabcf CLI rejects one broad premise:
+string-key/pointer-value ordered maps already use direct fast-string runtime
+lookups and direct string equality, including concrete Scope and namespace
+lookup callers. Generic dictionary type metadata and explicit mapping callbacks
+remain distinct costs. This does not justify copying a specialized string-map
+implementation. A private callback/miss-path change requires fresh profiling;
+no elapsed or RSS improvement was measured by this audit.
 
 The older proposals below retain their named historical source/profile
 context. Main now implements private small-variable staging, independent
