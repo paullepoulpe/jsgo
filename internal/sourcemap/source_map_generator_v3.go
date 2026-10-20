@@ -74,15 +74,13 @@ type SourceMapGeneratorV3 struct {
 	// values on the source entry.
 	sourceRootPath *string
 
-	mappingChunks          [][]SourceMapGeneratorV3_Mapping
-	mappingSlab            []SourceMapGeneratorV3_Mapping
-	addedSourceFiles       []string
-	lastAddedSourceFile    string
-	hasLastAddedSourceFile bool
-	lastAddedSourceFileIdx int32
-	mappingChunksBuf       [16][]SourceMapGeneratorV3_Mapping
-	addedSourceFilesBuf    [16]string
-	mappingBuf             [16]SourceMapGeneratorV3_Mapping
+	mappingChunks [][]SourceMapGeneratorV3_Mapping
+	mappingSlab   []SourceMapGeneratorV3_Mapping
+	// Immutable cells are owned by each mapping that retains them, not an
+	// index table tied to this generator. One cell serves a source-name run.
+	lastAddedSourceFile *string
+	mappingChunksBuf    [16][]SourceMapGeneratorV3_Mapping
+	mappingBuf          [16]SourceMapGeneratorV3_Mapping
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -110,8 +108,6 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g := &SourceMapGeneratorV3{}
 	g.mappingChunks = g.mappingChunksBuf[:0:len(g.mappingChunksBuf)]
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
-	g.addedSourceFiles = g.addedSourceFilesBuf[:0:len(g.addedSourceFilesBuf)]
-	g.lastAddedSourceFileIdx = -1
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
@@ -134,11 +130,7 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.mappingChunks = g.mappingChunks[:0]
 	clear(g.mappingBuf[:])
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
-	clear(g.addedSourceFiles)
-	g.addedSourceFiles = g.addedSourceFiles[:0]
-	g.lastAddedSourceFile = ""
-	g.hasLastAddedSourceFile = false
-	g.lastAddedSourceFileIdx = -1
+	g.lastAddedSourceFile = nil
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
@@ -281,20 +273,16 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		}
 	}
 
-	var sourceFileIdx int32
-	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
-		sourceFileIdx = g.lastAddedSourceFileIdx
-	} else {
-		sourceFileIdx = int32(len(g.addedSourceFiles))
-		g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
-		g.lastAddedSourceFile = sourceName
-		g.lastAddedSourceFileIdx = sourceFileIdx
-		g.hasLastAddedSourceFile = true
+	if g.lastAddedSourceFile == nil || *g.lastAddedSourceFile != sourceName {
+		// Never mutate this cell: retained Mapping values and copies may be
+		// replayed after Reset or through another generator's LineMapper.
+		sourceFile := sourceName
+		g.lastAddedSourceFile = &sourceFile
 	}
 
 	// Create the new mapping.
 	mapping := g.allocMapping()
-	mapping.sourceFileIdx = sourceFileIdx
+	mapping.sourceFile = g.lastAddedSourceFile
 	mapping.originalLine = int32(sourceStartPosition.GetLine())
 	mapping.originalCol = int32(sourceStartPosition.GetColumn())
 	mapping.originalName = symbolName
@@ -658,8 +646,9 @@ type SourceMapGeneratorV3_Mapping struct {
 	// this mapping (if any).
 	originalName *string
 
-	// Index into SourceMapGeneratorV3.addedSourceFiles.
-	sourceFileIdx int32
+	// A retained immutable source-name cell; nil denotes the empty name for
+	// a public default-constructed Mapping.
+	sourceFile *string
 
 	// The position of the code in the input source file.
 	originalLine int32
@@ -1077,7 +1066,11 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 	l.previousColumn = column
 	if m != nil {
 		// The relative source file id
-		sourceId := l.outer.GetSourceId(l.outer.addedSourceFiles[m.sourceFileIdx])
+		sourceFile := ""
+		if m.sourceFile != nil {
+			sourceFile = *m.sourceFile
+		}
+		sourceId := l.outer.GetSourceId(sourceFile)
 		l.writeVLQ(int32(sourceId - l.previousSourceFileId))
 		l.previousSourceFileId = sourceId
 

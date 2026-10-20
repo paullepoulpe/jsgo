@@ -3418,7 +3418,7 @@ func (c *Compiler) toSourceAndMappings(
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
-	return builder.BuildWithSourceMappings()
+	return builder.buildWithSourceMappingsForCompiler()
 }
 
 // Java: Compiler.getLicenseForFile(AbstractCompiler, String)

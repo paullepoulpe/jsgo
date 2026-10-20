@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"unsafe"
@@ -75,26 +76,29 @@ type CodePrinter_MappedCodePrinterBase struct {
 	mappings []*SourceMap_Mapping
 	// The ordered list of finalized mappings that started before the last line
 	// break and ended since the last line break. See #reportLineCut.
-	completeMappings     []*SourceMap_Mapping // nil is null
-	mappingChunks        [][]SourceMap_Mapping
-	mappingSlab          []SourceMap_Mapping
-	mappingChunksBuf     [16][]SourceMap_Mapping
-	mappingBuf           [32]SourceMap_Mapping
-	mappingsBuf          [64]*SourceMap_Mapping
-	completeMappingsBuf  [16]*SourceMap_Mapping
-	cutChunkIdx          int
-	cutElemIdx           int
-	cutStackDepth        int
-	createSrcMap         bool
-	sourceMapDetailLevel SourceMap_DetailLevel
-	licenseTracker       CodePrinter_LicenseTracker // nil is null
-	codeASCIIBuf         [128]byte
-	codeASCII            []byte
-	codeUTF16            *jutil.StringBuilder
-	codeFrozen           bool
-	lineLengthThreshold  int
-	lineLength           int
-	lineIndex            int
+	completeMappings    []*SourceMap_Mapping // nil is null
+	mappingChunks       [][]SourceMap_Mapping
+	mappingSlab         []SourceMap_Mapping
+	mappingChunksBuf    [16][]SourceMap_Mapping
+	mappingBuf          [32]SourceMap_Mapping
+	mappingsBuf         [64]*SourceMap_Mapping
+	completeMappingsBuf [16]*SourceMap_Mapping
+	// Only the private stock compiler sink may return mapping cells to the pool.
+	// Public results/custom factories can retain their printer and pointers.
+	releaseMappingsAfterIteration bool
+	cutChunkIdx                   int
+	cutElemIdx                    int
+	cutStackDepth                 int
+	createSrcMap                  bool
+	sourceMapDetailLevel          SourceMap_DetailLevel
+	licenseTracker                CodePrinter_LicenseTracker // nil is null
+	codeASCIIBuf                  [128]byte
+	codeASCII                     []byte
+	codeUTF16                     *jutil.StringBuilder
+	codeFrozen                    bool
+	lineLengthThreshold           int
+	lineLength                    int
+	lineIndex                     int
 }
 
 const codePrinter_mappingSlabSize = 512
@@ -110,7 +114,12 @@ func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
 		if len(m.mappingSlab) > 0 {
 			m.mappingChunks = append(m.mappingChunks, m.mappingSlab)
 		}
-		arr := codePrinter_mappingSlabPool.Get().(*[codePrinter_mappingSlabSize]SourceMap_Mapping)
+		var arr *[codePrinter_mappingSlabSize]SourceMap_Mapping
+		if m.releaseMappingsAfterIteration {
+			arr = codePrinter_mappingSlabPool.Get().(*[codePrinter_mappingSlabSize]SourceMap_Mapping)
+		} else {
+			arr = new([codePrinter_mappingSlabSize]SourceMap_Mapping)
+		}
 		m.mappingSlab = arr[:0:codePrinter_mappingSlabSize]
 	}
 	i := len(m.mappingSlab)
@@ -152,6 +161,7 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
+	m.releaseMappingsAfterIteration = false
 	m.cutChunkIdx = 0
 	m.cutElemIdx = 0
 	m.cutStackDepth = 0
@@ -384,7 +394,9 @@ func (m *CodePrinter_MappedCodePrinterBase) iterMappings(yield func(int, *Source
 		}
 		idx++
 	}
-	m.releaseMappingSlabs()
+	if m.releaseMappingsAfterIteration {
+		m.releaseMappingSlabs()
+	}
 }
 
 // GetSourceMappings returns a list of sourcemap mappings that were
@@ -393,6 +405,8 @@ func (m *CodePrinter_MappedCodePrinterBase) iterMappings(yield func(int, *Source
 //
 // Java: CodePrinter.MappedCodePrinter.getSourceMappings(String)
 func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*SourceMap_Mapping {
+	// An exposed pointer may outlive iteration or this printer. Never recycle it.
+	m.releaseMappingsAfterIteration = false
 	if !m.createSrcMap {
 		return nil
 	}
@@ -1304,13 +1318,13 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	source, _ := b.buildSourceAndMappings(false)
+	source, _ := b.buildSourceAndMappings(false, false)
 	return source
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
 func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
-	source, mappings := b.buildSourceAndMappings(true)
+	source, mappings := b.buildSourceAndMappings(true, false)
 	return &CodePrinter_SourceAndMappings{
 		source:   source,
 		mappings: mappings,
@@ -1319,13 +1333,20 @@ func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMa
 
 func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
 
-func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string, iter.Seq2[int, *SourceMap_Mapping]) {
+// buildWithSourceMappingsForCompiler is confined to Compiler's private sink.
+// That sink consumes mapping pointers immediately and never exposes the printer.
+func (b *CodePrinter_Builder) buildWithSourceMappingsForCompiler() *CodePrinter_SourceAndMappings {
+	source, mappings := b.buildSourceAndMappings(true, true)
+	return &CodePrinter_SourceAndMappings{source: source, mappings: mappings}
+}
+
+func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings, compilerOwned bool) (string, iter.Seq2[int, *SourceMap_Mapping]) {
 	if b.root == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
 	options := b.getOptions()
 	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
-	gatherSourceMap := wantMappings && options.ShouldGatherSourceMapInfo()
+	gatherSourceMap := options.ShouldGatherSourceMapInfo()
 
 	var mcp CodePrinter_MappedCodePrinter
 	if outputFormat == CodePrinter_Format_COMPACT {
@@ -1343,6 +1364,9 @@ func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string,
 			b.licenseTracker)
 	}
 
+	// Custom factories receive the consumer and may retain it. Only the known
+	// private/default compiler lane owns every mapping until immediate consume.
+	mcp.GetCodePrinter_MappedCodePrinterBase().releaseMappingsAfterIteration = compilerOwned && b.codeGeneratorFactory == nil
 	var cg CodeGenerator
 	if b.codeGeneratorFactory != nil {
 		cg = b.codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
@@ -1366,8 +1390,14 @@ func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string,
 	var mappings iter.Seq2[int, *SourceMap_Mapping]
 	if gatherSourceMap {
 		base := mcp.GetCodePrinter_MappedCodePrinterBase()
-		base.adjustSourceMappings(source)
-		mappings = base.iterMappings
+		if base.releaseMappingsAfterIteration {
+			base.adjustSourceMappings(source)
+			mappings = base.iterMappings
+		} else {
+			// Public/custom results retain fixed list bounds even if a retained
+			// printer later appends mappings. The mapping pointees stay shared.
+			mappings = slices.All(mcp.GetSourceMappings(source))
+		}
 	} else if wantMappings {
 		mappings = codePrinter_emptyMappingsSeq
 	}
@@ -1466,9 +1496,7 @@ func CodePrinter_ToSource(
 	result.source = mcp.GetCode()
 
 	if options.ShouldGatherSourceMapInfo() {
-		base := mcp.GetCodePrinter_MappedCodePrinterBase()
-		base.adjustSourceMappings(result.source)
-		result.mappings = base.iterMappings
+		result.mappings = slices.All(mcp.GetSourceMappings(result.source))
 	} else {
 		result.mappings = codePrinter_emptyMappingsSeq
 	}
