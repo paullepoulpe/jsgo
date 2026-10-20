@@ -9,10 +9,16 @@ import (
 )
 
 // Uses preexisting APIs so the same roots can run on the historical baseline.
-type auditMemoizedScopeDelegate struct{ calls int }
+type auditMemoizedScopeDelegate struct {
+	calls     int
+	makeScope func(*rhino.Node) AbstractScope
+}
 
 func (d *auditMemoizedScopeDelegate) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
 	d.calls++
+	if d.makeScope != nil {
+		return d.makeScope(n)
+	}
 	return Scope_CreateGlobalScope(n)
 }
 
@@ -108,5 +114,32 @@ func TestInferConstsPreservesScopeRetainedByDefaultHandler(t *testing.T) {
 			NewInferConsts(compiler).Process(rhino.IR_Root(), rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_Var(rhino.IR_Name("other")))))
 			check()
 		})
+	}
+}
+
+type auditMemoizedReentrantScope struct {
+	*Scope
+	beforeParent func()
+}
+
+func (s *auditMemoizedReentrantScope) GetParentScope() rhino.StaticScope {
+	if f := s.beforeParent; f != nil {
+		s.beforeParent = nil
+		f()
+	}
+	return s.Scope.GetParentScope()
+}
+
+func TestMemoizedScopeCreatorLastHitSurvivesCustomParentReentry(t *testing.T) {
+	delegate := &auditMemoizedScopeDelegate{makeScope: func(n *rhino.Node) AbstractScope {
+		return &auditMemoizedReentrantScope{Scope: Scope_CreateGlobalScope(n)}
+	}}
+	creator := NewMemoizedScopeCreator(delegate)
+	root, other := rhino.IR_Root(), rhino.IR_Root()
+	first := creator.CreateScope(root, nil).(*auditMemoizedReentrantScope)
+	var nested AbstractScope
+	first.beforeParent = func() { nested = creator.CreateScope(other, nil) }
+	if got := creator.CreateScope(root, nil); got != first || nested == nil || nested == first || delegate.calls != 2 {
+		t.Fatal("custom parent lookup reentry replaced the outer memoized scope")
 	}
 }
