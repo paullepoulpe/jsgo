@@ -234,7 +234,16 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		return
 	}
 
-	scopeCreator := t.GetScopeCreator().(*SyntacticScopeCreator)
+	var creator ScopeCreator
+	callback, stockCallback := t.callback.(*FlowSensitiveInlineVariables)
+	_, stockCompiler := f.compiler.(*Compiler)
+	if stockCallback && callback == f && stockCompiler {
+		// All consumers below are private synchronous analyses of this pass.
+		creator = t.getScopeCreator()
+	} else {
+		creator = t.GetScopeCreator()
+	}
+	scopeCreator := creator.(*SyntacticScopeCreator)
 	scope := t.GetScope()
 	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, scope.GetParent())
 	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()

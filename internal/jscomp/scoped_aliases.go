@@ -821,10 +821,20 @@ func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, f
 	suffix := compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 	cb := &scopedAliases_renameBleedingFunctionNameCallback{
 		compiler: compiler, name: name, suffix: suffix, fnName: fnName}
+	var creator ScopeCreator
+	callback, stockCallback := t.callback.(*ScopedAliases_Traversal)
+	_, stockCompiler := compiler.(*Compiler)
+	if stockCallback && callback == v && stockCompiler {
+		// The private rename callback finishes before this method returns and
+		// never publishes the creator. Expert method calls keep publication.
+		creator = t.getScopeCreator()
+	} else {
+		creator = t.GetScopeCreator()
+	}
 	NodeTraversal_Builder_().
 		SetCompiler(compiler).
 		SetCallback(cb).
-		SetScopeCreator(t.GetScopeCreator()).
+		SetScopeCreator(creator).
 		TraverseAtScope(t.GetScope())
 	fnName.SetString(name + "$jscomp$scopedAliases$" + suffix)
 }
