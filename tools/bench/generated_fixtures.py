@@ -218,7 +218,7 @@ def specs(args):
             files = sorted(p for p in (fixture/family).rglob('*.js') if p.is_file())
             flags += ['--entry_point=goog:enterprise.'+family]
             if family == 'j2cl':
-                flags += ['--j2cl_pass=ON']
+                flags += ['--j2cl_pass=AUTO']
         sources = []
         for link, root, paths in [('inputs', Path(links['inputs']), closure_js if family == 'soy' else []),
                                   ('generated', fixture, files+[fixture/f'{family}_entry.js'])]:
