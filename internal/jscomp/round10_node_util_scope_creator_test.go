@@ -9,8 +9,8 @@ import (
 // A public ScopeCreator may provide bindings independently of declaration
 // syntax. Even an empty block must reach its creator when collecting symbols.
 type round10DeclaredScopeCreator struct {
-	target *rhino.Node
-	calls []*rhino.Node
+	target   *rhino.Node
+	calls    []*rhino.Node
 	provided *Var
 }
 
@@ -53,6 +53,7 @@ func TestNodeUtilAllVarsHonorsCustomCreatorForDeclarationFreeScopes(t *testing.T
 				if creator.calls[i] != root {
 					t.Fatalf("custom scope creation changed order at call %d", i)
 				}
+			}
 			if creator.provided == nil || vars.GetAllVariables().Get("provided") != creator.provided {
 				t.Fatal("public collector dropped a binding supplied for a declaration-free scope")
 			}

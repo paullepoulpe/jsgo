@@ -21,7 +21,7 @@ func (c *dfaPublicOrderConvention) IsExported(name string) bool {
 
 type dfaPublicOrderCreator struct {
 	delegate ScopeCreator
-	events *[]string
+	events   *[]string
 	onCreate func()
 }
 

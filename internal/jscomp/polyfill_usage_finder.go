@@ -205,7 +205,6 @@ func (p *PolyfillUsageFinder_Polyfills) getMethods(name string) []*PolyfillUsage
 //
 // The last line, WeakMap, does not have a polyfill available, so the
 // library token is empty.
-//
 var defaultPolyfillsText = sync.OnceValue(func() string {
 	return resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt")
 })

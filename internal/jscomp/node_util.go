@@ -6617,10 +6617,10 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
 	// Only exact pass-owned collectors opt into syntax-based scope pruning.
 	pruneSyntacticScopes bool
-	result  NodeUtil_AllVarsDeclaredInFunction
-	scope   *Scope
-	slotBuf [8]jutil.LhmSlot[string, *Var]
-	varBuf  [8]*Var
+	result               NodeUtil_AllVarsDeclaredInFunction
+	scope                *Scope
+	slotBuf              [8]jutil.LhmSlot[string, *Var]
+	varBuf               [8]*Var
 }
 
 func nodeUtilSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
