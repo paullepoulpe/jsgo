@@ -26,6 +26,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// Exact builtins may cache their concrete base. Custom optimizations retain
+// the original lazy getter and virtual ClearNewFeatures dispatch at scope exit.
+type peepholeFeatureOptimization struct {
+	base   *AbstractPeepholeOptimizationBase
+	custom AbstractPeepholeOptimization
+}
+
 // PeepholeOptimizationsPass is a compiler pass to run various peephole
 // optimizations (e.g. constant folding, some useless code removal, some
 // minimizations).
@@ -35,7 +42,7 @@ type PeepholeOptimizationsPass struct {
 	// NOTE: Use a native array rather than a List to avoid creating iterators
 	// for every node in the AST.
 	peepholeOptimizations     []AbstractPeepholeOptimization
-	featureOptimBases         []*AbstractPeepholeOptimizationBase
+	featureOptimBases         []peepholeFeatureOptimization
 	activeMaskByToken         [256]uint16
 	useActiveMask             bool
 	standardOptimizationsOnly bool
@@ -73,12 +80,16 @@ func (p *PeepholeOptimizationsPass) addTokensToMask(bit uint16, tokens ...rhino.
 
 func (p *PeepholeOptimizationsPass) initDispatchTable() {
 	p.featureOptimBases = p.featureOptimBases[:0]
+	for _, optim := range p.peepholeOptimizations {
+		if base := peepholeBuiltinFeatureBase(optim); base != nil {
+			p.featureOptimBases = append(p.featureOptimBases, peepholeFeatureOptimization{base: base})
+		} else {
+			p.featureOptimBases = append(p.featureOptimBases, peepholeFeatureOptimization{custom: optim})
+		}
+	}
 	if len(p.peepholeOptimizations) > 16 {
 		p.useActiveMask = false
 		p.standardOptimizationsOnly = false
-		for _, optim := range p.peepholeOptimizations {
-			p.featureOptimBases = append(p.featureOptimBases, optim.GetAbstractPeepholeOptimizationBase())
-		}
 		return
 	}
 	p.useActiveMask = true
@@ -143,7 +154,6 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 		case *PeepholeReplaceKnownMethods:
 			p.addTokensToMask(bit, rhino.Token_CALL)
 		case *PeepholeRemoveDeadCode:
-			p.featureOptimBases = append(p.featureOptimBases, &opt.AbstractPeepholeOptimizationBase)
 			p.addTokensToMask(bit,
 				rhino.Token_ASSIGN,
 				rhino.Token_COMMA,
@@ -252,18 +262,52 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 		case *StatementFusion:
 			p.addTokensToMask(bit, rhino.Token_BLOCK)
 		case *OptimizeLetAndConstPeephole:
-			p.featureOptimBases = append(p.featureOptimBases, &opt.AbstractPeepholeOptimizationBase)
 			p.addTokensToMask(bit,
 				rhino.Token_LET,
 				rhino.Token_CONST,
 			)
 		default:
 			p.standardOptimizationsOnly = false
-			p.featureOptimBases = append(p.featureOptimBases, optim.GetAbstractPeepholeOptimizationBase())
 			for tok := range p.activeMaskByToken {
 				p.activeMaskByToken[tok] |= bit
 			}
 		}
+	}
+}
+
+// Cache every exact builtin base: even a normally feature-free optimization
+// may have a pending feature added through its public API. Only these exact
+// concrete types have a non-observable base getter.
+func peepholeBuiltinFeatureBase(optim AbstractPeepholeOptimization) *AbstractPeepholeOptimizationBase {
+	switch opt := optim.(type) {
+	case *MinimizeExitPoints:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeMinimizeConditions:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeSubstituteAlternateSyntax:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeReplaceKnownMethods:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeRemoveDeadCode:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *J2clEqualitySameRewriterPass:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *J2clStringValueOfRewriterPass:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *J2clUndefinedChecksRewriterPass:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeFoldConstants:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *PeepholeCollectPropertyAssignments:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *ExploitAssigns:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *StatementFusion:
+		return &opt.AbstractPeepholeOptimizationBase
+	case *OptimizeLetAndConstPeephole:
+		return &opt.AbstractPeepholeOptimizationBase
+	default:
+		return nil
 	}
 }
 
@@ -375,7 +419,11 @@ func (c *peepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 
 // Java: PeepholeOptimizationsPass.PeepCallback.updateFeatures(NodeTraversal)
 func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal) {
-	for _, base := range c.this.featureOptimBases {
+	for _, optimization := range c.this.featureOptimBases {
+		base := optimization.base
+		if optimization.custom != nil {
+			base = optimization.custom.GetAbstractPeepholeOptimizationBase()
+		}
 		newFeatures := base.newFeatures
 		if !newFeatures.IsEmpty() {
 			// Go-only: language-adapter — FeatureSet.with(Set<Feature>) takes the Go EnumSet form.
@@ -383,7 +431,11 @@ func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal
 				t.GetCurrentScript(),
 				parser.FeatureSet_BARE_MINIMUM.WithEnumSet(jutil.NewEnumSet(newFeatures.ToSlice()...)),
 				c.this.compiler)
-			base.ClearNewFeatures()
+			if optimization.custom != nil {
+				optimization.custom.ClearNewFeatures()
+			} else {
+				base.ClearNewFeatures()
+			}
 		}
 	}
 }
