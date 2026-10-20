@@ -76,3 +76,57 @@ func TestCFGOwnershipBorrowedTransferRetainsGraph(t *testing.T) {
 		t.Fatal("reinitialization invalidated retained graph values")
 	}
 }
+
+// Candidate-only because ReleaseArena is new. Publishing before any arena is
+// allocated must also protect scopes allocated later by the same creator.
+func TestCFGOwnershipPublishedCreatorsSurviveReleaseAndFutureScopes(t *testing.T) {
+	for _, memoized := range []bool{false, true} {
+		name := "syntactic"
+		if memoized {
+			name = "memoized"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture := newSyntacticScopeCreatorTest(t)
+			ssc := NewSyntacticScopeCreator(fixture.compiler)
+			var creator ScopeCreator = ssc
+			release := ssc.ReleaseArena
+			if memoized {
+				memo := NewMemoizedScopeCreator(ssc)
+				creator, release = memo, memo.ReleaseArena
+			}
+			if ssc.arena != nil {
+				t.Fatal("fixture acquired an arena before publication")
+			}
+			nt := &NodeTraversal{scopeCreator: creator}
+			if nt.GetScopeCreator() != creator {
+				t.Fatal("provided creator identity changed")
+			}
+			makeBody := func(root *rhino.Node) *Scope {
+				global := creator.CreateScope(root, nil)
+				function := creator.CreateScope(root.GetFirstChild(), global)
+				return creator.CreateScope(root.GetFirstChild().GetLastChild(), function).Untyped()
+			}
+			firstRoot := fixture.getRoot("function first(a) { var x = a; return x; }")
+			first := makeBody(firstRoot)
+			original := first.GetVar("x")
+			if original == nil {
+				t.Fatal("fixture has no retained local")
+			}
+			originalNode := original.GetNode()
+			release()
+			if memoized && creator.CreateScope(first.GetRootNode(), first.GetParent()) != first {
+				t.Fatal("release cleared a published memoized scope identity")
+			}
+			second := makeBody(fixture.getRoot("function second(b) { var x = b; return x; }"))
+			fresh := second.GetVar("x")
+			if fresh == nil || fresh == original {
+				t.Fatal("future allocation reused a published Var")
+			}
+			freshNode := fresh.GetNode()
+			release()
+			if first.GetVar("x") != original || original.GetNode() != originalNode || original.GetName() != "x" || second.GetVar("x") != fresh || fresh.GetNode() != freshNode {
+				t.Fatal("release/future allocation changed published scope or Var values")
+			}
+		})
+	}
+}
