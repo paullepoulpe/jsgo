@@ -2,9 +2,12 @@
 
 The post-screen main sync is now `bb521c0f26b2fdeec9622247531174826e9fd23c`.
 The confirmed warm-JVM bundle win below belongs to frozen `5de6e335`.
-New main's first bundle N1/N2 and typed N1 CLI byte gates pass; fresh timing
-is still pending. The integrated compatibility fixes pass the full normal
-suite; their separately built CLI byte gates are next.
+Both stock main and the integrated compatibility fixes pass bundle N1/N2
+and typed N1 CLI byte gates. The fixes also pass the complete normal suite.
+The latest-main Go-only screen, profiles and fresh three-JVM typed comparison
+are complete. Fixed Go takes **9.74% less elapsed time** and **53.43% less
+peak process RSS** than warm Java on this typed workload; all30 pairs match
+Java's bytes and favor Go. Experimental redesign factors remain unmeasured.
 
 The compatibility negative control uses unchanged `bb521c0f` production
 code, all original tests, and 17 new public-API regression roots. Fourteen
@@ -50,6 +53,156 @@ graphs, pointer registries, fallback snapshots and unknown allocator costs.
 Owner-wide history and additional getter/registration work may erase the
 header saving; actual latest-main retained/allocation evidence is required
 before any compiler integration.
+
+### Latest-main Go-only screen
+
+The complete 18-row screen compares frozen `5de6e335`, stock `bb521c0f`
+and fixed `1fe9acbb` in three balanced rounds on each workload. Each binary
+occupies each order position once. All rows match the pinned Java artifacts,
+use default Go runtime settings and verified 4 GiB caps, and have zero inner/
+outer OOM deltas. No builds, profiles or packaging run during this block.
+
+| Workload / source | Median s (sample SD) | Median peak RSS MiB (sample SD) |
+|---|---:|---:|
+| Bundle / 5de | 9.514 (0.117) | 371.43 (4.16) |
+| Bundle / bb | 8.645 (0.245) | 370.76 (7.62) |
+| Bundle / fixed | 8.763 (0.084) | 386.02 (5.48) |
+| Typed / 5de | 34.823 (0.406) | 1136.91 (12.25) |
+| Typed / bb | 32.578 (0.321) | 1108.98 (5.17) |
+| Typed / fixed | 32.993 (0.553) | 1129.97 (30.03) |
+
+| Workload / comparison | Median same-round time ratio | Median same-round RSS ratio |
+|---|---:|---:|
+| Bundle / bb ÷ 5de | 0.903739 | 1.002459 |
+| Typed / bb ÷ 5de | 0.936104 | 0.980206 |
+| Bundle / fixed ÷ bb | 1.010689 | 1.032162 |
+| Typed / fixed ÷ bb | 1.012752 | 1.013961 |
+
+Latest main takes 9.6% less bundle time and 6.4% less typed time in this
+screen. Its RSS is effectively flat on bundle and about 2.0% lower on typed.
+The compatibility corrections add roughly 1.1–1.3% time and 1.4–3.2% RSS in
+these samples. Three observations per variant make this a screening result,
+not a settled cost estimate or a confidence interval. All ranges, CPU data,
+variance and per-round mappings remain in `main-bb-api-fixes-v1/go-screen-*`.
+No historical Java time is combined with these measurements.
+
+### Completed latest-main typed warm-JVM comparison
+
+This is a fresh same-session comparison of stock `bb521c0f` and the validated
+compatibility-fixed `1fe9acbb`, sharing each cohort's stock warm JVM. Inputs
+are 1,820 files / 25,919,443 bytes, with 1,747 emitted input identities. Both
+use compiler N1, two CPUs, real 4 GiB limits and zero swap. Go is a fresh CLI
+with default runtime settings; Java uses `-Xmx3g`, retaining JVM/JIT warmth
+while creating a fresh stock compiler and reparsing externs every request.
+No worker, AST cache or historical Java timings enter these results.
+
+The final wrapper admission passes: 30 measured pairs, 53 Java warmups,
+18 fresh-Go warmups, all six artifact/stream/exit digests matching, zero OOM
+deltas, and no remaining compiler processes or containers. No build, profile,
+archive or heavy source audit overlaps the timed block. First fresh Java
+oracle admission precedes every measured pair. The final three-cohort results
+are below; absolute aggregates are geometric means of cohort medians, not
+pooled medians.
+
+Three restarted JVMs; warmups 18, 16, 19; 30 alternating pairs; all bytes match.
+
+| Cohort | Go variant | Java s (SD) | Go s (SD) | Java RSS MiB | Go RSS MiB (SD) | Java/Go time | Java/Go RSS |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 1 | stock-bb521c0 | 33.160 (0.330) | 30.957 (0.679) | 2418.34 | 1091.57 (28.02) | 1.07118 | 2.21547 |
+| 1 | fixed-bb-1fe9acbb | 33.688 (0.389) | 30.452 (0.702) | 2418.34 | 1113.22 (6.33) | 1.10629 | 2.17238 |
+| 2 | stock-bb521c0 | 33.882 (0.573) | 30.547 (1.243) | 2406.15 | 1113.09 (39.52) | 1.10920 | 2.16168 |
+| 2 | fixed-bb-1fe9acbb | 33.498 (0.283) | 30.203 (0.367) | 2406.15 | 1122.17 (9.95) | 1.10906 | 2.14420 |
+| 3 | stock-bb521c0 | 34.564 (0.615) | 30.943 (1.277) | 2376.02 | 1112.50 (11.54) | 1.11703 | 2.13575 |
+| 3 | fixed-bb-1fe9acbb | 34.338 (0.511) | 30.982 (0.274) | 2376.02 | 1117.68 (27.18) | 1.10831 | 2.12585 |
+
+| Go variant | Java/Go time (95% CI) | Java/Go RSS (95% CI) | Java / Go absolute s | Java / Go absolute RSS MiB |
+|---|---:|---:|---:|---:|
+| stock-bb521c0 | 1.09895 (1.07118–1.11703) | 2.17071 (2.13575–2.21547) | 33.864 / 30.815 | 2400.10 / 1105.67 |
+| fixed-bb-1fe9acbb | 1.10789 (1.10629–1.10906) | 2.14739 (2.12585–2.17238) | 33.839 / 30.544 | 2400.10 / 1117.68 |
+
+| Variant / runtime | Pooled elapsed median (range; SD) s | Pooled RSS median (range; SD) MiB |
+|---|---:|---:|
+| stock-bb521c0 / java | 33.726 (32.823–35.173; 0.745) | 2406.15 (2296.89–2418.34; 40.74) |
+| stock-bb521c0 / go | 30.719 (30.111–33.435; 1.023) | 1106.74 (1070.38–1179.68; 27.72) |
+| fixed-bb-1fe9acbb / java | 33.688 (33.096–34.650; 0.453) | 2406.15 (2296.89–2418.34; 40.74) |
+| fixed-bb-1fe9acbb / go | 30.519 (30.028–31.915; 0.505) | 1117.68 (1101.54–1177.92; 17.86) |
+
+RSS windows: Java common final warm-JVM lifetime VmHWM including warmup/JIT; Go median fresh-process lifetime wait4 peak. Not per-compilation live heap.
+
+One typed workload, N1 compiler work, two CPUs and actual 4GiB caps. Three restarted cohorts underpin the CI; 30 requests are not 30 independent JVMs.
+
+Outer max events are retained as resource-pressure diagnostics, distinct from OOM. No performance cause is inferred from the event counter alone; caps and heap settings were not changed.
+
+Bootstrap: Take natural logs of3 cohort ratios; draw3 logs with replacement for each of10,000 bootstrap replicates; exponentiate their arithmetic mean; sort the replicates. Nominal95% percentile interval: sorted bootstrap elements250 and9749 (zero-based), as in the frozen helper.
+
+All15 matched requests per runtime/variant supply descriptive min/max/median/mean/sampleSD/samplevariance only; they are not treated as15 independent JVMs for confidence.
+
+Aggregate ratios, restarted-cohort bootstrap intervals, ranges, variance and direct Go-control effects are retained in summary.json and the frozen runner output.
+
+The fixed build saves 9.738% elapsed time and 53.432% RSS against Java; stock
+main saves 9.004% elapsed time and 53.932% RSS. The direct stock-Go/fixed-Go
+time ratio is 1.00886 (95% cohort interval0.99873–1.01659), so this block does
+not establish that the compatibility fixes speed up the compiler. Its direct
+RSS ratio is0.98926 (0.98055–0.99537), about1.1% more RSS for fixed Go. These
+are separate from the earlier three-observation screen; neither direction is
+silently substituted. The performance lead includes optimizations landed on
+main, not gains from the new unrun source candidates.
+
+Raw requests, individual timings/CPU/RSS, warmup decisions, container records,
+helper/source/runtime pins, first-oracle admission and shutdown proof are under
+`main-bb-api-fixes-v1/paired-java/typed-n1/` and
+`main-bb-api-fixes-v1/typed-warm-wrapper-v2/`. Full external Java corpus parity,
+unfiltered compiler race and new enterprise warm timings remain open.
+
+### Fresh fixed-main profile
+
+Separate instrumented bundle/typed invocations also pass all six Java digests.
+Typed samples attribute 13.40% flat CPU to traversal methods, 8.99% to the
+inlined `GetNext` pointer load and a 14.16% union to GC scan stacks. These
+are different, non-additive attribution views; none supplies a predicted
+optimization gain. Inclusive traversal is 62.59% because it includes callback
+work. Samples at callback-call source lines are 1.28%, not an isolated
+interface-dispatch measurement. `madvise`, futex and Syscall6 account for
+0.03%, 0% and 0.08% respectively, so the old syscall targets remain small.
+
+Typed allocation samples total 5788.92 MiB / 29.16 million objects, including
+382.12 MiB at scope allocation, 346.69 MiB in string/pointer LinkedHashMap
+`addSlow`, 195.85 MiB at Var allocation, and 190.09 MiB at CFG node allocation.
+Heap samples are not RSS, final live ownership or a scan-by-type breakdown.
+Raw profiles, exact caller/owner attribution and the preserved wrapper setup
+failure/retry are under `main-bb-fixed-profile-v1/`; diagnostic clocks are
+not performance measurements. New isolated scope, traversal and container
+pilots remain source-only after the completed typed JVM comparison.
+
+### Isolated next candidates: source only
+
+None of these candidates has been compiled, tested or timed yet. They are
+separate branches based on the validated fixed compiler, rather than changes
+to the active benchmark binaries. Independent source reviews establish no
+performance gain.
+
+| Candidate | Frozen source | Proposed saving and material risk |
+|---|---|---|
+| Large ordered-map growth | `269494d6` | Reserve twice the capacity at large growth boundaries to reduce repeated copies; extra slack may increase RSS and GC work. |
+| Traversal ordinary path first | `58dd0503` | Change branch layout without changing callback order; discard if ordinary PGO assembly is already equivalent. |
+| Scope/Var slab page fit | `fb32e356` | Caps 186/341 target 16 KiB backing allocations; allocation count increases, and rollover sizes can reserve more memory than stock. The earlier 340-slot source `7e607d7c` is retained. |
+| Physical Node64 metadata union | `99f9fc7b` | Fold three cold metadata pointers into one tagged, GC-tracked immutable representation while preserving the hot links. Extra tuple allocations and getter work may erase the header saving. |
+
+Node64 is a real Rhino prototype, distinct from the isolated indexed model.
+Its intended 64-byte layout is still unverified by a build. It preserves
+full token/type/source metadata and copied-Node field replacement semantics;
+it changes exactly two original sizeof expectations from 80 to 64, leaving
+their behavioral and GC assertions intact. Its seven new roots include five
+stock-compatible semantic controls. Simultaneous disjoint metadata writes
+to the same Node would now touch one shared representation; source review
+found no such supported compiler path, but independent-clone tests do not
+prove that case safe. Whole-compiler race validation remains necessary.
+
+A separate 127-node slab experiment is being prepared for both Node80 and
+Node64. This separates allocator packing from representation changes. The
+size-class arithmetic is a hypothesis, not measured RSS or a speedup. Actual
+factory/JSDoc inlining, parser/GC tests and strict Java byte gates precede
+any timed comparison. All variants retain normal runtime GC settings.
 
 Investigation resumed on 2026-10-20 from main
 `2262bb6a8a9d24ee34fdb52bd30c49269e4b5373`. At 08:25 UTC, remote main
@@ -652,3 +805,28 @@ Prepared commands establish no timing result.
 The four compatibility corrections are now separate PR commits; experimental
 performance factors and the isolated model remain unpromoted. All earlier
 archives remain unchanged.
+
+## Seventh completed evidence cut
+
+[round4-measurement-records-v7.tar.gz](round4-measurement-records-v7.tar.gz)
+adds1,251 closed records (1,339,343,355 original bytes),499 unique blobs
+(50,423,827 bytes) and one excluded rebuildable diagnostic binary with its hash.
+Archive SHA256:
+`f1b631e27c7c519362d7e09546c5f793a1bcabeb186272fe8c63871a997fb67e`.
+Every payload hash passes verification. This cut preserves the18-row latest-
+main screen, complete typed warm-JVM comparison and bootstrap/variance review,
+fresh profiles and preserved setup failure, unrun source candidates and peer
+reviews, enterprise benchmark preparations, validation plans and environment
+checkpoints. All prior cuts remain unchanged.
+
+[round4-source-manifest-v7.json](round4-source-manifest-v7.json) fingerprints
+38 recoverable source states in
+[round4-prototype-sources-v7.bundle](round4-prototype-sources-v7.bundle),
+SHA256`6f14665a274064313d3bf727f313e75ad3b4a20b46fabed275a5ba2114860425`.
+No experimental factor is promoted.
+
+A new fetch after the timing block finds main`abcf69a0`, a further32-file
+optimization commit with new PGO, inter-pass caches and reusable analysis/pass
+storage. Synchronization and source review are next. All completed timing and
+full-normal results on this page remain attached to their named frozen source;
+they do not validate or measure this new main or import its commit-title gains.

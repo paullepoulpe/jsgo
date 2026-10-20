@@ -1,12 +1,27 @@
 # Open performance ideas
 
-After the five-variant screen, main advanced to `bb521c0f`. The weights below
-belong to frozen `5de6e335`, not to a fresh profile of that new main. Main now
-implements private small-variable staging, independent lazy scope arenas and
-another concrete scope-free walker. Refresh attribution and adapt diagnostic
-hooks before pursuing those older proposals. Integrated compatibility fixes
-now pass the full normal suite and three Java CLI byte gates; fresh timing
-remains pending.
+The current frozen baseline is `1fe9acbb`: main `bb521c0f` plus four validated
+compatibility corrections. It passes the full normal suite and three Java
+CLI byte gates. An 18-row Go-only screen now measures the main update and
+compatibility cost separately. Three completed fresh typed JVM cohorts give
+fixed Go a Java/Go time ratio1.10789 and RSS ratio2.14739, with every byte
+matching. These results include main optimizations, not the unrun factors.
+
+Fresh fixed-main profiles attribute 13.40% of typed CPU to traversal methods,
+8.99% to the inlined GetNext load and a 14.16% union to GC scan stacks. These
+are attribution views, not additive removable budgets. Typed allocations
+total 5788.92 MiB, including scope 382.12 MiB, string/pointer LinkedHashMap
+346.69 MiB, Var 195.85 MiB and CFG nodes 190.09 MiB. Source-only pilots target
+scope/Var allocator geometry, the common traversal path, large container
+growth, a physical Node64 metadata union, and cap127 node slabs. Node80/cap127
+is a separate control for Node64/cap127; Node64/default128 remains separate.
+Their tests, actual allocation-path inlining and timings remain pending. No
+GC tuning is part of these factors.
+
+The older proposals below retain their named historical source/profile
+context. Main now implements private small-variable staging, independent
+lazy scope arenas and another concrete scope-free walker; adapt older census
+hooks before using them on this baseline.
 
 A concrete isolated indexed-AST model (`0ec2cc95`) now passes nine roots
 under normal, race and package-only checkptr builds. It preserves stable
@@ -18,7 +33,7 @@ explicit costs; the smaller header is not a compiler memory or speed result.
 The [current round-4 report](ROUND4.md) supersedes historical profile weights
 and source-only status below. Main `5de6e335` already fixes the large source-map
 allocation issue; current `madvise`, futex and syscall CPU samples are small.
-Explicit Java-style string hashing is under 0.5% in the current typed sample.
+Explicit Java-style string hashing is 0.73% in the latest typed sample.
 Those older targets should not drive another large rewrite without new evidence.
 
 The five-variant Sass/slab screen on `5de6e335` is complete: 30 invocations,
@@ -34,7 +49,12 @@ been measured on `bb521c0f`.
 The strongest open structural questions are AST locality and scope/variable
 arena traffic. The naive per-store metadata COW design modeled more allocation
 than its favorable node-slab saving; this does not reject a direct-pointer tagged
-union. That diagnostic is still unbuilt. Scope/Var/slot sites allocate roughly
+union. The physical Node64 prototype at `99f9fc7b` now implements that approach
+in Rhino, preserving hot pointer links and full metadata widths; it is still
+unbuilt. Immutable tuple allocations and getter branches must be measured,
+and simultaneous disjoint metadata writes to the same Node are a new shared-
+representation boundary. No affected stock path was found in the bounded
+source review; that is not whole-compiler race evidence. Scope/Var/slot sites allocate roughly
 755 MiB on typed input, but numeric requested/reserved histories are still
 unmeasured and do not establish live retention. Keyless variable slots require
 original-key snapshots before public mutable escapes, and common early iteration
@@ -47,6 +67,17 @@ exhaustive list. The final benchmark report determines what was validated and
 measured. All future comparisons should use the same latest-main baseline,
 ordinary CLI inputs, shipped PGO, default runtime settings, exact Java artifact
 gates, repeated interleaved elapsed measurements, and peak RSS/time ratios.
+
+A bounded recheck also leaves a narrow SourcePosition-only slab factor open.
+The old experiment changed all generic slab ramps and node allocation together,
+had one macro run per task, and did not establish position-specific inlining or
+retention. Current token-position slab samples total 168.75 MiB on typed input,
+but only an unknown maximum-chunk portion could benefit from a 127 cap. More
+frequent rollovers can reserve more memory for some file sizes. Comment
+positions keep their independent lifetime; SourceRange/token/tree allocation
+would remain unchanged. A growth/tail census, actual caller inlining and retained
+position tests are needed before another small measured trial. This remains an
+open follow-up, with no new implementation or performance result.
 
 | Idea | Status and next useful discriminator | Main risks / compatibility boundary |
 |---|---|---|
