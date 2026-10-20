@@ -68,11 +68,12 @@ func scopeNameHash(s string) uint32 {
 type Scope struct {
 	AbstractScopeBase[*Scope, *Var]
 
-	parent   *Scope
-	arena    *scopeArena
-	varList  []*Var
-	varHash  []int32
-	varCount int32
+	parent    *Scope
+	arena     *scopeArena
+	varList   []*Var
+	varHash   []int32
+	varCount  int32
+	keyedVars bool
 }
 
 // scopeArena slab-allocates Scope, Var, varList, and varHash slices for a
@@ -599,7 +600,24 @@ func (s *Scope) GetClosestContainerScope() *Scope {
 	return scope
 }
 
+// useKeyedVars preserves independently supplied declaration keys on public
+// callback paths. The usual scanner keeps its compact name-keyed storage.
+func (s *Scope) useKeyedVars() {
+	if s.keyedVars {
+		return
+	}
+	s.keyedVars = true
+	for _, v := range s.varList {
+		if v != nil {
+			s.vars.Put(v.name, v)
+		}
+	}
+}
+
 func (s *Scope) lookupOwnVar(name string) *Var {
+	if s.keyedVars {
+		return s.vars.Get(name)
+	}
 	if s.varCount == 0 {
 		return nil
 	}
@@ -661,7 +679,11 @@ func (s *Scope) HasSlot(name string) bool {
 	var hashed bool
 	for ; s != nil; s = s.parent {
 		if s.varCount > 0 {
-			if s.varHash != nil {
+			if s.keyedVars {
+				if s.vars.ContainsKey(name) {
+					return true
+				}
+			} else if s.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
 					hashed = true
@@ -696,9 +718,17 @@ func (s *Scope) HasSlot(name string) bool {
 func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 	for anc := s.parent; anc != nil && anc.parent != nil; anc = anc.parent {
 		if anc.varCount > 0 {
-			for _, v := range anc.varList {
-				if v != nil && !v.IsImplicitGoogNamespace() {
-					return v.GetInput(), true
+			if anc.keyedVars {
+				for v := range anc.vars.Values() {
+					if v != nil && !v.IsImplicitGoogNamespace() {
+						return v.GetInput(), true
+					}
+				}
+			} else {
+				for _, v := range anc.varList {
+					if v != nil && !v.IsImplicitGoogNamespace() {
+						return v.GetInput(), true
+					}
 				}
 			}
 		}
@@ -715,7 +745,11 @@ func (s *Scope) GetVar(name string) *Var {
 	var hashed bool
 	for {
 		if s.varCount > 0 {
-			if s.varHash != nil {
+			if s.keyedVars {
+				if v := s.vars.Get(name); v != nil {
+					return v
+				}
+			} else if s.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
 					hashed = true
@@ -760,6 +794,10 @@ func (s *Scope) GetVarCount() int {
 // Java: AbstractScope.getVarIterable()
 func (s *Scope) GetVarIterable() iter.Seq[*Var] {
 	return func(yield func(*Var) bool) {
+		if s.keyedVars {
+			s.vars.Values()(yield)
+			return
+		}
 		for i := 0; i < len(s.varList); i++ {
 			if v := s.varList[i]; v != nil {
 				if !yield(v) {
@@ -777,6 +815,11 @@ func (s *Scope) GetAllSymbols() iter.Seq[*Var] {
 
 // Java: AbstractScope.clearVarsInternal()
 func (s *Scope) ClearVarsInternal() {
+	if s.keyedVars {
+		s.vars.Clear()
+		s.varCount = 0
+		return
+	}
 	if s.varCount > 0 || len(s.varList) > 0 {
 		clear(s.varList)
 		s.varList = s.varList[:0]
@@ -804,6 +847,11 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 		panic(jutil.NewUnsupportedOperationException())
 	}
 	name := var_.name
+	if s.keyedVars {
+		s.vars.Remove(name)
+		s.varCount = int32(s.vars.Size())
+		return
+	}
 	if s.varHash != nil {
 		mask := uint32(len(s.varHash) - 1)
 		i := scopeNameHash(name) & mask
@@ -949,7 +997,15 @@ func (s *Scope) DeclareInternal(name string, var_ *Var) {
 	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
+	if name != var_.name {
+		s.useKeyedVars()
+	}
 	s.varsInitialized = true
+	if s.keyedVars {
+		s.vars.Put(name, var_)
+		s.varCount = int32(s.vars.Size())
+		return
+	}
 	if s.varHash != nil {
 		h := scopeNameHash(name)
 		mask := uint32(len(s.varHash) - 1)

@@ -77,7 +77,9 @@ func (c *SyntacticScopeCreator) ReleaseArena() {
 // but not explicitly declared.
 const syntacticScopeCreator_ARGUMENTS = "arguments"
 
-var SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER SyntacticScopeCreator_RedeclarationHandler = NewSyntacticScopeCreator_DefaultRedeclarationHandler()
+var syntacticScopeCreatorStockDefaultHandler = NewSyntacticScopeCreator_DefaultRedeclarationHandler()
+
+var SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER SyntacticScopeCreator_RedeclarationHandler = syntacticScopeCreatorStockDefaultHandler
 
 // Java: SyntacticScopeCreator(AbstractCompiler)
 func NewSyntacticScopeCreator(compiler AbstractCompiler) *SyntacticScopeCreator {
@@ -195,6 +197,12 @@ func initSyntacticScopeCreator_ScopeScanner(
 	s.compiler = compiler
 	s.redeclarationHandler = redeclarationHandler
 	s.scope = scope
+	// A supplied handler can observe and mutate independent declaration keys.
+	// Keep the compact storage for the original private stock implementation;
+	// replacement defaults, wrappers and noncomparable handlers use keyed state.
+	if handler, stock := redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stock || handler != syntacticScopeCreatorStockDefaultHandler {
+		scope.useKeyedVars()
+	}
 	s.changeRootSet = changeRootSet
 	jutil.CheckState(changeRootSet == nil || scope.IsGlobal())
 	s.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations
@@ -592,7 +600,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	var v *Var
 	var h uint32
 	var probeSlot uint32
-	if sc.varHash != nil {
+	if sc.keyedVars {
+		v = sc.getOwnSlotV(name)
+	} else if sc.varHash != nil {
 		h = scopeNameHash(name)
 		mask := uint32(len(sc.varHash) - 1)
 		probeSlot = h & mask
@@ -632,7 +642,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			// this is replacing an implicit provide. treat this as the actual declaration.
 			sc.Undeclare(v)
 			v = nil
-			if sc.varHash != nil {
+			if !sc.keyedVars && sc.varHash != nil {
 				mask := uint32(len(sc.varHash) - 1)
 				probeSlot = h & mask
 				for sc.varHash[probeSlot] != 0 {
@@ -671,6 +681,10 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		}
 		if parentVar != nil && !sc.IsBleedingFunctionName(name) {
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
+		}
+		if sc.keyedVars {
+			sc.Declare(name, n, input)
+			return
 		}
 		if sc.varHash == nil {
 			if s.smallLen < len(s.smallVars) {
