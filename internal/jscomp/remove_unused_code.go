@@ -288,7 +288,10 @@ type RemoveUnusedCode struct {
 	// static methods on global names such as "Array.from" and "Math.fround",
 	// and instance properties such as "String.prototype.repeat" and
 	// "Promise.prototype.finally".
-	polyfills *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
+	polyfills       *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
+	hasPolyfills    bool
+	polyfillLenMask [256]uint64
+	polyfillEndMask [256]uint64
 
 	guardedUsages         *jutil.LinkedHashSet[*rhino.Node]
 	guardedUsagesComputed bool
@@ -829,6 +832,37 @@ func (r *RemoveUnusedCode) TraverseInstanceof(instanceofNode *rhino.Node, scope 
 	}
 }
 
+func (r *RemoveUnusedCode) addPolyfillMask(name string) {
+	r.hasPolyfills = true
+	if len(name) > 0 {
+		shift := uint(len(name))
+		if shift >= 64 {
+			shift = 63
+		}
+		mask := uint64(1) << shift
+		r.polyfillLenMask[name[0]] |= mask
+		r.polyfillEndMask[name[len(name)-1]] |= mask
+	} else {
+		r.polyfillLenMask[0] |= 1
+		r.polyfillEndMask[0] |= 1
+	}
+}
+
+func (r *RemoveUnusedCode) mightHavePolyfill(name string) bool {
+	if !r.hasPolyfills {
+		return false
+	}
+	if len(name) == 0 {
+		return (r.polyfillLenMask[0] & 1) != 0
+	}
+	shift := uint(len(name))
+	if shift >= 64 {
+		shift = 63
+	}
+	mask := uint64(1) << shift
+	return (r.polyfillLenMask[name[0]]&mask) != 0 && (r.polyfillEndMask[name[len(name)-1]]&mask) != 0
+}
+
 // TraverseNormalOrOptChainGetProp traverses `expr.prop` or `expr?.prop`.
 //
 // Note that this method is called only for RHS nodes. Property references
@@ -844,7 +878,7 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp *rhino.Node, 
 	objectNode := getProp.GetFirstChild()
 	propertyName := getProp.GetString()
 
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
+	if r.mightHavePolyfill(propertyName) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
 		for info := range r.polyfills.Get(propertyName).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(getProp)
@@ -977,7 +1011,7 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode *rhino.Node
 // Java: RemoveUnusedCode.traverseNameNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNameNode(n *rhino.Node, scope *Scope) RemoveUnusedCode_VarInfo {
 	name := n.GetString()
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(name) {
+	if r.mightHavePolyfill(name) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(name) {
 		for info := range r.polyfills.Get(name).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(n)
@@ -1011,7 +1045,9 @@ func (r *RemoveUnusedCode) TraverseCall(callNode *rhino.Node, scope *Scope) {
 		if r.polyfills == nil {
 			r.polyfills = jutil.HashMultimap_Create[string, RemoveUnusedCode_PolyfillInfo]()
 		}
-		r.polyfills.Put(info.GetRemoveUnusedCode_PolyfillInfoBase().key, info)
+		key := info.GetRemoveUnusedCode_PolyfillInfoBase().key
+		r.addPolyfillMask(key)
+		r.polyfills.Put(key, info)
 		// Only traverse the callee (to mark it as used).  The arguments may be traversed later.
 		r.TraverseNode(callNode.GetFirstChild(), scope)
 	} else if NodeUtil_IsGoogWeakUsageCall(callNode) &&
@@ -1882,6 +1918,9 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable RemoveUnusedC
 func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop *rhino.Node, usage AccessorSummary_PropertyAccessKind) bool {
 	// Other node types may make sense in the future.
 	jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
+	if r.assumeGettersArePure && !usage.HasSetter() {
+		return false
+	}
 	propName := getprop.GetString()
 	summary := r.accessorSummary
 	if summary == nil {
@@ -2247,6 +2286,14 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 		}
 		for _, polyfill := range removed {
 			r.polyfills.Remove(polyfill.GetRemoveUnusedCode_PolyfillInfoBase().key, polyfill)
+		}
+		if len(removed) > 0 {
+			r.hasPolyfills = false
+			r.polyfillLenMask = [256]uint64{}
+			r.polyfillEndMask = [256]uint64{}
+			for key := range r.polyfills.KeySet() {
+				r.addPolyfillMask(key)
+			}
 		}
 	}
 }
@@ -3631,14 +3678,12 @@ func (c *RemoveUnusedCode_ClassSetupCall) String() string {
 
 // Java: RemoveUnusedCode.alreadyRemoved(Node)
 func RemoveUnusedCode_AlreadyRemoved(n *rhino.Node) bool {
-	parent := n.GetParent()
-	if parent == nil {
-		return true
+	for parent := n.GetParent(); parent != nil; parent = parent.GetParent() {
+		if parent.IsRoot() {
+			return false
+		}
 	}
-	if parent.IsRoot() {
-		return false
-	}
-	return RemoveUnusedCode_AlreadyRemoved(parent)
+	return true
 }
 
 // RemoveUnusedCode_VarInfo tracks whether a variable is removable or not,

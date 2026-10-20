@@ -61,12 +61,16 @@ func (d *Denormalize) Process(externs *rhino.Node, root *rhino.Node) {
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
 	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {
 		inliner := newDenormalizeVarInliner()
-		NodeTraversal_Builder_().
-			SetCompiler(d.compiler).
-			SetCallback(inliner).
-			SetScopeCreator(NewSyntacticScopeCreator(d.compiler)).
-			SetObeyDestructuringAndDefaultValueExecutionOrder(true).
-			Traverse(root)
+		sc := NewSyntacticScopeCreator(d.compiler)
+		sc.EnableArenaPool()
+		defer sc.ReleaseArena()
+		b := NodeTraversal_Builder{
+			compiler:     d.compiler,
+			callback:     inliner,
+			scopeCreator: sc,
+			obeyDestructuringAndDefaultValueExecutionOrder: true,
+		}
+		b.Traverse(root)
 	}
 }
 

@@ -6599,11 +6599,14 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	finder.result.allVarsInFn = &finder.result.mapStorage
 	finder.result.orderedVars = finder.varBuf[:0:len(finder.varBuf)]
 
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(finder).
-		SetScopeCreator(scopeCreator).
-		TraverseAtScope(scope)
+	b := NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     finder,
+		scopeCreator: scopeCreator,
+	}
+	t := acquireNodeTraversal(&b)
+	t.TraverseAtScope(scope)
+	releaseNodeTraversal(t)
 
 	jutil.CheckState(finder.result.allVarsInFn.IsEmpty() == (len(finder.result.orderedVars) == 0))
 	return &finder.result
@@ -6618,9 +6621,102 @@ type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
 	varBuf  [8]*Var
 }
 
+func nodeUtilSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CLASS, rhino.Token_CATCH, rhino.Token_IMPORT:
+		return true
+	case rhino.Token_FUNCTION:
+		return !NodeUtil_IsFunctionExpression(n)
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if nodeUtilSubtreeHasBlockScopeDecls(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeUtilStmtHasBlockScopeDecls(stmt *rhino.Node) bool {
+	switch stmt.GetToken() {
+	case rhino.Token_FUNCTION:
+		return false
+	case rhino.Token_CLASS, rhino.Token_CATCH, rhino.Token_IMPORT:
+		return true
+	default:
+		for c := stmt.GetFirstChild(); c != nil; c = c.GetNext() {
+			if nodeUtilSubtreeHasBlockScopeDecls(c) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func nodeUtilBlockScopeMayHaveDecls(n, root *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_IMPORT:
+		return true
+	case rhino.Token_EXPORT:
+		first := n.GetFirstChild()
+		return first != nil && nodeUtilBlockScopeMayHaveDecls(first, root)
+	case rhino.Token_FUNCTION:
+		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetString() != ""
+	case rhino.Token_CLASS:
+		return !NodeUtil_IsClassExpression(n) && n.GetFirstChild().GetString() != ""
+	case rhino.Token_BLOCK:
+		if n != root && scanVarsBlockCreatesScope(n) {
+			return false
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+		if n != root {
+			return false
+		}
+	case rhino.Token_ROOT, rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_IF,
+		rhino.Token_LABEL, rhino.Token_TRY, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
+	default:
+		return false
+	}
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
+			if nodeUtilBlockScopeMayHaveDecls(child, root) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func nodeUtilScopeRootMayDeclareVars(root, fnRoot *rhino.Node) bool {
+	switch root.GetToken() {
+	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
+		return false
+	case rhino.Token_CLASS:
+		return !root.GetFirstChild().IsEmpty() && NodeUtil_IsClassExpression(root)
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+		return nodeUtilBlockScopeMayHaveDecls(root, root)
+	case rhino.Token_BLOCK:
+		parent := root.GetParent()
+		if parent == fnRoot || (parent != nil && parent.IsClassMembers()) {
+			return root.HasChildren()
+		}
+		return nodeUtilBlockScopeMayHaveDecls(root, root)
+	default:
+		return true
+	}
+}
+
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.enterScope(NodeTraversal)
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) EnterScope(t *NodeTraversal) {
-	currentScope := t.GetScope()
+	root := t.GetScopeRoot()
+	var currentScope *Scope
+	if root == f.scope.GetRootNode() {
+		currentScope = f.scope
+	} else {
+		if !nodeUtilScopeRootMayDeclareVars(root, f.scope.GetRootNode()) {
+			return
+		}
+		currentScope = t.GetScope()
+	}
 	n := currentScope.GetVarCount()
 	if n == 0 {
 		return
@@ -6642,8 +6738,35 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ExitScope(t *NodeTraversa
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.shouldTraverse(NodeTraversal, Node, Node)
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	// Don't enter any new functions
-	return !n.IsFunction() || n == f.scope.GetRootNode()
+	fnRoot := f.scope.GetRootNode()
+	if n == fnRoot {
+		return true
+	}
+	if n.IsFunction() {
+		// Don't enter any new functions
+		return false
+	}
+	if parent == fnRoot {
+		if n.IsBlock() {
+			return n.HasChildren()
+		}
+		if n.IsParamList() {
+			for p := n.GetFirstChild(); p != nil; p = p.GetNext() {
+				if !p.IsName() && nodeUtilSubtreeHasBlockScopeDecls(p) {
+					return true
+				}
+			}
+			return false
+		}
+		if n == fnRoot.GetFirstChild() {
+			return false
+		}
+		return nodeUtilSubtreeHasBlockScopeDecls(n)
+	}
+	if parent != nil && parent.GetParent() == fnRoot && parent.IsBlock() {
+		return nodeUtilStmtHasBlockScopeDecls(n)
+	}
+	return true
 }
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.visit(NodeTraversal, Node, Node)

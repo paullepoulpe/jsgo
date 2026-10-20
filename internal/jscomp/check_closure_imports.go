@@ -199,8 +199,17 @@ func NewCheckClosureImports(compiler AbstractCompiler, moduleMetadataMap *Module
 
 // Java: CheckClosureImports.process(Node, Node)
 func (c *CheckClosureImports) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Traverse(c.compiler, externs, c.checker)
-	NodeTraversal_Traverse(c.compiler, root, c.checker)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c.checker,
+		scopeCreator: sc,
+	}
+	b.Traverse(externs)
+	sc.ReleaseArena()
+	b.Traverse(root)
 }
 
 // CheckClosureImports_Checker is CheckClosureImports.Checker (an inner

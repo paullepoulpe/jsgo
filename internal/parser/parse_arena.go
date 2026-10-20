@@ -164,6 +164,14 @@ func (a *ParseArena) Release() {
 	parseArenaPool.Put(a)
 }
 
+// DrainParseArenaPool releases any cached ParseArenas from the global slot cache
+// so the garbage collector can reclaim their backing slabs after batch parsing completes.
+func DrainParseArenaPool() {
+	for i := range parseArenaSlots {
+		parseArenaSlots[i].Store(nil)
+	}
+}
+
 func (a *ParseArena) reset() {
 	if cap(a.utf16Buf) <= arenaMaxUTF16Cap {
 		a.utf16Buf = a.utf16Buf[:0]

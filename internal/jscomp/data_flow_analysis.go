@@ -652,48 +652,128 @@ func DataFlowAnalysis_ComputeEscaped(
 		return
 	}
 
-	if dfaHasNestedFunctionOrClass(jsScope.GetRootNode()) {
-		finder := dataFlowAnalysis_escapedFinder{
-			jsScope:      jsScope,
-			jsScopeDepth: jsScope.GetDepth(),
-			escaped:      escaped,
-			allVarsInFn:  allVarsInFn,
-		}
-
-		b := NodeTraversal_Builder{
-			compiler:     compiler,
-			callback:     &finder,
-			scopeCreator: scopeCreator,
-		}
-		t := acquireNodeTraversal(&b)
-		t.TraverseAtScope(jsScope)
-		releaseNodeTraversal(t)
-	}
+	escapedStartedEmpty := escaped.IsEmpty()
+	hasNestedScopeVars := false
 
 	// TODO (simranarora) catch variables should not be considered escaped in
 	// ES6. Getting rid of the catch check is causing breakages however
 	codingConvention := compiler.GetCodingConvention()
-	for var_ := range allVarsInFn.Values() {
-		if var_.GetParentNode().IsCatch() ||
-			codingConvention.IsExported(var_.GetName()) {
-			escaped.Add(var_)
+	if allVarsInFn != nil {
+		for var_ := range allVarsInFn.Values() {
+			if var_.scope != jsScope && (var_.scope == nil || !var_.scope.IsFunctionBlockScope()) {
+				hasNestedScopeVars = true
+			}
+			if var_.GetParentNode().IsCatch() ||
+				codingConvention.IsExported(var_.GetName()) {
+				escaped.Add(var_)
+			}
 		}
 	}
+
+	fnRoot := jsScope.GetRootNode()
+	fnNameNode := fnRoot.GetFirstChild()
+	fnName := fnNameNode.GetString()
+	fnNameShadowed := false
+	if fnName != "" && allVarsInFn != nil && jsScope.HasOwnSlot(fnName) {
+		if v := allVarsInFn.Get(fnName); v == nil || v.scope != jsScope {
+			fnNameShadowed = true
+		}
+	}
+
+	if allVarsInFn != nil && !hasNestedScopeVars && !fnNameShadowed && escapedStartedEmpty && escaped.Size() >= allVarsInFn.Size() {
+		return
+	}
+
+	args := fnNameNode.GetNext()
+	fnBody := args.GetNext()
+	argsHasFnOrClass := dfaHasNestedFunctionOrClass(args)
+
+	var firstEscapingStmt *rhino.Node
+	if !argsHasFnOrClass && fnBody.IsBlock() {
+		for stmt := fnBody.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+			if stmt.IsFunction() || stmt.IsClass() || dfaHasNestedFunctionOrClass(stmt) {
+				firstEscapingStmt = stmt
+				break
+			}
+		}
+		if firstEscapingStmt == nil {
+			return
+		}
+	} else if !argsHasFnOrClass && !dfaHasNestedFunctionOrClass(fnBody) {
+		return
+	}
+
+	hasDuplicateVarNames := allVarsInFn == nil || hasNestedScopeVars || fnNameShadowed || argsHasFnOrClass
+	nonEscapingDepth := jsScope.GetDepth()
+	var skipArgs *rhino.Node
+	var filterFnBody *rhino.Node
+	if !argsHasFnOrClass {
+		skipArgs = args
+		if fnBody.IsBlock() {
+			nonEscapingDepth = jsScope.GetDepth() + 1
+			filterFnBody = fnBody
+		}
+	}
+
+	finder := dataFlowAnalysis_escapedFinder{
+		jsScope:              jsScope,
+		nonEscapingDepth:     nonEscapingDepth,
+		escaped:              escaped,
+		allVarsInFn:          allVarsInFn,
+		skipArgs:             skipArgs,
+		fnBody:               filterFnBody,
+		firstEscapingStmt:    firstEscapingStmt,
+		hasDuplicateVarNames: hasDuplicateVarNames,
+		escapedStartedEmpty:  escapedStartedEmpty,
+	}
+
+	b := NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     &finder,
+		scopeCreator: scopeCreator,
+	}
+	t := acquireNodeTraversal(&b)
+	t.TraverseAtScope(jsScope)
+	releaseNodeTraversal(t)
 }
 
 // dataFlowAnalysis_escapedFinder is the anonymous AbstractPostOrderCallback
 // of computeEscaped.
 type dataFlowAnalysis_escapedFinder struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
+	jsScope              *Scope
+	nonEscapingDepth     int
+	escaped              *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn          *jutil.LinkedHashMap[string, *Var]
+	skipArgs             *rhino.Node
+	fnBody               *rhino.Node
+	firstEscapingStmt    *rhino.Node
+	reachedFirstEscaping bool
+	hasDuplicateVarNames bool
+	escapedStartedEmpty  bool
+}
 
-	jsScope      *Scope
-	jsScopeDepth int
-	escaped      *jutil.ObjectLinkedHashSet[*Var]
-	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
+func (f *dataFlowAnalysis_escapedFinder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	if !f.hasDuplicateVarNames && f.escapedStartedEmpty && f.escaped.Size() >= f.allVarsInFn.Size() {
+		return false
+	}
+	if n == f.skipArgs {
+		return false
+	}
+	if parent != nil && parent == f.fnBody {
+		if !f.reachedFirstEscaping {
+			if n != f.firstEscapingStmt {
+				return false
+			}
+			f.reachedFirstEscaping = true
+			return true
+		}
+		return n.IsFunction() || n.IsClass() || dfaHasNestedFunctionOrClass(n)
+	}
+	return true
 }
 
 func (f *dataFlowAnalysis_escapedFinder) isInsideEscapingScope(t *NodeTraversal) bool {
-	for i := len(t.scopes) - 1; i > f.jsScopeDepth; i-- {
+	for i := len(t.scopes) - 1; i > f.nonEscapingDepth; i-- {
 		root := t.scopes[i].node
 		switch root.GetToken() {
 		case rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_ROOT:
@@ -714,12 +794,22 @@ func (f *dataFlowAnalysis_escapedFinder) isInsideEscapingScope(t *NodeTraversal)
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 
-	if !n.IsName() || parent.IsFunction() || !f.isInsideEscapingScope(t) {
+	if !n.IsName() || parent.IsFunction() {
 		return
 	}
 
 	name := n.GetString()
-	if f.allVarsInFn != nil && f.allVarsInFn.Get(name) == nil {
+	if f.allVarsInFn != nil {
+		targetVar := f.allVarsInFn.Get(name)
+		if targetVar == nil {
+			return
+		}
+		if !f.hasDuplicateVarNames && f.escaped.Contains(targetVar) {
+			return
+		}
+	}
+
+	if !f.isInsideEscapingScope(t) {
 		return
 	}
 

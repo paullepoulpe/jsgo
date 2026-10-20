@@ -152,18 +152,36 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 	}
 
 	// Computes liveness information first.
-	cfg := d.GetControlFlowGraph(d.compiler)
 	if d.scopeCreator == nil {
 		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
 	}
 	scopeCreator := d.scopeCreator
 	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
+	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
+		return
+	}
+	cfg := d.GetControlFlowGraph(d.compiler)
 	d.livenessStorage.Reset(
 		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
 	d.liveness = &d.livenessStorage
-	d.liveness.Analyze()
 	allVarsInFn := d.liveness.GetAllVariables()
+	if allVarsEscaped(allVarsInFn, d.liveness.GetEscapedLocals()) {
+		return
+	}
+	d.liveness.Analyze()
 	d.TryRemoveDeadAssignments(t, cfg, allVarsInFn)
+}
+
+func allVarsEscaped(allVarsInFn *jutil.LinkedHashMap[string, *Var], escaped *jutil.ObjectLinkedHashSet[*Var]) bool {
+	if escaped.Size() < allVarsInFn.Size() {
+		return false
+	}
+	for v := range allVarsInFn.Values() {
+		if !escaped.Contains(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // IsRemovableAssign matches all assignment operators and increment/decrement

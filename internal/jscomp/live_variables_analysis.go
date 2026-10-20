@@ -60,6 +60,8 @@ type LiveVariablesAnalysis struct {
 
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 
+	useSmallVarScan bool
+
 	escapedBits jutil.BitSet
 	genScratch  jutil.BitSet
 	killScratch jutil.BitSet
@@ -292,6 +294,19 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 		}
 		num++
 	}
+	l.useSmallVarScan = len(l.orderedVars) <= 16 && l.scopeVariables.Size() == len(l.orderedVars)
+}
+
+func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
+	if l.useSmallVarScan {
+		for i, v := range l.orderedVars {
+			if v.name == name {
+				return i, true
+			}
+		}
+		return 0, false
+	}
+	return l.scopeVariables.Lookup(name)
 }
 
 // Java: LiveVariablesAnalysis.getEscapedLocals()
@@ -311,7 +326,7 @@ func (l *LiveVariablesAnalysis) GetAllVariablesInOrder() []*Var {
 
 // Java: LiveVariablesAnalysis.getVarIndex(String)
 func (l *LiveVariablesAnalysis) GetVarIndex(var_ string) int {
-	index, ok := l.scopeVariables.Lookup(var_)
+	index, ok := l.lookupVarIndex(var_)
 	if !ok {
 		// Unboxing the null Integer that Map.get returns.
 		panic(jutil.NewNullPointerException())
@@ -350,7 +365,12 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	edgeList := l.GetCfg().GetOutEdges(node)
+	var edgeList []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
+		edgeList = l.curDiGraphNode.GetOutEdges()
+	} else {
+		edgeList = l.GetCfg().GetOutEdges(node)
+	}
 	for _, edge := range edgeList {
 		if ControlFlowGraph_Branch_ON_EX == edge.GetValue() {
 			conditional = true
@@ -485,7 +505,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
 func (l *LiveVariablesAnalysis) AddToSetIfLocal(node *rhino.Node, set *jutil.BitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	idx, ok := l.scopeVariables.Lookup(node.GetString())
+	idx, ok := l.lookupVarIndex(node.GetString())
 	if !ok || l.escapedBits.Get(idx) {
 		return
 	}
@@ -523,7 +543,7 @@ func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 		if param.IsName() {
 			name := param.GetString()
 			l.escaped.Add(l.jsScope.GetVar(name))
-			if idx, ok := l.scopeVariables.Lookup(name); ok {
+			if idx, ok := l.lookupVarIndex(name); ok {
 				l.escapedBits.Set(idx)
 			}
 		}

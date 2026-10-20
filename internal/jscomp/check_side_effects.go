@@ -84,7 +84,15 @@ func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffe
 func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
 
-	NodeTraversal_Traverse(c.compiler, root, c)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
 
 	// Code with hidden side-effect code is common, for example
 	// accessing "el.offsetWidth" forces a reflow in browsers, to allow this

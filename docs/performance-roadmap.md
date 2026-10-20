@@ -14,14 +14,14 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–7 below):
-  after seven rounds of systematic substrate, data-structure, pass-level, and
-  inter-pass arena optimizations, `jsgo` is **1.62×–5.20× faster than cold Java (`java -jar`)**
-  and **1.22×–1.80× faster than a warm JIT-compiled JVM** across all 11
-  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` and
-  26-library / 36.1 MB `bundle-mega` `ADVANCED` builds), while using
-  **2.9×–10.2× less peak RSS** than warm Java. Even single-threaded (`t=1`),
-  `jsgo` matches or beats 4-thread warm Java (`1.02×–1.75×`) across all 11
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–10 below):
+  after ten rounds of systematic substrate, data-structure, pass-level, and
+  inter-pass arena optimizations, `jsgo` is **1.93×–5.31× faster than cold Java (`java -jar`)**
+  and **1.25×–2.09× faster than a warm JIT-compiled JVM** across all 11
+  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` in **19.83 s** and
+  26-library / 36.1 MB `bundle-mega` in **25.70 s**), while using
+  **2.8×–9.4× less peak RSS** than warm Java. Even single-threaded (`t=1`),
+  `jsgo` matches or beats 4-thread warm Java (`1.03×–2.02×`) across all 11
   benchmarks.
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
@@ -683,6 +683,47 @@ Total `alloc_space` dropped by another **−2.01 GB (−23.2%)** on `bundle-mega
 | **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 7.79 s / 7.67 s | **7.64 s** / **7.49 s** | **−1.9%** / **−2.3%** | 20.78 s | 12.41 s | **2.72×** / **2.77× faster** | **1.62×** / **1.66× faster** (−4.92 s) | **799–906 MiB** vs 2,422 / 2,850+ MiB (**2.7× / 3.1× lower**) |
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.30 s / 5.08 s | **5.20 s** / **4.96 s** | **−2.1%** / **−2.4%** | 15.26 s | 8.67 s | **2.93×** / **3.08× faster** | **1.67×** / **1.75× faster** (−3.71 s) | **547–579 MiB** vs 1,341 / 2,852 MiB (**2.3× / 4.9× lower**) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 4.00 s / 3.83 s | **3.86 s** / **3.68 s** | **−3.3%** / **−3.8%** | 11.30 s | 6.79 s | **2.93×** / **3.07× faster** | **1.76×** / **1.85× faster** (−3.11 s) | **454–531 MiB** vs 1,600 / 3,795 MiB (**3.0× / 7.1× lower**) |
+
+## Round 10: `scopeArena` Chunk Retention (`−60%` `allocScope`), `DrainParseArenaPool` (`−637 MiB` / `−21%` Peak RSS), `RemoveUnusedCode` Polyfill Bitmask, Zero-Alloc `GuardedCallbackBase`, and Early Dataflow Bailouts (2026-10-20)
+
+Profiling Round 9 (`e5d0987a`) on `bundle-mega` (`6.64 GB` `alloc_space`) and `typed-mega` (`5.21 GB` `alloc_space`) uncovered five remaining bottlenecks:
+
+1. **`scopeArena` Chunk Truncation Fix & Pass Pooling (`Subagent 10A`, `scope.go`, `typed_scope_creator.go`, and 9 pass files):**
+   - **Eliminated `~372 MB` of `scopeArena.allocScope` Churn on `bundle-mega`:** In Round 9, `maxScopeChunkSize = 2048, maxScopeChunks = 96` only retained `196,608` `Scope`s, whereas `bundle-mega` creates ~350,000 `Scope`s per pass (`FUNCTION` + `BLOCK` scopes plus inner block scopes). On every `release()`, `a.scopeChunks[:96]` truncated ~80 chunks (`~12 MB`) of `[]Scope` slabs, forcing the next pass to allocate and zero new OS pages. Raising `maxScopeChunkSize = 4096, maxScopeChunks = 128` (`524,288` `Scope`s) and `maxVarChunks = maxSlotChunks = maxHashChunks = 128`, plus wiring `EnableArenaPool()` in `TypedScopeCreator.CreateInitialScope`, `FindModuleDependencies`, `CheckAccessControls`, `CheckTypeImportCodeReferences`, `CheckClosureImports`, `ClosureRewriteModule`, `ConstCheck`, `Es6CheckModule`, `CheckSideEffects`, and `Denormalize` cut `scopeArena.allocScope` by **−60.4%** on `bundle-mega` (`615.84 MB → 244 MB`) and **−61.2%** on `typed-mega` (`487 MB → 189 MB`).
+2. **Unpinning `ParseArena` After `Compiler.ParseInputs` (`Subagent 10B`, `parse_arena.go`, `compiler.go`):**
+   - Added `parser.DrainParseArenaPool()` and called `defer parser.DrainParseArenaPool()` in `Compiler.ParseInputs()`, allowing the 4 `ParseArena`s to be shared across worker goroutines during parallel input parsing and then immediately reclaimed by the GC before `TypeCheck` and `PhaseOptimizer` begin—reducing Peak RSS by **−636.5 MiB (−21.1%)** on `bundle-mega`, **−250.4 MiB (−30.3%)** on `bundle`, **−219.4 MiB (−24.5%)** on `bundle-advanced-ts`, and **−122.8 MiB (−6.1%)** on `typed-mega`.
+3. **Polyfill Bitmask Filter in `RemoveUnusedCode` & Zero-Alloc `GuardedCallbackBase` (`Subagent 10C`, `remove_unused_code.go`, `guarded_callback.go`, `polyfill_usage_finder.go`):**
+   - Added `polyfillLenMask [256]uint64` and `polyfillEndMask [256]uint64` `(firstByte/lastByte, length)` bitmasks on `RemoveUnusedCode` so `TraverseNameNode` and `TraverseNormalOrOptChainGetProp` skip `r.polyfills.ContainsKey(name)` string hashing (`jutil.StringHashCode`) on 98%+ of `NAME` and `GETPROP` nodes.
+   - Replaced `SetMultimap`/`HashMultiset`/`ListMultimap` in `GuardedCallbackBase` with lazily allocated native Go maps, added `emptyDepth int` and `[256]uint8` `guardedCallback_tokenFlags` to bypass `descendInto` and `NodeUtil_IsStatement` when at `EMPTY` context, and added `sc.EnableArenaPool()` in `PolyfillUsageFinder.TraverseExcludingGuarded` / `TraverseIncludingGuarded`.
+4. **`DataFlowAnalysis_ComputeEscaped`, `FlowSensitiveInlineVariables`, `CoalesceVariableNames`, and `NodeUtil_GetAllVarsDeclaredInFunction` Fast Paths (`Subagent 10D`, `data_flow_analysis.go`, `flow_sensitive_inline_variables.go`, `coalesce_variable_names.go`, `node_util.go`):**
+   - Added early bailouts in `DataFlowAnalysis_ComputeEscaped` (`dataFlowAnalysis_escapedFinder`), `FlowSensitiveInlineVariables.EnterScope`, and `CoalesceVariableNames.EnterScopeWithCfg` when all local variables in a function are already escaped or when fewer than 2 unescaped coalescable candidates exist (skipping CFG construction, reaching-definition / liveness dataflow analysis, and interference graph coloring), and pruned non-declaring statement subtrees in `NodeUtil_GetAllVarsDeclaredInFunction`.
+5. **`LiveVariablesAnalysis` & `DeadAssignmentsElimination` Fast Paths (`Subagent 10E`, `live_variables_analysis.go`, `dead_assignments_elimination.go`):**
+   - Replaced `l.GetCfg().GetOutEdges(node)` map lookups in `LiveVariablesAnalysis.FlowThrough` with `l.curDiGraphNode.GetOutEdges()`, added a linear scan fast path (`useSmallVarScan`) for functions with $\le 16$ variables without shadowed names, and reordered `DeadAssignmentsElimination.EliminateDeadAssignments` to skip CFG construction and liveness analysis when a function has 0 unescaped local variables.
+
+Total `alloc_space` dropped to **6.21 GB** on `bundle-mega` (**−63.8% vs Round 5's `17.16 GB`**) and **5.05 GB** on `typed-mega` (**−56.5% vs Round 5's `11.61 GB`**), and `typed-mega` (`t=4`) broke the **20-second barrier** (`19.83 s`, **1.93× faster than cold Java and 1.49× faster than warm Java**), while `bundle-mega` (`t=4`) reached **25.70 s** (**2.60× faster than cold Java and 2.09× faster than warm Java**).
+
+### Final measured results — Round 10 (`t=1` and `t=4`, interleaved, N=3, PGO enabled)
+
+#### Standard 5 Benchmarks
+
+| Benchmark | Original (`c9872522`) | Round 9 (`e5d0987a` `t=1`/`t=4`) | **Round 10 (`t=1` / `t=4`)** | Round 10 vs Round 9 (`t=1`/`t=4`) | Total vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-app`** | 2.86 s | 1.59 s / 1.46 s | **1.57 s** / **1.44 s** | **−1.2%** / **−0.9%** | **−45.1%** / **−49.7%** | 6.14 s / 2.18 s | **4.26×** / **1.51×** | **256–260 MiB** vs 758 / 1,871 MiB (**2.9× / 7.2× lower**, −11.3% RSS) |
+| **`bundle`** (12.6 MB) | 11.82 s | 4.99 s / 4.88 s | **4.89 s** / **4.82 s** | **−2.0%** / **−1.3%** | **−58.6%** / **−59.2%** | 16.40 s / 8.68 s | **3.40×** / **1.80×** | **577 MiB** vs 2,151 / 2,343 MiB (**3.7× / 4.1× lower**, −30.3% RSS) |
+| **`downlevel-whitespace`** | 0.86 s | 0.58 s / 0.49 s | **0.58 s** / **0.48 s** | **−1.2%** / **−1.7%** | **−32.6%** / **−44.2%** | 2.55 s / 0.60 s | **5.31×** / **1.25×** | **165–187 MiB** vs 553 / 1,437 MiB (**3.0× / 8.7× lower**, −25.0% RSS) |
+| **`downlevel-simple`** | 2.39 s | 1.26 s / 1.16 s | **1.21 s** / **1.12 s** | **−3.8%** / **−3.9%** | **−49.4%** / **−53.1%** | 4.68 s / 1.60 s | **4.18×** / **1.43×** | **199–206 MiB** vs 613 / 1,489 MiB (**3.0× / 7.5× lower**, −22.9% RSS) |
+| **`checks-only`** | 4.40 s | 2.72 s / 2.33 s | **2.73 s** / **2.33 s** | **+0.1%** / **+0.1%** | **−38.0%** / **−47.0%** | 6.55 s / 3.20 s | **2.81×** / **1.37×** | **611–640 MiB** vs 1,591 / 3,562 MiB (**2.5× / 5.6× lower**, −12.0% RSS) |
+
+#### Large & Mega Real-World `ADVANCED` Benchmarks
+
+| Benchmark | Workload (`--compilation_level=ADVANCED`) | Round 9 (`e5d0987a` `t=1`/`t=4`) | **Round 10 (`t=1` / `t=4`)** | Round 10 vs Round 9 (`t=1`/`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-mega`** | **44.6 MB, 4,385 files** (10 Closure `ADVANCED` codebases, 94.1% typed → 14.33 MB JS + 22.29 MB map) | 21.40 s / 20.29 s | **20.96 s** / **19.83 s** | **−2.0%** / **−2.3%** | 38.18 s | 29.53 s | **1.82×** / **1.93× faster** | **1.41×** / **1.49× faster** (−9.70 s) | **1,804–1,908 MiB** vs 6,608 / 6,881 MiB (**3.5× / 3.6× lower**, −123 MiB vs R9) |
+| **`bundle-mega`** | **36.1 MB, 26 UMD libraries** (27,597 warnings → 13.09 MB JS + 33.99 MB map) | 27.57 s / 26.73 s | **26.51 s** / **25.70 s** | **−3.9%** / **−3.8%** | 66.71 s | 53.60 s | **2.52×** / **2.60× faster** | **2.02×** / **2.09× faster** (−27.90 s) | **2,387–2,444 MiB** vs 4,421 / 6,775 MiB (**1.8× / 2.8× lower**, −637 MiB / −21.1% vs R9) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 12.37 s / 11.70 s | **12.13 s** / **11.48 s** | **−2.0%** / **−1.9%** | 31.60 s | 20.21 s | **2.61×** / **2.75× faster** | **1.67×** / **1.76× faster** (−8.73 s) | **1,036–1,057 MiB** vs 1,603 / 4,724 MiB (**1.5× / 4.5× lower**, −117 MiB vs R9) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 7.62 s / 7.49 s | **7.54 s** / **7.41 s** | **−1.0%** / **−1.0%** | 20.78 s | 12.41 s | **2.76×** / **2.80× faster** | **1.65×** / **1.67× faster** (−5.00 s) | **633–677 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.2× lower**, −219 MiB / −24.5% vs R9) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.19 s / 4.95 s | **5.08 s** / **4.84 s** | **−2.1%** / **−2.2%** | 15.26 s | 8.67 s | **3.00×** / **3.15× faster** | **1.71×** / **1.79× faster** (−3.83 s) | **513–528 MiB** vs 1,341 / 2,852 MiB (**2.5× / 5.4× lower**, −47 MiB vs R9) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 3.86 s / 3.69 s | **3.83 s** / **3.66 s** | **−0.8%** / **−0.9%** | 11.30 s | 6.79 s | **2.95×** / **3.09× faster** | **1.77×** / **1.86× faster** (−3.13 s) | **395–404 MiB** vs 1,600 / 3,795 MiB (**4.0× / 9.4× lower**, −123 MiB / −23.3% vs R9) |
 
 ## Smaller open items
 

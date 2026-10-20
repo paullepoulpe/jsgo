@@ -231,7 +231,7 @@ func fsivSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
 
 func fsivHasNestedBlockScopeDecls(fnNode *rhino.Node, fnBody *rhino.Node) bool {
 	for p := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); p != nil; p = p.GetNext() {
-		if !p.IsName() {
+		if !p.IsName() && fsivSubtreeHasBlockScopeDecls(p) {
 			return true
 		}
 	}
@@ -294,6 +294,23 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		return
 	}
 
+	f.escapedSet.Clear()
+	escaped := &f.escapedSet
+	DataFlowAnalysis_ComputeEscaped(
+		fnScope, escaped, f.compiler, scopeCreator, allVarsInFn)
+	if escaped.Size() >= allVarsInFn.Size() {
+		hasUnescaped := false
+		for v := range allVarsInFn.Values() {
+			if !escaped.Contains(v) {
+				hasUnescaped = true
+				break
+			}
+		}
+		if !hasUnescaped {
+			return
+		}
+	}
+
 	// Compute the forward reaching definition.
 	f.cfg = f.cfaStorage.ComputeReusableCfg(
 		f.compiler,
@@ -301,11 +318,6 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		/* shouldTraverseFunctions= */ false,
 		/* edgeAnnotations= */ true,
 		&f.cfgStorage)
-
-	f.escapedSet.Clear()
-	escaped := &f.escapedSet
-	DataFlowAnalysis_ComputeEscaped(
-		scope.GetParent(), escaped, f.compiler, scopeCreator, allVarsInFn)
 
 	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef = &f.reachingDefStorage
@@ -484,10 +496,6 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		}
 
 		name := n.GetString()
-		// This pass only runs on local scopes.
-		if cb.outer.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, true) {
-			return
-		}
 
 		var def *MustBeReachingVariableDef_Definition
 		if cb.inState != nil {
@@ -497,7 +505,10 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		}
 		// TODO(nicksantos): We need to add some notion of @const outer
 		// scope vars. We can inline those just fine.
-		if def != nil && !def.node.IsFunction() && !cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
+		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
+			// This pass only runs on local scopes.
+			!cb.outer.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, true) &&
+			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
 			cb.outer.candidates.Add(cb.outer.allocCandidate(name, def, n, cb.cfgNode))
 		}
 	}
@@ -526,6 +537,10 @@ func NewFlowSensitiveInlineVariables_GatherCandidates(outer *FlowSensitiveInline
 
 // Java: FlowSensitiveInlineVariables.GatherCandidates.visit(NodeTraversal, Node, Node)
 func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
+		return
+	}
 	graphNode := g.outer.cfg.GetDiGraphNode(n)
 	if graphNode == nil {
 		// Not a CFG node.
@@ -579,49 +594,46 @@ func fsivWalkGatherCandidates(n, parent *rhino.Node, cb *FlowSensitiveInlineVari
 			child = next
 		}
 	case rhino.Token_FUNCTION:
-		fnName := n.GetFirstChild()
-		if parent != nil {
-			_ = NodeUtil_IsFunctionDeclaration(n)
+		if parent == nil {
+			fnName := n.GetFirstChild()
+			args := fnName.GetNext()
+			body := args.GetNext()
+			fsivWalkGatherCandidates(fnName, n, cb, currentNode)
+			fsivWalkGatherCandidates(args, n, cb, currentNode)
+			fsivWalkGatherCandidates(body, n, cb, currentNode)
 		}
-		args := fnName.GetNext()
-		body := args.GetNext()
-		fsivWalkGatherCandidates(fnName, n, cb, currentNode)
-		fsivWalkGatherCandidates(args, n, cb, currentNode)
-		fsivWalkGatherCandidates(body, n, cb, currentNode)
-	case rhino.Token_CLASS:
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
-		_ = NodeUtil_IsClassExpression(n)
-		fsivWalkGatherCandidates(extendsClause, n, cb, currentNode)
-		fsivWalkGatherCandidates(className, n, cb, currentNode)
-		fsivWalkGatherCandidates(body, n, cb, currentNode)
-	case rhino.Token_CLASS_MEMBERS:
+	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				fsivWalkGatherCandidates(child.GetFirstChild(), child, cb, currentNode)
-			}
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
 			child = next
 		}
-		for child := n.GetFirstChild(); child != nil; {
+	case rhino.Token_IF:
+		for child := n.GetSecondChild(); child != nil; {
 			next := child.GetNext()
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				*currentNode = n
-				if child.HasTwoChildren() {
-					fsivWalkGatherCandidates(child.GetLastChild(), child, cb, currentNode)
-				}
-				*currentNode = n
-				cb.Visit(nil, child, n)
-			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
-				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-				fsivWalkGatherCandidates(child, n, cb, currentNode)
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
-			}
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
 			child = next
 		}
+	case rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
+		if second := n.GetSecondChild(); second != nil {
+			fsivWalkGatherCandidates(second, n, cb, currentNode)
+		}
+	case rhino.Token_DO, rhino.Token_DEFAULT_CASE:
+		if first := n.GetFirstChild(); first != nil {
+			fsivWalkGatherCandidates(first, n, cb, currentNode)
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		if first := n.GetFirstChild(); first != nil {
+			fsivWalkGatherCandidates(first, n, cb, currentNode)
+			if last := n.GetLastChild(); last != nil && last != first {
+				fsivWalkGatherCandidates(last, n, cb, currentNode)
+			}
+		}
+	case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
+		rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE,
+		rhino.Token_DEBUGGER, rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
+		// ControlFlowAnalysis does not enter expressions or classes, so no child of
+		// these nodes is in the CFG.
 	default:
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()

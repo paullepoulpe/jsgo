@@ -29,17 +29,17 @@ import (
 
 const (
 	minScopeChunkSize    = 16
-	maxScopeChunkSize    = 2048
-	maxScopeChunks       = 96
+	maxScopeChunkSize    = 4096
+	maxScopeChunks       = 128
 	minVarChunkSize      = 32
 	maxVarChunkSize      = 4096
-	maxVarChunks         = 96
+	maxVarChunks         = 128
 	minSlotChunkSize     = 128
 	maxSlotChunkSize     = 16384
-	maxSlotChunks        = 96
+	maxSlotChunks        = 128
 	minHashChunkSize     = 256
 	maxHashChunkSize     = 32768
-	maxHashChunks        = 96
+	maxHashChunks        = 128
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
 	maxImplicitChunks    = 32

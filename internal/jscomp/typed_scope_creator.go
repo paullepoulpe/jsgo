@@ -564,6 +564,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	// Gather global information used in typed scope creation. Use a memoized scope creator because
 	// scope-building takes a nontrivial amount of time.
 	scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(c.compiler))
+	scopeCreator.EnableArenaPool()
 	defer scopeCreator.ReleaseArena()
 
 	NodeTraversal_Builder_().
