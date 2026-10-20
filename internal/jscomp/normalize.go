@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -132,9 +134,9 @@ func Normalize_IsFunctionExpressionNameNode(n *rhino.Node) bool {
 
 // Java: Normalize.process(Node, Node)
 func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
-	renamer := MakeDeclaredNamesUnique_Builder_().WithAssertOnChange(n.assertOnChange).Build()
-	NodeTraversal_TraverseRoots(
-		n.compiler, NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange, renamer), externs, root)
+	normStmts := NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange, nil)
+	normStmts.initFastContextualRenamer()
+	NodeTraversal_TraverseRoots(n.compiler, normStmts, externs, root)
 
 	NodeTraversal_Builder_().
 		SetCompiler(n.compiler).
@@ -154,15 +156,18 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 // DuplicateDeclarationHandler.
 type Normalize_PropagateConstantPropertyOverVars struct {
 	compiler       AbstractCompiler
+	convention     CodingConvention
 	assertOnChange bool
 }
 
 // Java: Normalize.PropagateConstantPropertyOverVars(AbstractCompiler, boolean)
 func NewNormalize_PropagateConstantPropertyOverVars(
 	compiler AbstractCompiler, forbidChanges bool) *Normalize_PropagateConstantPropertyOverVars {
-	p := &Normalize_PropagateConstantPropertyOverVars{}
-	p.compiler = compiler
-	p.assertOnChange = forbidChanges
+	p := &Normalize_PropagateConstantPropertyOverVars{
+		compiler:       compiler,
+		convention:     compiler.GetCodingConvention(),
+		assertOnChange: forbidChanges,
+	}
 	return p
 }
 
@@ -187,25 +192,42 @@ func (p *Normalize_PropagateConstantPropertyOverVars) ShouldTraverse(
 // Java: Normalize.PropagateConstantPropertyOverVars.visit(NodeTraversal, Node, Node)
 func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	// Note: Constant properties annotations are not propagated.
-	if !n.IsName() || n.GetString() == "" {
+	if !n.IsName() || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
+		return
+	}
+	name := n.GetString()
+	if name == "" {
 		return
 	}
 
 	// Find the JSDocInfo for a top-level variable
-	var_ := t.GetScope().GetVar(n.GetString())
-	var info *rhino.JSDocInfo
+	var_ := t.GetScope().GetVar(name)
+	var shouldBeConstant bool
 	if var_ != nil {
-		info = var_.GetJSDocInfo()
+		switch var_.nameHash {
+		case 1:
+			shouldBeConstant = false
+		case 2:
+			shouldBeConstant = true
+		default:
+			if var_.IsConst() || Normalize_IsFunctionExpressionNameNode(var_.GetNode()) {
+				shouldBeConstant = true
+			} else if info := var_.GetJSDocInfo(); info != nil && info.IsConstant() {
+				shouldBeConstant = true
+			} else if p.convention.IsConstant(name) {
+				shouldBeConstant = true
+			}
+			if shouldBeConstant {
+				var_.nameHash = 2
+			} else {
+				var_.nameHash = 1
+			}
+		}
+	} else {
+		shouldBeConstant = p.convention.IsConstant(name)
 	}
-
-	shouldBeConstant :=
-		(var_ != nil && (var_.IsConst() || Normalize_IsFunctionExpressionNameNode(var_.GetNode()))) ||
-			(info != nil && info.IsConstant()) ||
-			NodeUtil_IsConstantByConvention(p.compiler.GetCodingConvention(), n)
-	isMarkedConstant := n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
-	if shouldBeConstant && !isMarkedConstant {
+	if shouldBeConstant {
 		if p.assertOnChange {
-			name := n.GetString()
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Should be const but not marked as const.\n" +
 					"  name: " +
@@ -218,6 +240,12 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	}
 }
 
+type normalizeRenameUndo struct {
+	name    string
+	oldRepl string
+	hadOld  bool
+}
+
 // Normalize_NormalizeStatements simplifies the AST:
 //   - VAR declarations split, so they represent exactly one child
 //     declaration.
@@ -228,10 +256,20 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 //   - Add constant annotations based on coding convention.
 type Normalize_NormalizeStatements struct {
 	compiler                                AbstractCompiler
+	convention                              CodingConvention
 	astFactory                              *AstFactory
 	assertOnChange                          bool
+	isNormalizedObfuscated                  bool
 	makeDeclaredNamesUnique                 *MakeDeclaredNamesUnique
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
+
+	useFastContextualRenamer bool
+	nameUsage                map[string]int
+	activeReplacements       map[string]string
+	undoStack                []normalizeRenameUndo
+	scopeUndoOffsets         []int
+	undoBuf                  [16]normalizeRenameUndo
+	scopeUndoBuf             [16]int
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -243,15 +281,159 @@ func NewNormalize_NormalizeStatements(
 	compiler AbstractCompiler,
 	assertOnChange bool,
 	makeDeclaredNamesUnique *MakeDeclaredNamesUnique) *Normalize_NormalizeStatements {
-	s := &Normalize_NormalizeStatements{}
-	s.compiler = compiler
-	s.assertOnChange = assertOnChange
-	s.makeDeclaredNamesUnique = makeDeclaredNamesUnique
-	s.astFactory = compiler.CreateAstFactory()
+	s := &Normalize_NormalizeStatements{
+		compiler:                compiler,
+		convention:              compiler.GetCodingConvention(),
+		assertOnChange:          assertOnChange,
+		isNormalizedObfuscated:  compiler.GetLifeCycleStage().IsNormalizedObfuscated(),
+		makeDeclaredNamesUnique: makeDeclaredNamesUnique,
+		astFactory:              compiler.CreateAstFactory(),
+	}
 	s.rewriteLogicalAssignmentOperatorsHelper =
 		NewRewriteLogicalAssignmentOperatorsHelper(
 			compiler, s.astFactory, compiler.GetUniqueIdSupplier())
 	return s
+}
+
+func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
+	s.useFastContextualRenamer = true
+	s.nameUsage = make(map[string]int, 64)
+	s.undoStack = s.undoBuf[:0]
+	s.scopeUndoOffsets = s.scopeUndoBuf[:0]
+}
+
+func normalizeScopeMayHaveDeclarations(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
+		return false
+	case rhino.Token_CLASS:
+		classNameNode := n.GetFirstChild()
+		return !classNameNode.IsEmpty() && NodeUtil_IsClassExpression(n)
+	case rhino.Token_FUNCTION:
+		fnNameNode := n.GetFirstChild()
+		args := fnNameNode.GetNext()
+		if args.HasChildren() {
+			return true
+		}
+		return fnNameNode.GetString() != "" && NodeUtil_IsFunctionExpression(n)
+	case rhino.Token_FOR, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
+		first := n.GetFirstChild()
+		if first == nil {
+			return false
+		}
+		switch first.GetToken() {
+		case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CLASS, rhino.Token_FUNCTION:
+			return true
+		default:
+			return false
+		}
+	case rhino.Token_BLOCK:
+		if NodeUtil_IsFunctionBlock(n) || NodeUtil_IsClassStaticBlock(n) {
+			return n.HasChildren()
+		}
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			switch c.GetToken() {
+			case rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS,
+				rhino.Token_CATCH, rhino.Token_EXPORT, rhino.Token_LABEL, rhino.Token_BLOCK:
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
+}
+
+func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
+	declarationRoot := t.GetScopeRoot()
+	if len(s.scopeUndoOffsets) == 0 {
+		jutil.CheckState(!declarationRoot.IsFunction())
+		s.scopeUndoOffsets = append(s.scopeUndoOffsets, 0)
+		for v := range t.GetScope().GetVarIterable() {
+			name := v.GetName()
+			if name != MakeDeclaredNamesUnique_ARGUMENTS {
+				if _, exists := s.nameUsage[name]; !exists {
+					s.nameUsage[name] = 1
+				}
+			}
+		}
+		return
+	}
+
+	s.scopeUndoOffsets = append(s.scopeUndoOffsets, len(s.undoStack))
+	if !normalizeScopeMayHaveDeclarations(declarationRoot) {
+		return
+	}
+	for v := range t.GetScope().GetVarIterable() {
+		name := v.GetName()
+		if name == MakeDeclaredNamesUnique_ARGUMENTS {
+			continue
+		}
+		id := s.nameUsage[name]
+		s.nameUsage[name] = id + 1
+		if id != 0 {
+			unique := name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id)
+			for {
+				uid, exists := s.nameUsage[unique]
+				if !exists || uid == 0 {
+					break
+				}
+				s.nameUsage[unique] = uid + 1
+				unique = name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(uid)
+			}
+			if _, exists := s.nameUsage[unique]; !exists {
+				s.nameUsage[unique] = 1
+			}
+			if s.activeReplacements == nil {
+				s.activeReplacements = make(map[string]string, 16)
+			}
+			oldRepl, hadOld := s.activeReplacements[name]
+			s.undoStack = append(s.undoStack, normalizeRenameUndo{
+				name:    name,
+				oldRepl: oldRepl,
+				hadOld:  hadOld,
+			})
+			s.activeReplacements[name] = unique
+		}
+	}
+}
+
+func (s *Normalize_NormalizeStatements) fastExitScope(t *NodeTraversal) {
+	if !t.InGlobalScope() {
+		offset := s.scopeUndoOffsets[len(s.scopeUndoOffsets)-1]
+		s.scopeUndoOffsets = s.scopeUndoOffsets[:len(s.scopeUndoOffsets)-1]
+		for i := len(s.undoStack) - 1; i >= offset; i-- {
+			u := s.undoStack[i]
+			if u.hadOld {
+				s.activeReplacements[u.name] = u.oldRepl
+			} else {
+				delete(s.activeReplacements, u.name)
+			}
+		}
+		s.undoStack = s.undoStack[:offset]
+	}
+}
+
+func (s *Normalize_NormalizeStatements) fastVisitNameOrImportStar(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if len(s.activeReplacements) == 0 {
+		return
+	}
+	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
+		return
+	}
+	newName, ok := s.activeReplacements[n.GetString()]
+	if !ok {
+		return
+	}
+	if s.assertOnChange {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + newName + " for " + n.String()))
+	}
+	n.SetString(newName)
+	t.ReportCodeChange()
+	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+		s.compiler.ReportChangeToEnclosingScope(parent)
+	}
 }
 
 // Java: Normalize.NormalizeStatements.reportCodeChange(String, Node)
@@ -264,21 +446,25 @@ func (s *Normalize_NormalizeStatements) ReportCodeChange(changeDescription strin
 
 // Java: Normalize.NormalizeStatements.enterScope(NodeTraversal)
 func (s *Normalize_NormalizeStatements) EnterScope(t *NodeTraversal) {
-	if s.makeDeclaredNamesUnique != nil {
+	if s.useFastContextualRenamer {
+		s.fastEnterScope(t)
+	} else if s.makeDeclaredNamesUnique != nil {
 		s.makeDeclaredNamesUnique.EnterScope(t)
 	}
 }
 
 // Java: Normalize.NormalizeStatements.exitScope(NodeTraversal)
 func (s *Normalize_NormalizeStatements) ExitScope(t *NodeTraversal) {
-	if s.makeDeclaredNamesUnique != nil {
+	if s.useFastContextualRenamer {
+		s.fastExitScope(t)
+	} else if s.makeDeclaredNamesUnique != nil {
 		s.makeDeclaredNamesUnique.ExitScope(t)
 	}
 }
 
 // Java: Normalize.NormalizeStatements.shouldTraverse(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if s.makeDeclaredNamesUnique != nil {
+	if !s.useFastContextualRenamer && s.makeDeclaredNamesUnique != nil {
 		_ = s.makeDeclaredNamesUnique.ShouldTraverse(t, n, parent)
 	}
 
@@ -293,6 +479,39 @@ func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n *rhin
 
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if s.useFastContextualRenamer {
+		switch n.GetToken() {
+		case rhino.Token_NAME:
+			s.fastVisitNameOrImportStar(t, n, parent)
+			if !n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
+				if !s.isNormalizedObfuscated && s.convention.IsConstant(n.GetString()) {
+					jutil.CheckStateMsg1(!s.assertOnChange, "Not marked as constant when it should be: %s", n)
+					n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+				} else if parent != nil && parent.IsFunction() && n == parent.GetFirstChild() && NodeUtil_IsFunctionExpression(parent) {
+					n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+				}
+			}
+		case rhino.Token_IMPORT_STAR:
+			s.fastVisitNameOrImportStar(t, n, parent)
+		case rhino.Token_WHILE:
+			expr := n.GetFirstChild()
+			n.SetToken(rhino.Token_FOR)
+			empty := rhino.IR_Empty()
+			empty.SrcrefIfMissing(n)
+			empty.InsertBefore(expr)
+			empty.CloneNode().InsertAfter(expr)
+			s.ReportCodeChange("WHILE node", n)
+		case rhino.Token_ARRAYLIT, rhino.Token_CALL, rhino.Token_PARAM_LIST, rhino.Token_NEW,
+			rhino.Token_OBJECTLIT, rhino.Token_OPTCHAIN_CALL:
+			n.SetTrailingComma(false)
+		case rhino.Token_DESTRUCTURING_LHS:
+			s.NormalizeDestructuringLhs(n)
+		case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
+			s.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(t, n)
+		}
+		return
+	}
+
 	if s.makeDeclaredNamesUnique != nil {
 		s.makeDeclaredNamesUnique.Visit(t, n, parent)
 	}
@@ -429,41 +648,33 @@ func (s *Normalize_NormalizeStatements) NormalizeBlocklessFunction(n *rhino.Node
 //
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
 func (s *Normalize_NormalizeStatements) DoStatementNormalizations(n *rhino.Node) {
-	if n.IsLabel() {
+	switch n.GetToken() {
+	case rhino.Token_LABEL:
 		s.NormalizeLabels(n)
-	}
-
-	// Only inspect the children of SCRIPTs, BLOCKs and LABELs, as all these
-	// are the only legal place for VARs and FOR statements.
-	if NodeUtil_IsStatementBlock(n) || n.IsLabel() {
-		// makes sure that var [a,b] destructuring from for-loop initializer is also extracted
 		s.ExtractForInitializer(n, nil, nil)
-	}
-
-	// Only inspect the children of SCRIPTs, BLOCKs, as all these
-	// are the only legal place for VARs.
-	if NodeUtil_IsStatementBlock(n) {
+	case rhino.Token_ROOT, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
+		s.ExtractForInitializer(n, nil, nil)
 		s.SplitVarDeclarations(n)
-	}
-
-	if n.IsFunction() {
+	case rhino.Token_BLOCK:
+		s.ExtractForInitializer(n, nil, nil)
+		s.SplitVarDeclarations(n)
+		if p := n.GetParent(); p != nil && p.IsClassMembers() {
+			s.MoveNamedFunctions(n)
+		}
+	case rhino.Token_FUNCTION:
 		s.NormalizeBlocklessFunction(n)
 		s.MoveNamedFunctions(n.GetLastChild())
-	}
-
-	if NodeUtil_IsClassStaticBlock(n) {
-		s.MoveNamedFunctions(n)
-	}
-
-	if n.IsExport() {
+	case rhino.Token_EXPORT:
 		// Perform the split in pre-order traversal to accurately normalize destructuring
 		// declarations.
 		s.SplitExportDeclaration(n)
-	}
-
-	if NodeUtil_IsCompoundAssignmentOp(n) && !NodeUtil_IsLogicalAssignmentOp(n) {
+	case rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND,
+		rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH,
+		rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL,
+		rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD:
 		// Logical assignments should be handled in visit(), not here
 		s.NormalizeAssignShorthand(n)
+	default:
 	}
 }
 
@@ -784,15 +995,14 @@ func Normalize_NormalizeStatements_AddToFront(parent *rhino.Node, newChild *rhin
 type Normalize_DuplicateDeclarationHandler struct {
 	outer *Normalize
 
-	hasOkDuplicateDeclaration *jutil.LinkedHashSet[*Var]
+	hasOkDuplicateDeclaration map[*Var]struct{}
 }
 
 // Java: Normalize.DuplicateDeclarationHandler()
 func NewNormalize_DuplicateDeclarationHandler(outer *Normalize) *Normalize_DuplicateDeclarationHandler {
-	h := &Normalize_DuplicateDeclarationHandler{}
-	h.outer = outer
-	h.hasOkDuplicateDeclaration = jutil.NewLinkedHashSet[*Var]()
-	return h
+	return &Normalize_DuplicateDeclarationHandler{
+		outer: outer,
+	}
 }
 
 // OnRedeclaration removes duplicate VAR declarations discovered during scope
@@ -811,7 +1021,11 @@ func (h *Normalize_DuplicateDeclarationHandler) OnRedeclaration(
 		// This deals with issues where a browser built-in is declared
 		// in one browser but not in another.
 		if v.IsExtern() && !input.IsExtern() {
-			if h.hasOkDuplicateDeclaration.Add(v) {
+			if h.hasOkDuplicateDeclaration == nil {
+				h.hasOkDuplicateDeclaration = make(map[*Var]struct{}, 8)
+			}
+			if _, exists := h.hasOkDuplicateDeclaration[v]; !exists {
+				h.hasOkDuplicateDeclaration[v] = struct{}{}
 				return
 			}
 		}

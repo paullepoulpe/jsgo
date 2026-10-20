@@ -54,12 +54,15 @@ type CollapseVariableDeclarations struct {
 	compiler AbstractCompiler
 
 	// Collapses to do in this pass.
-	collapses *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
+	collapses     *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
+	collapseNodes []*rhino.Node
+	collapseBuf   [32]*rhino.Node
 
 	// Nodes we've already looked at for collapsing, so that we don't look at
 	// them again (we look ahead when examining what nodes can be collapsed,
 	// and the node traversal may give them to us again)
 	nodesToCollapse *jutil.LinkedHashSet[*rhino.Node]
+	collapsedSet    map[*rhino.Node]struct{}
 }
 
 // CollapseVariableDeclarations_Collapse is the encapsulation of information
@@ -77,23 +80,22 @@ func NewCollapseVariableDeclarations_Collapse(startNode *rhino.Node) *CollapseVa
 
 // Java: CollapseVariableDeclarations(AbstractCompiler)
 func NewCollapseVariableDeclarations(compiler AbstractCompiler) *CollapseVariableDeclarations {
-	c := &CollapseVariableDeclarations{
-		collapses:       jutil.NewArrayList[*CollapseVariableDeclarations_Collapse](),
-		nodesToCollapse: jutil.NewLinkedHashSet[*rhino.Node](),
-	}
 	jutil.CheckState(!compiler.GetLifeCycleStage().IsNormalized())
-	c.compiler = compiler
+	c := &CollapseVariableDeclarations{
+		compiler: compiler,
+	}
+	c.collapseNodes = c.collapseBuf[:0]
 	return c
 }
 
 // Java: CollapseVariableDeclarations.process(Node, Node)
 func (c *CollapseVariableDeclarations) Process(externs *rhino.Node, root *rhino.Node) {
-	c.collapses.Clear()
-	c.nodesToCollapse.Clear()
+	c.collapseNodes = c.collapseNodes[:0]
+	clear(c.collapsedSet)
 
 	NodeTraversal_Traverse(c.compiler, root, &CollapseVariableDeclarations_GatherCollapses{outer: c})
 
-	if !c.collapses.IsEmpty() {
+	if len(c.collapseNodes) > 0 {
 		c.ApplyCollapses()
 	}
 }
@@ -110,12 +112,8 @@ type CollapseVariableDeclarations_GatherCollapses struct {
 
 // Java: CollapseVariableDeclarations.GatherCollapses.visit(NodeTraversal, Node, Node)
 func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	// If we've already looked at this node, skip it
-	if g.outer.nodesToCollapse.Contains(n) {
-		return
-	}
-
-	if !NodeUtil_IsNameDeclaration(n) {
+	nType := n.GetToken()
+	if nType != rhino.Token_VAR && nType != rhino.Token_LET && nType != rhino.Token_CONST {
 		return
 	}
 
@@ -125,36 +123,36 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 		return
 	}
 
-	varNode := n
-	nType := n.GetToken()
-
-	// Find variable declarations that follow this one (if any)
-	n = n.GetNext()
-	hasNodesToCollapse := false
-
-	// we only want to collapse lets with lets, vars with vars, and consts with consts so we
-	// check to make sure the declaration types match
-	for n != nil && nType == n.GetToken() {
-
-		g.outer.nodesToCollapse.Add(n)
-		hasNodesToCollapse = true
-
-		n = n.GetNext()
+	outer := g.outer
+	// If we've already looked at this node, skip it
+	if len(outer.collapsedSet) > 0 {
+		if _, ok := outer.collapsedSet[n]; ok {
+			return
+		}
 	}
 
-	if hasNodesToCollapse {
-		g.outer.nodesToCollapse.Add(varNode)
-		g.outer.collapses.Add(NewCollapseVariableDeclarations_Collapse(varNode))
+	next := n.GetNext()
+	if next == nil || next.GetToken() != nType {
+		return
 	}
+
+	if outer.collapsedSet == nil {
+		outer.collapsedSet = make(map[*rhino.Node]struct{}, 32)
+	}
+	for next != nil && next.GetToken() == nType {
+		outer.collapsedSet[next] = struct{}{}
+		next = next.GetNext()
+	}
+	outer.collapseNodes = append(outer.collapseNodes, n)
 }
 
 // Java: CollapseVariableDeclarations.applyCollapses()
 func (c *CollapseVariableDeclarations) ApplyCollapses() {
-	for _, collapse := range c.collapses.Slice() {
-		var_ := collapse.startNode
+	for _, var_ := range c.collapseNodes {
 		c.compiler.ReportChangeToEnclosingScope(var_)
 
-		for var_.GetNext() != nil && (var_.GetNext().GetToken() == var_.GetToken()) {
+		varTok := var_.GetToken()
+		for var_.GetNext() != nil && var_.GetNext().GetToken() == varTok {
 			next := var_.GetNext().Detach()
 
 			// Move all children of the next var node into the first one.
