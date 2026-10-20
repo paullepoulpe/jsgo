@@ -364,6 +364,10 @@ type NodeTraversal_AbstractCfgCallbackBase struct {
 
 	reusableCFAs    []*nodeTraversal_reusableCfg
 	reusableCFAsBuf [4]*nodeTraversal_reusableCfg
+
+	// Once a public CFG escapes, neither its graph nor analysis annotations
+	// may be reset by a later sibling. Keep this sticky across initialization.
+	cfgPublished bool
 }
 
 // InitNodeTraversal_AbstractCfgCallbackBase is the implicit
@@ -388,7 +392,51 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCall
 //
 // Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
 func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[*rhino.Node] {
-	var result ControlFlowGraph[*rhino.Node]
+	b.cfgPublished = true
+	idx := len(b.cfgs) - 1
+	if idx >= 0 && idx < len(b.reusableCFAs) {
+		// Transfer the current borrowed storage, if any, to the public caller.
+		// Existing CFG/node/annotation pointers retain their identities.
+		b.reusableCFAs[idx] = nil
+	}
+	return b.controlFlowGraph(compiler, false)
+}
+
+// canReuseControlFlowGraph permits borrowing only on exact stock callback
+// paths. Expert subclasses and custom compiler implementations keep ownership.
+func (b *NodeTraversal_AbstractCfgCallbackBase) canReuseControlFlowGraph(t *NodeTraversal, compiler AbstractCompiler) bool {
+	if b.cfgPublished {
+		return false
+	}
+	if _, ok := compiler.(*Compiler); !ok {
+		return false
+	}
+	switch self := b.self.(type) {
+	case *CheckMissingReturn:
+		callback, ok := t.callback.(*CheckMissingReturn)
+		return ok && callback == self
+	case *CheckUnreachableCode:
+		callback, ok := t.callback.(*CheckUnreachableCode)
+		return ok && callback == self
+	case *DeadAssignmentsElimination:
+		callback, ok := t.callback.(*DeadAssignmentsElimination)
+		return ok && callback == self
+	case *CoalesceVariableNames:
+		callback, ok := t.callback.(*CoalesceVariableNames)
+		return ok && callback == self
+	default:
+		return false
+	}
+}
+
+func (b *NodeTraversal_AbstractCfgCallbackBase) getControlFlowGraph(t *NodeTraversal, compiler AbstractCompiler) ControlFlowGraph[*rhino.Node] {
+	if !b.canReuseControlFlowGraph(t, compiler) {
+		return b.GetControlFlowGraph(compiler)
+	}
+	return b.controlFlowGraph(compiler, true)
+}
+
+func (b *NodeTraversal_AbstractCfgCallbackBase) controlFlowGraph(compiler AbstractCompiler, reuse bool) ControlFlowGraph[*rhino.Node] {
 	var o any
 	idx := len(b.cfgs) - 1
 	if idx >= 0 {
@@ -396,21 +444,28 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler Abs
 	}
 	jutil.CheckState(o != nil)
 	if cfgRoot, ok := o.(*rhino.Node); ok {
-		for len(b.reusableCFAs) <= idx {
-			b.reusableCFAs = append(b.reusableCFAs, &nodeTraversal_reusableCfg{})
+		var result ControlFlowGraph[*rhino.Node]
+		if reuse {
+			for len(b.reusableCFAs) <= idx {
+				b.reusableCFAs = append(b.reusableCFAs, nil)
+			}
+			rc := b.reusableCFAs[idx]
+			if rc == nil {
+				rc = &nodeTraversal_reusableCfg{}
+				b.reusableCFAs[idx] = rc
+			}
+			result = rc.cfa.ComputeReusableCfg(compiler, cfgRoot, false, true, &rc.cfg)
+		} else {
+			result = ControlFlowAnalysis_Builder_().
+				SetCompiler(compiler).
+				SetCfgRoot(cfgRoot).
+				SetIncludeEdgeAnnotations(true).
+				ComputeCfg()
 		}
-		rc := b.reusableCFAs[idx]
-		result = rc.cfa.ComputeReusableCfg(
-			compiler,
-			cfgRoot,
-			/* shouldTraverseFunctions= */ false,
-			/* edgeAnnotations= */ true,
-			&rc.cfg)
 		b.cfgs[idx] = result
-	} else {
-		result = o.(ControlFlowGraph[*rhino.Node])
+		return result
 	}
-	return result
+	return o.(ControlFlowGraph[*rhino.Node])
 }
 
 // EnterScope is final in Java.

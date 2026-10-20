@@ -47,13 +47,13 @@ func NewCheckUnreachableCode(compiler AbstractCompiler) *CheckUnreachableCode {
 // Java: CheckUnreachableCode.enterScopeWithCfg(NodeTraversal)
 func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) {
-		c.InitScope(c.GetControlFlowGraph(c.compiler))
+		c.InitScope(c.getControlFlowGraph(t, c.compiler))
 	}
 }
 
 // Java: CheckUnreachableCode.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	cfg := c.GetControlFlowGraph(c.compiler)
+	cfg := c.getControlFlowGraph(t, c.compiler)
 	gNode := cfg.GetNode(n)
 	if gNode != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE {
 
