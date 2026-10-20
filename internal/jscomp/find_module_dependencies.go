@@ -256,7 +256,7 @@ func (f *FindModuleDependencies) EnterScope(t *NodeTraversal) {}
 
 // Java: FindModuleDependencies.exitScope(NodeTraversal)
 func (f *FindModuleDependencies) ExitScope(t *NodeTraversal) {
-	if t.GetScope() == f.dynamicImportScope {
+	if f.dynamicImportScope != nil && t.GetScopeRoot() == f.dynamicImportScope.GetRootNode() && t.GetScope() == f.dynamicImportScope {
 		f.dynamicImportScope = nil
 	}
 }

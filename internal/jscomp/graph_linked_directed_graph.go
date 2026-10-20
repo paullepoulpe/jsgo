@@ -150,7 +150,7 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 
 func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 8), 2048)
+		nextCap := min(max(cap(g.nodeSlab)*2, 8), 4096)
 		g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
 	}
 	idx := len(g.nodeSlab)
@@ -177,7 +177,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 func (g *LinkedDirectedGraph[N, E]) newEdge(
 	src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 8), 2048)
+		nextCap := min(max(cap(g.edgeSlab)*2, 8), 4096)
 		g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
 	}
 	idx := len(g.edgeSlab)

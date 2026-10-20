@@ -41,6 +41,7 @@ type OptimizeReturns struct {
 
 	// Allocated & cleaned up by process()
 	decisionsLog diagnostic.LogFile
+	fnNodes      []*rhino.Node
 }
 
 // Java: OptimizeReturns(AbstractCompiler)
@@ -77,7 +78,11 @@ func (o *OptimizeReturns) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCompi
 func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhino.Node, definitions *OptimizeCalls_ReferenceMap) {
 	logFile := o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeReturns](), "decisions.log")
 	defer logFile.Close()
-	defer func() { o.decisionsLog = nil }()
+	defer func() {
+		o.decisionsLog = nil
+		clear(o.fnNodes)
+		o.fnNodes = o.fnNodes[:0]
+	}()
 	o.decisionsLog = logFile // avoid passing the log file through a bunch of methods
 	// Find all function nodes whose callers ignore the return values.
 	var toOptimize []*jutil.ArrayList[*rhino.Node]
@@ -85,21 +90,27 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhi
 	// Find all the candidates before modifying the AST.
 	for key, refs := range definitions.GetNameReferences() {
 		if o.IsCandidate(key, refs.Slice()) {
-			o.decisionsLog.LogFormat("name %s\tremoving return value", key)
+			if o.decisionsLog.IsLogging() {
+				o.decisionsLog.LogFormat("name %s\tremoving return value", key)
+			}
 			toOptimize = append(toOptimize, refs)
 		}
 	}
 
 	for key, refs := range definitions.GetPropReferences() {
 		if o.IsCandidate(key, refs.Slice()) {
-			o.decisionsLog.LogFormat("property %s\tremoving return value", key)
+			if o.decisionsLog.IsLogging() {
+				o.decisionsLog.LogFormat("property %s\tremoving return value", key)
+			}
 			toOptimize = append(toOptimize, refs)
 		}
 	}
 
 	// Now modify the AST
 	for _, refs := range toOptimize {
-		for _, fn := range OptimizeCalls_ReferenceMap_GetFunctionNodes(refs.Slice()).Entries() {
+		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs.Slice())
+		o.fnNodes = fns
+		for _, fn := range fns {
 			o.RewriteReturns(fn)
 		}
 	}
@@ -114,7 +125,9 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhi
 // Java: OptimizeReturns.isCandidate(String, List<Node>)
 func (o *OptimizeReturns) IsCandidate(name string, refs []*rhino.Node) bool {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
-		o.decisionsLog.LogFormat("%s\tnot an optimizable name", name)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\tnot an optimizable name", name)
+		}
 		return false
 	}
 
@@ -151,11 +164,15 @@ func (o *OptimizeReturns) IsCandidate(name string, refs []*rhino.Node) bool {
 	}
 
 	if !seenUse {
-		o.decisionsLog.LogFormat("%s\tno usage seen", name)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\tno usage seen", name)
+		}
 		return false
 	}
 	if !seenCandidateDefiniton {
-		o.decisionsLog.LogFormat("%s\tno definition seen", name)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\tno definition seen", name)
+		}
 		return false
 	}
 	return true

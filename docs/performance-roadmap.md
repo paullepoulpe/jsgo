@@ -14,15 +14,13 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–11 below):
-  after eleven rounds of systematic substrate, data-structure, pass-level, and
-  inter-pass arena optimizations, `jsgo` is **1.95×–5.43× faster than cold Java (`java -jar`)**
-  and **1.28×–2.11× faster than a warm JIT-compiled JVM** across all 11
-  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` in **19.61 s** and
-  26-library / 36.1 MB `bundle-mega` in **25.39 s**), while using
-  **3.0×–9.8× less peak RSS** than warm Java. Even single-threaded (`t=1`),
-  `jsgo` matches or beats 4-thread warm Java (`1.07×–2.05×`) across all 11
-  benchmarks.
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–12 below):
+  after twelve rounds of systematic substrate, data-structure, pass-level, and
+  inter-pass arena optimizations, `jsgo` (`t=4`) is **1.83×–5.03× faster than cold Java (`java -jar`)**
+  and **1.18×–1.94× faster than a 5-warmup JIT-compiled JVM** across all 11
+  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` in **19.34 s** `[19.32, 19.38]` and
+  26-library / 36.1 MB `bundle-mega` in **24.92 s** `[24.84, 24.98]`), while using
+  **2.14×–5.48× less per-iteration RSS** (**3.09×–10.70× less** than JVM peak RSS).
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
   1:1 port, `jsgo` was 0.65–0.74× of warm Java's speed, trailing in the
@@ -770,6 +768,33 @@ Total `alloc_space` dropped another **−410 MB (−6.6%)** on `bundle-mega` (`6
 | **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 7.53 s / 7.41 s | **7.40 s** / **7.28 s** | **−1.8%** / **−1.8%** | 20.78 s | 12.41 s | **2.81×** / **2.85× faster** | **1.68×** / **1.70× faster** (−5.13 s) | **627–673 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.5× lower**) |
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 5.08 s / 4.84 s | **4.98 s** / **4.78 s** | **−2.1%** / **−1.3%** | 15.26 s | 8.67 s | **3.06×** / **3.19× faster** | **1.74×** / **1.81× faster** (−3.89 s) | **547–551 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 3.83 s / 3.65 s | **3.77 s** / **3.60 s** | **−1.6%** / **−1.4%** | 11.30 s | 6.79 s | **3.00×** / **3.14× faster** | **1.80×** / **1.89× faster** (−3.19 s) | **389–395 MiB** vs 1,600 / 3,795 MiB (**4.1× / 9.8× lower**) |
+
+## Round 12: `ReferenceCollector` Full Mega-Chunk Retention (`−190 MB`), `AnalyzePrototypeProperties` Edge Deduplication (`−93 MB`), `InferConsts` Per-Function State Flushing (`−132 MB`), `RenameVars` Chunked Slabs (`−83 MB`), Lazy `GetScope` Guards, `OptimizeCalls` Multimap Elimination, and `TypedScope` / `TypedScopeCreator` Optimizations (2026-10-20)
+
+Profiling Round 11 (`88070d50`) on `bundle-mega` (`5.80 GB` `alloc_space`) and `typed-mega` (`4.89 GB` `alloc_space`) identified five disjoint optimization targets:
+
+1. **`ReferenceCollector` Full Mega-Chunk Retention & `AnalyzePrototypeProperties` Duplicate Edge Elimination (`Subagent 12A`, `reference_collector.go`, `analyze_prototype_properties.go`, `graph_linked_directed_graph.go`):**
+   - Raised `allocReference` chunk growth cap to `8192` (`maxRetainedRefChunks = 256` = ~2M `Reference`s) and `allocBasicBlock` / `allocReferenceCollection` chunk growth caps to `4096` (`maxRetainedBlkChunks = 128`, `maxRetainedColChunks = 128`, `maxRetainedRefPtrChunks = 256`), preventing `VariableReferenceCheck`'s ~1.35M references and ~350k basic blocks from truncating tail chunks before `InlineVariables` and `InlineObjectLiterals`.
+   - Added chunked slab allocation (`nameInfoChunks`) and inline `declBuf [2]AnalyzePrototypeProperties_Symbol` on `AnalyzePrototypeProperties_NameInfo`, cached `graphNode` directly on `NameInfo`, and deduplicated `(globalNode, chunk, dest)`, `(externNode, chunk, dest)`, and repeated `(lastSrc, lastChunk, dest)` edges via `connectSymbolNodes` before calling `a.symbolGraph.ConnectNodes`.
+2. **`InferConsts` Per-Outer-Function State Flushing & `RenameVars` Chunked Slabs (`Subagent 12B`, `infer_consts.go`, `rename_vars.go`):**
+   - Split `inferConstsCollector` state into `localStates` (positive `v.nameHash`) for function-local variables and `globalStates` (negative `v.nameHash`), and immediately flushed and reset `localStates` via `flushLocalStates()` whenever `funcDepth == 0 && jumpDepth == 0` upon exiting a top-level function, preventing `states` from doubling to ~650,000 entries (`132.36 MB`) on `bundle-mega`.
+   - Replaced flat `localRefs` and `globalRefs` slices in `RenameVars` with chunked slabs (`localRefChunks` growing up to `16384` and `globalRefChunks` growing up to `8192`) and indexed `varAssignments` once per unique `RenameVars_Assignment` inside `allocAssignment`.
+3. **Lazy `t.GetScope()` Guards & `FunctionToBlockMutator` Local Arena Reuse (`Subagent 12C`, `pure_function_identifier.go`, `function_to_block_mutator.go`, `check_type_import_code_references.go`, `es6_check_module.go`, `find_module_dependencies.go`):**
+   - Replaced `!t.GetScope().IsFunctionScope()` in `PureFunctionIdentifier_FunctionBodyAnalyzer.EnterScope` with `!t.GetScopeRoot().IsFunction()` and deferred `t.GetScope()` in `ExitScope` until after `functionEntry.root == nil` and `taintedVars.IsEmpty()` checks.
+   - Embedded a dedicated reusable `localArena scopeArena` and `localScopeCreator SyntacticScopeCreator` on `FunctionToBlockMutator` for `MakeLocalNamesUnique` during `InlineFunctions`.
+   - Added a `collectRequireTypeNames` pre-scan in `CheckTypeImportCodeReferences.Process`, skipped non-module `SCRIPT` subtrees in `Es6CheckModule.ShouldTraverse`, and guarded `FindModuleDependencies.ExitScope` with `f.dynamicImportScope != nil`.
+4. **`OptimizeCalls` Backing Slice Retention & `GetFunctionNodes` Multimap Elimination (`Subagent 12D`, `optimize_calls.go`, `optimize_parameters.go`, `optimize_returns.go`, `devirtualize_methods.go`):**
+   - Raised `ocRefSlotChunkSize` to `4096`, retained `slot.list` backing arrays up to capacity `65536` in `releaseOptimizeCallsRefMap`, and pre-sized `props` in `acquireOptimizeCallsRefMap` and `EnterScope`.
+   - Replaced `OptimizeCalls_ReferenceMap_GetFunctionNodes` multimap allocations in `OptimizeParameters`, `OptimizeReturns`, and `DevirtualizeMethods` with zero-allocation `OptimizeCalls_ReferenceMap_AppendFunctionNodes` / `optimizeCalls_getSingleFunctionNode` helpers and reusable scratch slices.
+5. **`TypedScope` Closure/Struct Optimization & `FirstOrderFunctionAnalyzer` In-Place `var_.nameHash` Tracking (`Subagent 12E`, `typed_scope.go`, `typed_scope_creator.go`, `type_inference.go`):**
+   - Eliminated `GetDeclarativelyUnboundVarsWithoutTypes` heap closure allocations in `TypeInference.InferDeclarativelyUnboundVarsWithoutTypes`, removed the unused 96-byte embedded `varSlots [4]` array from `TypedScope` (shrinking `TypedScope` from 216 B to 120 B), and increased `typedScopeArena` slab caps.
+   - Tracked local variable assignment count and escaped status directly on syntactic `var_.nameHash` during `FirstOrderFunctionAnalyzer.Visit`, populating a single `varFlags` map in `ExitScope` only when `h != 1`, and pre-sized `c.memoized` at the end of `CreateInitialScope` using `c.scopeCount`.
+
+Total `alloc_space` dropped another **−552 MB (−9.5%)** on `bundle-mega` (`5.80 GB → 5.25 GB`, **−69.4% vs Round 5's `17.16 GB`**) and **−292 MB (−6.0%)** on `typed-mega` (`4.89 GB → 4.60 GB`, **−60.4% vs Round 5's `11.61 GB`**).
+
+### Final measured results — Round 12 (`t=1` and `t=4`, 5 warmups + 10 Latin-square-interleaved runs, PGO enabled)
+
+See the full `Median [95% CI]` and `Mean ± SD` tables in [benchmarks.md](benchmarks.md#rounds-212-and-large--mega-real-world-advanced-benchmarks) and [README.md](../README.md).
 
 ## Smaller open items
 

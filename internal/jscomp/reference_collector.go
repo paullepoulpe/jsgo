@@ -313,9 +313,9 @@ func (c *ReferenceCollector) release() {
 	c.argumentsRefs = nil
 	const (
 		maxRetainedRefChunks    = 256
-		maxRetainedRefPtrChunks = 192
-		maxRetainedColChunks    = 192
-		maxRetainedBlkChunks    = 224
+		maxRetainedRefPtrChunks = 256
+		maxRetainedColChunks    = 128
+		maxRetainedBlkChunks    = 128
 	)
 	if a.refChunkIdx > 0 {
 		a.refChunks[a.refChunkIdx-1] = c.refSlab
@@ -392,7 +392,7 @@ func (c *ReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBl
 			} else {
 				newCap := 256
 				if cap(c.refSlab) >= 256 {
-					newCap = min(cap(c.refSlab)*2, 4096)
+					newCap = min(cap(c.refSlab)*2, 8192)
 				}
 				c.refSlab = make([]Reference, 0, newCap)
 				a.refChunks = append(a.refChunks, c.refSlab)
@@ -401,7 +401,7 @@ func (c *ReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBl
 		} else {
 			newCap := 256
 			if cap(c.refSlab) >= 256 {
-				newCap = min(cap(c.refSlab)*2, 4096)
+				newCap = min(cap(c.refSlab)*2, 8192)
 			}
 			c.refSlab = make([]Reference, 0, newCap)
 		}
@@ -429,7 +429,7 @@ func (c *ReferenceCollector) allocReferenceCollection() *ReferenceCollection {
 			} else {
 				newCap := 64
 				if cap(c.colSlab) >= 64 {
-					newCap = min(cap(c.colSlab)*2, 2048)
+					newCap = min(cap(c.colSlab)*2, 4096)
 				}
 				c.colSlab = make([]ReferenceCollection, 0, newCap)
 				a.colChunks = append(a.colChunks, c.colSlab)
@@ -438,7 +438,7 @@ func (c *ReferenceCollector) allocReferenceCollection() *ReferenceCollection {
 		} else {
 			newCap := 64
 			if cap(c.colSlab) >= 64 {
-				newCap = min(cap(c.colSlab)*2, 2048)
+				newCap = min(cap(c.colSlab)*2, 4096)
 			}
 			c.colSlab = make([]ReferenceCollection, 0, newCap)
 		}
@@ -515,7 +515,7 @@ func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Nod
 			} else {
 				newCap := 64
 				if cap(c.blockSlab) >= 64 {
-					newCap = min(cap(c.blockSlab)*2, 1024)
+					newCap = min(cap(c.blockSlab)*2, 4096)
 				}
 				c.blockSlab = make([]BasicBlock, 0, newCap)
 				a.blkChunks = append(a.blkChunks, c.blockSlab)
@@ -524,7 +524,7 @@ func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Nod
 		} else {
 			newCap := 64
 			if cap(c.blockSlab) >= 64 {
-				newCap = min(cap(c.blockSlab)*2, 1024)
+				newCap = min(cap(c.blockSlab)*2, 4096)
 			}
 			c.blockSlab = make([]BasicBlock, 0, newCap)
 		}

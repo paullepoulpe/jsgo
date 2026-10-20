@@ -44,8 +44,8 @@ type RenameVars struct {
 	// List of local NAME nodes
 	localNameNodes *jutil.ArrayList[*rhino.Node]
 
-	globalRefs []renameVarsNodeRef
-	localRefs  []renameVarsNodeRef
+	globalRefChunks [][]renameVarsNodeRef
+	localRefChunks  [][]renameVarsNodeRef
 
 	// Mapping of original names for change detection
 	originalNameByNode *jutil.LinkedHashMap[*rhino.Node, string]
@@ -121,7 +121,7 @@ func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assi
 	if len(r.assignmentSlab) == cap(r.assignmentSlab) {
 		newCap := 64
 		if cap(r.assignmentSlab) >= 64 {
-			newCap = min(cap(r.assignmentSlab)*2, 1024)
+			newCap = min(cap(r.assignmentSlab)*2, 4096)
 		}
 		r.assignmentSlab = make([]RenameVars_Assignment, 0, newCap)
 	}
@@ -134,7 +134,37 @@ func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assi
 	a.count = 0
 	a.orderOfOccurrence = r.assignmentCount
 	r.assignmentCount++
+	if cap(r.varAssignments) == 0 {
+		r.varAssignments = make([]*RenameVars_Assignment, 0, 256)
+	}
+	r.varAssignments = append(r.varAssignments, a)
 	return a
+}
+
+func (r *RenameVars) appendLocalRef(n *rhino.Node, a *RenameVars_Assignment) {
+	nChunks := len(r.localRefChunks)
+	if nChunks == 0 || len(r.localRefChunks[nChunks-1]) == cap(r.localRefChunks[nChunks-1]) {
+		newCap := 1024
+		if nChunks > 0 {
+			newCap = min(cap(r.localRefChunks[nChunks-1])*2, 16384)
+		}
+		r.localRefChunks = append(r.localRefChunks, make([]renameVarsNodeRef, 0, newCap))
+		nChunks++
+	}
+	r.localRefChunks[nChunks-1] = append(r.localRefChunks[nChunks-1], renameVarsNodeRef{node: n, assignment: a})
+}
+
+func (r *RenameVars) appendGlobalRef(n *rhino.Node, a *RenameVars_Assignment) {
+	nChunks := len(r.globalRefChunks)
+	if nChunks == 0 || len(r.globalRefChunks[nChunks-1]) == cap(r.globalRefChunks[nChunks-1]) {
+		newCap := 512
+		if nChunks > 0 {
+			newCap = min(cap(r.globalRefChunks[nChunks-1])*2, 8192)
+		}
+		r.globalRefChunks = append(r.globalRefChunks, make([]renameVarsNodeRef, 0, newCap))
+		nChunks++
+	}
+	r.globalRefChunks[nChunks-1] = append(r.globalRefChunks[nChunks-1], renameVarsNodeRef{node: n, assignment: a})
 }
 
 // SetNewName assigns the new name.
@@ -287,9 +317,9 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 				r.RecordPseudoName(n)
 			}
 			if a.isLocal {
-				r.localRefs = append(r.localRefs, renameVarsNodeRef{node: n, assignment: a})
+				r.appendLocalRef(n, a)
 			} else {
-				r.globalRefs = append(r.globalRefs, renameVarsNodeRef{node: n, assignment: a})
+				r.appendGlobalRef(n, a)
 			}
 			return
 		} else if idx < 0 {
@@ -356,7 +386,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 				r.localByIndex[localIdx] = a
 			}
 			a.count++
-			r.localRefs = append(r.localRefs, renameVarsNodeRef{node: n, assignment: a})
+			r.appendLocalRef(n, a)
 		} else {
 			a = r.assignments.Get(name)
 			if a == nil {
@@ -364,10 +394,9 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 				r.assignments.Put(name, a)
 			}
 			a.count++
-			r.globalRefs = append(r.globalRefs, renameVarsNodeRef{node: n, assignment: a})
+			r.appendGlobalRef(n, a)
 		}
-		r.varAssignments = append(r.varAssignments, a)
-		var_.nameHash = int32(len(r.varAssignments))
+		var_.nameHash = int32(a.orderOfOccurrence + 1)
 		return
 	}
 
@@ -422,9 +451,8 @@ var RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR = func(a1 *RenameVars_Assignment, 
 func (r *RenameVars) Process(externs *rhino.Node, root *rhino.Node) {
 	r.externNames = NodeUtil_CollectExternVariableNames(r.compiler, externs)
 
-	r.globalRefs = r.globalRefs[:0]
-	r.localRefs = r.localRefs[:0]
-	r.varAssignments = r.varAssignments[:0]
+	r.globalRefChunks = nil
+	r.localRefChunks = nil
 
 	// Do variable reference counting.
 	sc := NewSyntacticScopeCreator(r.compiler)
@@ -462,54 +490,62 @@ func (r *RenameVars) Process(externs *rhino.Node, root *rhino.Node) {
 	r.assignNamesSlice(varsByFrequency)
 
 	// Rename the globals!
-	for _, ref := range r.globalRefs {
-		n := ref.node
-		a := ref.assignment
-		oldName := n.GetString()
-		if a.newName != nil && *a.newName != oldName {
-			newName := *a.newName
-			if r.pseudoNameMap != nil {
-				if pName := r.pseudoNameMapGet(n); pName != nil {
-					newName = *pName
-				} else {
-					continue
+	for _, chunk := range r.globalRefChunks {
+		for _, ref := range chunk {
+			n := ref.node
+			a := ref.assignment
+			oldName := n.GetString()
+			if a.newName != nil && *a.newName != oldName {
+				newName := *a.newName
+				if r.pseudoNameMap != nil {
+					if pName := r.pseudoNameMapGet(n); pName != nil {
+						newName = *pName
+					} else {
+						continue
+					}
 				}
-			}
-			if newName != oldName {
-				n.SetString(newName)
-				r.compiler.ReportChangeToEnclosingScope(n)
-				parent := n.GetParent()
-				if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-					r.compiler.ReportChangeToEnclosingScope(parent)
+				if newName != oldName {
+					n.SetString(newName)
+					r.compiler.ReportChangeToEnclosingScope(n)
+					parent := n.GetParent()
+					if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+						r.compiler.ReportChangeToEnclosingScope(parent)
+					}
 				}
 			}
 		}
 	}
 
 	// Rename the locals!
-	for _, ref := range r.localRefs {
-		n := ref.node
-		a := ref.assignment
-		if *a.newName != a.oldName {
-			newName := *a.newName
-			if r.pseudoNameMap != nil {
-				if pName := r.pseudoNameMapGet(n); pName != nil {
-					newName = *pName
-				} else {
-					continue
+	for _, chunk := range r.localRefChunks {
+		for _, ref := range chunk {
+			n := ref.node
+			a := ref.assignment
+			if *a.newName != a.oldName {
+				newName := *a.newName
+				if r.pseudoNameMap != nil {
+					if pName := r.pseudoNameMapGet(n); pName != nil {
+						newName = *pName
+					} else {
+						continue
+					}
 				}
-			}
-			originalName := n.GetString()
-			if newName != originalName {
-				n.SetString(newName)
-				r.compiler.ReportChangeToEnclosingScope(n)
-				parent := n.GetParent()
-				if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-					r.compiler.ReportChangeToEnclosingScope(parent)
+				originalName := n.GetString()
+				if newName != originalName {
+					n.SetString(newName)
+					r.compiler.ReportChangeToEnclosingScope(n)
+					parent := n.GetParent()
+					if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+						r.compiler.ReportChangeToEnclosingScope(parent)
+					}
 				}
 			}
 		}
 	}
+
+	r.globalRefChunks = nil
+	r.localRefChunks = nil
+	r.varAssignments = nil
 }
 
 // Java: RenameVars.setNameAndReport(Node, String)

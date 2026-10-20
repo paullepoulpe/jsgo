@@ -1298,12 +1298,10 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) RecordThrowsBasedOnContext
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.enterScope(NodeTraversal)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversal) {
-	if !t.GetScope().IsFunctionScope() {
+	function := t.GetScopeRoot()
+	if !function.IsFunction() {
 		return
 	}
-
-	function := t.GetScopeRoot()
-	jutil.CheckStateMsg1(function.IsFunction(), "%s", function)
 	jsdoc := NodeUtil_GetBestJSDocInfo(function)
 	isArtificiallyPure := jsdoc != nil && jsdoc.IsNoSideEffects()
 
@@ -1319,15 +1317,10 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.exitScope(NodeTraversal)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal) {
-	// We want to process block scope as well as function scopes
-	functionScope := t.GetScope().GetClosestContainerScope()
-	if !functionScope.IsFunctionScope() {
+	functionEntry := b.functionScopeStackGetLast()
+	if functionEntry.root == nil {
 		return
 	}
-
-	functionEntry := b.functionScopeStackGetLast()
-	jutil.CheckStateMsg1(
-		functionScope.GetRootNode() == functionEntry.root, "%s", functionScope.GetRootNode())
 	if t.GetScopeRoot() == functionEntry.root {
 		// ArrayDeque.removeLast()
 		b.functionScopeStack[len(b.functionScopeStack)-1] = nil
@@ -1338,6 +1331,15 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 		return
 	}
 
+	// We want to process block scope as well as function scopes
+	scope := t.GetScope()
+	functionScope := scope.GetClosestContainerScope()
+	if !functionScope.IsFunctionScope() {
+		return
+	}
+	jutil.CheckStateMsg1(
+		functionScope.GetRootNode() == functionEntry.root, "%s", functionScope.GetRootNode())
+
 	// Handle deferred local variable modifications:
 	for _, sideEffectInfo := range b.outer.summariesForAllNamesOfFunctionByNode.Get(functionEntry.root) {
 		jutil.CheckNotNullMsg1(sideEffectInfo, "%s has no side effect info.", functionEntry.root)
@@ -1346,7 +1348,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 			continue
 		}
 
-		for v := range t.GetScope().GetVarIterable() {
+		for v := range scope.GetVarIterable() {
 			isFromDestructuring := NodeUtil_IsLhsByDestructuring(v.GetNameNode())
 			if v.IsParam() &&
 				// Ignore destructuring parameters because they don't directly correspond to an
@@ -1359,7 +1361,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 			}
 
 			// Take care of locals that might have been tainted.
-			if !functionEntry.IsLocalVar(v, t.GetScope()) {
+			if !functionEntry.IsLocalVar(v, scope) {
 				if functionEntry.isTaintedVar(v) {
 					// If the function has global side-effects
 					// don't bother with the local side-effects.

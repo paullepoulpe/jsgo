@@ -77,6 +77,53 @@ type AnalyzePrototypeProperties struct {
 	varNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
 
 	scopeCreator *SyntacticScopeCreator
+
+	nameInfoChunks [][]AnalyzePrototypeProperties_NameInfo
+	nameInfoIdx    int
+}
+
+func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
+	if len(a.nameInfoChunks) == 0 || a.nameInfoIdx == len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) {
+		nextCap := 64
+		if len(a.nameInfoChunks) > 0 {
+			nextCap = len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) * 2
+			if nextCap > 2048 {
+				nextCap = 2048
+			}
+		}
+		a.nameInfoChunks = append(a.nameInfoChunks, make([]AnalyzePrototypeProperties_NameInfo, nextCap))
+		a.nameInfoIdx = 0
+	}
+	chunk := a.nameInfoChunks[len(a.nameInfoChunks)-1]
+	info := &chunk[a.nameInfoIdx]
+	a.nameInfoIdx++
+	info.outer = a
+	info.name = name
+	info.declarations.InitWithBuffer(info.declBuf[:])
+	return info
+}
+
+func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypeProperties_NameInfo, chunk *JSChunk, dest *AnalyzePrototypeProperties_NameInfo) {
+	if src == a.globalNode {
+		if dest.hasGlobalEdge && dest.globalEdgeChunk == chunk {
+			return
+		}
+		dest.hasGlobalEdge = true
+		dest.globalEdgeChunk = chunk
+	} else if src == a.externNode {
+		if dest.hasExternEdge && dest.externEdgeChunk == chunk {
+			return
+		}
+		dest.hasExternEdge = true
+		dest.externEdgeChunk = chunk
+	} else {
+		if dest.lastSrc == src && dest.lastChunk == chunk {
+			return
+		}
+		dest.lastSrc = src
+		dest.lastChunk = chunk
+	}
+	a.symbolGraph.ConnectNodes(src.graphNode, chunk, dest.graphNode)
 }
 
 // Release returns pooled Scope/Var arenas owned by this AnalyzePrototypeProperties
@@ -134,16 +181,16 @@ func NewAnalyzePrototypeProperties(
 
 	a.globalNode.MarkReference(nil)
 	a.externNode.MarkReference(nil)
-	a.symbolGraph.CreateNode(a.globalNode)
-	a.symbolGraph.CreateNode(a.externNode)
+	a.globalNode.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(a.globalNode)
+	a.externNode.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(a.externNode)
 
 	for _, property := range AnalyzePrototypeProperties_IMPLICITLY_USED_PROPERTIES {
 		nameInfo := a.GetNameInfoForName(property, AnalyzePrototypeProperties_PROPERTY)
 		if chunkGraph == nil {
-			a.symbolGraph.Connect(a.externNode, nil, nameInfo)
+			a.connectSymbolNodes(a.externNode, nil, nameInfo)
 		} else {
 			for _, chunk := range chunkGraph.GetAllChunks() {
-				a.symbolGraph.Connect(a.externNode, chunk, nameInfo)
+				a.connectSymbolNodes(a.externNode, chunk, nameInfo)
 			}
 		}
 	}
@@ -193,14 +240,13 @@ func (a *AnalyzePrototypeProperties) GetNameInfoForName(name string, type_ Analy
 	if type_ == AnalyzePrototypeProperties_PROPERTY {
 		map_ = a.propertyNameInfo
 	}
-	if map_.ContainsKey(name) {
-		return map_.Get(name)
-	} else {
-		nameInfo := NewAnalyzePrototypeProperties_NameInfo(a, name)
-		map_.Put(name, nameInfo)
-		a.symbolGraph.CreateNode(nameInfo)
-		return nameInfo
+	if info := map_.Get(name); info != nil {
+		return info
 	}
+	nameInfo := a.allocNameInfo(name)
+	map_.PutNew(name, nameInfo)
+	nameInfo.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(nameInfo)
+	return nameInfo
 }
 
 // AnalyzePrototypeProperties_ProcessProperties is the inner class
@@ -467,7 +513,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) AddSymbolUse(name string,
 		panic(jutil.NewNullPointerException()) // def.equals(info) on a null def
 	}
 	if def != info {
-		a.symbolGraph.Connect(def, chunk, info)
+		a.connectSymbolNodes(def, chunk, info)
 	}
 }
 
@@ -650,7 +696,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraver
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.addGlobalUseOfSymbol(String, JSChunk, SymbolType)
 func (p *AnalyzePrototypeProperties_ProcessProperties) AddGlobalUseOfSymbol(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
-	p.outer.symbolGraph.Connect(p.outer.globalNode, chunk, p.outer.GetNameInfoForName(name, type_))
+	p.outer.connectSymbolNodes(p.outer.globalNode, chunk, p.outer.GetNameInfoForName(name, type_))
 }
 
 // AnalyzePrototypeProperties_ProcessExternProperties is the inner class
@@ -664,7 +710,7 @@ type AnalyzePrototypeProperties_ProcessExternProperties struct {
 func (p *AnalyzePrototypeProperties_ProcessExternProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	a := p.outer
 	if n.IsGetProp() {
-		a.symbolGraph.Connect(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
+		a.connectSymbolNodes(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
 	} else if n.IsMemberFunctionDef() || n.IsGetterDef() || n.IsSetterDef() {
 		// As of 2019-08-29 the only user of this class is CrossChunkMethodMotion, which never
 		// moves static methods, but that could change. So, we're intentionally including static
@@ -685,7 +731,7 @@ func (p *AnalyzePrototypeProperties_ProcessExternProperties) Visit(t *NodeTraver
 		// /** @type {!ObjWithFooMethod} */
 		// let objWithFooMethod = Foo; // yes, this is valid
 		//
-		a.symbolGraph.Connect(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
+		a.connectSymbolNodes(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
 	}
 }
 
@@ -963,8 +1009,17 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	referenced bool
 	// Go-only: language-adapter — the ArrayDeque is only appended to (add)
 	// and iterated in either direction, so it is an ArrayList.
-	declarations          *jutil.ArrayList[AnalyzePrototypeProperties_Symbol]
+	declarations          jutil.ArrayList[AnalyzePrototypeProperties_Symbol]
+	declBuf               [2]AnalyzePrototypeProperties_Symbol
 	deepestCommonChunkRef *JSChunk
+
+	graphNode       *LinkedDirectedGraph_LinkedDiGraphNode[*AnalyzePrototypeProperties_NameInfo, *JSChunk]
+	lastSrc         *AnalyzePrototypeProperties_NameInfo
+	lastChunk       *JSChunk
+	globalEdgeChunk *JSChunk
+	externEdgeChunk *JSChunk
+	hasGlobalEdge   bool
+	hasExternEdge   bool
 
 	// True if this property is a function that reads a variable from an
 	// outer scope which isn't the global scope.
@@ -982,11 +1037,15 @@ type AnalyzePrototypeProperties_NameInfo struct {
 //
 // Java: AnalyzePrototypeProperties.NameInfo(String)
 func NewAnalyzePrototypeProperties_NameInfo(outer *AnalyzePrototypeProperties, name string) *AnalyzePrototypeProperties_NameInfo {
-	return &AnalyzePrototypeProperties_NameInfo{
-		outer:        outer,
-		name:         name,
-		declarations: jutil.NewArrayList[AnalyzePrototypeProperties_Symbol](),
+	if outer != nil {
+		return outer.allocNameInfo(name)
 	}
+	info := &AnalyzePrototypeProperties_NameInfo{
+		outer: outer,
+		name:  name,
+	}
+	info.declarations.InitWithBuffer(info.declBuf[:])
+	return info
 }
 
 // Java: AnalyzePrototypeProperties.NameInfo.toString()
@@ -1059,5 +1118,5 @@ func (i *AnalyzePrototypeProperties_NameInfo) GetDeepestCommonChunkRef() *JSChun
 //
 // Java: AnalyzePrototypeProperties.NameInfo.getDeclarations()
 func (i *AnalyzePrototypeProperties_NameInfo) GetDeclarations() *jutil.ArrayList[AnalyzePrototypeProperties_Symbol] {
-	return i.declarations
+	return &i.declarations
 }

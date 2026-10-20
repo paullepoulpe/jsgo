@@ -36,7 +36,13 @@ type typedScopeArena struct {
 
 func (a *typedScopeArena) allocScope() *TypedScope {
 	if len(a.scopes) == cap(a.scopes) {
-		a.scopes = make([]TypedScope, 0, 256)
+		newCap := cap(a.scopes) * 2
+		if newCap < 64 {
+			newCap = 64
+		} else if newCap > 1024 {
+			newCap = 1024
+		}
+		a.scopes = make([]TypedScope, 0, newCap)
 	}
 	idx := len(a.scopes)
 	a.scopes = a.scopes[:idx+1]
@@ -52,7 +58,13 @@ func (a *typedScopeArena) allocVar(
 	index int,
 	input *CompilerInput) *TypedVar {
 	if len(a.vars) == cap(a.vars) {
-		a.vars = make([]TypedVar, 0, 512)
+		newCap := cap(a.vars) * 2
+		if newCap < 128 {
+			newCap = 128
+		} else if newCap > 2048 {
+			newCap = 2048
+		}
+		a.vars = make([]TypedVar, 0, newCap)
 	}
 	idx := len(a.vars)
 	a.vars = a.vars[:idx+1]
@@ -76,7 +88,13 @@ func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar
 		return make([]jutil.LhmSlot[string, *TypedVar], n)
 	}
 	if len(a.varSlots)+n > cap(a.varSlots) {
-		a.varSlots = make([]jutil.LhmSlot[string, *TypedVar], 0, 1024)
+		newCap := cap(a.varSlots) * 2
+		if newCap < 256 {
+			newCap = 256
+		} else if newCap > 4096 {
+			newCap = 4096
+		}
+		a.varSlots = make([]jutil.LhmSlot[string, *TypedVar], 0, newCap)
 	}
 	start := len(a.varSlots)
 	a.varSlots = a.varSlots[:start+n]
@@ -88,7 +106,13 @@ func (a *typedScopeArena) allocNames(n int) []string {
 		return make([]string, 0, n)
 	}
 	if len(a.names)+n > cap(a.names) {
-		a.names = make([]string, 0, 1024)
+		newCap := cap(a.names) * 2
+		if newCap < 256 {
+			newCap = 256
+		} else if newCap > 4096 {
+			newCap = 4096
+		}
+		a.names = make([]string, 0, newCap)
 	}
 	start := len(a.names)
 	a.names = a.names[:start+n]
@@ -129,7 +153,6 @@ type TypedScope struct {
 	//
 	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
 	reservedNames []string
-	varSlots      [4]jutil.LhmSlot[string, *TypedVar]
 
 	// Scope.java contains an arguments field.
 	// We haven't added it here because it's unused by the passes that need typed scopes.
@@ -179,10 +202,10 @@ func newTypedScopeOwnedReservedNames(
 		s = &TypedScope{}
 	}
 	s.InitAbstractScopeBase(s, rootNode)
-	if arena != nil && len(reservedNames) > len(s.varSlots) {
+	if arena != nil && len(reservedNames) > 0 {
 		s.vars.InitWithBuffer(arena.allocVarSlots(len(reservedNames)))
 	} else {
-		s.vars.InitWithBuffer(s.varSlots[:])
+		s.vars.InitWithBuffer(nil)
 	}
 	s.CheckChildScope(parent)
 	s.parent = parent
@@ -206,7 +229,7 @@ func newTypedScopeOwnedReservedNames(
 func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
-	s.vars.InitWithBuffer(s.varSlots[:])
+	s.vars.InitWithBuffer(nil)
 	s.CheckRootScope()
 	s.parent = nil
 	s.depth = 0
@@ -322,12 +345,20 @@ func (s *TypedScope) GetTypeOfThis() rhino.JSType {
 // Java: TypedScope.declare(String, Node, JSType, CompilerInput, boolean)
 func (s *TypedScope) Declare(name string, nameNode *rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
+	var_, _ := s.declareWithReserved(name, nameNode, type_, input, inferred)
+	return var_
+}
+
+func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
+	type_ rhino.JSType, input *CompilerInput, inferred bool) (*TypedVar, bool) {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
+	wasReserved := false
 	if len(s.reservedNames) > 0 {
 		// (reservedNames only contains simple, non-qualified names; so it's completely normal to
 		// declare qualified names that were not 'reserved')
 		for i, rn := range s.reservedNames {
 			if rn == name {
+				wasReserved = true
 				copy(s.reservedNames[i:], s.reservedNames[i+1:])
 				s.reservedNames[len(s.reservedNames)-1] = ""
 				s.reservedNames = s.reservedNames[:len(s.reservedNames)-1]
@@ -342,7 +373,7 @@ func (s *TypedScope) Declare(name string, nameNode *rhino.Node,
 		var_ = NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
 	}
 	s.DeclareInternal(name, var_)
-	return var_
+	return var_, wasReserved
 }
 
 // Java: TypedScope.makeImplicitVar(ImplicitVar)
@@ -424,9 +455,8 @@ func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JS
 //
 // Java: TypedScope.getDeclarativelyUnboundVarsWithoutTypes()
 func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() iter.Seq[*TypedVar] {
-	vars := s.GetVarIterable()
 	return func(yield func(*TypedVar) bool) {
-		for v := range vars {
+		for v := range s.vars.Values() {
 			if s.IsDeclarativelyUnboundVarWithoutType(v) && !yield(v) {
 				return
 			}

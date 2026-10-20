@@ -67,8 +67,11 @@ import (
 //	}
 //	var total = a.accumulate(2)
 type DevirtualizeMethods struct {
-	compiler AbstractCompiler
-	refMap   *OptimizeCalls_ReferenceMap
+	compiler     AbstractCompiler
+	refMap       *OptimizeCalls_ReferenceMap
+	defSites     []*rhino.Node
+	defFunctions []*rhino.Node
+	callSites    []*rhino.Node
 }
 
 // Java: DevirtualizeMethods(AbstractCompiler)
@@ -81,6 +84,14 @@ func (d *DevirtualizeMethods) Process(externs *rhino.Node, root *rhino.Node, ref
 	jutil.CheckStateMsg(d.refMap == nil, "`process` should only be called once.")
 
 	d.refMap = refMap
+	defer func() {
+		clear(d.defSites)
+		d.defSites = d.defSites[:0]
+		clear(d.defFunctions)
+		d.defFunctions = d.defFunctions[:0]
+		clear(d.callSites)
+		d.callSites = d.callSites[:0]
+	}()
 
 	for key, value := range refMap.GetPropReferences() {
 		d.ProcessReferenceList(key, value.Slice())
@@ -89,40 +100,44 @@ func (d *DevirtualizeMethods) Process(externs *rhino.Node, root *rhino.Node, ref
 
 // Java: DevirtualizeMethods.processReferenceList(String, List<Node>)
 func (d *DevirtualizeMethods) ProcessReferenceList(name string, sites []*rhino.Node) {
-	functionsBySite := OptimizeCalls_ReferenceMap_GetFunctionNodes(sites)
-	if functionsBySite.IsEmpty() {
-		return // We can't devirtualize without a definition.
-	}
-
-	// Use the first definition to ensure that all invocations are after the definition
-	// (temporally). It's  possible that if class `A` is defined after class `B` there are calls to
-	// `A::foo` before `B::foo` is defined.
-	var canonicalDefinitionSite *rhino.Node
-	for s := range functionsBySite.KeySet() {
-		canonicalDefinitionSite = s // Iterables.get(functionsBySite.keySet(), 0)
-		break
-	}
-
-	var callSites []*rhino.Node
+	defSites := d.defSites[:0]
+	defFunctions := d.defFunctions[:0]
+	callSites := d.callSites[:0]
 	for _, s := range sites {
-		// If a site has no associated functions, it must be a call site.
-		if !functionsBySite.ContainsKey(s) {
+		prevLen := len(defFunctions)
+		defFunctions = optimizeCalls_appendDefinitionFunctionNodesFor(defFunctions, s)
+		if len(defFunctions) > prevLen {
+			defSites = append(defSites, s)
+		} else {
+			// If a site has no associated functions, it must be a call site.
 			callSites = append(callSites, s)
 		}
+	}
+	d.defSites = defSites
+	d.defFunctions = defFunctions
+	d.callSites = callSites
+
+	if len(defFunctions) == 0 {
+		return // We can't devirtualize without a definition.
 	}
 	if len(callSites) == 0 {
 		return // No need to devirtualize without calls.
 	}
 
+	// Use the first definition to ensure that all invocations are after the definition
+	// (temporally). It's  possible that if class `A` is defined after class `B` there are calls to
+	// `A::foo` before `B::foo` is defined.
+	canonicalDefinitionSite := defSites[0]
+
 	// Check that this method is safe for devirtualization. These are in (estimated) increasing
 	// order of cost.
-	if !d.allSitesAreEligibleDefinitionSites(name, functionsBySite) {
+	if !d.allSitesAreEligibleDefinitionSites(name, defSites) {
 		return
-	} else if !d.allFunctionsAreEligibleDefinitionFunctions(functionsBySite) {
+	} else if !d.allFunctionsAreEligibleDefinitionFunctions(defFunctions) {
 		return
 	} else if !d.allCallSitesAreEligible(callSites, canonicalDefinitionSite) {
 		return
-	} else if !d.AllDefinitionsEquivalent(optimizeParameters_values(functionsBySite)) {
+	} else if !d.AllDefinitionsEquivalent(defFunctions) {
 		// Remember that this is only valid because we already checked the scoping of the definitions.
 		return
 	}
@@ -143,8 +158,8 @@ func (d *DevirtualizeMethods) ProcessReferenceList(name string, sites []*rhino.N
 // `functionsBySite.keySet().stream().allMatch((s) -> isEligibleDefinitionSite(name, s))`.
 //
 // Go-only: language-adapter — a Java stream.
-func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, functionsBySite *jutil.ListMultimap[*rhino.Node, *rhino.Node]) bool {
-	for s := range functionsBySite.KeySet() {
+func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, defSites []*rhino.Node) bool {
+	for _, s := range defSites {
 		if !d.IsEligibleDefinitionSite(name, s) {
 			return false
 		}
@@ -156,8 +171,8 @@ func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, fu
 // `functionsBySite.values().stream().allMatch(this::isEligibleDefinitionFunction)`.
 //
 // Go-only: language-adapter — a Java stream.
-func (d *DevirtualizeMethods) allFunctionsAreEligibleDefinitionFunctions(functionsBySite *jutil.ListMultimap[*rhino.Node, *rhino.Node]) bool {
-	for _, f := range functionsBySite.Entries() {
+func (d *DevirtualizeMethods) allFunctionsAreEligibleDefinitionFunctions(defFunctions []*rhino.Node) bool {
+	for _, f := range defFunctions {
 		if !d.IsEligibleDefinitionFunction(f) {
 			return false
 		}

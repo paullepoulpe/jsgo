@@ -42,6 +42,11 @@ type typedScopeCreator_ScopedNameKey struct {
 	scopeRoot *rhino.Node
 }
 
+const (
+	typedScopeCreator_VarFlagEscaped           uint8 = 1 << 0
+	typedScopeCreator_VarFlagNotSingleAssigned uint8 = 1 << 1
+)
+
 type TypedScopeCreator struct {
 	compiler                 AbstractCompiler
 	typeParsingErrorReporter rhino.ErrorReporter
@@ -58,14 +63,13 @@ type TypedScopeCreator struct {
 	// reserve names before the TypedScope is populated.
 	reservedNamesForScope map[*rhino.Node][]string
 
-	arena typedScopeArena
+	arena      typedScopeArena
+	scopeCount int
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
 	functionsWithNonEmptyReturns map[*rhino.Node]struct{}
-	// Includes both simple and qualified names.
-	escapedVarNames map[typedScopeCreator_ScopedNameKey]struct{}
-	// Count of how many times each variable is assigned, for marking effectively final.
-	assignedVarNames map[typedScopeCreator_ScopedNameKey]int
+	// Tracks escaped variables (simple and qualified) and local variables not assigned exactly once.
+	varFlags map[typedScopeCreator_ScopedNameKey]uint8
 
 	// For convenience
 	unknownType rhino.ObjectType
@@ -396,6 +400,7 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 			// declarations. However, the untyped scope only contains an implicit slot for `exports`.
 			if !slices.Contains(reservedNames, "exports") {
 				reservedNames = append(reservedNames, "exports")
+				c.varFlags[typedScopeCreator_ScopedNameKey{name: "exports", scopeRoot: root}] |= typedScopeCreator_VarFlagNotSingleAssigned
 			}
 		} else if len(reservedNames) > 0 && root.IsFunction() && NodeUtil_IsBundledGoogModuleCall(root.GetParent()) {
 			// Pretend that 'exports' is declared in the block of goog.loadModule
@@ -602,6 +607,9 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	// Memoize the global scope so that module scope creation can access it. See
 	// AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
 	// executed when control flow reaches the module body.
+	if c.memoized.IsEmpty() && c.scopeCount > 8 {
+		*c.memoized = *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *TypedScope](c.scopeCount + 16)
+	}
 	c.memoized.Put(root, s)
 
 	return s
@@ -715,9 +723,9 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 func (c *TypedScopeCreator) ClearCommonState() {
 	c.reservedNamesForScope = make(map[*rhino.Node][]string)
 	c.arena.names = nil
+	c.scopeCount = 0
 	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
-	c.escapedVarNames = make(map[typedScopeCreator_ScopedNameKey]struct{})
-	c.assignedVarNames = make(map[typedScopeCreator_ScopedNameKey]int)
+	c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
 	c.weakImports = nil
 	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = make(map[*rhino.Node]struct{})
@@ -2563,17 +2571,18 @@ func typedScopeCreator_sourceNameArg(sourceName *string) string {
 // Java: TypedScopeCreator.AbstractScopeBuilder.declare(TypedScope, String, Node, JSType, CompilerInput, boolean)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) Declare(
 	scope *TypedScope, name string, n *rhino.Node, type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
-	var_ := scope.Declare(name, n, type_, input, inferred)
+	var_, wasReserved := scope.declareWithReserved(name, n, type_, input, inferred)
 	if !scope.IsGlobal() {
-		scopedName := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: scope.GetRootNode()}
-		if _, escaped := b.outer.escapedVarNames[scopedName]; escaped {
+		var flags uint8
+		if len(b.outer.varFlags) > 0 {
+			scopedName := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: scope.GetRootNode()}
+			flags = b.outer.varFlags[scopedName]
+		}
+		if (flags & typedScopeCreator_VarFlagEscaped) != 0 {
 			var_.MarkEscaped()
 		}
-		if count, ok := b.outer.assignedVarNames[scopedName]; ok {
-			if count == 1 {
-				var_.MarkAssignedExactlyOnce()
-			}
-			delete(b.outer.assignedVarNames, scopedName) // free up memory
+		if wasReserved && (flags & typedScopeCreator_VarFlagNotSingleAssigned) == 0 {
+			var_.MarkAssignedExactlyOnce()
 		}
 	}
 	return var_
@@ -3291,8 +3300,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 
 	// Check if this is assigned in an inner scope.
 	// Functions assigned in inner scopes are inferred.
-	if ownerScope != nil {
-		if _, escaped := b.outer.escapedVarNames[typedScopeCreator_ScopedNameKey{name: *qName, scopeRoot: ownerScope.GetRootNode()}]; escaped {
+	if ownerScope != nil && len(b.outer.varFlags) > 0 {
+		if (b.outer.varFlags[typedScopeCreator_ScopedNameKey{name: *qName, scopeRoot: ownerScope.GetRootNode()}] & typedScopeCreator_VarFlagEscaped) != 0 {
 			return true
 		}
 	}
@@ -4125,21 +4134,69 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
+	a.outer.scopeCount++
+	if t.InGlobalScope() {
+		return
+	}
+	t.GetScope()
+}
+
+// Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.exitScope(NodeTraversal)
+func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversal) {
 	if t.InGlobalScope() {
 		return
 	}
 	scope := t.GetScope()
+	root := scope.GetRootNode()
+	if scope.implicitVars != nil {
+		if ev := scope.implicitVars[AbstractScope_ImplicitVar_EXPORTS]; ev != nil {
+			h := ev.nameHash
+			ev.nameHash = 0
+			var flags uint8
+			if (h & 4) != 0 {
+				flags |= typedScopeCreator_VarFlagEscaped
+			}
+			if (h & 3) != 1 {
+				flags |= typedScopeCreator_VarFlagNotSingleAssigned
+			}
+			if flags != 0 {
+				a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: "exports", scopeRoot: root}] |= flags
+			}
+			if (h & 3) == 1 {
+				list := a.outer.reservedNamesForScope[root]
+				if list == nil {
+					list = a.outer.arena.allocNames(scope.GetVarCount() + 1)
+				}
+				list = append(list, "exports")
+				a.outer.reservedNamesForScope[root] = list
+			}
+		}
+	}
 	varCount := scope.GetVarCount()
 	if varCount == 0 {
 		return
 	}
-	root := scope.GetRootNode()
 	list := a.outer.reservedNamesForScope[root]
 	if list == nil {
 		list = a.outer.arena.allocNames(varCount)
 	}
-	for symbol := range scope.GetVarIterable() {
-		name := symbol.GetName()
+	for _, symbol := range scope.varList {
+		if symbol == nil {
+			continue
+		}
+		name := symbol.name
+		h := symbol.nameHash
+		symbol.nameHash = 0
+		if h != 1 {
+			var flags uint8
+			if (h & 4) != 0 {
+				flags |= typedScopeCreator_VarFlagEscaped
+			}
+			if (h & 3) != 1 {
+				flags |= typedScopeCreator_VarFlagNotSingleAssigned
+			}
+			a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: name, scopeRoot: root}] |= flags
+		}
 		if !slices.Contains(list, name) {
 			list = append(list, name)
 		}
@@ -4179,12 +4236,13 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		// which seems like the right thing to do (but could possibly break things?)
 		// Doing so will allow removing the warning on TypeCheckTest#testIssue1024b.
 		if var_ != nil {
-			ownerScope := var_.GetScope().(*Scope)
+			ownerScope := var_.scope
 			if ownerScope.IsLocal() {
-				scopedName := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: ownerScope.GetRootNode()}
-				a.outer.assignedVarNames[scopedName]++
+				if (var_.nameHash & 3) < 2 {
+					var_.nameHash++
+				}
 				if !containerScope.HasSameContainerScope(ownerScope) {
-					a.outer.escapedVarNames[scopedName] = struct{}{}
+					var_.nameHash |= 4
 				}
 			}
 		}
@@ -4193,10 +4251,10 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		scope := t.GetScope()
 		var_ := scope.GetVar(name)
 		if var_ != nil {
-			ownerScope := var_.GetScope().(*Scope)
+			ownerScope := var_.scope
 			if ownerScope.IsLocal() && !containerScope.HasSameContainerScope(ownerScope) {
 				qName, _ := n.GetQualifiedNameString()
-				a.outer.escapedVarNames[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] = struct{}{}
+				a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
 			}
 		}
 	}

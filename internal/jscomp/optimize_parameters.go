@@ -41,7 +41,12 @@ type OptimizeParameters struct {
 	globalScope *Scope
 
 	// Allocated & cleaned up by process()
-	decisionsLog diagnostic.LogFile
+	decisionsLog      diagnostic.LogFile
+	fnNodes           []*rhino.Node
+	defNodes          []*rhino.Node
+	ttlList           jutil.ArrayList[*rhino.Node]
+	candidateBuilder  OptimizeParameters_CandidateAnalysisBuilder
+	candidateAnalysis OptimizeParameters_CandidateAnalysis
 }
 
 // Java: OptimizeParameters(AbstractCompiler)
@@ -84,7 +89,14 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs *rhino.Node, root *
 	decisionsLog :=
 		o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeParameters](), "decisions.log")
 	defer decisionsLog.Close()
-	defer func() { o.decisionsLog = nil }()
+	defer func() {
+		o.decisionsLog = nil
+		clear(o.fnNodes)
+		o.fnNodes = o.fnNodes[:0]
+		clear(o.defNodes)
+		o.defNodes = o.defNodes[:0]
+		o.ttlList.Clear()
+	}()
 	// Save the LogFile into a field to avoid bucket-brigade passing it through a bunch of methods
 	o.decisionsLog = decisionsLog
 	o.globalScope = refMap.GetGlobalScope()
@@ -186,8 +198,9 @@ func NewOptimizeParameters_UnusedParameterOptimizer(outer *OptimizeParameters) *
 func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(refs *jutil.ArrayList[*rhino.Node]) {
 	// An argument is unused if its position is greater than the number of declared parameters
 	// or if it marked as unused.
-	fns := OptimizeCalls_ReferenceMap_GetFunctionNodes(refs.Slice())
-	jutil.CheckState(!fns.IsEmpty())
+	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(u.outer.fnNodes[:0], refs.Slice())
+	u.outer.fnNodes = fns
+	jutil.CheckState(len(fns) > 0)
 
 	// Examine all function definitions that are ever assigned to the symbol to determine:
 	// 1. Which formal parameter positions are used by at least one of the definitions?
@@ -200,7 +213,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 	maxFormalsCount := 0
 	lowestUsedRest := math.MaxInt32
 	used := jutil.NewBitSet()
-	for _, fn := range fns.Entries() {
+	for _, fn := range fns {
 		paramList := NodeUtil_GetFunctionParameters(fn)
 		index := -1
 		for c := paramList.GetFirstChild(); c != nil; c = c.GetNext() {
@@ -312,7 +325,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 		}
 	}
 
-	for _, fn := range fns.Entries() {
+	for _, fn := range fns {
 		paramList := NodeUtil_GetFunctionParameters(fn)
 		param := paramList.GetFirstChild()
 		u.RemoveUnusedFunctionParameters(unremovable, param, 0)
@@ -496,12 +509,18 @@ func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.Ar
 //
 // Java: OptimizeParameters.analyzeCandidate(String, String, ArrayList<Node>)
 func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *jutil.ArrayList[*rhino.Node]) *OptimizeParameters_CandidateAnalysis {
-	analysisBuilder := NewOptimizeParameters_CandidateAnalysisBuilder(o)
+	o.ttlList.Clear()
+	analysisBuilder := &o.candidateBuilder
+	analysisBuilder.outer = o
+	analysisBuilder.taggedTemplateLiterals = &o.ttlList
+	analysisBuilder.isSafeToOptimize = false
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, key) {
-		o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, key)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, key)
+		}
 		return analysisBuilder.SetIsSafeToOptimize(false).Build()
 	}
-	var definitions []*rhino.Node
+	definitions := o.defNodes[:0]
 	seenCandidateUse := false
 	for _, n := range refs.Slice() {
 		// TODO(johnlenz): Determine what to do about ".constructor" references.
@@ -523,35 +542,45 @@ func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *
 				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, key, n.GetLocation())
 			}
 			// TODO(johnlenz): allow extends clauses.
+			o.defNodes = definitions
 			return analysisBuilder.SetIsSafeToOptimize(false).Build()
 		}
 	}
+	o.defNodes = definitions
 	if len(definitions) == 0 {
-		o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, key)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, key)
+		}
 		return analysisBuilder.SetIsSafeToOptimize(false).Build()
 	}
 	if analysisBuilder.taggedTemplateLiterals.Size() != 0 {
-		functionNodes :=
-			optimizeParameters_values(OptimizeCalls_ReferenceMap_GetFunctionNodes(definitions))
+		functionNodes := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], definitions)
+		o.fnNodes = functionNodes
 
 		for _, functionNode := range functionNodes {
 			firstParam := NodeUtil_GetFunctionParameters(functionNode).GetFirstChild()
 			if firstParam != nil && !firstParam.IsUnusedParameter() {
-				o.decisionsLog.LogFormat(
-					"%s\t%s\twill not optimize parameters for tagged template literals", refKind, key)
+				if o.decisionsLog.IsLogging() {
+					o.decisionsLog.LogFormat(
+						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, key)
+				}
 				return analysisBuilder.SetIsSafeToOptimize(false).Build()
 			}
 		}
-		o.decisionsLog.LogFormat(
-			"%s\t%s\t%s",
-			refKind,
-			key,
-			"first param is unused, so we will convert tagged template literals to normal calls")
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat(
+				"%s\t%s\t%s",
+				refKind,
+				key,
+				"first param is unused, so we will convert tagged template literals to normal calls")
+		}
 		seenCandidateUse = true
 	}
 
 	if !seenCandidateUse {
-		o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, key)
+		if o.decisionsLog.IsLogging() {
+			o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, key)
+		}
 		return analysisBuilder.SetIsSafeToOptimize(false).Build()
 	}
 	return analysisBuilder.SetIsSafeToOptimize(true).Build()
@@ -623,6 +652,14 @@ func (b *OptimizeParameters_CandidateAnalysisBuilder) AddTaggedTemplateLiteral(t
 
 // Java: OptimizeParameters.CandidateAnalysisBuilder.build()
 func (b *OptimizeParameters_CandidateAnalysisBuilder) Build() *OptimizeParameters_CandidateAnalysis {
+	if b.outer != nil && b == &b.outer.candidateBuilder {
+		b.outer.candidateAnalysis = OptimizeParameters_CandidateAnalysis{
+			outer:                  b.outer,
+			taggedTemplateLiterals: b.taggedTemplateLiterals,
+			isSafeToOptimize:       b.isSafeToOptimize,
+		}
+		return &b.outer.candidateAnalysis
+	}
 	return NewOptimizeParameters_CandidateAnalysis(b.outer, b)
 }
 
@@ -787,6 +824,32 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
 		return false // Fast path; there can't possibly be back-refs.
 	}
 
+	allSimpleNames := true
+	count := 0
+	for c := paramList.GetFirstChild(); c != nil; c = c.GetNext() {
+		if !c.IsName() || c.HasChildren() {
+			allSimpleNames = false
+			break
+		}
+		count++
+	}
+	if allSimpleNames {
+		if count <= 1 {
+			return false
+		}
+		if count <= 16 {
+			for a := paramList.GetFirstChild(); a != nil; a = a.GetNext() {
+				aStr := a.GetString()
+				for b := a.GetNext(); b != nil; b = b.GetNext() {
+					if aStr == b.GetString() {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	}
+
 	// Go-only: language-adapter — an ArrayListMultimap (HashMap of String
 	// keys) whose iteration order cannot reach the result (any group
 	// qualifies), so insertion order is used.
@@ -847,7 +910,9 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[*rhi
 		}
 	}
 
-	for _, fn := range OptimizeCalls_ReferenceMap_GetFunctionNodes(refs.Slice()).Entries() {
+	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs.Slice())
+	o.fnNodes = fns
+	for _, fn := range fns {
 		o.EliminateParamsAfter(fn, maxArgs)
 	}
 }
@@ -868,8 +933,8 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[*rhi
 		return
 	}
 
-	fns := OptimizeCalls_ReferenceMap_GetFunctionNodes(refs.Slice())
-	if fns.Size() > 1 {
+	fn, fnCount := optimizeCalls_getSingleFunctionNode(refs.Slice())
+	if fnCount > 1 {
 		// TODO(johnlenz): support moving simple constants.
 		// This requires cloning the tree and avoiding adding additional calls/definitions that will
 		// invalidate the reference map
@@ -877,12 +942,10 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[*rhi
 	}
 
 	// Only one definition is currently supported.
-	fnValues := optimizeParameters_values(fns)
-	if len(fnValues) == 0 {
+	if fnCount == 0 {
 		// Iterables.getOnlyElement of an empty iterable (size() <= 1 here).
 		panic(jutil.NewNoSuchElementException())
 	}
-	fn := fnValues[0]
 
 	continueLooking := OptimizeParameters_AdjustForConstraints(fn, parameters.Slice())
 	if !continueLooking {

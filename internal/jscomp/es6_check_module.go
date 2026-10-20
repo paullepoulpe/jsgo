@@ -27,7 +27,8 @@ import (
 type Es6CheckModule struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	compiler AbstractCompiler
+	compiler                 AbstractCompiler
+	noImportsInCurrentScript bool
 }
 
 var Es6CheckModule_ES6_MODULE_REFERENCES_THIS = DiagnosticType_Warning(
@@ -56,15 +57,42 @@ func (e *Es6CheckModule) Process(externs *rhino.Node, root *rhino.Node) {
 	b.Traverse(root)
 }
 
+func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	if n.IsScript() {
+		hasModule := false
+		hasImports := false
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.IsModuleBody() {
+				hasModule = true
+				for mc := c.GetFirstChild(); mc != nil; mc = mc.GetNext() {
+					if mc.IsImport() {
+						hasImports = true
+						break
+					}
+				}
+			} else if c.IsImport() {
+				hasModule = true
+				hasImports = true
+			}
+		}
+		e.noImportsInCurrentScript = !hasImports
+		return hasModule
+	}
+	return true
+}
+
 // Java: Es6CheckModule.visit(NodeTraversal, Node, Node)
 func (e *Es6CheckModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		e.noImportsInCurrentScript = false
 	case rhino.Token_THIS:
 		if t.InModuleHoistScope() {
 			t.Report(n, Es6CheckModule_ES6_MODULE_REFERENCES_THIS)
 		}
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
-		if NodeUtil_IsLValue(n) &&
+		if !e.noImportsInCurrentScript &&
+			NodeUtil_IsLValue(n) &&
 			!NodeUtil_IsDeclarationLValue(n) &&
 			n.GetFirstChild().IsName() {
 			var_ := t.GetScope().GetVar(n.GetFirstChild().GetString())
@@ -78,7 +106,8 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.No
 			}
 		}
 	case rhino.Token_NAME:
-		if NodeUtil_IsLValue(n) && !NodeUtil_IsDeclarationLValue(n) {
+		if !e.noImportsInCurrentScript &&
+			NodeUtil_IsLValue(n) && !NodeUtil_IsDeclarationLValue(n) {
 			var_ := t.GetScope().GetVar(n.GetString())
 			if var_ != nil {
 				nameNode := var_.GetNameNode()

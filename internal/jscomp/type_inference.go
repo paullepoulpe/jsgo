@@ -139,7 +139,7 @@ func (ti *TypeInference) initTypeInference(
 	rootNode := syntacticScope.GetRootNode()
 	ti.bottomTypedScope = TypedScope{}
 	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
-	ti.bottomTypedScope.vars.InitWithBuffer(ti.bottomTypedScope.varSlots[:])
+	ti.bottomTypedScope.vars.InitWithBuffer(nil)
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
 	ti.bottomFlowScope = LinkedFlowScope{
@@ -178,8 +178,8 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	}
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.
-	for var_ := range scope.GetDeclarativelyUnboundVarsWithoutTypes() {
-		if ti.IsUnflowable(var_) {
+	for var_ := range scope.vars.Values() {
+		if !scope.IsDeclarativelyUnboundVarWithoutType(var_) || ti.IsUnflowable(var_) {
 			continue
 		}
 
