@@ -206,27 +206,34 @@ def specs(args):
         flags = ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes', '--jscomp_warning=checkVars',
                  '--language_out=ECMASCRIPT_2017', '--dependency_mode=PRUNE']
         if family == 'protobuf':
-            files = sorted((fixture/'node_modules/google-protobuf').rglob('*.js'))
+            files = sorted(p for p in (fixture/'node_modules/google-protobuf').rglob('*.js') if p.is_file())
             flags += ['--process_common_js_modules', '--module_resolution=NODE', '--entry_point=generated/protobuf_entry.js']
         else:
-            files = sorted((fixture/family).rglob('*.js'))
+            files = sorted(p for p in (fixture/family).rglob('*.js') if p.is_file())
             flags += ['--entry_point=goog:enterprise.'+family]
             if family == 'j2cl':
                 flags += ['--j2cl_pass=ON']
         sources = []
-        for link, root, paths in [('inputs', Path(links['inputs']), closure_js if family != 'protobuf' else []),
+        for link, root, paths in [('inputs', Path(links['inputs']), closure_js if family == 'soy' else []),
                                   ('generated', fixture, files+[fixture/f'{family}_entry.js'])]:
             for path in paths:
                 relative = path.relative_to(root).as_posix()
                 flags += ['--js', link+'/'+relative]
                 sources.append({'flag': '--js', 'link': link, 'relative': relative, 'bytes': path.stat().st_size, 'sha256': sha(path)})
-        auxiliary_count = 0
+        # Generated JRE archives carry original input maps/source sidecars.
+        # Freeze these too if the compiler consults sourceMappingURL metadata.
+        auxiliary = [p for p in (fixture/'j2cl').rglob('*') if p.is_file() and not p.name.endswith('.js')] if family == 'j2cl' else []
+        for path in sorted(auxiliary):
+            sources.append({'flag': 'input-source-map-or-sidecar', 'link': 'generated',
+                            'relative': path.relative_to(fixture).as_posix(),
+                            'bytes': path.stat().st_size, 'sha256': sha(path)})
+        auxiliary_count = len(auxiliary)
         if family == 'protobuf':
             package = fixture/'node_modules/google-protobuf/package.json'
             sources.append({'flag': 'package-metadata', 'link': 'generated',
                             'relative': package.relative_to(fixture).as_posix(),
                             'bytes': package.stat().st_size, 'sha256': sha(package)})
-            auxiliary_count = 1
+            auxiliary_count += 1
         argv = replace_threads(flags+['--js_output_file=out.js', '--create_source_map=out.js.map', '--output_manifest=inputs.manifest'], args.threads)
         entry, expected = SEMANTICS[family]
         spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-'+family, 'argv': argv,
@@ -239,7 +246,8 @@ def specs(args):
                               'source_count': len(sources)-auxiliary_count, 'auxiliary_input_count': auxiliary_count,
                               'source_bytes': sum(s['bytes'] for s in sources if s['flag'] == '--js'),
                               'generated_family': family, 'fixture_status': manifest['status'],
-                              'limitations': 'real generated runtime/example fixture; not claimed to be a production enterprise application'}}
+                              'limitations': 'real generated runtime/example fixture; not claimed to be a production enterprise application',
+                              'j2cl_runtime': 'matching release JRE + 7 Closure bootstrap JS files; no duplicate full Closure tree' if family == 'j2cl' else None}}
         save(out/(spec['name']+'.json'), spec)
         print(spec['name'], len(sources), 'files', spec['same_work']['source_bytes'], 'bytes; UNVALIDATED')
 
