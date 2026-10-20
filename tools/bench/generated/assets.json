@@ -1,0 +1,21 @@
+{
+  "schema": "jsgo-generated-assets-v1",
+  "notes": [
+    "External benchmark inputs only; third-party generated code is never committed.",
+    "Maven release SHA-1 pins are upstream-published identities; staging also records SHA-256 for every downloaded artifact and input.",
+    "J2CL uses both generated JRE and bootstrap artifacts from the SAME release, not runtime stubs.",
+    "Soy upstream example sources are pinned to the release-date commit, then compiled by the pinned portable Soy release."
+  ],
+  "assets": [
+    {"name":"j2cl-jre.zip", "family":"j2cl", "url":"https://repo.maven.apache.org/maven2/com/vertispan/j2cl/jre/0.11.0-9336533b6/jre-0.11.0-9336533b6-jszip.zip", "sha256":"cdd92a4f2e805a1e0c867f211556788068e94e141be1488b6d269947c41d5012", "license":"Apache-2.0; com.vertispan.j2cl:j2cl-parent:0.11.0-9336533b6 POM"},
+    {"name":"j2cl-bootstrap.zip", "family":"j2cl", "url":"https://repo.maven.apache.org/maven2/com/vertispan/j2cl/bootstrap/0.11.0-9336533b6/bootstrap-0.11.0-9336533b6-jszip.zip", "sha1":"2298aa54296c844f0b4a94517cb37707d37d5413", "license":"Apache-2.0; same J2CL parent POM"},
+    {"name":"google-protobuf.tgz", "family":"protobuf", "url":"https://registry.npmjs.org/google-protobuf/-/google-protobuf-3.21.4.tgz", "integrity":"sha512-MnG7N936zcKTco4Jd2PX2U96Kf9PxygAPKBug+74LHzmHXmceN16MmRcdgZv+DGef/S9YvQAfRsNCn4cjf9yyQ==", "license":"BSD-3-Clause AND Apache-2.0; npm3.21.4 package metadata"},
+    {"name":"soy-compiler.jar", "family":"soy", "url":"https://repo.maven.apache.org/maven2/com/google/template/soy/2019-10-08/soy-2019-10-08-SoyToJsSrcCompiler.jar", "sha1":"80f255da723915b7588787c8f3754aa33f889a16", "license":"Apache-2.0; google/closure-templates"},
+    {"name":"soyutils_usegoog.js", "family":"soy", "url":"https://repo.maven.apache.org/maven2/com/google/template/soy/2019-10-08/soy-2019-10-08-soyutils_usegoog.js", "sha1":"8a9d9509297c01467de042ad816cd9377d86ef67", "license":"Apache-2.0; matching Soy runtime release"},
+    {"name":"simple.soy", "family":"soy", "url":"https://raw.githubusercontent.com/google/closure-templates/c8f994f15922db35b00c126396b16eab6118bc8f/examples/simple.soy", "sha256":"02dcd2d7c5e2ec4631bd8100924ad882eff2c4e49d19f72ac110b3f6d6ed19ac", "license":"Apache-2.0; upstream source header"},
+    {"name":"features.soy", "family":"soy", "url":"https://raw.githubusercontent.com/google/closure-templates/c8f994f15922db35b00c126396b16eab6118bc8f/examples/features.soy", "sha256":"61b80778950af93d97882a0cf73a11e8f16078bdc72715221020ada31706be99", "license":"Apache-2.0; upstream source header"},
+    {"name":"delegates0.soy", "family":"soy", "url":"https://raw.githubusercontent.com/google/closure-templates/c8f994f15922db35b00c126396b16eab6118bc8f/examples/delegates0.soy", "sha256":"28cb1c5674fd7bfc3ef2d7a5f5440f9609acb2f50d9c6ad09e1f5f255db82d2a", "license":"Apache-2.0; upstream source header"},
+    {"name":"delegates1.soy", "family":"soy", "url":"https://raw.githubusercontent.com/google/closure-templates/c8f994f15922db35b00c126396b16eab6118bc8f/examples/delegates1.soy", "sha256":"305d1989b09f03ef50084bfa369e9b612a8b45f0eac8ff4b23da23d8ddac3fd1", "license":"Apache-2.0; upstream source header"},
+    {"name":"delegates2.soy", "family":"soy", "url":"https://raw.githubusercontent.com/google/closure-templates/c8f994f15922db35b00c126396b16eab6118bc8f/examples/delegates2.soy", "sha256":"e2a56e39c5329faefee31875a72516a5d67f9f0e0b24b7f209f72f77c98c03eb", "license":"Apache-2.0; upstream source header"}
+  ]
+}
