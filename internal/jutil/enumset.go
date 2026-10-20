@@ -13,11 +13,13 @@ import (
 // EnumSet is java.util.EnumSet<E> for a ported enum type E (an int32 ordinal).
 type EnumSet[E ~int32] struct {
 	words []uint64
+	buf   [2]uint64
 }
 
 // NewEnumSet is EnumSet.noneOf / EnumSet.of(e...).
 func NewEnumSet[E ~int32](elems ...E) *EnumSet[E] {
 	s := &EnumSet[E]{}
+	s.words = s.buf[:0]
 	for _, e := range elems {
 		s.Add(e)
 	}
@@ -26,12 +28,21 @@ func NewEnumSet[E ~int32](elems ...E) *EnumSet[E] {
 
 // EnumSetCopyOf is EnumSet.copyOf(set).
 func EnumSetCopyOf[E ~int32](other *EnumSet[E]) *EnumSet[E] {
-	return &EnumSet[E]{words: append([]uint64(nil), other.words...)}
+	s := &EnumSet[E]{}
+	if len(other.words) <= len(s.buf) {
+		s.words = append(s.buf[:0], other.words...)
+	} else {
+		s.words = append([]uint64(nil), other.words...)
+	}
+	return s
 }
 
 // Add is Set.add; reports whether the set changed.
 func (s *EnumSet[E]) Add(e E) bool {
 	w, b := int(e)/64, uint(e)%64
+	if s.words == nil && w < len(s.buf) {
+		s.words = s.buf[:0]
+	}
 	for len(s.words) <= w {
 		s.words = append(s.words, 0)
 	}
@@ -77,6 +88,9 @@ func (s *EnumSet[E]) ContainsAll(other *EnumSet[E]) bool {
 // AddAll is Set.addAll; reports whether the set changed.
 func (s *EnumSet[E]) AddAll(other *EnumSet[E]) bool {
 	changed := false
+	if s.words == nil && len(other.words) <= len(s.buf) {
+		s.words = s.buf[:0]
+	}
 	for len(s.words) < len(other.words) {
 		s.words = append(s.words, 0)
 	}

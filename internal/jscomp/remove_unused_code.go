@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -102,6 +103,15 @@ type propRemovableList struct {
 	tail *RemoveUnusedCode_RemovableBase
 }
 
+type rucVarCacheEntry struct {
+	v    *Var
+	info RemoveUnusedCode_VarInfo
+}
+
+func rucVarCacheIdx(v *Var) uint32 {
+	return (uint32(uintptr(unsafe.Pointer(v))>>4) * 0x9e3779b1) >> 21
+}
+
 type removeUnusedCodeArena struct {
 	worklist     []RemoveUnusedCode_Continuation
 	worklistHead int
@@ -110,9 +120,11 @@ type removeUnusedCodeArena struct {
 	varBuckets  []*RemoveUnusedCode_RealVarInfo
 	varInfos    []*RemoveUnusedCode_RealVarInfo
 	lastVar     *Var
-	lastVarInfo *RemoveUnusedCode_RealVarInfo
+	lastVarInfo RemoveUnusedCode_VarInfo
+	varPtrCache [2048]rucVarCacheEntry
 
 	pinnedPropertyNames map[string]struct{}
+	lastPinnedProp      string
 	propRemovables      map[string]propRemovableList
 	propRemovableKeys   []string
 
@@ -141,6 +153,7 @@ func (a *removeUnusedCodeArena) reset() {
 
 	a.lastVar = nil
 	a.lastVarInfo = nil
+	clear(a.varPtrCache[:])
 	if len(a.varBuckets) > 0 {
 		if len(a.varInfos)*8 < len(a.varBuckets) {
 			mask := uint32(len(a.varBuckets) - 1)
@@ -155,6 +168,7 @@ func (a *removeUnusedCodeArena) reset() {
 	a.varInfos = a.varInfos[:0]
 
 	clear(a.pinnedPropertyNames)
+	a.lastPinnedProp = ""
 	clear(a.propRemovables)
 	clear(a.propRemovableKeys)
 	a.propRemovableKeys = a.propRemovableKeys[:0]
@@ -261,6 +275,7 @@ type RemoveUnusedCode struct {
 	preserveFunctionExpressionNames bool
 
 	externProperties *jutil.LinkedHashSet[string]
+	accessorSummary  *AccessorSummary
 	// Non-nil only when the exported implicit-property list differs from its default.
 	customImplicitProperties map[string]struct{}
 
@@ -313,11 +328,13 @@ func isImplicitlyUsedProperty(name string) bool {
 
 // Java: RemoveUnusedCode(Builder)
 func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
+	sc := NewSyntacticScopeCreator(builder.compiler)
+	sc.EnableArenaPool()
 	r := &RemoveUnusedCode{
 		compiler:                        builder.compiler,
 		astAnalyzer:                     builder.compiler.GetAstAnalyzer(),
 		codingConvention:                builder.compiler.GetCodingConvention(),
-		scopeCreator:                    NewSyntacticScopeCreator(builder.compiler),
+		scopeCreator:                    sc,
 		removeLocalVars:                 builder.removeLocalVars,
 		removeGlobals:                   builder.removeGlobals,
 		preserveFunctionExpressionNames: builder.preserveFunctionExpressionNames,
@@ -538,6 +555,7 @@ func RemoveUnusedCode_RemovalLogRecord_GetLoggableFunctionNameSupplier(argList *
 func (r *RemoveUnusedCode) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	r.externProperties = r.compiler.GetExternProperties()
+	r.accessorSummary = r.compiler.GetAccessorSummary()
 
 	arena := acquireRUCArena()
 	r.removeUnusedCodeArena = *arena
@@ -713,7 +731,6 @@ func hasBlockScopedDeclarationsChild(n *rhino.Node) bool {
 //
 // Java: RemoveUnusedCode.traverseNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
-	parent := n.GetParent()
 	type_ := n.GetToken()
 	switch type_ {
 	case rhino.Token_CATCH:
@@ -730,7 +747,7 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 						AddContinuation(NewRemoveUnusedCode_Continuation(r, n, scope)).
 						BuildFunctionDeclaration(n)
 				varInfo.AddRemovable(functionDeclaration)
-				if parent.IsExport() {
+				if n.GetParent().IsExport() {
 					varInfo.SetIsExplicitlyNotRemovable(func() string { return "exported class" })
 				}
 			} else {
@@ -792,6 +809,7 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 		// The only cases that should reach this point are parameter declarations and references
 		// to names. The name node does not have children in these cases.
 		jutil.CheckState(!n.HasChildren())
+		parent := n.GetParent()
 		// the parameter declaration is not a read of the name
 		if !parent.IsParamList() {
 			// var|let|const name;
@@ -979,15 +997,16 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode *rhino.Node
 
 // Java: RemoveUnusedCode.traverseNameNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNameNode(n *rhino.Node, scope *Scope) RemoveUnusedCode_VarInfo {
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(n.GetString()) {
-		for info := range r.polyfills.Get(n.GetString()).All() {
+	name := n.GetString()
+	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(name) {
+		for info := range r.polyfills.Get(name).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(n)
 			}
 		}
 	}
 
-	return r.TraverseVar(r.GetVarForNameNode(n, scope))
+	return r.TraverseVar(jutil.CheckNotNullMsg1(scope.GetVar(name), "%s", n))
 }
 
 // Java: RemoveUnusedCode.traverseCall(Node, Scope)
@@ -1801,17 +1820,28 @@ func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
 }
 
 func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
+	if propertyName == r.lastPinnedProp && propertyName != "" {
+		return true
+	}
 	if r.customImplicitProperties == nil {
 		if isImplicitlyUsedProperty(propertyName) {
+			r.lastPinnedProp = propertyName
 			return true
 		}
 	} else if _, ok := r.customImplicitProperties[propertyName]; ok {
+		r.lastPinnedProp = propertyName
 		return true
 	}
 	if _, ok := r.pinnedPropertyNames[propertyName]; ok {
+		r.lastPinnedProp = propertyName
 		return true
 	}
-	return r.externProperties != nil && r.externProperties.Contains(propertyName)
+	if r.externProperties != nil && r.externProperties.Contains(propertyName) {
+		r.pinnedPropertyNames[propertyName] = struct{}{}
+		r.lastPinnedProp = propertyName
+		return true
+	}
+	return false
 }
 
 // Java: RemoveUnusedCode.markPropertyNameAsPinned(String)
@@ -1820,6 +1850,7 @@ func (r *RemoveUnusedCode) MarkPropertyNameAsPinned(propertyName string) {
 		return
 	}
 	r.pinnedPropertyNames[propertyName] = struct{}{}
+	r.lastPinnedProp = propertyName
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
 	if list, ok := r.propRemovables[propertyName]; ok {
@@ -1878,7 +1909,11 @@ func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop *rhino.Node, u
 	// Other node types may make sense in the future.
 	jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
 	propName := getprop.GetString()
-	recorded := r.compiler.GetAccessorSummary().GetKind(propName)
+	summary := r.accessorSummary
+	if summary == nil {
+		summary = r.compiler.GetAccessorSummary()
+	}
+	recorded := summary.GetKind(propName)
 	if (recorded.HasGetter() && usage.HasGetter() && !r.assumeGettersArePure) ||
 		(recorded.HasSetter() && usage.HasSetter()) {
 		r.MarkPropertyNameAsPinned(propName)
@@ -2010,7 +2045,17 @@ func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList *rhino.No
 //
 // Java: RemoveUnusedCode.traverseVar(Var)
 func (r *RemoveUnusedCode) TraverseVar(var_ *Var) RemoveUnusedCode_VarInfo {
-	jutil.CheckNotNull(var_)
+	if var_ == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if var_ == r.lastVar {
+		return r.lastVarInfo
+	}
+	if slot := &r.varPtrCache[rucVarCacheIdx(var_)]; slot.v == var_ {
+		r.lastVar = var_
+		r.lastVarInfo = slot.info
+		return slot.info
+	}
 	if r.removeLocalVars && var_.IsArguments() {
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
@@ -2090,7 +2135,9 @@ func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 //
 // Java: RemoveUnusedCode.getVarInfo(Var)
 func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
-	jutil.CheckNotNull(var_)
+	if var_ == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
 			name := var_.GetName()
@@ -2115,6 +2162,12 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 	if var_ == r.lastVar {
 		return r.lastVarInfo
 	}
+	cacheIdx := rucVarCacheIdx(var_)
+	if slot := &r.varPtrCache[cacheIdx]; slot.v == var_ {
+		r.lastVar = var_
+		r.lastVarInfo = slot.info
+		return slot.info
+	}
 	scopeRoot := var_.GetScopeRoot()
 	h := hashVar(var_)
 	if len(r.varBuckets) == 0 {
@@ -2125,6 +2178,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && cur.varName == name) {
 			r.lastVar = var_
 			r.lastVarInfo = cur
+			r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: cur}
 			return cur
 		}
 	}
@@ -2144,6 +2198,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 	r.putVarInfo(varInfo)
 	r.lastVar = var_
 	r.lastVarInfo = varInfo
+	r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: varInfo}
 	return varInfo
 }
 

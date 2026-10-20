@@ -17,6 +17,7 @@ import (
 // OutputStreamWriter is java.io.OutputStreamWriter.
 type OutputStreamWriter struct {
 	out                     io.WriteCloser
+	byteBuf                 []byte
 	pendingHighSurrogate    uint16
 	hasPendingHighSurrogate bool
 	closed                  bool
@@ -39,14 +40,79 @@ func (w *OutputStreamWriter) checkOpen() {
 // Write is OutputStreamWriter.write(String).
 func (w *OutputStreamWriter) Write(s string) {
 	w.checkOpen()
-	units := StringToUTF16(s)
-	if w.hasPendingHighSurrogate {
-		units = append([]uint16{w.pendingHighSurrogate}, units...)
-		w.hasPendingHighSurrogate = false
+	b := w.byteBuf[:0]
+	if cap(b) < len(s) {
+		b = make([]byte, 0, max(len(s), 1024))
 	}
-	var b []byte
-	for i := 0; i < len(units); i++ {
+	for i := 0; i < len(s); {
+		if !w.hasPendingHighSurrogate && s[i] < 0x80 {
+			j := i + 1
+			for j < len(s) && s[j] < 0x80 {
+				j++
+			}
+			b = append(b, s[i:j]...)
+			i = j
+			continue
+		}
+		r, sz := decodeWTF8(s[i:])
+		i += sz
+		if r >= 0x10000 {
+			if w.hasPendingHighSurrogate {
+				b = append(b, '?')
+				w.hasPendingHighSurrogate = false
+			}
+			b = utf8.AppendRune(b, r)
+			continue
+		}
+		c := uint16(r)
+		switch {
+		case c >= 0xD800 && c <= 0xDBFF:
+			if w.hasPendingHighSurrogate {
+				b = append(b, '?')
+			}
+			w.pendingHighSurrogate, w.hasPendingHighSurrogate = c, true
+		case c >= 0xDC00 && c <= 0xDFFF:
+			if w.hasPendingHighSurrogate {
+				b = utf8.AppendRune(b, (rune(w.pendingHighSurrogate)-0xD800)<<10+(rune(c)-0xDC00)+0x10000)
+				w.hasPendingHighSurrogate = false
+			} else {
+				b = append(b, '?')
+			}
+		default:
+			if w.hasPendingHighSurrogate {
+				b = append(b, '?')
+				w.hasPendingHighSurrogate = false
+			}
+			b = utf8.AppendRune(b, rune(c))
+		}
+	}
+	w.byteBuf = b[:0]
+	w.writeBytes(b)
+}
+
+func (w *OutputStreamWriter) writeUTF16(units []uint16) {
+	w.checkOpen()
+	b := w.byteBuf[:0]
+	if cap(b) < len(units) {
+		b = make([]byte, 0, max(len(units), 1024))
+	}
+	i := 0
+	if w.hasPendingHighSurrogate && len(units) > 0 {
+		hi := w.pendingHighSurrogate
+		w.hasPendingHighSurrogate = false
+		if lo := units[0]; lo >= 0xDC00 && lo <= 0xDFFF {
+			b = utf8.AppendRune(b, (rune(hi)-0xD800)<<10+(rune(lo)-0xDC00)+0x10000)
+			i = 1
+		} else {
+			b = append(b, '?')
+		}
+	}
+	for ; i < len(units); i++ {
 		c := units[i]
+		if c < 0x80 {
+			b = append(b, byte(c))
+			continue
+		}
 		switch {
 		case c >= 0xD800 && c <= 0xDBFF:
 			if i+1 == len(units) {
@@ -65,6 +131,7 @@ func (w *OutputStreamWriter) Write(s string) {
 			b = utf8.AppendRune(b, rune(c))
 		}
 	}
+	w.byteBuf = b[:0]
 	w.writeBytes(b)
 }
 
@@ -93,8 +160,11 @@ func (w *OutputStreamWriter) Close() {
 	w.closed = true
 	if w.hasPendingHighSurrogate {
 		w.hasPendingHighSurrogate = false
-		w.writeBytes([]byte{'?'})
+		b := append(w.byteBuf[:0], '?')
+		w.byteBuf = b[:0]
+		w.writeBytes(b)
 	}
+	w.byteBuf = nil
 	if err := w.out.Close(); err != nil {
 		panic(NewIOException(err.Error()))
 	}

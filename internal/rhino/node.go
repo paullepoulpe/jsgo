@@ -415,12 +415,22 @@ func (n *Node) GetClassName() string {
 	return node_kindClassNames[n.kind]
 }
 
+//go:noinline
+func failNodeCastKind(got, want node_kind) {
+	panic(jutil.NewClassCastException(node_kindClassNames[got], node_kindClassNames[want]))
+}
+
 // node_castKind is the Java cast `((XNode) this)`: it throws a
 // ClassCastException unless n is of the given kind.
 func (n *Node) node_castKind(k node_kind) {
 	if n.kind != k {
-		panic(jutil.NewClassCastException(node_kindClassNames[n.kind], node_kindClassNames[k]))
+		failNodeCastKind(n.kind, k)
 	}
+}
+
+//go:noinline
+func failNodeCast(value any, zero any) {
+	panic(jutil.NewClassCastException(fmt.Sprintf("%T", value), fmt.Sprintf("%T", zero)))
 }
 
 // node_cast is the Java reference cast `(T) value` of a property value:
@@ -433,7 +443,7 @@ func node_cast[T any](value any) T {
 	t, ok := value.(T)
 	if !ok {
 		var zero T
-		panic(jutil.NewClassCastException(fmt.Sprintf("%T", value), fmt.Sprintf("%T", any(zero))))
+		failNodeCast(value, any(zero))
 	}
 	return t
 }
@@ -865,7 +875,7 @@ func (n *Node) SetClosureUnawareShadow(shadowRoot *Node) {
 
 // Java: Node.getClosureUnawareShadow()
 func (n *Node) GetClosureUnawareShadow() *Node {
-	if n.token != Token_NAME {
+	if n.token != Token_NAME || n.propListHead == nil || (n.propListHead.propType == int8(Node_Prop_SOURCE_FILE) && n.propListHead.next == nil) {
 		// As checked in setClosureUnawareShadow, only NAME nodes can have shadow
 		// content. We short-circuit the getProp call here because that can be
 		// very expensive for nodes that have long proplists (and we know it
@@ -3684,6 +3694,56 @@ func (n *Node) SetTypedefTypeProp(type_ JSType) {
 // Java: Node.getTypedefTypeProp()
 func (n *Node) GetTypedefTypeProp() JSType {
 	return node_cast[JSType](n.GetProp(Node_Prop_TYPEDEF_TYPE))
+}
+
+// TakeTypesAndJSDocForColorConversion clears the node's JSType and removes
+// TYPE_BEFORE_CAST, DECLARED_TYPE_EXPR, and TYPEDEF_TYPE properties in a single
+// pass over propListHead, returning the old JSType, whether TYPE_BEFORE_CAST
+// was present, and the node's JSDocInfo if any.
+func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType JSType, hadBeforeCast bool, jsdoc *JSDocInfo) {
+	if n.typeOrColor != nil {
+		if n.typeIsColor {
+			jutil.CheckStateMsg1(false, "%s", n)
+		}
+		oldType = (*JSTypeBase)(n.typeOrColor).self
+		n.typeOrColor = nil
+	}
+	head := n.propListHead
+	if head == nil || (head.propType == int8(Node_Prop_SOURCE_FILE) && head.next == nil) {
+		return oldType, false, nil
+	}
+	var removeNeedsRebuild bool
+	for x := head; x != nil; x = x.next {
+		switch Node_Prop(x.propType) {
+		case Node_Prop_JSDOC_INFO:
+			jsdoc = node_cast[*JSDocInfo](x.objectValue)
+		case Node_Prop_TYPE_BEFORE_CAST:
+			hadBeforeCast = true
+			removeNeedsRebuild = true
+		case Node_Prop_DECLARED_TYPE_EXPR, Node_Prop_TYPEDEF_TYPE:
+			removeNeedsRebuild = true
+		}
+	}
+	if removeNeedsRebuild {
+		n.propListHead = node_rebuildListWithoutColorConversionProps(head)
+	}
+	return oldType, hadBeforeCast, jsdoc
+}
+
+func node_rebuildListWithoutColorConversionProps(item *Node_PropListItem) *Node_PropListItem {
+	if item == nil {
+		return nil
+	}
+	switch Node_Prop(item.propType) {
+	case Node_Prop_TYPE_BEFORE_CAST, Node_Prop_DECLARED_TYPE_EXPR, Node_Prop_TYPEDEF_TYPE:
+		return node_rebuildListWithoutColorConversionProps(item.next)
+	default:
+		result := node_rebuildListWithoutColorConversionProps(item.next)
+		if result == item.next {
+			return item
+		}
+		return item.Chain(result)
+	}
 }
 
 // SetUnusedParameter sets the value for isUnusedParameter().

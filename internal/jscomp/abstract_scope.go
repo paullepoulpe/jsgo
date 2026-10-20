@@ -470,7 +470,7 @@ func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_Implici
 // Java: AbstractScope.getOwnSlot(String)
 func (b *AbstractScopeBase[S, V]) GetOwnSlot(name string) rhino.StaticSlot {
 	var null V
-	if v := b.getOwnSlotV(name); v != null {
+	if v := b.self.getOwnSlotV(name); v != null {
 		return v
 	}
 	return nil

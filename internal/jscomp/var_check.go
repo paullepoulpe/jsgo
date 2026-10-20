@@ -145,6 +145,7 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 // Java: VarCheck.process(Node, Node)
 func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := v.CreateScopeCreator()
+	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
 	var scopeCreator ScopeCreator = sc
 

@@ -55,6 +55,58 @@ func Util_EscapeString(s string) string {
 	const singlequoteEscape = "'"
 	const backslashEscape = "\\\\"
 
+	if jutil.IsASCII(s) {
+		var sb strings.Builder
+		sb.Grow(len(s) + 16)
+		sb.WriteByte(quote)
+		region := util_UnescapedRegion{sb: &sb, ascii: s}
+		length := len(s)
+		for i := 0; i < length; i++ {
+			c := s[i]
+			switch c {
+			case '\n':
+				region.AppendForEscapedChar("\\n")
+			case '\r':
+				region.AppendForEscapedChar("\\r")
+			case '\t':
+				region.AppendForEscapedChar("\\t")
+			case '\\':
+				region.AppendForEscapedChar(backslashEscape)
+			case '"':
+				region.AppendForEscapedChar(doublequoteEscape)
+			case '\'':
+				region.AppendForEscapedChar(singlequoteEscape)
+			case '>':
+				if i >= 2 &&
+					((s[i-1] == '-' && s[i-2] == '-') ||
+						(s[i-1] == ']' && s[i-2] == ']')) {
+					region.AppendForEscapedChar("\\u003e")
+				} else {
+					region.IncrementForNormalChar()
+				}
+			case '<':
+				if i+1+len("/script") <= length && strings.EqualFold(s[i+1:i+1+len("/script")], "/script") {
+					region.AppendForEscapedChar("\\u003c")
+				} else if i+1+len("!--") <= length && s[i+1:i+1+len("!--")] == "!--" {
+					region.AppendForEscapedChar("\\u003c")
+				} else {
+					region.IncrementForNormalChar()
+				}
+			default:
+				if c > 0x1f && c <= 0x7f {
+					region.IncrementForNormalChar()
+				} else {
+					region.AppendUnescaped()
+					region.IncrementForEscapedChar()
+					Util_AppendHexJavaScriptRepresentation(&sb, uint16(c))
+				}
+			}
+		}
+		region.AppendUnescaped()
+		sb.WriteByte(quote)
+		return sb.String()
+	}
+
 	// Go-only: language-adapter — the Java String as UTF-16 code units, so
 	// that charAt is O(1) and every index is a Java char index.
 	units := jutil.StringToUTF16(s)
@@ -63,7 +115,7 @@ func Util_EscapeString(s string) string {
 	sb.Grow(len(units) + 2)
 	sb.WriteByte(quote)
 
-	region := &util_UnescapedRegion{sb: &sb, units: units}
+	region := util_UnescapedRegion{sb: &sb, units: units}
 
 	length := len(units)
 	for i := 0; i < length; i++ {
@@ -132,6 +184,7 @@ var (
 type util_UnescapedRegion struct {
 	// Go-only: language-adapter — the captured locals sb and s.
 	sb    *strings.Builder
+	ascii string
 	units []uint16
 
 	unescapedRegionStart int
@@ -144,7 +197,13 @@ func (r *util_UnescapedRegion) AppendUnescaped() {
 		// Note: we want to use the "append(String)" override for performance
 		// reasons and the ErrorProne suggestion to use the CharSequence
 		// override is inferior for that.
-		r.sb.WriteString(jutil.StringFromUTF16(r.units[r.unescapedRegionStart:r.unescapedRegionEnd]))
+		if r.units == nil {
+			r.sb.WriteString(r.ascii[r.unescapedRegionStart:r.unescapedRegionEnd])
+		} else {
+			for _, u := range r.units[r.unescapedRegionStart:r.unescapedRegionEnd] {
+				r.sb.WriteByte(byte(u))
+			}
+		}
 	}
 	r.unescapedRegionStart = r.unescapedRegionEnd
 }
@@ -174,12 +233,14 @@ func (r *util_UnescapedRegion) AppendForEscapedChar(escaped string) {
 //
 // Java: Util.appendHexJavaScriptRepresentation(StringBuilder, char)
 func Util_AppendHexJavaScriptRepresentation(sb *strings.Builder, c uint16) {
-	// Go-only: language-adapter — Java wraps this call in
-	// try { ... } catch (IOException ex) { throw new RuntimeException(ex); }
-	// because "StringBuilder does not throw IOException"; a strings.Builder
-	// cannot fail either, so the handler is unreachable and the call is made
-	// directly (no closure per escaped char, PORTING.md §5).
-	Util_AppendHexJavaScriptRepresentationToAppendable(int(c), sb)
+	var buf [6]byte
+	buf[0] = '\\'
+	buf[1] = 'u'
+	buf[2] = byte(Util_HEX_CHARS[(c>>12)&0xf])
+	buf[3] = byte(Util_HEX_CHARS[(c>>8)&0xf])
+	buf[4] = byte(Util_HEX_CHARS[(c>>4)&0xf])
+	buf[5] = byte(Util_HEX_CHARS[c&0xf])
+	sb.Write(buf[:])
 }
 
 // Util_AppendHexJavaScriptRepresentationToAppendable returns a JavaScript

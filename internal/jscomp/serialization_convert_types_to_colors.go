@@ -80,12 +80,7 @@ func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n *rhino.
 }
 
 func convertTypesToColors_removeTypesFromNode(n *rhino.Node) {
-	n.SetJSType(nil)
-	n.SetJSTypeBeforeCast(nil)
-	n.SetDeclaredTypeExpression(nil)
-	n.SetTypedefTypeProp(nil)
-
-	jsdoc := n.GetJSDocInfo()
+	_, _, jsdoc := n.TakeTypesAndJSDocForColorConversion()
 	if jsdoc != nil {
 		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
 	}
@@ -139,10 +134,10 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal,
 }
 
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node) {
-	oldType := n.GetJSType()
-	oldTypeBeforeCast := n.GetJSTypeBeforeCast()
-
-	convertTypesToColors_removeTypesFromNode(n)
+	oldType, hadBeforeCast, jsdoc := n.TakeTypesAndJSDocForColorConversion()
+	if jsdoc != nil {
+		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
+	}
 
 	if oldType != nil {
 		var c *colors.Color
@@ -165,7 +160,7 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node
 		}
 	}
 
-	if oldTypeBeforeCast != nil {
+	if hadBeforeCast {
 		// used by FunctionInjector and InlineVariables when inlining as a hint that a node has a
 		// more specific color
 		n.SetColorFromTypeCast()

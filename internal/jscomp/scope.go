@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"iter"
 	"sync"
 	"sync/atomic"
 
@@ -33,14 +34,25 @@ const (
 	minVarChunkSize      = 32
 	maxVarChunkSize      = 4096
 	maxVarChunks         = 96
-	minSlotChunkSize     = 64
-	maxSlotChunkSize     = 4096
+	minSlotChunkSize     = 128
+	maxSlotChunkSize     = 16384
 	maxSlotChunks        = 96
-	maxLargeSlotSize     = 4096
+	minHashChunkSize     = 256
+	maxHashChunkSize     = 32768
+	maxHashChunks        = 96
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
 	maxImplicitChunks    = 32
 )
+
+func scopeNameHash(s string) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
+	}
+	return h ^ (h >> 16)
+}
 
 // Scope contains information about a variable scope in JavaScript. Scopes
 // can be nested, a scope points back to its parent scope. A Scope contains
@@ -56,11 +68,14 @@ const (
 type Scope struct {
 	AbstractScopeBase[*Scope, *Var]
 
-	parent *Scope
-	arena  *scopeArena
+	parent   *Scope
+	arena    *scopeArena
+	varList  []*Var
+	varHash  []int32
+	varCount int32
 }
 
-// scopeArena slab-allocates Scope, Var, and LinkedHashMap slot slices for a
+// scopeArena slab-allocates Scope, Var, varList, and varHash slices for a
 // SyntacticScopeCreator and its descendant scopes.
 type scopeArena struct {
 	// Custom callbacks may retain scopes, vars, or their live symbol views.
@@ -74,19 +89,21 @@ type scopeArena struct {
 	varUsed          int
 	varChunks        [][]Var
 	varChunkIdx      int
-	slotChunk        []jutil.LhmSlot[string, *Var]
+	slotChunk        []*Var
 	slotUsed         int
-	slotChunks       [][]jutil.LhmSlot[string, *Var]
+	slotChunks       [][]*Var
 	slotChunkIdx     int
-	largeSlots       []jutil.LhmSlot[string, *Var]
-	largeSlotsUsed   int
+	hashChunk        []int32
+	hashUsed         int
+	hashChunks       [][]int32
+	hashChunkIdx     int
 	implicitChunk    [][4]*Var
 	implicitUsed     int
 	implicitChunks   [][][4]*Var
 	implicitChunkIdx int
 
-	globalVars    jutil.LinkedHashMap[string, *Var]
-	globalVarsCap int
+	globalVarList []*Var
+	globalVarHash []int32
 	globalScope   *Scope
 	pooled        bool
 }
@@ -115,18 +132,19 @@ func (a *scopeArena) release() {
 	if a == nil || a.escaped || !a.pooled {
 		return
 	}
-	if a.globalScope != nil {
-		gv := a.globalScope.vars
+	if gs := a.globalScope; gs != nil {
 		a.globalScope = nil
-		if sz := gv.Size(); sz > a.globalVarsCap {
-			a.globalVarsCap = sz
-		}
-		if a.globalVarsCap <= 16384 {
-			gv.Clear()
-			a.globalVars = gv
+		if cap(gs.varList) <= 32768 {
+			clear(gs.varList)
+			a.globalVarList = gs.varList[:0]
 		} else {
-			a.globalVars = jutil.LinkedHashMap[string, *Var]{}
-			a.globalVarsCap = 0
+			a.globalVarList = nil
+		}
+		if len(gs.varHash) <= 65536 {
+			clear(gs.varHash)
+			a.globalVarHash = gs.varHash
+		} else {
+			a.globalVarHash = nil
 		}
 	}
 
@@ -175,10 +193,20 @@ func (a *scopeArena) release() {
 	a.slotUsed = 0
 	a.slotChunkIdx = 0
 
-	if a.largeSlotsUsed > 0 {
-		clear(a.largeSlots[:a.largeSlotsUsed])
-		a.largeSlotsUsed = 0
+	for i := 0; i < a.hashChunkIdx && i < maxHashChunks; i++ {
+		if i == a.hashChunkIdx-1 {
+			clear(a.hashChunks[i][:a.hashUsed])
+		} else {
+			clear(a.hashChunks[i])
+		}
 	}
+	if len(a.hashChunks) > maxHashChunks {
+		clear(a.hashChunks[maxHashChunks:])
+		a.hashChunks = a.hashChunks[:maxHashChunks]
+	}
+	a.hashChunk = nil
+	a.hashUsed = 0
+	a.hashChunkIdx = 0
 
 	for i := 0; i < a.implicitChunkIdx && i < maxImplicitChunks; i++ {
 		if i == a.implicitChunkIdx-1 {
@@ -265,46 +293,34 @@ func (a *scopeArena) allocVar() *Var {
 	return v
 }
 
-func (a *scopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *Var] {
-	if n <= 0 {
+func (a *scopeArena) allocVarList(length, capacity int) []*Var {
+	if capacity <= 0 {
 		return nil
 	}
-	if n > maxSlotChunkSize {
-		if n <= maxLargeSlotSize {
-			if len(a.largeSlots)-a.largeSlotsUsed >= n {
-				u := a.largeSlotsUsed
-				a.largeSlotsUsed = u + n
-				return a.largeSlots[u : u+n : u+n]
-			}
-			if a.largeSlotsUsed == 0 {
-				a.largeSlots = make([]jutil.LhmSlot[string, *Var], maxLargeSlotSize)
-				a.largeSlotsUsed = n
-				return a.largeSlots[:n:n]
-			}
-		}
-		return make([]jutil.LhmSlot[string, *Var], n)
+	if capacity > maxSlotChunkSize {
+		return make([]*Var, length, capacity)
 	}
-	if len(a.slotChunk)-a.slotUsed < n {
+	if len(a.slotChunk)-a.slotUsed < capacity {
 		if a.slotChunkIdx < len(a.slotChunks) {
 			ch := a.slotChunks[a.slotChunkIdx]
-			if len(ch) < n {
+			if len(ch) < capacity {
 				size := 4 * len(ch)
 				if size < minSlotChunkSize {
 					size = minSlotChunkSize
 				}
-				if size < n {
-					size = n
+				if size < capacity {
+					size = capacity
 				}
 				if size > maxSlotChunkSize {
 					size = maxSlotChunkSize
 				}
-				ch = make([]jutil.LhmSlot[string, *Var], size)
+				ch = make([]*Var, size)
 				a.slotChunks[a.slotChunkIdx] = ch
 			}
 			a.slotChunkIdx++
 			a.slotChunk = ch
-			a.slotUsed = n
-			return ch[:n:n]
+			a.slotUsed = capacity
+			return ch[:length:capacity]
 		}
 		size := 4 * len(a.slotChunk)
 		if size < minSlotChunkSize {
@@ -312,39 +328,110 @@ func (a *scopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *Var] {
 		} else if size > maxSlotChunkSize {
 			size = maxSlotChunkSize
 		}
-		if size < n {
-			size = n
+		if size < capacity {
+			size = capacity
 		}
-		ch := make([]jutil.LhmSlot[string, *Var], size)
+		ch := make([]*Var, size)
 		a.slotChunks = append(a.slotChunks, ch)
 		a.slotChunkIdx = len(a.slotChunks)
 		a.slotChunk = ch
-		a.slotUsed = n
-		return ch[:n:n]
+		a.slotUsed = capacity
+		return ch[:length:capacity]
 	}
 	u := a.slotUsed
-	a.slotUsed = u + n
-	return a.slotChunk[u : u+n : u+n]
+	a.slotUsed = u + capacity
+	return a.slotChunk[u : u+length : u+capacity]
 }
 
-func (a *scopeArena) initLargeVars(sc *Scope, n int) {
-	if sc.parent == nil && a.globalScope == nil {
-		if a.globalVarsCap > 0 {
-			sc.vars = a.globalVars
-			a.globalVars = jutil.LinkedHashMap[string, *Var]{}
+func (a *scopeArena) allocVarHash(size int) []int32 {
+	if size <= 0 {
+		return nil
+	}
+	if size > maxHashChunkSize {
+		return make([]int32, size)
+	}
+	if len(a.hashChunk)-a.hashUsed < size {
+		if a.hashChunkIdx < len(a.hashChunks) {
+			ch := a.hashChunks[a.hashChunkIdx]
+			if len(ch) < size {
+				chunkSize := 4 * len(ch)
+				if chunkSize < minHashChunkSize {
+					chunkSize = minHashChunkSize
+				}
+				if chunkSize < size {
+					chunkSize = size
+				}
+				if chunkSize > maxHashChunkSize {
+					chunkSize = maxHashChunkSize
+				}
+				ch = make([]int32, chunkSize)
+				a.hashChunks[a.hashChunkIdx] = ch
+			}
+			a.hashChunkIdx++
+			a.hashChunk = ch
+			a.hashUsed = size
+			return ch[:size:size]
+		}
+		chunkSize := 4 * len(a.hashChunk)
+		if chunkSize < minHashChunkSize {
+			chunkSize = minHashChunkSize
+		} else if chunkSize > maxHashChunkSize {
+			chunkSize = maxHashChunkSize
+		}
+		if chunkSize < size {
+			chunkSize = size
+		}
+		ch := make([]int32, chunkSize)
+		a.hashChunks = append(a.hashChunks, ch)
+		a.hashChunkIdx = len(a.hashChunks)
+		a.hashChunk = ch
+		a.hashUsed = size
+		return ch[:size:size]
+	}
+	u := a.hashUsed
+	a.hashUsed = u + size
+	return a.hashChunk[u : u+size : u+size]
+}
+
+func (sc *Scope) initLargeVars(n int) {
+	if a := sc.arena; a != nil {
+		if sc.parent == nil && a.globalScope == nil {
 			a.globalScope = sc
+			listCap := 256
+			for listCap < n {
+				listCap *= 2
+			}
+			if cap(a.globalVarList) < listCap {
+				a.globalVarList = make([]*Var, 0, listCap)
+			}
+			sc.varList = a.globalVarList[:0]
+			a.globalVarList = nil
+
+			hashLen := 512
+			for hashLen < cap(sc.varList)*2 {
+				hashLen *= 2
+			}
+			if len(a.globalVarHash) < hashLen {
+				a.globalVarHash = make([]int32, hashLen)
+			}
+			sc.varHash = a.globalVarHash
+			a.globalVarHash = nil
 			return
 		}
-		cap := 256
-		for cap < n {
-			cap *= 2
+		sc.varList = a.allocVarList(0, n)
+		hashLen := 32
+		for hashLen < n*2 {
+			hashLen *= 2
 		}
-		sc.vars = *jutil.NewLinkedHashMapWithCapacity[string, *Var](cap)
-		a.globalVarsCap = cap
-		a.globalScope = sc
+		sc.varHash = a.allocVarHash(hashLen)
 		return
 	}
-	sc.vars.InitWithBuffer(a.allocVarSlots(n))
+	sc.varList = make([]*Var, 0, n)
+	hashLen := 32
+	for hashLen < n*2 {
+		hashLen *= 2
+	}
+	sc.varHash = make([]int32, hashLen)
 }
 
 func (a *scopeArena) allocImplicitVars() *[4]*Var {
@@ -512,11 +599,43 @@ func (s *Scope) GetClosestContainerScope() *Scope {
 	return scope
 }
 
-func (s *Scope) getOwnSlotV(name string) *Var {
-	if s.vars.Size() > 0 {
-		if var_ := s.vars.Get(name); var_ != nil {
-			return var_
+func (s *Scope) lookupOwnVar(name string) *Var {
+	if s.varCount == 0 {
+		return nil
+	}
+	if s.varHash != nil {
+		mask := uint32(len(s.varHash) - 1)
+		slot := scopeNameHash(name) & mask
+		for {
+			idx := s.varHash[slot]
+			if idx == 0 {
+				return nil
+			}
+			if v := s.varList[idx-1]; v.name == name {
+				return v
+			}
+			slot = (slot + 1) & mask
 		}
+	}
+	for _, v := range s.varList {
+		if v != nil && v.name == name {
+			return v
+		}
+	}
+	return nil
+}
+
+// Java: AbstractScope.getOwnSlot(String) (final)
+func (s *Scope) GetOwnSlot(name string) rhino.StaticSlot {
+	if v := s.getOwnSlotV(name); v != nil {
+		return v
+	}
+	return nil
+}
+
+func (s *Scope) getOwnSlotV(name string) *Var {
+	if v := s.lookupOwnVar(name); v != nil {
+		return v
 	}
 	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 		return s.GetOwnImplicitSlot(imp)
@@ -526,7 +645,7 @@ func (s *Scope) getOwnSlotV(name string) *Var {
 
 // Java: AbstractScope.hasOwnSlot(String)
 func (s *Scope) HasOwnSlot(name string) bool {
-	if s.vars.Size() > 0 && s.vars.ContainsKey(name) {
+	if s.lookupOwnVar(name) != nil {
 		return true
 	}
 	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
@@ -538,9 +657,34 @@ func (s *Scope) HasOwnSlot(name string) bool {
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
 	implicit := AbstractScope_ImplicitVar_Of(name)
+	var h uint32
+	var hashed bool
 	for ; s != nil; s = s.parent {
-		if s.vars.Size() > 0 && s.vars.ContainsKey(name) {
-			return true
+		if s.varCount > 0 {
+			if s.varHash != nil {
+				if !hashed {
+					h = scopeNameHash(name)
+					hashed = true
+				}
+				mask := uint32(len(s.varHash) - 1)
+				slot := h & mask
+				for {
+					idx := s.varHash[slot]
+					if idx == 0 {
+						break
+					}
+					if s.varList[idx-1].name == name {
+						return true
+					}
+					slot = (slot + 1) & mask
+				}
+			} else {
+				for _, v := range s.varList {
+					if v != nil && v.name == name {
+						return true
+					}
+				}
+			}
 		}
 		if implicit != nil && implicit.IsMadeByScope(s) {
 			return true
@@ -551,9 +695,9 @@ func (s *Scope) HasSlot(name string) bool {
 
 func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 	for anc := s.parent; anc != nil && anc.parent != nil; anc = anc.parent {
-		if anc.vars.Size() > 0 {
-			for v := range anc.vars.Values() {
-				if !v.IsImplicitGoogNamespace() {
+		if anc.varCount > 0 {
+			for _, v := range anc.varList {
+				if v != nil && !v.IsImplicitGoogNamespace() {
 					return v.GetInput(), true
 				}
 			}
@@ -567,10 +711,33 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 // avoid those dictionary calls and classify implicit names once per lookup.
 func (s *Scope) GetVar(name string) *Var {
 	implicit := AbstractScope_ImplicitVar_Of(name)
+	var h uint32
+	var hashed bool
 	for {
-		if s.vars.Size() > 0 {
-			if v := s.vars.Get(name); v != nil {
-				return v
+		if s.varCount > 0 {
+			if s.varHash != nil {
+				if !hashed {
+					h = scopeNameHash(name)
+					hashed = true
+				}
+				mask := uint32(len(s.varHash) - 1)
+				slot := h & mask
+				for {
+					idx := s.varHash[slot]
+					if idx == 0 {
+						break
+					}
+					if v := s.varList[idx-1]; v.name == name {
+						return v
+					}
+					slot = (slot + 1) & mask
+				}
+			} else {
+				for _, v := range s.varList {
+					if v != nil && v.name == name {
+						return v
+					}
+				}
 			}
 		}
 		if implicit != nil {
@@ -582,6 +749,235 @@ func (s *Scope) GetVar(name string) *Var {
 		if s == nil {
 			return nil
 		}
+	}
+}
+
+// Java: AbstractScope.getVarCount()
+func (s *Scope) GetVarCount() int {
+	return int(s.varCount)
+}
+
+// Java: AbstractScope.getVarIterable()
+func (s *Scope) GetVarIterable() iter.Seq[*Var] {
+	return func(yield func(*Var) bool) {
+		for i := 0; i < len(s.varList); i++ {
+			if v := s.varList[i]; v != nil {
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Java: AbstractScope.getAllSymbols()
+func (s *Scope) GetAllSymbols() iter.Seq[*Var] {
+	return s.GetVarIterable()
+}
+
+// Java: AbstractScope.clearVarsInternal()
+func (s *Scope) ClearVarsInternal() {
+	if s.varCount > 0 || len(s.varList) > 0 {
+		clear(s.varList)
+		s.varList = s.varList[:0]
+		if s.varHash != nil {
+			clear(s.varHash)
+		}
+		s.varCount = 0
+	}
+}
+
+// Java: AbstractScope.undeclare(V)
+func (s *Scope) Undeclare(var_ *Var) {
+	jutil.CheckState(var_.scope == s)
+	current := s.lookupOwnVar(var_.name)
+	if current == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	jutil.CheckState(current.Equals(var_))
+	s.UndeclareInteral(var_)
+}
+
+// Java: AbstractScope.undeclareInteral(V)
+func (s *Scope) UndeclareInteral(var_ *Var) {
+	if !s.varsInitialized {
+		panic(jutil.NewUnsupportedOperationException())
+	}
+	name := var_.name
+	if s.varHash != nil {
+		mask := uint32(len(s.varHash) - 1)
+		i := scopeNameHash(name) & mask
+		for {
+			idx := s.varHash[i]
+			if idx == 0 {
+				return
+			}
+			if s.varList[idx-1].name == name {
+				s.varList[idx-1] = nil
+				s.varCount--
+				break
+			}
+			i = (i + 1) & mask
+		}
+		j := i
+		for {
+			j = (j + 1) & mask
+			idx := s.varHash[j]
+			if idx == 0 {
+				break
+			}
+			k := scopeNameHash(s.varList[idx-1].name) & mask
+			if ((j - k) & mask) >= ((j - i) & mask) {
+				s.varHash[i] = idx
+				i = j
+			}
+		}
+		s.varHash[i] = 0
+		return
+	}
+	for i, v := range s.varList {
+		if v != nil && v.name == name {
+			s.varList[i] = nil
+			s.varCount--
+			return
+		}
+	}
+}
+
+func (s *Scope) appendVar(v *Var) {
+	if len(s.varList) < cap(s.varList) {
+		s.varList = append(s.varList, v)
+		return
+	}
+	s.growVarList(v)
+}
+
+func (s *Scope) growVarList(v *Var) {
+	oldLen := len(s.varList)
+	newCap := cap(s.varList) * 2
+	if newCap < 4 {
+		newCap = 4
+	}
+	if a := s.arena; a != nil && s != a.globalScope && newCap <= maxSlotChunkSize {
+		if oldLen > 0 && a.slotUsed >= oldLen && &s.varList[0] == &a.slotChunk[a.slotUsed-oldLen] {
+			start := a.slotUsed - oldLen
+			if len(a.slotChunk)-start >= newCap {
+				a.slotUsed = start + newCap
+				s.varList = a.slotChunk[start : start+oldLen+1 : start+newCap]
+				s.varList[oldLen] = v
+				return
+			}
+		}
+		next := a.allocVarList(oldLen+1, newCap)
+		copy(next, s.varList)
+		next[oldLen] = v
+		s.varList = next
+		return
+	}
+	next := make([]*Var, oldLen+1, newCap)
+	copy(next, s.varList)
+	next[oldLen] = v
+	s.varList = next
+}
+
+func (s *Scope) initVarHash(size int) {
+	if a := s.arena; a != nil && s != a.globalScope && size <= maxHashChunkSize {
+		s.varHash = a.allocVarHash(size)
+	} else {
+		s.varHash = make([]int32, size)
+	}
+	mask := uint32(size - 1)
+	for i, v := range s.varList {
+		if v == nil {
+			continue
+		}
+		slot := scopeNameHash(v.name) & mask
+		for s.varHash[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+		s.varHash[slot] = int32(i + 1)
+	}
+}
+
+func (s *Scope) growVarHash() {
+	newLen := len(s.varHash) * 2
+	if newLen < 32 {
+		newLen = 32
+	}
+	if a := s.arena; a != nil && s != a.globalScope && newLen <= maxHashChunkSize {
+		oldLen := len(s.varHash)
+		if oldLen > 0 && a.hashUsed >= oldLen && &s.varHash[0] == &a.hashChunk[a.hashUsed-oldLen] {
+			start := a.hashUsed - oldLen
+			if len(a.hashChunk)-start >= newLen {
+				clear(s.varHash)
+				a.hashUsed = start + newLen
+				s.varHash = a.hashChunk[start : start+newLen : start+newLen]
+			} else {
+				s.varHash = a.allocVarHash(newLen)
+			}
+		} else {
+			s.varHash = a.allocVarHash(newLen)
+		}
+	} else {
+		s.varHash = make([]int32, newLen)
+	}
+	mask := uint32(newLen - 1)
+	for i, v := range s.varList {
+		if v == nil {
+			continue
+		}
+		slot := scopeNameHash(v.name) & mask
+		for s.varHash[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+		s.varHash[slot] = int32(i + 1)
+	}
+}
+
+func (s *Scope) appendVarToInitialized(var_ *Var, probeSlot uint32) {
+	s.appendVar(var_)
+	s.varCount++
+	if int(s.varCount)*2 > len(s.varHash) {
+		s.growVarHash()
+		return
+	}
+	s.varHash[probeSlot] = int32(len(s.varList))
+}
+
+// Java: AbstractScope.declareInternal(String, V)
+func (s *Scope) DeclareInternal(name string, var_ *Var) {
+	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
+	}
+	s.varsInitialized = true
+	if s.varHash != nil {
+		h := scopeNameHash(name)
+		mask := uint32(len(s.varHash) - 1)
+		slot := h & mask
+		for {
+			idx := s.varHash[slot]
+			if idx == 0 {
+				break
+			}
+			if s.varList[idx-1].name == name {
+				s.varList[idx-1] = var_
+				return
+			}
+			slot = (slot + 1) & mask
+		}
+		s.appendVarToInitialized(var_, slot)
+		return
+	}
+	for i, existing := range s.varList {
+		if existing != nil && existing.name == name {
+			s.varList[i] = var_
+			return
+		}
+	}
+	s.appendVar(var_)
+	s.varCount++
+	if len(s.varList) > 8 {
+		s.initVarHash(32)
 	}
 }
 
@@ -633,13 +1029,13 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 	var var_ *Var
 	if s.arena != nil {
 		var_ = s.arena.allocVar()
-		initVar(var_, name, nameNode, s, s.GetVarCount(), input, nil)
+		initVar(var_, name, nameNode, s, int(s.varCount), input, nil)
 	} else {
 		var_ = NewVar(
 			name,
 			nameNode,
 			s,
-			s.GetVarCount(),
+			int(s.varCount),
 			input,
 			/* implicitGoogNamespaceDefinition= */ nil)
 	}
@@ -672,43 +1068,6 @@ func functionScopeVarSlotCount(fn *rhino.Node) int {
 	}
 	if n > 64 {
 		return 64
-	}
-	return n
-}
-
-func functionBlockScopeVarSlotCount(block *rhino.Node) int {
-	n := 0
-	steps := 0
-	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
-		steps++
-		if steps > 32 {
-			if n < 16 {
-				return 16
-			}
-			return n
-		}
-		switch c.GetToken() {
-		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-			for lhs := c.GetFirstChild(); lhs != nil; lhs = lhs.GetNext() {
-				if lhs.IsName() {
-					n++
-				} else {
-					n += 2
-				}
-			}
-		case rhino.Token_FUNCTION, rhino.Token_CLASS:
-			n++
-		case rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW,
-			rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER:
-		default:
-			n++
-		}
-		if n >= 32 {
-			return 32
-		}
-	}
-	if n < 1 {
-		return 1
 	}
 	return n
 }
@@ -824,34 +1183,6 @@ func largeScopeVarSlotCount(sc *Scope) int {
 		return 16
 	}
 	return n
-}
-
-// declareNewVar declares a variable when the caller
-// (SyntacticScopeCreator_ScopeScanner.DeclareVar) has already verified that
-// s.getOwnSlotV(name) == nil.
-func (s *Scope) declareNewVar(name string, nameNode *rhino.Node, input *CompilerInput) {
-	jutil.CheckArgument(name != "")
-	var var_ *Var
-	if s.arena != nil {
-		var_ = s.arena.allocVar()
-		initVar(var_, name, nameNode, s, s.vars.Size(), input, nil)
-	} else {
-		var_ = NewVar(name, nameNode, s, s.vars.Size(), input, nil)
-	}
-	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
-		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", nameNode)))
-	}
-	if !s.vars.HasBacking() && s.arena != nil && s.parent != nil {
-		n := 2
-		if s.rootNode.IsFunction() {
-			n = functionScopeVarSlotCount(s.rootNode)
-		} else if s.parent.rootNode.IsFunction() && s.rootNode.IsBlock() {
-			n = functionBlockScopeVarSlotCount(s.rootNode)
-		}
-		s.vars.InitWithBuffer(s.arena.allocVarSlots(n))
-	}
-	s.varsInitialized = true
-	s.vars.PutNew(name, var_)
 }
 
 // DeclareImplicitGoogNamespaceIfAbsent declares an implicit goog.provide or

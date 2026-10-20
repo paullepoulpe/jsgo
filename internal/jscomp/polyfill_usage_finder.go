@@ -389,6 +389,7 @@ func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfil
 // Java: PolyfillUsageFinder.traverseOnlyGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseOnlyGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).

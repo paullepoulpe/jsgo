@@ -1,6 +1,9 @@
 package jutil
 
-import "errors"
+import (
+	"errors"
+	"unicode/utf16"
+)
 
 // Go-only: language-adapter — java.io.BufferedWriter (see its Javadoc and
 // that of java.io.Writer) over a jutil.Writer, with the default buffer of
@@ -57,6 +60,12 @@ func (w *BufferedWriter) FlushBuffer() {
 	if len(w.buf) == 0 {
 		return
 	}
+	if osw, ok := w.out.(*OutputStreamWriter); ok {
+		units := w.buf
+		w.buf = w.buf[:0]
+		osw.writeUTF16(units)
+		return
+	}
 	chunk := StringFromUTF16(w.buf)
 	w.buf = w.buf[:0]
 	w.out.Write(chunk)
@@ -65,17 +74,38 @@ func (w *BufferedWriter) FlushBuffer() {
 // Write is BufferedWriter.write(String).
 func (w *BufferedWriter) Write(s string) {
 	w.checkNotClosed()
-	w.writeUnits(StringToUTF16(s))
+	for i := 0; i < len(s); {
+		if s[i] < 0x80 {
+			bufLen := len(w.buf)
+			n := min(bufferedWriterSize-bufLen, len(s)-i)
+			dst := w.buf[bufLen : bufLen+n]
+			j := 0
+			for ; j < n && s[i+j] < 0x80; j++ {
+				dst[j] = uint16(s[i+j])
+			}
+			w.buf = w.buf[:bufLen+j]
+			i += j
+			if len(w.buf) >= bufferedWriterSize {
+				w.FlushBuffer()
+			}
+			continue
+		}
+		r, sz := decodeWTF8(s[i:])
+		i += sz
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			w.writeUnit(uint16(hi))
+			w.writeUnit(uint16(lo))
+		} else {
+			w.writeUnit(uint16(r))
+		}
+	}
 }
 
-func (w *BufferedWriter) writeUnits(units []uint16) {
-	for len(units) > 0 {
-		n := min(bufferedWriterSize-len(w.buf), len(units))
-		w.buf = append(w.buf, units[:n]...)
-		units = units[n:]
-		if len(w.buf) >= bufferedWriterSize {
-			w.FlushBuffer()
-		}
+func (w *BufferedWriter) writeUnit(c uint16) {
+	w.buf = append(w.buf, c)
+	if len(w.buf) >= bufferedWriterSize {
+		w.FlushBuffer()
 	}
 }
 
@@ -88,7 +118,7 @@ func (w *BufferedWriter) Append(csq string) *BufferedWriter {
 // AppendChar is BufferedWriter.append(char).
 func (w *BufferedWriter) AppendChar(c uint16) *BufferedWriter {
 	w.checkNotClosed()
-	w.writeUnits([]uint16{c})
+	w.writeUnit(c)
 	return w
 }
 

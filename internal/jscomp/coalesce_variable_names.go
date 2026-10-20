@@ -122,6 +122,7 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	c.usePseudoNames = usePseudoNames
 	c.astFactory = compiler.CreateAstFactory()
 	c.scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
+	c.scopeCreator.EnableArenaPool()
 	return c
 }
 
