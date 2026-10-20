@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -697,6 +696,9 @@ func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceC
 				return e.col
 			}
 			if e.v == nil {
+				if c.referenceMap != nil {
+					return c.referenceMap.Get(v)
+				}
 				return nil
 			}
 		}
@@ -706,10 +708,17 @@ func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceC
 			return c.cols[i]
 		}
 	}
+	if c.referenceMap != nil {
+		return c.referenceMap.Get(v)
+	}
 	return nil
 }
 
 func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *ReferenceCollection {
+	return c.registerReferencesForNewVar(v, c.allocReferenceCollection())
+}
+
+func (c *CrossChunkReferenceCollector) registerReferencesForNewVar(v *Var, col *ReferenceCollection) *ReferenceCollection {
 	if idx := v.GetIndex(); idx > c.maxVarIndex {
 		c.maxVarIndex = idx
 	}
@@ -720,7 +729,6 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 			c.varsByName.Put(v.name, v)
 		}
 	}
-	col := c.allocReferenceCollection()
 	if c.table != nil {
 		if (len(c.vars)+1)*2 > len(c.table) {
 			c.growTable()
@@ -750,6 +758,18 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 	c.lastVar = v
 	c.lastCollection = col
 	return col
+}
+
+// An exported AddReferenceToCollection call can precede traversal. Register the
+// traversal's own Var for statement/index/name metadata, retaining its existing
+// equality-map collection and insertion position.
+func (c *CrossChunkReferenceCollector) registerPublicCollectionVar(v *Var, col *ReferenceCollection) {
+	for _, kv := range c.vars {
+		if kv == v {
+			return
+		}
+	}
+	c.registerReferencesForNewVar(v, col)
 }
 
 // Process is a convenience method for running this pass over a tree with
@@ -786,10 +806,8 @@ func (c *CrossChunkReferenceCollector) ProcessRoot(root *rhino.Node) {
 //
 // Java: CrossChunkReferenceCollector.getAllSymbols()
 func (c *CrossChunkReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
-	if c.referenceMap != nil {
-		return c.referenceMap.Keys()
-	}
-	return slices.Values(c.vars)
+	c.ensurePublicReferenceMap()
+	return c.referenceMap.Keys()
 }
 
 // GetReferences gets the reference collection for the given variable.
@@ -861,6 +879,9 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 						}
 						col = c.createReferencesForNewVar(v)
 					} else {
+						if c.referenceMap != nil {
+							c.registerPublicCollectionVar(v, col)
+						}
 						c.lastVar = v
 						c.lastCollection = col
 					}
@@ -913,7 +934,7 @@ func (c *CrossChunkReferenceCollector) ExitScope(t *NodeTraversal) {
 func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	if parent != nil && NodeUtil_IsTopLevel(parent) {
 		jutil.CheckStateMsg1(c.topLevelStatementDraft == nil, "%s", n)
-		c.topLevelStatementDraft = c.InitializeDraftStatement(t.GetChunk(), n)
+		c.topLevelStatementDraft = c.initializeDraftStatement(t.GetChunk(), n)
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
@@ -924,6 +945,14 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino
 
 // Java: CrossChunkReferenceCollector.initializeDraftStatement(JSChunk, Node)
 func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
+	draft := NewCrossChunkReferenceCollector_TopLevelStatementDraft(c.statementCounter, chunk, statementNode)
+	c.statementCounter++
+	return c.initializeDraftStatementContents(draft, statementNode)
+}
+
+// The traversal owns this draft until allocTopLevelStatement copies its slices.
+// Public callers receive an independent draft from InitializeDraftStatement.
+func (c *CrossChunkReferenceCollector) initializeDraftStatement(chunk *JSChunk, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
 	draft := &c.draftVal
 	refs := draft.nonDeclarationReferences[:0]
 	vars := draft.nonDeclarationVars[:0]
@@ -935,6 +964,10 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 		nonDeclarationVars:       vars,
 	}
 	c.statementCounter++
+	return c.initializeDraftStatementContents(draft, statementNode)
+}
+
+func (c *CrossChunkReferenceCollector) initializeDraftStatementContents(draft *CrossChunkReferenceCollector_TopLevelStatementDraft, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
 	// Determine whether this statement declares a name or not.
 	// If so, save its name node and value node, if any.
 	if NodeUtil_IsNameDeclaration(statementNode) {
@@ -1098,19 +1131,26 @@ func CrossChunkReferenceCollector_IsBlockBoundary(n *rhino.Node, parent *rhino.N
 
 // Java: CrossChunkReferenceCollector.addReferenceToCollection(Var, Reference)
 func (c *CrossChunkReferenceCollector) AddReferenceToCollection(v *Var, reference *Reference) {
-	var col *ReferenceCollection
-	if v == c.lastVar && v != nil {
-		col = c.lastCollection
-	} else {
-		col = c.getExistingReferences(v)
-		if col == nil {
-			col = c.createReferencesForNewVar(v)
-		} else {
-			c.lastVar = v
-			c.lastCollection = col
-		}
+	// This exported helper accepts equal Vars from distinct traversals, including
+	// nil map keys. Keep that equality contract outside the private identity table
+	// used by Visit, where scope lookup supplies stable Var pointers.
+	c.ensurePublicReferenceMap()
+	col := c.referenceMap.Get(v)
+	if col == nil {
+		col = c.allocReferenceCollection()
+		c.referenceMap.Put(v, col)
 	}
 	col.Add(reference)
+}
+
+func (c *CrossChunkReferenceCollector) ensurePublicReferenceMap() {
+	if c.referenceMap != nil {
+		return
+	}
+	c.referenceMap = jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
+	for i, kv := range c.vars {
+		c.referenceMap.Put(kv, c.cols[i])
+	}
 }
 
 // Java: CrossChunkReferenceCollector.getTopLevelStatements()

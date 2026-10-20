@@ -352,7 +352,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliasesForName(Name, GlobalNamespace)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForName(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
-	refs := name.GetRefs()
+	refs := name.getRefs()
 	for _, ref := range refs {
 		if ref.IsAliasingGet() && !InlineAndCollapseProperties_MayBeGlobalAlias(ref) && !ref.IsTwin() {
 			// `name` meets condition (c). Try to inline it.
@@ -468,7 +468,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	// Recurse to find potential sub-subclass accesses of the superclass property.
 	subclassNameObj, _ := namespace.GetOwnSlot(subclassName).(*GlobalNamespace_Name)
 	if subclassNameObj != nil && subclassNameObj.SubclassingGetCount() > 0 {
-		for _, ref := range subclassNameObj.GetRefs() {
+		for _, ref := range subclassNameObj.getRefs() {
 			if ref.IsSubclassingGet() {
 				a.RewriteAllSubclassInheritedAccesses(superclassNameObj, ref, prop, namespace)
 			}
@@ -866,7 +866,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasReferences(
 	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *jutil.LinkedHashSet[GlobalNamespace_AstChange] {
 	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
-	refs := aliasingName.GetRefs()
+	refs := aliasingName.getRefs()
 	var initializationChunk *JSChunk
 	if aliasingName.GetInitialization() != nil {
 		initializationChunk = aliasingName.GetInitialization().GetChunk()
@@ -951,7 +951,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAliasReference(
 	value *rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
 	a.RewriteAliasProps(prop, value, depth+1, newNodes)
-	refs := prop.GetRefs()
+	refs := prop.getRefs()
 	for _, ref := range refs {
 		target := ref.GetNode()
 		if target.IsStringKey() && target.GetParent().IsDestructuringPattern() {
@@ -1285,7 +1285,7 @@ func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name
 		return false
 	}
 	foundOriginalDefinition := false
-	for _, ref := range name.GetRefs() {
+	for _, ref := range name.getRefs() {
 		if !ref.IsSet() {
 			continue
 		}
@@ -1521,7 +1521,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 			continue
 		}
 		initialized := name.GetDeclaration() != nil
-		for _, ref := range name.GetRefs() {
+		for _, ref := range name.getRefs() {
 			if ref.IsDeleteProp() {
 				if initialized {
 					c.WarnAboutNamespaceRedefinition(name, ref)
@@ -1640,7 +1640,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameSuppl
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenSimpleStubDeclaration(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclaration(name *GlobalNamespace_Name, alias string) {
-	refs := name.GetRefs()
+	refs := name.getRefs()
 	// Iterables.getOnlyElement(name.getRefs())
 	if len(refs) == 0 {
 		panic(jutil.NewNoSuchElementException())
@@ -1710,7 +1710,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *
 		declarationNode = n.getDeclarationRef().GetNode()
 	}
 	isConstantName := c.ShouldAddConstantName(declarationNode, alias)
-	for _, r := range n.GetRefs() {
+	for _, r := range n.getRefs() {
 		if r == n.getDeclarationRef() {
 			// Declarations are handled separately.
 			continue
@@ -1748,7 +1748,7 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
 		return true
 	}
-	refs := n.GetRefs()
+	refs := n.getRefs()
 	return len(refs) > 1 || (len(refs) == 1 && refs[0] != decl)
 }
 
@@ -1771,7 +1771,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, originalName, isConstantName)
 	}
 
-	for _, r := range n.GetRefs() {
+	for _, r := range n.getRefs() {
 		if r == decl {
 			// Declarations are handled separately.
 			continue
