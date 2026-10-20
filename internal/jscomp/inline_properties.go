@@ -35,10 +35,12 @@ import (
 // The current implementation only inlines immutable values (as defined by
 // NodeUtil.isImmutableValue).
 type InlineProperties struct {
-	compiler AbstractCompiler
-	registry *colors.ColorRegistry
+	compiler    AbstractCompiler
+	registry    *colors.ColorRegistry
+	astAnalyzer *AstAnalyzer
+	externProps *jutil.LinkedHashSet[string]
 
-	props *jutil.LinkedHashMap[string, *InlineProperties_PropertyInfo]
+	props map[string]*InlineProperties_PropertyInfo
 }
 
 // InlineProperties_PropertyInfo is the nested class PropertyInfo.
@@ -56,9 +58,12 @@ var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, nil)
 
 // Java: InlineProperties(AbstractCompiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
-	p := &InlineProperties{props: jutil.NewLinkedHashMap[string, *InlineProperties_PropertyInfo]()}
-	p.compiler = compiler
-	p.registry = compiler.GetColorRegistry()
+	p := &InlineProperties{
+		compiler:    compiler,
+		registry:    compiler.GetColorRegistry(),
+		astAnalyzer: compiler.GetAstAnalyzer(),
+		props:       make(map[string]*InlineProperties_PropertyInfo, 256),
+	}
 	p.InvalidateExternProperties()
 	return p
 }
@@ -66,9 +71,7 @@ func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
 // Java: InlineProperties.invalidateExternProperties()
 func (p *InlineProperties) InvalidateExternProperties() {
 	// Invalidate properties defined in externs.
-	for name := range p.compiler.GetExternProperties().All() {
-		p.props.Put(name, InlineProperties_INVALIDATED)
-	}
+	p.externProps = p.compiler.GetExternProperties()
 }
 
 // GetColor gets the JSType from the Node argument and verifies that it is
@@ -220,7 +223,10 @@ func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateGetpropDefinitio
 
 // Java: InlineProperties.GatherCandidates.invalidateProperty(String)
 func (g *InlineProperties_GatherCandidates) InvalidateProperty(propName string) {
-	g.outer.props.Put(propName, InlineProperties_INVALIDATED)
+	if g.outer.externProps != nil && g.outer.externProps.Contains(propName) {
+		return
+	}
+	g.outer.props[propName] = InlineProperties_INVALIDATED
 }
 
 // MaybeStoreCandidateValue adds the candidate property to the map if it
@@ -231,11 +237,12 @@ func (g *InlineProperties_GatherCandidates) InvalidateProperty(propName string) 
 // Java: InlineProperties.GatherCandidates.maybeStoreCandidateValue(Color, String, Node)
 func (g *InlineProperties_GatherCandidates) MaybeStoreCandidateValue(color *colors.Color, propName string, value *rhino.Node) bool {
 	jutil.CheckNotNull(value)
-	if !g.outer.props.ContainsKey(propName) &&
+	if g.outer.props[propName] == nil &&
+		(g.outer.externProps == nil || !g.outer.externProps.Contains(propName)) &&
 		!color.IsInvalidating() &&
 		NodeUtil_IsImmutableValue(value) &&
 		NodeUtil_IsExecutedExactlyOnce(value) {
-		g.outer.props.Put(propName, NewInlineProperties_PropertyInfo(color, value))
+		g.outer.props[propName] = NewInlineProperties_PropertyInfo(color, value)
 		return true
 	}
 	return false
@@ -281,10 +288,10 @@ func (r *InlineProperties_ReplaceCandidates) Visit(t *NodeTraversal, n *rhino.No
 	if n.IsGetProp() && !NodeUtil_IsLValue(n) {
 		target := n.GetFirstChild()
 		propName := n.GetString()
-		info := r.outer.props.Get(propName)
+		info := r.outer.props[propName]
 		if info != nil && info != InlineProperties_INVALIDATED && r.IsMatchingType(target, info.color) {
 			replacement := info.value.CloneTree()
-			if r.outer.compiler.GetAstAnalyzer().MayHaveSideEffects(n.GetFirstChild()) {
+			if r.outer.astAnalyzer.MayHaveSideEffects(n.GetFirstChild()) {
 				replacement = rhino.IR_Comma(n.RemoveFirstChild(), replacement).Srcref(n)
 			}
 			n.ReplaceWith(replacement)

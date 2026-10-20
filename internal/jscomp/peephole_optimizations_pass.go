@@ -66,16 +66,17 @@ func (p *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 // Java: PeepholeOptimizationsPass.process(Node, Node)
 func (p *PeepholeOptimizationsPass) Process(externs *rhino.Node, root *rhino.Node) {
 	p.BeginTraversal()
+	cb := newPeepholeOptimizationsPass_PeepCallback(p)
 
 	// Repeat to an internal fixed point.
 	for changedScopeNodes := p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName); changedScopeNodes == nil || len(changedScopeNodes) != 0; changedScopeNodes = p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName) {
 
 		if changedScopeNodes == nil {
 			// changedScopeNodes is null if this is the first run of peepholeOptimizationsPass.
-			NodeTraversal_Traverse(p.compiler, root, newPeepholeOptimizationsPass_PeepCallback(p))
+			NodeTraversal_Traverse(p.compiler, root, cb)
 		} else {
 			NodeTraversal_TraverseScopeRoots(
-				p.compiler, changedScopeNodes, newPeepholeOptimizationsPass_PeepCallback(p), false /* traverseNested */)
+				p.compiler, changedScopeNodes, cb, false /* traverseNested */)
 		}
 
 		// Cancel the fixed point if requested.

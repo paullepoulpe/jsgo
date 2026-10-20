@@ -605,18 +605,15 @@ func (p *PeepholeSubstituteAlternateSyntax) ReduceTrueFalse(n *rhino.Node) *rhin
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeArrayLiteral(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeArrayLiteral(n *rhino.Node) *rhino.Node {
-	allStrings := true
-	for cur := n.GetFirstChild(); cur != nil; cur = cur.GetNext() {
-		if !cur.IsStringLit() {
-			allStrings = false
-		}
-	}
-
-	if allStrings {
-		return p.TryMinimizeStringArrayLiteral(n)
-	} else {
+	if !p.late {
 		return n
 	}
+	for cur := n.GetFirstChild(); cur != nil; cur = cur.GetNext() {
+		if !cur.IsStringLit() {
+			return n
+		}
+	}
+	return p.TryMinimizeStringArrayLiteral(n)
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeStringArrayLiteral(Node)

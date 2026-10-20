@@ -30,6 +30,8 @@ import (
 // with no side effects, etc.
 type PeepholeRemoveDeadCode struct {
 	AbstractPeepholeOptimizationBase
+	dequePool  []*peepholeRemoveDeadCode_nodeDeque
+	dequeDepth int
 }
 
 // Java: PeepholeRemoveDeadCode()
@@ -311,10 +313,28 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree *rhino.Node) *rhino.Node {
 // Returns the replacement expression, or null if there were no side-effects
 // to preserve.
 //
+func (p *PeepholeRemoveDeadCode) acquireDeque() *peepholeRemoveDeadCode_nodeDeque {
+	idx := p.dequeDepth
+	p.dequeDepth++
+	if idx < len(p.dequePool) {
+		d := p.dequePool[idx]
+		clear(d.elems)
+		d.elems = d.elems[:0]
+		d.head = 0
+		return d
+	}
+	d := &peepholeRemoveDeadCode_nodeDeque{
+		elems: make([]*rhino.Node, 0, 8),
+	}
+	p.dequePool = append(p.dequePool, d)
+	return d
+}
+
 // Java: PeepholeRemoveDeadCode.trySimplifyUnusedResult(Node)
 func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression *rhino.Node) *rhino.Node {
-	sideEffectRoots := &peepholeRemoveDeadCode_nodeDeque{}
+	sideEffectRoots := p.acquireDeque()
 	atFixedPoint := p.TrySimplifyUnusedResultInternal(expression, sideEffectRoots)
+	p.dequeDepth--
 
 	if atFixedPoint {
 		// `expression` is in a form that cannot be further optimized.
