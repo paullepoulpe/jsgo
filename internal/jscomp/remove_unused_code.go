@@ -2048,14 +2048,6 @@ func (r *RemoveUnusedCode) TraverseVar(var_ *Var) RemoveUnusedCode_VarInfo {
 	if var_ == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	if var_ == r.lastVar {
-		return r.lastVarInfo
-	}
-	if slot := &r.varPtrCache[rucVarCacheIdx(var_)]; slot.v == var_ {
-		r.lastVar = var_
-		r.lastVarInfo = slot.info
-		return slot.info
-	}
 	if r.removeLocalVars && var_.IsArguments() {
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
