@@ -139,6 +139,16 @@ func (w *OutputStreamWriter) writeBytes(b []byte) {
 	if len(b) == 0 {
 		return
 	}
+	// The stream borrows b until Write returns. A stream callback may
+	// reenter this writer, so keep that in-flight storage out of its cache.
+	// Nested writes get their own scratch; retain only the largest buffer
+	// when unwinding, including when the stream returns an error or panics.
+	w.byteBuf = nil
+	defer func() {
+		if !w.closed && cap(b) > cap(w.byteBuf) {
+			w.byteBuf = b[:0]
+		}
+	}()
 	if _, err := w.out.Write(b); err != nil {
 		panic(NewIOException(err.Error()))
 	}
