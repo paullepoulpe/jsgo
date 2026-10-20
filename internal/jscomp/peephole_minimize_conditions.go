@@ -32,7 +32,8 @@ import (
 // Based on PeepholeSubstituteAlternateSyntax
 type PeepholeMinimizeConditions struct {
 	AbstractPeepholeOptimizationBase
-	late bool
+	late      bool
+	scratchMC MinimizedCondition
 }
 
 var peepholeMinimizeConditions_AND_PRECEDENCE = NodeUtil_Precedence(rhino.Token_AND)
@@ -446,7 +447,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n *rhino.Node) *rhino
 	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalExpr) {
 		return n
 	}
-	minCond := MinimizedCondition_FromConditionNode(originalExpr)
+	minCond := MinimizedCondition_FromConditionNodeInto(originalExpr, &p.scratchMC)
 	mNode :=
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
 	if mNode.IsNot() {
@@ -469,7 +470,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(n *rhino.Node) *rhino.Node 
 	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalCond) {
 		return n
 	}
-	minCond := MinimizedCondition_FromConditionNode(originalCond)
+	minCond := MinimizedCondition_FromConditionNodeInto(originalCond, &p.scratchMC)
 	mNode :=
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
 	if mNode.IsNot() {
@@ -507,7 +508,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n *rhino.Node) *rhino.Node {
 	thenBranch := originalCond.GetNext()
 	elseBranch := thenBranch.GetNext()
 
-	minCond := MinimizedCondition_FromConditionNode(originalCond)
+	minCond := MinimizedCondition_FromConditionNodeInto(originalCond, &p.scratchMC)
 
 	// Compute two minimized representations. The first representation counts
 	// a leading NOT node, and the second ignores a leading NOT node.
@@ -988,7 +989,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeCondition(n *rhino.Node) *rhino.
 	if !peepholeMinimizeConditions_canMinimizeConditionNode(n) {
 		return n
 	}
-	minCond := MinimizedCondition_FromConditionNode(n)
+	minCond := MinimizedCondition_FromConditionNodeInto(n, &p.scratchMC)
 	return p.ReplaceNode(
 		n,
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED))

@@ -177,11 +177,36 @@ func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnaly
 	}
 }
 
+// ResetDataFlowAnalysisBase resets b for reuse on a new CFG while retaining
+// queue and flowStateSlab backing capacities.
+func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
+	b.self = self
+	b.cfg = cfg
+	b.priority = cfg.GetOptionalNodeComparator(b.self.IsForward())
+	if cap(b.queue) == 0 {
+		b.queue = b.queueBuf[:0:len(b.queueBuf)]
+	} else {
+		clear(b.queue)
+		b.queue = b.queue[:0]
+	}
+	b.queueHead = 0
+	if cap(b.flowStateSlab) == 0 {
+		b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
+	} else {
+		clear(b.flowStateSlab)
+		b.flowStateSlab = b.flowStateSlab[:0]
+	}
+
+	if b.self.IsBranched() {
+		jutil.CheckState(b.self.IsForward())
+	}
+}
+
 func (b *DataFlowAnalysisBase[N, L]) allocFlowState(in L, out L) *DataFlowAnalysis_LinearFlowState[L] {
 	jutil.CheckNotNull(in)
 	jutil.CheckNotNull(out)
 	if len(b.flowStateSlab) == cap(b.flowStateSlab) {
-		nextCap := min(max(cap(b.flowStateSlab)*2, 16), 256)
+		nextCap := min(max(cap(b.flowStateSlab)*2, 16), 2048)
 		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, nextCap)
 	}
 	idx := len(b.flowStateSlab)
@@ -406,10 +431,19 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 	clear(b.queue)
 	b.queue = b.queue[:0]
 	b.queueHead = 0
-	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
 
 	implicitReturn := b.cfg.GetImplicitReturn()
 	cfgNodes := &b.cfg.GetControlFlowGraphBase().nodes
+	numNodes := cfgNodes.Size()
+	if cap(b.queue) < numNodes {
+		b.queue = make([]DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], 0, max(numNodes, 16))
+	}
+	if cap(b.flowStateSlab) < numNodes {
+		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, max(numNodes, 16))
+	} else {
+		clear(b.flowStateSlab)
+		b.flowStateSlab = b.flowStateSlab[:0]
+	}
 	for node := range cfgNodes.Values() {
 		state := b.allocFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice())
 		node.SetAnnotation(state)
@@ -561,6 +595,19 @@ func (s *DataFlowAnalysis_LinearFlowState[L]) String() string {
 	return jutil.StringFormat("IN: %s OUT: %s", s.in, s.out)
 }
 
+func dfaHasNestedFunctionOrClass(n *rhino.Node) bool {
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		tok := c.GetToken()
+		if tok == rhino.Token_FUNCTION || tok == rhino.Token_CLASS {
+			return true
+		}
+		if dfaHasNestedFunctionOrClass(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // DataFlowAnalysis_ComputeEscaped computes the set of escaped variables.
 // When a variable is escaped in a dataflow analysis, it can be referenced
 // outside of the code that we are analyzing. A variable is escaped if any
@@ -586,18 +633,23 @@ func DataFlowAnalysis_ComputeEscaped(
 		return
 	}
 
-	finder := dataFlowAnalysis_escapedFinder{
-		jsScope:     jsScope,
-		escaped:     escaped,
-		allVarsInFn: allVarsInFn,
-	}
+	if dfaHasNestedFunctionOrClass(jsScope.GetRootNode()) {
+		finder := dataFlowAnalysis_escapedFinder{
+			jsScope:      jsScope,
+			jsScopeDepth: jsScope.GetDepth(),
+			escaped:      escaped,
+			allVarsInFn:  allVarsInFn,
+		}
 
-	b := NodeTraversal_Builder{
-		compiler:     compiler,
-		callback:     &finder,
-		scopeCreator: scopeCreator,
+		b := NodeTraversal_Builder{
+			compiler:     compiler,
+			callback:     &finder,
+			scopeCreator: scopeCreator,
+		}
+		t := acquireNodeTraversal(&b)
+		t.TraverseAtScope(jsScope)
+		releaseNodeTraversal(t)
 	}
-	newNodeTraversal(&b).TraverseAtScope(jsScope)
 
 	// TODO (simranarora) catch variables should not be considered escaped in
 	// ES6. Getting rid of the catch check is causing breakages however
@@ -614,15 +666,35 @@ func DataFlowAnalysis_ComputeEscaped(
 type dataFlowAnalysis_escapedFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	jsScope     *Scope
-	escaped     *jutil.ObjectLinkedHashSet[*Var]
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	jsScope      *Scope
+	jsScopeDepth int
+	escaped      *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
+}
+
+func (f *dataFlowAnalysis_escapedFinder) isInsideEscapingScope(t *NodeTraversal) bool {
+	for i := len(t.scopes) - 1; i > f.jsScopeDepth; i-- {
+		root := t.scopes[i].node
+		switch root.GetToken() {
+		case rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_ROOT:
+			return true
+		case rhino.Token_BLOCK:
+			if NodeUtil_IsClassStaticBlock(root) {
+				return true
+			}
+		case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+			if !root.IsStaticMember() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 
-	if !n.IsName() || parent.IsFunction() {
+	if !n.IsName() || parent.IsFunction() || !f.isInsideEscapingScope(t) {
 		return
 	}
 
@@ -632,11 +704,6 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 	}
 
 	curScope := t.GetScope()
-	referenceCfgScope := curScope.GetClosestCfgRootScope()
-	if referenceCfgScope == f.jsScope &&
-		!DataFlowAnalysis_IsReferencedInNonStaticClassField(curScope, f.jsScope) {
-		return
-	}
 
 	var_ := curScope.GetVar(name)
 	if var_ == nil {

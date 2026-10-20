@@ -80,17 +80,31 @@ func NewMaybeReachingVariableUse(
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MaybeReachingVariableUse {
 	u := &MaybeReachingVariableUse{}
-	u.InitDataFlowAnalysisBase(u, cfg)
+	u.Reset(cfg, escaped, allVarsInFn)
+	return u
+}
+
+// Reset resets u for reuse on a new function scope while retaining latticeSlab
+// capacity.
+func (u *MaybeReachingVariableUse) Reset(
+	cfg ControlFlowGraph[*rhino.Node],
+	escaped *jutil.ObjectLinkedHashSet[*Var],
+	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
+	u.ResetDataFlowAnalysisBase(u, cfg)
 	u.escaped = escaped
 	u.allVarsInFn = allVarsInFn
 	u.emptyLattice.mayUsePMap = rhino.HamtPMap_Empty[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]()
-	u.latticeSlab = u.latticeBuf[:0:len(u.latticeBuf)]
-	return u
+	if cap(u.latticeSlab) == 0 {
+		u.latticeSlab = u.latticeBuf[:0:len(u.latticeBuf)]
+	} else {
+		clear(u.latticeSlab)
+		u.latticeSlab = u.latticeSlab[:0]
+	}
 }
 
 func (u *MaybeReachingVariableUse) allocLattice(m rhino.PMap[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
 	if len(u.latticeSlab) == cap(u.latticeSlab) {
-		nextCap := min(max(cap(u.latticeSlab)*2, 16), 256)
+		nextCap := min(max(cap(u.latticeSlab)*2, 16), 2048)
 		u.latticeSlab = make([]MaybeReachingVariableUse_ReachingUses, 0, nextCap)
 	}
 	idx := len(u.latticeSlab)

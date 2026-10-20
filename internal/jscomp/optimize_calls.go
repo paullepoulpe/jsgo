@@ -232,6 +232,8 @@ func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, *juti
 	return m.props.All()
 }
 
+var optimizeCalls_emptyFunctionNodes = jutil.NewImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]().Build()
+
 // OptimizeCalls_ReferenceMap_GetFunctionNodes, given a set of references,
 // returns the set of known definitions; specifically, those of the form:
 // `function x() { }` or `x = ...;`
@@ -253,14 +255,91 @@ func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, *juti
 //
 // Java: OptimizeCalls.ReferenceMap.getFunctionNodes(List<Node>)
 func OptimizeCalls_ReferenceMap_GetFunctionNodes(definitionSites []*rhino.Node) *jutil.ListMultimap[*rhino.Node, *rhino.Node] {
-	result := jutil.NewImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]()
+	var result *jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]
 	for _, def := range definitionSites {
-		// result.putAll(def, definitionFunctionNodesFor(def))
-		for _, fn := range OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor(def) {
-			result.Put(def, fn)
-		}
+		optimizeCalls_putDefinitionFunctionNodesFor(&result, def)
+	}
+	if result == nil {
+		return optimizeCalls_emptyFunctionNodes
 	}
 	return result.Build()
+}
+
+func optimizeCalls_putFn(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], def *rhino.Node, fn *rhino.Node) {
+	if *result == nil {
+		*result = jutil.NewImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]()
+	}
+	(*result).Put(def, fn)
+}
+
+func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], definitionSite *rhino.Node) {
+	if definitionSite.IsGetterDef() || definitionSite.IsSetterDef() {
+		return
+	}
+
+	parent := definitionSite.GetParent()
+	if parent == nil {
+		return
+	}
+
+	switch parent.GetToken() {
+	case rhino.Token_CLASS:
+		if definitionSite.IsFirstChildOf(parent) {
+			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent)
+			if constructorFnDef != nil {
+				optimizeCalls_putFn(result, definitionSite, constructorFnDef.GetOnlyChild())
+			}
+		}
+	case rhino.Token_FUNCTION:
+		optimizeCalls_putFn(result, definitionSite, parent)
+	case rhino.Token_CLASS_MEMBERS:
+		if definitionSite.IsMemberFunctionDef() {
+			optimizeCalls_putFn(result, definitionSite, definitionSite.GetLastChild())
+		} else {
+			jutil.CheckArgumentMsg1(definitionSite.IsMemberFieldDef(), "%s", definitionSite)
+			value := definitionSite.GetFirstChild()
+			if value != nil {
+				optimizeCalls_putValueFunctionNodes(result, definitionSite, value)
+			}
+		}
+	case rhino.Token_OBJECTLIT:
+		jutil.CheckArgumentMsg1(
+			definitionSite.IsStringKey() || definitionSite.IsMemberFunctionDef(), //
+			"%s", definitionSite)
+		optimizeCalls_putValueFunctionNodes(result, definitionSite, definitionSite.GetLastChild())
+	case rhino.Token_ASSIGN:
+		target := parent.GetFirstChild()
+		value := parent.GetLastChild()
+		if definitionSite == target {
+			optimizeCalls_putValueFunctionNodes(result, definitionSite, value)
+		}
+	case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR:
+		if definitionSite.IsName() && definitionSite.HasChildren() {
+			optimizeCalls_putValueFunctionNodes(result, definitionSite, definitionSite.GetFirstChild())
+		}
+	default:
+	}
+}
+
+func optimizeCalls_putValueFunctionNodes(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], def *rhino.Node, n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_CLASS:
+		constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
+		if constructorFnDef != nil {
+			optimizeCalls_putFn(result, def, constructorFnDef.GetOnlyChild())
+		}
+	case rhino.Token_FUNCTION:
+		optimizeCalls_putFn(result, def, n)
+	case rhino.Token_HOOK:
+		optimizeCalls_putValueFunctionNodes(result, def, n.GetSecondChild())
+		optimizeCalls_putValueFunctionNodes(result, def, n.GetLastChild())
+	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+		optimizeCalls_putValueFunctionNodes(result, def, n.GetFirstChild())
+		optimizeCalls_putValueFunctionNodes(result, def, n.GetLastChild())
+	case rhino.Token_CAST, rhino.Token_COMMA:
+		optimizeCalls_putValueFunctionNodes(result, def, n.GetLastChild())
+	default:
+	}
 }
 
 // OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor collects potential
@@ -581,8 +660,11 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode *rhino
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddNameReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name string, n *rhino.Node) {
+	if name == "" {
+		return
+	}
 	// TODO(b/129503101): Why are we limiting ourselves to global names?
-	var_, _ := c.globalScope.GetSlot(name).(*Var)
+	var_ := c.globalScope.GetVar(name)
 	if var_ != nil && (c.outer.considerExterns || !var_.IsExtern()) {
 		// As every name declaration is unique due to normalizations, it is only necessary to build
 		// the global scope and ask it if it knows about a name as it can never be shadowed.

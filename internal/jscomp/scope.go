@@ -94,6 +94,9 @@ func (a *scopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *Var] {
 		} else if size > 512 {
 			size = 512
 		}
+		if size < n {
+			size = n
+		}
 		a.slotChunk = make([]jutil.LhmSlot[string, *Var], size)
 		a.slotUsed = 0
 	}
@@ -149,8 +152,18 @@ func newScopeWithParentInArena(parent *Scope, rootNode *rhino.Node, arena *scope
 }
 
 func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) {
-	s.InitAbstractScopeBase(s, rootNode)
-	s.CheckChildScope(parent)
+	if rootNode == nil || parent == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if !NodeUtil_CreatesScope(rootNode) {
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", rootNode)))
+	}
+	if rootNode == parent.rootNode {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			jutil.LenientFormat("rootNode should not be the parent's root node: %s", rootNode)))
+	}
+	s.self = s
+	s.rootNode = rootNode
 	s.parent = parent
 	s.depth = parent.depth + 1
 }
@@ -170,10 +183,14 @@ func newScopeInArena(rootNode *rhino.Node, arena *scopeArena) *Scope {
 }
 
 func initScope(s *Scope, rootNode *rhino.Node) {
-	s.InitAbstractScopeBase(s, rootNode)
-	s.CheckRootScope()
-	s.parent = nil
-	s.depth = 0
+	if rootNode == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if !NodeUtil_CreatesScope(rootNode) && !rootNode.IsScript() && !rootNode.IsRoot() {
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", rootNode)))
+	}
+	s.self = s
+	s.rootNode = rootNode
 }
 
 // Java: Scope.untyped()
@@ -202,6 +219,95 @@ func (s *Scope) IsGlobal() bool {
 // Java: AbstractScope.isLocal()
 func (s *Scope) IsLocal() bool {
 	return s.parent != nil
+}
+
+// Java: AbstractScope.getGlobalScope()
+func (s *Scope) GetGlobalScope() *Scope {
+	for s.parent != nil {
+		s = s.parent
+	}
+	return s
+}
+
+// Java: AbstractScope.isHoistScope()
+func (s *Scope) IsHoistScope() bool {
+	return s.parent == nil ||
+		s.rootNode.IsFunction() ||
+		NodeUtil_IsFunctionBlock(s.rootNode) ||
+		s.rootNode.IsModuleBody() ||
+		NodeUtil_IsClassStaticBlock(s.rootNode)
+}
+
+// Java: AbstractScope.getClosestHoistScope()
+func (s *Scope) GetClosestHoistScope() *Scope {
+	for ; s != nil; s = s.parent {
+		if s.IsHoistScope() {
+			return s
+		}
+	}
+	return nil
+}
+
+// Java: AbstractScope.getClosestContainerScope()
+func (s *Scope) GetClosestContainerScope() *Scope {
+	scope := s.GetClosestHoistScope()
+	if NodeUtil_IsFunctionBlock(scope.rootNode) {
+		scope = scope.parent
+		if scope.IsBlockScope() {
+			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
+		}
+	}
+	return scope
+}
+
+func (s *Scope) getOwnSlotV(name string) *Var {
+	if s.vars.Size() > 0 {
+		if var_ := s.vars.Get(name); var_ != nil {
+			return var_
+		}
+	}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+		return s.GetOwnImplicitSlot(imp)
+	}
+	return nil
+}
+
+// Java: AbstractScope.hasOwnSlot(String)
+func (s *Scope) HasOwnSlot(name string) bool {
+	if s.vars.Size() > 0 && s.vars.ContainsKey(name) {
+		return true
+	}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+		return s.HasOwnImplicitSlot(imp)
+	}
+	return false
+}
+
+// Java: AbstractScope.hasSlot(String)
+func (s *Scope) HasSlot(name string) bool {
+	implicit := AbstractScope_ImplicitVar_Of(name)
+	for ; s != nil; s = s.parent {
+		if s.vars.Size() > 0 && s.vars.ContainsKey(name) {
+			return true
+		}
+		if implicit != nil && implicit.IsMadeByScope(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Scope) inheritedInput() (*CompilerInput, bool) {
+	for anc := s.parent; anc != nil && anc.parent != nil; anc = anc.parent {
+		if anc.vars.Size() > 0 {
+			for v := range anc.vars.Values() {
+				if !v.IsImplicitGoogNamespace() {
+					return v.GetInput(), true
+				}
+			}
+		}
+	}
+	return nil, false
 }
 
 // GetVar uses the concrete parent links of Java's final Scope class. The
@@ -312,8 +418,8 @@ func functionScopeVarSlotCount(fn *rhino.Node) int {
 	if n < 1 {
 		return 1
 	}
-	if n > 8 {
-		return 8
+	if n > 64 {
+		return 64
 	}
 	return n
 }
@@ -323,29 +429,147 @@ func functionBlockScopeVarSlotCount(block *rhino.Node) int {
 	steps := 0
 	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
 		steps++
-		if steps > 12 {
-			return 8
+		if steps > 32 {
+			if n < 16 {
+				return 16
+			}
+			return n
 		}
 		switch c.GetToken() {
 		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-			if c.HasOneChild() && c.GetFirstChild().IsName() {
-				n++
-			} else {
-				n += 2
+			for lhs := c.GetFirstChild(); lhs != nil; lhs = lhs.GetNext() {
+				if lhs.IsName() {
+					n++
+				} else {
+					n += 2
+				}
 			}
 		case rhino.Token_FUNCTION, rhino.Token_CLASS:
 			n++
 		case rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW,
 			rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER:
 		default:
-			n += 2
+			n++
 		}
-		if n >= 8 {
-			return 8
+		if n >= 32 {
+			return 32
 		}
 	}
 	if n < 1 {
 		return 1
+	}
+	return n
+}
+
+const maxPreallocScopeVars = 512
+
+func countLhsVars(n *rhino.Node) int {
+	if n.HasOneChild() && n.GetFirstChild().IsName() {
+		return 1
+	}
+	c := 0
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		if child.IsName() {
+			c++
+		} else {
+			c += 2
+		}
+	}
+	if c == 0 {
+		return 1
+	}
+	return c
+}
+
+func countScopeVars(n *rhino.Node, isHoist bool, inBlockScope bool, root *rhino.Node, count int, steps *int) int {
+	if count >= maxPreallocScopeVars {
+		return maxPreallocScopeVars
+	}
+	*steps++
+	if *steps > 256 {
+		if count < 16 {
+			return 32
+		}
+		if count*2 > maxPreallocScopeVars {
+			return maxPreallocScopeVars
+		}
+		return count * 2
+	}
+	switch n.GetToken() {
+	case rhino.Token_VAR, rhino.Token_IMPORT:
+		if isHoist {
+			count += countLhsVars(n)
+		}
+		return count
+	case rhino.Token_LET, rhino.Token_CONST:
+		if inBlockScope {
+			count += countLhsVars(n)
+		}
+		return count
+	case rhino.Token_EXPORT:
+		if first := n.GetFirstChild(); first != nil {
+			return countScopeVars(first, isHoist, inBlockScope, root, count, steps)
+		}
+		return count
+	case rhino.Token_FUNCTION, rhino.Token_CLASS:
+		if inBlockScope && !NodeUtil_IsFunctionExpression(n) && !NodeUtil_IsClassExpression(n) {
+			count++
+		}
+		return count
+	case rhino.Token_CATCH:
+		if inBlockScope {
+			count++
+		}
+		return countScopeVars(n.GetSecondChild(), isHoist, inBlockScope, root, count, steps)
+	case rhino.Token_MODULE_BODY:
+		if n != root {
+			return count + 1
+		}
+	case rhino.Token_BLOCK:
+		if n != root && scanVarsBlockCreatesScope(n) {
+			if !isHoist {
+				return count
+			}
+			inBlockScope = false
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+		if n != root {
+			if !isHoist {
+				return count
+			}
+			inBlockScope = false
+		}
+	case rhino.Token_SCRIPT, rhino.Token_ROOT,
+		rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_IF,
+		rhino.Token_LABEL, rhino.Token_TRY, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
+	default:
+		return count
+	}
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
+			count = countScopeVars(child, isHoist, inBlockScope, root, count, steps)
+			if count >= maxPreallocScopeVars || *steps > 256 {
+				return count
+			}
+		}
+	}
+	return count
+}
+
+func largeScopeVarSlotCount(sc *Scope) int {
+	root := sc.rootNode
+	if root.IsFunction() {
+		n := functionScopeVarSlotCount(root)
+		if n < 12 {
+			return 12
+		}
+		return n
+	}
+	isHoist := sc.IsHoistScope()
+	steps := 0
+	n := countScopeVars(root, isHoist, true, root, 0, &steps)
+	if n < 16 {
+		return 16
 	}
 	return n
 }

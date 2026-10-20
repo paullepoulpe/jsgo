@@ -108,7 +108,9 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 		NewInlineVariables_InliningBehavior(iv),
 		NewSyntacticScopeCreator(iv.compiler),
 		inlineVariables_Mode_varPredicate[iv.mode])
+	callback.enableArenaPool()
 	callback.Process(externs, root)
+	callback.release()
 }
 
 // InlineVariables_VarExpert is responsible for analyzing a variable to
@@ -296,19 +298,26 @@ type InlineVariables_InliningBehavior struct {
 	// The value is an object that knows what to do when the original variable
 	// is handled.
 	varToAliasRetryHandlersMap *jutil.SetMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler]
+	aliasRetryHandlers         map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
 
-	expertSlab []InlineVariables_InliningBehavior_StandardVarExpert
-	expertBuf  [32]InlineVariables_InliningBehavior_StandardVarExpert
+	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
+	scopeExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
+	scopeExpertBuf   [32]InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertBuf   [8]InlineVariables_InliningBehavior_StandardVarExpert
+	retryHandlerSlab []InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	retryHandlerBuf  [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
 }
 
 // Java: InlineVariables.InliningBehavior()
 func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
 	b := &InlineVariables_InliningBehavior{
-		outer:                      outer,
-		varToAliasRetryHandlersMap: jutil.NewSetMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler](),
+		outer: outer,
 	}
 	b.handledVars = b.handledVarsBuf[:0]
-	b.expertSlab = b.expertBuf[:0]
+	b.scopeExpertSlab = b.scopeExpertBuf[:0]
+	b.retryExpertSlab = b.retryExpertBuf[:0]
+	b.retryHandlerSlab = b.retryHandlerBuf[:0]
 	return b
 }
 
@@ -329,23 +338,13 @@ func (b *InlineVariables_InliningBehavior) getHandledVarAnalysis(scope *Scope, a
 	return nil
 }
 
-func (b *InlineVariables_InliningBehavior) allocStandardVarExpert(
+func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 	v *Var,
 	referenceInfo *ReferenceCollection,
 	isDeclaredOrInferredConstant bool,
 	mayBeAParameterModifiedViaArguments bool,
 ) *InlineVariables_InliningBehavior_StandardVarExpert {
-	if len(b.expertSlab) == cap(b.expertSlab) {
-		newCap := 64
-		if cap(b.expertSlab) >= 64 {
-			newCap = min(cap(b.expertSlab)*2, 512)
-		}
-		b.expertSlab = make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
-	}
-	idx := len(b.expertSlab)
-	b.expertSlab = b.expertSlab[:idx+1]
-	e := &b.expertSlab[idx]
-	*e = InlineVariables_InliningBehavior_StandardVarExpert{
+	b.scratchExpert = InlineVariables_InliningBehavior_StandardVarExpert{
 		outer:                               b,
 		v:                                   v,
 		referenceInfo:                       referenceInfo,
@@ -353,7 +352,75 @@ func (b *InlineVariables_InliningBehavior) allocStandardVarExpert(
 		isDeclaredOrInferredConstant:        isDeclaredOrInferredConstant,
 		mayBeAParameterModifiedViaArguments: mayBeAParameterModifiedViaArguments,
 	}
+	return &b.scratchExpert
+}
+
+func (b *InlineVariables_InliningBehavior) allocScopeExpert(
+	src *InlineVariables_InliningBehavior_StandardVarExpert,
+) *InlineVariables_InliningBehavior_StandardVarExpert {
+	if len(b.scopeExpertSlab) == cap(b.scopeExpertSlab) {
+		newCap := 64
+		if cap(b.scopeExpertSlab) >= 64 {
+			newCap = min(cap(b.scopeExpertSlab)*2, 512)
+		}
+		b.scopeExpertSlab = make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
+	}
+	idx := len(b.scopeExpertSlab)
+	b.scopeExpertSlab = b.scopeExpertSlab[:idx+1]
+	e := &b.scopeExpertSlab[idx]
+	*e = *src
+	e.initValAnalysis.outer = e
 	return e
+}
+
+func (b *InlineVariables_InliningBehavior) allocRetryExpert(
+	src *InlineVariables_InliningBehavior_StandardVarExpert,
+) *InlineVariables_InliningBehavior_StandardVarExpert {
+	if len(b.retryExpertSlab) == cap(b.retryExpertSlab) {
+		newCap := 32
+		if cap(b.retryExpertSlab) >= 32 {
+			newCap = min(cap(b.retryExpertSlab)*2, 512)
+		}
+		b.retryExpertSlab = make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
+	}
+	idx := len(b.retryExpertSlab)
+	b.retryExpertSlab = b.retryExpertSlab[:idx+1]
+	e := &b.retryExpertSlab[idx]
+	*e = *src
+	e.initValAnalysis.outer = e
+	return e
+}
+
+func (b *InlineVariables_InliningBehavior) allocRetryHandler(
+	v *Var,
+	expert InlineVariables_VarExpert,
+) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
+	if len(b.retryHandlerSlab) == cap(b.retryHandlerSlab) {
+		newCap := 32
+		if cap(b.retryHandlerSlab) >= 32 {
+			newCap = min(cap(b.retryHandlerSlab)*2, 512)
+		}
+		b.retryHandlerSlab = make([]InlineVariables_InliningBehavior_AliasInlineRetryHandler, 0, newCap)
+	}
+	idx := len(b.retryHandlerSlab)
+	b.retryHandlerSlab = b.retryHandlerSlab[:idx+1]
+	h := &b.retryHandlerSlab[idx]
+	*h = InlineVariables_InliningBehavior_AliasInlineRetryHandler{
+		outer:  b,
+		v:      v,
+		expert: expert,
+	}
+	return h
+}
+
+func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
+	aliasedVar *Var,
+	retryHandler *InlineVariables_InliningBehavior_AliasInlineRetryHandler,
+) {
+	if b.aliasRetryHandlers == nil {
+		b.aliasRetryHandlers = make(map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler, 8)
+	}
+	b.aliasRetryHandlers[aliasedVar] = append(b.aliasRetryHandlers[aliasedVar], retryHandler)
 }
 
 // Java: InlineVariables.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
@@ -368,11 +435,11 @@ func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, refe
 func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, referenceMap ReferenceMap) {
 	// Any variables we completed in an earlier scope are now out of scope,
 	// so we can clear this map.
-	clear(b.handledVars)
 	b.handledVars = b.handledVars[:0]
-	if b.varToAliasRetryHandlersMap.IsEmpty() {
-		clear(b.expertSlab)
-		b.expertSlab = b.expertSlab[:0]
+	b.scopeExpertSlab = b.scopeExpertBuf[:0]
+	if len(b.aliasRetryHandlers) == 0 {
+		b.retryExpertSlab = b.retryExpertBuf[:0]
+		b.retryHandlerSlab = b.retryHandlerBuf[:0]
 	}
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
 		return
@@ -389,26 +456,46 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 		analysis := expert.Analyze()
 		if analysis.ShouldWaitForAliasedVar() {
 			// We need to wait for the aliased variable to be handled.
-			retryHandler := NewInlineVariables_InliningBehavior_AliasInlineRetryHandler(b, v, expert)
 			aliasedVar := analysis.GetAliasedVar()
 			aliasedVarAnalysis := b.getHandledVarAnalysis(scope, aliasedVar)
 			if aliasedVarAnalysis != nil {
 				// We've actually already completed the aliased Var
-				retryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedVarAnalysis)
+				b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedVarAnalysis)
 			} else {
 				// wait for completion of the aliased Var
-				b.varToAliasRetryHandlersMap.Put(aliasedVar, retryHandler)
+				if expert == &b.scratchExpert {
+					expert = b.allocRetryExpert(&b.scratchExpert)
+				}
+				retryHandler := b.allocRetryHandler(v, expert)
+				b.putAliasRetryHandler(aliasedVar, retryHandler)
 			}
 		} else {
-			if analysis.ShouldInline() {
-				analysis.PerformInline()
-			}
-			// Record the results for aliases we may find later
-			b.putHandledVarAnalysis(v, analysis)
-			// Retry any aliases we saw before handling this Var
-			b.RetryAliases(v, analysis)
+			b.completeVarAnalysis(v, analysis)
 		}
 	}
+}
+
+func (b *InlineVariables_InliningBehavior) completeVarAnalysis(v *Var, analysis InlineVariables_InlineVarAnalysis) {
+	if analysis.ShouldInline() {
+		analysis.PerformInline()
+		if analysis == &b.scratchExpert {
+			analysis = InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
+		}
+	} else if analysis == &b.scratchExpert {
+		analysis = b.allocScopeExpert(&b.scratchExpert)
+	}
+	// Record the results for aliases we may find later
+	b.putHandledVarAnalysis(v, analysis)
+	// Retry any aliases we saw before handling this Var
+	b.RetryAliases(v, analysis)
+}
+
+func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
+	v *Var, expert InlineVariables_VarExpert, aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) {
+	newAnalysis := expert.ReanalyzeAfterAliasedVar(aliasedVar, aliasedVarAnalysis)
+	jutil.CheckStateMsg1(
+		!newAnalysis.ShouldWaitForAliasedVar(), "expert for %s asked to wait a second time", v)
+	b.completeVarAnalysis(v, newAnalysis)
 }
 
 // VarsInThisScopeMayBeModifiedUsingArguments returns true for function
@@ -445,10 +532,15 @@ func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArgu
 
 // Java: InlineVariables.InliningBehavior.retryAliases(Var, InlineVarAnalysis)
 func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) {
-	if b.varToAliasRetryHandlersMap.IsEmpty() || !b.varToAliasRetryHandlersMap.ContainsKey(aliasedVar) {
+	if len(b.aliasRetryHandlers) == 0 {
 		return
 	}
-	for aliasInlineRetryHandler := range b.varToAliasRetryHandlersMap.RemoveAll(aliasedVar).All() {
+	handlers, ok := b.aliasRetryHandlers[aliasedVar]
+	if !ok {
+		return
+	}
+	delete(b.aliasRetryHandlers, aliasedVar)
+	for _, aliasInlineRetryHandler := range handlers {
 		aliasInlineRetryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedVarAnalysis)
 	}
 }
@@ -471,14 +563,7 @@ func NewInlineVariables_InliningBehavior_AliasInlineRetryHandler(
 // Java: InlineVariables.InliningBehavior.AliasInlineRetryHandler.handleAliasedVarCompletion(Var, InlineVarAnalysis)
 func (h *InlineVariables_InliningBehavior_AliasInlineRetryHandler) HandleAliasedVarCompletion(
 	aliasedVar *Var, aliasedVarAnalyis InlineVariables_InlineVarAnalysis) {
-	newAnalysis := h.expert.ReanalyzeAfterAliasedVar(aliasedVar, aliasedVarAnalyis)
-	jutil.CheckStateMsg1(
-		!newAnalysis.ShouldWaitForAliasedVar(), "expert for %s asked to wait a second time", h.v)
-	if newAnalysis.ShouldInline() {
-		newAnalysis.PerformInline()
-	}
-	h.outer.putHandledVarAnalysis(h.v, newAnalysis)
-	h.outer.RetryAliases(h.v, newAnalysis)
+	h.outer.handleAliasedVarCompletion(h.v, h.expert, aliasedVar, aliasedVarAnalyis)
 }
 
 type standardVarAnalysisKind uint8
@@ -998,7 +1083,7 @@ func (b *InlineVariables_InliningBehavior) CreateVarExpert(
 		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT
 	}
 
-	return b.allocStandardVarExpert(v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
+	return b.initScratchVarExpert(v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
 }
 
 // InlineVariables_InliningBehavior_VarExpertInitData is used to initialize

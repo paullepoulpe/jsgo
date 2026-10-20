@@ -49,7 +49,8 @@ type ControlFlowAnalysis struct {
 	// At the moment, we are not performing any inter-procedural analysis.
 	compiler AbstractCompiler
 
-	cfg ControlFlowGraph[*rhino.Node]
+	cfg        ControlFlowGraph[*rhino.Node]
+	cfgStorage *ControlFlowAnalysis_AstControlFlowGraph
 
 	// Go-only: performance — astPosition is never iterated, only queried via
 	// Get(node) inside priorityComparator; a native map[*rhino.Node]int32 avoids
@@ -77,6 +78,9 @@ type ControlFlowAnalysis struct {
 	// pop = removeFirst; iteration runs from the top down).
 	exceptionHandler    []*rhino.Node
 	exceptionHandlerBuf [4]*rhino.Node
+
+	worklist    []cfaWorkItem
+	worklistBuf [16]cfaWorkItem
 
 	// This map is used to handle the follow of FINALLY. For example:
 	//
@@ -221,6 +225,35 @@ func ControlFlowAnalysis_Builder_() *ControlFlowAnalysis_Builder {
 	return newControlFlowAnalysis_Builder()
 }
 
+// ComputeReusableCfg computes a CFG reusing c and cfgStorage across calls.
+func (c *ControlFlowAnalysis) ComputeReusableCfg(
+	compiler AbstractCompiler,
+	cfgRoot *rhino.Node,
+	shouldTraverseFunctions bool,
+	edgeAnnotations bool,
+	cfgStorage *ControlFlowAnalysis_AstControlFlowGraph,
+) ControlFlowGraph[*rhino.Node] {
+	jutil.CheckNotNullMsg(compiler, "Need to call setCompiler()")
+	jutil.CheckNotNullMsg(cfgRoot, "Need to call setCfgRoot()")
+	c.compiler = compiler
+	c.shouldTraverseFunctions = shouldTraverseFunctions
+	c.edgeAnnotations = edgeAnnotations
+	c.cfgStorage = cfgStorage
+	if c.finallyMap != nil && c.finallyMap != cfaEmptyFinallyMap {
+		c.finallyMap.Clear()
+	} else {
+		c.finallyMap = cfaEmptyFinallyMap
+	}
+	if cap(c.exceptionHandler) == 0 {
+		c.exceptionHandler = c.exceptionHandlerBuf[:0]
+	} else {
+		clear(c.exceptionHandler)
+		c.exceptionHandler = c.exceptionHandler[:0]
+	}
+	c.computeCfg(cfgRoot)
+	return c.cfg
+}
+
 // Java: ControlFlowAnalysis.getCfg()
 func (c *ControlFlowAnalysis) GetCfg() ControlFlowGraph[*rhino.Node] {
 	return c.cfg
@@ -231,13 +264,29 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
-	astPos := cfaAstPositionPool.Get().(map[*rhino.Node]int32)
-	if len(astPos) > 0 {
-		clear(astPos)
+	var astPos map[*rhino.Node]int32
+	if c.cfgStorage != nil {
+		astPos = c.astPosition
+		if astPos == nil {
+			astPos = make(map[*rhino.Node]int32, 64)
+		} else if len(astPos) > 0 {
+			clear(astPos)
+		}
+	} else {
+		astPos = cfaAstPositionPool.Get().(map[*rhino.Node]int32)
+		if len(astPos) > 0 {
+			clear(astPos)
+		}
 	}
 	c.astPosition = astPos
 	c.astPositionCounter = 0
-	c.cfg = newControlFlowAnalysis_AstControlFlowGraph(ControlFlowAnalysis_ComputeFallThrough(root), c.edgeAnnotations)
+	entryNode := ControlFlowAnalysis_ComputeFallThrough(root)
+	if c.cfgStorage != nil {
+		c.cfgStorage.Reset(entryNode, c.edgeAnnotations)
+		c.cfg = c.cfgStorage
+	} else {
+		c.cfg = newControlFlowAnalysis_AstControlFlowGraph(entryNode, c.edgeAnnotations)
+	}
 
 	// Traverse the graph.
 	c.traverse(root)
@@ -265,11 +314,19 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	}
 
 	// Free our large table now that it is no longer needed
-	if len(astPos) <= 4096 {
-		clear(astPos)
-		cfaAstPositionPool.Put(astPos)
+	if c.cfgStorage != nil {
+		if len(astPos) <= 4096 {
+			clear(astPos)
+		} else {
+			c.astPosition = nil
+		}
+	} else {
+		if len(astPos) <= 4096 {
+			clear(astPos)
+			cfaAstPositionPool.Put(astPos)
+		}
+		c.astPosition = nil
 	}
-	c.astPosition = nil
 
 	// At this point, all reachable nodes have been given a priority, but
 	// unreachable nodes have not been given a priority. Put them last.
@@ -477,8 +534,12 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 	if entry == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var worklistBuf [16]cfaWorkItem
-	worklist := worklistBuf[:1]
+	var worklist []cfaWorkItem
+	if cap(c.worklist) == 0 {
+		worklist = c.worklistBuf[:1]
+	} else {
+		worklist = c.worklist[:1]
+	}
 	worklist[0] = cfaWorkItem{node: entry, pos: -1}
 
 	for len(worklist) > 0 {
@@ -514,6 +575,7 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 			}
 		}
 	}
+	c.worklist = worklist[:0]
 }
 
 // Java: ControlFlowAnalysis.shouldTraverse(NodeTraversal, Node, Node)
@@ -1411,6 +1473,14 @@ func newControlFlowAnalysis_AstControlFlowGraph(entry *rhino.Node, edgeAnnotatio
 	g := &ControlFlowAnalysis_AstControlFlowGraph{}
 	g.InitControlFlowGraphBase(g, entry /* nodeAnnotations= */, true, edgeAnnotations)
 	return g
+}
+
+// Reset resets g for reuse on a new CFG root while retaining node/edge slabs.
+func (g *ControlFlowAnalysis_AstControlFlowGraph) Reset(entry *rhino.Node, edgeAnnotations bool) {
+	g.self = g
+	g.ResetLinkedDirectedGraph(g /* useNodeAnnotations= */, true, edgeAnnotations)
+	g.implicitReturn = g.CreateDiGraphNode(nil)
+	g.entry = g.CreateDiGraphNode(entry)
 }
 
 func cfaForwardNodeComparator(a, b DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int {

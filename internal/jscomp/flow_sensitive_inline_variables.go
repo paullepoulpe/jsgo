@@ -50,7 +50,8 @@ type FlowSensitiveInlineVariables struct {
 	// need two separate dataflow result.
 	compiler AbstractCompiler
 
-	sideEffectPredicate FlowSensitiveInlineVariables_SideEffectPredicate
+	sideEffectPredicate   FlowSensitiveInlineVariables_SideEffectPredicate
+	sideEffectPredicateFn func(*rhino.Node) bool
 
 	// These two pieces of data is persistent in the whole execution of enter
 	// scope.
@@ -61,12 +62,18 @@ type FlowSensitiveInlineVariables struct {
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
 
-	escapedSet       jutil.ObjectLinkedHashSet[*Var]
-	candidatesSet    jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
-	gatherCandidates FlowSensitiveInlineVariables_GatherCandidates
-	gatherCb         FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
-	candidateSlab    []FlowSensitiveInlineVariables_Candidate
-	candidateBuf     [8]FlowSensitiveInlineVariables_Candidate
+	cfaStorage          ControlFlowAnalysis
+	cfgStorage          ControlFlowAnalysis_AstControlFlowGraph
+	reachingDefStorage  MustBeReachingVariableDef
+	reachingUsesStorage MaybeReachingVariableUse
+	candidateVarsMap    jutil.LinkedHashMap[string, *Var]
+	namesToCheckSet     jutil.LinkedHashSet[string]
+	escapedSet          jutil.ObjectLinkedHashSet[*Var]
+	candidatesSet       jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
+	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
+	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
+	candidateSlab       []FlowSensitiveInlineVariables_Candidate
+	candidateBuf        [8]FlowSensitiveInlineVariables_Candidate
 }
 
 func (f *FlowSensitiveInlineVariables) allocCandidate(
@@ -97,13 +104,14 @@ func (f *FlowSensitiveInlineVariables) allocCandidate(
 
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
 	if f.reachingUses == nil {
-		candidateVars := jutil.NewLinkedHashMapWithCapacity[string, *Var](f.candidates.Size())
+		f.candidateVarsMap.Clear()
 		for cand := range f.candidates.All() {
 			if v := f.allVarsInFn.Get(cand.varName); v != nil {
-				candidateVars.Put(cand.varName, v)
+				f.candidateVarsMap.Put(cand.varName, v)
 			}
 		}
-		f.reachingUses = NewMaybeReachingVariableUse(f.cfg, f.escaped, candidateVars)
+		f.reachingUsesStorage.Reset(f.cfg, f.escaped, &f.candidateVarsMap)
+		f.reachingUses = &f.reachingUsesStorage
 		f.reachingUses.Analyze()
 	}
 	return f.reachingUses
@@ -191,6 +199,7 @@ func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveIn
 	f := &FlowSensitiveInlineVariables{}
 	f.compiler = compiler
 	f.sideEffectPredicate = FlowSensitiveInlineVariables_SideEffectPredicate{outer: f}
+	f.sideEffectPredicateFn = f.sideEffectPredicate.Apply
 	f.gatherCb = FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: f}
 	f.gatherCandidates = FlowSensitiveInlineVariables_GatherCandidates{
 		outer:    f,
@@ -234,26 +243,33 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	}
 
 	// Compute the forward reaching definition.
-	f.cfg = ControlFlowAnalysis_Builder_().
-		SetCompiler(f.compiler).
-		SetCfgRoot(functionScopeRoot).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	f.cfg = f.cfaStorage.ComputeReusableCfg(
+		f.compiler,
+		functionScopeRoot,
+		/* shouldTraverseFunctions= */ false,
+		/* edgeAnnotations= */ true,
+		&f.cfgStorage)
 
 	f.escapedSet.Clear()
 	escaped := &f.escapedSet
 	DataFlowAnalysis_ComputeEscaped(
 		scope.GetParent(), escaped, f.compiler, scopeCreator, allVarsInFn)
 
-	f.reachingDef = NewMustBeReachingVariableDef(f.cfg, f.compiler, escaped, allVarsInFn)
+	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
+	f.reachingDef = &f.reachingDefStorage
 	f.reachingDef.Analyze()
 	f.candidatesSet.Clear()
 	f.candidates = &f.candidatesSet
-	f.candidateSlab = f.candidateBuf[:0]
+	if cap(f.candidateSlab) == 0 {
+		f.candidateSlab = f.candidateBuf[:0]
+	} else {
+		clear(f.candidateSlab)
+		f.candidateSlab = f.candidateSlab[:0]
+	}
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates
-	NodeTraversal_Traverse(f.compiler, t.GetScopeRoot(), &f.gatherCandidates)
+	fsivTraverseGatherCandidates(f.compiler, t.GetScopeRoot(), &f.gatherCandidates)
 
 	if f.candidates.IsEmpty() {
 		return
@@ -453,6 +469,98 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	traverseCfgNode(g.outer.compiler, cfgNode, g.gatherCb)
 }
 
+func fsivTraverseGatherCandidates(compiler AbstractCompiler, root *rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates) {
+	jutil.CheckNotNull(compiler)
+	if root == nil {
+		NodeTraversal_Traverse(compiler, root, cb)
+		return
+	}
+	var currentNode *rhino.Node
+	jutil.Try(func() {
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		currentNode = root
+		fsivWalkGatherCandidates(root, nil, cb, &currentNode)
+	}, func(unexpectedException jutil.Throwable) {
+		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+		t := newNodeTraversal(&b)
+		t.InitTraversal(root)
+		t.currentNode = currentNode
+		t.ThrowUnexpectedException(unexpectedException)
+	})
+}
+
+func fsivWalkGatherCandidates(n, parent *rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates, currentNode **rhino.Node) {
+	*currentNode = n
+	if parent != nil && parent.IsFunction() && n != parent.GetFirstChild() {
+		return
+	}
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
+			child = next
+		}
+	case rhino.Token_FUNCTION:
+		fnName := n.GetFirstChild()
+		if parent != nil {
+			_ = NodeUtil_IsFunctionDeclaration(n)
+		}
+		args := fnName.GetNext()
+		body := args.GetNext()
+		fsivWalkGatherCandidates(fnName, n, cb, currentNode)
+		fsivWalkGatherCandidates(args, n, cb, currentNode)
+		fsivWalkGatherCandidates(body, n, cb, currentNode)
+	case rhino.Token_CLASS:
+		className := n.GetFirstChild()
+		extendsClause := className.GetNext()
+		body := extendsClause.GetNext()
+		_ = NodeUtil_IsClassExpression(n)
+		fsivWalkGatherCandidates(extendsClause, n, cb, currentNode)
+		fsivWalkGatherCandidates(className, n, cb, currentNode)
+		fsivWalkGatherCandidates(body, n, cb, currentNode)
+	case rhino.Token_CLASS_MEMBERS:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				fsivWalkGatherCandidates(child.GetFirstChild(), child, cb, currentNode)
+			}
+			child = next
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				*currentNode = n
+				if child.HasTwoChildren() {
+					fsivWalkGatherCandidates(child.GetLastChild(), child, cb, currentNode)
+				}
+				*currentNode = n
+				cb.Visit(nil, child, n)
+			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
+				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+				fsivWalkGatherCandidates(child, n, cb, currentNode)
+			default:
+				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+			}
+			child = next
+		}
+	default:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			fsivWalkGatherCandidates(child, n, cb, currentNode)
+			child = next
+		}
+	}
+	*currentNode = n
+	cb.Visit(nil, n, parent)
+}
+
 // FlowSensitiveInlineVariables_Candidate models the connection between a
 // definition and a use of that definition.
 type FlowSensitiveInlineVariables_Candidate struct {
@@ -545,7 +653,8 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	var namesToCheck jutil.LinkedHashSet[string]
+	namesToCheck := &c.outer.namesToCheckSet
+	namesToCheck.Clear()
 	if c.defMetadata.depends != nil {
 		for var_ := range c.defMetadata.depends.All() {
 			namesToCheck.Add(var_.GetName())
@@ -554,7 +663,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 
 	sideEffectPredicateWithNames := FlowSensitiveInlineVariables_SideEffectPredicate{
 		outer:        c.outer,
-		namesToCheck: &namesToCheck,
+		namesToCheck: namesToCheck,
 	}
 
 	// A subexpression evaluated after the variable has a side effect.
@@ -586,7 +695,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 			c.outer.cfg,
 			c.outer.cfg.GetDiGraphNode(c.GetDefCfgNode()),
 			c.outer.cfg.GetDiGraphNode(c.useCfgNode),
-			c.outer.sideEffectPredicate.Apply,
+			c.outer.sideEffectPredicateFn,
 			fsivAlwaysTrueEdgePredicate,
 			false)
 		if pathCheck.SomePathsSatisfyPredicate() {
