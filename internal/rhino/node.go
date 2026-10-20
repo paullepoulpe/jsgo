@@ -42,9 +42,11 @@ import (
 	"iter"
 	"math"
 	"math/big"
+	"math/bits"
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -389,17 +391,17 @@ type node_kind uint8
 
 const (
 	node_kindNode node_kind = iota
+	node_kindString
 	node_kindNumber
 	node_kindBigInt
-	node_kindString
 	node_kindTemplateLiteralSubstring
 )
 
 var node_kindClassNames = [...]string{
 	"com.google.javascript.rhino.Node",
+	"com.google.javascript.rhino.Node$StringNode",
 	"com.google.javascript.rhino.Node$NumberNode",
 	"com.google.javascript.rhino.Node$BigIntNode",
-	"com.google.javascript.rhino.Node$StringNode",
 	"com.google.javascript.rhino.Node$TemplateLiteralSubstringNode",
 }
 
@@ -528,6 +530,13 @@ type Node_PropListItem struct {
 	intValue    int32
 	propType    int8
 	isObject    bool
+	shared      bool
+}
+
+func (p *Node_PropListItem) markShared() {
+	for ; p != nil && !p.shared; p = p.next {
+		p.shared = true
+	}
 }
 
 // Java: Node.ObjectPropListItem(byte, Object, PropListItem)
@@ -588,6 +597,7 @@ func NewNode(token Token) *Node {
 func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	return n
 }
@@ -596,6 +606,7 @@ func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.first = child
 
@@ -609,6 +620,7 @@ func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Nod
 func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.first = left
 
@@ -627,6 +639,7 @@ func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Nod
 func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node, right *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.first = left
 
@@ -651,6 +664,7 @@ func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *
 	n.token = token
 	n.linenoCharno = -1
 	n.kind = node_kindString
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.SetString(str)
 	return n
@@ -661,6 +675,7 @@ func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
 	n.token = Token_NUMBER
 	n.linenoCharno = -1
 	n.kind = node_kindNumber
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.SetDouble(number)
 	return n
@@ -671,6 +686,7 @@ func (n *Node) InitBigIntFromTemplate(bigint *big.Int, template *Node) *Node {
 	n.token = Token_BIGINT
 	n.linenoCharno = -1
 	n.kind = node_kindBigInt
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	n.SetBigInt(bigint)
 	return n
@@ -681,10 +697,10 @@ func (n *Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, tem
 	n.token = Token_TEMPLATELIT_STRING
 	n.linenoCharno = -1
 	n.kind = node_kindTemplateLiteralSubstring
+	template.propListHead.markShared()
 	n.propListHead = template.propListHead
 	if cooked != nil {
-		c := RhinoStringPool_AddOrGet(*cooked)
-		n.node_getExt().cooked = &c
+		n.node_getExt().cooked = rhinoStringPoolCell(*cooked)
 	}
 	n.str = rhinoStringPoolCell(raw)
 	return n
@@ -1224,6 +1240,7 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 // Java: Node.clonePropsFrom(Node)
 func (n *Node) ClonePropsFrom(other *Node) *Node {
 	jutil.CheckStateMsg(n.propListHead == nil, "Node has existing properties.")
+	other.propListHead.markShared()
 	n.propListHead = other.propListHead
 	return n
 }
@@ -1388,6 +1405,10 @@ func (n *Node) GetIntProp(propType Node_Prop) int32 {
 //
 // Java: Node.putProp(Prop, Object)
 func (n *Node) PutProp(prop Node_Prop, value any) {
+	if !jutil.IsNil(value) && n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
+		n.propListHead.objectValue = value
+		return
+	}
 	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
 	if !jutil.IsNil(value) {
 		n.propListHead = NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, n.propListHead)
@@ -1405,6 +1426,10 @@ func (n *Node) PutBooleanProp(propType Node_Prop, value bool) {
 
 // Java: Node.putIntProp(Prop, int)
 func (n *Node) PutIntProp(prop Node_Prop, value int32) {
+	if value != 0 && n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
+		n.propListHead.intValue = value
+		return
+	}
 	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
 	if value != 0 {
 		n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, n.propListHead)
@@ -1678,10 +1703,10 @@ func (n *Node) SetDouble(x float64) {
 // Java: Node.getBigInt()
 func (n *Node) GetBigInt() *big.Int {
 	n.node_castKind(node_kindBigInt)
-	if n.ext == nil {
+	if n.origOrExt == nil {
 		return nil
 	}
-	return n.ext.bigint
+	return (*node_ext)(n.origOrExt).bigint
 }
 
 // Java: Node.setBigInt(BigInteger)
@@ -2003,9 +2028,11 @@ type Node struct {
 	// the template literal substring, is not null.
 	str *string
 
-	// originalName and the NumberNode, BigIntNode and
-	// TemplateLiteralSubstringNode payloads; nil until one is set.
-	ext *node_ext
+	// For node_kindNode and node_kindString (kind <= node_kindString), holds
+	// originalName (*string) directly without allocating node_ext.
+	// For NumberNode, BigIntNode and TemplateLiteralSubstringNode
+	// (kind > node_kindString), holds *node_ext.
+	origOrExt unsafe.Pointer
 }
 
 // node_ext holds the fields of a Node that most nodes never set.
@@ -2024,27 +2051,36 @@ type node_ext struct {
 	cooked *string
 }
 
-// node_getExt returns n.ext, allocating it on first use.
+// node_getExt returns n's *node_ext (for kind > node_kindString), allocating it on first use.
 func (n *Node) node_getExt() *node_ext {
-	if n.ext == nil {
-		n.ext = &node_ext{}
+	if n.origOrExt == nil {
+		ext := &node_ext{}
+		n.origOrExt = unsafe.Pointer(ext)
+		return ext
 	}
-	return n.ext
+	return (*node_ext)(n.origOrExt)
 }
 
 // node_originalName is the originalName field.
 func (n *Node) node_originalName() *string {
-	if n.ext == nil {
+	if n.kind <= node_kindString {
+		return (*string)(n.origOrExt)
+	}
+	if n.origOrExt == nil {
 		return nil
 	}
-	return n.ext.originalName
+	return (*node_ext)(n.origOrExt).originalName
 }
 
 // node_setOriginalName assigns the originalName field.
 func (n *Node) node_setOriginalName(s *string) {
+	if n.kind <= node_kindString {
+		n.origOrExt = unsafe.Pointer(s)
+		return
+	}
 	if s == nil {
-		if n.ext != nil {
-			n.ext.originalName = nil
+		if n.origOrExt != nil {
+			(*node_ext)(n.origOrExt).originalName = nil
 		}
 		return
 	}
@@ -2053,18 +2089,18 @@ func (n *Node) node_setOriginalName(s *string) {
 
 // node_number is the NumberNode.number field.
 func (n *Node) node_number() float64 {
-	if n.ext == nil {
+	if n.origOrExt == nil {
 		return 0
 	}
-	return n.ext.number
+	return (*node_ext)(n.origOrExt).number
 }
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n *Node) node_cooked() *string {
-	if n.ext == nil {
+	if n.origOrExt == nil {
 		return nil
 	}
-	return n.ext.cooked
+	return (*node_ext)(n.origOrExt).cooked
 }
 
 // ==========================================================================
@@ -2084,6 +2120,7 @@ func (n *Node) SetStaticSourceFileFrom(other *Node) {
 			tail = tail.next
 		}
 		if int(tail.propType) == Node_Prop_SOURCE_FILE.Ordinal() {
+			tail.shared = true
 			n.propListHead = tail
 			return
 		}
@@ -2113,8 +2150,7 @@ func (n *Node) GetSourceFileName() *string {
 	if file == nil {
 		return nil
 	}
-	name := file.GetName()
-	return &name
+	return rhinoStringPoolCell(file.GetName())
 }
 
 // GetStaticSourceFile returns the source file associated with this input.
@@ -2161,8 +2197,7 @@ func (n *Node) SetOriginalName(s *string) {
 	if s == nil {
 		n.node_setOriginalName(nil)
 	} else {
-		interned := RhinoStringPool_AddOrGet(*s)
-		n.node_setOriginalName(&interned)
+		n.node_setOriginalName(rhinoStringPoolCell(*s))
 	}
 }
 
@@ -2170,16 +2205,15 @@ func (n *Node) SetOriginalName(s *string) {
 func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
 	// RhinoStringPool.LazyInternedStringList guarantees that the result of
 	// calling get(offset) is interned, and sometimes caches results.
-	s := stringPool.Get(offset)
-	n.node_setOriginalName(&s)
+	n.node_setOriginalName(rhinoStringPoolCell(stringPool.Get(offset)))
 }
 
 // SetOriginalNameFromName copies the original name.
 //
 // Java: Node.setOriginalNameFromName(Node)
 func (n *Node) SetOriginalNameFromName(name *Node) {
-	s := name.GetString()
-	n.node_setOriginalName(&s)
+	_ = name.GetString()
+	n.node_setOriginalName(name.str)
 }
 
 // IsIndexable reports whether this node should be indexed by static
@@ -2362,6 +2396,7 @@ func (n *Node) GetPropListHeadForTesting() *Node_PropListItem {
 
 // Java: Node.setPropListHead(PropListItem)
 func (n *Node) SetPropListHead(propListHead *Node_PropListItem) {
+	propListHead.markShared()
 	n.propListHead = propListHead
 }
 
@@ -2906,22 +2941,21 @@ func (n *Node) isEquivalentToBase(
 		return false
 	}
 
-	propSet := jutil.NewEnumSet[Node_Prop]()
+	var propBits uint64
 	for propListItem := n.propListHead; propListItem != nil; propListItem = propListItem.next {
-		prop := Node_propValues[propListItem.propType]
-		propSet.Add(prop)
+		propBits |= uint64(1) << uint(propListItem.propType)
 	}
 	for propListItem := node.propListHead; propListItem != nil; propListItem = propListItem.next {
-		prop := Node_propValues[propListItem.propType]
-		propSet.Add(prop)
+		propBits |= uint64(1) << uint(propListItem.propType)
 	}
 
-	for prop := range propSet.All() {
-		if Node_propMapForEqualityKeys.Contains(prop) {
-			getter := Node_PROP_MAP_FOR_EQUALITY.Get(prop)
-			if !jutil.ObjectsEquals(getter(n), getter(node)) {
-				return false
-			}
+	propBits &= node_propEqualityMask
+	for propBits != 0 {
+		bit := bits.TrailingZeros64(propBits)
+		propBits &^= uint64(1) << uint(bit)
+		prop := Node_Prop(bit)
+		if !node_propEqualsForEquality(prop, n, node) {
+			return false
 		}
 	}
 
@@ -2998,6 +3032,73 @@ var Node_PROP_MAP_FOR_EQUALITY = func() *jutil.LinkedHashMap[Node_Prop, func(*No
 //
 // Java: Node.propMapForEqualityKeys
 var Node_propMapForEqualityKeys = jutil.NewEnumSet(Node_PROP_MAP_FOR_EQUALITY.KeySlice()...)
+
+const node_propEqualityMask uint64 = (uint64(1) << uint(Node_Prop_ARROW_FN)) |
+	(uint64(1) << uint(Node_Prop_ASYNC_FN)) |
+	(uint64(1) << uint(Node_Prop_GENERATOR_FN)) |
+	(uint64(1) << uint(Node_Prop_START_OF_OPT_CHAIN)) |
+	(uint64(1) << uint(Node_Prop_STATIC_MEMBER)) |
+	(uint64(1) << uint(Node_Prop_YIELD_ALL)) |
+	(uint64(1) << uint(Node_Prop_EXPORT_DEFAULT)) |
+	(uint64(1) << uint(Node_Prop_EXPORT_ALL_FROM)) |
+	(uint64(1) << uint(Node_Prop_INCRDECR)) |
+	(uint64(1) << uint(Node_Prop_QUOTED)) |
+	(uint64(1) << uint(Node_Prop_FREE_CALL)) |
+	(uint64(1) << uint(Node_Prop_DIRECT_EVAL)) |
+	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_METHOD)) |
+	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_GETTER)) |
+	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_SETTER))
+
+func node_propEqualsForEquality(prop Node_Prop, a, b *Node) bool {
+	switch prop {
+	case Node_Prop_ARROW_FN:
+		return a.IsArrowFunction() == b.IsArrowFunction()
+	case Node_Prop_ASYNC_FN:
+		return a.IsAsyncFunction() == b.IsAsyncFunction()
+	case Node_Prop_GENERATOR_FN,
+		Node_Prop_START_OF_OPT_CHAIN,
+		Node_Prop_STATIC_MEMBER,
+		Node_Prop_YIELD_ALL,
+		Node_Prop_FREE_CALL,
+		Node_Prop_DIRECT_EVAL,
+		Node_Prop_COMPUTED_PROP_METHOD,
+		Node_Prop_COMPUTED_PROP_GETTER,
+		Node_Prop_COMPUTED_PROP_SETTER:
+		return a.GetBooleanProp(prop) == b.GetBooleanProp(prop)
+	default:
+		return a.GetIntProp(prop) == b.GetIntProp(prop)
+	}
+}
+
+const rhinoByteSlabSize = 32768
+
+type rhinoByteSlab struct {
+	buf  [rhinoByteSlabSize]byte
+	used atomic.Uint32
+}
+
+var currentRhinoByteSlab atomic.Pointer[rhinoByteSlab]
+
+func rhinoAllocStringBytes(n int) []byte {
+	if n <= 0 || n > rhinoByteSlabSize/4 {
+		return make([]byte, 0, n)
+	}
+	for {
+		s := currentRhinoByteSlab.Load()
+		if s != nil {
+			end := s.used.Add(uint32(n))
+			if int(end) <= rhinoByteSlabSize {
+				start := int(end) - n
+				return s.buf[start:start:end]
+			}
+		}
+		newSlab := &rhinoByteSlab{}
+		newSlab.used.Store(uint32(n))
+		if currentRhinoByteSlab.CompareAndSwap(s, newSlab) {
+			return newSlab.buf[0:0:n]
+		}
+	}
+}
 
 // GetQualifiedName takes a set of GETPROP nodes and produces a string that
 // is each property separated by dots. If the node ultimately under the left
@@ -3088,7 +3189,7 @@ func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 		if !ok {
 			return nil
 		}
-		builder = make([]byte, 0, len(left)+reserve)
+		builder = rhinoAllocStringBytes(len(left) + reserve)
 		builder = append(builder, left...)
 	}
 	builder = append(builder, '.')
@@ -3360,6 +3461,7 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.length = source.length
 	dest.typeOrColor, dest.typeIsColor = source.typeOrColor, source.typeIsColor
 	dest.node_setOriginalName(source.node_originalName())
+	source.propListHead.markShared()
 	dest.propListHead = source.propListHead
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable

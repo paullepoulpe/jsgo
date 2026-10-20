@@ -24,6 +24,8 @@ import (
 	"math/big"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -5766,6 +5768,54 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 	return &s
 }
 
+const nodeUtilByteSlabSize = 32768
+
+type nodeUtilByteSlab struct {
+	buf  [nodeUtilByteSlabSize]byte
+	used atomic.Uint32
+}
+
+var currentNodeUtilByteSlab atomic.Pointer[nodeUtilByteSlab]
+
+func nodeUtilAllocStringBytes(n int) []byte {
+	if n <= 0 || n > nodeUtilByteSlabSize/4 {
+		return make([]byte, n)
+	}
+	for {
+		s := currentNodeUtilByteSlab.Load()
+		if s != nil {
+			end := s.used.Add(uint32(n))
+			if int(end) <= nodeUtilByteSlabSize {
+				start := int(end) - n
+				return s.buf[start:end:end]
+			}
+		}
+		newSlab := &nodeUtilByteSlab{}
+		newSlab.used.Store(uint32(n))
+		if currentNodeUtilByteSlab.CompareAndSwap(s, newSlab) {
+			return newSlab.buf[0:n:n]
+		}
+	}
+}
+
+func nodeUtilConcatDot(a, b string) string {
+	n := len(a) + 1 + len(b)
+	buf := nodeUtilAllocStringBytes(n)
+	copy(buf, a)
+	buf[len(a)] = '.'
+	copy(buf[len(a)+1:], b)
+	return unsafe.String(unsafe.SliceData(buf), n)
+}
+
+func nodeUtilConcat3(a, b, c string) string {
+	n := len(a) + len(b) + len(c)
+	buf := nodeUtilAllocStringBytes(n)
+	i := copy(buf, a)
+	i += copy(buf[i:], b)
+	copy(buf[i:], c)
+	return unsafe.String(unsafe.SliceData(buf), n)
+}
+
 // nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
 // false where Java returns null.
 func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
@@ -5784,29 +5834,25 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 		} else {
 			maybePrototype = ".prototype."
 		}
-		return *className + maybePrototype + methodName, true
+		return nodeUtilConcat3(*className, maybePrototype, methodName), true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
 	if NodeUtil_MayBeObjectLitKey(lValue) {
 		owner := NodeUtil_GetBestLValue(lValue.GetParent())
 		if owner != nil {
+			key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
+			if !rhino.TokenStream_IsJSIdentifier(key) {
+				return "", false
+			}
 			ownerName, ok := nodeUtil_getBestLValueNameString(owner)
 			if ok {
-				key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
-				if rhino.TokenStream_IsJSIdentifier(key) {
-					return ownerName + "." + key, true
-				}
-				return "", false
+				return nodeUtilConcatDot(ownerName, key), true
 			}
 		}
 		return "", false
 	}
-	qname := lValue.GetQualifiedName()
-	if qname == nil {
-		return "", false
-	}
-	return *qname, true
+	return lValue.GetQualifiedNameString()
 }
 
 // NodeUtil_GetBestLValueRoot gets the root of a qualified name l-value.
@@ -5989,7 +6035,11 @@ func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
 func NodeUtil_CountAstSize(n *rhino.Node) int {
 	count := 1
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		count += NodeUtil_CountAstSize(c)
+		if c.GetFirstChild() == nil {
+			count++
+		} else {
+			count += NodeUtil_CountAstSize(c)
+		}
 	}
 	return count
 }

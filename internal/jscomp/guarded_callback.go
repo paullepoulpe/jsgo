@@ -148,7 +148,9 @@ type GuardedCallbackBase[T comparable] struct {
 	//
 	// Go-only: language-adapter — the ArrayDeque used as a stack: the top
 	// is the last element of the slice.
-	contextStack []*guardedCallback_Context
+	contextStack    []*guardedCallback_Context
+	contextStackBuf [128]*guardedCallback_Context
+	contextNodes    [128]guardedCallback_Context
 }
 
 // InitGuardedCallbackBase is the GuardedCallback(AbstractCompiler)
@@ -161,6 +163,7 @@ func (b *GuardedCallbackBase[T]) InitGuardedCallbackBase(self GuardedCallback[T]
 	b.guarded = jutil.HashMultiset_Create[T]()
 	b.installedGuards = jutil.ArrayListMultimap_Create[*rhino.Node, T]()
 	b.compiler = compiler
+	b.contextStack = b.contextStackBuf[:0]
 }
 
 // GetGuardedCallbackBase gives access to the base through the interface.
@@ -234,7 +237,11 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 		b.pushContext(guardedCallback_Context_EMPTY)
 	} else {
 		// Before traversing any children, we update the stack
-		b.pushContext(b.peekContext().Descend(b.compiler, parent, n))
+		var slot *guardedCallback_Context
+		if idx := len(b.contextStack); idx < len(b.contextNodes) {
+			slot = &b.contextNodes[idx]
+		}
+		b.pushContext(b.peekContext().descendInto(b.compiler, parent, n, slot))
 
 		// If the parent has any guards registered on it, then add them to
 		// both `guarded` and `installedGuards`.
@@ -356,20 +363,52 @@ func newGuardedCallback_Context(conditional *rhino.Node, safe bool, linked *guar
 //
 // Java: GuardedCallback.Context.link(Node, boolean)
 func (c *guardedCallback_Context) Link(newConditional *rhino.Node, newSafe bool) *guardedCallback_Context {
+	return c.linkInto(newConditional, newSafe, nil)
+}
+
+func (c *guardedCallback_Context) linkInto(newConditional *rhino.Node, newSafe bool, slot *guardedCallback_Context) *guardedCallback_Context {
 	var linked *guardedCallback_Context
 	if c.conditional != nil {
 		linked = c
 	}
+	if slot != nil {
+		*slot = guardedCallback_Context{
+			conditional: newConditional,
+			safe:        newSafe,
+			linked:      linked,
+		}
+		return slot
+	}
 	return newGuardedCallback_Context(newConditional, newSafe, linked)
 }
+
+var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(nil, true, nil)
 
 // Propagate returns a new Context with a different safety bit, but doesn't
 // change anything else.
 //
 // Java: GuardedCallback.Context.propagate(boolean)
 func (c *guardedCallback_Context) Propagate(newSafe bool) *guardedCallback_Context {
+	return c.propagateInto(newSafe, nil)
+}
+
+func (c *guardedCallback_Context) propagateInto(newSafe bool, slot *guardedCallback_Context) *guardedCallback_Context {
 	if newSafe == c.safe {
 		return c
+	}
+	if c.conditional == nil && c.linked == nil {
+		if newSafe {
+			return guardedCallback_Context_SAFE_EMPTY
+		}
+		return guardedCallback_Context_EMPTY
+	}
+	if slot != nil {
+		*slot = guardedCallback_Context{
+			conditional: c.conditional,
+			safe:        newSafe,
+			linked:      c.linked,
+		}
+		return slot
 	}
 	return newGuardedCallback_Context(c.conditional, newSafe, c.linked)
 }
@@ -380,6 +419,10 @@ func (c *guardedCallback_Context) Propagate(newSafe bool) *guardedCallback_Conte
 //
 // Java: GuardedCallback.Context.descend(AbstractCompiler, Node, Node)
 func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhino.Node, child *rhino.Node) *guardedCallback_Context {
+	return c.descendInto(compiler, parent, child, nil)
+}
+
+func (c *guardedCallback_Context) descendInto(compiler AbstractCompiler, parent *rhino.Node, child *rhino.Node, slot *guardedCallback_Context) *guardedCallback_Context {
 	first := child == parent.GetFirstChild()
 	switch parent.GetToken() {
 	case rhino.Token_CAST:
@@ -391,12 +434,12 @@ func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhi
 		if child == parent.GetLastChild() {
 			return c
 		}
-		return c.Propagate(true)
+		return c.propagateInto(true, slot)
 	case rhino.Token_AND:
 		// `Promise && whatever` never returns Promise itself, so it is safe.
 		// `whatever && Promise` may return Promise, so return outer context.
 		if first {
-			return c.Link(parent, true)
+			return c.linkInto(parent, true, slot)
 		}
 		return c
 	case rhino.Token_OR, rhino.Token_COALESCE:
@@ -405,14 +448,14 @@ func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhi
 		// `whatever || Promise` and `whatever ?? Promise`
 		// is same as outer context.
 		if first {
-			return c.Link(parent, false)
+			return c.linkInto(parent, false, slot)
 		}
 		return c
 	case rhino.Token_HOOK:
 		// `Promise ? whatever : whatever` is a safe conditional.
 		// `whatever ? Promise : whatever` (etc) is same as outer context.
 		if first {
-			return c.Link(parent, true)
+			return c.linkInto(parent, true, slot)
 		}
 		return c
 	case rhino.Token_IF:
@@ -420,21 +463,21 @@ func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhi
 		// `if (whatever) { ... }` is nothing.
 		// TODO(sdh): Handle do/while/for/for-of/for-in?
 		if first {
-			return c.Link(parent, true)
+			return c.linkInto(parent, true, slot)
 		}
 		return guardedCallback_Context_EMPTY
 	case rhino.Token_INSTANCEOF, rhino.Token_ASSIGN:
 		// `Promise instanceof whatever` is safe, `whatever instanceof Promise`
 		// is not. `Promise = whatever` is a bad idea, but it's safe w.r.t.
 		// polyfills.
-		return c.Propagate(first)
+		return c.propagateInto(first, slot)
 	case rhino.Token_TYPEOF, rhino.Token_NOT, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
 		// `typeof Promise` is always safe, as is `Promise == whatever`, etc.
-		return c.Propagate(true)
+		return c.propagateInto(true, slot)
 	case rhino.Token_CALL:
 		// `String(Promise)` is safe, `Promise(whatever)` or
 		// `whatever(Promise)` is not.
-		return c.Propagate(!first && guardedCallback_isPropertyTestFunction(compiler, parent))
+		return c.propagateInto(!first && guardedCallback_isPropertyTestFunction(compiler, parent), slot)
 	case rhino.Token_ROOT:
 		// This case causes problems for isStatement() so handle it
 		// separately.
@@ -445,19 +488,19 @@ func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhi
 			// OR firstChild?.thisNode.rest.of.chain
 			// For the first case `thisNode` should be considered
 			// intrinsically guarded.
-			return c.Link(parent, parent.IsOptionalChainStart())
+			return c.linkInto(parent, parent.IsOptionalChainStart(), slot)
 		} else {
 			// `first?.(thisNode)`
 			// or `first?.[thisNode]`
 			// or `first?.thisNode`
-			return c.Propagate(false)
+			return c.propagateInto(false, slot)
 		}
 	default:
 		// Expressions propagate linked conditionals; statements do not.
 		if NodeUtil_IsStatement(parent) {
 			return guardedCallback_Context_EMPTY
 		}
-		return c.Propagate(false)
+		return c.propagateInto(false, slot)
 	}
 }
 
