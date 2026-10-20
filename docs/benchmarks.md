@@ -312,14 +312,14 @@ arm64, Go 1.27.1 with `default.pgo`, OpenJDK 21.0.10, all 100% byte-identical):
 | **`downlevel-simple`** | 2.39 s | 2.03 s / 1.90 s | **1.71 s** / **1.60 s** | **−28.6%** / **−33.1%** | 4.68 s / 1.60 s | **2.93×** / **1.00×** | **197 MiB** vs 613 / 1,489 MiB (**3.1× / 7.6× lower**) |
 | **`checks-only`** | 4.40 s | 3.95 s / 3.46 s | **3.47 s** / **3.08 s** | **−21.1%** / **−29.9%** | 6.55 s / 3.20 s | **2.12×** / **1.04×** | **643 MiB** vs 1,591 / 3,562 MiB (**2.5× / 5.5× lower**) |
 
-#### Large Real-World `ADVANCED` Workloads (`t=4`)
+#### Large Real-World `ADVANCED` Workloads
 
-| Task | Input Size & Workload (`--compilation_level=ADVANCED`) | Round 2 (`ff06ac15`) | **Round 3 (`f0303218`)** | Δ vs Round 2 | Cold Java | Warm Java | **`jsgo` vs Cold Java** | **`jsgo` vs Warm Java** | Peak RSS: `jsgo` vs Cold / Warm Java |
+| Task | Input Size & Workload (`--compilation_level=ADVANCED`) | Round 2 (`ff06ac15` `t=1`/`t=4`) | **Round 3 (`f0303218` `t=1`/`t=4`)** | Δ vs Round 2 (`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 19.90 s | **17.17 s** | **−13.7%** | 31.60 s | 20.21 s | **1.84× faster** | **1.18× faster** | **1,189 MiB** vs 1,603 / 4,724 MiB (**1.3× / 4.0× lower**) |
-| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 8.61 s | **7.44 s** | **−13.6%** | 15.26 s | 8.67 s | **2.05× faster** | **1.17× faster** | **552 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
-| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 8.67 s | **6.05 s** | **−30.2%** | 11.30 s | 6.79 s | **1.87× faster** | **1.12× faster** | **417 MiB** vs 1,600 / 3,795 MiB (**3.8× / 9.1× lower**) |
-| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | 43.29 s | **12.09 s** | **−72.1%** | 20.78 s | 12.41 s | **1.72× faster** | **1.03× faster** | **670 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.3× lower**) |
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 21.89 s / 19.90 s | **17.90 s** / **17.17 s** | **−13.7%** | 31.60 s | 20.21 s | **1.77×** / **1.84× faster** | **1.13×** / **1.18× faster** | **1,158–1,189 MiB** vs 1,603 / 4,724 MiB (**1.3× / 4.0× lower**) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 9.16 s / 8.61 s | **7.57 s** / **7.44 s** | **−13.6%** | 15.26 s | 8.67 s | **2.02×** / **2.05× faster** | **1.14×** / **1.17× faster** | **513–552 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 9.42 s / 8.67 s | **6.20 s** / **6.05 s** | **−30.2%** | 11.30 s | 6.79 s | **1.82×** / **1.87× faster** | **1.09×** / **1.12× faster** | **412–417 MiB** vs 1,600 / 3,795 MiB (**3.8× / 9.1× lower**) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | — / 43.29 s | **12.20 s** / **12.09 s** | **−72.1%** | 20.78 s | 12.41 s | **1.70×** / **1.72× faster** | **1.02×** / **1.03× faster** | **668–670 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.3× lower**) |
 
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 
