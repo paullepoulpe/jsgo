@@ -1730,7 +1730,7 @@ func (p *PeepholeFoldConstants) TryFoldCtorCall(n *rhino.Node) *rhino.Node {
 func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n *rhino.Node) *rhino.Node {
 	jutil.CheckArgument(n.IsCall() || n.IsOptChainCall())
 
-	if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
+	if first := n.GetFirstChild(); first != nil && first.IsGetProp() && first.GetString() == "defineProperties" && NodeUtil_IsObjectDefinePropertiesDefinition(n) {
 		srcObj := n.GetLastChild()
 		if srcObj.IsObjectLit() && !srcObj.HasChildren() {
 			parent := n.GetParent()
@@ -1820,42 +1820,37 @@ func (p *PeepholeFoldConstants) TryFoldGetElem(n *rhino.Node, left *rhino.Node, 
 func (p *PeepholeFoldConstants) TryFoldGetProp(n *rhino.Node) *rhino.Node {
 	jutil.CheckArgument(n.IsGetProp() || n.IsOptChainGetProp())
 	left := n.GetFirstChild()
-	name := n.GetString()
 
-	if left.IsObjectLit() {
-		return p.TryFoldObjectPropAccess(n, left, name)
-	}
-
-	if name == "length" {
-		if NodeUtil_IsLValue(n) {
-			return n
-		}
-		knownLength := -1
-		switch left.GetToken() {
-		case rhino.Token_ARRAYLIT:
-			if p.MayHaveSideEffects(left) {
-				// Nope, can't fold this, without handling the side-effects.
+	switch left.GetToken() {
+	case rhino.Token_OBJECTLIT:
+		return p.TryFoldObjectPropAccess(n, left, n.GetString())
+	case rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
+		if n.GetString() == "length" {
+			if NodeUtil_IsLValue(n) {
 				return n
 			}
-			for child := left.GetFirstChild(); child != nil; child = child.GetNext() {
-				if child.IsSpread() {
+			var knownLength int
+			if left.IsArrayLit() {
+				if p.MayHaveSideEffects(left) {
+					// Nope, can't fold this, without handling the side-effects.
 					return n
 				}
+				for child := left.GetFirstChild(); child != nil; child = child.GetNext() {
+					if child.IsSpread() {
+						return n
+					}
+				}
+				knownLength = left.GetChildCount()
+			} else {
+				knownLength = jutil.StringLength(left.GetString())
 			}
-			knownLength = left.GetChildCount()
-		case rhino.Token_STRINGLIT:
-			knownLength = jutil.StringLength(left.GetString())
-		default:
-			// Not a foldable case, forget it.
-			return n
+
+			lengthNode := rhino.IR_Number(float64(knownLength))
+			p.ReportChangeToEnclosingScope(n)
+			n.ReplaceWith(lengthNode)
+
+			return lengthNode
 		}
-
-		jutil.CheckState(knownLength != -1)
-		lengthNode := rhino.IR_Number(float64(knownLength))
-		p.ReportChangeToEnclosingScope(n)
-		n.ReplaceWith(lengthNode)
-
-		return lengthNode
 	}
 
 	return n

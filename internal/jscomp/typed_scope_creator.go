@@ -56,7 +56,9 @@ type TypedScopeCreator struct {
 
 	// Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
 	// reserve names before the TypedScope is populated.
-	reservedNamesForScope map[*rhino.Node]*jutil.LinkedHashSet[string]
+	reservedNamesForScope map[*rhino.Node][]string
+
+	arena typedScopeArena
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
 	functionsWithNonEmptyReturns map[*rhino.Node]struct{}
@@ -283,13 +285,15 @@ func (c *TypedScopeCreator) GetScope(var_ *TypedVar) rhino.StaticScope {
 
 // Java: TypedScopeCreator.getAllSymbols()
 func (c *TypedScopeCreator) GetAllSymbols() iter.Seq[*TypedVar] {
-	vars := []*TypedVar{}
-	for s := range c.memoized.Values() {
-		for v := range s.GetAllSymbols() {
-			vars = append(vars, v)
+	return func(yield func(*TypedVar) bool) {
+		for s := range c.memoized.Values() {
+			for v := range s.GetAllSymbols() {
+				if !yield(v) {
+					return
+				}
+			}
 		}
 	}
-	return slices.Values(vars)
 }
 
 // GetNodeToScopeMapper returns a function mapping a scope root node to a
@@ -390,17 +394,23 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 		if module != nil && module.Metadata().IsGoogModule() {
 			// TypedScopeCreator treats default export assignments, like `exports = class {};`, as
 			// declarations. However, the untyped scope only contains an implicit slot for `exports`.
-			if reservedNames == nil {
-				reservedNames = jutil.NewLinkedHashSet[string]()
+			if !slices.Contains(reservedNames, "exports") {
+				reservedNames = append(reservedNames, "exports")
 			}
-			reservedNames.Add("exports")
-		} else if reservedNames != nil && root.IsFunction() && NodeUtil_IsBundledGoogModuleCall(root.GetParent()) {
+		} else if len(reservedNames) > 0 && root.IsFunction() && NodeUtil_IsBundledGoogModuleCall(root.GetParent()) {
 			// Pretend that 'exports' is declared in the block of goog.loadModule
 			// functions, not the function scope. See the above comment for why.
-			reservedNames.Remove("exports")
+			for i, rn := range reservedNames {
+				if rn == "exports" {
+					copy(reservedNames[i:], reservedNames[i+1:])
+					reservedNames[len(reservedNames)-1] = ""
+					reservedNames = reservedNames[:len(reservedNames)-1]
+					break
+				}
+			}
 		}
 
-		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module)
+		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module, &c.arena)
 	}
 
 	var pooledNormalBuilder *TypedScopeCreator_NormalScopeBuilder
@@ -554,6 +564,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	// Gather global information used in typed scope creation. Use a memoized scope creator because
 	// scope-building takes a nontrivial amount of time.
 	scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(c.compiler))
+	defer scopeCreator.ReleaseArena()
 
 	NodeTraversal_Builder_().
 		SetCompiler(c.compiler).
@@ -568,6 +579,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 		Traverse(root)
 
 	s := TypedScope_CreateGlobalScope(root)
+	s.arena = &c.arena
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_ARRAY_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE)
@@ -700,7 +712,8 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	c.reservedNamesForScope = make(map[*rhino.Node]*jutil.LinkedHashSet[string])
+	c.reservedNamesForScope = make(map[*rhino.Node][]string)
+	c.arena.names = nil
 	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
 	c.escapedVarNames = make(map[typedScopeCreator_ScopedNameKey]struct{})
 	c.assignedVarNames = make(map[typedScopeCreator_ScopedNameKey]int)
@@ -4115,18 +4128,22 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTravers
 		return
 	}
 	scope := t.GetScope()
-	if scope.GetVarCount() == 0 {
+	varCount := scope.GetVarCount()
+	if varCount == 0 {
 		return
 	}
 	root := scope.GetRootNode()
-	set := a.outer.reservedNamesForScope[root]
-	if set == nil {
-		set = jutil.NewLinkedHashSet[string]()
-		a.outer.reservedNamesForScope[root] = set
+	list := a.outer.reservedNamesForScope[root]
+	if list == nil {
+		list = a.outer.arena.allocNames(varCount)
 	}
 	for symbol := range scope.GetVarIterable() {
-		set.Add(symbol.GetName())
+		name := symbol.GetName()
+		if !slices.Contains(list, name) {
+			list = append(list, name)
+		}
 	}
+	a.outer.reservedNamesForScope[root] = list
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.visit(NodeTraversal, Node, Node)

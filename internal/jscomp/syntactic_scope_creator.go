@@ -35,6 +35,13 @@ type SyntacticScopeCreator struct {
 	lastInputId                   *rhino.InputId
 	lastInput                     *CompilerInput
 	arena                         *scopeArena
+	poolable                      bool
+}
+
+func (c *SyntacticScopeCreator) EnableArenaPool() {
+	if c != nil {
+		c.poolable = true
+	}
 }
 
 func (c *SyntacticScopeCreator) ReleaseArena() {
@@ -102,7 +109,11 @@ func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope)
 // Java: SyntacticScopeCreator.createScope(Node, Scope)
 func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope) *Scope {
 	if c.arena == nil {
-		c.arena = acquireScopeArena()
+		if c.poolable || (parent == nil && n != nil && (n.IsRoot() || (n.IsScript() && n.GetParent() != nil && n.GetParent().IsRoot()))) {
+			c.arena = acquireScopeArena()
+		} else {
+			c.arena = &scopeArena{}
+		}
 	}
 	var scope *Scope
 	if parent == nil {

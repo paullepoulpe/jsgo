@@ -53,7 +53,7 @@ type referenceCollectorArena struct {
 	argumentsRefs map[*rhino.Node]*ReferenceCollection
 }
 
-var cachedRCArena atomic.Pointer[referenceCollectorArena]
+var cachedRCArenas [2]atomic.Pointer[referenceCollectorArena]
 
 var referenceCollectorArenaPool = sync.Pool{
 	New: func() any {
@@ -62,15 +62,19 @@ var referenceCollectorArenaPool = sync.Pool{
 }
 
 func acquireRCArena() *referenceCollectorArena {
-	if a := cachedRCArena.Swap(nil); a != nil {
-		return a
+	for i := range cachedRCArenas {
+		if a := cachedRCArenas[i].Swap(nil); a != nil {
+			return a
+		}
 	}
 	return referenceCollectorArenaPool.Get().(*referenceCollectorArena)
 }
 
 func releaseRCArena(a *referenceCollectorArena) {
-	if cachedRCArena.CompareAndSwap(nil, a) {
-		return
+	for i := range cachedRCArenas {
+		if cachedRCArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	referenceCollectorArenaPool.Put(a)
 }
@@ -187,6 +191,9 @@ func NewReferenceCollectorWithVarFilter(
 
 func (c *ReferenceCollector) enableArenaPool() {
 	c.poolable = true
+	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
+		sc.EnableArenaPool()
+	}
 }
 
 func (c *ReferenceCollector) getArena() *referenceCollectorArena {
@@ -206,7 +213,7 @@ func (c *ReferenceCollector) release() {
 	}
 	c.arena = nil
 	if len(c.table) > 0 && len(c.vars) > 0 {
-		if len(c.table) <= 524288 {
+		if len(c.table) <= 2097152 {
 			if len(c.vars)*16 < len(c.table) {
 				mask := uint32(len(c.table) - 1)
 				for _, kv := range c.vars {
@@ -226,7 +233,7 @@ func (c *ReferenceCollector) release() {
 	}
 	c.table = nil
 	if cap(c.vars) > len(c.varsBuf) {
-		if cap(c.vars) <= 262144 {
+		if cap(c.vars) <= 1048576 {
 			clear(c.vars)
 			a.vars = c.vars[:0]
 			clear(c.cols)
@@ -257,9 +264,9 @@ func (c *ReferenceCollector) release() {
 	}
 	c.argumentsRefs = nil
 	const (
-		maxRetainedRefChunks = 80
-		maxRetainedColChunks = 48
-		maxRetainedBlkChunks = 48
+		maxRetainedRefChunks = 256
+		maxRetainedColChunks = 192
+		maxRetainedBlkChunks = 224
 	)
 	if a.refChunkIdx > 0 {
 		a.refChunks[a.refChunkIdx-1] = c.refSlab
@@ -467,17 +474,17 @@ func (c *ReferenceCollector) initTable() {
 	if c.poolable {
 		a := c.getArena()
 		if len(a.table) == 0 {
-			a.table = make([]rcTableEntry, 1024)
+			a.table = make([]rcTableEntry, 8192)
 		}
 		c.table = a.table
 		if cap(a.vars) > len(c.vars) {
 			c.vars = append(a.vars[:0], c.vars...)
 			c.cols = append(a.cols[:0], c.cols...)
 		} else {
-			newVars := make([]*Var, len(c.vars), 128)
+			newVars := make([]*Var, len(c.vars), 4096)
 			copy(newVars, c.vars)
 			c.vars = newVars
-			newCols := make([]*ReferenceCollection, len(c.cols), 128)
+			newCols := make([]*ReferenceCollection, len(c.cols), 4096)
 			copy(newCols, c.cols)
 			c.cols = newCols
 		}

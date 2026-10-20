@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -108,8 +107,10 @@ type removeUnusedCodeArena struct {
 	worklistHead int
 	worklistSize int
 
-	varBuckets []*RemoveUnusedCode_RealVarInfo
-	varInfos   []*RemoveUnusedCode_RealVarInfo
+	varBuckets  []*RemoveUnusedCode_RealVarInfo
+	varInfos    []*RemoveUnusedCode_RealVarInfo
+	lastVar     *Var
+	lastVarInfo *RemoveUnusedCode_RealVarInfo
 
 	pinnedPropertyNames map[string]struct{}
 	propRemovables      map[string]propRemovableList
@@ -138,10 +139,16 @@ func (a *removeUnusedCodeArena) reset() {
 	a.worklistHead = 0
 	a.worklistSize = 0
 
+	a.lastVar = nil
+	a.lastVarInfo = nil
 	if len(a.varBuckets) > 0 {
-		mask := uint32(len(a.varBuckets) - 1)
-		for _, info := range a.varInfos {
-			a.varBuckets[info.hash&mask] = nil
+		if len(a.varInfos)*8 < len(a.varBuckets) {
+			mask := uint32(len(a.varBuckets) - 1)
+			for _, info := range a.varInfos {
+				a.varBuckets[info.hash&mask] = nil
+			}
+		} else {
+			clear(a.varBuckets)
 		}
 	}
 	clear(a.varInfos)
@@ -175,7 +182,7 @@ var removeUnusedCodeArenaPool = sync.Pool{
 	New: func() any {
 		return &removeUnusedCodeArena{
 			worklist:               make([]RemoveUnusedCode_Continuation, 512),
-			varBuckets:             make([]*RemoveUnusedCode_RealVarInfo, 4096),
+			varBuckets:             make([]*RemoveUnusedCode_RealVarInfo, 16384),
 			varInfos:               make([]*RemoveUnusedCode_RealVarInfo, 0, 2048),
 			pinnedPropertyNames:    make(map[string]struct{}, 256),
 			propRemovables:         make(map[string]propRemovableList, 256),
@@ -2022,22 +2029,17 @@ func RemoveUnusedCode_NameOfParam(param *rhino.Node) *rhino.Node {
 	}
 }
 
-func hashVarKey(s string, scopeRoot *rhino.Node) uint32 {
-	h := uint32(2166136261)
-	for i := 0; i < len(s); i++ {
-		h ^= uint32(s[i])
-		h *= 16777619
-	}
-	p := uint64(uintptr(unsafe.Pointer(scopeRoot)))
-	p ^= p >> 33
-	p *= 0xff51afd7ed558ccd
-	p ^= p >> 33
-	return h ^ uint32(p)
+func hashVar(v *Var) uint32 {
+	h := uint32(v.HashCode())
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	h ^= h >> 13
+	return h
 }
 
 func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 	r.varInfos = append(r.varInfos, v)
-	if len(r.varInfos)*4 > len(r.varBuckets)*3 {
+	if len(r.varInfos)*4 > len(r.varBuckets)*3 && len(r.varBuckets) < 262144 {
 		newCap := len(r.varBuckets) * 2
 		newBuckets := make([]*RemoveUnusedCode_RealVarInfo, newCap)
 		mask := uint32(newCap - 1)
@@ -2064,49 +2066,58 @@ func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 // Java: RemoveUnusedCode.getVarInfo(Var)
 func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) RemoveUnusedCode_VarInfo {
 	jutil.CheckNotNull(var_)
-	isGlobal := var_.IsGlobal()
-	name := var_.GetName()
+	if var_ == r.lastVar {
+		return r.lastVarInfo
+	}
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
+			name := var_.GetName()
 			r.unremovableLog.LogSupplier(func() string { return name + ": extern" })
-		}
-		return r.canonicalUnremovableVarInfo
-	} else if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
-		if r.unremovableLog.IsLogging() {
-			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
 		}
 		return r.canonicalUnremovableVarInfo
 	} else if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
-	} else {
-		scopeRoot := var_.GetScopeRoot()
-		h := hashVarKey(name, scopeRoot)
-		if len(r.varBuckets) == 0 {
-			r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 1024)
-		}
-		mask := uint32(len(r.varBuckets) - 1)
-		for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
-			if cur.var_ == var_ || (cur.scopeRoot == scopeRoot && cur.hash == h && cur.varName == name) {
-				return cur
-			}
-		}
-
-		varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, scopeRoot, name, h)
-		if var_.GetParentNode().IsParamList() {
-			varInfo.SetHasNonLocalOrNonLiteralValue()
-		}
-		// Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because each
-		// varInfo needs to track what value is assigned to it for the purpose of correctly allowing
-		// or preventing removal of properties set on it.
-		if !r.removeGlobals && isGlobal {
-			varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing globals" })
-		} else if !r.removeLocalVars && !isGlobal {
-			varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
-		}
-		r.putVarInfo(varInfo)
-		return varInfo
 	}
+	scopeRoot := var_.GetScopeRoot()
+	name := var_.GetName()
+	h := hashVar(var_)
+	if len(r.varBuckets) == 0 {
+		r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 16384)
+	}
+	mask := uint32(len(r.varBuckets) - 1)
+	for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
+		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && cur.varName == name) {
+			r.lastVar = var_
+			r.lastVarInfo = cur
+			return cur
+		}
+	}
+
+	isGlobal := var_.IsGlobal()
+	if r.codingConvention.IsExportedWithLocal(name /* local= */, !isGlobal) {
+		if r.unremovableLog.IsLogging() {
+			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
+		}
+		return r.canonicalUnremovableVarInfo
+	}
+
+	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, scopeRoot, name, h)
+	if var_.GetParentNode().IsParamList() {
+		varInfo.SetHasNonLocalOrNonLiteralValue()
+	}
+	// Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because each
+	// varInfo needs to track what value is assigned to it for the purpose of correctly allowing
+	// or preventing removal of properties set on it.
+	if !r.removeGlobals && isGlobal {
+		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing globals" })
+	} else if !r.removeLocalVars && !isGlobal {
+		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
+	}
+	r.putVarInfo(varInfo)
+	r.lastVar = var_
+	r.lastVarInfo = varInfo
+	return varInfo
 }
 
 // RemoveUnreferencedVarsAndPolyfills removes any vars in the scope that were

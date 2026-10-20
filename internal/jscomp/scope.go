@@ -28,14 +28,14 @@ import (
 
 const (
 	minScopeChunkSize    = 16
-	maxScopeChunkSize    = 1024
-	maxScopeChunks       = 80
+	maxScopeChunkSize    = 2048
+	maxScopeChunks       = 96
 	minVarChunkSize      = 32
-	maxVarChunkSize      = 2048
-	maxVarChunks         = 80
+	maxVarChunkSize      = 4096
+	maxVarChunks         = 96
 	minSlotChunkSize     = 64
-	maxSlotChunkSize     = 2048
-	maxSlotChunks        = 80
+	maxSlotChunkSize     = 4096
+	maxSlotChunks        = 96
 	maxLargeSlotSize     = 4096
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
@@ -85,25 +85,31 @@ type scopeArena struct {
 	globalVars    jutil.LinkedHashMap[string, *Var]
 	globalVarsCap int
 	globalScope   *Scope
+	pooled        bool
 }
 
-var cachedScopeArena atomic.Pointer[scopeArena]
+var cachedScopeArenas [4]atomic.Pointer[scopeArena]
 
 var scopeArenaPool = sync.Pool{
 	New: func() any {
-		return &scopeArena{}
+		return &scopeArena{pooled: true}
 	},
 }
 
 func acquireScopeArena() *scopeArena {
-	if a := cachedScopeArena.Swap(nil); a != nil {
-		return a
+	for i := range cachedScopeArenas {
+		if a := cachedScopeArenas[i].Swap(nil); a != nil {
+			a.pooled = true
+			return a
+		}
 	}
-	return scopeArenaPool.Get().(*scopeArena)
+	a := scopeArenaPool.Get().(*scopeArena)
+	a.pooled = true
+	return a
 }
 
 func (a *scopeArena) release() {
-	if a == nil {
+	if a == nil || !a.pooled {
 		return
 	}
 	if a.globalScope != nil {
@@ -186,8 +192,10 @@ func (a *scopeArena) release() {
 	a.implicitUsed = 0
 	a.implicitChunkIdx = 0
 
-	if cachedScopeArena.CompareAndSwap(nil, a) {
-		return
+	for i := range cachedScopeArenas {
+		if cachedScopeArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	scopeArenaPool.Put(a)
 }

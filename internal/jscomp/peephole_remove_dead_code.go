@@ -287,7 +287,37 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeNameDeclaration(subtree *rhino.Node)
 //
 // Java: PeepholeRemoveDeadCode.tryFoldExpr(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree *rhino.Node) *rhino.Node {
-	result := p.TrySimplifyUnusedResult(subtree.GetFirstChild())
+	expr := subtree.GetFirstChild()
+	switch expr.GetToken() {
+	case rhino.Token_ASSIGN,
+		rhino.Token_ASSIGN_BITOR,
+		rhino.Token_ASSIGN_BITXOR,
+		rhino.Token_ASSIGN_BITAND,
+		rhino.Token_ASSIGN_LSH,
+		rhino.Token_ASSIGN_RSH,
+		rhino.Token_ASSIGN_URSH,
+		rhino.Token_ASSIGN_ADD,
+		rhino.Token_ASSIGN_SUB,
+		rhino.Token_ASSIGN_MUL,
+		rhino.Token_ASSIGN_DIV,
+		rhino.Token_ASSIGN_MOD,
+		rhino.Token_ASSIGN_EXPONENT,
+		rhino.Token_ASSIGN_OR,
+		rhino.Token_ASSIGN_AND,
+		rhino.Token_ASSIGN_COALESCE,
+		rhino.Token_INC,
+		rhino.Token_DEC,
+		rhino.Token_DELPROP,
+		rhino.Token_YIELD,
+		rhino.Token_AWAIT,
+		rhino.Token_DYNAMIC_IMPORT:
+		return subtree
+	case rhino.Token_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT:
+		if p.NodeTypeMayHaveSideEffects(expr) {
+			return subtree
+		}
+	}
+	result := p.TrySimplifyUnusedResult(expr)
 	if result == nil {
 		parent := subtree.GetParent()
 		// If the EXPR_RESULT no longer has any children, remove it as well.
@@ -989,6 +1019,35 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n *rhino.Node) *rhino.Node {
 	// Remove any useless children
 	for c := n.GetFirstChild(); c != nil; {
 		next := c.GetNext() // save c.next, since 'c' may be removed
+		switch c.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			p.TryOptimizeConditionalAfterAssign(c)
+			c = next
+			continue
+		case rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_RETURN, rhino.Token_THROW:
+			p.RemoveFollowingNodes(c)
+			c = nil
+			continue
+		case rhino.Token_FUNCTION,
+			rhino.Token_FOR,
+			rhino.Token_FOR_IN,
+			rhino.Token_FOR_OF,
+			rhino.Token_FOR_AWAIT_OF,
+			rhino.Token_WHILE,
+			rhino.Token_DO,
+			rhino.Token_LABEL,
+			rhino.Token_IMPORT,
+			rhino.Token_EXPORT,
+			rhino.Token_DEBUGGER:
+			c = next
+			continue
+		case rhino.Token_EXPR_RESULT:
+			if expr := c.GetFirstChild(); expr.IsAssign() && expr.GetFirstChild().IsName() {
+				p.TryOptimizeConditionalAfterAssign(c)
+				c = next
+				continue
+			}
+		}
 		if !PeepholeRemoveDeadCode_IsUnremovableNode(c) && !p.MayHaveSideEffects(c) {
 			// TODO(johnlenz): determine what this is actually removing. Candidates
 			//    include: EMPTY nodes, control structures without children
@@ -1104,6 +1163,9 @@ func PeepholeRemoveDeadCode_IsUnremovableNode(n *rhino.Node) bool {
 // Java: PeepholeRemoveDeadCode.tryOptimizeConditionalAfterAssign(Node)
 func (p *PeepholeRemoveDeadCode) TryOptimizeConditionalAfterAssign(n *rhino.Node) {
 	next := n.GetNext()
+	if next == nil {
+		return
+	}
 
 	// Look for patterns like the following and replace the if-condition with
 	// a constant value so it can later be folded:

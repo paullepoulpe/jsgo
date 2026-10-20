@@ -38,6 +38,8 @@ type FunctionInjector struct {
 	throwawayNameSupplier  func() string
 
 	functionArgumentInjector *FunctionArgumentInjector
+	mutator                  FunctionToBlockMutator
+	paramReplacementsScratch *jutil.LinkedHashMap[string, *rhino.Node]
 
 	// Cache of function node to whether it deeply contains an `eval` call.
 	referencesEvalCache *jutil.LinkedHashMap[*rhino.Node, bool]
@@ -56,9 +58,10 @@ var FunctionInjector_MULTIPLE_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 // Java: FunctionInjector(Builder)
 func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	f := &FunctionInjector{
-		knownConstantFunctions: jutil.NewLinkedHashSet[string](),
-		referencesEvalCache:    jutil.NewLinkedHashMap[*rhino.Node, bool](),
-		innerFunctionCache:     jutil.NewLinkedHashMap[*rhino.Node, *rhino.Node](),
+		knownConstantFunctions:   jutil.NewLinkedHashSet[string](),
+		paramReplacementsScratch: jutil.NewLinkedHashMap[string, *rhino.Node](),
+		referencesEvalCache:      jutil.NewLinkedHashMap[*rhino.Node, bool](),
+		innerFunctionCache:       jutil.NewLinkedHashMap[*rhino.Node, *rhino.Node](),
 	}
 	// The anonymous Supplier<String> throwawayNameSupplier, with its nextId
 	// field.
@@ -74,6 +77,11 @@ func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	f.assumeMinimumCapture = builder.assumeMinimumCapture
 	f.allowDecomposition = builder.allowDecomposition
 	f.functionArgumentInjector = jutil.CheckNotNull(builder.functionArgumentInjector)
+	f.mutator = FunctionToBlockMutator{
+		compiler:                 f.compiler,
+		safeNameIdSupplier:       f.safeNameIdSupplier,
+		functionArgumentInjector: f.functionArgumentInjector,
+	}
 	return f
 }
 
@@ -245,6 +253,31 @@ const FunctionInjector_COMMA_COST = 1
 // The cost of the parentheses needed to make a call.
 const FunctionInjector_PAREN_COST = 2
 
+func functionInjector_blocksMinimumRequirements(n *rhino.Node, fnName, fnRecursionName string, checkArguments bool) bool {
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		s := n.GetString()
+		if (checkArguments && s == "arguments") ||
+			s == "eval" ||
+			(fnName != "" && s == fnName) ||
+			(fnRecursionName != "" && s == fnRecursionName) {
+			return true
+		}
+	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
+		return true
+	case rhino.Token_FUNCTION:
+		if !n.IsArrowFunction() {
+			checkArguments = false
+		}
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if functionInjector_blocksMinimumRequirements(c, fnName, fnRecursionName, checkArguments) {
+			return true
+		}
+	}
+	return false
+}
+
 // DoesFunctionMeetMinimumRequirements: fnName is the name of this function.
 // This either the name of the variable to which the function is assigned or
 // the name from the FUNCTION node. fnNode is the FUNCTION node of the
@@ -265,24 +298,7 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 	fnRecursionName := fnNode.GetFirstChild().GetString()
 	// Java checkState(fnRecursionName != null): a Go string is never null.
 
-	// If the function references "arguments" directly in the function or in an arrow function
-	referencesArguments := NodeUtil_IsNameReferencedWithPred(
-		block, "arguments", NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION)
-
-	blocksInjection := func(n *rhino.Node) bool {
-		if n.IsName() {
-			// References "eval" or one of its names anywhere.
-			return n.GetString() == "eval" ||
-				(fnName != "" && n.GetString() == fnName) ||
-				(fnRecursionName != "" && n.GetString() == fnRecursionName)
-		} else if n.IsSuper() || n.GetToken() == rhino.Token_NEW_TARGET {
-			// Don't inline if this function or its inner functions contains super or new.target
-			return true
-		}
-		return false
-	}
-
-	return !referencesArguments && !NodeUtil_Has(block, blocksInjection, func(*rhino.Node) bool { return true })
+	return !functionInjector_blocksMinimumRequirements(block, fnName, fnRecursionName, true)
 }
 
 // CanInlineReferenceToFunction: fnNode is the function to evaluate for
@@ -422,7 +438,8 @@ func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnN
 	// Create an paramName -> argument value map, checking for side effects.
 	paramToArgMap := f.functionArgumentInjector.GetFunctionCallParameterMap(
 		fnNode, callNode, f.safeNameIdSupplier)
-	paramReplacements := jutil.NewLinkedHashMap[string, *rhino.Node]()
+	paramReplacements := f.paramReplacementsScratch
+	paramReplacements.Clear()
 	for key, value := range paramToArgMap.All() {
 		paramReplacements.Put(key, value.Arg())
 	}
@@ -643,14 +660,17 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	// replace "return expr" statements with "resultName = expr"
 	// to replace
 	var resultName *string
+	var resultNameVal string
 	needsDefaultReturnResult := true
 	switch callSiteType {
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
-		resultName = jutil.StringPtr(parent.GetFirstChild().GetString())
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, *resultName)
+		resultNameVal = parent.GetFirstChild().GetString()
+		resultName = &resultNameVal
+		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
-		resultName = jutil.StringPtr(parent.GetString())
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, *resultName)
+		resultNameVal = parent.GetString()
+		resultName = &resultNameVal
+		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
 		resultName = nil // "foo()" doesn't need a result.
 		needsDefaultReturnResult = false
@@ -663,10 +683,8 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected call site type."))
 	}
 
-	mutator := NewFunctionToBlockMutator(f.compiler, f.safeNameIdSupplier)
-
 	isCallInLoop := NodeUtil_IsWithinLoop(callNode)
-	newBlock := mutator.Mutate(
+	newBlock := f.mutator.Mutate(
 		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop)
 	NodeUtil_MarkNewScopesChanged(newBlock, f.compiler)
 
@@ -807,10 +825,51 @@ func functionInjector_isEvalName(n *rhino.Node) bool {
 	return n.IsName() && n.GetString() == "eval"
 }
 
-var (
-	functionInjector_matchDeclaration      = NewNodeUtil_MatchDeclaration().Apply
-	functionInjector_matchShallowStatement = NewNodeUtil_MatchShallowStatement().Apply
-)
+func functionInjector_isShallowStatement(n *rhino.Node) bool {
+	return n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(n.GetParent()))
+}
+
+func functionInjector_hasShallowDeclaration(n *rhino.Node) bool {
+	if NodeUtil_IsDeclaration(n) {
+		return true
+	}
+	if functionInjector_isShallowStatement(n) {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if functionInjector_hasShallowDeclaration(c) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func functionInjector_countShallowReturns(n *rhino.Node) int {
+	count := 0
+	if n.IsReturn() {
+		count++
+	}
+	if functionInjector_isShallowStatement(n) {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			count += functionInjector_countShallowReturns(c)
+		}
+	}
+	return count
+}
+
+func functionInjector_referencesEval(n *rhino.Node, rootFn *rhino.Node) bool {
+	if n.IsName() && n.GetString() == "eval" {
+		return true
+	}
+	if n.IsFunction() && n != rootFn {
+		return false
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if functionInjector_referencesEval(c, rootFn) {
+			return true
+		}
+	}
+	return false
+}
 
 // ReferencesEval returns whether or not fn includes a call to `eval` in its
 // scope.
@@ -825,10 +884,7 @@ func (f *FunctionInjector) ReferencesEval(fn *rhino.Node) bool {
 		return cached
 	}
 
-	result := NodeUtil_Has(
-		fn,
-		functionInjector_isEvalName,                    // Match predicate
-		func(n *rhino.Node) bool { return !n.IsFunction() || n == fn }) // Explore node predicate
+	result := functionInjector_referencesEval(fn, fn)
 	f.referencesEvalCache.Put(fn, result)
 	return result
 }
@@ -931,10 +987,7 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 		// Don't inline functions with var declarations into a scope with inner
 		// functions as the new vars would leak into the inner function and
 		// cause memory leaks.
-		calleeContainsVars := NodeUtil_Has(
-			NodeUtil_GetFunctionBody(calleeFn),
-			functionInjector_matchDeclaration,
-			functionInjector_matchShallowStatement)
+		calleeContainsVars := functionInjector_hasShallowDeclaration(NodeUtil_GetFunctionBody(calleeFn))
 		if calleeContainsVars {
 			return false
 		}
@@ -1185,8 +1238,7 @@ func FunctionInjector_InlineCostDelta(fnNode *rhino.Node, namesToAlias *jutil.Li
 
 		// TODO(johnlenz): Counting the number of returns is relatively expensive.
 		//   This information should be determined during the traversal and cached.
-		returnCount := NodeUtil_GetNodeTypeReferenceCount(
-			block, rhino.Token_RETURN, NewNodeUtil_MatchShallowStatement().Apply)
+		returnCount := functionInjector_countShallowReturns(block)
 		resultCount := 0
 		if returnCount > 0 {
 			resultCount = returnCount - 1

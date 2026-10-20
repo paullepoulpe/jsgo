@@ -65,8 +65,12 @@ type MaybeReachingVariableUse struct {
 	//
 	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
 	// hence the Object set.
-	escaped     *jutil.ObjectLinkedHashSet[*Var]
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	escaped         *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn     *jutil.LinkedHashMap[string, *Var]
+	unescapedVars   []*Var
+	unescapedBuf    [16]*Var
+	unescapedByName map[string]*Var
+	useUnescapedMap bool
 
 	emptyLattice MaybeReachingVariableUse_ReachingUses
 	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
@@ -93,6 +97,30 @@ func (u *MaybeReachingVariableUse) Reset(
 	u.ResetDataFlowAnalysisBase(u, cfg)
 	u.escaped = escaped
 	u.allVarsInFn = allVarsInFn
+	clear(u.unescapedVars)
+	u.unescapedVars = u.unescapedBuf[:0:len(u.unescapedBuf)]
+	u.useUnescapedMap = false
+	if allVarsInFn != nil {
+		if allVarsInFn.Size() <= len(u.unescapedBuf) {
+			for v := range allVarsInFn.Values() {
+				if escaped == nil || !escaped.Contains(v) {
+					u.unescapedVars = append(u.unescapedVars, v)
+				}
+			}
+		} else {
+			u.useUnescapedMap = true
+			if u.unescapedByName == nil {
+				u.unescapedByName = make(map[string]*Var, max(allVarsInFn.Size(), 32))
+			} else {
+				clear(u.unescapedByName)
+			}
+			for v := range allVarsInFn.Values() {
+				if escaped == nil || !escaped.Contains(v) {
+					u.unescapedByName[v.name] = v
+				}
+			}
+		}
+	}
 	u.emptyLattice.mayUsePMap = rhino.HamtPMap_Empty[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]()
 	if cap(u.latticeSlab) == 0 {
 		u.latticeSlab = u.latticeBuf[:0:len(u.latticeBuf)]
@@ -100,6 +128,18 @@ func (u *MaybeReachingVariableUse) Reset(
 		clear(u.latticeSlab)
 		u.latticeSlab = u.latticeSlab[:0]
 	}
+}
+
+func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
+	if !u.useUnescapedMap {
+		for _, v := range u.unescapedVars {
+			if v.name == name {
+				return v
+			}
+		}
+		return nil
+	}
+	return u.unescapedByName[name]
 }
 
 func (u *MaybeReachingVariableUse) allocLattice(m rhino.PMap[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
@@ -267,6 +307,17 @@ func (u *MaybeReachingVariableUse) IsForward() bool {
 	return false
 }
 
+func (u *MaybeReachingVariableUse) EqualsLattice(a, b *MaybeReachingVariableUse_ReachingUses) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.mayUsePMap == b.mayUsePMap ||
+		b.mayUsePMap.Equivalent(a.mayUsePMap, MaybeReachingVariableUse_ReachingUses_EqualMaps)
+}
+
 // Java: MaybeReachingVariableUse.createEntryLattice()
 func (u *MaybeReachingVariableUse) CreateEntryLattice() *MaybeReachingVariableUse_ReachingUses {
 	return &u.emptyLattice
@@ -310,7 +361,12 @@ func (u *MaybeReachingVariableUse) FlowThrough(n *rhino.Node, input *MaybeReachi
 
 // Java: MaybeReachingVariableUse.hasExceptionHandler(Node)
 func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode *rhino.Node) bool {
-	branchEdges := u.GetCfg().GetOutEdges(cfgNode)
+	var branchEdges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	if u.curDiGraphNode != nil && u.curDiGraphNode.GetValue() == cfgNode {
+		branchEdges = u.curDiGraphNode.GetOutEdges()
+	} else {
+		branchEdges = u.GetCfg().GetOutEdges(cfgNode)
+	}
 	for _, edge := range branchEdges {
 		if edge.GetValue() == ControlFlowGraph_Branch_ON_EX {
 			return true
@@ -413,13 +469,15 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 		if NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName() {
 			jutil.CheckState(!NodeUtil_IsLogicalAssignmentOp(n))
 			name := n.GetFirstChild()
-			if !conditional {
-				u.RemoveFromUseIfLocal(name.GetString(), output)
-			}
-
-			// In case of a += "Hello". There is a read of a.
-			if !n.IsAssign() {
-				u.AddToUseIfLocal(name.GetString(), cfgNode, output)
+			var_ := u.lookupUnescapedLocal(name.GetString())
+			if var_ != nil {
+				if !conditional {
+					output.RemoveAll(var_)
+				}
+				// In case of a += "Hello". There is a read of a.
+				if !n.IsAssign() {
+					output.Put(var_, cfgNode)
+				}
 			}
 
 			u.ComputeMayUse(name.GetNext(), cfgNode, output, conditional)
@@ -445,11 +503,7 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 //
 // Java: MaybeReachingVariableUse.addToUseIfLocal(String, Node, ReachingUses)
 func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node *rhino.Node, use *MaybeReachingVariableUse_ReachingUses) {
-	var_ := u.allVarsInFn.Get(name)
-	if var_ == nil {
-		return
-	}
-	if !u.escaped.Contains(var_) {
+	if var_ := u.lookupUnescapedLocal(name); var_ != nil {
 		use.Put(var_, node)
 	}
 }
@@ -460,11 +514,7 @@ func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node *rhino.Node
 //
 // Java: MaybeReachingVariableUse.removeFromUseIfLocal(String, ReachingUses)
 func (u *MaybeReachingVariableUse) RemoveFromUseIfLocal(name string, use *MaybeReachingVariableUse_ReachingUses) {
-	var_ := u.allVarsInFn.Get(name)
-	if var_ == nil {
-		return
-	}
-	if !u.escaped.Contains(var_) {
+	if var_ := u.lookupUnescapedLocal(name); var_ != nil {
 		use.RemoveAll(var_)
 	}
 }
@@ -483,5 +533,5 @@ func (u *MaybeReachingVariableUse) GetUses(name string, defNode *rhino.Node) ite
 	n := u.GetCfg().GetNode(defNode)
 	jutil.CheckNotNull(n)
 	state := n.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MaybeReachingVariableUse_ReachingUses])
-	return state.GetOut().Get(u.allVarsInFn.Get(name))
+	return state.GetOut().Get(u.lookupUnescapedLocal(name))
 }
