@@ -63,6 +63,9 @@ type Scope struct {
 // scopeArena slab-allocates Scope, Var, and LinkedHashMap slot slices for a
 // SyntacticScopeCreator and its descendant scopes.
 type scopeArena struct {
+	// Custom callbacks may retain scopes, vars, or their live symbol views.
+	// Such an arena stays monotonic and must never be cleared or recycled.
+	escaped          bool
 	scopeChunk       []Scope
 	scopeUsed        int
 	scopeChunks      [][]Scope
@@ -103,7 +106,7 @@ func acquireScopeArena() *scopeArena {
 }
 
 func (a *scopeArena) release() {
-	if a == nil {
+	if a == nil || a.escaped {
 		return
 	}
 	if a.globalScope != nil {
@@ -190,6 +193,16 @@ func (a *scopeArena) release() {
 		return
 	}
 	scopeArenaPool.Put(a)
+}
+
+// A callback can retain the scope's ancestors and their vars as well. Parents
+// may belong to a different creator, so protect each reachable arena.
+func (s *Scope) markArenaEscaped() {
+	for sc := s; sc != nil; sc = sc.parent {
+		if sc.arena != nil {
+			sc.arena.escaped = true
+		}
+	}
 }
 
 func (a *scopeArena) allocScope() *Scope {

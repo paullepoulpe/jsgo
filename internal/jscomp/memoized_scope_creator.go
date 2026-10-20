@@ -23,6 +23,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type memoizedScopeCache struct {
+	escaped           bool
+	scopesByScopeRoot map[*rhino.Node]AbstractScope
+	small             [8]memoizedScopeEntry
+	smallLen          int
+	lastNode          *rhino.Node
+	lastScope         AbstractScope
+}
+
 type memoizedScopeEntry struct {
 	node  *rhino.Node
 	scope AbstractScope
@@ -37,81 +46,105 @@ type memoizedScopeEntry struct {
 // doing. Scopes are memoized stupidly, so if the underlying tree changes, the
 // scope may be out of sync.
 type MemoizedScopeCreator struct {
-	scopesByScopeRoot map[*rhino.Node]AbstractScope
-	small             [8]memoizedScopeEntry
-	smallLen          int
-	lastNode          *rhino.Node
-	lastScope         AbstractScope
-	delegate          ScopeCreator
+	// Keep the entire mutable cache behind one pointer: initialized Go value
+	// copies shared their memoized entries before the small-cache optimization.
+	cache    *memoizedScopeCache
+	delegate ScopeCreator
 }
 
 // NewMemoizedScopeCreator: delegate is the real source of Scope objects.
 //
 // Java: MemoizedScopeCreator(ScopeCreator)
 func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
-	return &MemoizedScopeCreator{
-		delegate: delegate,
-	}
+	// Coallocate the shared cache with its initial creator without publishing a
+	// self pointer. Copies keep the cache owner alive and observe later entries.
+	owner := new(struct {
+		creator MemoizedScopeCreator
+		cache   memoizedScopeCache
+	})
+	owner.creator.cache = &owner.cache
+	owner.creator.delegate = delegate
+	return &owner.creator
 }
 
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
 func (m *MemoizedScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
-	if n == m.lastNode && m.lastScope != nil {
-		jutil.CheckState(parent == m.lastScope.GetParentScope())
-		return m.lastScope
+	if n == m.cache.lastNode && m.cache.lastScope != nil {
+		jutil.CheckState(parent == m.cache.lastScope.GetParentScope())
+		return m.cache.lastScope
 	}
 	var scope AbstractScope
-	if m.scopesByScopeRoot != nil {
-		scope = m.scopesByScopeRoot[n]
+	if m.cache.scopesByScopeRoot != nil {
+		scope = m.cache.scopesByScopeRoot[n]
 	} else {
-		for i := 0; i < m.smallLen; i++ {
-			if m.small[i].node == n {
-				scope = m.small[i].scope
+		for i := 0; i < m.cache.smallLen; i++ {
+			if m.cache.small[i].node == n {
+				scope = m.cache.small[i].scope
 				break
 			}
 		}
 	}
 	if scope == nil {
 		scope = m.delegate.CreateScope(n, parent)
-		if m.scopesByScopeRoot != nil {
-			m.scopesByScopeRoot[n] = scope
-		} else if m.smallLen < len(m.small) {
-			m.small[m.smallLen] = memoizedScopeEntry{node: n, scope: scope}
-			m.smallLen++
+		if m.cache.scopesByScopeRoot != nil {
+			m.cache.scopesByScopeRoot[n] = scope
+		} else if m.cache.smallLen < len(m.cache.small) {
+			m.cache.small[m.cache.smallLen] = memoizedScopeEntry{node: n, scope: scope}
+			m.cache.smallLen++
 		} else {
 			mp := make(map[*rhino.Node]AbstractScope, 1024)
-			for i := 0; i < len(m.small); i++ {
-				mp[m.small[i].node] = m.small[i].scope
+			for i := 0; i < len(m.cache.small); i++ {
+				mp[m.cache.small[i].node] = m.cache.small[i].scope
 			}
 			mp[n] = scope
-			m.scopesByScopeRoot = mp
-			m.small = [8]memoizedScopeEntry{}
+			m.cache.scopesByScopeRoot = mp
+			m.cache.small = [8]memoizedScopeEntry{}
 		}
 	} else {
 		// Go-only: language-adapter — scope.getParent() on an AbstractScope<?, ?>
 		// is the final getParentScope(), which returns getParent().
 		jutil.CheckState(parent == scope.GetParentScope())
 	}
-	m.lastNode = n
-	m.lastScope = scope
+	m.cache.lastNode = n
+	m.cache.lastScope = scope
 	return scope
 }
 
+func (m *MemoizedScopeCreator) markArenaEscaped() {
+	if m == nil {
+		return
+	}
+	if m.cache != nil {
+		m.cache.escaped = true
+	}
+	switch delegate := m.delegate.(type) {
+	case *SyntacticScopeCreator:
+		delegate.markArenaEscaped()
+	case *MemoizedScopeCreator:
+		delegate.markArenaEscaped()
+	}
+}
+
+// ReleaseArena clears a private memoized cache and releases its delegate's
+// scratch storage after use. Published creators retain their cache identity.
 func (m *MemoizedScopeCreator) ReleaseArena() {
 	if m == nil {
 		return
 	}
-	if m.scopesByScopeRoot != nil {
-		if len(m.scopesByScopeRoot) <= 65536 {
-			clear(m.scopesByScopeRoot)
+	if m.cache == nil || m.cache.escaped {
+		return
+	}
+	if m.cache.scopesByScopeRoot != nil {
+		if len(m.cache.scopesByScopeRoot) <= 65536 {
+			clear(m.cache.scopesByScopeRoot)
 		} else {
-			m.scopesByScopeRoot = nil
+			m.cache.scopesByScopeRoot = nil
 		}
 	}
-	m.small = [8]memoizedScopeEntry{}
-	m.smallLen = 0
-	m.lastNode = nil
-	m.lastScope = nil
+	m.cache.small = [8]memoizedScopeEntry{}
+	m.cache.smallLen = 0
+	m.cache.lastNode = nil
+	m.cache.lastScope = nil
 	if sc, ok := m.delegate.(*SyntacticScopeCreator); ok && sc != nil {
 		sc.ReleaseArena()
 	}
