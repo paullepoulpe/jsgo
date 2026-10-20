@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 sys.dont_write_bytecode = True
@@ -62,6 +63,29 @@ class ScreenModelTest(unittest.TestCase):
         self.assertNotIn('java_over_go_time', json.dumps(result))
         self.assertNotIn('java_over_go_rss', json.dumps(result))
         self.assertFalse(screen.summarize(rows[:-1], variants, 'off', 6)['complete'])
+
+    def test_actual_engine_create_go_path_needs_no_java_attributes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            helper, unused, records = screen.freeze(root)
+            # Deliberately omit java_home, jar and driver: Go must not inspect
+            # or mount Java dependencies. Exercise the real create() method.
+            engine = helper.Engine(SimpleNamespace(binary='/bin/true', readonly_bind=[], image='pinned-model-image'))
+            calls = []
+            def docker(*argv, **kwargs):
+                calls.append(argv)
+                if argv[0] == 'create':
+                    return SimpleNamespace(stdout='model-container\n')
+                if argv[0] == 'inspect':
+                    return SimpleNamespace(stdout=json.dumps([{'Image': 'pinned-model-image', 'HostConfig': {
+                        'Memory': 4294967296, 'MemorySwap': 4294967296, 'NanoCpus': 2000000000,
+                        'CpusetCpus': '0,1', 'PidsLimit': 4096, 'NetworkMode': 'none'}}]))
+                raise AssertionError(argv)
+            engine.call = docker
+            work = root/'go-work'; work.mkdir()
+            self.assertEqual('model-container', engine.create(work, ['model-cli']))
+            self.assertIn('--memory=4294967296', calls[0])
+            self.assertFalse(any('java-home' in arg or 'java-driver' in arg for arg in calls[0]))
 
     def test_imported_helpers_are_pinned_snapshots(self):
         with tempfile.TemporaryDirectory() as temporary:
