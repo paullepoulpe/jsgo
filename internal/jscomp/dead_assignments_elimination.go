@@ -147,15 +147,22 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 	}
 
 	// Computes liveness information first.
-	cfg := d.GetControlFlowGraph(d.compiler)
+	cfg := d.getControlFlowGraph(t, d.compiler)
 	if d.scopeCreator == nil {
 		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
 	}
 	scopeCreator := d.scopeCreator
-	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
-	d.livenessStorage.Reset(
-		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
-	d.liveness = &d.livenessStorage
+	if d.canReuseControlFlowGraph(t, d.compiler) {
+		allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
+		d.livenessStorage.Reset(
+			cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
+		d.liveness = &d.livenessStorage
+	} else {
+		// Public CFG annotations retain their flow states, lattices and Var map.
+		allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(d.compiler, scopeCreator, functionScope)
+		d.liveness = NewLiveVariablesAnalysis(
+			cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
+	}
 	d.liveness.Analyze()
 	allVarsInFn := d.liveness.GetAllVariables()
 	d.TryRemoveDeadAssignments(t, cfg, allVarsInFn)

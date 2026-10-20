@@ -171,7 +171,7 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 
 // Java: TypeInferencePass.inferScope(Node, TypedScope)
 func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
-	cfg := p.ComputeCfg(n)
+	cfg := p.computeReusableCfg(n)
 	typeInference := &p.reusableTypeInference
 	typeInference.initTypeInference(
 		p.compiler, cfg, p.reverseInterpreter, scope, p.scopeCreator, p.assertionFunctionLookup)
@@ -245,6 +245,16 @@ func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, 
 
 // Java: TypeInferencePass.computeCfg(Node)
 func (p *TypeInferencePass) ComputeCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
+	return ControlFlowAnalysis_Builder_().
+		SetCompiler(p.compiler).
+		SetCfgRoot(n).
+		SetIncludeEdgeAnnotations(true).
+		ComputeCfg()
+}
+
+// Inference consumes this graph before the next scope; public ComputeCfg owns
+// its result independently of this private cache.
+func (p *TypeInferencePass) computeReusableCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
 	return p.reusableCFA.ComputeReusableCfg(
 		p.compiler,
 		n,

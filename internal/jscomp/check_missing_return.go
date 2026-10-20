@@ -95,7 +95,7 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		}
 	}
 
-	cfg := c.GetControlFlowGraph(c.compiler)
+	cfg := c.getControlFlowGraph(t, c.compiler)
 	if c.FastAllPathsReturnCheck(cfg) {
 		return
 	}

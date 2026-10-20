@@ -172,6 +172,12 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		c.scopeStates = append(c.scopeStates, &coalesceScopeState{})
 	}
 	state := c.scopeStates[depth]
+	if !c.canReuseControlFlowGraph(t, c.compiler) {
+		// The finder map, flow states and lattices can escape through a public
+		// CFG. Give expert/published paths independently owned analysis state.
+		state = &coalesceScopeState{}
+		c.scopeStates[depth] = state
+	}
 	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), t.GetScopeCreator(), t.GetScope())
 	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(allVarsDeclaredInFunction.GetAllVariablesInOrder()) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
@@ -183,7 +189,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
 
 	// live variables analysis is based off of the control flow graph
-	cfg := c.GetControlFlowGraph(c.compiler)
+	cfg := c.getControlFlowGraph(t, c.compiler)
 
 	state.liveness.Reset(cfg, scope, nil, c.compiler, c.scopeCreator, allVarsDeclaredInFunction)
 	c.liveness = &state.liveness
