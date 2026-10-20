@@ -45,10 +45,15 @@ func NewInlineObjectLiterals(compiler AbstractCompiler, safeNameIdSupplier func(
 	return &InlineObjectLiterals{compiler: compiler, safeNameIdSupplier: safeNameIdSupplier}
 }
 
+var inlineObjectLiterals_isLocalVar = func(v *Var) bool { return v.IsLocal() }
+
 // Java: InlineObjectLiterals.process(Node, Node)
 func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
-	callback := NewReferenceCollector(
-		o.compiler, NewInlineObjectLiterals_InliningBehavior(o), NewSyntacticScopeCreator(o.compiler))
+	callback := NewReferenceCollectorWithVarFilter(
+		o.compiler,
+		NewInlineObjectLiterals_InliningBehavior(o),
+		NewSyntacticScopeCreator(o.compiler),
+		inlineObjectLiterals_isLocalVar)
 	callback.Process(externs, root)
 }
 
@@ -61,6 +66,8 @@ type InlineObjectLiterals_InliningBehavior struct {
 	// A list of variables that should not be inlined, because their
 	// reference information is out of sync with the state of the AST.
 	staleVars *jutil.LinkedHashSet[*Var]
+
+	validProperties jutil.LinkedHashSet[string]
 }
 
 // Java: InlineObjectLiterals.InliningBehavior()
@@ -70,12 +77,25 @@ func NewInlineObjectLiterals_InliningBehavior(outer *InlineObjectLiterals) *Inli
 
 // Java: InlineObjectLiterals.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
 func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
-	for v := range t.GetScope().GetVarIterable() {
+	if t.InGlobalScope() {
+		return
+	}
+	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
+		return
+	}
+	scope := t.GetScope()
+	if scope.GetVarCount() == 0 {
+		return
+	}
+	for v := range scope.GetVarIterable() {
 		if b.IsVarInlineForbidden(v) {
 			continue
 		}
 
 		referenceInfo := referenceMap.GetReferences(v)
+		if referenceInfo == nil {
+			continue
+		}
 
 		if b.IsInlinableObject(referenceInfo.references) {
 			// Skiplist the object itself, as well as any other values
@@ -98,14 +118,14 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 //
 // Java: InlineObjectLiterals.InliningBehavior.recordStaleVarReferencesInTree(Node, Scope)
 func (b *InlineObjectLiterals_InliningBehavior) RecordStaleVarReferencesInTree(root *rhino.Node, scope *Scope) {
-	NodeUtil_VisitPreOrderWithPred(
-		root,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
-			if node.IsName() {
-				b.staleVars.Add(scope.GetVar(node.GetString()))
-			}
-		}),
-		NodeUtil_MATCH_NOT_FUNCTION)
+	if root.IsName() {
+		b.staleVars.Add(scope.GetVar(root.GetString()))
+	}
+	if !root.IsFunction() {
+		for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+			b.RecordStaleVarReferencesInTree(c, scope)
+		}
+	}
 }
 
 // IsVarInlineForbidden reports whether the given variable is forbidden from
@@ -139,8 +159,12 @@ func (b *InlineObjectLiterals_InliningBehavior) IsVarInlineForbidden(var_ *Var) 
 // Java: InlineObjectLiterals.InliningBehavior.isInlinableObject(List<Reference>)
 func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.ArrayList[*Reference]) bool {
 	ret := false
-	validProperties := jutil.NewLinkedHashSet[string]()
-	for _, ref := range refs.Slice() {
+	validProperties := &b.validProperties
+	if !validProperties.IsEmpty() {
+		validProperties.Clear()
+	}
+	refSlice := refs.Slice()
+	for _, ref := range refSlice {
 		name := ref.GetNode()
 		parent := ref.GetParent()
 		grandparent := ref.GetGrandparent()
@@ -232,7 +256,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 			// Check if childVal is the parent of any of the passed in
 			// references, as that is how self-referential assignments
 			// will happen.
-			for _, t := range refs.Slice() {
+			for _, t := range refSlice {
 				refNode := t.GetParent()
 				for !NodeUtil_IsStatementBlock(refNode) {
 					if refNode == childVal {

@@ -32,12 +32,15 @@ type ReferenceCollection struct {
 	refsBuf    [4]*Reference
 }
 
-// Java: ReferenceCollection()
-func NewReferenceCollection() *ReferenceCollection {
-	c := &ReferenceCollection{}
+func initReferenceCollection(c *ReferenceCollection) *ReferenceCollection {
 	c.refsList.InitWithBuffer(c.refsBuf[:])
 	c.references = &c.refsList
 	return c
+}
+
+// Java: ReferenceCollection()
+func NewReferenceCollection() *ReferenceCollection {
+	return initReferenceCollection(&ReferenceCollection{})
 }
 
 // All is the Iterable's iterator().
@@ -62,7 +65,8 @@ func (c *ReferenceCollection) Add(reference *Reference) {
 //
 // Java: ReferenceCollection.isWellDefined()
 func (c *ReferenceCollection) IsWellDefined() bool {
-	size := c.references.Size()
+	refs := c.references.Slice()
+	size := len(refs)
 	if size == 0 {
 		return false
 	}
@@ -74,10 +78,10 @@ func (c *ReferenceCollection) IsWellDefined() bool {
 		return false
 	}
 
-	jutil.CheckState(c.references.Get(0).IsDeclaration())
-	initBlock := init.GetBasicBlock()
+	jutil.CheckState(refs[0].IsDeclaration())
+	initBlock := init.basicBlock
 	for i := 1; i < size; i++ {
-		if !initBlock.ProvablyExecutesBefore(c.references.Get(i).GetBasicBlock()) {
+		if !initBlock.ProvablyExecutesBefore(refs[i].basicBlock) {
 			return false
 		}
 	}
@@ -90,10 +94,10 @@ func (c *ReferenceCollection) IsWellDefined() bool {
 // Java: ReferenceCollection.isEscaped()
 func (c *ReferenceCollection) IsEscaped() bool {
 	var hoistScope *Scope
-	for ref := range c.references.All() {
+	for _, ref := range c.references.Slice() {
 		if hoistScope == nil {
-			hoistScope = ref.GetScope().GetClosestHoistScope()
-		} else if hoistScope != ref.GetScope().GetClosestHoistScope() {
+			hoistScope = ref.scope.GetClosestHoistScope()
+		} else if hoistScope != ref.scope.GetClosestHoistScope() {
 			return true
 		}
 	}
@@ -106,14 +110,14 @@ func (c *ReferenceCollection) IsEscaped() bool {
 // Java: ReferenceCollection.isThisRebound()
 func (c *ReferenceCollection) IsThisRebound() bool {
 	var hoistScope *Scope
-	for ref := range c.references.All() {
-		refHoistScope := ref.GetScope().GetClosestHoistScope()
+	for _, ref := range c.references.Slice() {
+		refHoistScope := ref.scope.GetClosestHoistScope()
 		if hoistScope == nil {
 			hoistScope = refHoistScope
 		} else if hoistScope != refHoistScope {
 			return true
 		}
-		for s := ref.GetScope(); s != hoistScope && s != nil; s = s.GetParent() {
+		for s := ref.scope; s != hoistScope && s != nil; s = s.GetParent() {
 			if AbstractScope_ImplicitVar_THIS.IsMadeByScope(s) {
 				return true
 			}
@@ -182,7 +186,9 @@ func (c *ReferenceCollection) GetInitializingReference() *Reference {
 
 // Java: ReferenceCollection.areInSameFile(int, int)
 func (c *ReferenceCollection) AreInSameFile(ref0 int, ref1 int) bool {
-	return jutil.ObjectsEquals(c.references.Get(ref0).GetInputId(), c.references.Get(ref1).GetInputId())
+	refs := c.references.Slice()
+	id0, id1 := refs[ref0].inputId, refs[ref1].inputId
+	return id0 == id1 || (id0 != nil && id1 != nil && id0.Equals(id1))
 }
 
 // GetInitializingReferenceForConstants: constants are allowed to be defined
@@ -190,10 +196,11 @@ func (c *ReferenceCollection) AreInSameFile(ref0 int, ref1 int) bool {
 //
 // Java: ReferenceCollection.getInitializingReferenceForConstants()
 func (c *ReferenceCollection) GetInitializingReferenceForConstants() *Reference {
-	size := c.references.Size()
+	refs := c.references.Slice()
+	size := len(refs)
 	for i := 0; i < size; i++ {
 		if c.IsInitializingDeclarationAt(i) || c.IsInitializingAssignmentAt(i) {
-			return c.references.Get(i)
+			return refs[i]
 		}
 	}
 	return nil
@@ -209,21 +216,31 @@ func (c *ReferenceCollection) IsAssignedOnceInLifetime() bool {
 		return false
 	}
 
+	var varScope *Scope
 	// Make sure this assignment is not in a loop or an enclosing function.
-	for block := ref.GetBasicBlock(); block != nil; block = block.GetParent() {
-		if block.IsFunction() {
-			if ref.getSymbolV().getScopeS().GetClosestHoistScope() !=
-				ref.GetScope().GetClosestHoistScope() {
+	for block := ref.basicBlock; block != nil; block = block.parent {
+		if block.isFunction {
+			if varScope == nil {
+				varScope = ref.getSymbolV().getScopeS()
+			}
+			if varScope.GetClosestHoistScope() != ref.scope.GetClosestHoistScope() {
 				return false
 			}
 			break
 		}
 
-		if block.GetRoot() == ref.getSymbolV().getScopeS().GetRootNode() {
+		if block.parent == nil && !block.isLoop {
 			break
 		}
 
-		if block.IsLoop() {
+		if varScope == nil {
+			varScope = ref.getSymbolV().getScopeS()
+		}
+		if block.root == varScope.GetRootNode() {
+			break
+		}
+
+		if block.isLoop {
 			return false
 		}
 	}
@@ -235,8 +252,8 @@ func (c *ReferenceCollection) IsAssignedOnceInLifetime() bool {
 //
 // Java: ReferenceCollection.isReferencedWeakly()
 func (c *ReferenceCollection) IsReferencedWeakly() bool {
-	for ref := range c.references.All() {
-		if NodeUtil_IsGoogWeakUsageCall(ref.GetParent()) {
+	for _, ref := range c.references.Slice() {
+		if p := ref.nameNode.GetParent(); p.IsCall() && NodeUtil_IsGoogWeakUsageCall(p) {
 			return true
 		}
 	}
@@ -249,9 +266,7 @@ func (c *ReferenceCollection) IsReferencedWeakly() bool {
 // Java: ReferenceCollection.getOneAndOnlyAssignment()
 func (c *ReferenceCollection) GetOneAndOnlyAssignment() *Reference {
 	var assignment *Reference
-	size := c.references.Size()
-	for i := 0; i < size; i++ {
-		ref := c.references.Get(i)
+	for _, ref := range c.references.Slice() {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			if assignment == nil {
 				assignment = ref
@@ -267,9 +282,7 @@ func (c *ReferenceCollection) GetOneAndOnlyAssignment() *Reference {
 //
 // Java: ReferenceCollection.isNeverAssigned()
 func (c *ReferenceCollection) IsNeverAssigned() bool {
-	size := c.references.Size()
-	for i := 0; i < size; i++ {
-		ref := c.references.Get(i)
+	for _, ref := range c.references.Slice() {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			return false
 		}
@@ -279,8 +292,8 @@ func (c *ReferenceCollection) IsNeverAssigned() bool {
 
 // Java: ReferenceCollection.firstReferenceIsAssigningDeclaration()
 func (c *ReferenceCollection) FirstReferenceIsAssigningDeclaration() bool {
-	size := c.references.Size()
-	return size > 0 && c.references.Get(0).IsInitializingDeclaration()
+	refs := c.references.Slice()
+	return len(refs) > 0 && refs[0].IsInitializingDeclaration()
 }
 
 // Java: ReferenceCollection.toString()

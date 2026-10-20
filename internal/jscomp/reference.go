@@ -121,48 +121,57 @@ func (r *Reference) IsDeclaration() bool {
 // Java: Reference.isDeclarationHelper(Node)
 func reference_isDeclarationHelper(node *rhino.Node) bool {
 	parent := node.GetParent()
+	parentToken := parent.GetToken()
 
 	// Special case for class B extends A, A is not a declaration.
-	if parent.IsClass() && !node.IsFirstChildOf(parent) {
+	if parentToken == rhino.Token_CLASS && !node.IsFirstChildOf(parent) {
 		return false
 	}
 
+	grandparent := parent.GetParent()
 	// This condition can be true during InlineVariables.
-	if parent.GetParent() == nil {
+	if grandparent == nil {
 		return false
 	}
 
-	if NodeUtil_IsNameDeclaration(parent.GetParent()) && node == parent.GetSecondChild() {
+	if NodeUtil_IsNameDeclaration(grandparent) && node == parent.GetSecondChild() {
 		// This is the RHS of a var/let/const and thus not a declaration.
 		return false
 	}
 
-	// Special cases for destructuring patterns.
-	if parent.IsDestructuringLhs() ||
-		parent.IsDestructuringPattern() ||
-		parent.IsRest() ||
-		(parent.IsStringKey() && parent.GetParent().IsObjectPattern()) ||
-		(parent.IsComputedProp() &&
-			parent.GetParent().IsObjectPattern() &&
-			node == parent.GetLastChild()) ||
-		(parent.IsDefaultValue() && node == parent.GetFirstChild()) {
+	switch parentToken {
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
+		rhino.Token_PARAM_LIST, rhino.Token_CLASS, rhino.Token_CATCH,
+		rhino.Token_IMPORT:
+		return true
+	case rhino.Token_FUNCTION:
+		if parent.GetBooleanProp(rhino.Node_Prop_ARROW_FN) {
+			return node == parent.GetFirstChild()
+		}
+		return true
+	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
+		rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
 		return reference_isDeclarationHelper(parent)
+	case rhino.Token_STRING_KEY:
+		if grandparent.IsObjectPattern() {
+			return reference_isDeclarationHelper(parent)
+		}
+		return false
+	case rhino.Token_COMPUTED_PROP:
+		if grandparent.IsObjectPattern() && node == parent.GetLastChild() {
+			return reference_isDeclarationHelper(parent)
+		}
+		return false
+	case rhino.Token_DEFAULT_VALUE:
+		if node == parent.GetFirstChild() {
+			return reference_isDeclarationHelper(parent)
+		}
+		return false
+	case rhino.Token_IMPORT_SPEC:
+		return node == parent.GetLastChild()
+	default:
+		return false
 	}
-
-	if parent.IsImport() {
-		return true
-	}
-
-	if parent.IsImportSpec() && node == parent.GetLastChild() {
-		return true
-	}
-
-	// Special case for arrow function
-	if parent.IsArrowFunction() {
-		return node == parent.GetFirstChild()
-	}
-
-	return reference_DECLARATION_PARENTS.Contains(parent.GetToken())
 }
 
 // Java: Reference.isVarDeclaration()
