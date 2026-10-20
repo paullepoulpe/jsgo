@@ -87,6 +87,24 @@ func globalNamespacePublicReuseRefs() (*GlobalNamespace_Name, []*rhino.Node, []*
 }
 
 func TestGlobalNamespacePromotedRefsSnapshot(t *testing.T) {
+	for _, beforePromotion := range []int{5, 8} {
+		name := NewGlobalNamespace_Name(nil, "x", nil, GlobalNamespace_SourceKind_CODE)
+		var first *GlobalNamespace_Ref
+		for i := 0; i < beforePromotion; i++ {
+			ref := name.AddSingleRefForTesting(rhino.IR_Name("x"), GlobalNamespace_Ref_Type_DIRECT_GET)
+			if i == 0 {
+				first = ref
+			}
+		}
+		smallView := name.GetRefs()
+		for i := beforePromotion; i < 9; i++ {
+			name.AddSingleRefForTesting(rhino.IR_Name("x"), GlobalNamespace_Ref_Type_DIRECT_GET)
+		}
+		smallView[0] = nil
+		if name.GetRefs()[0] != first {
+			t.Fatalf("retained public slice of %d refs changed later promoted storage", beforePromotion)
+		}
+	}
 	for _, keep := range []int{9, 1} {
 		name, _, refs := globalNamespacePublicReuseRefs()
 		for i := len(refs) - 1; i >= keep; i-- {
