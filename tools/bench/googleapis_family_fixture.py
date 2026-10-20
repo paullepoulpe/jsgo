@@ -5,6 +5,7 @@ No Java/Go Closure compilation or timing is performed. Upstream files remain
 byte-identical; incompatible schemas/generator versions fail with diagnostics.
 """
 import argparse
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -125,10 +126,51 @@ def generate(a):
     print(json.dumps({'provided_schemas': len(manifest['records']), 'generated_files': len(inventory(messages))}))
 
 
+def wire_oracle(a):
+    """Use independent native protobuf implementation for actual API payloads."""
+    pin = json.loads(PIN.read_text()); source = Path(a.source).resolve(); out = Path(a.out).resolve(); executable = Path(a.protoc).resolve()
+    cap = Path('/sys/fs/cgroup'); quota, period = (cap/'cpu.max').read_text().split()
+    if ((cap/'memory.max').read_text().strip() != '4294967296' or (cap/'memory.swap.max').read_text().strip() != '0'
+        or quota == 'max' or int(quota) != 2*int(period) or (cap/'cpuset.cpus.effective').read_text().strip() not in ('0-1', '0,1')):
+        raise ValueError('native reference encoding requires actual capped setup process')
+    if sha(executable) != pin['protoc_sha256']:
+        raise ValueError('unchanged native protobuf executable required')
+    manifest = json.loads((source/'source-manifest.json').read_text())
+    for row in manifest['records']:
+        if sha(source/'schemas'/row['path']) != row['sha256']:
+            raise ValueError('schema changed before independent wire encoding')
+    fresh(out); proofs = {}
+    for name in ('table', 'job'):
+        payload = HERE/'generated'/('bigquery_'+name+'.textproto')
+        typename = 'google.cloud.bigquery.v2.'+name.title()
+        common = [str(executable), '--proto_path='+str(source/'schemas')]
+        schema = 'google/cloud/bigquery/v2/'+name+'.proto'
+        encode = common+['--encode='+typename, schema]
+        raw = subprocess.run(encode, input=payload.read_bytes(), capture_output=True)
+        (out/(name+'.encode.stderr')).write_bytes(raw.stderr)
+        (out/(name+'.pb')).write_bytes(raw.stdout)
+        if raw.returncode:
+            raise RuntimeError('native reference encoding failed: '+name)
+        decode = common+['--decode='+typename, schema]
+        decoded = subprocess.run(decode, input=raw.stdout, capture_output=True)
+        (out/(name+'.decoded.textproto')).write_bytes(decoded.stdout)
+        (out/(name+'.decode.stderr')).write_bytes(decoded.stderr)
+        if decoded.returncode:
+            raise RuntimeError('native reference decoding failed: '+name)
+        proofs[name] = {'encode_argv': encode, 'decode_argv': decode, 'payload_path': str(payload),
+                        'payload_sha256': sha(payload), 'wire_sha256': sha(out/(name+'.pb')),
+                        'wire_base64': base64.b64encode(raw.stdout).decode(), 'wire_bytes': len(raw.stdout),
+                        'decoded_sha256': sha(out/(name+'.decoded.textproto'))}
+    save(out/'wire-oracle.json', {'schema': 'jsgo-real-api-native-wire-oracle-v1', 'status': 'PASS',
+         'scope': 'Native protobuf correctness preparation; no performance claim', 'protoc_sha256': sha(executable),
+         'source_manifest_sha256': sha(source/'source-manifest.json'), 'payloads': proofs})
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest='operation', required=True)
     f = sub.add_parser('fetch'); f.add_argument('--out', required=True); f.add_argument('--protobuf-archive', required=True); f.set_defaults(run=fetch)
     g = sub.add_parser('generate'); g.add_argument('--source', required=True); g.add_argument('--out', required=True); g.add_argument('--protoc', required=True); g.set_defaults(run=generate)
+    w = sub.add_parser('wire-oracle'); w.add_argument('--source', required=True); w.add_argument('--out', required=True); w.add_argument('--protoc', required=True); w.set_defaults(run=wire_oracle)
     a = p.parse_args(); a.run(a)
 
 

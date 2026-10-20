@@ -1,0 +1,6 @@
+table_reference { project_id: "benchmark-project" dataset_id: "analytics" table_id: "invoices" }
+description { value: "Revenue € 🧾" }
+schema {
+  fields { name: "total_cents" type: "INT64" mode: "REQUIRED" }
+  fields { name: "buyer" type: "STRING" mode: "NULLABLE" }
+}

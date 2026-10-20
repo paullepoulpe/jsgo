@@ -1,0 +1,14 @@
+configuration {
+  query {
+    query: "SELECT buyer, SUM(total_cents) FROM invoices WHERE total_cents >= @min_total GROUP BY buyer"
+    use_legacy_sql { value: false }
+    parameter_mode: "NAMED"
+    query_parameters {
+      name: "min_total"
+      parameter_type { type: "INT64" }
+      parameter_value { value { value: "42" } }
+    }
+  }
+  job_type: "QUERY"
+}
+job_reference { project_id: "benchmark-project" job_id: "query-invoices-001" }
