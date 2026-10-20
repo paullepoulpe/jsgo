@@ -166,15 +166,28 @@ func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctio
 	return fs
 }
 
+func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
+	b := NodeTraversal_Builder{compiler: compiler, callback: cb, scopeCreator: sc}
+	t := acquireNodeTraversal(&b)
+	t.Traverse(root)
+	releaseNodeTraversal(t)
+}
+
 // Java: InlineFunctions.process(Node, Node)
 func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
 
-	NodeTraversal_Traverse(f.compiler, root, NewInlineFunctions_FindCandidateFunctions(f))
+	sc := NewSyntacticScopeCreator(f.compiler)
+	defer sc.ReleaseArena()
+
+	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
+	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findCandidates, sc)
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
 	}
-	NodeTraversal_Traverse(f.compiler, root, NewInlineFunctions_FindCandidatesReferences(f, f.fns, f.anonFns))
+	findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
+	findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
+	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
@@ -200,7 +213,10 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 	f.ResolveInlineConflicts()
 	f.DecomposeExpressions()
-	NodeTraversal_Traverse(f.compiler, root, NewInlineFunctions_CallVisitor(f.fns, f.anonFns, NewInlineFunctions_Inline(f.injector)))
+	inlineCb := InlineFunctions_Inline{injector: f.injector}
+	callVisitor := InlineFunctions_CallVisitorBase{}
+	callVisitor.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &inlineCb)
+	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &callVisitor, sc)
 
 	f.RemoveInlinedFunctions()
 }
@@ -406,7 +422,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 			block := functionState.GetFn().GetDeclaringBlock()
 			if block.IsBlock() &&
 				!block.GetParent().IsFunction() &&
-				NodeUtil_Has(block, inlineFunctions_isLetOrConst, inlineFunctions_alwaysTrue) {
+				inlineFunctions_hasLetOrConst(block) {
 				// The function might capture a variable that's not in scope at the call site,
 				// so don't inline.
 				functionState.DisallowInlining(
@@ -508,9 +524,16 @@ func InlineFunctions_HasRequireInliningAnnotation(fnNode *rhino.Node) bool {
 	return jsDocInfo != nil && jsDocInfo.IsRequireInlining()
 }
 
-func inlineFunctions_alwaysTrue(*rhino.Node) bool { return true }
-func inlineFunctions_isLetOrConst(n *rhino.Node) bool {
-	return n.IsLet() || n.IsConst()
+func inlineFunctions_hasLetOrConst(n *rhino.Node) bool {
+	if n.IsLet() || n.IsConst() {
+		return true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if inlineFunctions_hasLetOrConst(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // InlineFunctions_HasLocalNames: fnNode is the function to inspect. Returns
@@ -521,8 +544,7 @@ func inlineFunctions_isLetOrConst(n *rhino.Node) bool {
 func InlineFunctions_HasLocalNames(fnNode *rhino.Node) bool {
 	block := NodeUtil_GetFunctionBody(fnNode)
 	return NodeUtil_GetFunctionParameters(fnNode).HasChildren() ||
-		NodeUtil_Has(
-			block, functionInjector_matchDeclaration, functionInjector_matchShallowStatement)
+		functionInjector_hasShallowDeclaration(block)
 }
 
 // IsCandidateFunction checks if the given function matches the criteria for
@@ -985,8 +1007,16 @@ func (f *InlineFunctions) ResolveInlineConflicts() {
 	}
 }
 
-func inlineFunctions_isNonInlinableParam(input *rhino.Node) bool {
-	return input.IsDefaultValue() || input.IsDestructuringPattern()
+func inlineFunctions_hasNonInlinableParamNode(n *rhino.Node) bool {
+	if n.IsDefaultValue() || n.IsDestructuringPattern() {
+		return true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if inlineFunctions_hasNonInlinableParamNode(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // InlineFunctions_HasNonInlinableParam returns whether the function has any
@@ -998,7 +1028,7 @@ func InlineFunctions_HasNonInlinableParam(node *rhino.Node) bool {
 	jutil.CheckNotNull(node)
 	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
 		if !c.IsName() || c.HasChildren() {
-			return NodeUtil_Has(node, inlineFunctions_isNonInlinableParam, inlineFunctions_alwaysTrue)
+			return inlineFunctions_hasNonInlinableParamNode(node)
 		}
 	}
 	return false

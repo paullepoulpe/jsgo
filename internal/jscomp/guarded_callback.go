@@ -177,6 +177,13 @@ func (b *GuardedCallbackBase[T]) peekContext() *guardedCallback_Context {
 	return b.contextStack[len(b.contextStack)-1]
 }
 
+func (b *GuardedCallbackBase[T]) canPossiblyBeGuarded() bool {
+	if len(b.contextStack) > 0 && b.contextStack[len(b.contextStack)-1].safe {
+		return true
+	}
+	return !b.guarded.IsEmpty()
+}
+
 // Go-only: language-adapter — ArrayDeque.push(E) (null-hostile).
 func (b *GuardedCallbackBase[T]) pushContext(c *guardedCallback_Context) {
 	jutil.CheckNotNull(c)
@@ -245,7 +252,8 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 
 		// If the parent has any guards registered on it, then add them to
 		// both `guarded` and `installedGuards`.
-		if parent != nil && guardedCallback_CAN_HAVE_GUARDS.Contains(parent.GetToken()) &&
+		if !b.registeredGuards.IsEmpty() &&
+			guardedCallback_CAN_HAVE_GUARDS.Contains(parent.GetToken()) &&
 			b.registeredGuards.ContainsKey(parent) {
 			for resource := range b.registeredGuards.RemoveAll(parent).All() {
 				b.guarded.Add(resource)
@@ -262,20 +270,22 @@ func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, 
 	// no longer relevant. This happens first because these were registered
 	// on a "parent", but now this is that parent (i.e. `n` here vs `parent`
 	// in isGuarded).
-	if parent != nil && guardedCallback_CAN_HAVE_GUARDS.Contains(n.GetToken()) &&
-		b.installedGuards.ContainsKey(n) {
-		b.guarded.RemoveAll(b.installedGuards.RemoveAll(n))
-	}
+	if !b.installedGuards.IsEmpty() {
+		if parent != nil && guardedCallback_CAN_HAVE_GUARDS.Contains(n.GetToken()) &&
+			b.installedGuards.ContainsKey(n) {
+			b.guarded.RemoveAll(b.installedGuards.RemoveAll(n))
+		}
 
-	// Check for abrupt returns (`return` and `throw`).
-	if guardedCallback_isAbrupt(n) {
-		// If found, any guards installed on a parent IF should be promoted to
-		// the grandparent. This allows a small amount of flow-sensitivity, in
-		// that
-		//   if (!x) return; x();
-		// has the guard for `x` promoted from the `if` to the outer block, so
-		// that it guards the next statement.
-		b.PromoteAbruptReturns(parent)
+		// Check for abrupt returns (`return` and `throw`).
+		if guardedCallback_isAbrupt(n) {
+			// If found, any guards installed on a parent IF should be promoted to
+			// the grandparent. This allows a small amount of flow-sensitivity, in
+			// that
+			//   if (!x) return; x();
+			// has the guard for `x` promoted from the `if` to the outer block, so
+			// that it guards the next statement.
+			b.PromoteAbruptReturns(parent)
+		}
 	}
 
 	// Finally continue on to whatever the traversal would normally do.

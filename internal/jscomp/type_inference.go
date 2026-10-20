@@ -49,11 +49,14 @@ type TypeInference struct {
 
 	// Scopes that have had their unbound untyped vars inferred as undefined.
 	inferredUnboundVarScope *TypedScope
+	inferredUnboundVarBuf   [8]*TypedScope
+	inferredUnboundVarList  []*TypedScope
 	inferredUnboundVars     map[*TypedScope]struct{}
 
 	// For convenience
 	unknownType             rhino.ObjectType
 	numberAdditionSupertype rhino.JSType
+	arrayOfUnknownType      rhino.JSType
 
 	// Reusable per-analysis state to avoid allocations on every scope / CFG node.
 	bottomTypedScope         TypedScope
@@ -92,11 +95,18 @@ func (ti *TypeInference) initTypeInference(
 	syntacticScope *TypedScope,
 	scopeCreator *TypedScopeCreator,
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
-	ti.InitDataFlowAnalysisBase(ti, cfg)
+	ti.ResetDataFlowAnalysisBase(ti, cfg)
 	// Field initializers.
 	ti.inferredUnboundVarScope = nil
-	if len(ti.inferredUnboundVars) > 0 {
-		clear(ti.inferredUnboundVars)
+	ti.inferredUnboundVarList = ti.inferredUnboundVarBuf[:0]
+	if n := len(ti.inferredUnboundVars); n > 0 {
+		if n <= 64 {
+			for k := range ti.inferredUnboundVars {
+				delete(ti.inferredUnboundVars, k)
+			}
+		} else {
+			clear(ti.inferredUnboundVars)
+		}
 	}
 	ti.optChainArrayDeque = ti.optChainArrayDeque[:0]
 	// Constructor body.
@@ -107,7 +117,13 @@ func (ti *TypeInference) initTypeInference(
 		cfg.GetEntry(),
 		syntacticScope.GetRootNode())
 	ti.compiler = jutil.CheckNotNull(compiler)
-	ti.registry = jutil.CheckNotNull(compiler.GetTypeRegistry())
+	registry := jutil.CheckNotNull(compiler.GetTypeRegistry())
+	if ti.registry != registry {
+		ti.registry = registry
+		ti.unknownType = registry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
+		ti.numberAdditionSupertype = registry.GetNativeType(rhino.JSTypeNative_NUMBER_ADDITION_SUPERTYPE)
+		ti.arrayOfUnknownType = nil
+	}
 	ti.reverseInterpreter = jutil.CheckNotNull(reverseInterpreter)
 	ti.scopeCreator = jutil.CheckNotNull(scopeCreator)
 	if scopeCreator.moduleImportResolver != nil {
@@ -120,17 +136,15 @@ func (ti *TypeInference) initTypeInference(
 	ti.containerScope = syntacticScope
 	ti.assertionFunctionLookup = jutil.CheckNotNull(assertionFunctionLookup)
 
-	ti.unknownType = ti.registry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
-	ti.numberAdditionSupertype = ti.registry.GetNativeType(rhino.JSTypeNative_NUMBER_ADDITION_SUPERTYPE)
-
 	rootNode := syntacticScope.GetRootNode()
 	ti.bottomTypedScope = TypedScope{}
 	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
+	ti.bottomTypedScope.vars.InitWithBuffer(ti.bottomTypedScope.varSlots[:])
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
 	ti.bottomFlowScope = LinkedFlowScope{
 		inputProvider:  compiler,
-		scopes:         rhino.HamtPMap_Empty[*TypedScope, *LinkedFlowScope_OverlayScope](),
+		scopes:         LinkedFlowScope_EMPTY_SCOPES,
 		syntacticScope: &ti.bottomTypedScope,
 		functionScope:  &ti.bottomTypedScope,
 	}
@@ -146,12 +160,21 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	if ti.inferredUnboundVarScope == nil {
 		ti.inferredUnboundVarScope = scope
 	} else {
-		if ti.inferredUnboundVars == nil {
-			ti.inferredUnboundVars = make(map[*TypedScope]struct{}, 4)
-		} else if _, exists := ti.inferredUnboundVars[scope]; exists {
-			return flow
+		for _, s := range ti.inferredUnboundVarList {
+			if s == scope {
+				return flow
+			}
 		}
-		ti.inferredUnboundVars[scope] = struct{}{}
+		if len(ti.inferredUnboundVarList) < len(ti.inferredUnboundVarBuf) {
+			ti.inferredUnboundVarList = append(ti.inferredUnboundVarList, scope)
+		} else {
+			if ti.inferredUnboundVars == nil {
+				ti.inferredUnboundVars = make(map[*TypedScope]struct{}, 16)
+			} else if _, exists := ti.inferredUnboundVars[scope]; exists {
+				return flow
+			}
+			ti.inferredUnboundVars[scope] = struct{}{}
+		}
 	}
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.
@@ -1800,9 +1823,11 @@ func TypeInference_GetRhsOfField(fieldNode *rhino.Node) *rhino.Node {
 // Java: TypeInference.traverseArrayLiteral(Node, FlowScope)
 func (ti *TypeInference) TraverseArrayLiteral(n *rhino.Node, scope FlowScope) FlowScope {
 	scope = ti.TraverseChildren(n, scope)
-	n.SetJSType(
-		ti.registry.CreateTemplatizedType(
-			ti.registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), ti.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)))
+	if ti.arrayOfUnknownType == nil {
+		ti.arrayOfUnknownType = ti.registry.CreateTemplatizedType(
+			ti.registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), ti.unknownType)
+	}
+	n.SetJSType(ti.arrayOfUnknownType)
 	return scope
 }
 
@@ -2414,7 +2439,10 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n *rhino.Node, fnType rhino.
 	// Try to infer the template types
 	bindings :=
 		NewInvocationTemplateTypeMatcher(ti.registry, fnType, scope.GetTypeOfThis(), n).Match()
-	inferred := jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
+	var inferredSlots [4]jutil.LhmSlot[*rhino.TemplateType, rhino.JSType]
+	var inferredMap jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
+	inferredMap.InitWithBuffer(inferredSlots[:])
+	inferred := &inferredMap
 	// If the inferred type doesn't satisfy the template bound, swap to using the bound. This
 	// ensures errors will be reported in type-checking.
 	for _, key := range keys {

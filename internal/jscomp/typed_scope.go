@@ -20,11 +20,80 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type typedScopeArena struct {
+	scopes   []TypedScope
+	vars     []TypedVar
+	varSlots []jutil.LhmSlot[string, *TypedVar]
+	names    []string
+}
+
+func (a *typedScopeArena) allocScope() *TypedScope {
+	if len(a.scopes) == cap(a.scopes) {
+		a.scopes = make([]TypedScope, 0, 256)
+	}
+	idx := len(a.scopes)
+	a.scopes = a.scopes[:idx+1]
+	return &a.scopes[idx]
+}
+
+func (a *typedScopeArena) allocVar(
+	inferred bool,
+	name string,
+	nameNode *rhino.Node,
+	type_ rhino.JSType,
+	scope *TypedScope,
+	index int,
+	input *CompilerInput) *TypedVar {
+	if len(a.vars) == cap(a.vars) {
+		a.vars = make([]TypedVar, 0, 512)
+	}
+	idx := len(a.vars)
+	a.vars = a.vars[:idx+1]
+	v := &a.vars[idx]
+	v.InitAbstractVarBase(name, nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
+	if nameNode != nil {
+		jutil.CheckArgumentMsg1(
+			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
+			"Invalid name node token %s",
+			nameNode.GetToken())
+	}
+	v.type_ = type_
+	if inferred {
+		v.indexAndFlags |= varFlagTypeInferred
+	}
+	return v
+}
+
+func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar] {
+	if n > 256 {
+		return make([]jutil.LhmSlot[string, *TypedVar], n)
+	}
+	if len(a.varSlots)+n > cap(a.varSlots) {
+		a.varSlots = make([]jutil.LhmSlot[string, *TypedVar], 0, 1024)
+	}
+	start := len(a.varSlots)
+	a.varSlots = a.varSlots[:start+n]
+	return a.varSlots[start : start+n : start+n]
+}
+
+func (a *typedScopeArena) allocNames(n int) []string {
+	if n > 256 {
+		return make([]string, 0, n)
+	}
+	if len(a.names)+n > cap(a.names) {
+		a.names = make([]string, 0, 1024)
+	}
+	start := len(a.names)
+	a.names = a.names[:start+n]
+	return a.names[start : start : start+n]
+}
 
 // TypedScope contains information about variables and their types. Scopes
 // can be nested; a scope points back to its parent scope.
@@ -53,20 +122,36 @@ type TypedScope struct {
 
 	parent *TypedScope
 	module *Module
+	arena  *typedScopeArena
 
 	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
 	// elements from an empty set)
 	//
-	// Go-only: language-adapter — nil is the ImmutableSet.of() sentinel.
-	reservedNames *jutil.LinkedHashSet[string]
+	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
+	reservedNames []string
+	varSlots      [4]jutil.LhmSlot[string, *TypedVar]
 
 	// Scope.java contains an arguments field.
 	// We haven't added it here because it's unused by the passes that need typed scopes.
 }
 
+// Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
+func (s *TypedScope) Equals(other any) bool {
+	that, ok := other.(*TypedScope)
+	return ok && s == that
+}
+
+// HashCode implements jutil.Hasher using pointer identity (matching Java Object.hashCode).
+func (s *TypedScope) HashCode() int32 {
+	if s == nil {
+		return 0
+	}
+	return jutil.IdentityHashCodeOfPointer(s)
+}
+
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
-	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil, nil)
 }
 
 // NewTypedScopeWithReservedNames creates a new global or local TypedScope.
@@ -78,25 +163,36 @@ func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
 // Java: TypedScope(TypedScope, Node, Set<String>, Module)
 func NewTypedScopeWithReservedNames(
 	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
-	var copied *jutil.LinkedHashSet[string]
+	var copied []string
 	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
-		copied = jutil.NewLinkedHashSet[string](reservedNames.ToSlice()...)
+		copied = reservedNames.ToSlice()
 	}
-	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module, nil)
 }
 
 func newTypedScopeOwnedReservedNames(
-	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
-	s := &TypedScope{}
+	parent *TypedScope, rootNode *rhino.Node, reservedNames []string, module *Module, arena *typedScopeArena) *TypedScope {
+	var s *TypedScope
+	if arena != nil {
+		s = arena.allocScope()
+	} else {
+		s = &TypedScope{}
+	}
 	s.InitAbstractScopeBase(s, rootNode)
+	if arena != nil && len(reservedNames) > len(s.varSlots) {
+		s.vars.InitWithBuffer(arena.allocVarSlots(len(reservedNames)))
+	} else {
+		s.vars.InitWithBuffer(s.varSlots[:])
+	}
 	s.CheckChildScope(parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
 	s.isBottom = false
-	if reservedNames != nil && !reservedNames.IsEmpty() {
+	if len(reservedNames) > 0 {
 		s.reservedNames = reservedNames
 	}
 	s.module = module
+	s.arena = arena
 	return s
 }
 
@@ -110,6 +206,7 @@ func newTypedScopeOwnedReservedNames(
 func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
+	s.vars.InitWithBuffer(s.varSlots[:])
 	s.CheckRootScope()
 	s.parent = nil
 	s.depth = 0
@@ -139,12 +236,14 @@ func (s *TypedScope) Typed() *TypedScope {
 //
 // Java: TypedScope.validateCompletelyBuilt()
 func (s *TypedScope) ValidateCompletelyBuilt() {
-	jutil.CheckStateMsg2(
-		s.reservedNames.IsEmpty(),
-		"Expected %s to have no reserved names, found: %s. This probably indicates a bug in"+
-			" TypedScopeCreator where it is failing to declare a variable.",
-		s,
-		s.reservedNames) // non-empty, hence non-nil, when printed
+	if len(s.reservedNames) > 0 {
+		jutil.CheckStateMsg2(
+			false,
+			"Expected %s to have no reserved names, found: %s. This probably indicates a bug in"+
+				" TypedScopeCreator where it is failing to declare a variable.",
+			s,
+			"["+strings.Join(s.reservedNames, ", ")+"]")
+	}
 	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
 	// singleton)
 	s.reservedNames = nil
@@ -224,12 +323,24 @@ func (s *TypedScope) GetTypeOfThis() rhino.JSType {
 func (s *TypedScope) Declare(name string, nameNode *rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
-	if !s.reservedNames.IsEmpty() {
+	if len(s.reservedNames) > 0 {
 		// (reservedNames only contains simple, non-qualified names; so it's completely normal to
 		// declare qualified names that were not 'reserved')
-		s.reservedNames.Remove(name)
+		for i, rn := range s.reservedNames {
+			if rn == name {
+				copy(s.reservedNames[i:], s.reservedNames[i+1:])
+				s.reservedNames[len(s.reservedNames)-1] = ""
+				s.reservedNames = s.reservedNames[:len(s.reservedNames)-1]
+				break
+			}
+		}
 	}
-	var_ := NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
+	var var_ *TypedVar
+	if s.arena != nil {
+		var_ = s.arena.allocVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
+	} else {
+		var_ = NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
+	}
 	s.DeclareInternal(name, var_)
 	return var_
 }
@@ -244,6 +355,9 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 		// Instead of using the implicit 'exports' var, we want to pretend that the var is actually
 		// declared.
 		return nil
+	}
+	if s.arena != nil {
+		return s.arena.allocVar(false, var_.name(), nil, s.GetImplicitVarType(var_), s, -1, nil)
 	}
 	return NewTypedVar(false, var_.name(), nil, s.GetImplicitVarType(var_), s, -1, nil)
 }
@@ -402,7 +516,7 @@ func (s *TypedScope) GetTypeThroughNamespace(moduleId string) rhino.JSType {
 
 // Java: TypedScope.getTopmostScopeOfEventualDeclaration(String)
 func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	if s.getOwnSlotV(name) != nil || s.reservedNames.Contains(name) {
+	if s.getOwnSlotV(name) != nil || slices.Contains(s.reservedNames, name) {
 		return s
 	} else if s.GetParent() == nil {
 		return nil

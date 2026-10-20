@@ -122,6 +122,8 @@ type DataFlowAnalysis[N comparable, L LatticeElement] interface {
 	// Java: DataFlowAnalysis.createEntryLattice()
 	CreateEntryLattice() L
 
+	EqualsLattice(a, b L) bool
+
 	GetDataFlowAnalysisBase() *DataFlowAnalysisBase[N, L]
 }
 
@@ -130,8 +132,9 @@ type DataFlowAnalysis[N comparable, L LatticeElement] interface {
 type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 	self DataFlowAnalysis[N, L]
 
-	cfg      ControlFlowGraph[N]
-	priority func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
+	cfg            ControlFlowGraph[N]
+	priority       func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
+	curDiGraphNode DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 
 	queue     []DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 	queueHead int
@@ -183,6 +186,7 @@ func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnal
 	b.self = self
 	b.cfg = cfg
 	b.priority = cfg.GetOptionalNodeComparator(b.self.IsForward())
+	b.curDiGraphNode = nil
 	if cap(b.queue) == 0 {
 		b.queue = b.queueBuf[:0:len(b.queueBuf)]
 	} else {
@@ -315,6 +319,10 @@ func (b *DataFlowAnalysisBase[N, L]) IsBranched() bool {
 	return false
 }
 
+func (b *DataFlowAnalysisBase[N, L]) EqualsLattice(a, bL L) bool {
+	return jutil.ObjectsEquals(a, bL)
+}
+
 // Java: DataFlowAnalysis.join(L, L)
 func (b *DataFlowAnalysisBase[N, L]) Join(latticeA L, latticeB L) L {
 	joiner := b.self.CreateFlowJoiner()
@@ -371,8 +379,8 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
 		}
 
-		b.JoinInputs(curNode)
-		if b.Flow(curNode) {
+		b.joinInputsWithState(curNode, curState)
+		if b.flowWithState(curNode, curState) {
 			// If there is a change in the current node, we want to grab the
 			// list of nodes that this node affects.
 			if isForward {
@@ -392,6 +400,7 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 			}
 		}
 	}
+	b.curDiGraphNode = nil
 	if isForward {
 		b.JoinInputs(implicitReturn)
 	}
@@ -465,19 +474,25 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 //
 // Java: DataFlowAnalysis.flow(DiGraphNode<N, Branch>)
 func (b *DataFlowAnalysisBase[N, L]) Flow(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
-	state := dataFlowAnalysis_linearFlowStateOf[L](node)
+	return b.flowWithState(node, dataFlowAnalysis_linearFlowStateOf[L](node))
+}
+
+func (b *DataFlowAnalysisBase[N, L]) flowWithState(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) bool {
+	b.curDiGraphNode = node
 	if b.self.IsForward() {
 		outBefore := state.GetOut()
-		state.SetOut(b.self.FlowThrough(node.GetValue(), state.GetIn()))
-		changed := !jutil.ObjectsEquals(outBefore, state.GetOut())
+		outAfter := b.self.FlowThrough(node.GetValue(), state.GetIn())
+		state.SetOut(outAfter)
+		changed := !b.self.EqualsLattice(outBefore, outAfter)
 
 		if b.self.IsBranched() {
-			brancher := b.self.CreateFlowBrancher(node.GetValue(), state.GetOut())
+			brancher := b.self.CreateFlowBrancher(node.GetValue(), outAfter)
 			for _, outEdge := range node.GetOutEdges() {
 				outBranchBefore := dataFlowAnalysis_latticeOf[L](outEdge)
-				outEdge.SetAnnotation(brancher(outEdge.GetValue()))
+				outBranchAfter := brancher(outEdge.GetValue())
+				outEdge.SetAnnotation(outBranchAfter)
 				if !changed {
-					changed = !jutil.ObjectsEquals(outBranchBefore, dataFlowAnalysis_latticeOf[L](outEdge))
+					changed = !b.self.EqualsLattice(outBranchBefore, outBranchAfter)
 				}
 			}
 		}
@@ -485,8 +500,9 @@ func (b *DataFlowAnalysisBase[N, L]) Flow(node DiGraph_DiGraphNode[N, ControlFlo
 		return changed
 	} else {
 		inBefore := state.GetIn()
-		state.SetIn(b.self.FlowThrough(node.GetValue(), state.GetOut()))
-		return !jutil.ObjectsEquals(inBefore, state.GetIn())
+		inAfter := b.self.FlowThrough(node.GetValue(), state.GetOut())
+		state.SetIn(inAfter)
+		return !b.self.EqualsLattice(inBefore, inAfter)
 	}
 }
 
@@ -497,7 +513,10 @@ func (b *DataFlowAnalysisBase[N, L]) Flow(node DiGraph_DiGraphNode[N, ControlFlo
 //
 // Java: DataFlowAnalysis.joinInputs(DiGraphNode<N, Branch>)
 func (b *DataFlowAnalysisBase[N, L]) JoinInputs(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
-	state := dataFlowAnalysis_linearFlowStateOf[L](node)
+	b.joinInputsWithState(node, dataFlowAnalysis_linearFlowStateOf[L](node))
+}
+
+func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
 	if b.self.IsForward() && b.cfg.GetEntry() == node {
 		state.SetIn(b.self.CreateEntryLattice())
 		return
@@ -653,9 +672,10 @@ func DataFlowAnalysis_ComputeEscaped(
 
 	// TODO (simranarora) catch variables should not be considered escaped in
 	// ES6. Getting rid of the catch check is causing breakages however
+	codingConvention := compiler.GetCodingConvention()
 	for var_ := range allVarsInFn.Values() {
 		if var_.GetParentNode().IsCatch() ||
-			compiler.GetCodingConvention().IsExported(var_.GetName()) {
+			codingConvention.IsExported(var_.GetName()) {
 			escaped.Add(var_)
 		}
 	}
@@ -699,7 +719,7 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 	}
 
 	name := n.GetString()
-	if f.allVarsInFn != nil && !f.allVarsInFn.ContainsKey(name) {
+	if f.allVarsInFn != nil && f.allVarsInFn.Get(name) == nil {
 		return
 	}
 

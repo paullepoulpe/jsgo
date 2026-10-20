@@ -123,7 +123,7 @@ func NewPeepholeReplaceKnownMethods(late bool, useTypes bool) *PeepholeReplaceKn
 
 // Java: PeepholeReplaceKnownMethods.optimizeSubtree(Node)
 func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree *rhino.Node) *rhino.Node {
-	if NodeUtil_IsGoogWeakUsageCall(subtree) && p.late {
+	if p.late && NodeUtil_IsGoogWeakUsageCall(subtree) {
 		// goog.weakUsage(x) -> x.
 		name := subtree.GetSecondChild().Detach()
 		subtree.ReplaceWith(name)
@@ -151,14 +151,20 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(subtree *rhino.Node) *
 		callTarget := jutil.CheckNotNull(subtree.GetFirstChild())
 
 		if callTarget.IsGetProp() {
-			if p.IsASTNormalized() && callTarget.GetFirstChild().IsQualifiedName() {
-				switch *callTarget.GetFirstChild().GetQualifiedName() {
+			if targetFirst := callTarget.GetFirstChild(); targetFirst.IsName() {
+				switch targetFirst.GetString() {
 				case "Array":
-					return p.TryFoldKnownArrayMethods(subtree, callTarget)
+					if p.IsASTNormalized() {
+						return p.TryFoldKnownArrayMethods(subtree, callTarget)
+					}
 				case "Math":
-					return p.TryFoldKnownMathMethods(subtree, callTarget)
+					if p.IsASTNormalized() {
+						return p.TryFoldKnownMathMethods(subtree, callTarget)
+					}
 				case "Number":
-					return p.TryFoldKnownNumberMethods(subtree, callTarget)
+					if p.IsASTNormalized() {
+						return p.TryFoldKnownNumberMethods(subtree, callTarget)
+					}
 				default:
 				}
 			}
@@ -428,6 +434,9 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 	stringNode := callTarget.GetFirstChild()
 
 	isStringLiteral := stringNode.IsStringLit()
+	if !isStringLiteral && !p.useTypes {
+		return subtree
+	}
 	functionNameString := callTarget.GetString()
 	firstArg := callTarget.GetNext()
 	if isStringLiteral {
@@ -512,14 +521,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
 	jutil.CheckArgument(subtree.IsCall())
 
-	if p.IsASTNormalized() {
-		// check if this is a call on a string method
-		// then dispatch to specific folding method.
-		functionNameString := callTarget.GetString()
+	functionNameString := callTarget.GetString()
+	if functionNameString == "parseInt" || functionNameString == "parseFloat" {
 		firstArgument := callTarget.GetNext()
-		if (firstArgument != nil) &&
+		if firstArgument != nil &&
 			(firstArgument.IsStringLit() || NodeUtil_IsNumericLiteral(firstArgument)) &&
-			(functionNameString == "parseInt" || functionNameString == "parseFloat") {
+			p.IsASTNormalized() {
 			subtree = p.TryFoldParseNumber(subtree, functionNameString, firstArgument)
 		}
 	}
@@ -1052,17 +1059,17 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 		return n
 	}
 
+	arrayNode := callTarget.GetFirstChild()
+
+	if !arrayNode.IsArrayLit() || callTarget.GetString() != "join" {
+		return n
+	}
+
 	right := callTarget.GetNext()
 	if right != nil {
 		if right.GetNext() != nil || !NodeUtil_IsImmutableValue(right) {
 			return n
 		}
-	}
-
-	arrayNode := callTarget.GetFirstChild()
-
-	if !arrayNode.IsArrayLit() || callTarget.GetString() != "join" {
-		return n
 	}
 
 	if right != nil &&
