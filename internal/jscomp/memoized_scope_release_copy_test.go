@@ -26,11 +26,14 @@ func TestScopeCallbackEscapePreservesDifferentCreatorParents(t *testing.T) {
 	compiler.InitOptions(NewCompilerOptions())
 	parentCreator := NewSyntacticScopeCreatorWithRedeclarationHandler(compiler, NewSyntacticScopeCreator_DefaultRedeclarationHandler())
 	parentRoot := rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_Var(rhino.IR_Name("outer"))))
+	childRoot := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(rhino.IR_Name("x"), rhino.IR_Name("x")), rhino.IR_Block())
+	// Scope creation inspects whether a function is a declaration/expression.
+	// Attach it before scanning so both scope creators see a valid shared AST.
+	parentRoot.GetFirstChild().AddChildToBack(childRoot)
 	parent := parentCreator.CreateScopeOfScope(parentRoot, nil)
 	outer := parent.GetVar("outer")
 	h := &auditRetainingRedeclarationHandler{}
 	childCreator := NewSyntacticScopeCreatorWithRedeclarationHandler(compiler, h)
-	childRoot := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(rhino.IR_Name("x"), rhino.IR_Name("x")), rhino.IR_Block())
 	child := childCreator.CreateScopeOfScope(childRoot, parent)
 	childCreator.ReleaseArena()
 	parentCreator.ReleaseArena()
