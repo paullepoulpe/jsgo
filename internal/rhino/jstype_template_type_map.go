@@ -168,13 +168,30 @@ func NewTemplateTypeMap(
 }
 
 func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, bool) {
-	switch x := t.(type) {
+	// Match the visitor's native-type normalization even when a caller supplies
+	// a separately constructed primitive rather than the registry's singleton.
+	switch t.(type) {
 	case *UnknownType:
-		if x.isChecked {
-			return registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), true
-		}
+		return registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), true
+	case *NumberType:
+		return registry.GetNativeType(JSTypeNative_NUMBER_TYPE), true
+	case *StringType:
+		return registry.GetNativeType(JSTypeNative_STRING_TYPE), true
+	case *BooleanType:
+		return registry.GetNativeType(JSTypeNative_BOOLEAN_TYPE), true
+	case *NullType:
+		return registry.GetNativeType(JSTypeNative_NULL_TYPE), true
+	case *VoidType:
+		return registry.GetNativeType(JSTypeNative_VOID_TYPE), true
+	case *AllType:
+		return registry.GetNativeType(JSTypeNative_ALL_TYPE), true
+	case *BigIntType:
+		return registry.GetNativeType(JSTypeNative_BIGINT_TYPE), true
+	case *NoType:
 		return t, true
-	case *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoType, NoObjectType, *EnumElementType, *InstanceObjectType, PrototypeObjectType:
+	case NoObjectType:
+		return registry.GetNativeType(JSTypeNative_NO_OBJECT_TYPE), true
+	case *EnumElementType, *InstanceObjectType, PrototypeObjectType:
 		return t, true
 	default:
 		return nil, false
