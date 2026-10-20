@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -114,14 +116,16 @@ func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *I
 
 // Java: InlineVariables.process(Node, Node)
 func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
+	behavior := acquireInliningBehavior(iv)
 	callback := NewReferenceCollectorWithVarFilter(
 		iv.compiler,
-		NewInlineVariables_InliningBehavior(iv),
+		behavior,
 		NewSyntacticScopeCreator(iv.compiler),
 		inlineVariables_Mode_varPredicate[iv.mode])
 	callback.enableArenaPool()
 	callback.Process(externs, root)
 	callback.release()
+	behavior.release()
 }
 
 // InlineVariables_VarExpert is responsible for analyzing a variable to
@@ -301,9 +305,11 @@ type InlineVariables_InliningBehavior struct {
 	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
 	// hence the Object map.
 	currentScopeHandledVarAnalysesMap *jutil.ObjectLinkedHashMap[*Var, InlineVariables_InlineVarAnalysis]
-	handledVars                       []handledVarAnalysisEntry
-	handledVarsBuf                    [32]handledVarAnalysisEntry
-	handledVarsMap                    map[*Var]InlineVariables_InlineVarAnalysis
+	currentScope                      *Scope
+	handledScopeVars                  []InlineVariables_InlineVarAnalysis
+	handledScopeVarsBuf               [64]InlineVariables_InlineVarAnalysis
+	handledFallbackVars               []handledVarAnalysisEntry
+	handledFallbackBuf                [8]handledVarAnalysisEntry
 
 	// Records alias variables that are waiting for the original variables to
 	// be handled.
@@ -313,13 +319,79 @@ type InlineVariables_InliningBehavior struct {
 	varToAliasRetryHandlersMap *jutil.SetMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler]
 	aliasRetryHandlers         map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
 
-	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
-	delayedNegSlab   []inlineVariables_delayedNegativeAnalysis
-	delayedNegBuf    [32]inlineVariables_delayedNegativeAnalysis
-	retryExpertSlab  []InlineVariables_InliningBehavior_StandardVarExpert
-	retryExpertBuf   [8]InlineVariables_InliningBehavior_StandardVarExpert
-	retryHandlerSlab []InlineVariables_InliningBehavior_AliasInlineRetryHandler
-	retryHandlerBuf  [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	scratchExpert        InlineVariables_InliningBehavior_StandardVarExpert
+	delayedNegSlab       []inlineVariables_delayedNegativeAnalysis
+	delayedNegChunks     [][]inlineVariables_delayedNegativeAnalysis
+	delayedNegChunkIdx   int
+	delayedNegBuf        [32]inlineVariables_delayedNegativeAnalysis
+	retryExpertSlab      []InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertChunks    [][]InlineVariables_InliningBehavior_StandardVarExpert
+	retryExpertChunkIdx  int
+	retryExpertBuf       [8]InlineVariables_InliningBehavior_StandardVarExpert
+	retryHandlerSlab     []InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	retryHandlerChunks   [][]InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	retryHandlerChunkIdx int
+	retryHandlerBuf      [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
+}
+
+var inliningBehaviorPool = sync.Pool{
+	New: func() any {
+		b := &InlineVariables_InliningBehavior{}
+		b.handledScopeVars = b.handledScopeVarsBuf[:0]
+		b.handledFallbackVars = b.handledFallbackBuf[:0]
+		b.delayedNegSlab = b.delayedNegBuf[:0]
+		b.retryExpertSlab = b.retryExpertBuf[:0]
+		b.retryHandlerSlab = b.retryHandlerBuf[:0]
+		return b
+	},
+}
+
+func acquireInliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
+	b := inliningBehaviorPool.Get().(*InlineVariables_InliningBehavior)
+	b.outer = outer
+	if outer != nil && outer.compiler != nil {
+		b.codingConvention = outer.compiler.GetCodingConvention()
+	} else {
+		b.codingConvention = nil
+	}
+	return b
+}
+
+func (b *InlineVariables_InliningBehavior) release() {
+	b.outer = nil
+	b.codingConvention = nil
+	b.currentScope = nil
+	if len(b.handledScopeVars) > 0 {
+		clear(b.handledScopeVars)
+		b.handledScopeVars = b.handledScopeVars[:0]
+	}
+	if len(b.handledFallbackVars) > 0 {
+		clear(b.handledFallbackVars)
+		b.handledFallbackVars = b.handledFallbackVars[:0]
+	}
+	if len(b.aliasRetryHandlers) > 0 {
+		clear(b.aliasRetryHandlers)
+	}
+	b.scratchExpert = InlineVariables_InliningBehavior_StandardVarExpert{}
+	clear(b.delayedNegBuf[:])
+	for i := range b.delayedNegChunks {
+		clear(b.delayedNegChunks[i][:cap(b.delayedNegChunks[i])])
+	}
+	b.delayedNegChunkIdx = 0
+	b.delayedNegSlab = b.delayedNegBuf[:0]
+	clear(b.retryExpertBuf[:])
+	for i := range b.retryExpertChunks {
+		clear(b.retryExpertChunks[i][:cap(b.retryExpertChunks[i])])
+	}
+	b.retryExpertChunkIdx = 0
+	b.retryExpertSlab = b.retryExpertBuf[:0]
+	clear(b.retryHandlerBuf[:])
+	for i := range b.retryHandlerChunks {
+		clear(b.retryHandlerChunks[i][:cap(b.retryHandlerChunks[i])])
+	}
+	b.retryHandlerChunkIdx = 0
+	b.retryHandlerSlab = b.retryHandlerBuf[:0]
+	inliningBehaviorPool.Put(b)
 }
 
 // Java: InlineVariables.InliningBehavior()
@@ -332,7 +404,8 @@ func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariable
 		outer:            outer,
 		codingConvention: cc,
 	}
-	b.handledVars = b.handledVarsBuf[:0]
+	b.handledScopeVars = b.handledScopeVarsBuf[:0]
+	b.handledFallbackVars = b.handledFallbackBuf[:0]
 	b.delayedNegSlab = b.delayedNegBuf[:0]
 	b.retryExpertSlab = b.retryExpertBuf[:0]
 	b.retryHandlerSlab = b.retryHandlerBuf[:0]
@@ -340,29 +413,31 @@ func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariable
 }
 
 func (b *InlineVariables_InliningBehavior) putHandledVarAnalysis(v *Var, analysis InlineVariables_InlineVarAnalysis) {
-	if len(b.handledVars) == len(b.handledVarsBuf) && b.handledVarsMap == nil {
-		b.handledVarsMap = make(map[*Var]InlineVariables_InlineVarAnalysis, 128)
-		for _, entry := range b.handledVars {
-			b.handledVarsMap[entry.v] = entry.analysis
-		}
+	scope := b.currentScope
+	if v == nil || scope == nil || v.scope != scope {
+		return
 	}
-	b.handledVars = append(b.handledVars, handledVarAnalysisEntry{v: v, analysis: analysis})
-	if b.handledVarsMap != nil {
-		b.handledVarsMap[v] = analysis
+	if idx := v.GetIndex(); uint(idx) < uint(len(b.handledScopeVars)) && scope.varList[idx] == v {
+		b.handledScopeVars[idx] = analysis
+		return
 	}
+	b.handledFallbackVars = append(b.handledFallbackVars, handledVarAnalysisEntry{v: v, analysis: analysis})
 }
 
 func (b *InlineVariables_InliningBehavior) getHandledVarAnalysis(scope *Scope, aliasedVar *Var) InlineVariables_InlineVarAnalysis {
 	if aliasedVar == nil || aliasedVar.scope != scope {
 		return nil
 	}
-	if b.handledVarsMap != nil {
-		if analysis := b.handledVarsMap[aliasedVar]; analysis != nil {
-			return analysis
+	if idx := aliasedVar.GetIndex(); uint(idx) < uint(len(b.handledScopeVars)) && scope.varList[idx] == aliasedVar {
+		return b.handledScopeVars[idx]
+	}
+	if canon := scope.lookupOwnVar(aliasedVar.name); canon != nil {
+		if idx := canon.GetIndex(); uint(idx) < uint(len(b.handledScopeVars)) && scope.varList[idx] == canon {
+			return b.handledScopeVars[idx]
 		}
 	}
 	name := aliasedVar.name
-	for _, entry := range b.handledVars {
+	for _, entry := range b.handledFallbackVars {
 		if entry.v == aliasedVar || entry.v.name == name {
 			return entry.analysis
 		}
@@ -391,11 +466,20 @@ func (b *InlineVariables_InliningBehavior) allocDelayedNegativeAnalysis(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *inlineVariables_delayedNegativeAnalysis {
 	if len(b.delayedNegSlab) == cap(b.delayedNegSlab) {
-		newCap := 64
-		if cap(b.delayedNegSlab) >= 64 {
-			newCap = min(cap(b.delayedNegSlab)*2, 512)
+		if b.delayedNegChunkIdx < len(b.delayedNegChunks) {
+			ch := b.delayedNegChunks[b.delayedNegChunkIdx]
+			b.delayedNegChunkIdx++
+			b.delayedNegSlab = ch[:0:cap(ch)]
+		} else {
+			newCap := 64
+			if cap(b.delayedNegSlab) >= 64 {
+				newCap = min(cap(b.delayedNegSlab)*2, 512)
+			}
+			ch := make([]inlineVariables_delayedNegativeAnalysis, 0, newCap)
+			b.delayedNegChunks = append(b.delayedNegChunks, ch)
+			b.delayedNegChunkIdx = len(b.delayedNegChunks)
+			b.delayedNegSlab = ch
 		}
-		b.delayedNegSlab = make([]inlineVariables_delayedNegativeAnalysis, 0, newCap)
 	}
 	idx := len(b.delayedNegSlab)
 	b.delayedNegSlab = b.delayedNegSlab[:idx+1]
@@ -415,11 +499,20 @@ func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *InlineVariables_InliningBehavior_StandardVarExpert {
 	if len(b.retryExpertSlab) == cap(b.retryExpertSlab) {
-		newCap := 32
-		if cap(b.retryExpertSlab) >= 32 {
-			newCap = min(cap(b.retryExpertSlab)*2, 512)
+		if b.retryExpertChunkIdx < len(b.retryExpertChunks) {
+			ch := b.retryExpertChunks[b.retryExpertChunkIdx]
+			b.retryExpertChunkIdx++
+			b.retryExpertSlab = ch[:0:cap(ch)]
+		} else {
+			newCap := 32
+			if cap(b.retryExpertSlab) >= 32 {
+				newCap = min(cap(b.retryExpertSlab)*2, 512)
+			}
+			ch := make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
+			b.retryExpertChunks = append(b.retryExpertChunks, ch)
+			b.retryExpertChunkIdx = len(b.retryExpertChunks)
+			b.retryExpertSlab = ch
 		}
-		b.retryExpertSlab = make([]InlineVariables_InliningBehavior_StandardVarExpert, 0, newCap)
 	}
 	idx := len(b.retryExpertSlab)
 	b.retryExpertSlab = b.retryExpertSlab[:idx+1]
@@ -434,11 +527,20 @@ func (b *InlineVariables_InliningBehavior) allocRetryHandler(
 	expert InlineVariables_VarExpert,
 ) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
 	if len(b.retryHandlerSlab) == cap(b.retryHandlerSlab) {
-		newCap := 32
-		if cap(b.retryHandlerSlab) >= 32 {
-			newCap = min(cap(b.retryHandlerSlab)*2, 512)
+		if b.retryHandlerChunkIdx < len(b.retryHandlerChunks) {
+			ch := b.retryHandlerChunks[b.retryHandlerChunkIdx]
+			b.retryHandlerChunkIdx++
+			b.retryHandlerSlab = ch[:0:cap(ch)]
+		} else {
+			newCap := 32
+			if cap(b.retryHandlerSlab) >= 32 {
+				newCap = min(cap(b.retryHandlerSlab)*2, 512)
+			}
+			ch := make([]InlineVariables_InliningBehavior_AliasInlineRetryHandler, 0, newCap)
+			b.retryHandlerChunks = append(b.retryHandlerChunks, ch)
+			b.retryHandlerChunkIdx = len(b.retryHandlerChunks)
+			b.retryHandlerSlab = ch
 		}
-		b.retryHandlerSlab = make([]InlineVariables_InliningBehavior_AliasInlineRetryHandler, 0, newCap)
 	}
 	idx := len(b.retryHandlerSlab)
 	b.retryHandlerSlab = b.retryHandlerSlab[:idx+1]
@@ -473,13 +575,21 @@ func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, refe
 func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, referenceMap ReferenceMap) {
 	// Any variables we completed in an earlier scope are now out of scope,
 	// so we can clear this map.
-	b.handledVars = b.handledVars[:0]
-	if len(b.handledVarsMap) > 0 {
-		clear(b.handledVarsMap)
+	if len(b.handledScopeVars) > 0 {
+		clear(b.handledScopeVars)
+		b.handledScopeVars = b.handledScopeVars[:0]
 	}
+	if len(b.handledFallbackVars) > 0 {
+		clear(b.handledFallbackVars)
+		b.handledFallbackVars = b.handledFallbackVars[:0]
+	}
+	b.currentScope = nil
+	b.delayedNegChunkIdx = 0
 	b.delayedNegSlab = b.delayedNegBuf[:0]
 	if len(b.aliasRetryHandlers) == 0 {
+		b.retryExpertChunkIdx = 0
 		b.retryExpertSlab = b.retryExpertBuf[:0]
+		b.retryHandlerChunkIdx = 0
 		b.retryHandlerSlab = b.retryHandlerBuf[:0]
 	}
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
@@ -492,6 +602,19 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	isLocalScope := scope.IsLocal()
 	if b.outer.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(b.aliasRetryHandlers) == 0 {
 		return
+	}
+	if b.outer.mode != InlineVariables_Mode_CONSTANTS_ONLY {
+		b.currentScope = scope
+		nVars := len(scope.varList)
+		if cap(b.handledScopeVars) < nVars {
+			newCap := max(len(b.handledScopeVarsBuf), cap(b.handledScopeVars)*2)
+			if newCap < nVars {
+				newCap = nVars
+			}
+			b.handledScopeVars = make([]InlineVariables_InlineVarAnalysis, nVars, newCap)
+		} else {
+			b.handledScopeVars = b.handledScopeVars[:nVars]
+		}
 	}
 	mayBeAParameterModifiedViaArguments :=
 		b.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)

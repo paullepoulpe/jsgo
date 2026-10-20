@@ -19,9 +19,179 @@
 package jscomp
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type PropertyUseSite struct {
+	site  *rhino.Node
+	owner *ColorGraphNode
+}
+
+type propertyUseSiteChunk struct {
+	entries []PropertyUseSite
+	next    *propertyUseSiteChunk
+}
+
+// PropertyUseSites stores the (AST node, receiver ColorGraphNode) pairs for a
+// PropertyClustering in insertion order.
+type PropertyUseSites struct {
+	inline   [2]PropertyUseSite
+	head     *propertyUseSiteChunk
+	tail     *propertyUseSiteChunk
+	count    int32
+	tailUsed int32
+}
+
+func (u *PropertyUseSites) Size() int {
+	return int(u.count)
+}
+
+func (u *PropertyUseSites) IsEmpty() bool {
+	return u.count == 0
+}
+
+func (u *PropertyUseSites) Clear() {
+	u.inline = [2]PropertyUseSite{}
+	u.head = nil
+	u.tail = nil
+	u.count = 0
+	u.tailUsed = 0
+}
+
+func (u *PropertyUseSites) PutNew(site *rhino.Node, owner *ColorGraphNode) {
+	c := u.count
+	u.count = c + 1
+	if c < int32(len(u.inline)) {
+		u.inline[c] = PropertyUseSite{site: site, owner: owner}
+		return
+	}
+	tail := u.tail
+	used := u.tailUsed
+	if tail != nil && int(used) < len(tail.entries) {
+		tail.entries[used] = PropertyUseSite{site: site, owner: owner}
+		u.tailUsed = used + 1
+		return
+	}
+	chunkSize := 4
+	if c >= 6 {
+		chunkSize = 16
+	}
+	ch := &propertyUseSiteChunk{
+		entries: make([]PropertyUseSite, chunkSize),
+	}
+	ch.entries[0] = PropertyUseSite{site: site, owner: owner}
+	if u.tail == nil {
+		u.head = ch
+	} else {
+		u.tail.next = ch
+	}
+	u.tail = ch
+	u.tailUsed = 1
+}
+
+func (u *PropertyUseSites) Put(site *rhino.Node, owner *ColorGraphNode) *ColorGraphNode {
+	nInline := int(u.count)
+	if nInline > len(u.inline) {
+		nInline = len(u.inline)
+	}
+	for i := 0; i < nInline; i++ {
+		if u.inline[i].site == site {
+			old := u.inline[i].owner
+			u.inline[i].owner = owner
+			return old
+		}
+	}
+	for ch := u.head; ch != nil; ch = ch.next {
+		entries := ch.entries
+		if ch == u.tail {
+			entries = entries[:u.tailUsed]
+		}
+		for i := range entries {
+			if entries[i].site == site {
+				old := entries[i].owner
+				entries[i].owner = owner
+				return old
+			}
+		}
+	}
+	u.PutNew(site, owner)
+	return nil
+}
+
+func (u *PropertyUseSites) Get(site *rhino.Node) *ColorGraphNode {
+	nInline := int(u.count)
+	if nInline > len(u.inline) {
+		nInline = len(u.inline)
+	}
+	for i := 0; i < nInline; i++ {
+		if u.inline[i].site == site {
+			return u.inline[i].owner
+		}
+	}
+	for ch := u.head; ch != nil; ch = ch.next {
+		entries := ch.entries
+		if ch == u.tail {
+			entries = entries[:u.tailUsed]
+		}
+		for i := range entries {
+			if entries[i].site == site {
+				return entries[i].owner
+			}
+		}
+	}
+	return nil
+}
+
+func (u *PropertyUseSites) All() iter.Seq2[*rhino.Node, *ColorGraphNode] {
+	return func(yield func(*rhino.Node, *ColorGraphNode) bool) {
+		nInline := int(u.count)
+		if nInline > len(u.inline) {
+			nInline = len(u.inline)
+		}
+		for i := 0; i < nInline; i++ {
+			e := u.inline[i]
+			if !yield(e.site, e.owner) {
+				return
+			}
+		}
+		for ch := u.head; ch != nil; ch = ch.next {
+			entries := ch.entries
+			if ch == u.tail {
+				entries = entries[:u.tailUsed]
+			}
+			for i := range entries {
+				e := entries[i]
+				if !yield(e.site, e.owner) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (u *PropertyUseSites) Keys() iter.Seq[*rhino.Node] {
+	return func(yield func(*rhino.Node) bool) {
+		for k := range u.All() {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+func (u *PropertyUseSites) KeySlice() []*rhino.Node {
+	if u.count == 0 {
+		return nil
+	}
+	out := make([]*rhino.Node, 0, u.count)
+	for k := range u.All() {
+		out = append(out, k)
+	}
+	return out
+}
 
 // PropertyClustering is the disambiguation clusters for a given property
 // name.
@@ -33,8 +203,7 @@ import (
 type PropertyClustering struct {
 	name string
 
-	useSites    jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode]
-	useSitesBuf [8]jutil.LhmSlot[*rhino.Node, *ColorGraphNode]
+	useSites PropertyUseSites
 
 	clusters    StandardUnionFind[*ColorGraphNode]
 	clustersMap jutil.LinkedHashMap[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]]
@@ -42,13 +211,13 @@ type PropertyClustering struct {
 
 	originalNameClusterRep *ColorGraphNode
 	lastOwner              *ColorGraphNode
+	lastOwner2             *ColorGraphNode
 
 	lastInvalidation Invalidation
 }
 
 func (p *PropertyClustering) init(name string) {
 	p.name = name
-	p.useSites.InitWithBuffer(p.useSitesBuf[:])
 	p.clustersMap.InitWithBuffer(p.clustersBuf[:])
 	p.clusters.elmap = &p.clustersMap
 }
@@ -73,7 +242,7 @@ func (p *PropertyClustering) GetName() string {
 // clusters have been found. It prevents us from re-traversing the code.
 //
 // Java: PropertyClustering.getUseSites()
-func (p *PropertyClustering) GetUseSites() *jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode] {
+func (p *PropertyClustering) GetUseSites() *PropertyUseSites {
 	return &p.useSites
 }
 

@@ -7,29 +7,39 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+const (
+	maxMustDefLayoutVars  = 512
+	maxMustDefLayoutWords = maxMustDefLayoutVars / 64
+)
+
 // Go-only: performance — a function's canonical Vars have compact local IDs.
 // Larger functions retain the sparse representation to bound lattice memory.
 // The fallback also preserves ScopedName equality for non-canonical Vars.
 type mustDefLayout struct {
-	vars []*Var
-	ids  map[*Var]uint8
+	vars     []*Var
+	ids      map[*Var]uint16
+	numWords int
+	wide     bool
 }
 
 var emptyMustDefLayout = &mustDefLayout{}
 
 func newMustDefLayout(vars *jutil.LinkedHashMap[string, *Var]) *mustDefLayout {
-	if vars == nil || vars.Size() > 64 {
+	if vars == nil || vars.Size() > maxMustDefLayoutVars {
 		return nil
 	}
-	if vars.Size() == 0 {
+	n := vars.Size()
+	if n == 0 {
 		return emptyMustDefLayout
 	}
 	l := &mustDefLayout{
-		vars: make([]*Var, 0, vars.Size()),
-		ids:  make(map[*Var]uint8, vars.Size()),
+		vars:     make([]*Var, 0, n),
+		ids:      make(map[*Var]uint16, n),
+		numWords: (n + 63) >> 6,
+		wide:     n > 64,
 	}
 	for v := range vars.Values() {
-		l.ids[v] = uint8(len(l.vars))
+		l.ids[v] = uint16(len(l.vars))
 		l.vars = append(l.vars, v)
 	}
 	return l
@@ -39,13 +49,14 @@ func newMustDefLayout(vars *jutil.LinkedHashMap[string, *Var]) *mustDefLayout {
 // lattice. A clear presence bit is TOP; a present nil value is BOTTOM. The
 // order slice preserves encounter order independently of the variable IDs.
 type mustDefMap struct {
-	layout    *mustDefLayout
-	values    []*MustBeReachingVariableDef_Definition
-	present   uint64
-	order     []uint8
-	valuesBuf [8]*MustBeReachingVariableDef_Definition
-	orderBuf  [8]uint8
-	fallback  *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+	layout       *mustDefLayout
+	values       []*MustBeReachingVariableDef_Definition
+	present      uint64
+	presentWords [maxMustDefLayoutWords]uint64
+	order        []uint16
+	valuesBuf    [8]*MustBeReachingVariableDef_Definition
+	orderBuf     [8]uint16
+	fallback     *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
 }
 
 func newMustDefMap(layout *mustDefLayout) mustDefMap {
@@ -56,10 +67,20 @@ func newMustDefMap(layout *mustDefLayout) mustDefMap {
 	return m
 }
 
+func (m *mustDefMap) hasID(id uint16) bool {
+	if !m.layout.wide {
+		return m.present&(uint64(1)<<id) != 0
+	}
+	return m.presentWords[id>>6]&(uint64(1)<<(id&63)) != 0
+}
+
 func (m *mustDefMap) init(layout *mustDefLayout) {
 	m.layout = layout
 	m.values = nil
 	m.present = 0
+	if layout != nil && layout.wide {
+		clear(m.presentWords[:layout.numWords])
+	}
 	m.order = nil
 	if layout == nil {
 		m.fallback = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
@@ -70,8 +91,13 @@ func (m *mustDefMap) init(layout *mustDefLayout) {
 
 func (m *mustDefMap) clone() mustDefMap {
 	if m.layout != nil {
-		return mustDefMap{layout: m.layout, values: slices.Clone(m.values),
-			present: m.present, order: slices.Clone(m.order)}
+		return mustDefMap{
+			layout:       m.layout,
+			values:       slices.Clone(m.values),
+			present:      m.present,
+			presentWords: m.presentWords,
+			order:        slices.Clone(m.order),
+		}
 	}
 	n := newMustDefMap(nil)
 	for v, d := range m.fallback.All() {
@@ -83,23 +109,31 @@ func (m *mustDefMap) clone() mustDefMap {
 func (m *mustDefMap) cloneInto(dst *mustDefMap) {
 	if m.layout != nil {
 		dst.layout = m.layout
-		dst.present = m.present
+		if !m.layout.wide {
+			dst.present = m.present
+		} else {
+			copy(dst.presentWords[:m.layout.numWords], m.presentWords[:m.layout.numWords])
+		}
 		dst.fallback = nil
 		if m.values == nil {
 			dst.values = nil
 			dst.order = nil
 			return
 		}
-		if len(m.values) <= len(dst.valuesBuf) {
+		if cap(dst.values) >= len(m.values) {
+			dst.values = dst.values[:len(m.values)]
+		} else if len(m.values) <= len(dst.valuesBuf) {
 			dst.values = dst.valuesBuf[:len(m.values)]
 		} else {
 			dst.values = make([]*MustBeReachingVariableDef_Definition, len(m.values))
 		}
 		copy(dst.values, m.values)
-		if len(m.values) <= len(dst.orderBuf) {
+		if cap(dst.order) >= len(m.values) {
+			dst.order = dst.order[:len(m.order)]
+		} else if len(m.values) <= len(dst.orderBuf) {
 			dst.order = dst.orderBuf[:len(m.order):len(dst.orderBuf)]
 		} else {
-			dst.order = make([]uint8, len(m.order), len(m.values))
+			dst.order = make([]uint16, len(m.order), len(m.values))
 		}
 		copy(dst.order, m.order)
 		return
@@ -115,9 +149,17 @@ func (m *mustDefMap) cloneInto(dst *mustDefMap) {
 }
 
 func (m *mustDefMap) materialize() {
-	f := jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	f := m.fallback
+	if f == nil {
+		f = jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]()
+	} else {
+		f.Clear()
+	}
 	for _, id := range m.order {
 		f.Put(m.layout.vars[id], m.values[id])
+	}
+	if m.layout != nil && m.layout.wide {
+		clear(m.presentWords[:m.layout.numWords])
 	}
 	m.fallback = f
 	m.layout, m.values, m.order = nil, nil, nil
@@ -138,22 +180,35 @@ func (m *mustDefMap) Put(v *Var, d *MustBeReachingVariableDef_Definition) {
 	m.putID(id, d)
 }
 
-func (m *mustDefMap) putID(id uint8, d *MustBeReachingVariableDef_Definition) {
+func (m *mustDefMap) putID(id uint16, d *MustBeReachingVariableDef_Definition) {
 	if m.values == nil {
 		n := len(m.layout.vars)
-		if n <= len(m.valuesBuf) {
+		if cap(m.values) >= n && cap(m.order) >= n {
+			clear(m.values[:n])
+			m.values = m.values[:n]
+			m.order = m.order[:0]
+		} else if n <= len(m.valuesBuf) {
 			clear(m.valuesBuf[:n])
 			m.values = m.valuesBuf[:n]
 			m.order = m.orderBuf[:0:len(m.orderBuf)]
 		} else {
 			m.values = make([]*MustBeReachingVariableDef_Definition, n)
-			m.order = make([]uint8, 0, n)
+			m.order = make([]uint16, 0, n)
 		}
 	}
-	bit := uint64(1) << id
-	if m.present&bit == 0 {
-		m.order = append(m.order, id)
-		m.present |= bit
+	if !m.layout.wide {
+		bit := uint64(1) << id
+		if m.present&bit == 0 {
+			m.order = append(m.order, id)
+			m.present |= bit
+		}
+	} else {
+		w := id >> 6
+		bit := uint64(1) << (id & 63)
+		if m.presentWords[w]&bit == 0 {
+			m.order = append(m.order, id)
+			m.presentWords[w] |= bit
+		}
 	}
 	m.values[id] = d
 }
@@ -208,7 +263,7 @@ func (m *mustDefMap) lookup(v *Var) (*MustBeReachingVariableDef_Definition, bool
 		return m.fallback.Lookup(v)
 	}
 	if id, ok := m.layout.ids[v]; ok {
-		if m.present&(uint64(1)<<id) == 0 {
+		if !m.hasID(id) {
 			return nil, false
 		}
 		return m.values[id], true
@@ -259,8 +314,16 @@ func (m *mustDefMap) equals(other *mustDefMap) bool {
 		return false
 	}
 	if m.layout != nil && m.layout == other.layout {
-		if m.present != other.present {
-			return false
+		if !m.layout.wide {
+			if m.present != other.present {
+				return false
+			}
+		} else {
+			for i := 0; i < m.layout.numWords; i++ {
+				if m.presentWords[i] != other.presentWords[i] {
+					return false
+				}
+			}
 		}
 		for _, id := range m.order {
 			a, b := m.values[id], other.values[id]
@@ -270,7 +333,17 @@ func (m *mustDefMap) equals(other *mustDefMap) bool {
 		}
 		return true
 	}
-	for v, d := range m.All() {
+	if m.layout != nil {
+		for _, id := range m.order {
+			v, d := m.layout.vars[id], m.values[id]
+			x, ok := other.lookup(v)
+			if !ok || !jutil.ObjectsEquals(d, x) {
+				return false
+			}
+		}
+		return true
+	}
+	for v, d := range m.fallback.All() {
 		x, ok := other.lookup(v)
 		if !ok || !jutil.ObjectsEquals(d, x) {
 			return false
@@ -281,7 +354,13 @@ func (m *mustDefMap) equals(other *mustDefMap) bool {
 
 func (m *mustDefMap) HashCode() int32 {
 	var h int32
-	for v, d := range m.All() {
+	if m.layout != nil {
+		for _, id := range m.order {
+			h += jutil.ObjectHashCode(m.layout.vars[id]) ^ jutil.ObjectHashCode(m.values[id])
+		}
+		return h
+	}
+	for v, d := range m.fallback.All() {
 		h += jutil.ObjectHashCode(v) ^ jutil.ObjectHashCode(d)
 	}
 	return h

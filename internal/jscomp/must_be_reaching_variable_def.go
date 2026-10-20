@@ -47,10 +47,15 @@ type MustBeReachingVariableDef struct {
 	// Go-only: performance — local variable IDs shared by lattice states.
 	layout        *mustDefLayout
 	layoutStorage mustDefLayout
-	idByName      map[string]uint8
+	idByName      map[string]uint16
 	escapedMask   uint64
 	paramMask     uint64
 	catchMask     uint64
+	escapedWords  [maxMustDefLayoutWords]uint64
+	paramWords    [maxMustDefLayoutWords]uint64
+	catchWords    [maxMustDefLayoutWords]uint64
+	hasParams     bool
+	hasCatchVars  bool
 
 	emptyLattice MustBeReachingVariableDef_MustDef
 	joinOp       MustBeReachingVariableDef_MustDefJoin
@@ -59,75 +64,113 @@ type MustBeReachingVariableDef struct {
 	flowInput  *MustBeReachingVariableDef_MustDef
 	flowOutput *MustBeReachingVariableDef_MustDef
 
-	mustDefSlab []MustBeReachingVariableDef_MustDef
-	mustDefBuf  [8]MustBeReachingVariableDef_MustDef
-	defSlab     []MustBeReachingVariableDef_Definition
-	defBuf      [8]MustBeReachingVariableDef_Definition
+	mustDefSlab     []MustBeReachingVariableDef_MustDef
+	mustDefChunks   [][]MustBeReachingVariableDef_MustDef
+	mustDefChunkIdx int
+	mustDefBuf      [8]MustBeReachingVariableDef_MustDef
+	defSlab         []MustBeReachingVariableDef_Definition
+	defChunks       [][]MustBeReachingVariableDef_Definition
+	defChunkIdx     int
+	defBuf          [8]MustBeReachingVariableDef_Definition
 }
 
 func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string, *Var]) {
 	d.escapedMask = 0
 	d.paramMask = 0
 	d.catchMask = 0
-	if vars == nil || vars.Size() > 64 {
+	d.hasParams = false
+	d.hasCatchVars = false
+	if vars == nil || vars.Size() > maxMustDefLayoutVars {
 		d.layout = nil
 		return
 	}
-	if vars.Size() == 0 {
+	n := vars.Size()
+	if n == 0 {
 		d.layout = emptyMustDefLayout
 		return
 	}
 	l := &d.layoutStorage
 	clear(l.vars)
-	if cap(l.vars) < vars.Size() {
-		l.vars = make([]*Var, 0, max(vars.Size(), 16))
+	if cap(l.vars) < n {
+		l.vars = make([]*Var, 0, max(n, 16))
 	} else {
 		l.vars = l.vars[:0]
 	}
 	if l.ids == nil {
-		l.ids = make(map[*Var]uint8, max(vars.Size(), 16))
+		l.ids = make(map[*Var]uint16, max(n, 16))
 	} else {
 		clear(l.ids)
 	}
-	useMap := vars.Size() > 16
+	l.numWords = (n + 63) >> 6
+	l.wide = n > 64
+	useMap := n > 16
 	if useMap {
 		if d.idByName == nil {
-			d.idByName = make(map[string]uint8, max(vars.Size(), 32))
+			d.idByName = make(map[string]uint16, max(n, 32))
 		} else {
 			clear(d.idByName)
 		}
 	}
-	var escapedMask, paramMask, catchMask uint64
-	for v := range vars.Values() {
-		id := uint8(len(l.vars))
-		bit := uint64(1) << id
-		l.ids[v] = id
-		l.vars = append(l.vars, v)
-		if useMap {
-			d.idByName[v.name] = id
+	if !l.wide {
+		var escapedMask, paramMask, catchMask uint64
+		for v := range vars.Values() {
+			id := uint16(len(l.vars))
+			bit := uint64(1) << id
+			l.ids[v] = id
+			l.vars = append(l.vars, v)
+			if useMap {
+				d.idByName[v.name] = id
+			}
+			if d.escaped != nil && d.escaped.Contains(v) {
+				escapedMask |= bit
+			}
+			if v.IsParam() {
+				paramMask |= bit
+			}
+			if sc, ok := v.GetScope().(*Scope); ok && sc != nil && sc.IsCatchScope() {
+				catchMask |= bit
+			}
 		}
-		if d.escaped != nil && d.escaped.Contains(v) {
-			escapedMask |= bit
-		}
-		if v.IsParam() {
-			paramMask |= bit
-		}
-		if sc, ok := v.GetScope().(*Scope); ok && sc != nil && sc.IsCatchScope() {
-			catchMask |= bit
+		d.escapedMask = escapedMask
+		d.paramMask = paramMask
+		d.catchMask = catchMask
+		d.hasParams = paramMask != 0
+		d.hasCatchVars = catchMask != 0
+	} else {
+		clear(d.escapedWords[:l.numWords])
+		clear(d.paramWords[:l.numWords])
+		clear(d.catchWords[:l.numWords])
+		for v := range vars.Values() {
+			id := uint16(len(l.vars))
+			w := id >> 6
+			bit := uint64(1) << (id & 63)
+			l.ids[v] = id
+			l.vars = append(l.vars, v)
+			if useMap {
+				d.idByName[v.name] = id
+			}
+			if d.escaped != nil && d.escaped.Contains(v) {
+				d.escapedWords[w] |= bit
+			}
+			if v.IsParam() {
+				d.paramWords[w] |= bit
+				d.hasParams = true
+			}
+			if sc, ok := v.GetScope().(*Scope); ok && sc != nil && sc.IsCatchScope() {
+				d.catchWords[w] |= bit
+				d.hasCatchVars = true
+			}
 		}
 	}
-	d.escapedMask = escapedMask
-	d.paramMask = paramMask
-	d.catchMask = catchMask
 	d.layout = l
 }
 
-func (d *MustBeReachingVariableDef) lookupLocalVar(name string) (uint8, *Var, bool) {
+func (d *MustBeReachingVariableDef) lookupLocalVar(name string) (uint16, *Var, bool) {
 	vars := d.layout.vars
 	if len(vars) <= 16 {
 		for i, v := range vars {
 			if v.name == name {
-				return uint8(i), v, true
+				return uint16(i), v, true
 			}
 		}
 		return 0, nil, false
@@ -143,6 +186,9 @@ func resetMustDefMap(m *mustDefMap, layout *mustDefLayout) {
 	m.layout = layout
 	m.present = 0
 	if layout != nil {
+		if layout.wide {
+			clear(m.presentWords[:layout.numWords])
+		}
 		n := len(layout.vars)
 		if n > 0 {
 			if cap(m.values) >= n && cap(m.order) >= n {
@@ -154,8 +200,9 @@ func resetMustDefMap(m *mustDefMap, layout *mustDefLayout) {
 				m.values = m.valuesBuf[:n]
 				m.order = m.orderBuf[:0:len(m.orderBuf)]
 			} else {
-				m.values = make([]*MustBeReachingVariableDef_Definition, n, 64)
-				m.order = make([]uint8, 0, 64)
+				c := max(n, 64)
+				m.values = make([]*MustBeReachingVariableDef_Definition, n, c)
+				m.order = make([]uint16, 0, c)
 			}
 		} else {
 			if len(m.values) > 0 {
@@ -181,7 +228,11 @@ func resetMustDefMap(m *mustDefMap, layout *mustDefLayout) {
 func cloneMustDefMapInto(src, dst *mustDefMap) {
 	if src.layout != nil {
 		dst.layout = src.layout
-		dst.present = src.present
+		if !src.layout.wide {
+			dst.present = src.present
+		} else {
+			copy(dst.presentWords[:src.layout.numWords], src.presentWords[:src.layout.numWords])
+		}
 		if len(src.values) == 0 {
 			if len(dst.values) > 0 {
 				clear(dst.values)
@@ -194,7 +245,7 @@ func cloneMustDefMapInto(src, dst *mustDefMap) {
 			if len(src.values) <= len(dst.valuesBuf) {
 				dst.values = dst.valuesBuf[:len(src.values)]
 			} else {
-				dst.values = make([]*MustBeReachingVariableDef_Definition, len(src.values), 64)
+				dst.values = make([]*MustBeReachingVariableDef_Definition, len(src.values), max(len(src.values), 64))
 			}
 		} else {
 			dst.values = dst.values[:len(src.values)]
@@ -204,7 +255,7 @@ func cloneMustDefMapInto(src, dst *mustDefMap) {
 			if len(src.values) <= len(dst.orderBuf) {
 				dst.order = dst.orderBuf[:len(src.order):len(dst.orderBuf)]
 			} else {
-				dst.order = make([]uint8, len(src.order), 64)
+				dst.order = make([]uint16, len(src.order), max(len(src.values), 64))
 			}
 		} else {
 			dst.order = dst.order[:len(src.order)]
@@ -257,34 +308,50 @@ func (d *MustBeReachingVariableDef) Reset(
 	d.depCallback.def = nil
 	d.flowInput = nil
 	d.flowOutput = nil
-	if cap(d.mustDefSlab) == 0 {
-		d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
-	} else {
-		d.mustDefSlab = d.mustDefSlab[:0]
-	}
-	if cap(d.defSlab) == 0 {
-		d.defSlab = d.defBuf[:0:len(d.defBuf)]
-	} else {
-		d.defSlab = d.defSlab[:0]
-	}
+	d.mustDefChunkIdx = 0
+	d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
+	d.defChunkIdx = 0
+	d.defSlab = d.defBuf[:0:len(d.defBuf)]
 }
 
-func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
+func (d *MustBeReachingVariableDef) allocMustDefRaw() *MustBeReachingVariableDef_MustDef {
 	if len(d.mustDefSlab) == cap(d.mustDefSlab) {
-		nextCap := min(max(cap(d.mustDefSlab)*2, 16), 2048)
-		d.mustDefSlab = make([]MustBeReachingVariableDef_MustDef, 0, nextCap)
+		if d.mustDefChunkIdx < len(d.mustDefChunks) {
+			ch := d.mustDefChunks[d.mustDefChunkIdx]
+			d.mustDefChunkIdx++
+			d.mustDefSlab = ch[:0:cap(ch)]
+		} else {
+			nextCap := min(max(cap(d.mustDefSlab)*2, 16), 2048)
+			ch := make([]MustBeReachingVariableDef_MustDef, 0, nextCap)
+			d.mustDefChunks = append(d.mustDefChunks, ch)
+			d.mustDefChunkIdx = len(d.mustDefChunks)
+			d.mustDefSlab = ch
+		}
 	}
 	idx := len(d.mustDefSlab)
 	d.mustDefSlab = d.mustDefSlab[:idx+1]
-	m := &d.mustDefSlab[idx]
+	return &d.mustDefSlab[idx]
+}
+
+func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
+	m := d.allocMustDefRaw()
 	resetMustDefMap(&m.reachingDef, d.layout)
 	return m
 }
 
 func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
 	if len(d.defSlab) == cap(d.defSlab) {
-		nextCap := min(max(cap(d.defSlab)*2, 16), 2048)
-		d.defSlab = make([]MustBeReachingVariableDef_Definition, 0, nextCap)
+		if d.defChunkIdx < len(d.defChunks) {
+			ch := d.defChunks[d.defChunkIdx]
+			d.defChunkIdx++
+			d.defSlab = ch[:0:cap(ch)]
+		} else {
+			nextCap := min(max(cap(d.defSlab)*2, 16), 2048)
+			ch := make([]MustBeReachingVariableDef_Definition, 0, nextCap)
+			d.defChunks = append(d.defChunks, ch)
+			d.defChunkIdx = len(d.defChunks)
+			d.defSlab = ch
+		}
 	}
 	idx := len(d.defSlab)
 	d.defSlab = d.defSlab[:idx+1]
@@ -292,6 +359,9 @@ func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeRea
 	def.node = node
 	def.unknownDependencies = false
 	def.depMask = 0
+	if d.layout != nil && d.layout.wide {
+		clear(def.depWords[:d.layout.numWords])
+	}
 	def.dependsSet.Clear()
 	def.depends = &def.dependsSet
 	return def
@@ -300,7 +370,7 @@ func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeRea
 func (d *MustBeReachingVariableDef) ensureMutable(def *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
 	if def != nil && def == d.flowInput {
 		if d.flowOutput == d.flowInput {
-			cloned := d.allocMustDef()
+			cloned := d.allocMustDefRaw()
 			cloneMustDefMapInto(&d.flowInput.reachingDef, &cloned.reachingDef)
 			d.flowOutput = cloned
 		}
@@ -321,6 +391,7 @@ type MustBeReachingVariableDef_Definition struct {
 	depends             *jutil.ObjectLinkedHashSet[*Var]
 	dependsSet          jutil.ObjectLinkedHashSet[*Var]
 	depMask             uint64
+	depWords            [maxMustDefLayoutWords]uint64
 	unknownDependencies bool
 }
 
@@ -433,16 +504,30 @@ func (j *MustBeReachingVariableDef_MustDefJoin) JoinFlow(input *MustBeReachingVa
 	// Go-only: performance — shared IDs avoid hashing every key in a join.
 	dst, src := j.resultMap, &input.reachingDef
 	if dst.layout != nil && dst.layout == src.layout {
-		for _, id := range src.order {
-			def := src.values[id]
-			if def != nil && dst.present&(uint64(1)<<id) != 0 {
-				previous := dst.values[id]
-				if previous != nil && previous.node == def.node {
-					continue
+		if !dst.layout.wide {
+			for _, id := range src.order {
+				def := src.values[id]
+				if def != nil && dst.present&(uint64(1)<<id) != 0 {
+					previous := dst.values[id]
+					if previous != nil && previous.node == def.node {
+						continue
+					}
+					def = nil
 				}
-				def = nil
+				dst.putID(id, def)
 			}
-			dst.putID(id, def)
+		} else {
+			for _, id := range src.order {
+				def := src.values[id]
+				if def != nil && dst.presentWords[id>>6]&(uint64(1)<<(id&63)) != 0 {
+					previous := dst.values[id]
+					if previous != nil && previous.node == def.node {
+						continue
+					}
+					def = nil
+				}
+				dst.putID(id, def)
+			}
 		}
 		return
 	}
@@ -494,7 +579,7 @@ func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariable
 	m := d.allocMustDef()
 	if d.layout != nil {
 		for id, var_ := range d.layout.vars {
-			m.reachingDef.putID(uint8(id), d.allocDefinition(var_.GetScope().(*Scope).GetRootNode()))
+			m.reachingDef.putID(uint16(id), d.allocDefinition(var_.GetScope().(*Scope).GetRootNode()))
 		}
 		return m
 	}
@@ -690,21 +775,42 @@ func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 		}
 		def = d.ensureMutable(def)
 		m := &def.reachingDef
-		bit := uint64(1) << id
-		for _, otherID := range m.order {
-			if otherDef := m.values[otherID]; otherDef != nil && otherDef.depMask&bit != 0 {
-				m.values[otherID] = nil
-			}
-		}
-		if d.escapedMask&bit == 0 {
-			if node == nil {
-				m.putID(id, nil)
-			} else {
-				definition := d.allocDefinition(node)
-				if rValue != nil {
-					d.ComputeDependence(definition, rValue)
+		if !d.layout.wide {
+			bit := uint64(1) << id
+			for _, otherID := range m.order {
+				if otherDef := m.values[otherID]; otherDef != nil && otherDef.depMask&bit != 0 {
+					m.values[otherID] = nil
 				}
-				m.putID(id, definition)
+			}
+			if d.escapedMask&bit == 0 {
+				if node == nil {
+					m.putID(id, nil)
+				} else {
+					definition := d.allocDefinition(node)
+					if rValue != nil {
+						d.ComputeDependence(definition, rValue)
+					}
+					m.putID(id, definition)
+				}
+			}
+		} else {
+			w := id >> 6
+			bit := uint64(1) << (id & 63)
+			for _, otherID := range m.order {
+				if otherDef := m.values[otherID]; otherDef != nil && otherDef.depWords[w]&bit != 0 {
+					m.values[otherID] = nil
+				}
+			}
+			if d.escapedWords[w]&bit == 0 {
+				if node == nil {
+					m.putID(id, nil)
+				} else {
+					definition := d.allocDefinition(node)
+					if rValue != nil {
+						d.ComputeDependence(definition, rValue)
+					}
+					m.putID(id, definition)
+				}
 			}
 		}
 		return
@@ -737,16 +843,35 @@ func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVariableDef_MustDef) {
 	output = d.ensureMutable(output)
 	if d.layout != nil && output.reachingDef.layout == d.layout {
-		if d.paramMask != 0 {
+		if d.hasParams {
 			m := &output.reachingDef
-			for id := range d.layout.vars {
-				if d.paramMask&(uint64(1)<<id) != 0 {
-					m.putID(uint8(id), nil)
+			if !d.layout.wide {
+				for id := range d.layout.vars {
+					if d.paramMask&(uint64(1)<<id) != 0 {
+						m.putID(uint16(id), nil)
+					}
 				}
-			}
-			for _, id := range m.order {
-				if value := m.values[id]; value != nil && value.depMask&d.paramMask != 0 {
-					m.values[id] = nil
+				for _, id := range m.order {
+					if value := m.values[id]; value != nil && value.depMask&d.paramMask != 0 {
+						m.values[id] = nil
+					}
+				}
+			} else {
+				for id := range d.layout.vars {
+					if d.paramWords[id>>6]&(uint64(1)<<(id&63)) != 0 {
+						m.putID(uint16(id), nil)
+					}
+				}
+				nWords := d.layout.numWords
+				for _, id := range m.order {
+					if value := m.values[id]; value != nil {
+						for w := 0; w < nWords; w++ {
+							if value.depWords[w]&d.paramWords[w] != 0 {
+								m.values[id] = nil
+								break
+							}
+						}
+					}
 				}
 			}
 		}
@@ -800,10 +925,18 @@ func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVar
 			id, dep, ok := d.lookupLocalVar(name)
 			if !ok {
 				def.unknownDependencies = true
-			} else {
+			} else if !d.layout.wide {
 				bit := uint64(1) << id
 				if def.depMask&bit == 0 {
 					def.depMask |= bit
+					def.depends.Add(dep)
+				}
+			} else {
+				w := id >> 6
+				bit := uint64(1) << (id & 63)
+				if def.depWords[w]&bit == 0 {
+					def.depWords[w] |= bit
+					def.depMask = 1
 					def.depends.Add(dep)
 				}
 			}
@@ -857,7 +990,7 @@ func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *Must
 	m := &inState.reachingDef
 	if d.layout != nil && m.layout == d.layout {
 		id, _, ok := d.lookupLocalVar(name)
-		if !ok || m.present&(uint64(1)<<id) == 0 {
+		if !ok || !m.hasID(id) {
 			return nil
 		}
 		return m.values[id]
@@ -895,7 +1028,18 @@ func (d *MustBeReachingVariableDef) DependsOnOuterScopeVars(def *MustBeReachingV
 		return true
 	}
 	if d.layout != nil && (def.depMask != 0 || def.depends.IsEmpty()) {
-		return def.depMask&d.catchMask != 0
+		if !d.hasCatchVars {
+			return false
+		}
+		if !d.layout.wide {
+			return def.depMask&d.catchMask != 0
+		}
+		for w := 0; w < d.layout.numWords; w++ {
+			if def.depWords[w]&d.catchWords[w] != 0 {
+				return true
+			}
+		}
+		return false
 	}
 
 	for s := range def.depends.All() {

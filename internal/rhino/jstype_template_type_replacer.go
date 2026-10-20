@@ -39,6 +39,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type visitedObjEntry struct {
+	k, v JSType
+}
+
 // TemplateTypeReplacer specializes TemplatizedTypes according to provided
 // bindings.
 //
@@ -62,10 +66,15 @@ type TemplateTypeReplacer struct {
 	// to -1.
 	ownSubMapBoundary int
 
-	// Initialize data structures to `null` because these are unused in ~40% of
-	// TemplateTypeReplacers.
-	seenTypes          *jutil.LinkedHashSet[JSType]
-	visitedObjectTypes *jutil.LinkedHashMap[JSType, JSType]
+	// Recursion-cycle guard: inline buffer for common depths <= 8, overflow slice if deeper.
+	seenTypesBuf [8]JSType
+	seenTypesLen int
+	seenTypes    []JSType
+
+	// Visited record-type cache: inline buffer + overflow map.
+	visitedObjBuf [4]visitedObjEntry
+	visitedObjLen int
+	visitedObjMap map[JSType]JSType
 }
 
 // TemplateTypeReplacer_ForInference creates a replacer for use during
@@ -74,14 +83,31 @@ type TemplateTypeReplacer struct {
 // Java: TemplateTypeReplacer.forInference(JSTypeRegistry, Map<TemplateType, JSType>)
 func TemplateTypeReplacer_ForInference(
 	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplateTypeReplacer {
-	keys := jsTypeCopyOfTemplateTypes(bindings.KeySlice())
-	values := []JSType{}
-	for _, key := range keys {
-		value := bindings.Get(key)
+	n := bindings.Size()
+	if n == 0 {
+		return NewTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
+	}
+	var keysBuf [4]*TemplateType
+	var valuesBuf [4]JSType
+	var keys []*TemplateType
+	var values []JSType
+	if n <= len(keysBuf) {
+		keys = keysBuf[:0]
+		values = valuesBuf[:0]
+	} else {
+		keys = make([]*TemplateType, 0, n)
+		values = make([]JSType, 0, n)
+	}
+	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+	for key, value := range bindings.All() {
+		if key == nil {
+			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(len(keys))))
+		}
+		keys = append(keys, key)
 		if value != nil {
 			values = append(values, value)
 		} else {
-			values = append(values, registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
+			values = append(values, unknown)
 		}
 	}
 	m := registry.GetEmptyTemplateTypeMap().CopyWithExtensionOfKeys(keys, values)
@@ -139,9 +165,137 @@ func (r *TemplateTypeReplacer) HasMadeReplacement() bool {
 //
 // Java: TemplateTypeReplacer.initSeenTypes()
 func (r *TemplateTypeReplacer) InitSeenTypes() {
-	if r.seenTypes == nil {
-		// Sets.newIdentityHashSet()
-		r.seenTypes = jutil.NewLinkedHashSet[JSType]()
+}
+
+func (r *TemplateTypeReplacer) seenContains(t JSType) bool {
+	if r.seenTypes != nil {
+		for _, s := range r.seenTypes {
+			if s == t {
+				return true
+			}
+		}
+		return false
+	}
+	for i := 0; i < r.seenTypesLen; i++ {
+		if r.seenTypesBuf[i] == t {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *TemplateTypeReplacer) seenAdd(t JSType) bool {
+	if r.seenContains(t) {
+		return false
+	}
+	if r.seenTypes != nil {
+		r.seenTypes = append(r.seenTypes, t)
+		return true
+	}
+	if r.seenTypesLen < len(r.seenTypesBuf) {
+		r.seenTypesBuf[r.seenTypesLen] = t
+		r.seenTypesLen++
+		return true
+	}
+	r.seenTypes = make([]JSType, len(r.seenTypesBuf)+1, len(r.seenTypesBuf)*2)
+	copy(r.seenTypes, r.seenTypesBuf[:])
+	r.seenTypes[len(r.seenTypesBuf)] = t
+	return true
+}
+
+func (r *TemplateTypeReplacer) seenRemove(t JSType) {
+	if r.seenTypes != nil {
+		n := len(r.seenTypes)
+		if n == 0 {
+			return
+		}
+		if r.seenTypes[n-1] == t {
+			r.seenTypes[n-1] = nil
+			r.seenTypes = r.seenTypes[:n-1]
+			return
+		}
+		for i := n - 2; i >= 0; i-- {
+			if r.seenTypes[i] == t {
+				r.seenTypes[i] = r.seenTypes[n-1]
+				r.seenTypes[n-1] = nil
+				r.seenTypes = r.seenTypes[:n-1]
+				return
+			}
+		}
+		return
+	}
+	n := r.seenTypesLen
+	if n == 0 {
+		return
+	}
+	if r.seenTypesBuf[n-1] == t {
+		r.seenTypesBuf[n-1] = nil
+		r.seenTypesLen = n - 1
+		return
+	}
+	for i := n - 2; i >= 0; i-- {
+		if r.seenTypesBuf[i] == t {
+			r.seenTypesBuf[i] = r.seenTypesBuf[n-1]
+			r.seenTypesBuf[n-1] = nil
+			r.seenTypesLen = n - 1
+			return
+		}
+	}
+}
+
+func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
+	switch x := type_.(type) {
+	case *TemplateType:
+		return r.caseTemplateType(x)
+	case *UnionType:
+		return r.caseUnionType(x)
+	case *TemplatizedType:
+		return r.caseTemplatizedType(x)
+	case *FunctionTypeBase:
+		return r.caseFunctionType(x)
+	case *InstanceObjectType, *PrototypeObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *NamedType, *NoType:
+		return type_
+	case *RecordType:
+		return r.caseObjectType(x)
+	case *UnknownType:
+		return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+	case *NumberType:
+		return r.GetNativeType(JSTypeNative_NUMBER_TYPE)
+	case *StringType:
+		return r.GetNativeType(JSTypeNative_STRING_TYPE)
+	case *BooleanType:
+		return r.GetNativeType(JSTypeNative_BOOLEAN_TYPE)
+	case *NullType:
+		return r.GetNativeType(JSTypeNative_NULL_TYPE)
+	case *VoidType:
+		return r.GetNativeType(JSTypeNative_VOID_TYPE)
+	case *AllType:
+		return r.GetNativeType(JSTypeNative_ALL_TYPE)
+	case *BigIntType:
+		return r.GetNativeType(JSTypeNative_BIGINT_TYPE)
+	case *NoObjectTypeBase:
+		return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
+	case *SymbolTypeBase, *KnownSymbolType:
+		return type_
+	case *ProxyObjectTypeBase:
+		return r.caseProxyObjectType(x)
+	default:
+		if fn, ok := type_.(FunctionType); ok {
+			if _, isNoObj := type_.(NoObjectType); isNoObj {
+				return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
+			}
+			return r.caseFunctionType(fn)
+		}
+		if proxy, ok := type_.(ProxyObjectType); ok {
+			return r.caseProxyObjectType(proxy)
+		}
+		if obj, ok := type_.(ObjectType); ok {
+			return r.caseObjectType(obj)
+		}
+		if _, ok := type_.(SymbolType); ok {
+			return type_
+		}
+		panic(jutil.NewUnsupportedOperationException())
 	}
 }
 
@@ -172,7 +326,22 @@ func (r *TemplateTypeReplacer) CaseNoObjectType() any {
 
 // Java: TemplateTypeReplacer.caseFunctionType(FunctionType)
 func (r *TemplateTypeReplacer) CaseFunctionType(type_ FunctionType) any {
-	return r.GuardAgainstCycles(type_, func(t JSType) JSType { return r.CaseFunctionTypeUnguarded(t.(FunctionType)) })
+	return r.caseFunctionType(type_)
+}
+
+func (r *TemplateTypeReplacer) caseFunctionType(type_ FunctionType) JSType {
+	if r.IsNativeFunctionType(type_) {
+		return type_
+	}
+	if !type_.IsOrdinaryFunction() && !type_.IsConstructor() {
+		return type_
+	}
+	if !r.seenAdd(type_) {
+		return type_
+	}
+	res := r.CaseFunctionTypeUnguarded(type_)
+	r.seenRemove(type_)
+	return res
 }
 
 // Java: TemplateTypeReplacer.caseFunctionTypeUnguarded(FunctionType)
@@ -188,34 +357,34 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 	changed := false
 
 	beforeThis := type_.GetTypeOfThis()
-	afterThis := r.CoerseToThisType(JSType_VisitForJSType(beforeThis, r))
+	afterThis := r.CoerseToThisType(r.visitJSType(beforeThis))
 	if beforeThis != afterThis {
 		changed = true
 	}
 
 	beforeReturn := type_.GetReturnType()
-	afterReturn := JSType_VisitForJSType(beforeReturn, r)
+	afterReturn := r.visitJSType(beforeReturn)
 	if beforeReturn != afterReturn {
 		changed = true
 	}
 
 	paramsChanged := false
-	numParams := len(type_.GetParameters())
-	var paramBuilder *FunctionParamBuilder
-	if numParams != 0 {
-		paramBuilder = NewFunctionParamBuilderWithCapacity(r.registry, numParams)
-	}
+	parameters := type_.GetParameters()
+	numParams := len(parameters)
+	var paramBuilder FunctionParamBuilder
 	for i := 0; i < numParams; i++ {
-		parameter := type_.GetParameters()[i]
+		parameter := parameters[i]
 		beforeParamType := parameter.GetJSType()
-		afterParamType := JSType_VisitForJSType(beforeParamType, r)
+		afterParamType := r.visitJSType(beforeParamType)
 
 		if beforeParamType != afterParamType {
-			changed = true
-			paramsChanged = true
-			// TODO(lharker): we could also lazily create the FunctionParamBuilder
-			// here, but that would require re-iterating over all previously seen
-			// params so unclear it's worth the complexity
+			if !paramsChanged {
+				changed = true
+				paramsChanged = true
+				paramBuilder.registry = r.registry
+				paramBuilder.parameters = make([]*FunctionType_Parameter, i, numParams)
+				copy(paramBuilder.parameters, parameters[:i])
+			}
 			if parameter.IsOptional() {
 				paramBuilder.AddOptionalParams(afterParamType)
 			} else if parameter.IsVariadic() {
@@ -223,7 +392,7 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 			} else {
 				paramBuilder.AddRequiredParams(afterParamType)
 			}
-		} else {
+		} else if paramsChanged {
 			paramBuilder.NewParameterFrom(parameter)
 		}
 	}
@@ -231,9 +400,9 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 	if changed {
 		var params []*FunctionType_Parameter
 		if paramsChanged {
-			params = paramBuilder.Build()
+			params = paramBuilder.parameters
 		} else {
-			params = type_.GetParameters()
+			params = parameters
 		}
 		return type_.ToBuilder().
 			WithParametersOfList(params).
@@ -256,7 +425,23 @@ func (r *TemplateTypeReplacer) CoerseToThisType(type_ JSType) JSType {
 
 // Java: TemplateTypeReplacer.caseObjectType(ObjectType)
 func (r *TemplateTypeReplacer) CaseObjectType(objType ObjectType) any {
-	return r.GuardAgainstCycles(objType, func(t JSType) JSType { return r.CaseObjectTypeUnguarded(t.(ObjectType)) })
+	return r.caseObjectType(objType)
+}
+
+func (r *TemplateTypeReplacer) caseObjectType(objType ObjectType) JSType {
+	_, isProxy := objType.(ProxyObjectType)
+	if !r.visitProperties ||
+		objType.IsNominalType() ||
+		isProxy ||
+		!objType.IsRecordType() {
+		return objType
+	}
+	if !r.seenAdd(objType) {
+		return objType
+	}
+	res := r.CaseObjectTypeUnguarded(objType)
+	r.seenRemove(objType)
+	return res
 }
 
 // Java: TemplateTypeReplacer.caseObjectTypeUnguarded(ObjectType)
@@ -275,51 +460,81 @@ func (r *TemplateTypeReplacer) CaseObjectTypeUnguarded(objType ObjectType) JSTyp
 		return cached
 	}
 
-	changed := false
-	builder := NewRecordTypeBuilder(r.registry)
-	for _, prop := range objType.GetOwnPropertyNames() {
-		propertyNode := objType.GetPropertyNode(prop)
+	ownProps := objType.GetOwnPropertyNames()
+	var builder *RecordTypeBuilder
+	for i, prop := range ownProps {
 		beforeType := objType.GetPropertyType(prop)
-		afterType := JSType_VisitForJSType(beforeType, r)
-		if beforeType != afterType {
-			changed = true
+		afterType := r.visitJSType(beforeType)
+		if builder != nil {
+			builder.AddProperty(prop, afterType, objType.GetPropertyNode(prop))
+		} else if beforeType != afterType {
+			builder = NewRecordTypeBuilder(r.registry)
+			for j := 0; j < i; j++ {
+				prevProp := ownProps[j]
+				builder.AddProperty(prevProp, objType.GetPropertyType(prevProp), objType.GetPropertyNode(prevProp))
+			}
+			builder.AddProperty(prop, afterType, objType.GetPropertyNode(prop))
 		}
-		builder.AddProperty(prop, afterType, propertyNode)
 	}
 
 	// Use our new type if anything changed, and be sure to update the cache.
 	var result JSType = objType
-	if changed {
+	if builder != nil {
 		result = builder.Build()
 	}
-	r.visitedObjectTypes.Put(objType, result)
+	r.putVisitedObjectType(objType, result)
 	return result
 }
 
 // Java: TemplateTypeReplacer.caseTemplatizedType(TemplatizedType)
 func (r *TemplateTypeReplacer) CaseTemplatizedType(type_ *TemplatizedType) any {
-	return r.GuardAgainstCycles(type_, func(t JSType) JSType { return r.CaseTemplatizedTypeUnguarded(t.(*TemplatizedType)) })
+	return r.caseTemplatizedType(type_)
+}
+
+func (r *TemplateTypeReplacer) caseTemplatizedType(type_ *TemplatizedType) JSType {
+	if !r.seenAdd(type_) {
+		return type_
+	}
+	res := r.CaseTemplatizedTypeUnguarded(type_)
+	r.seenRemove(type_)
+	return res
 }
 
 // Java: TemplateTypeReplacer.caseTemplatizedTypeUnguarded(TemplatizedType)
 func (r *TemplateTypeReplacer) CaseTemplatizedTypeUnguarded(type_ *TemplatizedType) JSType {
 	changed := false
 	beforeBaseType := type_.GetReferencedType()
-	afterBaseType := ObjectType_Cast(JSType_VisitForJSType(beforeBaseType, r))
+	afterBaseType := ObjectType_Cast(r.visitJSType(beforeBaseType))
 	if beforeBaseType != afterBaseType {
 		changed = true
 	}
 
-	builder := []JSType{}
-	for _, beforeTemplateType := range type_.GetTemplateTypes() {
-		afterTemplateType := JSType_VisitForJSType(beforeTemplateType, r)
-		if beforeTemplateType != afterTemplateType {
+	templateTypes := type_.GetTemplateTypes()
+	n := len(templateTypes)
+	var builder []JSType
+	var builderBuf [4]JSType
+	for i := 0; i < n; i++ {
+		beforeTemplateType := templateTypes[i]
+		afterTemplateType := r.visitJSType(beforeTemplateType)
+		jutil.CheckNotNull(afterTemplateType)
+		if builder != nil {
+			builder[i] = afterTemplateType
+		} else if beforeTemplateType != afterTemplateType {
 			changed = true
+			if n <= len(builderBuf) {
+				builder = builderBuf[:n]
+			} else {
+				builder = make([]JSType, n)
+			}
+			copy(builder[:i], templateTypes[:i])
+			builder[i] = afterTemplateType
 		}
-		builder = append(builder, jutil.CheckNotNull(afterTemplateType))
 	}
 
 	if changed {
+		if builder == nil {
+			builder = templateTypes
+		}
 		type_ = r.registry.CreateTemplatizedTypeOfList(afterBaseType, builder)
 	}
 	return type_
@@ -362,25 +577,41 @@ func (r *TemplateTypeReplacer) CaseVoidType() any {
 
 // Java: TemplateTypeReplacer.caseUnionType(UnionType)
 func (r *TemplateTypeReplacer) CaseUnionType(type_ *UnionType) any {
-	return r.GuardAgainstCycles(type_, func(t JSType) JSType { return r.CaseUnionTypeUnguarded(t.(*UnionType)) })
+	return r.caseUnionType(type_)
+}
+
+func (r *TemplateTypeReplacer) caseUnionType(type_ *UnionType) JSType {
+	if !r.seenAdd(type_) {
+		return type_
+	}
+	res := r.CaseUnionTypeUnguarded(type_)
+	r.seenRemove(type_)
+	return res
 }
 
 // Java: TemplateTypeReplacer.caseUnionTypeUnguarded(UnionType)
 func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
-	changed := false
-	results := []JSType{}
 	alternates := type_.GetAlternates()
 	alternateCount := len(alternates)
+	var results []JSType
+	var resultsBuf [8]JSType
 	for i := 0; i < alternateCount; i++ {
 		alternative := alternates[i]
-		replacement := JSType_VisitForJSType(alternative, r)
-		if replacement != alternative {
-			changed = true
+		replacement := r.visitJSType(alternative)
+		if results != nil {
+			results[i] = replacement
+		} else if replacement != alternative {
+			if alternateCount <= len(resultsBuf) {
+				results = resultsBuf[:alternateCount]
+			} else {
+				results = make([]JSType, alternateCount)
+			}
+			copy(results[:i], alternates[:i])
+			results[i] = replacement
 		}
-		results = append(results, replacement)
 	}
 
-	if changed {
+	if results != nil {
 		return r.registry.CreateUnionTypeOfList(results) // maybe not a union
 	}
 
@@ -389,21 +620,24 @@ func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
 
 // Java: TemplateTypeReplacer.caseTemplateType(TemplateType)
 func (r *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
+	return r.caseTemplateType(type_)
+}
+
+func (r *TemplateTypeReplacer) caseTemplateType(type_ *TemplateType) JSType {
 	r.hasMadeReplacement = true
 
 	if type_ != r.keyType && !r.bindings.HasTemplateKeyFrom(type_, r.ownSubMapBoundary) {
 		if r.useUnknownForMissingKeys {
 			return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		}
-		return JSType(type_)
+		return type_
 	}
 
-	r.InitSeenTypes()
-	if r.seenTypes.Contains(type_) {
+	if r.seenContains(type_) {
 		// If we have already encountered this TemplateType during replacement
 		// (i.e. there is a reference loop) then return the TemplateType type
 		// itself.
-		return JSType(type_)
+		return type_
 	} else if !r.bindings.HasTemplateType(type_) {
 		// If there is no JSType substitution for the TemplateType, return either
 		// the UNKNOWN_TYPE or the TemplateType type itself, depending on
@@ -411,7 +645,7 @@ func (r *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
 		if r.useUnknownForMissingValues {
 			return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		}
-		return JSType(type_)
+		return type_
 	}
 
 	replacement := r.bindings.GetUnresolvedOriginalTemplateType(type_)
@@ -424,12 +658,12 @@ func (r *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
 	// replacement.visit(this) because guardAgainstCycles would have already
 	// seen 'replacement'. But we'd return 'visitedReplacement' instead of
 	// 'type'.
-	if replacement == r.keyTypeAsJSType() || r.seenTypes.Contains(replacement) {
-		return JSType(type_)
+	if replacement == r.keyTypeAsJSType() || r.seenContains(replacement) {
+		return type_
 	}
-	r.seenTypes.Add(type_)
-	visitedReplacement := JSType_VisitForJSType(replacement, r)
-	r.seenTypes.Remove(type_)
+	r.seenAdd(type_)
+	visitedReplacement := r.visitJSType(replacement)
+	r.seenRemove(type_)
 
 	jutil.CheckStateMsg1(
 		visitedReplacement != r.keyTypeAsJSType(),
@@ -464,14 +698,23 @@ func (r *TemplateTypeReplacer) CaseNamedType(type_ *NamedType) any {
 
 // Java: TemplateTypeReplacer.caseProxyObjectType(ProxyObjectType)
 func (r *TemplateTypeReplacer) CaseProxyObjectType(type_ ProxyObjectType) any {
-	return r.GuardAgainstCycles(type_, func(t JSType) JSType { return r.CaseProxyObjectTypeUnguarded(t.(ProxyObjectType)) })
+	return r.caseProxyObjectType(type_)
+}
+
+func (r *TemplateTypeReplacer) caseProxyObjectType(type_ ProxyObjectType) JSType {
+	if !r.seenAdd(type_) {
+		return type_
+	}
+	res := r.CaseProxyObjectTypeUnguarded(type_)
+	r.seenRemove(type_)
+	return res
 }
 
 // Java: TemplateTypeReplacer.caseProxyObjectTypeUnguarded(ProxyObjectType)
 func (r *TemplateTypeReplacer) CaseProxyObjectTypeUnguarded(type_ ProxyObjectType) JSType {
 	// Be careful not to unwrap a type unless it has changed.
 	beforeType := type_.GetReferencedTypeInternal()
-	replacement := JSType_VisitForJSType(beforeType, r)
+	replacement := r.visitJSType(beforeType)
 	if replacement != beforeType {
 		return replacement
 	}
@@ -486,11 +729,10 @@ func (r *TemplateTypeReplacer) SetKeyType(keyType *TemplateType, ownSubMapBounda
 
 // Java: TemplateTypeReplacer.guardAgainstCycles(T, Function<T, JSType>)
 func (r *TemplateTypeReplacer) GuardAgainstCycles(type_ JSType, mapper func(JSType) JSType) any {
-	r.InitSeenTypes()
-	if !r.seenTypes.Add(type_) {
+	if !r.seenAdd(type_) {
 		return type_
 	}
-	defer r.seenTypes.Remove(type_)
+	defer r.seenRemove(type_)
 	return mapper(type_)
 }
 
@@ -499,11 +741,31 @@ func (r *TemplateTypeReplacer) GuardAgainstCycles(type_ JSType, mapper func(JSTy
 //
 // Java: TemplateTypeReplacer.getVisitedObjectTypeOrNull(JSType)
 func (r *TemplateTypeReplacer) GetVisitedObjectTypeOrNull(type_ JSType) JSType {
-	// If we've visited this object type, we don't need to walk it again.
-	if r.visitedObjectTypes == nil {
-		// new IdentityHashMap<>()
-		r.visitedObjectTypes = jutil.NewLinkedHashMap[JSType, JSType]()
-		return nil
+	for i := 0; i < r.visitedObjLen; i++ {
+		if r.visitedObjBuf[i].k == type_ {
+			return r.visitedObjBuf[i].v
+		}
 	}
-	return r.visitedObjectTypes.Get(type_)
+	if r.visitedObjMap != nil {
+		return r.visitedObjMap[type_]
+	}
+	return nil
+}
+
+func (r *TemplateTypeReplacer) putVisitedObjectType(k, v JSType) {
+	for i := 0; i < r.visitedObjLen; i++ {
+		if r.visitedObjBuf[i].k == k {
+			r.visitedObjBuf[i].v = v
+			return
+		}
+	}
+	if r.visitedObjLen < len(r.visitedObjBuf) {
+		r.visitedObjBuf[r.visitedObjLen] = visitedObjEntry{k: k, v: v}
+		r.visitedObjLen++
+		return
+	}
+	if r.visitedObjMap == nil {
+		r.visitedObjMap = make(map[JSType]JSType, 8)
+	}
+	r.visitedObjMap[k] = v
 }

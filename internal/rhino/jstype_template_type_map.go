@@ -98,9 +98,19 @@ type TemplateTypeMap struct {
 	// methods.
 	subMapStarts *jutil.BitSet
 	registry     *JSTypeRegistry
+	valuesBuf    [4]JSType
 }
 
 var emptyJSTypeSlice = []JSType{}
+var emptyTemplateTypeSlice = []*TemplateType{}
+
+var sharedSubMapStartsEmpty = jutil.NewBitSetWithSize(64)
+
+var sharedSubMapStartsZero = func() *jutil.BitSet {
+	b := jutil.NewBitSetWithSize(64)
+	b.Set(0)
+	return b
+}()
 
 // newTemplateTypeMapBitSet is new BitSet().
 func newTemplateTypeMapBitSet() *jutil.BitSet {
@@ -113,7 +123,7 @@ func TemplateTypeMap_CreateEmpty(registry *JSTypeRegistry) *TemplateTypeMap {
 	// This method should only be called during registry initialization.
 	jutil.CheckArgument(registry.GetEmptyTemplateTypeMap() == nil)
 
-	return NewTemplateTypeMap(registry, []*TemplateType{}, emptyJSTypeSlice, newTemplateTypeMapBitSet())
+	return NewTemplateTypeMap(registry, emptyTemplateTypeSlice, emptyJSTypeSlice, sharedSubMapStartsEmpty)
 }
 
 // Java: TemplateTypeMap(JSTypeRegistry, ImmutableList<TemplateType>, ImmutableList<JSType>, BitSet)
@@ -122,7 +132,15 @@ func NewTemplateTypeMap(
 	templateKeys []*TemplateType,
 	templateValues []JSType,
 	subMapStarts *jutil.BitSet) *TemplateTypeMap {
-	m := &TemplateTypeMap{}
+	return initTemplateTypeMap(&TemplateTypeMap{}, registry, templateKeys, templateValues, subMapStarts)
+}
+
+func initTemplateTypeMap(
+	m *TemplateTypeMap,
+	registry *JSTypeRegistry,
+	templateKeys []*TemplateType,
+	templateValues []JSType,
+	subMapStarts *jutil.BitSet) *TemplateTypeMap {
 	jutil.CheckNotNull(templateKeys)
 	jutil.CheckNotNull(templateValues)
 	jutil.CheckArgument(len(templateValues) <= len(templateKeys))
@@ -142,28 +160,52 @@ func NewTemplateTypeMap(
 
 	// Iteratively resolve any JSType values that refer to the TemplateType
 	// keys of this TemplateTypeMap.
-	var replacer *TemplateTypeReplacer
+	var replacer TemplateTypeReplacer
+	replacerInit := false
 
-	resolvedValues := make([]JSType, nKeys)
+	var resolvedValues []JSType
 	for i := 0; i < nKeys; i++ {
+		var resolved JSType
 		if i < nValues {
 			templateValue := m.templateValues[i]
-			if resolved, ok := resolveSimpleTemplateValue(templateValue, registry); ok {
-				resolvedValues[i] = resolved
+			if r, ok := resolveSimpleTemplateValue(templateValue, registry); ok {
+				resolved = r
 			} else {
-				if replacer == nil {
-					replacer = TemplateTypeReplacer_ForTotalReplacement(registry, m)
+				if !replacerInit {
+					replacer = TemplateTypeReplacer{
+						registry:                   registry,
+						bindings:                   m,
+						useUnknownForMissingValues: true,
+						ownSubMapBoundary:          -1,
+					}
+					replacerInit = true
 				}
 				nextSubMap := m.NextSubMapStart(i + 1)
 				templateKey := m.templateKeys[i]
 				replacer.SetKeyType(templateKey, nextSubMap)
-				resolvedValues[i] = JSType_VisitForJSType(templateValue, replacer)
+				resolved = replacer.visitJSType(templateValue)
+			}
+			if resolvedValues == nil && resolved == templateValue {
+				continue
 			}
 		} else {
-			resolvedValues[i] = m.templateKeys[i].GetBound()
+			resolved = m.templateKeys[i].GetBound()
 		}
+		if resolvedValues == nil {
+			if nKeys <= len(m.valuesBuf) && (nValues == 0 || &m.templateValues[0] != &m.valuesBuf[0]) {
+				resolvedValues = m.valuesBuf[:nKeys]
+			} else {
+				resolvedValues = make([]JSType, nKeys)
+			}
+			copy(resolvedValues[:i], m.templateValues[:i])
+		}
+		resolvedValues[i] = resolved
 	}
-	m.resolvedTemplateValues = resolvedValues
+	if resolvedValues == nil {
+		m.resolvedTemplateValues = m.templateValues
+	} else {
+		m.resolvedTemplateValues = resolvedValues
+	}
 	return m
 }
 
@@ -209,7 +251,13 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	}
 
 	nKeys := len(m.templateKeys)
-	extendedValues := make([]JSType, nKeys)
+	out := &TemplateTypeMap{}
+	var extendedValues []JSType
+	if nKeys <= len(out.valuesBuf) {
+		extendedValues = out.valuesBuf[:nKeys]
+	} else {
+		extendedValues = make([]JSType, nKeys)
+	}
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {
@@ -234,7 +282,7 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 		idx++
 	}
 
-	return NewTemplateTypeMap(m.registry, m.templateKeys, extendedValues, m.subMapStarts)
+	return initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStarts)
 }
 
 // templateTypeMapCopyOfTypes is ImmutableList.copyOf(list), which rejects
@@ -274,11 +322,15 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeys(keys []*TemplateType, values [
 		if len(values) == 0 && m.NumUnfilledTemplateKeys() == 0 {
 			return m
 		}
-		return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, newTemplateTypeMapBitSet())
+		return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, sharedSubMapStartsEmpty)
 	}
-	subMapStarts := jutil.NewBitSetWithSize(len(keys))
+	if len(keys) <= 64 {
+		return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, sharedSubMapStartsZero)
+	}
+	var subMapStarts jutil.BitSet
+	subMapStarts.InitWithSize(len(keys))
 	subMapStarts.Set(0)
-	return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, subMapStarts)
+	return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, &subMapStarts)
 }
 
 // CopyWithExtensionOfKeysWithSubMapStarts creates a new map in which the
@@ -298,7 +350,8 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 	}
 
 	nOldKeys := len(m.templateKeys)
-	extendedKeys := make([]*TemplateType, nOldKeys+len(keys))
+	nNewKeys := len(keys)
+	extendedKeys := make([]*TemplateType, nOldKeys+nNewKeys)
 	copy(extendedKeys, m.templateKeys)
 	for i, k := range keys {
 		if k == nil {
@@ -307,7 +360,16 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 		extendedKeys[nOldKeys+i] = k
 	}
 
-	extendedValues := make([]JSType, nOldKeys+len(values))
+	out := &TemplateTypeMap{}
+	nTotalValues := nOldKeys + len(values)
+	var extendedValues []JSType
+	if nTotalValues == 0 {
+		extendedValues = emptyJSTypeSlice
+	} else if nTotalValues <= len(out.valuesBuf) {
+		extendedValues = out.valuesBuf[:nTotalValues]
+	} else {
+		extendedValues = make([]JSType, nTotalValues)
+	}
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {
@@ -332,14 +394,21 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 		idx++
 	}
 
-	extendedsubMapStarts := jutil.NewBitSetWithSize(len(keys) + nOldKeys)
-	extendedsubMapStarts.Or(m.subMapStarts)
-	for i := 0; i < len(keys); i++ {
-		extendedsubMapStarts.SetTo(i+nOldKeys, newsubMapStarts.Get(i))
+	var extendedsubMapStarts *jutil.BitSet
+	if nOldKeys == 0 && newsubMapStarts == sharedSubMapStartsZero {
+		extendedsubMapStarts = sharedSubMapStartsZero
+	} else if nNewKeys == 0 {
+		extendedsubMapStarts = m.subMapStarts
+	} else {
+		extendedsubMapStarts = jutil.NewBitSetWithSize(nNewKeys + nOldKeys)
+		extendedsubMapStarts.Or(m.subMapStarts)
+		for i := 0; i < nNewKeys; i++ {
+			extendedsubMapStarts.SetTo(i+nOldKeys, newsubMapStarts.Get(i))
+		}
 	}
 
-	return NewTemplateTypeMap(
-		m.registry, extendedKeys, extendedValues, extendedsubMapStarts)
+	return initTemplateTypeMap(
+		out, m.registry, extendedKeys, extendedValues, extendedsubMapStarts)
 }
 
 // CopyWithoutKeys creates a new map in which keys contained in removals are
@@ -349,9 +418,22 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 //
 // Java: TemplateTypeMap.copyWithoutKeys(Set<TemplateType>)
 func (m *TemplateTypeMap) CopyWithoutKeys(removals *jutil.LinkedHashSet[*TemplateType]) *TemplateTypeMap {
-	keys := []*TemplateType{}
+	hasRemovals := false
+	if removals.Size() > 0 {
+		for i := len(m.templateValues); i < len(m.templateKeys); i++ {
+			if removals.Contains(m.templateKeys[i]) {
+				hasRemovals = true
+				break
+			}
+		}
+	}
+	if !hasRemovals {
+		return m // Nothing will change.
+	}
+
+	keys := make([]*TemplateType, len(m.templateValues), len(m.templateKeys)-1)
+	copy(keys, m.templateKeys[:len(m.templateValues)])
 	newsubMapStarts := newTemplateTypeMapBitSet()
-	keys = append(keys, jsTypeSubList(m.templateKeys, 0, len(m.templateValues))...)
 	for i := 0; i < len(m.templateValues); i++ {
 		newsubMapStarts.SetTo(i, m.subMapStarts.Get(i))
 	}
@@ -366,12 +448,6 @@ func (m *TemplateTypeMap) CopyWithoutKeys(removals *jutil.LinkedHashSet[*Templat
 			newKeysSize++
 			inNewSubmap = false
 		}
-	}
-
-	// There are some checks we could do for this before calculating the
-	// removal, but it was less error prone to only check in one place.
-	if len(keys) == len(m.templateKeys) {
-		return m // Nothing will change.
 	}
 
 	return NewTemplateTypeMap(m.registry, keys, m.templateValues, newsubMapStarts)

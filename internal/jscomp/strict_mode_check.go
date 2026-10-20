@@ -19,9 +19,20 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+const (
+	strictModeGetterBit       uint8 = 1 << 0
+	strictModeSetterBit       uint8 = 1 << 1
+	strictModeStaticGetterBit uint8 = 1 << 2
+	strictModeStaticSetterBit uint8 = 1 << 3
+)
+
+type strictModeMemberEntry struct {
+	name string
+	mask uint8
+}
 
 // StrictModeCheck checks that the code obeys the static restrictions of
 // strict mode:
@@ -38,6 +49,7 @@ type StrictModeCheck struct {
 
 	compiler     AbstractCompiler
 	defaultLevel CheckLevel
+	memberFlags  map[string]uint8
 }
 
 // Java: StrictModeCheck.USE_OF_WITH
@@ -180,10 +192,13 @@ func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, n *rhino.Node) {
 //
 // Java: StrictModeCheck.checkObjectLiteralOrClass(Node)
 func (c *StrictModeCheck) CheckObjectLiteralOrClass(n *rhino.Node) {
-	getters := jutil.NewLinkedHashSet[string]()
-	setters := jutil.NewLinkedHashSet[string]()
-	staticGetters := jutil.NewLinkedHashSet[string]()
-	staticSetters := jutil.NewLinkedHashSet[string]()
+	if n.GetFirstChild() == n.GetLastChild() {
+		return
+	}
+
+	var seenBuf [16]strictModeMemberEntry
+	seenLen := 0
+	usedMap := false
 
 	/*
 	 * Iterate backwards because the last duplicate is the one that will be used in sloppy or ES6
@@ -202,25 +217,62 @@ func (c *StrictModeCheck) CheckObjectLiteralOrClass(n *rhino.Node) {
 		}
 
 		keyName := key.GetString()
-		if !key.IsSetterDef() {
-			// normal property and getter cases
-			set := getters
-			if key.IsStaticMember() {
-				set = staticGetters
-			}
-			if !set.Add(keyName) {
-				c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
-			}
+		isSetter := key.IsSetterDef()
+		isGetter := key.IsGetterDef()
+		getterBit := strictModeGetterBit
+		setterBit := strictModeSetterBit
+		if key.IsStaticMember() {
+			getterBit = strictModeStaticGetterBit
+			setterBit = strictModeStaticSetterBit
 		}
-		if !key.IsGetterDef() {
+		var addMask uint8
+		if !isSetter {
+			addMask |= getterBit
+		}
+		if !isGetter {
+			addMask |= setterBit
+		}
+
+		var oldMask uint8
+		if !usedMap {
+			found := false
+			for i := 0; i < seenLen; i++ {
+				if seenBuf[i].name == keyName {
+					oldMask = seenBuf[i].mask
+					seenBuf[i].mask = oldMask | addMask
+					found = true
+					break
+				}
+			}
+			if !found {
+				if seenLen < len(seenBuf) {
+					seenBuf[seenLen] = strictModeMemberEntry{name: keyName, mask: addMask}
+					seenLen++
+				} else {
+					usedMap = true
+					if c.memberFlags == nil {
+						c.memberFlags = make(map[string]uint8, 64)
+					} else {
+						clear(c.memberFlags)
+					}
+					for i := range seenBuf {
+						c.memberFlags[seenBuf[i].name] = seenBuf[i].mask
+					}
+					c.memberFlags[keyName] = addMask
+				}
+			}
+		} else {
+			oldMask = c.memberFlags[keyName]
+			c.memberFlags[keyName] = oldMask | addMask
+		}
+
+		if !isSetter && (oldMask&getterBit) != 0 {
+			// normal property and getter cases
+			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
+		}
+		if !isGetter && (oldMask&setterBit) != 0 {
 			// normal property and setter cases
-			set := setters
-			if key.IsStaticMember() {
-				set = staticSetters
-			}
-			if !set.Add(keyName) {
-				c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
-			}
+			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
 		}
 	}
 }

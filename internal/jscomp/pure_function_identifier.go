@@ -60,7 +60,8 @@ type PureFunctionIdentifier struct {
 	// PROP_NAME_PREFIX to differentiate them from variable names.
 	//
 	// See AmbiguatedFunctionSummary.
-	summariesByName map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	summariesByName     map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	propSummariesByName map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
 	// Mapping from function node to summaries for all names associated with
 	// that node.
@@ -156,13 +157,14 @@ func NewPureFunctionIdentifier(
 	compiler AbstractCompiler, assumeGettersArePure bool, validateArtificialPurity bool) *PureFunctionIdentifier {
 	p := &PureFunctionIdentifier{}
 	p.summariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, 1024)
+	p.propSummariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, 1024)
 	p.summariesForAllNamesOfFunctionByNode = jutil.ArrayListMultimap_Create[*rhino.Node, *PureFunctionIdentifier_AmbiguatedFunctionSummary]()
 	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[*rhino.Node]()
 	p.reverseCallGraph = LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
 	p.unknownFunctionSummary =
 		p.createSummaryInGraph("<unknown>").
 			SetMutatesGlobalStateAndAllOtherFlags(nil)
-	p.unknownFunctionSummarySlice = []*PureFunctionIdentifier_AmbiguatedFunctionSummary{p.unknownFunctionSummary}
+	p.unknownFunctionSummarySlice = p.unknownFunctionSummary.selfSlice[:]
 	p.hasProcessed = false
 	p.compiler = jutil.CheckNotNull(compiler)
 	p.assumeGettersArePure = assumeGettersArePure
@@ -179,11 +181,30 @@ func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunction
 	p.summarySlab = p.summarySlab[1:]
 	s.name = name
 	s.graphNode = p.reverseCallGraph.CreateDiGraphNode(s)
+	s.selfSlice[0] = s
 	return s
 }
 
 func (p *PureFunctionIdentifier) getSummaryOrDefault(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	if s := p.summariesByName[name]; s != nil {
+		return s
+	}
+	return p.unknownFunctionSummary
+}
+
+func (p *PureFunctionIdentifier) getSummaryForReference(nameRef *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+	switch nameRef.GetToken() {
+	case rhino.Token_NAME:
+		return p.summariesByName[nameRef.GetString()]
+	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
+		return p.propSummariesByName[nameRef.GetString()]
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
+	}
+}
+
+func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+	if s := p.getSummaryForReference(nameRef); s != nil {
 		return s
 	}
 	return p.unknownFunctionSummary
@@ -579,9 +600,8 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 				jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", singleCallee)
 				return summariesForFunction
 			}
-			calleeName := PureFunctionIdentifier_NameForReference(singleCallee)
-			if s := p.summariesByName[calleeName]; s != nil {
-				return []*PureFunctionIdentifier_AmbiguatedFunctionSummary{s}
+			if s := p.getSummaryForReference(singleCallee); s != nil {
+				return s.selfSlice[:]
 			}
 			return p.unknownFunctionSummarySlice
 		}
@@ -610,8 +630,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 
 			results = append(results, summariesForFunction...)
 		} else {
-			calleeName := PureFunctionIdentifier_NameForReference(callee)
-			results = append(results, p.getSummaryOrDefault(calleeName))
+			results = append(results, p.getSummaryForReferenceOrDefault(callee))
 		}
 	}
 	return results
@@ -652,6 +671,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			jutil.CheckState(key != "")
 			propKey := PureFunctionIdentifier_PROP_NAME_PREFIX + key
 			if existing := p.summariesByName[propKey]; existing != nil {
+				p.propSummariesByName[key] = existing
 				// Defensive fallback in case a name ever started with '.'
 				for i := range entries {
 					if entries[i].summary == existing {
@@ -662,6 +682,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			} else {
 				s := p.createSummaryInGraph(propKey)
 				p.summariesByName[propKey] = s
+				p.propSummariesByName[key] = s
 				entries = append(entries, pureFunctionIdentifier_nameRefs{summary: s, refs: refs})
 			}
 		}
@@ -706,7 +727,11 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 
 	// Create and store a summary for all known names.
 	for name := range referencesByName.Keys() {
-		p.summariesByName[name] = p.createSummaryInGraph(name)
+		s := p.createSummaryInGraph(name)
+		p.summariesByName[name] = s
+		if strings.HasPrefix(name, PureFunctionIdentifier_PROP_NAME_PREFIX) {
+			p.propSummariesByName[name[len(PureFunctionIdentifier_PROP_NAME_PREFIX):]] = s
+		}
 	}
 
 	for name, references := range referencesByName.All() {
@@ -784,8 +809,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 					p.summariesForAllNamesOfFunctionByNode.Put(rvalue, summaryForName)
 				} else if NodeUtil_IsUndefined(rvalue) {
 				} else {
-					rvalueName := PureFunctionIdentifier_NameForReference(rvalue)
-					rvalueSummary := p.getSummaryOrDefault(rvalueName)
+					rvalueSummary := p.getSummaryForReferenceOrDefault(rvalue)
 
 					p.reverseCallGraph.ConnectNodes(
 						rvalueSummary.graphNode,
@@ -965,17 +989,16 @@ type PureFunctionIdentifier_FunctionBodyAnalyzer struct {
 	//
 	// Go-only: language-adapter — the ArrayDeque is only used at its end
 	// (getLast/addLast/removeLast), so it is a slice.
-	functionScopeStack []*PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry
+	functionScopeStack []PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer()
 func NewPureFunctionIdentifier_FunctionBodyAnalyzer(outer *PureFunctionIdentifier) *PureFunctionIdentifier_FunctionBodyAnalyzer {
-	return &PureFunctionIdentifier_FunctionBodyAnalyzer{
-		outer: outer,
-		functionScopeStack: []*PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry{
-			NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(nil, false),
-		},
+	b := &PureFunctionIdentifier_FunctionBodyAnalyzer{
+		outer:              outer,
+		functionScopeStack: make([]PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry, 1, 8),
 	}
+	return b
 }
 
 // functionScopeStackGetLast is ArrayDeque.getLast().
@@ -983,7 +1006,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) functionScopeStackGetLast(
 	if len(b.functionScopeStack) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
-	return b.functionScopeStack[len(b.functionScopeStack)-1]
+	return &b.functionScopeStack[len(b.functionScopeStack)-1]
 }
 
 // PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry is a single
@@ -995,9 +1018,10 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) functionScopeStackGetLast(
 // when entering a new function literal, and pop the entry when leaving the
 // function literal.
 type PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry struct {
-	root           *rhino.Node
-	skiplistedVars *jutil.ObjectLinkedHashSet[*Var]
-	taintedVars    *jutil.ObjectLinkedHashSet[*Var]
+	root                *rhino.Node
+	skiplistedVars      []*Var
+	skiplistedNameNodes []*rhino.Node
+	taintedVars         []*Var
 	// Whether this function was marked as artificially pure, i.e. had a
 	// `@nosideeffects` annotation. This tells the compiler to ignore side
 	// effects from within the function body when deciding whether the given
@@ -1026,25 +1050,36 @@ func NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(root *rhi
 }
 
 func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) addSkiplistedVar(v *Var) {
-	if e.skiplistedVars == nil {
-		e.skiplistedVars = jutil.NewObjectLinkedHashSet[*Var]()
+	if slices.Contains(e.skiplistedVars, v) {
+		return
 	}
-	e.skiplistedVars.Add(v)
+	e.skiplistedVars = append(e.skiplistedVars, v)
 }
 
 func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) isSkiplistedVar(v *Var) bool {
-	return e.skiplistedVars != nil && e.skiplistedVars.Contains(v)
+	if slices.Contains(e.skiplistedVars, v) {
+		return true
+	}
+	for _, node := range e.skiplistedNameNodes {
+		if node == v.GetNameNode() {
+			return true
+		}
+		if node.GetString() == v.name && node.GetParent().IsVar() && v.scope.IsHoistScope() {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) addTaintedVar(v *Var) {
-	if e.taintedVars == nil {
-		e.taintedVars = jutil.NewObjectLinkedHashSet[*Var]()
+	if slices.Contains(e.taintedVars, v) {
+		return
 	}
-	e.taintedVars.Add(v)
+	e.taintedVars = append(e.taintedVars, v)
 }
 
 func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) isTaintedVar(v *Var) bool {
-	return e.taintedVars != nil && e.taintedVars.Contains(v)
+	return slices.Contains(e.taintedVars, v)
 }
 
 // IsLocalVar reports whether v, as seen from scope, is a variable of this
@@ -1119,19 +1154,19 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 				NodeUtil_VisitLhsNodesInNode(
 					node,
 					func(lhsNode *rhino.Node) {
-						b.VisitLhsNode(encloserSummary, traversal.GetScope(), lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
+						b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 					})
 			} else {
-				b.VisitLhsNode(encloserSummary, traversal.GetScope(), lhs, PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
+				b.visitLhsNode(encloserSummary, traversal, lhs, PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
 			}
 		}
 
 	case rhino.Token_INC, // e.g. x++;
 		rhino.Token_DEC,
 		rhino.Token_DELPROP:
-		b.VisitLhsNode(
+		b.visitLhsNode(
 			encloserSummary,
-			traversal.GetScope(),
+			traversal,
 			node.GetOnlyChild(),
 			// The value assigned by a unary op is always local.
 			PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -1147,9 +1182,9 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		NodeUtil_VisitLhsNodesInNode(
 			node,
 			func(lhsNode *rhino.Node) {
-				b.VisitLhsNode(
+				b.visitLhsNode(
 					encloserSummary,
-					traversal.GetScope(),
+					traversal,
 					lhsNode,
 					// The RHS of a for-of must always be an iterable, making it a container, so
 					// we can't
@@ -1166,9 +1201,9 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		NodeUtil_VisitLhsNodesInNode(
 			node,
 			func(lhsNode *rhino.Node) {
-				b.VisitLhsNode(
+				b.visitLhsNode(
 					encloserSummary,
-					traversal.GetScope(),
+					traversal,
 					lhsNode,
 					// A for-in always assigns a string, which is a local value by definition.
 					PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -1187,7 +1222,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		NodeUtil_VisitLhsNodesInNode(
 			node.GetParent(),
 			func(lhsNode *rhino.Node) {
-				b.VisitLhsNode(encloserSummary, traversal.GetScope(), lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
+				b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 			})
 
 	case rhino.Token_NAME:
@@ -1198,9 +1233,8 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 			// new object creation or literal or known primitive result
 			// value, add it to the local skiplist.
 			if value != nil && !NodeUtil_EvaluatesToLocalValue(value) {
-				scope := traversal.GetScope()
-				var_ := scope.GetVar(node.GetString())
-				b.functionScopeStackGetLast().addSkiplistedVar(var_)
+				e := b.functionScopeStackGetLast()
+				e.skiplistedNameNodes = append(e.skiplistedNameNodes, node)
 			}
 		}
 
@@ -1249,9 +1283,9 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		if NodeUtil_IsCompoundAssignmentOp(node) {
 			// e.g.
 			// x += 3;
-			b.VisitLhsNode(
+			b.visitLhsNode(
 				encloserSummary,
-				traversal.GetScope(),
+				traversal,
 				node.GetFirstChild(),
 				// The update assignments (e.g. `+=) always assign primitive, and therefore local,
 				// values.
@@ -1300,12 +1334,37 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) RecordThrowsBasedOnContext
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversal) {
 	function := t.GetScopeRoot()
 	if !function.IsFunction() {
+		if b.functionScopeStackGetLast().root == nil {
+			// Variables declared outside all functions can never share a container
+			// scope with any scope inside a function. Pre-populating an empty
+			// Scope avoids scanning the global/module AST in SyntacticScopeCreator.
+			if len(t.scopes) == 1 {
+				t.scopes[0].untypedScope = Scope_CreateGlobalScope(function)
+			} else if parentScope := t.scopes[len(t.scopes)-2].untypedScope; parentScope != nil {
+				t.scopes[len(t.scopes)-1].untypedScope = Scope_CreateChildScope(parentScope, function)
+			}
+		}
 		return
 	}
 	jsdoc := NodeUtil_GetBestJSDocInfo(function)
 	isArtificiallyPure := jsdoc != nil && jsdoc.IsNoSideEffects()
 
-	b.functionScopeStack = append(b.functionScopeStack, NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(function, isArtificiallyPure))
+	n := len(b.functionScopeStack)
+	if n < cap(b.functionScopeStack) {
+		b.functionScopeStack = b.functionScopeStack[:n+1]
+		e := &b.functionScopeStack[n]
+		e.root = function
+		e.isArtificiallyPure = isArtificiallyPure
+		e.catchDepth = 0
+		e.skiplistedVars = e.skiplistedVars[:0]
+		e.skiplistedNameNodes = e.skiplistedNameNodes[:0]
+		e.taintedVars = e.taintedVars[:0]
+	} else {
+		b.functionScopeStack = append(b.functionScopeStack, PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry{
+			root:               function,
+			isArtificiallyPure: isArtificiallyPure,
+		})
+	}
 	if !b.outer.summariesForAllNamesOfFunctionByNode.ContainsKey(function) {
 		// This function was not part of a definition which is why it was not created by
 		// {@link populateDatastructuresForAnalysisTraversal}. For example, an anonymous
@@ -1317,22 +1376,26 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.exitScope(NodeTraversal)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal) {
-	functionEntry := b.functionScopeStackGetLast()
+	idx := len(b.functionScopeStack) - 1
+	functionEntry := &b.functionScopeStack[idx]
 	if functionEntry.root == nil {
 		return
 	}
 	if t.GetScopeRoot() == functionEntry.root {
 		// ArrayDeque.removeLast()
-		b.functionScopeStack[len(b.functionScopeStack)-1] = nil
-		b.functionScopeStack = b.functionScopeStack[:len(b.functionScopeStack)-1]
+		b.functionScopeStack = b.functionScopeStack[:idx]
 	}
 
-	if functionEntry.taintedVars == nil || functionEntry.taintedVars.IsEmpty() {
+	if len(functionEntry.taintedVars) == 0 {
 		return
 	}
 
-	// We want to process block scope as well as function scopes
-	scope := t.GetScope()
+	// If the current scope was never materialized, none of its variables could
+	// have been looked up or added to taintedVars.
+	scope := t.scopes[len(t.scopes)-1].untypedScope
+	if scope == nil {
+		return
+	}
 	functionScope := scope.GetClosestContainerScope()
 	if !functionScope.IsFunctionScope() {
 		return
@@ -1348,26 +1411,26 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 			continue
 		}
 
-		for v := range scope.GetVarIterable() {
+		for _, v := range scope.varList {
+			if v == nil || !functionEntry.isTaintedVar(v) {
+				continue
+			}
 			isFromDestructuring := NodeUtil_IsLhsByDestructuring(v.GetNameNode())
 			if v.IsParam() &&
 				// Ignore destructuring parameters because they don't directly correspond to an
 				// argument passed to the function for the purposes of "setMutatesArguments"
 				!isFromDestructuring &&
-				!functionEntry.isSkiplistedVar(v) &&
-				functionEntry.isTaintedVar(v) {
+				!functionEntry.isSkiplistedVar(v) {
 				sideEffectInfo.SetMutatesArguments(v.GetNode())
 				continue
 			}
 
 			// Take care of locals that might have been tainted.
 			if !functionEntry.IsLocalVar(v, scope) {
-				if functionEntry.isTaintedVar(v) {
-					// If the function has global side-effects
-					// don't bother with the local side-effects.
-					sideEffectInfo.SetMutatesGlobalStateAndAllOtherFlags(v.GetNode())
-					break
-				}
+				// If the function has global side-effects
+				// don't bother with the local side-effects.
+				sideEffectInfo.SetMutatesGlobalStateAndAllOtherFlags(v.GetNode())
+				break
 			}
 		}
 	}
@@ -1380,6 +1443,44 @@ func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerSco
 	}
 	varScope, _ := v.GetScope().(*Scope)
 	return varScope.HasSameContainerScope(scope)
+}
+
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) visitLhsNode(
+	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary,
+	traversal *NodeTraversal,
+	lhs *rhino.Node,
+	hasLocalRhs func(*rhino.Node) bool) {
+	if NodeUtil_IsNormalOrOptChainGet(lhs) {
+		objectNode := lhs.GetFirstChild()
+		if objectNode.IsThis() {
+			if b.functionScopeStackGetLast().root.IsArrowFunction() {
+				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
+			} else {
+				encloserSummary.SetMutatesThis(lhs)
+			}
+		} else if objectNode.IsName() {
+			scope := traversal.GetScope()
+			var_ := scope.GetVar(objectNode.GetString())
+			if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
+				b.functionScopeStackGetLast().addTaintedVar(var_)
+			} else {
+				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
+			}
+		} else {
+			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
+		}
+	} else {
+		jutil.CheckStateMsg1(lhs.IsName(), "%s", lhs)
+		scope := traversal.GetScope()
+		var_ := scope.GetVar(lhs.GetString())
+		if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
+			if !hasLocalRhs(lhs) {
+				b.functionScopeStackGetLast().addSkiplistedVar(var_)
+			}
+		} else {
+			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
+		}
+	}
 }
 
 // VisitLhsNode records information about the side effects caused by
@@ -1697,6 +1798,7 @@ type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
 	// non-extern function that's "artificially pure", i.e. has a
 	// @nosideeffects annotation.
 	impureFunctionReasonsForDebugging *jutil.LinkedHashSet[*rhino.Node] // lazily initialized
+	selfSlice                         [1]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 }
 
 // Side effect types:
@@ -1722,6 +1824,7 @@ func NewPureFunctionIdentifier_AmbiguatedFunctionSummary(
 	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{bitmask: 0}
 	s.name = name // Java: checkNotNull(name); a Go string is never null.
 	s.graphNode = graph.CreateDiGraphNode(s)
+	s.selfSlice[0] = s
 	return s
 }
 

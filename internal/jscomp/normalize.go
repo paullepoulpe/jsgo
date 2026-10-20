@@ -276,6 +276,7 @@ type Normalize_NormalizeStatements struct {
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
 
 	useFastContextualRenamer bool
+	hasJscompVar             bool
 	nameUsage                map[string]int
 	activeReplacements       map[string]string
 	undoStack                []normalizeRenameUndo
@@ -309,9 +310,56 @@ func NewNormalize_NormalizeStatements(
 
 func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
 	s.useFastContextualRenamer = true
-	s.nameUsage = make(map[string]int, 64)
 	s.undoStack = s.undoBuf[:0]
 	s.scopeUndoOffsets = s.scopeUndoBuf[:0]
+}
+
+func normalizeHasJscompSeparator(s string) bool {
+	if len(s) < len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) {
+		return false
+	}
+	for i := 0; i <= len(s)-len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR); i++ {
+		if s[i] == '$' && s[i:i+len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR)] == MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeFormatUniqueName(name string, id int) string {
+	var buf [64]byte
+	b := append(buf[:0], name...)
+	b = append(b, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR...)
+	b = strconv.AppendInt(b, int64(id), 10)
+	return string(b)
+}
+
+func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
+	if s.hasJscompVar {
+		return
+	}
+	s.hasJscompVar = true
+	if len(s.nameUsage) == 0 {
+		return
+	}
+	type pending struct {
+		name  string
+		count int
+	}
+	var toBackfill []pending
+	for origName, count := range s.nameUsage {
+		if count > 1 {
+			toBackfill = append(toBackfill, pending{name: origName, count: count})
+		}
+	}
+	for _, p := range toBackfill {
+		for i := 1; i < p.count; i++ {
+			u := normalizeFormatUniqueName(p.name, i)
+			if _, exists := s.nameUsage[u]; !exists {
+				s.nameUsage[u] = 1
+			}
+		}
+	}
 }
 
 func normalizeScopeMayHaveDeclarations(n *rhino.Node) bool {
@@ -361,12 +409,20 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 	if len(s.scopeUndoOffsets) == 0 {
 		jutil.CheckState(!declarationRoot.IsFunction())
 		s.scopeUndoOffsets = append(s.scopeUndoOffsets, 0)
-		for v := range t.GetScope().GetVarIterable() {
+		scope := t.GetScope()
+		if s.nameUsage == nil {
+			s.nameUsage = make(map[string]int, max(64, len(scope.varList)+len(scope.varList)/2))
+		}
+		for _, v := range scope.varList {
+			if v == nil {
+				continue
+			}
 			name := v.GetName()
 			if name != MakeDeclaredNamesUnique_ARGUMENTS {
-				if _, exists := s.nameUsage[name]; !exists {
-					s.nameUsage[name] = 1
+				if !s.hasJscompVar && normalizeHasJscompSeparator(name) {
+					s.enableJscompVarMode()
 				}
+				s.nameUsage[name] = 1
 			}
 		}
 		return
@@ -376,25 +432,34 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 	if !normalizeScopeMayHaveDeclarations(declarationRoot) {
 		return
 	}
-	for v := range t.GetScope().GetVarIterable() {
+	for _, v := range t.GetScope().varList {
+		if v == nil {
+			continue
+		}
 		name := v.GetName()
 		if name == MakeDeclaredNamesUnique_ARGUMENTS {
 			continue
 		}
 		id := s.nameUsage[name]
+		if id == 0 && !s.hasJscompVar && normalizeHasJscompSeparator(name) {
+			s.enableJscompVarMode()
+			id = s.nameUsage[name]
+		}
 		s.nameUsage[name] = id + 1
 		if id != 0 {
-			unique := name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id)
-			for {
-				uid, exists := s.nameUsage[unique]
-				if !exists || uid == 0 {
-					break
+			unique := normalizeFormatUniqueName(name, id)
+			if s.hasJscompVar {
+				for {
+					uid, exists := s.nameUsage[unique]
+					if !exists || uid == 0 {
+						break
+					}
+					s.nameUsage[unique] = uid + 1
+					unique = normalizeFormatUniqueName(name, uid)
 				}
-				s.nameUsage[unique] = uid + 1
-				unique = name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(uid)
-			}
-			if _, exists := s.nameUsage[unique]; !exists {
-				s.nameUsage[unique] = 1
+				if _, exists := s.nameUsage[unique]; !exists {
+					s.nameUsage[unique] = 1
+				}
 			}
 			if s.activeReplacements == nil {
 				s.activeReplacements = make(map[string]string, 16)
@@ -1008,6 +1073,8 @@ type Normalize_DuplicateDeclarationHandler struct {
 	outer *Normalize
 
 	hasOkDuplicateDeclaration map[*Var]struct{}
+	okDupBuf                  [8]*Var
+	okDupLen                  int
 }
 
 // Java: Normalize.DuplicateDeclarationHandler()
@@ -1033,8 +1100,18 @@ func (h *Normalize_DuplicateDeclarationHandler) OnRedeclaration(
 		// This deals with issues where a browser built-in is declared
 		// in one browser but not in another.
 		if v.IsExtern() && !input.IsExtern() {
+			for i := 0; i < h.okDupLen; i++ {
+				if h.okDupBuf[i] == v {
+					goto duplicateNotOk
+				}
+			}
+			if h.okDupLen < len(h.okDupBuf) {
+				h.okDupBuf[h.okDupLen] = v
+				h.okDupLen++
+				return
+			}
 			if h.hasOkDuplicateDeclaration == nil {
-				h.hasOkDuplicateDeclaration = make(map[*Var]struct{}, 8)
+				h.hasOkDuplicateDeclaration = make(map[*Var]struct{}, 32)
 			}
 			if _, exists := h.hasOkDuplicateDeclaration[v]; !exists {
 				h.hasOkDuplicateDeclaration[v] = struct{}{}
@@ -1042,6 +1119,7 @@ func (h *Normalize_DuplicateDeclarationHandler) OnRedeclaration(
 			}
 		}
 	}
+duplicateNotOk:
 
 	if parent.IsFunction() {
 		if v.GetParentNode().IsVar() {

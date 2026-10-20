@@ -632,6 +632,25 @@ type CodePrinter_PrettyCodePrinter struct {
 	numberSourceUnits []uint16
 }
 
+var codePrinter_prettyPool = sync.Pool{
+	New: func() any {
+		return &CodePrinter_PrettyCodePrinter{}
+	},
+}
+
+func initCodePrinter_PrettyCodePrinter(
+	p *CodePrinter_PrettyCodePrinter,
+	lineLengthThreshold int,
+	createSourceMap bool,
+	sourceMapDetailLevel SourceMap_DetailLevel,
+	licenseTracker CodePrinter_LicenseTracker) {
+	p.InitCodePrinter_MappedCodePrinterBase(p, lineLengthThreshold, createSourceMap, sourceMapDetailLevel, licenseTracker)
+	p.indent = 0
+	p.numberSourceCode = ""
+	p.numberSourceASCII = false
+	p.numberSourceUnits = nil
+}
+
 // NewCodePrinter_PrettyCodePrinter: lineLengthThreshold is the length of a
 // line after which we force a newline when possible; createSourceMap is
 // whether to generate source map data; sourceMapDetailLevel is a filter to
@@ -646,8 +665,7 @@ func NewCodePrinter_PrettyCodePrinter(
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker) *CodePrinter_PrettyCodePrinter {
 	p := &CodePrinter_PrettyCodePrinter{}
-	p.InitCodePrinter_MappedCodePrinterBase(p, lineLengthThreshold, createSourceMap, sourceMapDetailLevel, licenseTracker)
-	p.indent = 0
+	initCodePrinter_PrettyCodePrinter(p, lineLengthThreshold, createSourceMap, sourceMapDetailLevel, licenseTracker)
 	return p
 }
 
@@ -1049,6 +1067,25 @@ type CodePrinter_CompactCodePrinter struct {
 	preferredBreakPosition int
 }
 
+var codePrinter_compactPool = sync.Pool{
+	New: func() any {
+		return &CodePrinter_CompactCodePrinter{}
+	},
+}
+
+func initCodePrinter_CompactCodePrinter(
+	c *CodePrinter_CompactCodePrinter,
+	lineBreak bool,
+	lineLengthThreshold int,
+	createSrcMap bool,
+	sourceMapDetailLevel SourceMap_DetailLevel,
+	licenseTracker CodePrinter_LicenseTracker) {
+	c.InitCodePrinter_MappedCodePrinterBase(c, lineLengthThreshold, createSrcMap, sourceMapDetailLevel, licenseTracker)
+	c.lineStartPosition = 0
+	c.preferredBreakPosition = 0
+	c.lineBreak = lineBreak
+}
+
 // NewCodePrinter_CompactCodePrinter: lineBreak is to break the lines a bit
 // more aggressively; lineLengthThreshold is the length of a line after
 // which we force a newline when possible; createSrcMap is whether to gather
@@ -1066,10 +1103,7 @@ func NewCodePrinter_CompactCodePrinter(
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker) *CodePrinter_CompactCodePrinter {
 	c := &CodePrinter_CompactCodePrinter{}
-	c.InitCodePrinter_MappedCodePrinterBase(c, lineLengthThreshold, createSrcMap, sourceMapDetailLevel, licenseTracker)
-	c.lineStartPosition = 0
-	c.preferredBreakPosition = 0
-	c.lineBreak = lineBreak
+	initCodePrinter_CompactCodePrinter(c, lineBreak, lineLengthThreshold, createSrcMap, sourceMapDetailLevel, licenseTracker)
 	return c
 }
 
@@ -1333,19 +1367,27 @@ func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string,
 	gatherSourceMap := wantMappings && options.ShouldGatherSourceMapInfo()
 
 	var mcp CodePrinter_MappedCodePrinter
+	var pooledCompact *CodePrinter_CompactCodePrinter
+	var pooledPretty *CodePrinter_PrettyCodePrinter
 	if outputFormat == CodePrinter_Format_COMPACT {
-		mcp = NewCodePrinter_CompactCodePrinter(
+		pooledCompact = codePrinter_compactPool.Get().(*CodePrinter_CompactCodePrinter)
+		initCodePrinter_CompactCodePrinter(
+			pooledCompact,
 			b.lineBreak,
 			options.GetLineLengthThreshold(),
 			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			b.licenseTracker)
+		mcp = pooledCompact
 	} else {
-		mcp = NewCodePrinter_PrettyCodePrinter(
+		pooledPretty = codePrinter_prettyPool.Get().(*CodePrinter_PrettyCodePrinter)
+		initCodePrinter_PrettyCodePrinter(
+			pooledPretty,
 			options.GetLineLengthThreshold(),
 			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			b.licenseTracker)
+		mcp = pooledPretty
 	}
 
 	var cg CodeGenerator
@@ -1373,8 +1415,25 @@ func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string,
 		base := mcp.GetCodePrinter_MappedCodePrinterBase()
 		base.adjustSourceMappings(source)
 		mappings = base.iterMappings
-	} else if wantMappings {
-		mappings = codePrinter_emptyMappingsSeq
+	} else {
+		if wantMappings {
+			mappings = codePrinter_emptyMappingsSeq
+		}
+		if pooledCompact != nil {
+			pooledCompact.codeASCII = nil
+			pooledCompact.codeUTF16 = nil
+			pooledCompact.licenseTracker = nil
+			pooledCompact.self = nil
+			codePrinter_compactPool.Put(pooledCompact)
+		} else if pooledPretty != nil {
+			pooledPretty.codeASCII = nil
+			pooledPretty.codeUTF16 = nil
+			pooledPretty.licenseTracker = nil
+			pooledPretty.numberSourceCode = ""
+			pooledPretty.numberSourceUnits = nil
+			pooledPretty.self = nil
+			codePrinter_prettyPool.Put(pooledPretty)
+		}
 	}
 	return source, mappings
 }
@@ -1440,20 +1499,29 @@ func CodePrinter_ToSource(
 	// Go-only: language-adapter — an enum value cannot be null in Go, so the
 	// check always holds.
 
+	gatherSourceMap := options.ShouldGatherSourceMapInfo()
 	var mcp CodePrinter_MappedCodePrinter
+	var pooledCompact *CodePrinter_CompactCodePrinter
+	var pooledPretty *CodePrinter_PrettyCodePrinter
 	if outputFormat == CodePrinter_Format_COMPACT {
-		mcp = NewCodePrinter_CompactCodePrinter(
+		pooledCompact = codePrinter_compactPool.Get().(*CodePrinter_CompactCodePrinter)
+		initCodePrinter_CompactCodePrinter(
+			pooledCompact,
 			lineBreak,
 			options.GetLineLengthThreshold(),
-			options.ShouldGatherSourceMapInfo(),
+			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			licenseTracker)
+		mcp = pooledCompact
 	} else {
-		mcp = NewCodePrinter_PrettyCodePrinter(
+		pooledPretty = codePrinter_prettyPool.Get().(*CodePrinter_PrettyCodePrinter)
+		initCodePrinter_PrettyCodePrinter(
+			pooledPretty,
 			options.GetLineLengthThreshold(),
-			options.ShouldGatherSourceMapInfo(),
+			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			licenseTracker)
+		mcp = pooledPretty
 	}
 	cg := codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
 
@@ -1470,12 +1538,27 @@ func CodePrinter_ToSource(
 	result := NewCodePrinter_SourceAndMappings()
 	result.source = mcp.GetCode()
 
-	if options.ShouldGatherSourceMapInfo() {
+	if gatherSourceMap {
 		base := mcp.GetCodePrinter_MappedCodePrinterBase()
 		base.adjustSourceMappings(result.source)
 		result.mappings = base.iterMappings
 	} else {
 		result.mappings = codePrinter_emptyMappingsSeq
+		if pooledCompact != nil {
+			pooledCompact.codeASCII = nil
+			pooledCompact.codeUTF16 = nil
+			pooledCompact.licenseTracker = nil
+			pooledCompact.self = nil
+			codePrinter_compactPool.Put(pooledCompact)
+		} else if pooledPretty != nil {
+			pooledPretty.codeASCII = nil
+			pooledPretty.codeUTF16 = nil
+			pooledPretty.licenseTracker = nil
+			pooledPretty.numberSourceCode = ""
+			pooledPretty.numberSourceUnits = nil
+			pooledPretty.self = nil
+			codePrinter_prettyPool.Put(pooledPretty)
+		}
 	}
 
 	return result

@@ -566,23 +566,19 @@ func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
 func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
 
-	// Gather global information used in typed scope creation. Use a memoized scope creator because
-	// scope-building takes a nontrivial amount of time.
-	scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(c.compiler))
+	// Gather global information used in typed scope creation.
+	scopeCreator := NewSyntacticScopeCreator(c.compiler)
 	scopeCreator.EnableArenaPool()
 	defer scopeCreator.ReleaseArena()
 
-	NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)).
-		SetScopeCreator(scopeCreator).
-		TraverseRoots(root.GetFirstChild(), root.GetLastChild())
+	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
+	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
 
 	NodeTraversal_Builder_().
 		SetCompiler(c.compiler).
-		SetCallback(NewTypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable(c.typeRegistry)).
+		SetCallback(analyzer).
 		SetScopeCreator(scopeCreator).
-		Traverse(root)
+		TraverseRoots(root.GetFirstChild(), root.GetLastChild())
 
 	s := TypedScope_CreateGlobalScope(root)
 	s.arena = &c.arena
@@ -713,7 +709,17 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	}
 
 	// free up memory. we no longer need this state now that all scopes have been visited
-	c.ClearCommonState()
+	c.reservedNamesForScope = nil
+	c.arena.names = nil
+	c.scopeCount = 0
+	c.functionsWithNonEmptyReturns = nil
+	c.varFlags = nil
+	c.weakImports = nil
+	c.unresolvedNodes = nil
+	c.undeclaredNamesForClosure = nil
+	c.providedNamesFromCall = nil
+	c.normalScopeBuilderPool = nil
+	c.functionScopeBuilderPool = nil
 	c.stage = TypedScopeCreator_Stage_FROZEN
 
 	// we must keep the 'memoized' set of TypedScopes around, since later passes will use it.
@@ -783,8 +789,8 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOr
 		v.registry.IdentifyNonNullableName(t.GetScope(), *nameNode.GetQualifiedName())
 	} else if rvalue != nil &&
 		rvalue.IsQualifiedName() &&
-		v.registry.IsNonNullableName(t.GetScope(), *rvalue.GetQualifiedName()) &&
-		NodeUtil_IsConstantDeclaration(info, nameNode) {
+		NodeUtil_IsConstantDeclaration(info, nameNode) &&
+		v.registry.IsNonNullableName(t.GetScope(), *rvalue.GetQualifiedName()) {
 		v.registry.IdentifyNonNullableName(t.GetScope(), *nameNode.GetQualifiedName())
 	}
 }
@@ -4124,7 +4130,8 @@ type TypedScopeCreator_FirstOrderFunctionAnalyzer struct {
 
 	// Go-only: language-adapter — the enclosing TypedScopeCreator instance of
 	// this inner class.
-	outer *TypedScopeCreator
+	outer                    *TypedScopeCreator
+	identifyEnumsAndTypedefs TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer()
@@ -4135,10 +4142,6 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
 	a.outer.scopeCount++
-	if t.InGlobalScope() {
-		return
-	}
-	t.GetScope()
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.exitScope(NodeTraversal)
@@ -4146,7 +4149,14 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 	if t.InGlobalScope() {
 		return
 	}
-	scope := t.GetScope()
+	scope := t.scopes[len(t.scopes)-1].untypedScope
+	if scope == nil {
+		root := t.GetScopeRoot()
+		if !root.IsModuleBody() && (!root.IsFunction() || root.GetFirstChild().GetString() == "") {
+			return
+		}
+		scope = t.GetScope()
+	}
 	root := scope.GetRootNode()
 	if scope.implicitVars != nil {
 		if ev := scope.implicitVars[AbstractScope_ImplicitVar_EXPORTS]; ev != nil {
@@ -4206,6 +4216,9 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.visit(NodeTraversal, Node, Node)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if a.identifyEnumsAndTypedefs.registry != nil {
+		a.identifyEnumsAndTypedefs.Visit(t, n, parent)
+	}
 	if t.InGlobalScope() {
 		// The first-order function analyzer looks at two types of variables:
 		//
@@ -4218,11 +4231,15 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		return
 	}
 
-	containerScope := t.GetClosestContainerScope().(*Scope)
-
 	// Record function with returns or arrow functions without bodies
 	if (n.IsReturn() && n.HasChildren()) || NodeUtil_IsBlocklessArrowFunctionResult(n) {
-		a.outer.functionsWithNonEmptyReturns[containerScope.GetRootNode()] = struct{}{}
+		for i := len(t.scopes) - 1; i >= 0; i-- {
+			rootNode := t.scopes[i].node
+			if !NodeUtil_CreatesBlockScope(rootNode) {
+				a.outer.functionsWithNonEmptyReturns[rootNode] = struct{}{}
+				break
+			}
+		}
 	}
 
 	// Be careful of bleeding functions, which create variables
@@ -4241,6 +4258,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 				if (var_.nameHash & 3) < 2 {
 					var_.nameHash++
 				}
+				containerScope := scope.GetClosestContainerScope()
 				if !containerScope.HasSameContainerScope(ownerScope) {
 					var_.nameHash |= 4
 				}
@@ -4252,9 +4270,12 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		var_ := scope.GetVar(name)
 		if var_ != nil {
 			ownerScope := var_.scope
-			if ownerScope.IsLocal() && !containerScope.HasSameContainerScope(ownerScope) {
-				qName, _ := n.GetQualifiedNameString()
-				a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
+			if ownerScope.IsLocal() {
+				containerScope := scope.GetClosestContainerScope()
+				if !containerScope.HasSameContainerScope(ownerScope) {
+					qName, _ := n.GetQualifiedNameString()
+					a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
+				}
 			}
 		}
 	}

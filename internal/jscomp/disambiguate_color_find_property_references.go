@@ -41,11 +41,15 @@ type cfprPropCacheEntry struct {
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	propIndex    *jutil.LinkedHashMap[string, *PropertyClustering]
-	propSlab     jutil.Slab[PropertyClustering]
-	lastPropName string
-	lastProp     *PropertyClustering
-	propCache    [512]cfprPropCacheEntry
+	propIndex        *jutil.LinkedHashMap[string, *PropertyClustering]
+	propSlab         jutil.Slab[PropertyClustering]
+	ufNodeSlab       jutil.Slab[standardUnionFind_Node[*ColorGraphNode]]
+	useSiteChunkSlab jutil.Slab[propertyUseSiteChunk]
+	useSiteBuf       []PropertyUseSite
+	useSiteUsed      int
+	lastPropName     string
+	lastProp         *PropertyClustering
+	propCache        [512]cfprPropCacheEntry
 
 	lastOwnerColor *colors.Color
 	lastFlatOwner  *ColorGraphNode
@@ -323,16 +327,31 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	}
 	flatOwner := r.createNode(owner)
 
-	if prop.lastOwner != flatOwner {
+	if prop.lastOwner != flatOwner && prop.lastOwner2 != flatOwner {
+		prop.lastOwner2 = prop.lastOwner
 		prop.lastOwner = flatOwner
 		// Set the initial condition for flowing this property along the graph.
 		if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
 			// Make sure there's a cluster for this name/type combination.
-			prop.clusters.Add(flatOwner)
+			ufNode := r.ufNodeSlab.New()
+			ufNode.parent = ufNode
+			ufNode.element = flatOwner
+			ufNode.size = 1
+			prop.clustersMap.PutNew(flatOwner, ufNode)
 		}
 	}
 	// Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
-	prop.useSites.PutNew(site, flatOwner)
+	u := &prop.useSites
+	c := u.count
+	u.count = c + 1
+	if c < int32(len(u.inline)) {
+		u.inline[c] = PropertyUseSite{site: site, owner: flatOwner}
+	} else if tail := u.tail; tail != nil && int(u.tailUsed) < len(tail.entries) {
+		tail.entries[u.tailUsed] = PropertyUseSite{site: site, owner: flatOwner}
+		u.tailUsed++
+	} else {
+		r.addUseSiteSlow(u, site, flatOwner)
+	}
 
 	// Track the cluster of types whose properties must keep their original name after
 	// disambiguation. Note: an "enum type" is the type of an enum object like "{STOP: 0, GO: 1}".
@@ -347,4 +366,41 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 			prop.clusters.Union(prop.originalNameClusterRep, flatOwner)
 		}
 	}
+}
+
+func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site *rhino.Node, owner *ColorGraphNode) {
+	prevCount := int(u.count - 1)
+	chunkSize := 4
+	if prevCount >= 62 {
+		chunkSize = 64
+	} else if prevCount >= 30 {
+		chunkSize = 32
+	} else if prevCount >= 14 {
+		chunkSize = 16
+	} else if prevCount >= 6 {
+		chunkSize = 8
+	}
+	if len(r.useSiteBuf)-r.useSiteUsed < chunkSize {
+		n := len(r.useSiteBuf) * 2
+		if n < 256 {
+			n = 256
+		} else if n > 4096 {
+			n = 4096
+		}
+		r.useSiteBuf = make([]PropertyUseSite, n)
+		r.useSiteUsed = 0
+	}
+	entries := r.useSiteBuf[r.useSiteUsed : r.useSiteUsed+chunkSize]
+	r.useSiteUsed += chunkSize
+	entries[0] = PropertyUseSite{site: site, owner: owner}
+
+	ch := r.useSiteChunkSlab.New()
+	ch.entries = entries
+	if u.tail == nil {
+		u.head = ch
+	} else {
+		u.tail.next = ch
+	}
+	u.tail = ch
+	u.tailUsed = 1
 }

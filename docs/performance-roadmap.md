@@ -796,6 +796,48 @@ Total `alloc_space` dropped another **−552 MB (−9.5%)** on `bundle-mega` (`5
 
 See the full `Median [95% CI]` and `Mean ± SD` tables in [benchmarks.md](benchmarks.md#rounds-212-and-large--mega-real-world-advanced-benchmarks) and [README.md](../README.md).
 
+## Round 13: `GlobalNamespace` Object-Literal LValue Caching (`−154 MB`), `TemplateTypeReplacer` / `TemplateTypeMap` Inline Buffers (`−237 MB`), `PropertyUseSites` Arena (`−46 MB`), `MustDef` 512-Var Wide Bitmasks & Multi-Chunk Arenas (`−48 MB`), `FirstOrderFunctionAnalyzer` Single-Pass Traversal (`−61 MB`), and `CodePrinter` Pooling (`−65 MB`) (2026-10-21)
+
+Profiling Round 12 (`b44f03c1`) on `typed-mega` (`4.60 GB` `alloc_space`) and `bundle-mega` (`5.25 GB` `alloc_space`) identified five disjoint optimization targets:
+
+1. **`GlobalNamespace` Object-Literal LValue Caching, Top-Variable Scope Pre-Filtering, and `refSliceBuf` Slab (`Subagent 13A`, `global_namespace.go`):**
+   - Added an 8-entry MRU cache (`[8]globalNamespace_objLitCacheEntry`) and `resolveObjectLit` on `GlobalNamespace_BuildGlobalNamespace` to memoize the LValue / `Object.defineProperties` resolution (`prefix`, `root`, `scope`, `state`) per `OBJECTLIT` node across all sibling keys and nested object literals.
+   - Added `globalNamespace_topNameOfQName` to extract the top variable name of an LValue or qualified name node without allocating qualified name strings, checking `getRootNodeOfTopName` and `IsTopLevelScopeRoot(root)` **before** calling `GetQualifiedNameString()` or `nodeUtilConcatDot` (`−123.19 MB` on `typed-mega`).
+   - Added `confirmExisting` on `GlobalNamespace_BuildGlobalNamespace`, made `n.refsIndex` lazily constructed via `ensureRefsIndex()`, and added a bump-allocated slice buffer (`refSliceBuf` / `allocRefSlice`) on `GlobalNamespace` (`−30.70 MB` on `typed-mega`).
+2. **`TemplateTypeReplacer` & `TemplateTypeMap` Inline Buffers, Direct Dispatch, and Slice Sharing (`Subagent 13B`, `internal/rhino/jstype_template_type_replacer.go`, `internal/rhino/jstype_template_type_map.go`):**
+   - Replaced `TemplateTypeReplacer.seenTypes` (`*jutil.LinkedHashSet[JSType]`, `148.08 MB` on `typed-mega`) with an 8-element inline LIFO buffer (`seenTypesBuf [8]JSType`) + overflow slice, inlined `seenAdd`/`seenRemove` cycle guards into `CaseFunctionType`, `CaseObjectType`, `CaseTemplatizedType`, `CaseUnionType`, and `CaseProxyObjectType`, and added direct `visitJSType` type-switch dispatch.
+   - Replaced `visitedObjectTypes` (`*jutil.LinkedHashMap`) with `visitedObjBuf [4]visitedObjEntry` + lazy overflow map, and lazily initialized `results`/`builder`/`paramBuilder`/`RecordTypeBuilder` only when a type argument or property changes.
+   - Stack-allocated `TemplateTypeReplacer` inside `initTemplateTypeMap`, reused `m.templateValues` directly for `m.resolvedTemplateValues` when all values resolve to themselves, embedded `valuesBuf [4]JSType` in `TemplateTypeMap`, and added shared immutable `BitSet`s (`sharedSubMapStartsEmpty`, `sharedSubMapStartsZero`).
+3. **`Normalize` Direct `varList` Iteration, `StrictModeCheck` Bitmask Member Check, and `PropertyUseSites` Arena (`Subagent 13C`, `normalize.go`, `strict_mode_check.go`, `disambiguate_property_clustering.go`, `disambiguate_color_find_property_references.go`):**
+   - Replaced `GetVarIterable()` range-over-func loops in `Normalize_NormalizeStatements.fastEnterScope` with direct `varList` iteration, deferred/pre-sized `s.nameUsage`, and avoided inserting generated `name + "$jscomp$" + id` strings into `s.nameUsage` unless an input variable containing `"$jscomp$"` is encountered (`−34.75 MB` on `bundle-mega`).
+   - Replaced the 4 per-node `LinkedHashSet` allocations in `StrictModeCheck.CheckObjectLiteralOrClass` with a 0/1-child fast path, a 16-entry stack buffer `seenBuf [16]strictModeMemberEntry`, and a reusable `memberFlags map[string]uint8` (`−27.01 MB` on `typed-mega`, `−17.54 MB` on `bundle-mega`).
+   - Replaced `useSites jutil.LinkedHashMap[*rhino.Node, *ColorGraphNode]` on `PropertyClustering` with `PropertyUseSites` (56 B inline with `[2]PropertyUseSite` + geometric unrolled linked chunks carved from a contiguous `[]PropertyUseSite` arena on `ColorFindPropertyReferences`) and added `ufNodeSlab` (`−46.19 MB` on `bundle-mega`, `−45.81 MB` on `typed-mega`).
+4. **`MustBeReachingVariableDef` 512-Var Wide Bitmasks & Multi-Chunk Arenas + `InlineVariables` Scope-Indexed Slice (`Subagent 13D`, `must_def_map.go`, `must_be_reaching_variable_def.go`, `inline_variables.go`):**
+   - Extended `mustDefLayout` and `mustDefMap` from 64 to 512 variables (`[8]uint64` wide bitmasks + `uint16` IDs) while keeping the single-word `uint64` fast path for $\le 64$ variables, and converted `mustDefSlab` and `defSlab` to multi-chunk arenas (`mustDefChunks`, `defChunks`) retained across `Reset()` (`−48.61 MB` on `bundle-mega`).
+   - Replaced `handledVarsMap` in `InlineVariables_InliningBehavior` with a direct scope-indexed `handledScopeVars []InlineVariables_InlineVarAnalysis` slice indexed by `v.GetIndex()`, converted `delayedNegSlab`, `retryExpertSlab`, and `retryHandlerSlab` to multi-chunk arenas, and pooled `InlineVariables_InliningBehavior` (`−32.93 MB` on `typed-mega`).
+5. **`PureFunctionIdentifier` Lazy `GetScope()`, `TypedScopeCreator` Single-Pass Unmemoized `FirstOrderFunctionAnalyzer`, and `CodePrinter` Pooling (`Subagent 13E`, `pure_function_identifier.go`, `typed_scope_creator.go`, `code_printer.go`):**
+   - Pre-populated empty `Scope` instances on `t.scopes` outside all functions in `PureFunctionIdentifier`, deferred `traversal.GetScope()` in `visitLhsNode` and `Token_NAME` skiplisting until needed, and added `propSummariesByName` (`−31.06 MB` on `bundle-mega`).
+   - Removed the `MemoizedScopeCreator` wrapper around `SyntacticScopeCreator` in `TypedScopeCreator.CreateInitialScope`, merged `IdentifyEnumsAndTypedefsAsNonNullable` into `FirstOrderFunctionAnalyzer.Visit` (eliminating a full AST traversal), and deferred `t.GetScope()` to `FirstOrderFunctionAnalyzer.ExitScope` (`−61.57 MB` on `bundle-mega`, `−29.54 MB` on `typed-mega`).
+   - Added `sync.Pool`s (`codePrinter_compactPool` and `codePrinter_prettyPool`) for `CodePrinter_CompactCodePrinter` and `CodePrinter_PrettyCodePrinter` (`−65.69 MB` on `typed-mega`, `−21.06 MB` on `bundle-mega`).
+
+Total `alloc_space` dropped another **−430 MB (−9.3%)** on `typed-mega` (`4.60 GB → 4.17 GB`, **−64.1% vs Round 5's `11.61 GB`**) and **−300 MB (−5.7%)** on `bundle-mega` (`5.25 GB → 4.95 GB`, **−71.2% vs Round 5's `17.16 GB`**), speeding up **all 22 of 22 benchmark × thread count configurations**!
+
+### Final measured results — Round 13 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 12 (`b44f03c1` `t=1` / `t=4`) | **Round 13 (`t=1` / `t=4`)** | Round 13 vs Round 12 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`typed-mega`** (44.6 MB, 4,385 files) | 20.55 s / 19.37 s | **19.87 s** / **18.80 s** | **−3.27%** / **−2.93%** | 1,798 / 1,893 MiB (**−1.24%** `t=4`) | `MATCH` |
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 25.91 s / 25.00 s | **25.26 s** / **24.38 s** | **−2.51%** / **−2.46%** | 2,358 / 2,456 MiB | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.80 s / 11.19 s | **11.46 s** / **10.81 s** | **−2.93%** / **−3.40%** | 1,010 / 1,061 MiB (**−3.69%** `t=4`) | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 7.31 s / 7.21 s | **7.14 s** / **7.01 s** | **−2.33%** / **−2.68%** | 600 / 629 MiB (**−4.92%** `t=1`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.76 s / 4.64 s | **4.67 s** / **4.53 s** | **−1.88%** / **−2.37%** | 555 / 547 MiB (**−2.97%** `t=4`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.91 s / 4.70 s | **4.76 s** / **4.53 s** | **−3.01%** / **−3.57%** | 489 / 511 MiB (**−3.58%** `t=4`) | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.72 s / 3.55 s | **3.63 s** / **3.47 s** | **−2.58%** / **−2.39%** | 371 / 393 MiB (**−2.31%** `t=1`) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.68 s / 2.29 s | **2.58 s** / **2.19 s** | **−3.67%** / **−4.45%** | 596 / 554 MiB (**−7.18%** `t=4`) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.52 s / 1.40 s | **1.49 s** / **1.37 s** | **−2.11%** / **−2.14%** | 264 / 270 MiB (**−2.41%** `t=1`) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.18 s / 1.09 s | **1.17 s** / **1.09 s** | **−0.84%** / **−0.79%** | 210 / 205 MiB | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.57 s / 0.48 s | **0.57 s** / **0.47 s** | **−0.95%** / **−0.80%** | 170 / 169 MiB | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
