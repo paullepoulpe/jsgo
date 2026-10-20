@@ -152,7 +152,9 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	func() {
 		chunkGraphLog := a.compiler.CreateOrReopenLog(reflect.TypeFor[AmbiguateProperties](), "color_graph.dot")
 		defer chunkGraphLog.Close()
-		chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(colorGraph))
+		if chunkGraphLog.IsLogging() {
+			chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(colorGraph))
+		}
 	}()
 	for node := range a.graphNodeFactory.GetAllKnownTypes().All() {
 		node.GetSubtypeIndices().Set(node.GetIndex()) // Init subtyping as reflexive.

@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -50,11 +48,23 @@ type TypeInference struct {
 	optChainArrayDeque []*TypeInference_OptChainInfo
 
 	// Scopes that have had their unbound untyped vars inferred as undefined.
-	inferredUnboundVars *jutil.LinkedHashSet[*TypedScope]
+	inferredUnboundVarScope *TypedScope
+	inferredUnboundVars     map[*TypedScope]struct{}
 
 	// For convenience
 	unknownType             rhino.ObjectType
 	numberAdditionSupertype rhino.JSType
+
+	// Reusable per-analysis state to avoid allocations on every scope / CFG node.
+	bottomTypedScope         TypedScope
+	bottomFlowScope          LinkedFlowScope
+	flowJoiner               LinkedFlowScope_FlowScopeJoinOp
+	flowBrancher             DataFlowAnalysis_FlowBrancher[FlowScope]
+	branchSource             *rhino.Node
+	branchOutput             FlowScope
+	branchCondition          *rhino.Node
+	branchConditionFlowScope FlowScope
+	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -71,9 +81,24 @@ func NewTypeInference(
 	scopeCreator *TypedScopeCreator,
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) *TypeInference {
 	ti := &TypeInference{}
+	ti.initTypeInference(compiler, cfg, reverseInterpreter, syntacticScope, scopeCreator, assertionFunctionLookup)
+	return ti
+}
+
+func (ti *TypeInference) initTypeInference(
+	compiler AbstractCompiler,
+	cfg ControlFlowGraph[*rhino.Node],
+	reverseInterpreter ReverseAbstractInterpreter,
+	syntacticScope *TypedScope,
+	scopeCreator *TypedScopeCreator,
+	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
 	ti.InitDataFlowAnalysisBase(ti, cfg)
 	// Field initializers.
-	ti.inferredUnboundVars = jutil.NewLinkedHashSet[*TypedScope]()
+	ti.inferredUnboundVarScope = nil
+	if len(ti.inferredUnboundVars) > 0 {
+		clear(ti.inferredUnboundVars)
+	}
+	ti.optChainArrayDeque = ti.optChainArrayDeque[:0]
 	// Constructor body.
 	jutil.CheckArgumentMsg2(
 		syntacticScope.GetRootNode() == cfg.GetEntry().GetValue(),
@@ -84,27 +109,49 @@ func NewTypeInference(
 	ti.compiler = jutil.CheckNotNull(compiler)
 	ti.registry = jutil.CheckNotNull(compiler.GetTypeRegistry())
 	ti.reverseInterpreter = jutil.CheckNotNull(reverseInterpreter)
-	ti.moduleImportResolver =
-		NewModuleImportResolver(
-			compiler.GetModuleMap(), scopeCreator.GetNodeToScopeMapper(), ti.registry)
-	ti.containerScope = syntacticScope
 	ti.scopeCreator = jutil.CheckNotNull(scopeCreator)
+	if scopeCreator.moduleImportResolver != nil {
+		ti.moduleImportResolver = scopeCreator.moduleImportResolver
+	} else {
+		ti.moduleImportResolver =
+			NewModuleImportResolver(
+				compiler.GetModuleMap(), scopeCreator.GetNodeToScopeMapper(), ti.registry)
+	}
+	ti.containerScope = syntacticScope
 	ti.assertionFunctionLookup = jutil.CheckNotNull(assertionFunctionLookup)
 
 	ti.unknownType = ti.registry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
 	ti.numberAdditionSupertype = ti.registry.GetNativeType(rhino.JSTypeNative_NUMBER_ADDITION_SUPERTYPE)
 
-	ti.bottomScope =
-		LinkedFlowScope_CreateEntryLattice(
-			compiler, TypedScope_CreateLatticeBottom(syntacticScope.GetRootNode()))
-	return ti
+	rootNode := syntacticScope.GetRootNode()
+	ti.bottomTypedScope = TypedScope{}
+	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
+	ti.bottomTypedScope.CheckRootScope()
+	ti.bottomTypedScope.isBottom = true
+	ti.bottomFlowScope = LinkedFlowScope{
+		inputProvider:  compiler,
+		scopes:         rhino.HamtPMap_Empty[*TypedScope, *LinkedFlowScope_OverlayScope](),
+		syntacticScope: &ti.bottomTypedScope,
+		functionScope:  &ti.bottomTypedScope,
+	}
+	ti.bottomScope = &ti.bottomFlowScope
 }
 
 // Java: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(FlowScope)
 func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScope) FlowScope {
 	scope := flow.GetDeclarationScope().(*TypedScope)
-	if !ti.inferredUnboundVars.Add(scope) {
+	if ti.inferredUnboundVarScope == scope {
 		return flow
+	}
+	if ti.inferredUnboundVarScope == nil {
+		ti.inferredUnboundVarScope = scope
+	} else {
+		if ti.inferredUnboundVars == nil {
+			ti.inferredUnboundVars = make(map[*TypedScope]struct{}, 4)
+		} else if _, exists := ti.inferredUnboundVars[scope]; exists {
+			return flow
+		}
+		ti.inferredUnboundVars[scope] = struct{}{}
 	}
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.
@@ -437,7 +484,9 @@ func (ti *TypeInference) IsBranched() bool {
 
 // Java: TypeInference.createFlowJoiner()
 func (ti *TypeInference) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[FlowScope] {
-	return NewLinkedFlowScope_FlowScopeJoinOp(ti.compiler)
+	ti.flowJoiner.result = nil
+	ti.flowJoiner.inputProvider = ti.compiler
+	return &ti.flowJoiner
 }
 
 // Java: TypeInference.createFlowBrancher(Node, FlowScope)
@@ -447,76 +496,78 @@ func (ti *TypeInference) CreateFlowBrancher(source *rhino.Node, output FlowScope
 	// lattices of this flow with the in lattice, and then make that the out
 	// lattice for the ON_EX edge. But it's probably too expensive to be
 	// worthwhile.
-
-	// Go-only: performance — the anonymous class's three fields are one
-	// variable: Go allocates each captured variable that the closure
-	// assigns on its own, so three fields cost three allocations.
-	var fields struct {
-		condition          *rhino.Node
-		conditionFlowScope FlowScope
-		conditionOutcomes  *TypeInference_BooleanOutcomePair
+	ti.branchSource = source
+	ti.branchOutput = output
+	ti.branchCondition = nil
+	ti.branchConditionFlowScope = nil
+	ti.branchConditionOutcomes = nil
+	if ti.flowBrancher == nil {
+		ti.flowBrancher = ti.branchFlow
 	}
+	return ti.flowBrancher
+}
 
-	return func(branch ControlFlowGraph_Branch) FlowScope {
-		switch branch {
-		case ControlFlowGraph_Branch_ON_TRUE:
-			if NodeUtil_IsEnhancedFor(source) {
-				return ti.InitializeEnhancedForScope(source, output)
+func (ti *TypeInference) branchFlow(branch ControlFlowGraph_Branch) FlowScope {
+	source := ti.branchSource
+	output := ti.branchOutput
+	switch branch {
+	case ControlFlowGraph_Branch_ON_TRUE:
+		if NodeUtil_IsEnhancedFor(source) {
+			return ti.InitializeEnhancedForScope(source, output)
+		}
+		// FALL THROUGH
+		fallthrough
+
+	case ControlFlowGraph_Branch_ON_FALSE:
+		if ti.branchCondition == nil {
+			if source.IsCase() {
+				ti.branchCondition = source
+				ti.branchConditionFlowScope = ti.Traverse(ti.branchCondition.GetFirstChild(), output)
+			} else {
+				ti.branchCondition = NodeUtil_GetConditionExpression(source)
+				if ti.branchCondition == nil {
+					return output
+				}
 			}
-			// FALL THROUGH
-			fallthrough
+		}
 
-		case ControlFlowGraph_Branch_ON_FALSE:
-			if fields.condition == nil {
-				if source.IsCase() {
-					fields.condition = source
-					fields.conditionFlowScope = ti.Traverse(fields.condition.GetFirstChild(), output)
+		if ti.branchCondition.IsAnd() || ti.branchCondition.IsOr() {
+			// When handling the short-circuiting binary operators,
+			// the outcome scope on true can be different than the outcome
+			// scope on false.
+			//
+			// TODO(nicksantos): The "right" way to do this is to
+			// carry the known outcome all the way through the
+			// recursive traversal, so that we can construct a
+			// different flow scope based on the outcome. However,
+			// this would require a bunch of code and a bunch of
+			// extra computation for an edge case. This seems to be
+			// a "good enough" approximation.
+
+			// conditionOutcomes is cached from previous calls to the brancher
+			if ti.branchConditionOutcomes == nil {
+				if ti.branchCondition.IsAnd() {
+					ti.branchConditionOutcomes = ti.TraverseAnd(ti.branchCondition, output)
 				} else {
-					fields.condition = NodeUtil_GetConditionExpression(source)
-					if fields.condition == nil {
-						return output
-					}
+					ti.branchConditionOutcomes = ti.TraverseOr(ti.branchCondition, output)
 				}
-			}
-
-			if fields.condition.IsAnd() || fields.condition.IsOr() {
-				// When handling the short-circuiting binary operators,
-				// the outcome scope on true can be different than the outcome
-				// scope on false.
-				//
-				// TODO(nicksantos): The "right" way to do this is to
-				// carry the known outcome all the way through the
-				// recursive traversal, so that we can construct a
-				// different flow scope based on the outcome. However,
-				// this would require a bunch of code and a bunch of
-				// extra computation for an edge case. This seems to be
-				// a "good enough" approximation.
-
-				// conditionOutcomes is cached from previous calls to the brancher
-				if fields.conditionOutcomes == nil {
-					if fields.condition.IsAnd() {
-						fields.conditionOutcomes = ti.TraverseAnd(fields.condition, output)
-					} else {
-						fields.conditionOutcomes = ti.TraverseOr(fields.condition, output)
-					}
-				}
-				return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
-					fields.condition,
-					fields.conditionOutcomes.GetOutcomeFlowScope(
-						fields.condition.GetToken(), branch == ControlFlowGraph_Branch_ON_TRUE),
-					rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
-			}
-
-			// conditionFlowScope is cached from previous calls to the brancher
-			if fields.conditionFlowScope == nil {
-				fields.conditionFlowScope = ti.Traverse(fields.condition, output)
 			}
 			return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
-				fields.condition, fields.conditionFlowScope, rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
-
-		default:
-			return output
+				ti.branchCondition,
+				ti.branchConditionOutcomes.GetOutcomeFlowScope(
+					ti.branchCondition.GetToken(), branch == ControlFlowGraph_Branch_ON_TRUE),
+				rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
 		}
+
+		// conditionFlowScope is cached from previous calls to the brancher
+		if ti.branchConditionFlowScope == nil {
+			ti.branchConditionFlowScope = ti.Traverse(ti.branchCondition, output)
+		}
+		return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
+			ti.branchCondition, ti.branchConditionFlowScope, rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
+
+	default:
+		return output
 	}
 }
 
@@ -1774,7 +1825,11 @@ func (ti *TypeInference) TraverseObjectLiteral(n *rhino.Node, scope FlowScope) F
 		return scope
 	}
 
-	qObjName := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
+	var qObjName string
+	var hasQObjName bool
+	if n.GetFirstChild() != nil {
+		qObjName, hasQObjName = nodeUtil_getBestLValueNameString(NodeUtil_GetBestLValue(n))
+	}
 	for key := n.GetFirstChild(); key != nil; key = key.GetNext() {
 		if key.IsComputedProp() {
 			// Don't define computed properties as inferred properties on the object
@@ -1808,8 +1863,8 @@ func (ti *TypeInference) TraverseObjectLiteral(n *rhino.Node, scope FlowScope) F
 		}
 
 		// Do normal flow inference if this is a direct property assignment.
-		if qObjName != nil && key.IsStringKey() {
-			qKeyName := *qObjName + "." + memberName
+		if hasQObjName && key.IsStringKey() {
+			qKeyName := qObjName + "." + memberName
 			var_ := TypeInference_GetDeclaredVar(scope, qKeyName)
 			var oldType rhino.JSType
 			if var_ != nil {
@@ -2191,7 +2246,9 @@ func (ti *TypeInference) UpdateTypeOfArguments(n *rhino.Node, fnType rhino.Funct
 	jutil.CheckStateMsg1(NodeUtil_IsInvocation(n), "%s", n)
 	parameters := fnType.GetParameters()
 	nextParameter := 0
-	if n.IsTaggedTemplateLit() {
+	var curArg *rhino.Node
+	isTaggedTemplateLit := n.IsTaggedTemplateLit()
+	if isTaggedTemplateLit {
 		// Skip the first parameter because it corresponds to a constructed array of the template lit
 		// subs, not an actual AST node, so there's nothing to update.
 		if nextParameter >= len(parameters) {
@@ -2199,14 +2256,22 @@ func (ti *TypeInference) UpdateTypeOfArguments(n *rhino.Node, fnType rhino.Funct
 			return
 		}
 		nextParameter++
+		for curArg = n.GetLastChild().GetFirstChild(); curArg != nil && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
+		}
+	} else {
+		curArg = n.GetSecondChild()
 	}
-	arguments := slices.Collect(NodeUtil_GetInvocationArgsAsIterable(n))
-	nextArgument := 0
 
 	// Note: if there are too many or too few arguments, TypeCheck will warn.
-	for nextParameter < len(parameters) && nextArgument < len(arguments) {
-		iArgument := arguments[nextArgument]
-		nextArgument++
+	for nextParameter < len(parameters) && curArg != nil {
+		iArgument := curArg
+		curArg = curArg.GetNext()
+		if isTaggedTemplateLit {
+			iArgument = iArgument.GetFirstChild()
+			for curArg != nil && !curArg.IsTemplateLitSub() {
+				curArg = curArg.GetNext()
+			}
+		}
 		iArgumentType := ti.GetJSType(iArgument)
 
 		iParameter := parameters[nextParameter]
@@ -2350,19 +2415,14 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n *rhino.Node, fnType rhino.
 	bindings :=
 		NewInvocationTemplateTypeMatcher(ti.registry, fnType, scope.GetTypeOfThis(), n).Match()
 	inferred := jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
-	for _, key := range keys {
-		inferred.Put(key, bindings.GetOrDefault(key, ti.unknownType))
-	}
-
 	// If the inferred type doesn't satisfy the template bound, swap to using the bound. This
 	// ensures errors will be reported in type-checking.
-	for _, k := range slices.Collect(inferred.Keys()) {
-		v := inferred.Get(k)
-		if v.IsSubtypeOf(k.GetBound()) {
-			inferred.Put(k, v)
-		} else {
-			inferred.Put(k, k.GetBound())
+	for _, key := range keys {
+		v := bindings.GetOrDefault(key, ti.unknownType)
+		if !v.IsSubtypeOf(key.GetBound()) {
+			v = key.GetBound()
 		}
+		inferred.Put(key, v)
 	}
 
 	// Try to infer the template types using the type transformations
@@ -2505,14 +2565,26 @@ func (ti *TypeInference) InferGetElemType(n *rhino.Node) {
 
 // Java: TypeInference.dereferenceKnownSymbolProp(JSType, KnownSymbolType)
 func (ti *TypeInference) DereferenceKnownSymbolProp(obj rhino.JSType, indexSymbol *rhino.KnownSymbolType) rhino.JSType {
+	if !obj.IsUnionType() {
+		objType := obj.ToMaybeObjectType()
+		if objType == nil {
+			return nil
+		}
+		propertyType := objType.FindPropertyTypeByKey(rhino.NewProperty_SymbolKey(indexSymbol))
+		if propertyType == nil {
+			return nil
+		}
+		if !propertyType.IsUnionType() && !propertyType.IsNoType() {
+			return propertyType
+		}
+		argumentTypes := rhino.UnionType_Builder_(ti.registry)
+		argumentTypes.AddAlternate(propertyType)
+		return argumentTypes.Build()
+	}
+
 	// If this is a union type, then we must extract type arguments from each option.
 	argumentTypes := rhino.UnionType_Builder_(ti.registry)
-	var alternates []rhino.JSType
-	if obj.IsUnionType() {
-		alternates = obj.ToMaybeUnionType().GetAlternates()
-	} else {
-		alternates = []rhino.JSType{obj}
-	}
+	alternates := obj.ToMaybeUnionType().GetAlternates()
 	key := rhino.NewProperty_SymbolKey(indexSymbol)
 	for _, option := range alternates {
 		if option.ToMaybeObjectType() == nil {
@@ -2540,14 +2612,23 @@ func (ti *TypeInference) DereferenceKnownSymbolProp(obj rhino.JSType, indexSymbo
 
 // Java: TypeInference.dereferenceIndexSignature(JSType)
 func (ti *TypeInference) DereferenceIndexSignature(obj rhino.JSType) rhino.JSType {
+	if !obj.IsUnionType() {
+		typeMap := obj.GetTemplateTypeMap()
+		if !typeMap.HasTemplateType(ti.registry.GetObjectElementKey()) {
+			return nil
+		}
+		resolved := typeMap.GetResolvedTemplateType(ti.registry.GetObjectElementKey())
+		if !resolved.IsUnionType() && !resolved.IsNoType() {
+			return resolved
+		}
+		argumentTypes := rhino.UnionType_Builder_(ti.registry)
+		argumentTypes.AddAlternate(resolved)
+		return argumentTypes.Build()
+	}
+
 	// If this is a union type, then we must extract type arguments from each option.
 	argumentTypes := rhino.UnionType_Builder_(ti.registry)
-	var alternates []rhino.JSType
-	if obj.IsUnionType() {
-		alternates = obj.ToMaybeUnionType().GetAlternates()
-	} else {
-		alternates = []rhino.JSType{obj}
-	}
+	alternates := obj.ToMaybeUnionType().GetAlternates()
 	for _, option := range alternates {
 		typeMap := option.GetTemplateTypeMap()
 		if !typeMap.HasTemplateType(ti.registry.GetObjectElementKey()) {

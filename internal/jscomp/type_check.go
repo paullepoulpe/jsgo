@@ -21,7 +21,6 @@ package jscomp
 import (
 	"math"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -58,6 +57,8 @@ type TypeCheck struct {
 	nullCount    int
 	unknownCount int
 	inExterns    bool
+
+	badKeyCheckedTypes *jutil.ObjectLinkedHashSet[rhino.JSType]
 
 	// Logs types for @logTypeInCompiler.
 	debugTypeLogger *TypeCheck_DebugTypeLogger
@@ -2495,27 +2496,30 @@ func (tc *TypeCheck) CheckConstructor(n *rhino.Node, functionType rhino.Function
 		}
 
 		// Warn if any @implemented types are not interfaces or if there are any duplicates
-		alreadySeenInterfaces := jutil.NewObjectLinkedHashSet[rhino.JSType]()
+		implementedInterfaces := functionType.GetOwnImplementedInterfaces()
+		if len(implementedInterfaces) > 0 {
+			alreadySeenInterfaces := jutil.NewObjectLinkedHashSet[rhino.JSType]()
 
-		for _, baseInterfaceObjectType := range functionType.GetOwnImplementedInterfaces() {
-			var baseInterface rhino.JSType = baseInterfaceObjectType
-			badImplementedType := false
-			baseInterfaceObj := rhino.ObjectType_Cast(baseInterface)
-			if baseInterfaceObj != nil {
-				interfaceConstructor := baseInterfaceObj.GetConstructor()
-				if interfaceConstructor != nil && !interfaceConstructor.IsInterface() {
+			for _, baseInterfaceObjectType := range implementedInterfaces {
+				var baseInterface rhino.JSType = baseInterfaceObjectType
+				badImplementedType := false
+				baseInterfaceObj := rhino.ObjectType_Cast(baseInterface)
+				if baseInterfaceObj != nil {
+					interfaceConstructor := baseInterfaceObj.GetConstructor()
+					if interfaceConstructor != nil && !interfaceConstructor.IsInterface() {
+						badImplementedType = true
+					}
+				} else {
 					badImplementedType = true
 				}
-			} else {
-				badImplementedType = true
-			}
-			if badImplementedType {
-				tc.Report(n, TypeCheck_BAD_IMPLEMENTED_TYPE, tc.GetBestFunctionName(n))
-			}
-			// Disallow implementing both `Foo<string>` and `Foo<number>`, for example.
-			baseInterface = tc.NormalizeTemplatizedType(baseInterface)
-			if !alreadySeenInterfaces.Add(baseInterface) {
-				tc.Report(n, TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, baseInterface.String())
+				if badImplementedType {
+					tc.Report(n, TypeCheck_BAD_IMPLEMENTED_TYPE, tc.GetBestFunctionName(n))
+				}
+				// Disallow implementing both `Foo<string>` and `Foo<number>`, for example.
+				baseInterface = tc.NormalizeTemplatizedType(baseInterface)
+				if !alreadySeenInterfaces.Add(baseInterface) {
+					tc.Report(n, TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, baseInterface.String())
+				}
 			}
 		}
 		// check properties
@@ -2696,8 +2700,107 @@ func (tc *TypeCheck) VisitCall(t *NodeTraversal, n *rhino.Node) {
 // Java: TypeCheck.visitArgumentList(Node, FunctionType)
 func (tc *TypeCheck) VisitArgumentList(call *rhino.Node, functionType rhino.FunctionType) {
 	parameters := functionType.GetParameters()
-	arguments := slices.Collect(NodeUtil_GetInvocationArgsAsIterable(call))
-	tc.CheckArgumentsMatchParameters(call, functionType, arguments, parameters, 0)
+	tc.checkInvocationArgumentsMatchParameters(call, functionType, parameters, 0)
+}
+
+func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
+	call *rhino.Node,
+	functionType rhino.FunctionType,
+	parameters []*rhino.FunctionType_Parameter,
+	firstParameterIndex int) {
+
+	spreadArgumentCount := 0
+	normalArgumentCount := firstParameterIndex
+	checkArgumentTypeAgainstParameter := true
+	var parameter *rhino.FunctionType_Parameter
+	var argument *rhino.Node
+	nextParameter := 0
+
+	var curArg *rhino.Node
+	isTaggedTemplateLit := call.IsTaggedTemplateLit()
+	if isTaggedTemplateLit {
+		for curArg = call.GetLastChild().GetFirstChild(); curArg != nil && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
+		}
+	} else {
+		curArg = call.GetSecondChild()
+	}
+
+	for curArg != nil {
+		argument = curArg
+		curArg = curArg.GetNext()
+		if isTaggedTemplateLit {
+			argument = argument.GetFirstChild()
+			for curArg != nil && !curArg.IsTemplateLitSub() {
+				curArg = curArg.GetNext()
+			}
+		}
+
+		// Count normal & spread arguments.
+		if argument.IsSpread() {
+			// we have some form of this case
+			// someCall(arg1, arg2, ...firstSpreadExpression, argN, ...secondSpreadExpression)
+			spreadArgumentCount++
+			// Once we see a spread parameter, we can no longer match up arguments with parameters.
+			checkArgumentTypeAgainstParameter = false
+		} else {
+			normalArgumentCount++
+		}
+
+		// Get the next parameter, if we're still matching parameters and arguments.
+		if checkArgumentTypeAgainstParameter {
+			if nextParameter < len(parameters) {
+				parameter = parameters[nextParameter]
+				nextParameter++
+			} else if parameter != nil && parameter.IsVariadic() {
+				// use varargs for all remaining parameters
+			} else {
+				// else we ran out of parameters and will report that after this loop
+				parameter = nil
+				checkArgumentTypeAgainstParameter = false
+			}
+		}
+
+		if checkArgumentTypeAgainstParameter {
+			tc.validator.ExpectArgumentMatchesParameter(
+				argument, tc.GetJSType(argument), parameter.GetJSType(), call, normalArgumentCount)
+		}
+	}
+
+	minArity := functionType.GetMinArity()
+	maxArity := functionType.GetMaxArity()
+
+	if spreadArgumentCount > 0 {
+		if normalArgumentCount > maxArity {
+			// We cannot reliably check whether the total argument count is wrong, but we can at
+			// least tell if there are more arguments than the function can handle even ignoring the
+			// spreads.
+			maxArityText := ""
+			if maxArity != math.MaxInt32 {
+				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
+			}
+			tc.Report(
+				call,
+				TypeCheck_WRONG_ARGUMENT_COUNT,
+				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
+				"at least "+strconv.Itoa(normalArgumentCount),
+				strconv.Itoa(minArity),
+				maxArityText)
+		}
+	} else {
+		if minArity > normalArgumentCount || maxArity < normalArgumentCount {
+			maxArityText := ""
+			if maxArity != math.MaxInt32 {
+				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
+			}
+			tc.Report(
+				call,
+				TypeCheck_WRONG_ARGUMENT_COUNT,
+				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
+				strconv.Itoa(normalArgumentCount),
+				strconv.Itoa(minArity),
+				maxArityText)
+		}
+	}
 }
 
 // CheckArgumentsMatchParameters checks that a list of arguments match a list
@@ -2766,15 +2869,15 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 	minArity := functionType.GetMinArity()
 	maxArity := functionType.GetMaxArity()
 
-	maxArityText := ""
-	if maxArity != math.MaxInt32 {
-		maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
-	}
 	if spreadArgumentCount > 0 {
 		if normalArgumentCount > maxArity {
 			// We cannot reliably check whether the total argument count is wrong, but we can at
 			// least tell if there are more arguments than the function can handle even ignoring the
 			// spreads.
+			maxArityText := ""
+			if maxArity != math.MaxInt32 {
+				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
+			}
 			tc.Report(
 				call,
 				TypeCheck_WRONG_ARGUMENT_COUNT,
@@ -2785,6 +2888,10 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 		}
 	} else {
 		if minArity > normalArgumentCount || maxArity < normalArgumentCount {
+			maxArityText := ""
+			if maxArity != math.MaxInt32 {
+				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
+			}
 			tc.Report(
 				call,
 				TypeCheck_WRONG_ARGUMENT_COUNT,
@@ -2993,8 +3100,8 @@ func (tc *TypeCheck) VisitTaggedTemplateLit(n *rhino.Node) {
 	}
 
 	// Validate the remaining parameters (the template literal substitutions)
-	tc.CheckArgumentsMatchParameters(
-		n, tagFnType, slices.Collect(NodeUtil_GetInvocationArgsAsIterable(n)), parameters, 1)
+	tc.checkInvocationArgumentsMatchParameters(
+		n, tagFnType, parameters, 1)
 }
 
 // VisitBinaryOperator unifies the type checking involved in the core binary
@@ -3277,8 +3384,10 @@ func (tc *TypeCheck) CheckJsdocInfoContainsObjectWithBadKey(n *rhino.Node) {
 		tc.CheckTypeContainsObjectWithBadKey(n, info.GetType())
 		tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
 		tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
-		for param := range info.GetParameterNames().All() {
-			tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterType(param))
+		if info.GetParameterCount() > 0 {
+			for param := range info.GetParameterNames().All() {
+				tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterType(param))
+			}
 		}
 	}
 }
@@ -3287,8 +3396,17 @@ func (tc *TypeCheck) CheckJsdocInfoContainsObjectWithBadKey(n *rhino.Node) {
 func (tc *TypeCheck) CheckTypeContainsObjectWithBadKey(n *rhino.Node, type_ *rhino.JSTypeExpression) {
 	if type_ != nil && type_.GetRoot().GetJSType() != nil {
 		realType := type_.GetRoot().GetJSType()
+		if !realType.IsTemplatizedType() && !realType.IsUnionType() && !realType.IsOrdinaryFunction() {
+			return
+		}
+		if tc.badKeyCheckedTypes == nil {
+			tc.badKeyCheckedTypes = jutil.NewObjectLinkedHashSet[rhino.JSType]()
+		} else {
+			tc.badKeyCheckedTypes.Clear()
+		}
 		objectWithBadKey :=
-			tc.FindObjectWithNonStringifiableKey(realType, jutil.NewObjectLinkedHashSet[rhino.JSType]())
+			tc.FindObjectWithNonStringifiableKey(realType, tc.badKeyCheckedTypes)
+		tc.badKeyCheckedTypes.Clear()
 		if objectWithBadKey != nil {
 			tc.compiler.Report(JSError_MakeWithNode(n, TypeCheck_NON_STRINGIFIABLE_OBJECT_KEY, objectWithBadKey.String()))
 		}
@@ -3403,12 +3521,13 @@ func (tc *TypeCheck) IsObjectTypeWithNonStringifiableKey(type_ rhino.JSType) boo
 // Java: TypeCheck.findObjectWithNonStringifiableKey(JSType, Set<JSType>)
 func (tc *TypeCheck) FindObjectWithNonStringifiableKey(
 	type_ rhino.JSType, alreadyCheckedTypes *jutil.ObjectLinkedHashSet[rhino.JSType]) rhino.JSType {
-	if alreadyCheckedTypes.Contains(type_) {
+	if !type_.IsTemplatizedType() && !type_.IsUnionType() && !type_.IsOrdinaryFunction() {
+		return nil
+	}
+	if !alreadyCheckedTypes.Add(type_) {
 		// This can happen in recursive types. Current type already being checked earlier in
 		// stacktrace so now we just skip it.
 		return nil
-	} else {
-		alreadyCheckedTypes.Add(type_)
 	}
 	if tc.IsObjectTypeWithNonStringifiableKey(type_) {
 		return type_
@@ -3483,6 +3602,12 @@ func (tc *TypeCheck) CheckNotReadonlyPropertyAssignment(lhs *rhino.Node) {
 
 	// We could be a reference to "ReadonlyArray" or a templatized wrapper.
 	roArray := tc.GetNativeType(rhino.JSTypeNative_READONLY_ARRAY_TYPE)
+	if !lhsType.IsUnionType() {
+		if roArray.Equals(lhsType) || roArray.Equals(TypeCheck_MaybeReferencedType(lhsType)) {
+			tc.compiler.Report(JSError_MakeWithNode(lhs, TypeCheck_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, lhsType.String()))
+		}
+		return
+	}
 	alternates := TypeCheck_FlattenUnion(lhsType)
 	for i := 0; i < len(alternates); i++ {
 		type_ := alternates[i]

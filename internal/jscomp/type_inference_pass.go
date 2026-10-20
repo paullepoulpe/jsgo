@@ -35,6 +35,7 @@ type TypeInferencePass struct {
 	topScope                *TypedScope
 	scopeCreator            *TypedScopeCreator
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup
+	reusableTypeInference   TypeInference
 
 	// (stepCount, Token) -> populationCount
 	//
@@ -165,9 +166,9 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 // Java: TypeInferencePass.inferScope(Node, TypedScope)
 func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
 	cfg := p.ComputeCfg(n)
-	typeInference :=
-		NewTypeInference(
-			p.compiler, cfg, p.reverseInterpreter, scope, p.scopeCreator, p.assertionFunctionLookup)
+	typeInference := &p.reusableTypeInference
+	typeInference.initTypeInference(
+		p.compiler, cfg, p.reverseInterpreter, scope, p.scopeCreator, p.assertionFunctionLookup)
 	typeInference.Analyze()
 
 	if p.stepCountHistogram != nil {
