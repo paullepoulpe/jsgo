@@ -580,7 +580,10 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		(parentVar != nil && parentVar.IsParam()) ||
 		(name == syntacticScopeCreator_ARGUMENTS &&
 			(sc.rootNode.IsFunction() || isFnBlock)) {
-		if s.redeclarationHandler != SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER && !sc.varsInitialized && s.smallLen > 0 {
+		// The exported default handler can be replaced with arbitrary callbacks,
+		// including noncomparable values. Only the exact stock handler type is
+		// known not to inspect or mutate the scope (its nil receiver is safe too).
+		if _, stockDefault := s.redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stockDefault && !sc.varsInitialized && s.smallLen > 0 {
 			s.flushSmallVarsForMore()
 		}
 		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
