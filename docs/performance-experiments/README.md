@@ -1,21 +1,28 @@
 # Performance experiment record
 
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
-The strongest completed typed comparison (`1fe9acbb`) uses three independently
-restarted, settled JVM cohorts and 30 alternating byte-identical pairs:
-**Java/Go time 1.1079 and peak RSS 2.1474**, or 9.74% less Go time and 53.43%
-less Go RSS. This is one workload/host and Java21, not broad JVM superiority.
-The subsequent `42aaa853` Go-only screen improves typed time about3.4% versus
-that old Go build; historical Java times are not mixed with new Go clocks.
+The completed generated BigQuery ADVANCED comparison at `62296baf` uses three
+independently restarted, settled Java 21 JVMs and 15 alternating pairs:
+**Java/Go time 1.10356 (95% interval 1.07086–1.14071), peak RSS 3.69822
+(3.38408–4.12012)**. Go uses 9.38% less elapsed and 72.96% less peak RSS.
+Every pair matches all six output digests under actual 4 GiB/two-CPU limits.
+Java RSS includes JVM warmup/JIT; Go RSS is each fresh process's lifetime peak.
+This is one workload/host/N1/Java 21 result, not broad JVM superiority.
 
-The next integration `3a996604` passes the complete normal suite: 3,857 tests
-passed, with37 existing skips, across575 effective files and21 packages. Latest
-main `e5d0987a` is integrated locally at `4159dc5b`, source-reviewed with runtime,
-strict CLI parity and fresh timing still pending. Compiler code on PR23 stays
-at its earlier verified integration until those gates pass. The measured bare
-Node64 redesign regresses typed/bundle time by5.3%/8.1% and is not promoted.
-[The v9 record](round4-publication-v9.json) and [80-state source manifest](round4-source-manifest-v9.json)
-preserve the experiment, failed attempts, new source fixes and pending plans.
+`62296baf` passes the full normal suite (3,871 PASS, 37 existing SKIP, 583 files,
+21 packages) and three strict CLI gates. Its Go-only screen versus `42aaa853`
+shows 8.68% less typed time and 7.44% less bundle time; typed RSS is roughly flat,
+bundle RSS rises 18.23%. These are delivered code+PGO comparisons. Historical
+Java clocks are never mixed with new Go measurements. The earlier typed
+warm-JVM result at `1fe9acbb` remains 9.74% less time / 53.43% less RSS.
+
+Latest main `9c895b43` is integrated at `e225c0a0`, source-reviewed with seven
+new regressions. All 3,915 normal tests are accounted for across package runs
+(3,878 PASS, 37 existing SKIP); the initial disk-guard stop remains explicit.
+All three CLI byte checks also pass. Its performance is not
+established by the 622 receipts. The bare Node64 factor regresses typed/bundle time
+by 5.3%/8.1% and is not promoted. Full external-Java corpus and compiler-wide
+race coverage remain open. Failed, rejected and unrun states remain documented.
 
 The sections below preserve the completed October19 investigation and its
 original cohorts. Their statements about final workload results and paused work

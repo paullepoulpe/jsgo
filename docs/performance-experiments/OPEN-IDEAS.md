@@ -1,28 +1,47 @@
 # Open performance ideas
 
-The next integration is`42aaa853` on main`abcf69a0` (production-identical
-to`ae9008f2`; two new test fixtures corrected). Full normal and three strict
-Java CLI byte gates now pass; all28 new regression roots pass. All completed warm-JVM results below retain their
-named earlier source. New source-only factors target this integration; none
-has yet produced a new performance result. The old Scope186/Var341 factor is
-deferred because new page-aligned large chunks remove its density rationale.
+The measured integration is `62296baf` on main `e5d0987a`, with full normal
+and three strict Java CLI gates passing. A new generated BigQuery ADVANCED
+comparison measures 9.38% less elapsed and 72.96% less peak RSS versus warm Java 21
+(three settled JVMs, 15 alternating pairs, all bytes equal, actual 4 GiB/two CPUs).
+Its Go-only screen versus `42aaa853` measures 8.68% less typed time and 7.44% less
+bundle time, with flat typed RSS and 18.23% higher bundle RSS. Code and PGO change
+together. [ROUND4.md](ROUND4.md) gives uncertainty and memory windows.
 
-The prior fully validated frozen baseline was `1fe9acbb`: main `bb521c0f` plus four validated
-compatibility corrections. It passes the full normal suite and three Java
-CLI byte gates. An 18-row Go-only screen now measures the main update and
-compatibility cost separately. Three completed fresh typed JVM cohorts give
-fixed Go a Java/Go time ratio1.10789 and RSS ratio2.14739, with every byte
-matching. These results include main optimizations, not the unrun factors.
+New main `9c895b43` is integrated separately at `e225c0a0`; source review and full normal coverage pass across package runs after a disk
+guard stop. The original interrupted command remains failed. Seven added roots protect custom callbacks,
+creator ordering and stable names. Current CPU/allocation profiles and full
+live-Java corpus/race coverage remain open. Historical budgets below are not
+latest-main evidence, and old Java timings cannot establish new-source wins.
 
-The fresh18-row Go-only screen on42aaa measures3.41% less typed elapsed time
-and3.22% less bundle elapsed against1fe, with flat typed RSS and7.97% less
-bundle RSS (median same-round ratios; three samples/build/task, raw variation
-retained). All18 match Java's bytes. A fresh warm-JVM comparison on42aaa is
-still needed. The experimental Node/slab/container/traversal factors remain
-unmeasured and unpromoted. Fresh42aaa CPU/alloc profiles now pass both Java gates and are decoded/stopped:
-GetNext16.32% flattyped CPU, GCscan union9.77%, madvise+otherSyscalls0.318%.
-Typed sampled allocation4182.08MiB vs prior5788.92 is diagnostic cumulative
-traffic, not a prediction of elapsed/RSS. The older attribution below is historical.
+Bare Node64/cap128 is **measured and rejected**:5.32%/8.10% more typed/bundle
+time and 3.27%/1.77% more RSS on original 42. Common cold-record allocation and
+decode/inlining costs remain plausible causes, not quantified attribution.
+The refined setter/Init paths, cap127 and Node80 controls remain unrun; retry
+requires latest-source port, correctness/codegen gates and paired measurements.
+
+A new **source-only Node72 rare-scalar-spill schema** keeps eight native GC
+pointers and ordinary payload access while packing common token/length metadata.
+It needs8 token bits and20 common length bits; rare full-int32 values use immutable
+spill records. No implementation or timing exists. Hot token-branch cost,
+Init/Clone/value-copy aliases, mixed payload publication, and new races between
+formerly distinct packed fields need proof; scalar CAS alone does not solve
+spill publication. Existing80B nodes already derive lastChild from first.previous;
+there is no redundant last pointer or trivial lossless 72B layout. Node72 is an
+open design, not a promised gain or a promoted replacement.
+
+Per-function parallelism remains bounded by owned CFG/liveness preparation,
+nonancestor batches and ordered serial mutation; earlier CPU profiles suggest
+a small removable budget. Native scope callbacks require owner-bound proof,
+not exact handler type alone. Native container/hash assumptions must be checked
+against actual assembly: string/pointer maps already use faststring lookups.
+Private container/traversal factors and index-linked ASTs remain separately
+named unrun or model-only candidates. No GOGC tuning is part of these factors.
+
+A prepared 32-chunk ADVANCED workload uses 1,820 real inputs and 103 strict digests;
+its chunk chain is synthetic and not a production split DAG. Its warm comparison
+needs latest-source receipts and a long quiet slot. A genuine application graph,
+additional generated workloads and Java 25 remain useful coverage gaps.
 
 Historical1fe fixed-main profiles attribute 13.40% of typed CPU to traversal methods,
 8.99% to the inlined GetNext load and a 14.16% union to GC scan stacks. These

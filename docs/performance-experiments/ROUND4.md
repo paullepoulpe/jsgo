@@ -1,27 +1,79 @@
 # Round 4: verified baselines and enterprise benchmark protocol
 
-The latest source checkpoint integrates main `e5d0987a` at `4159dc5b` with
-compatibility and ownership corrections. It is **source-reviewed, not yet
-runtime-validated** at this checkpoint. The preceding main `f1c0cd2e`
-integration `3a996604` passes the full normal suite: **575 effective files,
-3,894 top-level tests = 3,857 PASS + 37 existing SKIP, 21 packages**. All original
-nested test names/statuses and the previously verified test-source hashes are
-preserved. No new skip or OOM occurred. Full live-Java corpus parity, the race
-suite, and a fresh latest-main JVM comparison remain outstanding.
+The latest **measured** integration is `62296baf`, based on main `e5d0987a`.
+It passes the full normal suite: **583 effective files, 3,908 top-level tests =
+3,871 PASS + 37 existing SKIP, 21 packages**, including all 51 added regression
+roots. Three ordinary CLI gates match all six Java digests. Full external-Java
+corpus parity and compiler-wide race coverage remain outstanding.
 
-The bare 64-byte AST-node experiment is now measured and **rejected for
-promotion**: four balanced pairs per workload made typed compilation 5.32%
-slower and bundle compilation 8.10% slower. Peak-RSS paired means rose 3.27%
-and 1.77%, respectively, with substantial memory variance. Details and raw
-records follow under “Measured compact-node experiment.” These are Go-only
-comparisons on the earlier `42aaa853` baseline, not Java results.
+New main `9c895b43` is integrated separately at `e225c0a0`, with callback,
+variable-key and scope/CFG compatibility corrections. Source review and normal validation pass: **587 effective files, 3,915 roots
+= 3,878 PASS + 37 existing SKIP, 21 packages**, including seven new roots. Its
+three ordinary CLI gates also match all six Java digests. Its new code/PGO is
+not the source measured by the following results.
 
-The strongest completed typed warm-JVM result remains **9.74% less elapsed
-time and 53.43% less peak process RSS** at `1fe9acbb`, on one host/workload.
-The later `42aaa853` Go-only screen adds about 3.4% less typed time versus that
-old Go build, but historical Java times cannot establish a new-main win.
-All later source integration, failed attempts, negative controls, and open
-prototype plans are preserved in the append-only v9 records/source bundle.
+### Completed generated-code warm-JVM comparison
+
+The BigQuery generated API-model ADVANCED/PRUNE workload at `62296baf` uses
+three independently restarted Java 21 JVMs and five alternating pairs per JVM.
+They settle after **52, 41 and 40 Java requests** under unchanged criteria:
+last-window median drift at most 5%, JIT time at most 2%, and spread at most
+1.20. Every request constructs a fresh Java compiler and parses ordinary
+externs; Go runs as a fresh CLI process. There is no worker/extern-AST cache.
+
+All 15 accepted pairs match stdout, stderr, exit status, JavaScript, source map
+and manifest. Go wins 14 individual pairs and all three cohort medians. Actual
+limits are **4 GiB, swap 0, two CPUs**, with default Go runtime settings and
+Java's default collector with Xmx3g. No other compiler, build, profile or heavy
+archive work overlaps timing. There is no new OOM; processes/containers stop.
+
+| Statistic | Warm Java 21 | Fresh Go | Java/Go ratio (95% cohort-bootstrap interval) |
+| --- | ---: | ---: | ---: |
+| Elapsed, geometric mean of cohort medians | 4.329 s | 3.923 s | **1.10356 (1.07086–1.14071)** |
+| Peak process RSS, corresponding cohort statistic | 1291.26 MiB | 349.16 MiB | **3.69822 (3.38408–4.12012)** |
+
+Go uses **9.38% less elapsed time and 72.96% less peak RSS**. Java RSS is the
+maximum reported lifetime VmHWM of each JVM, including warmup/JIT; Go RSS is
+the median fresh-process wait4 peak within that cohort. These are operating
+process footprints, not per-compilation live heaps. The bootstrap resamples
+**three JVM cohorts**, not 15 independent JVMs. Pooled raw elapsed sample SD
+is 0.144 s for Java and 0.107 s for Go; per-cohort statistics, raw CPU/time/RSS
+rows and all warmups are retained. This one workload/host/N1/Java 21 result
+does not establish broad JVM superiority or latest-`e225c0a0` performance.
+
+The preceding BigQuery v2 attempt was rejected after 30 warm requests because
+JIT time was still 5.24%; its bytes matched but no measured pairs were admitted.
+V3 raises only the warmup ceiling to 90, retaining the numerical criteria.
+The copied factor helper changes exactly its argument ceiling and error text;
+all other protocol/helper sources remain identical. The inherited policy text
+saying 30 is explicitly superseded by v3's configured ceiling. Both attempts
+remain separately recorded.
+
+### Completed 622 versus 42 Go-only screen
+
+Four balanced pairs per task compare `62296baf`/PGO `db143e88` with the reused
+verified `42aaa853`/PGO `4cdc6cd7` binary. All 16 fresh-process rows match all
+six Java digests under the same 4 GiB/two-CPU/default-runtime limits. These
+measure **delivered code plus shipped PGO together**, not either change alone.
+
+| Workload | Old/new elapsed medians | Old/new peak RSS medians | Mean paired new/old time ratio ± sample SD | Mean paired new/old RSS ratio ± sample SD |
+| --- | ---: | ---: | ---: | ---: |
+| Typed N1 | 30.392 / 27.801 s | 1125.87 / 1111.75 MiB | 0.913169 ± 0.007635 | 1.002541 ± 0.049307 |
+| Bundle N1 | 8.108 / 7.494 s | 376.82 / 442.93 MiB | 0.925621 ± 0.015278 | 1.182324 ± 0.031802 |
+
+Mean paired ratios give **8.68% less typed time and 7.44% less bundle time**.
+Typed RSS is roughly flat; bundle RSS rises **18.23%**. Absolute elapsed sample
+SDs are 0.286/0.264 s (old/new typed) and 0.059/0.105 s (bundle); RSS SDs are
+57.07/35.10 MiB and 8.63/8.39 MiB. Separate absolute medians are a different
+statistic from means of paired ratios. Four pairs are a screen, without a
+confidence interval or Java timing claim. Historical Java clocks are never
+combined with these new Go clocks.
+
+The earlier typed warm-JVM comparison at `1fe9acbb` remains separately named:
+9.74% less elapsed and 53.43% less peak RSS. Its result is not transferred to
+new source or multiplied by subsequent Go-only improvements. The bare 64-byte
+node factor below regressed and stays out of the compiler tree. Full successful,
+failed, rejected, superseded and unrun experiment records are retained.
 
 ### Measured compact-node experiment
 
@@ -82,18 +134,32 @@ and a disk-headroom guard stop. None is relabelled a passing run. Build-only
 GC/CPU settings limit build resource pressure; the unchanged execution wrapper
 clears those settings for actual test binaries. No runtime GOGC tuning is used.
 
-Latest `4159dc5b` is source-complete and reviewed with a derived expectation of
-581 effective files and 3,906 top-level roots (3,869 PASS + the same 37 SKIP).
-These are **prospective counts, not executed tests** at this cut. The prepared
-rollout requires its full normal suite, one ordinary CLI build, three strict
-six-digest Java gates, and a balanced 16-row old/new Go screen. Raw stock-main
-builds are excluded from timing while the proven function-signature shortcut
-remains present. The comparison measures repaired code plus shipped PGO as a
-package; opaque upstream profile percentages are not imported.
+The actual `4159dc5b` full-normal attempt failed five roots and was stopped
+with 3,787 PASS and 37 existing SKIP. One new fixture lacked BeforePass setup;
+four existing scope tests exposed declaration-key/visibility compatibility.
+The fixture-only `64167102`, broader keyed fallback `78df8535`, namespace guard
+`df8b1dd1`, and final narrowly activated `62296baf` remain distinct source states.
+Only final `62296baf` has the complete passing normal/CLI/screen/JVM receipts above.
+A first focused build also ran out of memory before any test event: 3.3 GB of
+stale Go-build directories occupied tmpfs. Their closed-file inventory and
+cleanup are retained; the same source and build/test settings then passed.
 
-A fresh latest-main JVM comparison, current allocation/CPU profiles, generated
-BigQuery/protobuf timing and many-chunk enterprise runs remain pending. Old
-scope-tail allocation models and the earlier madvise hypothesis must be checked
+Round 10 `e225c0a0` retains upstream arena, parser, traversal and private-analysis
+optimizations while preserving dynamic coding conventions, custom creator
+calls, escaped-set order, stable variable indices and public/expert CFG timing.
+Seven new regression roots are added without changing any of the 583 previously
+verified effective test files. Normal validation passes across package runs.
+The initial unfiltered command stopped at the disk guard with nine complete
+packages and no test failure; after freeing old rebuildable cache, all twelve
+remaining packages ran unfiltered with the same flags/source/overlay/runtime.
+The aggregate verifies every expected root and original nested status. It is
+explicitly PACKAGE_SEGMENTED_AFTER_DISK_GUARD, not a passing original command.
+The interrupted command remains FAILED/-15 with its raw output and stop proof.
+Its new PGO is `ac64b9d3`; the `62296baf` performance result does not validate it.
+
+Current profiles, full live-Java corpus/race coverage and many-chunk warm-JVM
+measurements remain pending. The generated BigQuery timing above is complete.
+Earlier scope-tail allocation models and the earlier madvise hypothesis must be checked
 against those new profiles before more pool-policy changes. Source-only plans
 for container growth, traversal, private ArrayList storage, compact-node cold
 fastpaths and scope-pool diagnostics are preserved without performance claims.
@@ -106,7 +172,7 @@ The validated integration now follows main`abcf69a0` at`42aaa853`. Its full
 normal suite passes570 effective files/3885 top-level roots (3848PASS/37original
 SKIP), all28 new regressions,21 packages and the exact original nested inventory.
 BundleN1/N2 and typedN1 CLI gates match all6 Java digests, with default runtime
-settings, actual4GiB caps, zero OOM deltas and stopped-process proof.
+settings, actual 4 GiB caps, zero OOM deltas and stopped-process proof.
 
 A fresh18-row balanced Go-only screen measures the new integration against
 previously validated`1fe9acbb`: median same-round elapsed ratios are0.965857
@@ -178,7 +244,7 @@ before any compiler integration.
 Main advanced after the completed typed timing block. Stock `abcf69a0` builds
 with shipped PGO SHA256`4cdc6cd7b1a056ff180beba14cd600f9afc03dca0df1d3ffe5de5f7d99ecedd4`
 and passes all six Java digests on bundle N1/N2 and typed N1, with default
-runtime settings, actual4GiB caps, zero OOM deltas and stopped-process proof.
+runtime settings, actual 4 GiB caps, zero OOM deltas and stopped-process proof.
 Its binary SHA is`9376ee254b2060b589cf97132f0a893bbca91ca6d27f8e5f2844d4566892c093`.
 These are correctness runs; neither their clocks nor upstream macOS percentages
 are local performance measurements. The new PGO records Darwin/arm64 Go1.27.1
@@ -226,7 +292,7 @@ fixture failures and launcher errors remain preserved without relabelling them.
 
 The integrated normal CLI SHA256 is
 `c1ce317e909b539e780ce16bb798ea233e7632195e7be13daf62c5115f7472fb`.
-It passes bundleN1/N2 andtypedN1 strict6-digest gates with actual4GiB caps,
+It passes bundleN1/N2 andtypedN1 strict6-digest gates with actual 4 GiB caps,
 default runtime settings, zero OOM and stopped-process proof. Current PR
 production/effective tests match the validated42aaa source exactly. Local PR production/test sources
 match the frozen integration exactly (1037 production Go files and570 effective
@@ -254,7 +320,7 @@ This is disk storage housekeeping, not a compiler memory improvement.
 
 Separate main-only diagnostic build`361a7851...` retains all1036 other production
 Go blobs and the same4cdc PGO as normalCLI`c1ce317e...`. TypedN1 andbundleN1
-both match all6 Java artifacts under actual4GiB/defaultGC/CPU2. Captures,
+both match all6 Java artifacts under actual 4 GiB/defaultGC/CPU2. Captures,
 12pprof tables and custom decoders are complete/stopped with zero OOM deltas.
 The initial analysis-only read-only-cache error is retained; a workspace-cache
 runner decodes the same captures successfully. No capture was rerun or selected
@@ -293,7 +359,7 @@ Node64 factor still has no measured time/RSS result at this cut.
 All18 rows (three balanced rounds per workload across oldfixed1fe, stockabcf
 and fixed42aaa) match the same pinned Java bytes. Each variant occupies each
 order position once per task. No builds, profiles, archives or heavy audits
-overlap the block. Every row uses fresh CLI/defaultGC/actual4GiB/CPU2; all
+overlap the block. Every row uses fresh CLI/defaultGC/actual 4 GiB/CPU2; all
 inner/outer OOM deltas are zero and all owned runtimes/containers are stopped.
 
 | Workload / source | Median seconds (sample SD) | Median peak RSS MiB (sample SD) |
@@ -1126,8 +1192,8 @@ macro results remain open. Earlier20 negative/16positive control results retain
 theirf5ba source identity; they are not relabelled42aaa. At cut time the separate
 Node64 controller was prepared; its actual experiment starts after this cut.
 
-Java21.0.12.1 is the measured JVM. Artifact/helper class files require21;
-Java25LTS is a useful further stock comparator, but only21 is installed and no
+Java 21.0.12.1 is the measured JVM. Artifact/helper class files require21;
+Java 25LTS is a useful further stock comparator, but only21 is installed and no
 25/27 runtime or download was performed. No result here claims superiority over
 all JVM versions or representative workloads. Current generated/chunked
 benchmark and complete live parity commands are preserved for actual execution.
