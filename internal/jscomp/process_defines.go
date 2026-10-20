@@ -498,6 +498,9 @@ func (p *ProcessDefines) CollectDefines(root *rhino.Node) {
 
 // Java: ProcessDefines.selectDefineDeclaration(GlobalNamespace.Name)
 func (p *ProcessDefines) SelectDefineDeclaration(name *GlobalNamespace_Name) *GlobalNamespace_Ref {
+	if name.GetGlobalSets() == 0 {
+		return nil
+	}
 	for _, ref := range name.GetRefs() {
 		// Make sure we don't select a local set as the declaration.
 		if !ref.IsSetFromGlobal() {
@@ -548,17 +551,14 @@ func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) *r
 
 // Java: ProcessDefines.collectValidDefineValueExpressions()
 func (p *ProcessDefines) CollectValidDefineValueExpressions() {
-
-	namesToCheck := jutil.NewLinkedHashSet[*GlobalNamespace_Name]()
-	for name := range p.namespace.GetAllSymbols() {
-		if processDefines_isGlobalConst(name) {
-			namesToCheck.Add(name)
-		}
+	if !p.mode.Check() || p.defineByDefineName.IsEmpty() {
+		return
 	}
 
+	defineNamesSet := make(map[*GlobalNamespace_Name]struct{}, p.defineByDefineName.Size())
 	// All defines are implicitly valid in the values of other defines.
 	for define := range p.defineByDefineName.Values() {
-		namesToCheck.Remove(define.name)
+		defineNamesSet[define.name] = struct{}{}
 		for _, r := range define.name.GetRefs() {
 			if !r.IsSet() {
 				p.validDefineValueExpressions.Add(r.GetNode())
@@ -566,29 +566,51 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		}
 	}
 
+	var namesToCheck []*GlobalNamespace_Name
+	for name := range p.namespace.GetAllSymbols() {
+		if !processDefines_isGlobalConst(name) {
+			continue
+		}
+		if _, isDef := defineNamesSet[name]; isDef {
+			continue
+		}
+		declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
+		if declValue == nil {
+			continue
+		}
+		switch p.IsValidDefineValue(declValue) {
+		case base.Tri_TRUE:
+			for _, ref := range name.GetRefs() {
+				p.validDefineValueExpressions.Add(ref.GetNode())
+			}
+		case base.Tri_UNKNOWN:
+			namesToCheck = append(namesToCheck, name)
+		default:
+		}
+	}
+
 	// Do a breadth-first search of all const names to find those defined in
 	// terms of valid values.
-	for {
-		namesToCheckAgain := jutil.NewLinkedHashSet[*GlobalNamespace_Name]()
+	for len(namesToCheck) > 0 {
+		var namesToCheckAgain []*GlobalNamespace_Name
 
-		for name := range namesToCheck.All() {
-			declValue := processDefines_getConstantDeclValue(name.GetDeclaration().(*GlobalNamespace_Ref).GetNode())
+		for _, name := range namesToCheck {
+			declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
 			switch p.IsValidDefineValue(declValue) {
 			case base.Tri_TRUE:
 				for _, ref := range name.GetRefs() {
 					p.validDefineValueExpressions.Add(ref.GetNode())
 				}
 			case base.Tri_UNKNOWN:
-				namesToCheckAgain.Add(name)
+				namesToCheckAgain = append(namesToCheckAgain, name)
 			default:
 			}
 		}
 
-		if namesToCheckAgain.Size() == namesToCheck.Size() {
+		if len(namesToCheckAgain) == len(namesToCheck) {
 			break
-		} else {
-			namesToCheck = namesToCheckAgain
 		}
+		namesToCheck = namesToCheckAgain
 	}
 }
 

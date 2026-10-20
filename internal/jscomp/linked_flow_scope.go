@@ -341,6 +341,11 @@ func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
 	} else if j.result.scopes == linkedInput.scopes &&
 		j.result.functionScope == linkedInput.functionScope {
 		return
+	} else if j.result.FlowsFromBottom() && j.result.scopes.IsEmpty() {
+		j.result = linkedInput
+		return
+	} else if linkedInput.FlowsFromBottom() && linkedInput.scopes.IsEmpty() {
+		return
 	}
 
 	// NOTE: it would be nice to put 'null' as the syntactic scope if they're not
@@ -364,10 +369,22 @@ func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
 	} else {
 		functionScope = j.result.functionScope
 	}
+	joinedScopes := LinkedFlowScope_Join(j.result, linkedInput, common)
+	if joinedScopes == j.result.scopes &&
+		common == j.result.syntacticScope &&
+		functionScope == j.result.functionScope {
+		return
+	}
+	if joinedScopes == linkedInput.scopes &&
+		common == linkedInput.syntacticScope &&
+		functionScope == linkedInput.functionScope {
+		j.result = linkedInput
+		return
+	}
 	j.result =
 		NewLinkedFlowScope(
 			j.inputProvider,
-			LinkedFlowScope_Join(j.result, linkedInput, common),
+			joinedScopes,
 			common,
 			functionScope)
 }
@@ -479,79 +496,84 @@ func LinkedFlowScope_Join(
 						bestScope = scopeB.scope
 					}
 				}
-				return NewLinkedFlowScope_OverlayScopeWithSlots(
-					bestScope,
-					slotsA.Reconcile(
-						slotsB,
-						func(slotKey string, slotA *LinkedFlowScope_OverlaySlot, slotB *LinkedFlowScope_OverlaySlot) *LinkedFlowScope_OverlaySlot {
-							// There are 5 different join cases:
-							// 1) The type is present in joinedScopeA, not in joinedScopeB,
-							//    and not in functionScope. Just use the one in A.
-							// 2) The type is present in joinedScopeB, not in joinedScopeA,
-							//    and not in functionScope. Just use the one in B.
-							// 3) The type is present in functionScope and joinedScopeA, but
-							//    not in joinedScopeB. Join the two types.
-							// 4) The type is present in functionScope and joinedScopeB, but
-							//    not in joinedScopeA. Join the two types.
-							// 5) The type is present in joinedScopeA and joinedScopeB. Join
-							//    the two types.
-							var name string
-							if slotA != nil {
-								name = slotA.GetName()
+				reconciledSlots := slotsA.Reconcile(
+					slotsB,
+					func(slotKey string, slotA *LinkedFlowScope_OverlaySlot, slotB *LinkedFlowScope_OverlaySlot) *LinkedFlowScope_OverlaySlot {
+						// There are 5 different join cases:
+						// 1) The type is present in joinedScopeA, not in joinedScopeB,
+						//    and not in functionScope. Just use the one in A.
+						// 2) The type is present in joinedScopeB, not in joinedScopeA,
+						//    and not in functionScope. Just use the one in B.
+						// 3) The type is present in functionScope and joinedScopeA, but
+						//    not in joinedScopeB. Join the two types.
+						// 4) The type is present in functionScope and joinedScopeB, but
+						//    not in joinedScopeA. Join the two types.
+						// 5) The type is present in joinedScopeA and joinedScopeB. Join
+						//    the two types.
+						var name string
+						if slotA != nil {
+							name = slotA.GetName()
+						} else {
+							name = slotB.GetName()
+						}
+						if slotB == nil || slotB.GetType() == nil {
+							var fnSlot *TypedVar
+							if typedScopeB != nil {
+								fnSlot, _ = typedScopeB.GetSlot(name).(*TypedVar)
+							}
+							var fnSlotType rhino.JSType
+							if fnSlot != nil {
+								fnSlotType = fnSlot.GetType()
+							}
+							if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotA.GetType()) {
+								// Case #1
+								return slotA
 							} else {
-								name = slotB.GetName()
-							}
-							if slotB == nil || slotB.GetType() == nil {
-								var fnSlot *TypedVar
-								if typedScopeB != nil {
-									fnSlot, _ = typedScopeB.GetSlot(name).(*TypedVar)
-								}
-								var fnSlotType rhino.JSType
-								if fnSlot != nil {
-									fnSlotType = fnSlot.GetType()
-								}
-								if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotA.GetType()) {
-									// Case #1
+								// Case #3
+								joinedType := slotA.GetType().GetLeastSupertype(fnSlotType)
+								if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
 									return slotA
-								} else {
-									// Case #3
-									joinedType := slotA.GetType().GetLeastSupertype(fnSlotType)
-									if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
-										return slotA
-									}
-									return NewLinkedFlowScope_OverlaySlot(name, joinedType)
 								}
-							} else if slotA == nil || slotA.GetType() == nil {
-								var fnSlot *TypedVar
-								if typedScopeA != nil {
-									fnSlot, _ = typedScopeA.GetSlot(name).(*TypedVar)
-								}
-								var fnSlotType rhino.JSType
-								if fnSlot != nil {
-									fnSlotType = fnSlot.GetType()
-								}
-								if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotB.GetType()) {
-									// Case #2
+								return NewLinkedFlowScope_OverlaySlot(name, joinedType)
+							}
+						} else if slotA == nil || slotA.GetType() == nil {
+							var fnSlot *TypedVar
+							if typedScopeA != nil {
+								fnSlot, _ = typedScopeA.GetSlot(name).(*TypedVar)
+							}
+							var fnSlotType rhino.JSType
+							if fnSlot != nil {
+								fnSlotType = fnSlot.GetType()
+							}
+							if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotB.GetType()) {
+								// Case #2
+								return slotB
+							} else {
+								// Case #4
+								joinedType := slotB.GetType().GetLeastSupertype(fnSlotType)
+								if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
 									return slotB
-								} else {
-									// Case #4
-									joinedType := slotB.GetType().GetLeastSupertype(fnSlotType)
-									if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
-										return slotB
-									}
-									return NewLinkedFlowScope_OverlaySlot(name, joinedType)
 								}
+								return NewLinkedFlowScope_OverlaySlot(name, joinedType)
 							}
-							// Case #5
-							if base.JSCompObjects_Identical(slotA.GetType(), slotB.GetType()) {
-								return slotA
-							}
-							joinedType := slotA.GetType().GetLeastSupertype(slotB.GetType())
-							if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
-								return slotA
-							}
-							return NewLinkedFlowScope_OverlaySlot(name, joinedType)
-						}))
+						}
+						// Case #5
+						if base.JSCompObjects_Identical(slotA.GetType(), slotB.GetType()) {
+							return slotA
+						}
+						joinedType := slotA.GetType().GetLeastSupertype(slotB.GetType())
+						if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
+							return slotA
+						}
+						return NewLinkedFlowScope_OverlaySlot(name, joinedType)
+					})
+				if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
+					return scopeA
+				}
+				if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
+					return scopeB
+				}
+				return NewLinkedFlowScope_OverlayScopeWithSlots(bestScope, reconciledSlots)
 			})
 }
 

@@ -1,0 +1,178 @@
+{
+  "name": "typed-mega",
+  "order": 10,
+  "title": "10-Project Closure Ecosystem Mega-Build (Closure Library + OpenSphere + OpenLayers + Shaka + Blockly + ngeo + SPF + ol-cesium + Protobuf + App), ADVANCED",
+  "description": "Ten real-world Closure Compiler `ADVANCED` codebases compiled together as a single JSDoc-typed unit (4,385 files, 42.6 MB, 94.1% typed): Google Closure Library v20230802 (971 files), NGA OpenSphere release-23.0.1 (1,648 files), OpenLayers 4.6.5 (`src/`, `externs/`, `examples/`, 539 files), Google Shaka Player 5.3.1 (520 files), Google Blockly 8.0.5 (`core/`, `blocks/`, `generators/`, `msg/`, 446 files), Camptocamp ngeo 2.2.10 (203 files), YouTube SPFjs 2.4.0 (31 files), ol-cesium 1.37.0 (15 files), Google Protobuf JS 3.21.2 (12 files), and the notes editor app (3 files), with `--compilation_level=ADVANCED`, `--language_out=ECMASCRIPT5`, `--dependency_mode=SORT_ONLY`, `--jscomp_warning=checkTypes`, `--generate_exports`, and source map output.",
+  "mode": "ADVANCED, `--language_out=ECMASCRIPT5`, type checking on (`--jscomp_warning=checkTypes`), `--dependency_mode=SORT_ONLY`, source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--language_out=ECMASCRIPT5",
+    "--dependency_mode=SORT_ONLY",
+    "--jscomp_warning=checkTypes",
+    "--jscomp_warning=checkVars",
+    "--jscomp_warning=duplicate",
+    "--jscomp_warning=missingSourcesWarnings",
+    "--jscomp_off=reportUnknownTypes",
+    "--jscomp_off=lintChecks",
+    "--jscomp_off=deprecated",
+    "--jscomp_off=missingPolyfill",
+    "--jscomp_off=visibility",
+    "--extra_annotation_name=listens",
+    "--extra_annotation_name=exportDoc",
+    "--extra_annotation_name=exportInterface",
+    "--extra_annotation_name=api",
+    "--extra_annotation_name=observable",
+    "--extra_annotation_name=ngdoc",
+    "--extra_annotation_name=ngname",
+    "--extra_annotation_name=ngInject",
+    "--extra_annotation_name=htmlAttribute",
+    "--generate_exports",
+    "-D",
+    "COMPILED=true",
+    "-D",
+    "goog.ENABLE_DEBUG_LOADER=false",
+    "-D",
+    "goog.DEBUG=false",
+    "-D",
+    "goog.asserts.ENABLE_ASSERTS=false",
+    "-D",
+    "shaka.log.MAX_LOG_LEVEL=0",
+    "-D",
+    "shaka.Player.version=\"v5.3.1\""
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "file": "inputs/shaka-player@5.3.1/dist/locales.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/externs/**/*.js",
+      "exclude": [
+        "mediasession.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/lib/**/*.js",
+      "exclude": [
+        "*/lib/debug/asserts.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/ui/**/*.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/third_party/**/*.js",
+      "exclude": [
+        "*/third_party/closure-uri/uri.js"
+      ]
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/core/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/blocks/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/generators/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/msg/*.js"
+    },
+    {
+      "glob": "inputs/openlayers@4.6.5/externs/*.js",
+      "exclude": [
+        "closure-compiler.js",
+        "jquery-1.9.js",
+        "bootstrap.js",
+        "example.js"
+      ]
+    },
+    {
+      "glob": "inputs/openlayers@4.6.5/src/**/*.js"
+    },
+    {
+      "glob": "inputs/openlayers@4.6.5/examples/*.js"
+    },
+    {
+      "glob": "inputs/ngeo@2.2.10/externs/*.js",
+      "exclude": [
+        "closure-compiler.js",
+        "jqueryui.js",
+        "twbootstrap.js",
+        "d3.js",
+        "moment.js"
+      ]
+    },
+    {
+      "glob": "inputs/ngeo@2.2.10/options/*.js"
+    },
+    {
+      "glob": "inputs/ngeo@2.2.10/src/**/*.js"
+    },
+    {
+      "glob": "inputs/ngeo@2.2.10/contribs/**/*.js",
+      "exclude": [
+        "*/examples/*"
+      ]
+    },
+    {
+      "file": "inputs/spf@2.4.0/third-party/tracing-framework/shims/wtf-trace-closure.js"
+    },
+    {
+      "glob": "inputs/spf@2.4.0/src/client/**/*.js",
+      "exclude": [
+        "*_test.js",
+        "stub.js"
+      ]
+    },
+    {
+      "glob": "inputs/ol-cesium@1.37.0/src/**/*.js"
+    },
+    {
+      "glob": "inputs/google-protobuf@3.21.2/google/**/*.js"
+    },
+    {
+      "glob": "inputs/opensphere@release-23.0.1/externs/*.js",
+      "exclude": [
+        "closure-compiler.js",
+        "moment.js",
+        "underscore.js",
+        "d3-3.4.1.js",
+        "jsts.externs.js",
+        "angular-1.5-os.js"
+      ]
+    },
+    {
+      "glob": "inputs/opensphere@release-23.0.1/src/**/*.js"
+    },
+    {
+      "file": "app/notestore.js"
+    },
+    {
+      "file": "app/notesview.js"
+    },
+    {
+      "file": "app/main.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ],
+  "warm_warmup": 1
+}

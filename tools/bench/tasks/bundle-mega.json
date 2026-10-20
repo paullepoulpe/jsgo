@@ -1,0 +1,102 @@
+{
+  "name": "bundle-mega",
+  "order": 11,
+  "title": "26-Library Plain-JS/UMD Mega-Bundle (34.5 MB), ADVANCED",
+  "description": "Twenty-six UMD/browser library builds compiled together in `ADVANCED` mode with source map output (34.5 MB input): plotly.js 2.35.2 `dist/plotly.js` (10.1 MB), handsontable 14.3.0 `dist/handsontable.full.js` (5.1 MB), echarts 5.5.1 `dist/echarts.js` (3.2 MB), ag-grid-community 31.3.2 `dist/ag-grid-community.js` (2.8 MB), pdfjs-dist 2.16.105 `legacy/build/pdf.worker.js` (2.0 MB) and `legacy/build/pdf.js` (667 KB), three.js r159 `build/three.js` (1.3 MB), react-dom 18.3.1 `umd/react-dom.development.js` (1.0 MB), pixi.js 7.4.2 `dist/pixi.js` (1.0 MB), fabric 5.3.0 `dist/fabric.js` (992 KB), mathjs 11.12.0 `lib/browser/math.js` (716 KB), konva 9.3.15 `konva.js` (697 KB), moment 2.31.0 `min/moment-with-locales.js` (638 KB), d3 7.9.0 `dist/d3.js` (573 KB), google-libphonenumber 3.2.34 `dist/libphonenumber.js` (562 KB), lodash 4.17.21 `lodash.js` (531 KB), lovefield 2.1.12 `dist/lovefield.js` (453 KB), vue 2.7.16 `dist/vue.js` (425 KB), jquery 3.7.1 `dist/jquery.js` (279 KB), rxjs 7.8.2 `dist/bundles/rxjs.umd.js` (278 KB), google-protobuf 3.21.2 `google-protobuf.js` (248 KB), handlebars 4.7.10 `dist/handlebars.js` (211 KB), immutable 5.1.9 `dist/immutable.js` (206 KB), chart.js 4.4.4 `dist/chart.umd.js` (201 KB), zone.js 0.16.3 `bundles/zone.umd.js` (123 KB), and underscore 1.13.8 `underscore-umd.js` (67 KB).",
+  "mode": "ADVANCED, `--jscomp_warning=checkVars`, `--jscomp_warning=duplicate`, `--jscomp_warning=es5Strict`, source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--jscomp_warning=checkVars",
+    "--jscomp_warning=duplicate",
+    "--jscomp_warning=es5Strict"
+  ],
+  "inputs": [
+    {
+      "file": "inputs/three@0.159.0/build/three.js"
+    },
+    {
+      "file": "inputs/lodash@4.17.21/lodash.js"
+    },
+    {
+      "file": "inputs/react-dom@18.3.1/umd/react-dom.development.js"
+    },
+    {
+      "file": "inputs/rxjs@7.8.2/dist/bundles/rxjs.umd.js"
+    },
+    {
+      "file": "corpus/d3@7.9.0/package/dist/d3.js"
+    },
+    {
+      "file": "corpus/moment@2.31.0/package/min/moment-with-locales.js"
+    },
+    {
+      "file": "corpus/vue@2.7.16/package/dist/vue.js"
+    },
+    {
+      "file": "corpus/jquery@3.7.1/package/dist/jquery.js"
+    },
+    {
+      "file": "corpus/handlebars@4.7.10/package/dist/handlebars.js"
+    },
+    {
+      "file": "corpus/immutable@5.1.9/package/dist/immutable.js"
+    },
+    {
+      "file": "corpus/underscore@1.13.8/package/underscore-umd.js"
+    },
+    {
+      "file": "corpus/zone.js@0.16.3/package/bundles/zone.umd.js"
+    },
+    {
+      "file": "inputs/echarts@5.5.1/dist/echarts.js"
+    },
+    {
+      "file": "inputs/pdfjs-dist@2.16.105/legacy/build/pdf.js"
+    },
+    {
+      "file": "inputs/pdfjs-dist@2.16.105/legacy/build/pdf.worker.js"
+    },
+    {
+      "file": "inputs/mathjs@11.12.0/lib/browser/math.js"
+    },
+    {
+      "file": "inputs/google-libphonenumber@3.2.34/dist/libphonenumber.js"
+    },
+    {
+      "file": "inputs/google-protobuf@3.21.2/google-protobuf.js"
+    },
+    {
+      "file": "inputs/lovefield@2.1.12/dist/lovefield.js"
+    },
+    {
+      "file": "inputs/chart.js@4.4.4/dist/chart.umd.js"
+    },
+    {
+      "file": "inputs/konva@9.3.15/konva.js"
+    },
+    {
+      "file": "inputs/fabric@5.3.0/dist/fabric.js"
+    },
+    {
+      "file": "inputs/pixi.js@7.4.2/dist/pixi.js"
+    },
+    {
+      "file": "inputs/ag-grid-community@31.3.2/dist/ag-grid-community.js"
+    },
+    {
+      "file": "inputs/handsontable@14.3.0/dist/handsontable.full.js"
+    },
+    {
+      "file": "inputs/plotly.js@2.35.2/dist/plotly.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ],
+  "warm_warmup": 1
+}

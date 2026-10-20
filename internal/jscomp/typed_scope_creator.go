@@ -37,6 +37,11 @@ import (
 //
 // When building scope information, also declares relevant information about
 // types in the type registry.
+type typedScopeCreator_ScopedNameKey struct {
+	name      string
+	scopeRoot *rhino.Node
+}
+
 type TypedScopeCreator struct {
 	compiler                 AbstractCompiler
 	typeParsingErrorReporter rhino.ErrorReporter
@@ -51,14 +56,14 @@ type TypedScopeCreator struct {
 
 	// Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
 	// reserve names before the TypedScope is populated.
-	reservedNamesForScope *jutil.ListMultimap[*rhino.Node, string]
+	reservedNamesForScope map[*rhino.Node]*jutil.LinkedHashSet[string]
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
-	functionsWithNonEmptyReturns *jutil.LinkedHashSet[*rhino.Node]
+	functionsWithNonEmptyReturns map[*rhino.Node]struct{}
 	// Includes both simple and qualified names.
-	escapedVarNames *jutil.ObjectLinkedHashSet[ScopedName]
+	escapedVarNames map[typedScopeCreator_ScopedNameKey]struct{}
 	// Count of how many times each variable is assigned, for marking effectively final.
-	assignedVarNames *jutil.ObjectHashMultiset[ScopedName]
+	assignedVarNames map[typedScopeCreator_ScopedNameKey]int
 
 	// For convenience
 	unknownType rhino.ObjectType
@@ -72,10 +77,13 @@ type TypedScopeCreator struct {
 	// assigned. Treat simple names in this list as if they were declared `const`. E.g. treat `exports
 	// = class {};` as `const exports = class {};`. Treat GETPROP and STRING_KEY nodes as if they were
 	// annotated @const.
-	undeclaredNamesForClosure *jutil.LinkedHashSet[*rhino.Node]
+	undeclaredNamesForClosure map[*rhino.Node]struct{}
 
 	// Maps EXPR_RESULT nodes from goog.provides to all implicitly provided names from the call
 	providedNamesFromCall *jutil.LinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]
+
+	normalScopeBuilderPool   []*TypedScopeCreator_NormalScopeBuilder
+	functionScopeBuilderPool []*TypedScopeCreator_FunctionScopeBuilder
 
 	stage TypedScopeCreator_Stage
 }
@@ -375,9 +383,9 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 		// Because JSTypeRegistry#getType looks up the scope in which a root of a qualified name is
 		// declared, pre-populate this TypedScope with all qualified name roots. This prevents
 		// type resolution from accidentally returning a type from an outer scope that is shadowed.
-		var reservedNames *jutil.LinkedHashSet[string]
-		if c.reservedNamesForScope.ContainsKey(root) {
-			reservedNames = jutil.NewLinkedHashSet[string](c.reservedNamesForScope.RemoveAll(root)...)
+		reservedNames := c.reservedNamesForScope[root]
+		if reservedNames != nil {
+			delete(c.reservedNamesForScope, root)
 		}
 		if module != nil && module.Metadata().IsGoogModule() {
 			// TypedScopeCreator treats default export assignments, like `exports = class {};`, as
@@ -395,12 +403,28 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module)
 	}
 
+	var pooledNormalBuilder *TypedScopeCreator_NormalScopeBuilder
+	var pooledFunctionBuilder *TypedScopeCreator_FunctionScopeBuilder
 	if root.IsFunction() {
-		scopeBuilder = NewTypedScopeCreator_FunctionScopeBuilder(c, newScope)
+		if n := len(c.functionScopeBuilderPool); n > 0 {
+			pooledFunctionBuilder = c.functionScopeBuilderPool[n-1]
+			c.functionScopeBuilderPool = c.functionScopeBuilderPool[:n-1]
+			pooledFunctionBuilder.InitTypedScopeCreator_AbstractScopeBuilderBase(pooledFunctionBuilder, c, newScope)
+		} else {
+			pooledFunctionBuilder = NewTypedScopeCreator_FunctionScopeBuilder(c, newScope)
+		}
+		scopeBuilder = pooledFunctionBuilder
 	} else if root.IsClass() || root.IsMemberFieldDef() || root.IsComputedFieldDef() {
 		scopeBuilder = NewTypedScopeCreator_ClassScopeBuilder(c, newScope)
 	} else {
-		scopeBuilder = NewTypedScopeCreator_NormalScopeBuilder(c, newScope)
+		if n := len(c.normalScopeBuilderPool); n > 0 {
+			pooledNormalBuilder = c.normalScopeBuilderPool[n-1]
+			c.normalScopeBuilderPool = c.normalScopeBuilderPool[:n-1]
+			pooledNormalBuilder.InitTypedScopeCreator_AbstractScopeBuilderBase(pooledNormalBuilder, c, newScope)
+		} else {
+			pooledNormalBuilder = NewTypedScopeCreator_NormalScopeBuilder(c, newScope)
+		}
+		scopeBuilder = pooledNormalBuilder
 		if root.IsModuleBody() {
 			// Store the module scope on the CompilerInput object so it can be found and used for
 			// program analysis purposes.
@@ -411,6 +435,11 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 		}
 	}
 	scopeBuilder.Build()
+	if pooledNormalBuilder != nil {
+		c.normalScopeBuilderPool = append(c.normalScopeBuilderPool, pooledNormalBuilder)
+	} else if pooledFunctionBuilder != nil {
+		c.functionScopeBuilderPool = append(c.functionScopeBuilderPool, pooledFunctionBuilder)
+	}
 	if module != nil && module.Metadata().IsEs6Module() {
 		// Declare an implicit variable representing the namespace of this module, then add a property
 		// for each exported name to that variable's type.
@@ -452,15 +481,15 @@ func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody *rhino.Node)
 		}
 		lhs := statement.GetFirstFirstChild()
 		if lhs.MatchesName("exports") {
-			c.undeclaredNamesForClosure.Add(lhs)
+			c.undeclaredNamesForClosure[lhs] = struct{}{}
 			// If this is full of named exports, add all the string key nodes.
 			if NodeUtil_IsNamedExportsLiteral(lhs.GetNext()) {
 				for key := lhs.GetNext().GetFirstChild(); key != nil; key = key.GetNext() {
-					c.undeclaredNamesForClosure.Add(key)
+					c.undeclaredNamesForClosure[key] = struct{}{}
 				}
 			}
 		} else if lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("exports") {
-			c.undeclaredNamesForClosure.Add(lhs)
+			c.undeclaredNamesForClosure[lhs] = struct{}{}
 		}
 	}
 }
@@ -496,7 +525,7 @@ func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
 			if NodeUtil_IsExprAssign(firstDefinitionNode) &&
 				firstDefinitionNode.GetFirstFirstChild().IsName() {
 				// Treat assignments of provided names as declarations.
-				c.undeclaredNamesForClosure.Add(firstDefinitionNode.GetFirstFirstChild())
+				c.undeclaredNamesForClosure[firstDefinitionNode.GetFirstFirstChild()] = struct{}{}
 			}
 		} else if name.GetFirstProvideCall() != nil &&
 			NodeUtil_IsExprCall(name.GetFirstProvideCall()) &&
@@ -671,14 +700,16 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	c.reservedNamesForScope = jutil.ArrayListMultimap_Create[*rhino.Node, string]()
-	c.functionsWithNonEmptyReturns = jutil.NewLinkedHashSet[*rhino.Node]()
-	c.escapedVarNames = jutil.NewObjectLinkedHashSet[ScopedName]()
-	c.assignedVarNames = jutil.ObjectHashMultiset_Create[ScopedName]()
-	c.weakImports = []*TypedScopeCreator_WeakModuleImport{}
-	c.unresolvedNodes = []*rhino.Node{}
-	c.undeclaredNamesForClosure = jutil.NewLinkedHashSet[*rhino.Node]()
+	c.reservedNamesForScope = make(map[*rhino.Node]*jutil.LinkedHashSet[string])
+	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
+	c.escapedVarNames = make(map[typedScopeCreator_ScopedNameKey]struct{})
+	c.assignedVarNames = make(map[typedScopeCreator_ScopedNameKey]int)
+	c.weakImports = nil
+	c.unresolvedNodes = nil
+	c.undeclaredNamesForClosure = make(map[*rhino.Node]struct{})
 	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
+	c.normalScopeBuilderPool = nil
+	c.functionScopeBuilderPool = nil
 }
 
 // TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable adds all enums and
@@ -800,6 +831,8 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 	// Go-only: language-adapter — a Runnable is a *func(): every Java lambda
 	// is a distinct object, which the pointer to a fresh func value keeps.
 	deferredActions *jutil.LinkedHashMultimap[*rhino.Node, *func()]
+
+	slotDefiner TypedScopeCreator_AbstractScopeBuilder_SlotDefiner
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -812,6 +845,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.outer = outer
 	b.currentScope = scope
 	b.currentHoistScope = scope.GetClosestHoistScope()
+	b.sourceName = nil
+	b.inputId = nil
+	b.input = nil
+	b.inputResolved = false
+	b.deferredActions = nil
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key *rhino.Node, action *func()) {
@@ -1169,6 +1207,12 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineObjectLiteral(objectL
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.processObjectLitProperties(Node, ObjectType, boolean)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(objLit *rhino.Node, objLitType rhino.ObjectType, declareOnOwner bool) {
+	if objLit.GetFirstChild() == nil {
+		return
+	}
+	objOwner := NodeUtil_GetBestLValue(objLit)
+	objOwnerName, hasObjOwnerName := nodeUtil_getBestLValueNameString(objOwner)
+	var objRootScope *TypedScope
 	for keyNode := objLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
 		if keyNode.IsSpread() {
 			// Don't try defining computed or spread properties on an object. Note that for spread
@@ -1178,19 +1222,23 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 		}
 		var memberName rhino.Property_Key
 		var value *rhino.Node
-		var qualifiedName *string
+		var qualifiedName string
+		var hasQualifiedName bool
 		if keyNode.IsComputedProp() {
 			symbol := TypedScopeCreator_ExtractKnownSymbolKey(b.currentScope, keyNode.GetFirstChild())
 			if symbol == nil {
 				continue
 			}
-			qualifiedName = nil
 			memberName = rhino.NewProperty_SymbolKey(symbol)
 			value = keyNode.GetSecondChild()
 		} else {
 			value = keyNode.GetFirstChild()
-			memberName = rhino.NewProperty_StringKey(NodeUtil_GetObjectOrClassLitKeyName(keyNode))
-			qualifiedName = NodeUtil_GetBestLValueName(keyNode)
+			keyName := NodeUtil_GetObjectOrClassLitKeyName(keyNode)
+			memberName = rhino.NewProperty_StringKey(keyName)
+			if hasObjOwnerName && rhino.TokenStream_IsJSIdentifier(keyName) {
+				qualifiedName = objOwnerName + "." + keyName
+				hasQualifiedName = true
+			}
 		}
 		info := keyNode.GetJSDocInfo()
 		valueType := b.GetDeclaredType(info, keyNode, value, nil)
@@ -1203,11 +1251,20 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 
 		// Try to declare this property in the current scope if it
 		// has an authoritative name.
-		if qualifiedName != nil {
+		if hasQualifiedName {
+			var scopeToDeclareIn *TypedScope
+			if keyNode.IsStringKey() {
+				if objRootScope == nil {
+					objRootScope = b.GetLValueRootScope(objOwner)
+				}
+				scopeToDeclareIn = objRootScope
+			} else {
+				scopeToDeclareIn = b.currentHoistScope.GetGlobalScope()
+			}
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 				ForDeclarationNode(keyNode).
-				ForVariableName(*qualifiedName).
-				InScope(b.GetLValueRootScope(keyNode)).
+				ForVariableName(qualifiedName).
+				InScope(scopeToDeclareIn).
 				WithType(keyType).
 				AllowLaterTypeInference(keyType == nil).
 				DefineSlot()
@@ -2021,9 +2078,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	var contents *FunctionTypeBuilder_AstFunctionContents
 	if fnRoot != nil {
 		contents = NewFunctionTypeBuilder_AstFunctionContents(fnRoot)
-	}
-	if b.outer.functionsWithNonEmptyReturns.Contains(fnRoot) {
-		contents.RecordNonEmptyReturn()
+		if _, hasNonEmptyReturn := b.outer.functionsWithNonEmptyReturns[fnRoot]; hasNonEmptyReturn {
+			contents.RecordNonEmptyReturn()
+		}
 	}
 	// Go-only: language-adapter — a nil *AstFunctionContents must be passed
 	// as a nil FunctionContents interface (Java: setContents(null)).
@@ -2276,10 +2333,11 @@ type TypedScopeCreator_AbstractScopeBuilder_SlotDefiner struct {
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.SlotDefiner()
 func NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(outer *TypedScopeCreator_AbstractScopeBuilderBase) *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner {
-	d := &TypedScopeCreator_AbstractScopeBuilder_SlotDefiner{outer: outer}
-	d.allowLaterTypeInference = true
-	d.forGoogProvidedName = false
-	return d
+	outer.slotDefiner = TypedScopeCreator_AbstractScopeBuilder_SlotDefiner{
+		outer:                   outer,
+		allowLaterTypeInference: true,
+	}
+	return &outer.slotDefiner
 }
 
 // ForDeclarationNode sets the defining NAME or GETPROP or object literal key
@@ -2492,14 +2550,18 @@ func typedScopeCreator_sourceNameArg(sourceName *string) string {
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) Declare(
 	scope *TypedScope, name string, n *rhino.Node, type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
 	var_ := scope.Declare(name, n, type_, input, inferred)
-	scopedName := ScopedName_Of(name, scope.GetRootNode())
-	if b.outer.escapedVarNames.Contains(scopedName) {
-		var_.MarkEscaped()
+	if !scope.IsGlobal() {
+		scopedName := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: scope.GetRootNode()}
+		if _, escaped := b.outer.escapedVarNames[scopedName]; escaped {
+			var_.MarkEscaped()
+		}
+		if count, ok := b.outer.assignedVarNames[scopedName]; ok {
+			if count == 1 {
+				var_.MarkAssignedExactlyOnce()
+			}
+			delete(b.outer.assignedVarNames, scopedName) // free up memory
+		}
 	}
-	if b.outer.assignedVarNames.Count(scopedName) == 1 {
-		var_.MarkAssignedExactlyOnce()
-	}
-	b.outer.assignedVarNames.Remove(scopedName) // free up memory
 	return var_
 }
 
@@ -2792,7 +2854,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lValue 
 	if b.GetModule() == nil || lValue == nil {
 		return false
 	}
-	if b.outer.undeclaredNamesForClosure.Contains(lValue) {
+	if _, ok := b.outer.undeclaredNamesForClosure[lValue]; ok {
 		// includes "exports" and "exports.x"
 		return true
 	}
@@ -2801,11 +2863,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lValue 
 	//   OBJECT_LIT
 	//     STRING_KEY "x"
 	//     [value]
-	return lValue.IsStringKey() &&
-		lValue.GetParent().IsObjectLit() &&
-		lValue.GetGrandparent().IsAssign() &&
-		lValue.GetParent().GetPrevious().MatchesName("exports") &&
-		b.outer.undeclaredNamesForClosure.Contains(lValue.GetParent().GetPrevious())
+	if !lValue.IsStringKey() || !lValue.GetParent().IsObjectLit() || !lValue.GetGrandparent().IsAssign() {
+		return false
+	}
+	prev := lValue.GetParent().GetPrevious()
+	if !prev.MatchesName("exports") {
+		return false
+	}
+	_, ok := b.outer.undeclaredNamesForClosure[prev]
+	return ok
 }
 
 // GetDefinitionNode returns the AST node associated with the definition, if
@@ -3211,9 +3277,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 
 	// Check if this is assigned in an inner scope.
 	// Functions assigned in inner scopes are inferred.
-	if ownerScope != nil &&
-		b.outer.escapedVarNames.Contains(ScopedName_Of(*qName, ownerScope.GetRootNode())) {
-		return true
+	if ownerScope != nil {
+		if _, escaped := b.outer.escapedVarNames[typedScopeCreator_ScopedNameKey{name: *qName, scopeRoot: ownerScope.GetRootNode()}]; escaped {
+			return true
+		}
 	}
 
 	return false
@@ -3475,7 +3542,7 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), firstChild, n, firstChild.GetNext())
 		} else if firstChild.IsGetElem() && firstChild.GetFirstChild().IsQualifiedName() {
 			b.MaybeDeclareGetElem(n.GetJSDocInfo(), firstChild, firstChild.GetNext())
-		} else if b.outer.undeclaredNamesForClosure.Contains(firstChild) {
+		} else if _, ok := b.outer.undeclaredNamesForClosure[firstChild]; ok {
 			b.DefineAssignAsIfVarDeclaration(n)
 		}
 	case rhino.Token_CATCH:
@@ -3637,7 +3704,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 	// scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
 	// in a TypedScope to let JSTypeRegistry correctly handle scoping).
 	info := NodeUtil_GetBestJSDocInfo(functionNode)
-	templateNames := jutil.NewLinkedHashSet[string]()
+	var templateNames *jutil.LinkedHashSet[string]
 
 	isPossiblePrototypeMethod :=
 		!functionType.HasInstanceType() && (info == nil || !info.HasThisType())
@@ -3650,8 +3717,14 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 		//   }
 		// We want to declare 'T' in the scope of 'bar'
 		ownerNode := NodeUtil_GetBestLValue(functionNode)
-		for _, templateKey := range b.FindOwnerTypeKeys(ownerNode) {
-			templateNames.Add(*templateKey.GetReferenceName())
+		if ownerNode != nil {
+			ownerKeys := b.FindOwnerTypeKeys(ownerNode)
+			if len(ownerKeys) > 0 {
+				templateNames = jutil.NewLinkedHashSet[string]()
+				for _, templateKey := range ownerKeys {
+					templateNames.Add(*templateKey.GetReferenceName())
+				}
+			}
 		}
 	}
 	if info != nil {
@@ -3659,10 +3732,24 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 		//   /** @template U */
 		//   function foo() {}
 		// This declares 'U'.
-		templateNames.AddAll(info.GetTemplateTypeNames()...)
-		templateNames.AddAll(info.GetTypeTransformations().KeySlice()...)
+		infoTemplateNames := info.GetTemplateTypeNames()
+		if len(infoTemplateNames) > 0 {
+			if templateNames == nil {
+				templateNames = jutil.NewLinkedHashSet[string]()
+			}
+			templateNames.AddAll(infoTemplateNames...)
+		}
+		typeTransformations := info.GetTypeTransformations()
+		if !typeTransformations.IsEmpty() {
+			if templateNames == nil {
+				templateNames = jutil.NewLinkedHashSet[string]()
+			}
+			for name := range typeTransformations.Keys() {
+				templateNames.Add(name)
+			}
+		}
 	}
-	if templateNames.IsEmpty() {
+	if templateNames == nil || templateNames.IsEmpty() {
 		return
 	}
 	input := b.GetCompilerInput()
@@ -4024,10 +4111,21 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
+	if t.InGlobalScope() {
+		return
+	}
 	scope := t.GetScope()
+	if scope.GetVarCount() == 0 {
+		return
+	}
 	root := scope.GetRootNode()
+	set := a.outer.reservedNamesForScope[root]
+	if set == nil {
+		set = jutil.NewLinkedHashSet[string]()
+		a.outer.reservedNamesForScope[root] = set
+	}
 	for symbol := range scope.GetVarIterable() {
-		a.outer.reservedNamesForScope.Put(root, symbol.GetName())
+		set.Add(symbol.GetName())
 	}
 }
 
@@ -4049,7 +4147,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 
 	// Record function with returns or arrow functions without bodies
 	if (n.IsReturn() && n.HasChildren()) || NodeUtil_IsBlocklessArrowFunctionResult(n) {
-		a.outer.functionsWithNonEmptyReturns.Add(containerScope.GetRootNode())
+		a.outer.functionsWithNonEmptyReturns[containerScope.GetRootNode()] = struct{}{}
 	}
 
 	// Be careful of bleeding functions, which create variables
@@ -4065,10 +4163,10 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		if var_ != nil {
 			ownerScope := var_.GetScope().(*Scope)
 			if ownerScope.IsLocal() {
-				scopedName := ScopedName_Of(name, ownerScope.GetRootNode())
-				a.outer.assignedVarNames.Add(scopedName)
+				scopedName := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: ownerScope.GetRootNode()}
+				a.outer.assignedVarNames[scopedName]++
 				if !containerScope.HasSameContainerScope(ownerScope) {
-					a.outer.escapedVarNames.Add(scopedName)
+					a.outer.escapedVarNames[scopedName] = struct{}{}
 				}
 			}
 		}
@@ -4079,7 +4177,8 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		if var_ != nil {
 			ownerScope := var_.GetScope().(*Scope)
 			if ownerScope.IsLocal() && !containerScope.HasSameContainerScope(ownerScope) {
-				a.outer.escapedVarNames.Add(ScopedName_Of(*n.GetQualifiedName(), ownerScope.GetRootNode()))
+				qName, _ := n.GetQualifiedNameString()
+				a.outer.escapedVarNames[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] = struct{}{}
 			}
 		}
 	}
@@ -4087,25 +4186,28 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 
 // Java: TypedScopeCreator.containingGoogModuleIdOf(TypedScope)
 func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) *string {
-	module := scope.GetModule()
-	if module == nil {
-		parent := scope.GetParent()
-		if parent != nil {
-			return TypedScopeCreator_ContainingGoogModuleIdOf(parent)
+	for scope != nil {
+		module := scope.GetModule()
+		if module == nil {
+			scope = scope.GetParent()
+			continue
+		}
+
+		// Stop recursing once we've hit a module scope.
+		metadata := module.Metadata()
+		jutil.CheckStateMsg1(metadata.IsModule(), "%s", metadata)
+
+		/*
+		 * This module may not have a goog.module/goog.declareModuleId. Also don't crash if it's
+		 * malformed with multiple module IDs.
+		 */
+		if ns := module.ClosureNamespace(); ns != nil {
+			return ns
+		}
+		for namespace := range metadata.GoogNamespaces().All() {
+			return jutil.StringPtr(namespace)
 		}
 		return nil
-	}
-
-	// Stop recursing once we've hit a module scope.
-	metadata := module.Metadata()
-	jutil.CheckStateMsg1(metadata.IsModule(), "%s", metadata)
-
-	/*
-	 * This module may not have a goog.module/goog.declareModuleId. Also don't crash if it's
-	 * malformed with multiple module IDs.
-	 */
-	for namespace := range metadata.GoogNamespaces().All() {
-		return jutil.StringPtr(namespace)
 	}
 	return nil
 }

@@ -90,7 +90,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 
 func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
 	if len(m.mappingSlab) == 0 {
-		m.mappingSlab = make([]SourceMap_Mapping, 256)
+		m.mappingSlab = make([]SourceMap_Mapping, 4096)
 	}
 	res := &m.mappingSlab[0]
 	m.mappingSlab = m.mappingSlab[1:]

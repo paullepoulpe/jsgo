@@ -265,7 +265,7 @@ func (s *SourceMap) AddMappingOfNodePositions(
 	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
 	if v3, ok := s.generator.(*sourcemap.SourceMapGeneratorV3); ok {
 		v3.AddMappingPositions(
-			&sourceFileName,
+			sourceFileName,
 			originalName,
 			srcPos,
 			outputStartPosition,

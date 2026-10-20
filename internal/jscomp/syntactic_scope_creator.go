@@ -32,6 +32,7 @@ type SyntacticScopeCreator struct {
 	compiler                      AbstractCompiler
 	redeclarationHandler          SyntacticScopeCreator_RedeclarationHandler
 	treatProvidesAsRedeclarations bool
+	arena                         scopeArena
 }
 
 // The arguments variable is special, in that it's declared for every function,
@@ -88,9 +89,9 @@ func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope)
 func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope) *Scope {
 	var scope *Scope
 	if parent == nil {
-		scope = Scope_CreateGlobalScope(n)
+		scope = newScopeInArena(n, &c.arena)
 	} else {
-		scope = Scope_CreateChildScope(parent, n)
+		scope = newScopeWithParentInArena(parent, n, &c.arena)
 	}
 	// Go-only: performance — the scanner, which nothing keeps, is a local
 	// variable rather than a heap object (one per scope created).
@@ -351,7 +352,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 		}
 	case rhino.Token_EXPR_RESULT:
 		if !n.GetParent().IsScript() {
-			break
+			return
 		}
 		if NodeUtil_IsGoogProvideCall(n) {
 			s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), n)
@@ -366,28 +367,34 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 				s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), moduleCall)
 			}
 		}
-	default:
-	}
-
-	isBlockStart := blockScope != nil && n == blockScope.GetRootNode()
-	enteringNewBlock := !isBlockStart && NodeUtil_CreatesBlockScope(n)
-	if enteringNewBlock && hoistScope == nil {
-		// We only enter new blocks when scanning for hoisted vars
 		return
+	default:
 	}
 
 	// Variables can only occur in statement-level nodes, so
 	// we only need to traverse children in a couple special cases.
-	if NodeUtil_IsShallowStatementTree(n) {
-		for child := n.GetFirstChild(); child != nil; {
-			next := child.GetNext()
-			if enteringNewBlock {
-				s.ScanVars(child, hoistScope, nil)
-			} else {
-				s.ScanVars(child, hoistScope, blockScope)
+	child := n.GetFirstChild()
+	if child == nil || !NodeUtil_IsShallowStatementTree(n) {
+		return
+	}
+
+	if blockScope != nil {
+		if n != blockScope.GetRootNode() && NodeUtil_CreatesBlockScope(n) {
+			if hoistScope == nil {
+				// We only enter new blocks when scanning for hoisted vars
+				return
 			}
-			child = next
+			blockScope = nil
 		}
+	} else if hoistScope == nil && NodeUtil_CreatesBlockScope(n) {
+		// We only enter new blocks when scanning for hoisted vars
+		return
+	}
+
+	for child != nil {
+		next := child.GetNext()
+		s.ScanVars(child, hoistScope, blockScope)
+		child = next
 	}
 }
 

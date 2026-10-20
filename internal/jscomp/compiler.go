@@ -261,6 +261,7 @@ type Compiler struct {
 	// the same object is handed out every time, as `this` is in Java.
 	asErrorHandler      *compiler_errorHandler
 	asSourceFileMapping *compiler_sourceFileMapping
+	cachedAstAnalyzer   *AstAnalyzer
 
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods and blocks hold.
@@ -1660,13 +1661,29 @@ func (c *Compiler) CreateAstFactoryWithoutTypes() *AstFactory {
 // Java: Compiler.getAstAnalyzer()
 func (c *Compiler) GetAstAnalyzer() *AstAnalyzer {
 	options := c.GetOptions()
+	useTypes := options.ShouldUseTypesForLocalOptimization()
+	assumeGetters := options.GetAssumeGettersArePure()
+	hasRegexp := c.HasRegExpGlobalReferences()
+	assumeBuiltins := options.GetAssumePropertiesAreStaticallyAnalyzable()
+	accessorSummary := c.GetAccessorSummary()
+	if a := c.cachedAstAnalyzer; a != nil &&
+		a.typeRegistry == c.typeRegistry &&
+		a.accessorSummary == accessorSummary &&
+		a.useTypesForLocalOptimization == useTypes &&
+		a.assumeGettersArePure == assumeGetters &&
+		a.hasRegexpGlobalReferences == hasRegexp &&
+		a.assumeKnownBuiltinsArePure == assumeBuiltins {
+		return a
+	}
 	analysisSettings := AstAnalyzer_Options_Builder_().
-		SetUseTypesForLocalOptimization(options.ShouldUseTypesForLocalOptimization()).
-		SetAssumeGettersArePure(options.GetAssumeGettersArePure()).
-		SetHasRegexpGlobalReferences(c.HasRegExpGlobalReferences()).
-		SetAssumeKnownBuiltinsArePure(options.GetAssumePropertiesAreStaticallyAnalyzable()).
+		SetUseTypesForLocalOptimization(useTypes).
+		SetAssumeGettersArePure(assumeGetters).
+		SetHasRegexpGlobalReferences(hasRegexp).
+		SetAssumeKnownBuiltinsArePure(assumeBuiltins).
 		Build()
-	return NewAstAnalyzer(analysisSettings, c.typeRegistry, c.GetAccessorSummary())
+	a := NewAstAnalyzer(analysisSettings, c.typeRegistry, accessorSummary)
+	c.cachedAstAnalyzer = a
+	return a
 }
 
 // Java: Compiler.createDefaultExpressionDecomposer()

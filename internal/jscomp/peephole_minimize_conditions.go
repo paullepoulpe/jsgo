@@ -426,6 +426,15 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n *rhino.Node) *rhino.Node {
 	return newOperator
 }
 
+func peepholeMinimizeConditions_canMinimizeConditionNode(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_NOT, rhino.Token_AND, rhino.Token_OR, rhino.Token_HOOK, rhino.Token_COMMA:
+		return true
+	default:
+		return false
+	}
+}
+
 // TryMinimizeExprResult tries to remove leading NOTs from EXPR_RESULTS.
 //
 // Returns the replacement for n or the original if no replacement was
@@ -434,6 +443,9 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n *rhino.Node) *rhino.Node {
 // Java: PeepholeMinimizeConditions.tryMinimizeExprResult(Node)
 func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n *rhino.Node) *rhino.Node {
 	originalExpr := n.GetFirstChild()
+	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalExpr) {
+		return n
+	}
 	minCond := MinimizedCondition_FromConditionNode(originalExpr)
 	mNode :=
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
@@ -454,6 +466,9 @@ func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n *rhino.Node) *rhino
 // Java: PeepholeMinimizeConditions.tryMinimizeHook(Node)
 func (p *PeepholeMinimizeConditions) TryMinimizeHook(n *rhino.Node) *rhino.Node {
 	originalCond := n.GetFirstChild()
+	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalCond) {
+		return n
+	}
 	minCond := MinimizedCondition_FromConditionNode(originalCond)
 	mNode :=
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
@@ -949,14 +964,16 @@ func PeepholeMinimizeConditions_IsLowerPrecedence(n *rhino.Node, precedence int)
 	return NodeUtil_Precedence(n.GetToken()) < precedence
 }
 
+func peepholeMinimizeConditions_isPropertyAssignmentInExpressionPredicate(input *rhino.Node) bool {
+	return input.IsGetProp() && input.GetParent().IsAssign()
+}
+
 // PeepholeMinimizeConditions_IsPropertyAssignmentInExpression reports
 // whether the expression contains a property assignment.
 //
 // Java: PeepholeMinimizeConditions.isPropertyAssignmentInExpression(Node)
 func PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(n *rhino.Node) bool {
-	isPropertyAssignmentInExpressionPredicate :=
-		func(input *rhino.Node) bool { return input.IsGetProp() && input.GetParent().IsAssign() }
-	return NodeUtil_Has(n, isPropertyAssignmentInExpressionPredicate, NodeUtil_MATCH_NOT_FUNCTION)
+	return NodeUtil_Has(n, peepholeMinimizeConditions_isPropertyAssignmentInExpressionPredicate, NodeUtil_MATCH_NOT_FUNCTION)
 }
 
 // TryMinimizeCondition tries to minimize condition expression, as there are
@@ -968,6 +985,9 @@ func PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(n *rhino.Node) 
 // Java: PeepholeMinimizeConditions.tryMinimizeCondition(Node)
 func (p *PeepholeMinimizeConditions) TryMinimizeCondition(n *rhino.Node) *rhino.Node {
 	n = p.PerformConditionSubstitutions(n)
+	if !peepholeMinimizeConditions_canMinimizeConditionNode(n) {
+		return n
+	}
 	minCond := MinimizedCondition_FromConditionNode(n)
 	return p.ReplaceNode(
 		n,
@@ -1029,7 +1049,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n *rhino.Node
 		// some parens because the comma operator has a low precedence) but
 		// the new AST is easier for other passes to handle.
 		rightVal := p.GetSideEffectFreeBooleanValue(right)
-		if p.GetSideEffectFreeBooleanValue(right) != base.Tri_UNKNOWN {
+		if rightVal != base.Tri_UNKNOWN {
 			type_ := n.GetToken()
 			var replacement *rhino.Node
 			rval := rightVal.ToBoolean(true)

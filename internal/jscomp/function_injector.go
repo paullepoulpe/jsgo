@@ -564,6 +564,10 @@ func (c FunctionInjector_CallSiteType) Prepare(injector *FunctionInjector, ref F
 //
 // Java: FunctionInjector.classifyCallSite(Reference)
 func (f *FunctionInjector) ClassifyCallSite(ref FunctionInjector_Reference) FunctionInjector_CallSiteType {
+	return f.classifyCallSite(ref, true)
+}
+
+func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allowDecomposition bool) FunctionInjector_CallSiteType {
 	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
 	parent := callNode.GetParent()
 	grandParent := parent.GetParent()
@@ -590,7 +594,7 @@ func (f *FunctionInjector) ClassifyCallSite(ref FunctionInjector_Reference) Func
 		// TODO(johnlenz): Should we be checking for constants on the
 		// left-hand-side of the assignments and handling them as EXPRESSION?
 		return FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT
-	} else {
+	} else if allowDecomposition {
 		decomposer := f.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().scope)
 		switch decomposer.CanExposeExpression(callNode) {
 		case ExpressionDecomposer_DecompositionType_MOVABLE:
@@ -776,7 +780,7 @@ func (r FunctionInjector_CanInlineResult) Ordinal() int { return int(r) }
 // Java: FunctionInjector.canInlineReferenceAsStatementBlock(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
 	ref FunctionInjector_Reference, fnNode *rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
-	callSiteType := f.ClassifyCallSite(ref)
+	callSiteType := f.classifyCallSite(ref, f.allowDecomposition)
 	if callSiteType == FunctionInjector_CallSiteType_UNSUPPORTED {
 		return FunctionInjector_CanInlineResult_NO
 	}
@@ -799,6 +803,15 @@ func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
 	}
 }
 
+func functionInjector_isEvalName(n *rhino.Node) bool {
+	return n.IsName() && n.GetString() == "eval"
+}
+
+var (
+	functionInjector_matchDeclaration      = NewNodeUtil_MatchDeclaration().Apply
+	functionInjector_matchShallowStatement = NewNodeUtil_MatchShallowStatement().Apply
+)
+
 // ReferencesEval returns whether or not fn includes a call to `eval` in its
 // scope.
 //
@@ -813,11 +826,29 @@ func (f *FunctionInjector) ReferencesEval(fn *rhino.Node) bool {
 	}
 
 	result := NodeUtil_Has(
-		fn, //
-		func(n *rhino.Node) bool { return n.IsName() && n.GetString() == "eval" }, // Match predicate
-		func(n *rhino.Node) bool { return !n.IsFunction() || n == fn })            // Explore node predicate
+		fn,
+		functionInjector_isEvalName,                    // Match predicate
+		func(n *rhino.Node) bool { return !n.IsFunction() || n == fn }) // Explore node predicate
 	f.referencesEvalCache.Put(fn, result)
 	return result
+}
+
+func functionInjector_findInnerFunctions(n *rhino.Node, containerFn *rhino.Node, first **rhino.Node, count *int) {
+	if n != containerFn && NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
+		if *count == 0 {
+			*first = n
+		}
+		*count++
+		if *count > 1 {
+			return
+		}
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		functionInjector_findInnerFunctions(c, containerFn, first, count)
+		if *count > 1 {
+			return
+		}
+	}
 }
 
 // InnerFunctionOf returns any inner function or non-static class field
@@ -840,24 +871,15 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn *rhino.Node) *rhino.Node 
 		return cached
 	}
 
-	innerFns := jutil.NewArrayList[*rhino.Node]()
-	NodeUtil_VisitPreOrder(
-		containerFn,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
-			if n == containerFn {
-				return
-			}
+	var firstInner *rhino.Node
+	count := 0
+	functionInjector_findInnerFunctions(containerFn, containerFn, &firstInner, &count)
 
-			if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
-				innerFns.Add(n)
-			}
-		}))
-
-	switch innerFns.Size() {
+	switch count {
 	case 0:
 		cached = FunctionInjector_NO_FUNCTIONS
 	case 1:
-		cached = innerFns.Get(0)
+		cached = firstInner
 	default:
 		cached = FunctionInjector_MULTIPLE_FUNCTIONS
 	}
@@ -883,14 +905,6 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 	// Note that as of 2019-10-11, "eval" and function checking are cached so this may be less
 	// of an issue.
 
-	// Don't inline functions with var declarations into a scope with inner
-	// functions as the new vars would leak into the inner function and
-	// cause memory leaks.
-	calleeContainsVars := NodeUtil_Has(
-		NodeUtil_GetFunctionBody(calleeFn),
-		NewNodeUtil_MatchDeclaration().Apply,
-		NewNodeUtil_MatchShallowStatement().Apply)
-
 	forbidTemps := false
 	callRefScope := callRef.GetFunctionInjector_ReferenceBase().scope
 	if !callRefScope.GetClosestHoistScope().IsGlobal() {
@@ -907,22 +921,28 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 		}
 	}
 
-	if calleeContainsVars && forbidTemps {
-		return false
-	}
-
 	// If the caller contains functions or evals, verify we aren't adding any
 	// additional VAR declarations because aliasing is needed.
 	if forbidTemps {
+		if !namesToAlias.IsEmpty() {
+			return false
+		}
+
+		// Don't inline functions with var declarations into a scope with inner
+		// functions as the new vars would leak into the inner function and
+		// cause memory leaks.
+		calleeContainsVars := NodeUtil_Has(
+			NodeUtil_GetFunctionBody(calleeFn),
+			functionInjector_matchDeclaration,
+			functionInjector_matchShallowStatement)
+		if calleeContainsVars {
+			return false
+		}
+
 		args := f.functionArgumentInjector.GetFunctionCallParameterMap(
 			calleeFn, callRef.GetFunctionInjector_ReferenceBase().callNode, f.safeNameIdSupplier)
 		hasArgs := !args.IsEmpty()
 		if hasArgs {
-			// Limit the inlining
-			if !namesToAlias.IsEmpty() {
-				return false
-			}
-
 			allTemps := f.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
 				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention())
 			if !allTemps.IsEmpty() {
@@ -973,15 +993,14 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 		}
 	}
 
+	if !namesToAlias.IsEmpty() {
+		return FunctionInjector_CanInlineResult_NO
+	}
+
 	args := f.functionArgumentInjector.GetFunctionCallParameterMap(
 		fnNode, callNode, f.throwawayNameSupplier)
 	hasArgs := !args.IsEmpty()
 	if hasArgs {
-		// Limit the inlining
-		if !namesToAlias.IsEmpty() {
-			return FunctionInjector_CanInlineResult_NO
-		}
-
 		allTemps := f.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
 			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention())
 		if !allTemps.IsEmpty() {

@@ -44,18 +44,25 @@ pinned release, v20261015, and its jar), the corpus, `bench-inputs/` and
 
 | Input | Version | Used by |
 |---|---|---|
-| Closure Library | v20230802, the last release; GitHub tag `ccf3f1dc` | typed app, checks only, shaka-blockly, typed-full |
-| Shaka Player | 5.3.1 (`lib/`, `ui/`, `externs/`, `third_party/`, `dist/locales.js`) | shaka-blockly, typed-full |
-| Blockly | 8.0.5 (`core/`, `blocks/`, `generators/`, last pure-Closure release) | shaka-blockly, typed-full |
-| three.js | 0.159.0 (`build/three.js`) | bundle, bundle-advanced, bundle-advanced-ts |
-| lodash | 4.17.21 (`lodash.js`) | bundle, bundle-advanced, bundle-advanced-ts |
-| react-dom | 18.3.1 (`umd/react-dom.development.js`) | bundle, bundle-advanced, bundle-advanced-ts |
+| Closure Library | v20230802, the last release; GitHub tag `ccf3f1dc` | typed app, checks only, shaka-blockly, typed-full, typed-mega |
+| Shaka Player | 5.3.1 (`lib/`, `ui/`, `externs/`, `third_party/`, `dist/locales.js`) | shaka-blockly, typed-full, typed-mega |
+| Blockly | 8.0.5 (`core/`, `blocks/`, `generators/`, last pure-Closure release) | shaka-blockly, typed-full, typed-mega |
+| OpenSphere | release-23.0.1 (1,648 Closure `goog.provide`/`goog.module` files + externs) | typed-mega |
+| OpenLayers | 4.6.5 (`src/ol/`, `externs/`, 539 files) | typed-mega |
+| Camptocamp ngeo | 2.2.10 (`src/`, `contribs/`, `externs/`, 203 files) | typed-mega |
+| YouTube SPFjs | 2.4.0 (`src/`, 36 files) | typed-mega |
+| ol-cesium | 1.37.0 (`src/olcs/`, 40 files) | typed-mega |
+| google-protobuf | 3.21.2 (Closure JS runtime + UMD bundle) | typed-mega, bundle-mega |
+| three.js | 0.159.0 (`build/three.js`) | bundle, bundle-advanced, bundle-advanced-ts, bundle-mega |
+| lodash | 4.17.21 (`lodash.js`) | bundle, bundle-advanced, bundle-advanced-ts, bundle-mega |
+| react-dom | 18.3.1 (`umd/react-dom.development.js`) | bundle, bundle-advanced, bundle-advanced-ts, bundle-mega |
 | TypeScript | 5.6.3 (`lib/typescript.js`, 8.9 MB) | bundle, bundle-advanced-ts |
+| Large UMD suite | plotly.js 2.27.0, handsontable 6.2.2, echarts 5.4.3, ag-grid-community 30.2.1, pdfjs-dist 2.16.105, pixi.js 6.5.10, fabric 5.3.0, mathjs 11.11.2, konva 8.4.3, google-libphonenumber 3.2.33, lovefield 2.1.12, chart.js 2.9.4, zone.js 0.14.2 | bundle-mega |
 | @angular/core | 16.2.12 (`fesm2022/core.mjs`) | down-levelling |
-| rxjs | 7.8.2 (`dist/esm`, ES2015 modules; `dist/bundles/rxjs.umd.js`) | down-levelling, bundle-advanced |
+| rxjs | 7.8.2 (`dist/esm`, ES2015 modules; `dist/bundles/rxjs.umd.js`) | down-levelling, bundle-advanced, bundle-mega |
 | tslib | 2.8.1 (`tslib.es6.js`) | down-levelling |
 | core-js | 3.50.0 (CommonJS, from `stable/index.js`) | down-levelling |
-| oracle corpus | `tools/oracle/corpus.txt` | single files, bundle-advanced |
+| oracle corpus | `tools/oracle/corpus.txt` | single files, bundle-advanced, bundle-mega |
 
 Choices:
 
@@ -113,6 +120,8 @@ Choices:
 | `typed-full` | `ADVANCED`, `--jscomp_warning=checkTypes`, source map (1,818 files, 28.5 MB: Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app) | stdout, stderr, exit, `out.js`, `out.js.map` |
 | `bundle-advanced` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (11 UMD libraries, 5.4 MB) | stdout, stderr, exit, `out.js`, `out.js.map` |
 | `bundle-advanced-ts` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (12.6 MB incl. `typescript.js`) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `typed-mega` | `ADVANCED`, `--jscomp_warning=checkTypes`, source map (4,385 files, 44.6 MB: 10 Closure `ADVANCED` codebases) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `bundle-mega` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (26 UMD libraries, 36.1 MB) | stdout, stderr, exit, `out.js`, `out.js.map` |
 
 Input paths are always relative: `inputs/…`, `app/…`, `corpus/…` and
 `node_modules/…`. Each compile runs in its own directory holding those

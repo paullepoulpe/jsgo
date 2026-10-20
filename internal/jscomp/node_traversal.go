@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -770,22 +771,58 @@ func (b *NodeTraversal_Builder) Build() *NodeTraversal {
 
 // Java: NodeTraversal.Builder.traverse(Node)
 func (b *NodeTraversal_Builder) Traverse(root *rhino.Node) {
-	b.Build().Traverse(root)
+	t := acquireNodeTraversal(b)
+	t.Traverse(root)
+	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseAtScope(AbstractScope<?, ?>)
 func (b *NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
-	b.Build().TraverseAtScope(scope)
+	t := acquireNodeTraversal(b)
+	t.TraverseAtScope(scope)
+	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseRoots(Node, Node)
 func (b *NodeTraversal_Builder) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
-	b.Build().TraverseRoots(externs, root)
+	t := acquireNodeTraversal(b)
+	t.TraverseRoots(externs, root)
+	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseWithScope(Node, AbstractScope<?, ?>)
 func (b *NodeTraversal_Builder) TraverseWithScope(root *rhino.Node, s AbstractScope) {
-	b.Build().TraverseWithScope(root, s)
+	t := acquireNodeTraversal(b)
+	t.TraverseWithScope(root, s)
+	releaseNodeTraversal(t)
+}
+
+var nodeTraversalPool = sync.Pool{
+	New: func() any { return &NodeTraversal{} },
+}
+
+func acquireNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
+	if builder.compiler == nil || builder.callback == nil {
+		failNodeTraversalNull()
+	}
+	t := nodeTraversalPool.Get().(*NodeTraversal)
+	if cap(t.scopes) == 0 {
+		t.scopes = t.scopesBuf[:0]
+	}
+	initNodeTraversalFromBuilder(t, builder)
+	return t
+}
+
+func releaseNodeTraversal(t *NodeTraversal) {
+	scopes := t.scopes
+	clear(scopes)
+	*t = NodeTraversal{}
+	if cap(scopes) > len(t.scopesBuf) {
+		t.scopes = scopes[:0]
+	} else {
+		t.scopes = t.scopesBuf[:0]
+	}
+	nodeTraversalPool.Put(t)
 }
 
 // Java: NodeTraversal(Builder)
@@ -795,6 +832,11 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 	}
 	t := &NodeTraversal{}
 	t.scopes = t.scopesBuf[:0]
+	initNodeTraversalFromBuilder(t, builder)
+	return t
+}
+
+func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Builder) {
 	t.compiler = builder.compiler
 	t.callback = builder.callback
 	if scopedCallback, ok := t.callback.(NodeTraversal_ScopedCallback); ok {
@@ -808,7 +850,6 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 	options := t.compiler.GetOptions()
 	t.mayContainSyntheticBlocks =
 		options == nil || options.GetSyntheticBlockStartMarker() != nil
-	return t
 }
 
 // Java: NodeTraversal.throwUnexpectedException(Throwable)
@@ -868,7 +909,9 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 // Java: NodeTraversal.traverse(AbstractCompiler, Node, Callback)
 func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	newNodeTraversal(&b).Traverse(root)
+	t := acquireNodeTraversal(&b)
+	t.Traverse(root)
+	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
@@ -898,7 +941,9 @@ func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
 func NodeTraversal_TraverseRoots(
 	compiler AbstractCompiler, cb NodeTraversal_Callback, externs *rhino.Node, root *rhino.Node) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	newNodeTraversal(&b).TraverseRoots(externs, root)
+	t := acquireNodeTraversal(&b)
+	t.TraverseRoots(externs, root)
+	releaseNodeTraversal(t)
 }
 
 const nodeTraversal_MISSING_SOURCE = "[source unknown]"
@@ -1083,7 +1128,9 @@ func NodeTraversal_TraverseScopeRoots(
 			callback:     scb,
 			scopeCreator: scopeCreator,
 		}
-		newNodeTraversal(&b).TraverseScopeRoot(scopeNode)
+		t := acquireNodeTraversal(&b)
+		t.TraverseScopeRoot(scopeNode)
+		releaseNodeTraversal(t)
 	}
 }
 
@@ -1319,33 +1366,34 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		return
 	}
 
-	createsBlockScope := t.CreatesBlockScope(n)
-	previousHoistScopeRoot := t.currentHoistScopeRoot
-	if createsBlockScope {
+	if t.CreatesBlockScope(n) {
+		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
 		if NodeUtil_IsClassStaticBlock(n) {
 			t.currentHoistScopeRoot = n
 		}
-	}
-
-	/*
-	 * Intentionally inlined call to traverseChildren.
-	 *
-	 * <p>Calling traverseChildren here would double the maximum stack depth seen during
-	 * compilation. That can cause stack overflows on some very deep ASTs (e.g. b/188616350).
-	 * Inlining side-steps the issue.
-	 */
-	for child := n.GetFirstChild(); child != nil; {
-		// child could be replaced, in which case our child node
-		// would no longer point to the true next
-		next := child.GetNext()
-		t.TraverseBranch(child, n)
-		child = next
-	}
-
-	if createsBlockScope {
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			t.TraverseBranch(child, n)
+			child = next
+		}
 		t.PopScope()
 		t.currentHoistScopeRoot = previousHoistScopeRoot
+	} else {
+		/*
+		 * Intentionally inlined call to traverseChildren.
+		 *
+		 * <p>Calling traverseChildren here would double the maximum stack depth seen during
+		 * compilation. That can cause stack overflows on some very deep ASTs (e.g. b/188616350).
+		 * Inlining side-steps the issue.
+		 */
+		for child := n.GetFirstChild(); child != nil; {
+			// child could be replaced, in which case our child node
+			// would no longer point to the true next
+			next := child.GetNext()
+			t.TraverseBranch(child, n)
+			child = next
+		}
 	}
 
 	t.currentNode = n

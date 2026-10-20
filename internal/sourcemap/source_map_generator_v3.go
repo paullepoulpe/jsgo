@@ -22,6 +22,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -45,10 +46,16 @@ type SourceMapGeneratorV3 struct {
 	originalNameMap *jutil.LinkedHashMap[string, int]
 
 	// Cache of the last mappings source name.
-	lastSourceFile *string
+	lastSourceFile    string
+	hasLastSourceFile bool
 
 	// Cache of the last mappings source name index.
 	lastSourceFileIndex int
+
+	// Cache of the last mappings symbol name.
+	lastSymbolName      string
+	hasLastSymbolName   bool
+	lastSymbolNameIndex int
 
 	// For validation store the last mapping added.
 	lastMapping *SourceMapGeneratorV3_Mapping
@@ -99,8 +106,12 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
-	g.lastSourceFile = nil
+	g.lastSourceFile = ""
+	g.hasLastSourceFile = false
 	g.lastSourceFileIndex = -1
+	g.lastSymbolName = ""
+	g.hasLastSymbolName = false
+	g.lastSymbolNameIndex = -1
 	g.offsetPosition = NewFilePosition(0, 0)
 	g.prefixPosition = NewFilePosition(0, 0)
 	g.extensions = jutil.NewLinkedHashMap[string, any]()
@@ -116,15 +127,19 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
-	g.lastSourceFile = nil
+	g.lastSourceFile = ""
+	g.hasLastSourceFile = false
 	g.lastSourceFileIndex = -1
+	g.lastSymbolName = ""
+	g.hasLastSymbolName = false
+	g.lastSymbolNameIndex = -1
 	g.offsetPosition = NewFilePosition(0, 0)
 	g.prefixPosition = NewFilePosition(0, 0)
 }
 
 func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
 	if len(g.mappingSlab) == 0 {
-		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 256)
+		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 4096)
 	}
 	m := &g.mappingSlab[0]
 	g.mappingSlab = g.mappingSlab[1:]
@@ -188,17 +203,17 @@ func (g *SourceMapGeneratorV3) AddMapping(
 	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
 		return
 	}
-	g.AddMappingPositions(sourceName, symbolName, *sourceStartPosition, *startPosition, *endPosition)
+	g.AddMappingPositions(*sourceName, symbolName, *sourceStartPosition, *startPosition, *endPosition)
 }
 
 // AddMappingPositions adds a mapping using value FilePositions without heap allocation.
 func (g *SourceMapGeneratorV3) AddMappingPositions(
-	sourceName *string, symbolName *string,
+	sourceName string, symbolName *string,
 	sourceStartPosition FilePosition,
 	startPosition FilePosition, endPosition FilePosition) {
 
 	// Don't bother if there is not sufficient information to be useful.
-	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
+	if sourceStartPosition.GetLine() < 0 {
 		return
 	}
 
@@ -233,7 +248,7 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 
 	// Create the new mapping.
 	mapping := g.allocMapping()
-	mapping.sourceFile = *sourceName
+	mapping.sourceFile = sourceName
 	mapping.originalPosition = sourceStartPosition
 	mapping.originalName = symbolName
 	mapping.startPosition = adjustedStart
@@ -516,14 +531,40 @@ func (g *SourceMapGeneratorV3) AddSymbolNameMap(out io.StringWriter) {
 
 // Java: SourceMapGeneratorV3.addNameMap(Appendable, Map)
 func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap[string, int]) {
+	var buf [4096]byte
+	bufLen := 0
+	flush := func() {
+		if bufLen > 0 {
+			appendString(out, unsafe.String(&buf[0], bufLen))
+			bufLen = 0
+		}
+	}
 	i := 0
 	for key := range m.Keys() {
-		if i != 0 {
-			appendString(out, ",")
+		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
+			if bufLen+len(key)+3 > len(buf) {
+				flush()
+			}
+			if i != 0 {
+				buf[bufLen] = ','
+				bufLen++
+			}
+			buf[bufLen] = '"'
+			bufLen++
+			copy(buf[bufLen:], key)
+			bufLen += len(key)
+			buf[bufLen] = '"'
+			bufLen++
+		} else {
+			flush()
+			if i != 0 {
+				appendString(out, ",")
+			}
+			appendString(out, SourceMapGeneratorV3_EscapeString(key))
 		}
-		appendString(out, SourceMapGeneratorV3_EscapeString(key))
 		i++
 	}
+	flush()
 }
 
 // SourceMapGeneratorV3_EscapeString escapes the given string for JSON.
@@ -838,8 +879,9 @@ func SourceMapGeneratorV3_AppendOffsetValue(out io.StringWriter, line, column in
 
 // Java: SourceMapGeneratorV3.getSourceId(String)
 func (g *SourceMapGeneratorV3) GetSourceId(sourceName string) int {
-	if g.lastSourceFile == nil || sourceName != *g.lastSourceFile {
-		g.lastSourceFile = &sourceName
+	if !g.hasLastSourceFile || sourceName != g.lastSourceFile {
+		g.lastSourceFile = sourceName
+		g.hasLastSourceFile = true
 		index, ok := g.sourceFileMap.Lookup(sourceName)
 		if ok {
 			g.lastSourceFileIndex = index
@@ -853,15 +895,18 @@ func (g *SourceMapGeneratorV3) GetSourceId(sourceName string) int {
 
 // Java: SourceMapGeneratorV3.getNameId(String)
 func (g *SourceMapGeneratorV3) GetNameId(symbolName string) int {
-	var originalNameIndex int
-	index, ok := g.originalNameMap.Lookup(symbolName)
-	if ok {
-		originalNameIndex = index
-	} else {
-		originalNameIndex = g.originalNameMap.Size()
-		g.originalNameMap.Put(symbolName, originalNameIndex)
+	if !g.hasLastSymbolName || symbolName != g.lastSymbolName {
+		g.lastSymbolName = symbolName
+		g.hasLastSymbolName = true
+		index, ok := g.originalNameMap.Lookup(symbolName)
+		if ok {
+			g.lastSymbolNameIndex = index
+		} else {
+			g.lastSymbolNameIndex = g.originalNameMap.Size()
+			g.originalNameMap.Put(symbolName, g.lastSymbolNameIndex)
+		}
 	}
-	return originalNameIndex
+	return g.lastSymbolNameIndex
 }
 
 // SourceMapGeneratorV3_LineMapper writes the "mappings" field.
@@ -881,6 +926,10 @@ type SourceMapGeneratorV3_LineMapper struct {
 	previousSourceLine   int
 	previousSourceColumn int
 	previousNameId       int
+
+	buf       [4096]byte
+	bufLen    int
+	buffering bool
 }
 
 // Java: SourceMapGeneratorV3.LineMapper(Appendable, int)
@@ -889,6 +938,50 @@ func NewSourceMapGeneratorV3_LineMapper(outer *SourceMapGeneratorV3, out io.Stri
 	l.out = out
 	l.maxLine = maxLine
 	return l
+}
+
+func (l *SourceMapGeneratorV3_LineMapper) flush() {
+	if l.bufLen > 0 {
+		appendString(l.out, unsafe.String(&l.buf[0], l.bufLen))
+		l.bufLen = 0
+	}
+}
+
+func (l *SourceMapGeneratorV3_LineMapper) writeByte(b byte) {
+	if !l.buffering {
+		var tmp [1]byte
+		tmp[0] = b
+		appendString(l.out, unsafe.String(&tmp[0], 1))
+		return
+	}
+	if l.bufLen >= len(l.buf) {
+		l.flush()
+	}
+	l.buf[l.bufLen] = b
+	l.bufLen++
+}
+
+func (l *SourceMapGeneratorV3_LineMapper) writeVLQ(value int32) {
+	if !l.buffering {
+		Base64VLQ_Encode(l.out, value)
+		return
+	}
+	if l.bufLen+8 > len(l.buf) {
+		l.flush()
+	}
+	value = Base64VLQ_ToVLQSigned(value)
+	for {
+		digit := value & Base64VLQ_VLQ_BASE_MASK
+		value = jutil.Ushr32(value, Base64VLQ_VLQ_BASE_SHIFT)
+		if value > 0 {
+			digit |= Base64VLQ_VLQ_CONTINUATION_BIT
+		}
+		l.buf[l.bufLen] = byte(Base64_ToBase64(digit))
+		l.bufLen++
+		if !(value > 0) {
+			break
+		}
+	}
 }
 
 // Visit writes out the appropriate line mapping as each segment is visited.
@@ -905,7 +998,7 @@ func (l *SourceMapGeneratorV3_LineMapper) Visit(m *SourceMapGeneratorV3_Mapping,
 		// (If they're non-null, we assert-fail.)
 		if line < l.maxLine {
 			if l.previousLine == line { // not the first entry for the line
-				appendString(l.out, ",")
+				l.writeByte(',')
 			}
 			l.WriteEntry(m, col)
 			l.previousLine = line
@@ -932,27 +1025,27 @@ func (l *SourceMapGeneratorV3_LineMapper) Visit(m *SourceMapGeneratorV3_Mapping,
 // Java: SourceMapGeneratorV3.LineMapper.writeEntry(Mapping, int)
 func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Mapping, column int) {
 	// The relative generated column number
-	Base64VLQ_Encode(l.out, int32(column-l.previousColumn))
+	l.writeVLQ(int32(column - l.previousColumn))
 	l.previousColumn = column
 	if m != nil {
 		// The relative source file id
 		sourceId := l.outer.GetSourceId(m.sourceFile)
-		Base64VLQ_Encode(l.out, int32(sourceId-l.previousSourceFileId))
+		l.writeVLQ(int32(sourceId - l.previousSourceFileId))
 		l.previousSourceFileId = sourceId
 
 		// The relative source file line and column
 		srcline := m.originalPosition.GetLine()
 		srcColumn := m.originalPosition.GetColumn()
-		Base64VLQ_Encode(l.out, int32(srcline-l.previousSourceLine))
+		l.writeVLQ(int32(srcline - l.previousSourceLine))
 		l.previousSourceLine = srcline
 
-		Base64VLQ_Encode(l.out, int32(srcColumn-l.previousSourceColumn))
+		l.writeVLQ(int32(srcColumn - l.previousSourceColumn))
 		l.previousSourceColumn = srcColumn
 
 		if m.originalName != nil {
 			// The relative id for the associated symbol name
 			nameId := l.outer.GetNameId(*m.originalName)
-			Base64VLQ_Encode(l.out, int32(nameId-l.previousNameId))
+			l.writeVLQ(int32(nameId - l.previousNameId))
 			l.previousNameId = nameId
 		}
 	}
@@ -962,6 +1055,7 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 //
 // Java: SourceMapGeneratorV3.LineMapper.appendLineMappings()
 func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
+	l.buffering = true
 	// Start the first line.
 	l.OpenLine(true)
 
@@ -969,6 +1063,8 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 
 	// And close the final line.
 	l.CloseLine(true)
+	l.flush()
+	l.buffering = false
 }
 
 // OpenLine begins the entry for a new line.
@@ -976,7 +1072,7 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 // Java: SourceMapGeneratorV3.LineMapper.openLine(boolean)
 func (l *SourceMapGeneratorV3_LineMapper) OpenLine(firstEntry bool) {
 	if firstEntry {
-		appendString(l.out, "\"")
+		l.writeByte('"')
 	}
 }
 
@@ -984,8 +1080,8 @@ func (l *SourceMapGeneratorV3_LineMapper) OpenLine(firstEntry bool) {
 //
 // Java: SourceMapGeneratorV3.LineMapper.closeLine(boolean)
 func (l *SourceMapGeneratorV3_LineMapper) CloseLine(finalEntry bool) {
-	appendString(l.out, ";")
+	l.writeByte(';')
 	if finalEntry {
-		appendString(l.out, "\"")
+		l.writeByte('"')
 	}
 }

@@ -52,6 +52,7 @@ type InlineSimpleMethods struct {
 	//   - methods with @noinline
 	//   - methods with multiple, non-equivalent definitions
 	nonInlineableProperties *jutil.LinkedHashSet[string]
+	externProperties        *jutil.LinkedHashSet[string]
 
 	// Use a linked map here to keep the output deterministic.  Otherwise,
 	// the choice of method bodies is random when multiple identical definitions
@@ -66,12 +67,17 @@ type InlineSimpleMethods struct {
 func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	m := &InlineSimpleMethods{
 		nonInlineableProperties: jutil.NewLinkedHashSet[string](),
+		externProperties:        compiler.GetExternProperties(),
 		methodDefinitions:       jutil.NewSetMultimap[string, *rhino.Node](),
 	}
 	m.compiler = compiler
 	m.astAnalyzer = compiler.GetAstAnalyzer()
-	m.nonInlineableProperties.AddAll(compiler.GetExternProperties().ToSlice()...)
 	return m
+}
+
+func (m *InlineSimpleMethods) isNonInlineable(name string) bool {
+	return m.nonInlineableProperties.Contains(name) ||
+		(m.externProperties != nil && m.externProperties.Contains(name))
 }
 
 // Java: InlineSimpleMethods.process(Node, Node)
@@ -101,7 +107,7 @@ func NewInlineSimpleMethods_InlineTrivialAccessors(outer *InlineSimpleMethods) *
 // Java: InlineSimpleMethods.InlineTrivialAccessors.visit(NodeTraversal, Node, Node, String)
 func (a *InlineSimpleMethods_InlineTrivialAccessors) VisitWithCallName(t *NodeTraversal, callNode *rhino.Node, parent *rhino.Node, callName string) {
 	m := a.outer
-	if m.nonInlineableProperties.Contains(callName) {
+	if m.isNonInlineable(callName) {
 		return
 	}
 
@@ -322,7 +328,7 @@ func (m *InlineSimpleMethods) AddPossibleSignature(name string, node *rhino.Node
 
 // Java: InlineSimpleMethods.addSignature(String, Node)
 func (m *InlineSimpleMethods) AddSignature(name string, function *rhino.Node) {
-	if m.nonInlineableProperties.Contains(name) {
+	if m.isNonInlineable(name) {
 		return
 	}
 
@@ -347,12 +353,12 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
 		// TODO(b/251573710): Handle ES2015+ language features that can reference properties
-		name := InlineSimpleMethods_GetPropName(n)
-		if name == nil {
+		name, ok := inlineSimpleMethods_getPropName(n)
+		if !ok {
 			return
 		}
 
-		if *name == "prototype" {
+		if name == "prototype" {
 			g.ProcessPrototypeParent(parent)
 		} else {
 			// Static methods of the form Foo.bar = function() {} or
@@ -364,7 +370,7 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 			//          string bar
 			//      function or name  <- n.getNext()
 			if parent.IsAssign() && n.IsFirstChildOf(parent) {
-				m.AddPossibleSignature(*name, n.GetNext())
+				m.AddPossibleSignature(name, n.GetNext())
 			}
 		}
 	case rhino.Token_OBJECTLIT, rhino.Token_CLASS_MEMBERS:
@@ -412,12 +418,22 @@ func (g *InlineSimpleMethods_GatherSignatures) ProcessPrototypeParent(n *rhino.N
 		//         string getBar
 		//     function or name            <- assignee
 		grandparent := n.GetGrandparent()
-		name := InlineSimpleMethods_GetPropName(n)
-		if name != nil && grandparent.IsAssign() {
+		name, ok := inlineSimpleMethods_getPropName(n)
+		if ok && grandparent.IsAssign() {
 			assignee := grandparent.GetSecondChild()
-			g.outer.AddPossibleSignature(*name, assignee)
+			g.outer.AddPossibleSignature(name, assignee)
 		}
 	default:
+	}
+}
+
+func inlineSimpleMethods_getPropName(getPropElem *rhino.Node) (string, bool) {
+	if getPropElem.IsGetProp() {
+		return getPropElem.GetString(), true
+	} else if getPropElem.GetSecondChild().IsStringLit() {
+		return getPropElem.GetSecondChild().GetString(), true
+	} else {
+		return "", false
 	}
 }
 
@@ -426,11 +442,8 @@ func (g *InlineSimpleMethods_GatherSignatures) ProcessPrototypeParent(n *rhino.N
 //
 // Java: InlineSimpleMethods.getPropName(Node)
 func InlineSimpleMethods_GetPropName(getPropElem *rhino.Node) *string {
-	if getPropElem.IsGetProp() {
-		return jutil.StringPtr(getPropElem.GetString())
-	} else if getPropElem.GetSecondChild().IsStringLit() {
-		return jutil.StringPtr(getPropElem.GetSecondChild().GetString())
-	} else {
-		return nil
+	if name, ok := inlineSimpleMethods_getPropName(getPropElem); ok {
+		return jutil.StringPtr(name)
 	}
+	return nil
 }

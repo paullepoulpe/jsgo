@@ -29,6 +29,8 @@ type BasicBlock struct {
 
 	root *rhino.Node
 
+	depth int32
+
 	// Whether this block denotes a function scope.
 	isFunction bool
 
@@ -42,14 +44,22 @@ type BasicBlock struct {
 //
 // Java: BasicBlock(BasicBlock, Node)
 func NewBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
-	b := &BasicBlock{}
+	return initBasicBlock(&BasicBlock{}, parent, root)
+}
+
+func initBasicBlock(b *BasicBlock, parent *BasicBlock, root *rhino.Node) *BasicBlock {
 	b.parent = parent
 	b.root = root
+	if parent != nil {
+		b.depth = parent.depth + 1
+	} else {
+		b.depth = 0
+	}
 
 	b.isFunction = root.IsFunction()
 
-	if root.HasParent() {
-		pType := root.GetParent().GetToken()
+	if p := root.GetParent(); p != nil {
+		pType := p.GetToken()
 		b.isLoop = pType == rhino.Token_DO ||
 			pType == rhino.Token_WHILE ||
 			pType == rhino.Token_FOR ||
@@ -74,7 +84,7 @@ func (b *BasicBlock) GetParent() *BasicBlock {
 //
 // Java: BasicBlock.isGlobalScopeBlock()
 func (b *BasicBlock) IsGlobalScopeBlock() bool {
-	return b.GetParent() == nil
+	return b.parent == nil
 }
 
 // ProvablyExecutesBefore determines whether this block is guaranteed to
@@ -82,16 +92,20 @@ func (b *BasicBlock) IsGlobalScopeBlock() bool {
 //
 // Java: BasicBlock.provablyExecutesBefore(BasicBlock)
 func (b *BasicBlock) ProvablyExecutesBefore(thatBlock *BasicBlock) bool {
-	// If thatBlock is a descendant of this block, and there are no hoisted
-	// blocks between them, then this block must start before thatBlock.
-	var currentBlock *BasicBlock
-	for currentBlock = thatBlock; currentBlock != nil && currentBlock != b; currentBlock = currentBlock.GetParent() {
-	}
-
-	if currentBlock == b {
+	if thatBlock == b {
 		return true
 	}
-	return b.IsGlobalScopeBlock() && thatBlock.IsGlobalScopeBlock()
+	// If thatBlock is a descendant of this block, and there are no hoisted
+	// blocks between them, then this block must start before thatBlock.
+	bDepth := b.depth
+	if thatBlock.depth <= bDepth {
+		return b.parent == nil && thatBlock.parent == nil
+	}
+	currentBlock := thatBlock.parent
+	for currentBlock.depth > bDepth {
+		currentBlock = currentBlock.parent
+	}
+	return currentBlock == b
 }
 
 // Java: BasicBlock.isFunction()

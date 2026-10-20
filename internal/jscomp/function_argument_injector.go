@@ -217,6 +217,9 @@ func FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier
 // Java: FunctionArgumentInjector.findModifiedParameters(Node)
 func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *jutil.LinkedHashSet[string] {
 	names := FunctionArgumentInjector_GetFunctionParameterSet(fnNode)
+	if names.IsEmpty() {
+		return names
+	}
 	return FunctionArgumentInjector_FindModifiedParametersIn(fnNode.GetLastChild(), names, false)
 }
 
@@ -333,10 +336,23 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 		(fnNode.IsArrowFunction() && argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg().IsThis())) &&
 		argCount <= 2 // this + one parameter
 
-	// Get the list of parameters that may need temporaries due to side-effects.
-	parametersThatMayNeedTemps := f.FindParametersReferencedAfterSideEffect(jutil.NewLinkedHashSet(argMap.KeySlice()...), block)
-	namesAfterSideEffects := parametersThatMayNeedTemps.ParametersReferencedAfterSideEffect()
-	parametersWithNamesReferencedBefore := parametersThatMayNeedTemps.ParametersWithNamesReferencedBeforeParameter()
+	// Get the list of parameters that may need temporaries due to side-effects lazily.
+	var namesAfterSideEffects *jutil.LinkedHashSet[string]
+	var parametersWithNamesReferencedBefore *jutil.LinkedHashSet[string]
+	ensureParametersThatMayNeedTemps := func() {
+		if namesAfterSideEffects != nil {
+			return
+		}
+		paramSet := jutil.NewLinkedHashSet[string]()
+		for k := range argMap.Keys() {
+			paramSet.Add(k)
+		}
+		parametersThatMayNeedTemps := f.FindParametersReferencedAfterSideEffect(paramSet, block)
+		namesAfterSideEffects = parametersThatMayNeedTemps.ParametersReferencedAfterSideEffect()
+		parametersWithNamesReferencedBefore = parametersThatMayNeedTemps.ParametersWithNamesReferencedBeforeParameter()
+	}
+
+	astAnalyzer := compiler.GetAstAnalyzer()
 
 	// Check for arguments that are evaluated more than once.
 	for parameterName, entryValue := range argMap.All() {
@@ -349,19 +365,25 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 		requiresTemporary := false
 		references := NodeUtil_GetNameReferenceCount(block, parameterName)
 
-		argSideEffects := compiler.GetAstAnalyzer().MayHaveSideEffects(cArg)
+		argSideEffects := astAnalyzer.MayHaveSideEffects(cArg)
 		if !argSideEffects && references == 0 {
 			requiresTemporary = false
 		} else if isTrivialBody &&
 			hasMinimalParameters &&
 			references == 1 &&
 			// The below line is checking: Can this be affected by side-effects in the function body?
-			!(NodeUtil_CanBeSideEffected(cArg) && namesAfterSideEffects.Contains(parameterName)) &&
+			!(NodeUtil_CanBeSideEffected(cArg) && func() bool {
+				ensureParametersThatMayNeedTemps()
+				return namesAfterSideEffects.Contains(parameterName)
+			}()) &&
 			// The below line is checking: Can the function body be affected by the side effects of
 			// the argument? If the argument has side effects and the function body contains names
 			// that are referenced before the argument, then we need to inline using temporaries. If
 			// not, then we can enter this condition's else-if block.
-			(!argSideEffects || !parametersWithNamesReferencedBefore.Contains(parameterName)) {
+			(!argSideEffects || !func() bool {
+				ensureParametersThatMayNeedTemps()
+				return parametersWithNamesReferencedBefore.Contains(parameterName)
+			}()) {
 			// For functions with a trivial body, and where the parameter evaluation order
 			// can't change, and there aren't any side-effect before the parameter, we can
 			// avoid creating a temporary.
@@ -370,7 +392,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 			// TODO: b/407603216 - return `true` when return expressions don't have
 			// references that can be side-effected
 			requiresTemporary = false
-		} else if compiler.GetAstAnalyzer().MayEffectMutableState(cArg) && references > 0 {
+		} else if astAnalyzer.MayEffectMutableState(cArg) && references > 0 {
 			// Note: Mutable arguments should be assigned to temps, as the
 			// may be within in a loop:
 			//   function x(a) {
@@ -384,8 +406,10 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 			// even if there are no references, we still need to evaluate the
 			// expression if it has side-effects.
 			requiresTemporary = true
-		} else if NodeUtil_CanBeSideEffected(cArg) &&
-			namesAfterSideEffects.Contains(parameterName) {
+		} else if NodeUtil_CanBeSideEffected(cArg) && func() bool {
+			ensureParametersThatMayNeedTemps()
+			return namesAfterSideEffects.Contains(parameterName)
+		}() {
 			requiresTemporary = true
 		} else if references > 1 {
 			// Safe is a misnomer, this is a check for "large".
@@ -441,7 +465,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 			}
 		}
 	}
-	return jutil.NewLinkedHashSet(namesNeedingTemps.ToSlice()...)
+	return namesNeedingTemps
 }
 
 // BodyMayHaveConditionalCode: we consider a return or expression trivial if
@@ -501,11 +525,14 @@ func (f *FunctionArgumentInjector) FindParametersReferencedAfterSideEffect(
 	parameters *jutil.LinkedHashSet[string], root *rhino.Node) *FunctionArgumentInjector_SetContainer {
 
 	// TODO(johnlenz): Consider using scope for this.
-	locals := jutil.NewLinkedHashSet(parameters.ToSlice()...)
+	locals := jutil.NewLinkedHashSet[string]()
+	for p := range parameters.All() {
+		locals.Add(p)
+	}
 	FunctionArgumentInjector_GatherLocalNames(root, locals)
 
 	collector := NewFunctionArgumentInjector_ReferencedAfterSideEffect(
-		f, parameters, jutil.NewLinkedHashSet(locals.ToSlice()...))
+		f, parameters, locals)
 	NodeUtil_VisitPostOrderWithPred(root, collector, collector.Apply)
 	return NewFunctionArgumentInjector_SetContainer(
 		collector.GetParametersReferencedAfterSideEffect(),
@@ -586,12 +613,12 @@ func NewFunctionArgumentInjector_ReferencedAfterSideEffect(
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.getParametersReferencedAfterSideEffect()
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) GetParametersReferencedAfterSideEffect() *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(r.parametersReferenced.ToSlice()...)
+	return r.parametersReferenced
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.getParametersWithNamesReferencedBeforeParameter()
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) GetParametersWithNamesReferencedBeforeParameter() *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(r.parametersWithNamesReferencedBeforeParameter.ToSlice()...)
+	return r.parametersWithNamesReferencedBeforeParameter
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.apply(Node)

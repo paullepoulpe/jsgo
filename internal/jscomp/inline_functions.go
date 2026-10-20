@@ -57,6 +57,10 @@ type InlineFunctions struct {
 
 	enforceMaxSizeAfterInlining bool
 	maxSizeAfterInlining        int
+
+	fnStateSlab []InlineFunctions_FunctionState
+	refSlab     []InlineFunctions_Reference
+	refsScratch []FunctionInjector_Reference
 }
 
 // Java: InlineFunctions.MISSED_REQUIRED_INLINING
@@ -105,9 +109,35 @@ func NewInlineFunctions(
 	return f
 }
 
+func (f *InlineFunctions) allocFunctionState() *InlineFunctions_FunctionState {
+	if len(f.fnStateSlab) == 0 {
+		f.fnStateSlab = make([]InlineFunctions_FunctionState, 256)
+	}
+	fs := &f.fnStateSlab[0]
+	f.fnStateSlab = f.fnStateSlab[1:]
+	fs.inline = true
+	fs.remove = true
+	return fs
+}
+
+func (f *InlineFunctions) allocReference(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
+	if len(f.refSlab) == 0 {
+		f.refSlab = make([]InlineFunctions_Reference, 256)
+	}
+	r := &f.refSlab[0]
+	f.refSlab = f.refSlab[1:]
+	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
+	return r
+}
+
 // Java: InlineFunctions.getOrCreateFunctionState(String)
 func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctions_FunctionState {
-	return f.fns.ComputeIfAbsent(fnName, func(k string) *InlineFunctions_FunctionState { return NewInlineFunctions_FunctionState() })
+	if fs := f.fns.Get(fnName); fs != nil {
+		return fs
+	}
+	fs := f.allocFunctionState()
+	f.fns.PutNew(fnName, fs)
+	return fs
 }
 
 // Java: InlineFunctions.process(Node, Node)
@@ -132,7 +162,10 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	// This pass already assumes these are constants, so this is safe for anyone
 	// using function inlining.
 	//
-	fnNames := jutil.NewLinkedHashSet(f.fns.KeySlice()...)
+	fnNames := jutil.NewLinkedHashSet[string]()
+	for k := range f.fns.Keys() {
+		fnNames.Add(k)
+	}
 	f.injector.SetKnownConstantFunctions(fnNames)
 
 	f.TrimCandidatesUsingOnCost()
@@ -333,7 +366,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 			}
 
 			if NodeUtil_Has(
-				block, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, func(*rhino.Node) bool { return true }) {
+				block, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, inlineFunctions_alwaysTrue) {
 				functionState.SetHasInnerClosures(true)
 				// If there are inner functions, we can inline into global scope
 				// if there are no local vars or named functions.
@@ -350,7 +383,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 			block := functionState.GetFn().GetDeclaringBlock()
 			if block.IsBlock() &&
 				!block.GetParent().IsFunction() &&
-				NodeUtil_Has(block, func(n *rhino.Node) bool { return n.IsLet() || n.IsConst() }, func(*rhino.Node) bool { return true }) {
+				NodeUtil_Has(block, inlineFunctions_isLetOrConst, inlineFunctions_alwaysTrue) {
 				// The function might capture a variable that's not in scope at the call site,
 				// so don't inline.
 				functionState.DisallowInlining(
@@ -386,6 +419,11 @@ func InlineFunctions_HasRequireInliningAnnotation(fnNode *rhino.Node) bool {
 	return jsDocInfo != nil && jsDocInfo.IsRequireInlining()
 }
 
+func inlineFunctions_alwaysTrue(*rhino.Node) bool { return true }
+func inlineFunctions_isLetOrConst(n *rhino.Node) bool {
+	return n.IsLet() || n.IsConst()
+}
+
 // InlineFunctions_HasLocalNames: fnNode is the function to inspect. Returns
 // whether the function has parameters, var/const/let, class, or function
 // declarations.
@@ -395,7 +433,7 @@ func InlineFunctions_HasLocalNames(fnNode *rhino.Node) bool {
 	block := NodeUtil_GetFunctionBody(fnNode)
 	return NodeUtil_GetFunctionParameters(fnNode).HasChildren() ||
 		NodeUtil_Has(
-			block, NewNodeUtil_MatchDeclaration().Apply, NewNodeUtil_MatchShallowStatement().Apply)
+			block, functionInjector_matchDeclaration, functionInjector_matchShallowStatement)
 }
 
 // IsCandidateFunction checks if the given function matches the criteria for
@@ -559,7 +597,8 @@ func InlineFunctions_IsCandidateUsage(name *rhino.Node) bool {
 // that are inlinable.
 type InlineFunctions_FindCandidatesReferences struct {
 	InlineFunctions_CallVisitorBase
-	outer *InlineFunctions
+	outer      *InlineFunctions
+	scratchRef InlineFunctions_Reference
 }
 
 // Java: InlineFunctions.FindCandidatesReferences(Map<String, FunctionState>, Map<Node, String>)
@@ -635,15 +674,18 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		return false
 	}
 
-	candidate := NewInlineFunctions_Reference(callNode, t.GetScope(), chunk, mode)
+	r.scratchRef.requiresDecomposition = false
+	r.scratchRef.inlined = false
+	r.scratchRef.InitFunctionInjector_ReferenceBase(callNode, t.GetScope(), chunk, mode)
 	result := r.outer.injector.CanInlineReferenceToFunction(
-		candidate,
+		&r.scratchRef,
 		functionState.GetFn().GetFunctionNode(),
 		functionState.GetNamesToAlias(),
 		functionState.GetReferencesThis(),
 		functionState.HasInnerClosures())
 	if result != FunctionInjector_CanInlineResult_NO {
 		// Yeah!
+		candidate := r.outer.allocReference(callNode, t.GetScope(), chunk, mode)
 		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
 		functionState.AddReference(candidate)
 		return true
@@ -813,15 +855,16 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 	if functionState.RequireInlining() || functionState.EncourageInlining() {
 		return true
 	}
-	references := functionState.GetReferences()
-	refs := make([]FunctionInjector_Reference, len(references))
-	for i, ref := range references {
-		refs[i] = ref
+	f.refsScratch = f.refsScratch[:0]
+	if functionState.references != nil {
+		for ref := range functionState.references.Values() {
+			f.refsScratch = append(f.refsScratch, ref)
+		}
 	}
 	return f.injector.InliningLowersCost(
 		functionState.GetChunk(),
 		functionState.GetFn().GetFunctionNode(),
-		refs,
+		f.refsScratch,
 		functionState.GetNamesToAlias(),
 		functionState.CanRemove(),
 		functionState.GetReferencesThis())
@@ -1042,17 +1085,22 @@ func (s *InlineFunctions_FunctionState) HasInnerClosures() bool {
 
 // Java: InlineFunctions.FunctionState.removeBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) RemoveBlockInliningReferences() {
-	referencesInternal := s.GetReferencesInternal()
-	for key, value := range referencesInternal.All() {
+	if s.references == nil {
+		return
+	}
+	for key, value := range s.references.All() {
 		if value.mode == FunctionInjector_InliningMode_BLOCK {
-			referencesInternal.Remove(key)
+			s.references.Remove(key)
 		}
 	}
 }
 
 // Java: InlineFunctions.FunctionState.hasBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) HasBlockInliningReferences() bool {
-	for r := range s.GetReferencesInternal().Values() {
+	if s.references == nil {
+		return false
+	}
+	for r := range s.references.Values() {
 		if r.mode == FunctionInjector_InliningMode_BLOCK {
 			return true
 		}
@@ -1208,6 +1256,8 @@ func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Refere
 	s.references.Put(ref.callNode, ref)
 }
 
+var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()
+
 // GetReferences returns the references (the values of the references map).
 //
 // Go-only: language-adapter — Java's live values() view becomes a snapshot
@@ -1215,8 +1265,11 @@ func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Refere
 //
 // Java: InlineFunctions.FunctionState.getReferences()
 func (s *InlineFunctions_FunctionState) GetReferences() []*InlineFunctions_Reference {
-	var out []*InlineFunctions_Reference
-	for ref := range s.GetReferencesInternal().Values() {
+	if s.references == nil || s.references.IsEmpty() {
+		return nil
+	}
+	out := make([]*InlineFunctions_Reference, 0, s.references.Size())
+	for ref := range s.references.Values() {
 		out = append(out, ref)
 	}
 	return out
@@ -1224,15 +1277,18 @@ func (s *InlineFunctions_FunctionState) GetReferences() []*InlineFunctions_Refer
 
 // Java: InlineFunctions.FunctionState.getReference(Node)
 func (s *InlineFunctions_FunctionState) GetReference(n *rhino.Node) *InlineFunctions_Reference {
-	return s.GetReferencesInternal().Get(n)
+	if s.references == nil {
+		return nil
+	}
+	return s.references.Get(n)
 }
 
 // Java: InlineFunctions.FunctionState.getNamesToAlias()
 func (s *InlineFunctions_FunctionState) GetNamesToAlias() *jutil.LinkedHashSet[string] {
 	if s.namesToAlias == nil {
-		return jutil.NewLinkedHashSet[string]()
+		return inlineFunctions_emptyStringSet
 	}
-	return jutil.NewLinkedHashSet(s.namesToAlias.ToSlice()...)
+	return s.namesToAlias
 }
 
 // Java: InlineFunctions.FunctionState.setNamesToAlias(Set<String>)
