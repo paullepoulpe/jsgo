@@ -196,7 +196,7 @@ def specs(args):
     if out.exists() or args.threads < 1:
         raise ValueError('need new output directory and positive thread count')
     out.mkdir(parents=True)
-    cache = Path(args.cache).resolve()
+    cache = Path(args.cache or bench.default_cache()).resolve()
     links = {'inputs': str(cache/'bench-inputs'), 'generated': str(fixture)}
     closure = Path(links['inputs'])/'closure-library@v20230802'
     closure_js = sorted(p for prefix in ('closure/goog', 'third_party/closure/goog')
@@ -249,7 +249,7 @@ def specs(args):
                               'limitations': 'real generated runtime/example fixture; not claimed to be a production enterprise application',
                               'j2cl_runtime': 'matching release JRE + 7 Closure bootstrap JS files; no duplicate full Closure tree' if family == 'j2cl' else None}}
         save(out/(spec['name']+'.json'), spec)
-        print(spec['name'], len(sources), 'files', spec['same_work']['source_bytes'], 'bytes; UNVALIDATED')
+        print(spec['name'], spec['same_work']['source_count'], 'JS sources,', auxiliary_count, 'auxiliary inputs,', spec['same_work']['source_bytes'], 'JS bytes; UNVALIDATED')
 
 
 def verify(args):
@@ -270,7 +270,7 @@ def main():
     sub = p.add_subparsers(dest='operation', required=True)
     f = sub.add_parser('fetch'); f.add_argument('--cache', required=True); f.add_argument('--families', default=','.join(FAMILIES)); f.set_defaults(run=fetch)
     s = sub.add_parser('stage'); s.add_argument('--cache', required=True); s.add_argument('--out', required=True); s.add_argument('--families', default=','.join(FAMILIES)); s.add_argument('--java'); s.set_defaults(run=stage)
-    e = sub.add_parser('specs'); e.add_argument('--fixture', required=True); e.add_argument('--out', required=True); e.add_argument('--cache', default=bench.default_cache()); e.add_argument('--jar', required=True); e.add_argument('--threads', type=int, default=1); e.set_defaults(run=specs)
+    e = sub.add_parser('specs'); e.add_argument('--fixture', required=True); e.add_argument('--out', required=True); e.add_argument('--cache'); e.add_argument('--jar', required=True); e.add_argument('--threads', type=int, default=1); e.set_defaults(run=specs)
     v = sub.add_parser('verify'); v.add_argument('--spec', required=True); v.add_argument('--compiled-js', required=True); v.add_argument('--node', required=True); v.add_argument('--out', required=True); v.set_defaults(run=verify)
     args = p.parse_args(); args.run(args)
 

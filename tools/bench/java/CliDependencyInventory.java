@@ -1,7 +1,6 @@
 // Original setup helper against pinned stock Closure. No compiler replacement.
 package com.google.javascript.jscomp;
 
-import com.google.gson.GsonBuilder;
 import com.google.javascript.jscomp.deps.DependencyInfo;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -12,6 +11,41 @@ import java.util.*;
 public final class CliDependencyInventory {
   private static String sha(Path file) throws Exception {
     return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
+  }
+  // Original JSON writer for this helper's String/Map/Iterable/scalar records.
+  // The standalone distribution shades dependencies; require only public JDK APIs.
+  private static void json(Object value, StringBuilder out) {
+    if (value == null) { out.append("null"); return; }
+    if (value instanceof String text) {
+      out.append('"');
+      for (int i = 0; i < text.length(); i++) {
+        char c = text.charAt(i);
+        if (c == '"' || c == '\\') out.append('\\').append(c);
+        else if (c < 32 || c >= 127) {
+          out.append("\\u");
+          for (int shift = 12; shift >= 0; shift -= 4) out.append("0123456789abcdef".charAt((c >>> shift) & 15));
+        } else out.append(c);
+      }
+      out.append('"'); return;
+    }
+    if (value instanceof Boolean || value instanceof Number) { out.append(value); return; }
+    if (value instanceof Map<?, ?> map) {
+      out.append('{'); boolean first = true;
+      for (Map.Entry<?, ?> entry : map.entrySet()) {
+        if (!first) out.append(','); first = false;
+        if (!(entry.getKey() instanceof String)) throw new IllegalArgumentException("non-string JSON key");
+        json(entry.getKey(), out); out.append(':'); json(entry.getValue(), out);
+      }
+      out.append('}'); return;
+    }
+    if (value instanceof Iterable<?> items) {
+      out.append('['); boolean first = true;
+      for (Object item : items) {
+        if (!first) out.append(','); first = false; json(item, out);
+      }
+      out.append(']'); return;
+    }
+    throw new IllegalArgumentException("unsupported JSON record: " + value.getClass());
   }
   public static void main(String[] args) throws Exception {
     Path cg = Path.of("/sys/fs/cgroup");
@@ -64,11 +98,11 @@ public final class CliDependencyInventory {
     result.put("schema", "jsgo-stock-ast-dependencies-v1");
     result.put("stock_jar_sha256", sha(jar));
     result.put("method", "stock CompilerInput AST DepsFinder, SORT_ONLY, before rewrites; preparation only");
-    result.put("kernel_budget", Map.of("memory.max", memory, "memory.swap.max", swap, "cpu.max", cpu, "cpuset.cpus.effective", cpuset));
+    result.put("kernel_budget", new TreeMap<>(Map.of("memory.max", memory, "memory.swap.max", swap, "cpu.max", cpu, "cpuset.cpus.effective", cpuset)));
     result.put("files", files);
     result.put("errors", compiler.getErrors().stream().map(Object::toString).toList());
     result.put("warnings", compiler.getWarnings().stream().map(Object::toString).toList());
-    System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(result));
+    StringBuilder output = new StringBuilder(); json(result, output); System.out.println(output);
     if (!compiler.getErrors().isEmpty()) System.exit(1);
   }
 }
