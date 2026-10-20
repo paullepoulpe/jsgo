@@ -433,7 +433,7 @@ func (e *Es6ConvertSuperConstructorCalls) IsKnownToReturnOnlyUndefined(functionQ
 		declarationRef = d.(*GlobalNamespace_Ref)
 	}
 	if declarationRef == nil {
-		for _, ref := range globalName.GetRefs() {
+		for _, ref := range globalName.getRefs() {
 			if ref.IsSet() {
 				declarationRef = ref
 			}
