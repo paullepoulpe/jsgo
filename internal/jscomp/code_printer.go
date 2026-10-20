@@ -70,31 +70,39 @@ type CodePrinter_MappedCodePrinterBase struct {
 
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/peek/pop) is a slice whose top is its last element. nil is null.
-	mappings    []*SourceMap_Mapping
-	allMappings []*SourceMap_Mapping // nil is null
+	mappings            []*SourceMap_Mapping
+	allMappings         []*SourceMap_Mapping // nil is null
 	// The ordered list of finalized mappings since the last line break. See
 	// #reportLineCut.
-	completeMappings []*SourceMap_Mapping // nil is null
-	mappingSlab      []SourceMap_Mapping
+	completeMappings    []*SourceMap_Mapping // nil is null
+	mappingSlab         []SourceMap_Mapping
+	mappingBuf          [16]SourceMap_Mapping
+	mappingsBuf         [16]*SourceMap_Mapping
+	allMappingsBuf      [16]*SourceMap_Mapping
+	completeMappingsBuf [16]*SourceMap_Mapping
 	// The index into allMappings to find the mappings added since the last
 	// line break. See #reportLineCut.
 	firstCandidateMappingForCut int
 	createSrcMap                bool
 	sourceMapDetailLevel        SourceMap_DetailLevel
 	licenseTracker              CodePrinter_LicenseTracker // nil is null
-	code                        *jutil.StringBuilder
+	codeASCIIBuf                [128]byte
+	codeASCII                   []byte
+	codeUTF16                   *jutil.StringBuilder
+	codeFrozen                  bool
 	lineLengthThreshold         int
 	lineLength                  int
 	lineIndex                   int
 }
 
 func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
-	if len(m.mappingSlab) == 0 {
-		m.mappingSlab = make([]SourceMap_Mapping, 4096)
+	if len(m.mappingSlab) == cap(m.mappingSlab) {
+		newCap := min(max(cap(m.mappingSlab)*4, 64), 4096)
+		m.mappingSlab = make([]SourceMap_Mapping, 0, newCap)
 	}
-	res := &m.mappingSlab[0]
-	m.mappingSlab = m.mappingSlab[1:]
-	return res
+	i := len(m.mappingSlab)
+	m.mappingSlab = m.mappingSlab[:i+1]
+	return &m.mappingSlab[i]
 }
 
 // GetCodePrinter_MappedCodePrinterBase gives access to the base fields
@@ -116,7 +124,9 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
 	m.firstCandidateMappingForCut = 0
-	m.code = jutil.NewStringBuilderWithCapacity(1024)
+	m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
+	m.codeUTF16 = nil
+	m.codeFrozen = false
 	m.lineLength = 0
 	m.lineIndex = 0
 	// checkState(sourceMapDetailLevel != null)
@@ -131,9 +141,10 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.createSrcMap = createSrcMap
 	m.sourceMapDetailLevel = sourceMapDetailLevel
 	if createSrcMap {
-		m.mappings = []*SourceMap_Mapping{}
-		m.allMappings = []*SourceMap_Mapping{}
-		m.completeMappings = []*SourceMap_Mapping{}
+		m.mappingSlab = m.mappingBuf[:0:len(m.mappingBuf)]
+		m.mappings = m.mappingsBuf[:0:len(m.mappingsBuf)]
+		m.allMappings = m.allMappingsBuf[:0:len(m.allMappingsBuf)]
+		m.completeMappings = m.completeMappingsBuf[:0:len(m.completeMappingsBuf)]
 	} else {
 		m.mappings = nil
 		m.allMappings = nil
@@ -142,16 +153,93 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.licenseTracker = licenseTracker
 }
 
+func (m *CodePrinter_MappedCodePrinterBase) codeGrowASCII(n int) {
+	if need := len(m.codeASCII) + n; need > cap(m.codeASCII) || m.codeFrozen {
+		m.codeFrozen = false
+		newCap := max(2*cap(m.codeASCII), max(need, 1024))
+		buf := make([]byte, len(m.codeASCII), newCap)
+		copy(buf, m.codeASCII)
+		m.codeASCII = buf
+	}
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
+	if m.codeUTF16 == nil {
+		if jutil.IsASCII(str) {
+			m.codeGrowASCII(len(str))
+			m.codeASCII = append(m.codeASCII, str...)
+			return len(str)
+		}
+		m.codeUTF16 = jutil.NewStringBuilderWithCapacity(max(len(m.codeASCII)+len(str), 1024))
+		if len(m.codeASCII) > 0 {
+			m.codeUTF16.Append(unsafe.String(unsafe.SliceData(m.codeASCII), len(m.codeASCII)))
+		}
+		m.codeASCII = nil
+		m.codeFrozen = false
+	}
+	before := m.codeUTF16.Length()
+	m.codeUTF16.Append(str)
+	return m.codeUTF16.Length() - before
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeAppendASCII(str string) {
+	if m.codeUTF16 == nil {
+		m.codeGrowASCII(len(str))
+		m.codeASCII = append(m.codeASCII, str...)
+		return
+	}
+	m.codeUTF16.Append(str)
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeAppendByte(c byte) {
+	if m.codeUTF16 == nil {
+		m.codeGrowASCII(1)
+		m.codeASCII = append(m.codeASCII, c)
+		return
+	}
+	m.codeUTF16.AppendChar(uint16(c))
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeLength() int {
+	if m.codeUTF16 == nil {
+		return len(m.codeASCII)
+	}
+	return m.codeUTF16.Length()
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeCharAt(i int) uint16 {
+	if m.codeUTF16 == nil {
+		if i < 0 || i >= len(m.codeASCII) {
+			panic(jutil.NewStringIndexOutOfBoundsException(i, len(m.codeASCII)))
+		}
+		return uint16(m.codeASCII[i])
+	}
+	return m.codeUTF16.CharAt(i)
+}
+
+func (m *CodePrinter_MappedCodePrinterBase) codeInsertByte(offset int, c byte) {
+	if m.codeUTF16 == nil {
+		if offset < 0 || offset > len(m.codeASCII) {
+			panic(jutil.NewStringIndexOutOfBoundsException(offset, len(m.codeASCII)))
+		}
+		n := len(m.codeASCII)
+		m.codeGrowASCII(1)
+		m.codeASCII = append(m.codeASCII, 0)
+		copy(m.codeASCII[offset+1:], m.codeASCII[offset:n])
+		m.codeASCII[offset] = c
+		return
+	}
+	m.codeUTF16.InsertChar(offset, uint16(c))
+}
+
 // Append appends a string to the code, keeping track of the current line
 // length.
 //
 // Java: CodePrinter.MappedCodePrinter.append(String)
 func (m *CodePrinter_MappedCodePrinterBase) Append(str string) {
 	// Go-only: language-adapter — str.length() is the number of UTF-16
-	// units the append added, which the builder already counts.
-	before := m.code.Length()
-	m.code.Append(str)
-	m.lineLength += m.code.Length() - before
+	// units the append added, which codeAppend counts.
+	m.lineLength += m.codeAppend(str)
 }
 
 // Java: CodePrinter.MappedCodePrinter.trackLicenses(Node)
@@ -172,9 +260,9 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node)
 	// `node.getStaticSourceFile() != null` (a Go file name is never null);
 	// it avoids allocating the *string for every node.
 	if m.createSrcMap &&
-		node.GetStaticSourceFile() != nil &&
 		node.GetLineno() > 0 &&
-		m.sourceMapDetailLevel.Apply(node) {
+		(m.sourceMapDetailLevel == SourceMap_DetailLevel_ALL || m.sourceMapDetailLevel.Apply(node)) &&
+		node.GetStaticSourceFile() != nil {
 		line := m.GetCurrentLineIndex()
 		index := m.GetCurrentCharIndex()
 		jutil.CheckState(line >= 0)
@@ -212,7 +300,34 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 	if !m.createSrcMap {
 		return nil
 	}
-	lineLengths := CodePrinter_MappedCodePrinter_ComputeLineLengths(code)
+	if len(m.allMappings) == 0 || code == "" {
+		return m.allMappings
+	}
+	lineEndPos := strings.IndexByte(code, '\n')
+	if lineEndPos == -1 {
+		return m.allMappings
+	}
+	var stackBuf [64]int
+	var lineLengths []int
+	if m.lineIndex > len(stackBuf) {
+		lineLengths = make([]int, 0, m.lineIndex)
+	} else {
+		lineLengths = stackBuf[:0]
+	}
+	asciiKnown := m.codeUTF16 == nil && len(code) == len(m.codeASCII)
+	lineStartPos := 0
+	for lineEndPos > -1 {
+		if asciiKnown {
+			lineLengths = append(lineLengths, lineEndPos-lineStartPos)
+		} else {
+			lineLengths = append(lineLengths, jutil.StringLength(code[lineStartPos:lineEndPos]))
+		}
+		lineStartPos = lineEndPos + 1
+		lineEndPos = strings.IndexByte(code[lineStartPos:], '\n')
+		if lineEndPos > -1 {
+			lineEndPos += lineStartPos
+		}
+	}
 	for _, mapping := range m.allMappings {
 		mapping.end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, mapping.end)
 	}
@@ -285,13 +400,29 @@ func CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(
 
 // Java: CodePrinter.MappedCodePrinter.getCode()
 func (m *CodePrinter_MappedCodePrinterBase) GetCode() string {
-	return m.code.String()
+	if m.codeUTF16 != nil {
+		return m.codeUTF16.String()
+	}
+	if len(m.codeASCII) == 0 {
+		return ""
+	}
+	if unsafe.SliceData(m.codeASCII) == &m.codeASCIIBuf[0] {
+		return string(m.codeASCII)
+	}
+	m.codeFrozen = true
+	return unsafe.String(unsafe.SliceData(m.codeASCII), len(m.codeASCII))
 }
 
 // Java: CodePrinter.MappedCodePrinter.getLastChar()
 func (m *CodePrinter_MappedCodePrinterBase) GetLastChar() uint16 {
-	if m.code.Length() > 0 {
-		return m.code.CharAt(m.code.Length() - 1)
+	if m.codeUTF16 != nil {
+		if m.codeUTF16.Length() > 0 {
+			return m.codeUTF16.CharAt(m.codeUTF16.Length() - 1)
+		}
+		return 0
+	}
+	if len(m.codeASCII) > 0 {
+		return uint16(m.codeASCII[len(m.codeASCII)-1])
 	}
 	return 0
 }
@@ -439,7 +570,7 @@ func (p *CodePrinter_PrettyCodePrinter) Append(str string) {
 	// template literal lines.
 	if p.lineLength == 0 && !p.IsInTemplateLiteral() {
 		for i := 0; i < p.indent; i++ {
-			p.code.Append(CodePrinter_PrettyCodePrinter_INDENT)
+			p.codeAppendASCII(CodePrinter_PrettyCodePrinter_INDENT)
 			p.lineLength += len(CodePrinter_PrettyCodePrinter_INDENT)
 		}
 	}
@@ -510,7 +641,7 @@ func (p *CodePrinter_PrettyCodePrinter) StartNewLine() {
 		return
 	}
 
-	p.code.AppendChar('\n')
+	p.codeAppendByte('\n')
 	p.lineIndex++
 	p.lineLength = 0
 }
@@ -860,10 +991,10 @@ func (c *CodePrinter_CompactCodePrinter) StartNewLine() {
 		return
 	}
 
-	c.code.AppendChar('\n')
+	c.codeAppendByte('\n')
 	c.lineLength = 0
 	c.lineIndex++
-	c.lineStartPosition = c.code.Length()
+	c.lineStartPosition = c.codeLength()
 }
 
 // Java: CodePrinter.CompactCodePrinter.maybeLineBreak()
@@ -878,9 +1009,9 @@ func (c *CodePrinter_CompactCodePrinter) MaybeLineBreak() {
 	// Since we are at a legal line break, can we upgrade the
 	// preferred break position? We prefer to break after a
 	// semicolon rather than before it.
-	len_ := c.code.Length()
+	len_ := c.codeLength()
 	if c.preferredBreakPosition == len_-1 {
-		ch := c.code.CharAt(len_ - 1)
+		ch := c.codeCharAt(len_ - 1)
 		if ch == ';' {
 			c.preferredBreakPosition = len_
 		}
@@ -901,7 +1032,7 @@ func (c *CodePrinter_CompactCodePrinter) MaybeCutLine() {
 	if c.preferredBreakPosition > c.lineStartPosition &&
 		c.preferredBreakPosition < c.lineStartPosition+c.lineLength {
 		// If the preferred break position is on the current line.
-		c.code.InsertChar(c.preferredBreakPosition, '\n')
+		c.codeInsertByte(c.preferredBreakPosition, '\n')
 		c.ReportLineCut(c.lineIndex, c.preferredBreakPosition-c.lineStartPosition)
 		c.lineIndex++
 		c.lineLength -= (c.preferredBreakPosition - c.lineStartPosition)
@@ -913,7 +1044,7 @@ func (c *CodePrinter_CompactCodePrinter) MaybeCutLine() {
 
 // Java: CodePrinter.CompactCodePrinter.notePreferredLineBreak()
 func (c *CodePrinter_CompactCodePrinter) NotePreferredLineBreak() {
-	c.preferredBreakPosition = c.code.Length()
+	c.preferredBreakPosition = c.codeLength()
 }
 
 // CodePrinter_LicenseTracker: License Trackers are responsible for ensuring
@@ -976,9 +1107,18 @@ func NewCodePrinter_Builder(node *rhino.Node) *CodePrinter_Builder {
 	// created by getOptions only if it is used before being replaced.
 	b.options = nil
 	b.outputTypes = false
-	b.codeGeneratorFactory = &codePrinter_Builder_defaultCodeGeneratorFactory{builder: b}
+	b.codeGeneratorFactory = nil
 	b.root = node
 	return b
+}
+
+// getCodeGeneratorFactory returns codeGeneratorFactory, creating the default
+// factory only when passing to external callers of CodePrinter_ToSource.
+func (b *CodePrinter_Builder) getCodeGeneratorFactory() CodePrinter_Builder_CodeGeneratorFactory {
+	if b.codeGeneratorFactory == nil {
+		b.codeGeneratorFactory = &codePrinter_Builder_defaultCodeGeneratorFactory{builder: b}
+	}
+	return b.codeGeneratorFactory
 }
 
 // getOptions returns options, made on first use if setCompilerOptions has
@@ -1079,24 +1219,68 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	return b.BuildWithSourceMappings().source
+	source, _ := b.buildSourceAndMappings()
+	return source
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
 func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
+	source, mappings := b.buildSourceAndMappings()
+	return &CodePrinter_SourceAndMappings{
+		source:   source,
+		mappings: mappings,
+	}
+}
+
+func (b *CodePrinter_Builder) buildSourceAndMappings() (string, []*SourceMap_Mapping) {
 	if b.root == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
+	options := b.getOptions()
+	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
+	gatherSourceMap := options.ShouldGatherSourceMapInfo()
 
-	return CodePrinter_ToSource(
-		b.root,
-		CodePrinter_Format_FromOptions(b.getOptions(), b.outputTypes, b.prettyPrint),
-		b.getOptions(),
-		b.licenseTracker,
-		b.tagAsTypeSummary,
-		b.tagAsStrict,
-		b.lineBreak,
-		b.codeGeneratorFactory)
+	var mcp CodePrinter_MappedCodePrinter
+	if outputFormat == CodePrinter_Format_COMPACT {
+		mcp = NewCodePrinter_CompactCodePrinter(
+			b.lineBreak,
+			options.GetLineLengthThreshold(),
+			gatherSourceMap,
+			options.GetSourceMapDetailLevel(),
+			b.licenseTracker)
+	} else {
+		mcp = NewCodePrinter_PrettyCodePrinter(
+			options.GetLineLengthThreshold(),
+			gatherSourceMap,
+			options.GetSourceMapDetailLevel(),
+			b.licenseTracker)
+	}
+
+	var cg CodeGenerator
+	if b.codeGeneratorFactory != nil {
+		cg = b.codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
+	} else if outputFormat == CodePrinter_Format_TYPED {
+		cg = NewTypedCodeGenerator(mcp, options, b.registry)
+	} else {
+		cg = NewCodeGeneratorWithOptions(mcp, options)
+	}
+
+	if b.tagAsTypeSummary {
+		cg.TagAsTypeSummary()
+	}
+	if b.tagAsStrict {
+		cg.TagAsStrict()
+	}
+
+	cg.AddNode(b.root)
+	mcp.EndFile()
+
+	source := mcp.GetCode()
+	var mappings []*SourceMap_Mapping
+	if gatherSourceMap {
+		mappings = mcp.GetSourceMappings(source)
+	}
+	return source, mappings
 }
 
 // CodePrinter_Format specifies a format for code generation.

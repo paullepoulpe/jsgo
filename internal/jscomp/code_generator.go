@@ -27,7 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 const codeGenerator_LT_ESCAPED = "\\x3c"
@@ -120,6 +119,11 @@ func NewCodeGenerator(consumer CodeConsumer) *CodeGeneratorBase {
 	return g
 }
 
+var (
+	codeGenerator_jsDocInfoPrinterFalse = &JSDocInfoPrinter{useOriginalName: false, printDesc: false}
+	codeGenerator_jsDocInfoPrinterTrue  = &JSDocInfoPrinter{useOriginalName: true, printDesc: false}
+)
+
 // InitCodeGeneratorBase is the CodeGenerator(CodeConsumer) constructor;
 // self is the object being constructed.
 //
@@ -136,7 +140,7 @@ func (g *CodeGeneratorBase) InitCodeGeneratorBase(self CodeGenerator, consumer C
 	g.quoteKeywordProperties = false
 	g.useOriginalName = false
 	g.outputFeatureSet = parser.FeatureSet_BARE_MINIMUM
-	g.jsDocInfoPrinter = NewJSDocInfoPrinter(false)
+	g.jsDocInfoPrinter = codeGenerator_jsDocInfoPrinterFalse
 }
 
 // Java: CodeGenerator(CodeConsumer, CompilerOptions)
@@ -154,7 +158,11 @@ func (g *CodeGeneratorBase) InitCodeGeneratorBaseWithOptions(self CodeGenerator,
 	g.self = self
 	g.cc = consumer
 
-	g.outputCharsetEncoder = NewOutputCharsetEncoder(options.GetOutputCharset())
+	if outputCharset := options.GetOutputCharset(); outputCharset != nil && outputCharset != jutil.StandardCharsets_US_ASCII {
+		g.outputCharsetEncoder = NewOutputCharsetEncoder(outputCharset)
+	} else {
+		g.outputCharsetEncoder = nil
+	}
 	g.preferSingleQuotes = options.ShouldPreferSingleQuotes()
 	g.trustedStrings = options.AssumeTrustedStrings()
 	g.preserveTypeAnnotations = options.ShouldPreserveTypeAnnotations()
@@ -163,7 +171,11 @@ func (g *CodeGeneratorBase) InitCodeGeneratorBaseWithOptions(self CodeGenerator,
 	g.quoteKeywordProperties = options.ShouldQuoteKeywordProperties()
 	g.useOriginalName = options.GetUseOriginalNamesInOutput()
 	g.outputFeatureSet = options.GetOutputFeatureSet()
-	g.jsDocInfoPrinter = NewJSDocInfoPrinter(g.useOriginalName)
+	if g.useOriginalName {
+		g.jsDocInfoPrinter = codeGenerator_jsDocInfoPrinterTrue
+	} else {
+		g.jsDocInfoPrinter = codeGenerator_jsDocInfoPrinterFalse
+	}
 }
 
 // Java: CodeGenerator.forCostEstimation(CodeConsumer)
@@ -221,11 +233,20 @@ func (g *CodeGeneratorBase) PrintNonJSDocComment(node *rhino.Node, nonJSDocComme
 //
 // Java: CodeGenerator.printLeadingCommentsInOrder(Node)
 func (g *CodeGeneratorBase) PrintLeadingCommentsInOrder(node *rhino.Node) {
-	jsDocInfo := node.GetJSDocInfo()
-	nonJSDocComment := node.GetNonJSDocComment()
+	if !g.preserveTypeAnnotations && !g.printNonJSDocComments {
+		return
+	}
+	var jsDocInfo *rhino.JSDocInfo
+	if g.preserveTypeAnnotations {
+		jsDocInfo = node.GetJSDocInfo()
+	}
+	var nonJSDocComment *rhino.NonJSDocComment
+	if g.printNonJSDocComments {
+		nonJSDocComment = node.GetNonJSDocComment()
+	}
 
-	printJSDoc := g.preserveTypeAnnotations && jsDocInfo != nil
-	printNonJSDoc := g.printNonJSDocComments && nonJSDocComment != nil
+	printJSDoc := jsDocInfo != nil
+	printNonJSDoc := nonJSDocComment != nil
 	if printJSDoc && printNonJSDoc {
 		if jsDocInfo.GetOriginalCommentPosition() < nonJSDocComment.GetStartPosition().GetOffset() {
 			g.PrintJSDocComment(node, jsDocInfo)
@@ -312,24 +333,39 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		g.self.AddNodeWithContextAndComments(sinkCall.GetLastChild(), context, printComments)
 		return
 	}
-	if printComments {
+	if printComments && (g.preserveTypeAnnotations || g.printNonJSDocComments) {
 		g.self.PrintLeadingCommentsInOrder(node)
 	}
 	cc.TrackLicenses(node)
 
 	type_ := node.GetToken()
 	opstr := NodeUtil_OpToStr(type_)
-	childCount := node.GetChildCount()
 	first := node.GetFirstChild()
 	last := node.GetLastChild()
+	childCount := 0
+	if first != nil {
+		if first == last {
+			childCount = 1
+		} else if second := first.GetNext(); second == last {
+			childCount = 2
+		} else if third := second.GetNext(); third == last {
+			childCount = 3
+		} else if third.GetNext() == last {
+			childCount = 4
+		} else {
+			childCount = 5
+		}
+	}
 
 	// Handle all binary operators
 	if opstr != nil && first != last {
-		jutil.CheckStateMsg2(
-			childCount == 2,
-			"Bad binary operator \"%s\": expected 2 arguments but got %s",
-			*opstr,
-			childCount)
+		if childCount != 2 {
+			jutil.CheckStateMsg2(
+				false,
+				"Bad binary operator \"%s\": expected 2 arguments but got %s",
+				*opstr,
+				node.GetChildCount())
+		}
 		p := g.Precedence(node)
 
 		// For right-hand-side of operations, only pass context if it's
@@ -503,7 +539,9 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		cc.AddOp(NodeUtil_OpToStrNoFail(type_), false)
 		g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
 	case rhino.Token_HOOK:
-		jutil.CheckStateMsg2(childCount == 3, "%s wrong number of children: %s", node, childCount)
+		if childCount != 3 {
+			jutil.CheckStateMsg2(false, "%s wrong number of children: %s", node, node.GetChildCount())
+		}
 		p := NodeUtil_Precedence(type_)
 		rhsContext := CodeGenerator_GetContextForNoInOperator(context)
 		g.AddExpr(first, p+1, context)
@@ -937,11 +975,13 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			g.AddGetpropIdentifier(node)
 		}
 	case rhino.Token_OPTCHAIN_GETELEM:
-		jutil.CheckStateMsg2(
-			childCount == 2,
-			"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-			childCount,
-			node)
+		if childCount != 2 {
+			jutil.CheckStateMsg2(
+				false,
+				"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
+				node.GetChildCount(),
+				node)
+		}
 		g.AddExpr(first, NodeUtil_Precedence(type_), context)
 		if node.IsOptionalChainStart() {
 			g.self.Add("?.")
@@ -950,11 +990,13 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		g.self.AddNode(first.GetNext())
 		g.self.Add("]")
 	case rhino.Token_GETELEM:
-		jutil.CheckStateMsg2(
-			childCount == 2,
-			"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-			childCount,
-			node)
+		if childCount != 2 {
+			jutil.CheckStateMsg2(
+				false,
+				"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
+				node.GetChildCount(),
+				node)
+		}
 		needsParens := NodeUtil_IsOptChainNode(first)
 		if needsParens {
 			g.self.Add("(")
@@ -1398,7 +1440,9 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("Unknown token " + type_.String() + "\n" + node.ToStringTree()))
 	}
-	g.self.PrintTrailingComment(node)
+	if g.printNonJSDocComments {
+		g.self.PrintTrailingComment(node)
+	}
 
 	cc.EndSourceMapping(node)
 }
@@ -2044,10 +2088,36 @@ func (g *CodeGeneratorBase) AddJsString(n *rhino.Node) {
 	g.self.Add(g.JsString(n.GetString()))
 }
 
+var codeGenerator_plainASCII = func() [256]bool {
+	var t [256]bool
+	for c := 0x20; c <= 0x7e; c++ {
+		switch byte(c) {
+		case '\\', '"', '\'', '$', '`', '=', '&', '>', '<':
+		default:
+			t[c] = true
+		}
+	}
+	return t
+}()
+
+const codeGenerator_HEX_CHARS = "0123456789abcdef"
+
+func codeGenerator_appendHexJS(sb *strings.Builder, c uint16) {
+	var buf [6]byte
+	buf[0] = '\\'
+	buf[1] = 'u'
+	buf[2] = codeGenerator_HEX_CHARS[(c>>12)&0xf]
+	buf[3] = codeGenerator_HEX_CHARS[(c>>8)&0xf]
+	buf[4] = codeGenerator_HEX_CHARS[(c>>4)&0xf]
+	buf[5] = codeGenerator_HEX_CHARS[c&0xf]
+	sb.Write(buf[:])
+}
+
 // Java: CodeGenerator.jsString(String)
 func (g *CodeGeneratorBase) JsString(s string) string {
 	singleq := 0
 	doubleq := 0
+	plain := true
 
 	// could count the quotes and pick the optimal quote character
 	//
@@ -2055,14 +2125,29 @@ func (g *CodeGeneratorBase) JsString(s string) string {
 	// multi-byte WTF-8 sequence is ASCII, so counting bytes counts the same
 	// chars as Java's UTF-16 loop.
 	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '"':
-			doubleq++
-		case '\'':
-			singleq++
-		default:
-			// skip non-quote characters
+		c := s[i]
+		if !codeGenerator_plainASCII[c] {
+			plain = false
+			switch c {
+			case '"':
+				doubleq++
+			case '\'':
+				singleq++
+			}
 		}
+	}
+
+	if plain {
+		quote := byte('"')
+		if g.preferSingleQuotes {
+			quote = '\''
+		}
+		var sb strings.Builder
+		sb.Grow(len(s) + 2)
+		sb.WriteByte(quote)
+		sb.WriteString(s)
+		sb.WriteByte(quote)
+		return sb.String()
 	}
 
 	var doublequote string
@@ -2084,14 +2169,24 @@ func (g *CodeGeneratorBase) JsString(s string) string {
 		singlequote = "'"
 	}
 
-	return string(quote) + g.StrEscape(s, doublequote, singlequote, "`", "\\\\", "$", false) + string(quote)
+	var sb strings.Builder
+	sb.Grow(len(s) + 4)
+	sb.WriteByte(quote)
+	g.strEscapeInto(&sb, s, doublequote, singlequote, "`", "\\\\", "$", false)
+	sb.WriteByte(quote)
+	return sb.String()
 }
 
 // RegexpEscape escapes regular expression.
 //
 // Java: CodeGenerator.regexpEscape(String)
 func (g *CodeGeneratorBase) RegexpEscape(s string) string {
-	return "/" + g.StrEscape(s, "\"", "'", "`", "\\", "$", true) + "/"
+	var sb strings.Builder
+	sb.Grow(len(s) + 2)
+	sb.WriteByte('/')
+	g.strEscapeInto(&sb, s, "\"", "'", "`", "\\", "$", true)
+	sb.WriteByte('/')
+	return sb.String()
 }
 
 // codeGenerator_appendChar is sb.append(char) for a char that is not
@@ -2130,10 +2225,33 @@ func (g *CodeGeneratorBase) StrEscape(
 	backslashEscape string,
 	dollarEscape string,
 	isRegexp bool) string {
-	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
-	units := g.utf16Units(s)
+	plain := true
+	for i := 0; i < len(s); i++ {
+		if !codeGenerator_plainASCII[s[i]] {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return s
+	}
 	var sb strings.Builder
 	sb.Grow(len(s) + 2)
+	g.strEscapeInto(&sb, s, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
+	return sb.String()
+}
+
+func (g *CodeGeneratorBase) strEscapeInto(
+	sb *strings.Builder,
+	s string,
+	doublequoteEscape string,
+	singlequoteEscape string,
+	backtickEscape string,
+	backslashEscape string,
+	dollarEscape string,
+	isRegexp bool) {
+	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
+	units := g.utf16Units(s)
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		switch c {
@@ -2167,13 +2285,13 @@ func (g *CodeGeneratorBase) StrEscape(
 		case '`':
 			sb.WriteString(backtickEscape)
 		case '=':
-			g.AppendEscapedEq(&sb, isRegexp)
+			g.AppendEscapedEq(sb, isRegexp)
 		case '&':
-			g.AppendEscapedAmp(&sb, isRegexp)
+			g.AppendEscapedAmp(sb, isRegexp)
 		case '>':
-			g.AppendEscapedGt(&sb, units, i, isRegexp)
+			g.AppendEscapedGt(sb, units, i, isRegexp)
 		case '<':
-			g.AppendEscapedLt(&sb, units, i, isRegexp)
+			g.AppendEscapedLt(sb, units, i, isRegexp)
 		default:
 			if isRegexp ||
 				!g.outputFeatureSet.ContainsFeature(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP) {
@@ -2197,16 +2315,15 @@ func (g *CodeGeneratorBase) StrEscape(
 				// charsetEncoder provided - pass straight Latin characters
 				// through, and escape the rest. Doing the explicit character
 				// check is measurably faster than using the CharsetEncoder.
-				codeGenerator_appendChar(&sb, c)
+				codeGenerator_appendChar(sb, c)
 			} else {
 				// Other characters can be misinterpreted by some JS parsers,
 				// or perhaps mangled by proxies along the way,
 				// so we play it safe and Unicode escape them.
-				sourcemap.Util_AppendHexJavaScriptRepresentation(&sb, c)
+				codeGenerator_appendHexJS(sb, c)
 			}
 		}
 	}
-	return sb.String()
 }
 
 // Java: CodeGenerator.appendEscapedEq(StringBuilder, boolean)
@@ -2286,10 +2403,20 @@ func (g *CodeGeneratorBase) AppendEscapedLt(sb *strings.Builder, s []uint16, ind
 // Java: CodeGenerator.escapeUnrecognizedCharacters(String)
 func (g *CodeGeneratorBase) EscapeUnrecognizedCharacters(s string) string {
 	// TODO(yitingwang) Move this method to a suitable place
-	//
+	plain := true
+	for i := 0; i < len(s); i++ {
+		if !codeGenerator_plainASCII[s[i]] {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return s
+	}
 	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
 	units := g.utf16Units(s)
 	var sb strings.Builder
+	sb.Grow(len(s))
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		switch c {
@@ -2317,7 +2444,7 @@ func (g *CodeGeneratorBase) EscapeUnrecognizedCharacters(s string) string {
 				// Other characters can be misinterpreted by some JS parsers,
 				// or perhaps mangled by proxies along the way,
 				// so we play it safe and Unicode escape them.
-				sourcemap.Util_AppendHexJavaScriptRepresentation(&sb, c)
+				codeGenerator_appendHexJS(&sb, c)
 			}
 		}
 	}
@@ -2336,6 +2463,7 @@ func CodeGenerator_IdentifierEscape(s string) string {
 	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
 	units := jutil.StringToUTF16(s)
 	var sb strings.Builder
+	sb.Grow(len(s) + 6)
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		// Identifiers should always go to Latin1/ ASCII characters because
@@ -2344,7 +2472,7 @@ func CodeGenerator_IdentifierEscape(s string) string {
 		if c > 0x1F && c < 0x7F {
 			sb.WriteByte(byte(c))
 		} else {
-			sourcemap.Util_AppendHexJavaScriptRepresentation(&sb, c)
+			codeGenerator_appendHexJS(&sb, c)
 		}
 	}
 	return sb.String()
