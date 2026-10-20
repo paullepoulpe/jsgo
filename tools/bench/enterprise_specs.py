@@ -10,6 +10,8 @@ import argparse
 import hashlib
 import io
 import json
+import re
+import subprocess
 from pathlib import Path
 import sys
 import zipfile
@@ -40,13 +42,13 @@ def replace_threads(argv, number):
     return result+[f'--num_parallel_threads={number}']
 
 
-def embedded_externs(jar, repo):
+def embedded_externs(jar, repo, go_archive=None):
     with zipfile.ZipFile(jar) as archive:
         candidates = [name for name in archive.namelist() if name.endswith('externs.zip')]
         if len(candidates) != 1:
             raise ValueError('cannot identify pinned stock extern resource')
         raw = archive.read(candidates[0])
-    embedded = (repo/'internal/resources/externs.zip').read_bytes()
+    embedded = (repo/'internal/resources/externs.zip').read_bytes() if go_archive is None else go_archive
     # ZIP metadata may differ. Compare every named source's actual bytes.
     def sources(data):
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -66,6 +68,7 @@ def main():
     p.add_argument('--jar', required=True)
     p.add_argument('--out', required=True)
     p.add_argument('--threads', type=int, default=1)
+    p.add_argument('--task-ref', help='immutable git commit/ref supplying task JSON, input pins, app and Go extern identity; no source checkout/build')
     a = p.parse_args()
     if a.threads < 1:
         p.error('threads must be positive')
@@ -76,8 +79,26 @@ def main():
     names = set(wanted)-{'typed-full-chunks'}
     if 'typed-full-chunks' in wanted:
         names.add('typed-full')
-    tasks = {task['name']: task for task in bench.load_tasks(list(names))}
-    externs = embedded_externs(a.jar, repo)
+    def git_bytes(path):
+        return subprocess.check_output(['git', '-C', str(repo), 'show', source_commit+':'+path])
+    source_commit = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', (a.task_ref or 'HEAD')+'^{commit}'], text=True).strip()
+    task_hashes = {}
+    if a.task_ref:
+        tasks = {}
+        for name in sorted(names):
+            if not re.fullmatch('[a-z0-9-]+', name):
+                raise ValueError('unsafe task name')
+            raw = git_bytes('tools/bench/tasks/'+name+'.json')
+            task = json.loads(raw)
+            if task['name'] != name:
+                raise ValueError('task filename/name mismatch')
+            tasks[name] = task; task_hashes[name] = sha(raw)
+        externs = embedded_externs(a.jar, repo, git_bytes('internal/resources/externs.zip'))
+    else:
+        tasks = {task['name']: task for task in bench.load_tasks(list(names))}
+        task_hashes = {name: sha((Path(bench.TASKS_DIR)/task['file']).read_bytes()) for name, task in tasks.items()}
+        externs = embedded_externs(a.jar, repo)
+    inputs_manifest_sha = sha(git_bytes('tools/bench/inputs.txt'))
     out.mkdir(parents=True)
     setup = out/'workspace'
     bench.make_workspace(str(setup), a.cache)
@@ -133,12 +154,16 @@ def main():
                 raise ValueError('source path is not in the frozen link namespace')
             physical = Path(links[link]).joinpath(*relative)
             data = physical.read_bytes()
+            if a.task_ref and link == 'app' and sha(data) != sha(git_bytes('tools/bench/app/'+'/'.join(relative))):
+                raise ValueError('app source differs from requested task ref; materialize its exact bytes before freezing')
             source_inputs.append({'flag': value, 'link': link, 'relative': '/'.join(relative),
                                   'bytes': len(data), 'sha256': sha(data)})
         spec = {'schema': 'jsgo-enterprise-cli-v1', 'name': name, 'source_task': task['name'],
+                'task_source_commit': source_commit, 'task_json_sha256': task_hashes[task['name']],
+                'pinned_inputs_manifest_sha256': inputs_manifest_sha,
                 'argv': argv, 'links': links, 'inputs': source_inputs, 'artifacts': artifacts, 'absent_artifacts': absent_artifacts,
                 'same_work': {'mode': task['mode'], 'compiler_threads': a.threads, 'chunks': chunks,
-                              'output_manifest_expected': 'absent: checks-only OutputJs.NONE skips output emission' if absent_artifacts else 'present',
+                              'output_manifest_expected': 'absent: checks-only OutputJs.NONE skips output emission' if 'inputs.manifest' in absent_artifacts else 'present',
                               'source_count': len(source_inputs), 'source_bytes': sum(x['bytes'] for x in source_inputs),
                               'builtin_externs': externs, 'explicit_externs': [x for x in source_inputs if x['flag'] == '--externs'],
                               'validation': ['identical complete argv on both engines', 'identical input and builtin extern bytes',
