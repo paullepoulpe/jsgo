@@ -53,6 +53,12 @@ type CheckAccessControls struct {
 	constPropertyInits *jutil.ObjectLinkedHashMap[rhino.JSType, *jutil.LinkedHashMap[string, *CheckAccessControls_ConstantDeclaration]]
 
 	defaultVisibilityForFiles *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
+
+	scratchPropRef           CheckAccessControls_PropertyReference
+	lastHoistScopeRoot       *rhino.Node
+	lastHoistScopeDeprecated bool
+	lastVarNode              *rhino.Node
+	lastVar                  *Var
 }
 
 // Java: CheckAccessControls.DEPRECATED_NAME
@@ -188,7 +194,11 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	collectPass.Process(externs, root)
 	c.defaultVisibilityForFiles = collectPass.GetFileOverviewVisibilityMap()
 
+	c.lastHoistScopeRoot = nil
+	c.lastVarNode = nil
 	NodeTraversal_Traverse(c.compiler, externs, c)
+	c.lastHoistScopeRoot = nil
+	c.lastVarNode = nil
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -364,7 +374,11 @@ func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node *rhino.Node, 
 	propRef := c.CreatePropertyReference(node)
 
 	c.CheckDeprecation(node, propRef, identifierBehaviour, traversal)
-	c.CheckVisibility(node, propRef, identifierBehaviour, traversal.GetScope())
+	var scope *Scope
+	if node.IsName() && identifierBehaviour != CheckAccessControls_IdentifierBehaviour_ES5_CLASS_NAMESPACE {
+		scope = traversal.GetScope()
+	}
+	c.CheckVisibility(node, propRef, identifierBehaviour, scope)
 	c.CheckConstantProperty(propRef, identifierBehaviour)
 
 	c.CheckFinalClassOverrides(node)
@@ -454,23 +468,26 @@ func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n *rhino.No
 		return
 	}
 
+	var_ := t.GetScope().GetVar(n.GetString())
+	c.lastVarNode = n
+	c.lastVar = var_
+	if var_ == nil {
+		return
+	}
+	docInfo := var_.GetJSDocInfo()
+	if docInfo == nil || !docInfo.IsDeprecated() {
+		return
+	}
+
 	if !c.ShouldEmitDeprecationWarning(t, n) {
 		return
 	}
 
-	var_ := t.GetScope().GetVar(n.GetString())
-	var docInfo *rhino.JSDocInfo
-	if var_ != nil {
-		docInfo = var_.GetJSDocInfo()
-	}
-
-	if docInfo != nil && docInfo.IsDeprecated() {
-		if docInfo.GetDeprecationReason() != nil {
-			c.compiler.Report(
-				JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME_REASON, n.GetString(), *docInfo.GetDeprecationReason()))
-		} else {
-			c.compiler.Report(JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME, n.GetString()))
-		}
+	if docInfo.GetDeprecationReason() != nil {
+		c.compiler.Report(
+			JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME_REASON, n.GetString(), *docInfo.GetDeprecationReason()))
+	} else {
+		c.compiler.Report(JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME, n.GetString()))
 	}
 }
 
@@ -525,12 +542,26 @@ func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name *rhino.Node
 		return
 	}
 
-	var_ := scope.GetVar(name.GetString())
+	var var_ *Var
+	if c.lastVarNode == name {
+		var_ = c.lastVar
+	} else {
+		var_ = scope.GetVar(name.GetString())
+	}
 	if var_ == nil {
 		return
 	}
 
-	v := AccessControlUtils_GetEffectiveNameVisibility(name, var_, c.defaultVisibilityForFiles)
+	var v rhino.JSDocInfo_Visibility
+	if c.defaultVisibilityForFiles.IsEmpty() {
+		if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
+			v = jsDocInfo.GetVisibility()
+		} else {
+			return
+		}
+	} else {
+		v = AccessControlUtils_GetEffectiveNameVisibility(name, var_, c.defaultVisibilityForFiles)
+	}
 
 	switch v {
 	case rhino.JSDocInfo_Visibility_PACKAGE:
@@ -650,9 +681,13 @@ func (c *CheckAccessControls) CheckConstantProperty(
 		return
 	}
 
+	sourceNode := propRef.SourceNode()
+	if !propRef.Mutation() && !(propRef.Declaration() && sourceNode.IsFromExterns()) {
+		return
+	}
+
 	objectType := CheckAccessControls_Dereference(propRef.ReceiverType())
 	propertyName := propRef.Name()
-	sourceNode := propRef.SourceNode()
 
 	constness := c.IsPropertyDeclaredConstant(objectType, propertyName)
 	if constness == CheckAccessControls_Constancy_MUTABLE {
@@ -852,7 +887,23 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 
 	fileOverviewVisibility := checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource)
 
-	visibility := CheckAccessControls_GetEffectivePropertyVisibility(propRef, referenceType, c.defaultVisibilityForFiles)
+	var visibility rhino.JSDocInfo_Visibility
+	if propRef.Override() {
+		effObjType := objectType
+		if !isOverride {
+			effObjType = AccessControlUtils_GetObjectType(referenceType, true, propertyName)
+		}
+		overridden := AccessControlUtils_GetOverriddenPropertyVisibility(effObjType, propertyName)
+		visibility = AccessControlUtils_GetEffectiveVisibilityForOverriddenProperty(
+			overridden, fileOverviewVisibility, propertyName)
+	} else {
+		effObjType := objectType
+		if isOverride {
+			effObjType = AccessControlUtils_GetObjectType(referenceType, false, propertyName)
+		}
+		visibility = CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(
+			propRef, effObjType, fileOverviewVisibility)
+	}
 
 	if isOverride {
 		overriding := CheckAccessControls_GetOverridingPropertyVisibility(propRef)
@@ -897,6 +948,9 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 func checkAccessControls_visibilityFor(
 	m *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility],
 	file rhino.StaticSourceFile) *rhino.JSDocInfo_Visibility {
+	if file == nil || m.IsEmpty() {
+		return nil
+	}
 	if v, ok := m.Lookup(file); ok {
 		return &v
 	}
@@ -1146,7 +1200,15 @@ func (c *CheckAccessControls) ShouldEmitDeprecationWarningForPropRef(t *NodeTrav
 //
 // Java: CheckAccessControls.canAccessDeprecatedTypes(NodeTraversal)
 func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
-	scopeRoot := t.GetClosestHoistScopeRoot()
+	// Case #1
+	if c.deprecationDepth > 0 {
+		return true
+	}
+	hoistRoot := t.GetClosestHoistScopeRoot()
+	if hoistRoot == c.lastHoistScopeRoot && hoistRoot != nil {
+		return c.lastHoistScopeDeprecated
+	}
+	scopeRoot := hoistRoot
 	if NodeUtil_IsFunctionBlock(scopeRoot) {
 		scopeRoot = scopeRoot.GetParent()
 	}
@@ -1154,14 +1216,16 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 
 	// Cases 2 and 3 are required to handle ES5-style class methods since they aren't nested inside
 	// their class. This is tested in the CheckAccessControlsOldSyntaxTest class.
-	// Case #1
-	return (c.deprecationDepth > 0) ||
+	res :=
 		// Case #2
 		(CheckAccessControls_GetTypeDeprecationInfo(c.GetTypeOfThis(scopeRoot)) != nil) ||
-		// Case #3
-		(scopeRootParent != nil &&
-			scopeRootParent.IsAssign() &&
-			CheckAccessControls_GetTypeDeprecationInfo(c.BestInstanceTypeForMethodOrCtor(scopeRoot)) != nil)
+			// Case #3
+			(scopeRootParent != nil &&
+				scopeRootParent.IsAssign() &&
+				CheckAccessControls_GetTypeDeprecationInfo(c.BestInstanceTypeForMethodOrCtor(scopeRoot)) != nil)
+	c.lastHoistScopeRoot = hoistRoot
+	c.lastHoistScopeDeprecated = res
+	return res
 }
 
 // CheckAccessControls_IsMarkedDeprecated returns whether this node roots a
@@ -1186,14 +1250,15 @@ func CheckAccessControls_GetTypeDeprecationInfo(type_ rhino.JSType) *string {
 	return CheckAccessControls_GetDeprecationReason(type_.GetJSDocInfo())
 }
 
+var checkAccessControls_emptyDeprecationReason = ""
+
 // Java: CheckAccessControls.getDeprecationReason(JSDocInfo)
 func CheckAccessControls_GetDeprecationReason(info *rhino.JSDocInfo) *string {
 	if info != nil && info.IsDeprecated() {
 		if info.GetDeprecationReason() != nil {
 			return info.GetDeprecationReason()
 		}
-		empty := ""
-		return &empty
+		return &checkAccessControls_emptyDeprecationReason
 	}
 	return nil
 }
@@ -1398,6 +1463,10 @@ type CheckAccessControls_PropertyReference struct {
 	declaration      bool
 	override         bool
 	readableTypeName func() string
+	typeRegistry     *rhino.JSTypeRegistry
+	readableTypeNode *rhino.Node
+	jsdoc            *rhino.JSDocInfo
+	hasJSDoc         bool
 }
 
 // checkAccessControls_requireNonNull is Objects.requireNonNull(obj, message).
@@ -1457,7 +1526,15 @@ func (r *CheckAccessControls_PropertyReference) Override() bool { return r.overr
 
 // Java: CheckAccessControls.PropertyReference.readableTypeName()
 func (r *CheckAccessControls_PropertyReference) ReadableTypeName() func() string {
-	return r.readableTypeName
+	if r.readableTypeName != nil {
+		return r.readableTypeName
+	}
+	return func() string {
+		if r.readableTypeNode != nil && r.typeRegistry != nil {
+			return r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
+		}
+		return ""
+	}
 }
 
 // Java: CheckAccessControls.PropertyReference.builder()
@@ -1614,7 +1691,12 @@ func (r *CheckAccessControls_PropertyReference) GetJSType() rhino.JSType {
 
 // Java: CheckAccessControls.PropertyReference.getJSDocInfo()
 func (r *CheckAccessControls_PropertyReference) GetJSDocInfo() *rhino.JSDocInfo {
-	return NodeUtil_GetBestJSDocInfo(r.SourceNode())
+	if r.hasJSDoc {
+		return r.jsdoc
+	}
+	r.jsdoc = NodeUtil_GetBestJSDocInfo(r.SourceNode())
+	r.hasJSDoc = true
+	return r.jsdoc
 }
 
 // Java: CheckAccessControls.PropertyReference.isDocumentedDeclaration()
@@ -1629,7 +1711,12 @@ func (r *CheckAccessControls_PropertyReference) IsDeletion() bool {
 
 // Java: CheckAccessControls.PropertyReference.getReadableTypeNameOrDefault()
 func (r *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault() string {
-	preferred := r.ReadableTypeName()()
+	var preferred string
+	if r.readableTypeName != nil {
+		preferred = r.readableTypeName()
+	} else if r.readableTypeNode != nil && r.typeRegistry != nil {
+		preferred = r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
+	}
 	if preferred == "" {
 		return r.ReceiverType().String()
 	}
@@ -1638,92 +1725,108 @@ func (r *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault() s
 
 // Java: CheckAccessControls.createPropertyReference(Node)
 func (c *CheckAccessControls) CreatePropertyReference(sourceNode *rhino.Node) *CheckAccessControls_PropertyReference {
-	parent := sourceNode.GetParent()
-	jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
-
-	builder := CheckAccessControls_PropertyReference_Builder_()
-
 	switch sourceNode.GetToken() {
 	case rhino.Token_GETPROP:
-		{
-			isLValue := NodeUtil_IsLValue(sourceNode)
+		parent := sourceNode.GetParent()
+		jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
+		isLValue := NodeUtil_IsLValue(sourceNode)
+		firstChild := sourceNode.GetFirstChild()
+		ref := &c.scratchPropRef
+		ref.sourceNode = sourceNode
+		ref.name = sourceNode.GetString()
+		ref.receiverType = c.BoxedOrUnknown(firstChild.GetJSType())
+		// Props are always mutated as L-values, even when assigned `undefined`.
+		ref.mutation = isLValue || parent.IsDelProp()
+		ref.declaration = parent.IsExprResult() || (jsdoc != nil && jsdoc.IsConstant() && isLValue)
+		// TODO(b/113704668): This definition is way too loose. It was used to prevent
+		// breakages during refactoring and should be tightened.
+		ref.override = (jsdoc != nil) && isLValue
+		ref.readableTypeName = nil
+		ref.typeRegistry = c.typeRegistry
+		ref.readableTypeNode = firstChild
+		ref.jsdoc = jsdoc
+		ref.hasJSDoc = true
+		return ref
 
-			builder.
-				SetName(sourceNode.GetString()).
-				SetReceiverType(c.BoxedOrUnknown(sourceNode.GetFirstChild().GetJSType())).
-				// Props are always mutated as L-values, even when assigned `undefined`.
-				SetMutation(isLValue || sourceNode.GetParent().IsDelProp()).
-				SetDeclaration(
-					parent.IsExprResult() || (jsdoc != nil && jsdoc.IsConstant() && isLValue)).
-				// TODO(b/113704668): This definition is way too loose. It was used to prevent
-				// breakages during refactoring and should be tightened.
-				SetOverride((jsdoc != nil) && isLValue).
-				SetReadableTypeName(
-					func() string { return c.typeRegistry.GetReadableTypeName(sourceNode.GetFirstChild()) })
-		}
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
-		{
-			switch parent.GetToken() {
-			case rhino.Token_OBJECTLIT:
-				// TODO(b/80580110): Eventually object-literal members should be covered by
-				// `PropertyReference`s. However, doing so initially would have caused too many errors
-				// in existing code and delayed support for class syntax.
-				if !parent.GetJSType().IsLiteralObject() {
-					// Only add a mutation if the object type is actually a literal object (e.g. a
-					// global namespace).  OBJECTLIT tokens are often used to fulfill structural types,
-					// which is fine for writing constant properties the first time.
-					return nil
-				}
-				builder.
-					SetName(sourceNode.GetString()).
-					SetReceiverType(c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parent.GetJSType()))).
-					SetMutation(true).
-					SetDeclaration(true).
-					SetOverride(false).
-					SetReadableTypeName(func() string { return c.typeRegistry.GetReadableTypeName(parent) })
-
-			case rhino.Token_OBJECT_PATTERN:
-				builder.
-					SetName(sourceNode.GetString()).
-					SetReceiverType(c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parent.GetJSType()))).
-					SetMutation(false).
-					SetDeclaration(false).
-					SetOverride(false).
-					SetReadableTypeName(func() string { return c.typeRegistry.GetReadableTypeName(parent) })
-
-			case rhino.Token_CLASS_MEMBERS:
-				builder.
-					SetName(sourceNode.GetString()).
-					SetReceiverType(c.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)).
-					SetMutation(!(sourceNode.IsMemberFieldDef() && !sourceNode.HasChildren())).
-					SetDeclaration(true).
-					// TODO(b/113704668): This definition is way too loose. It was used to prevent
-					// breakages during refactoring and should be tightened.
-					SetOverride(jsdoc != nil).
-					SetReadableTypeName(func() string { return "" }) // The default is fine for class types.
-
-				ctorType := parent.GetParent().GetJSType()
-				if ctorType != nil && ctorType.IsFunctionType() {
-					ctorFunctionType := ctorType.ToMaybeFunctionType()
-					var owningType rhino.ObjectType
-					if sourceNode.IsStaticMember() {
-						owningType = ctorFunctionType
-					} else if sourceNode.IsMemberFieldDef() {
-						owningType = ctorFunctionType.GetInstanceType()
-					} else {
-						owningType = ctorFunctionType.GetPrototype()
-					}
-					builder.SetReceiverType(owningType)
-				}
-
-			default:
-				panic(jutil.NewAssertionError("null"))
+		parent := sourceNode.GetParent()
+		switch parent.GetToken() {
+		case rhino.Token_OBJECTLIT:
+			// TODO(b/80580110): Eventually object-literal members should be covered by
+			// `PropertyReference`s. However, doing so initially would have caused too many errors
+			// in existing code and delayed support for class syntax.
+			parentType := parent.GetJSType()
+			if !parentType.IsLiteralObject() {
+				// Only add a mutation if the object type is actually a literal object (e.g. a
+				// global namespace).  OBJECTLIT tokens are often used to fulfill structural types,
+				// which is fine for writing constant properties the first time.
+				return nil
 			}
+			ref := &c.scratchPropRef
+			ref.sourceNode = sourceNode
+			ref.name = sourceNode.GetString()
+			ref.receiverType = c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parentType))
+			ref.mutation = true
+			ref.declaration = true
+			ref.override = false
+			ref.readableTypeName = nil
+			ref.typeRegistry = c.typeRegistry
+			ref.readableTypeNode = parent
+			ref.jsdoc = nil
+			ref.hasJSDoc = false
+			return ref
+
+		case rhino.Token_OBJECT_PATTERN:
+			ref := &c.scratchPropRef
+			ref.sourceNode = sourceNode
+			ref.name = sourceNode.GetString()
+			ref.receiverType = c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parent.GetJSType()))
+			ref.mutation = false
+			ref.declaration = false
+			ref.override = false
+			ref.readableTypeName = nil
+			ref.typeRegistry = c.typeRegistry
+			ref.readableTypeNode = parent
+			ref.jsdoc = nil
+			ref.hasJSDoc = false
+			return ref
+
+		case rhino.Token_CLASS_MEMBERS:
+			jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
+			receiverType := c.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
+			ctorType := parent.GetParent().GetJSType()
+			if ctorType != nil && ctorType.IsFunctionType() {
+				ctorFunctionType := ctorType.ToMaybeFunctionType()
+				if sourceNode.IsStaticMember() {
+					receiverType = ctorFunctionType
+				} else if sourceNode.IsMemberFieldDef() {
+					receiverType = ctorFunctionType.GetInstanceType()
+				} else {
+					receiverType = ctorFunctionType.GetPrototype()
+				}
+			}
+			ref := &c.scratchPropRef
+			ref.sourceNode = sourceNode
+			ref.name = sourceNode.GetString()
+			ref.receiverType = receiverType
+			ref.mutation = !(sourceNode.IsMemberFieldDef() && !sourceNode.HasChildren())
+			ref.declaration = true
+			// TODO(b/113704668): This definition is way too loose. It was used to prevent
+			// breakages during refactoring and should be tightened.
+			ref.override = jsdoc != nil
+			ref.readableTypeName = nil
+			ref.typeRegistry = nil
+			ref.readableTypeNode = nil
+			ref.jsdoc = jsdoc
+			ref.hasJSDoc = true
+			return ref
+
+		default:
+			panic(jutil.NewAssertionError("null"))
 		}
 	default:
 		return nil
 	}
-	return builder.SetSourceNode(sourceNode).Build()
 }
 
 // CheckAccessControls_GetEffectivePropertyVisibility returns the effective

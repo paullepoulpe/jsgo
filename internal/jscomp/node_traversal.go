@@ -1310,55 +1310,79 @@ func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n *rhino.Node, parent 
 	}
 }
 
+var nodeTraversalBlockScopeToken = [256]bool{
+	rhino.Token_FOR:          true,
+	rhino.Token_FOR_IN:       true,
+	rhino.Token_FOR_OF:       true,
+	rhino.Token_FOR_AWAIT_OF: true,
+	rhino.Token_SWITCH_BODY:  true,
+	rhino.Token_CLASS:        true,
+}
+
+var nodeTraversalSpecialToken = [256]bool{
+	rhino.Token_SCRIPT:            true,
+	rhino.Token_FUNCTION:          true,
+	rhino.Token_MODULE_BODY:       true,
+	rhino.Token_CLASS:             true,
+	rhino.Token_CLASS_MEMBERS:     true,
+	rhino.Token_DEFAULT_VALUE:     true,
+	rhino.Token_DESTRUCTURING_LHS: true,
+}
+
+func (t *NodeTraversal) isBlockScopeBlock(n *rhino.Node) bool {
+	if t.mayContainSyntheticBlocks && n.IsSyntheticBlock() {
+		// Don't create block scope for synthetic blocks.
+		return false
+	}
+	parent := n.GetParent()
+	if parent == nil {
+		return false
+	}
+	pt := parent.GetToken()
+	// Don't create block scope for switch cases or catch blocks.
+	return pt != rhino.Token_CASE && pt != rhino.Token_DEFAULT_CASE && pt != rhino.Token_CATCH
+}
+
 // CreatesBlockScope is like NodeUtil.createsBlockScope, but with a fast path
 // for isSyntheticBlock.
 //
 // Java: NodeTraversal.createsBlockScope(Node)
 func (t *NodeTraversal) CreatesBlockScope(n *rhino.Node) bool {
-	switch n.GetToken() {
-	case rhino.Token_BLOCK:
-		if t.mayContainSyntheticBlocks && n.IsSyntheticBlock() {
-			// Don't create block scope for synthetic blocks.
-			return false
-		}
-		parent := n.GetParent()
-		// Don't create block scope for switch cases or catch blocks.
-		return parent != nil && !NodeUtil_IsSwitchCase(parent) && !parent.IsCatch()
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY,
-		rhino.Token_CLASS:
-		return true
-	default:
-		return false
+	tok := n.GetToken()
+	if tok == rhino.Token_BLOCK {
+		return t.isBlockScopeBlock(n)
 	}
+	return nodeTraversalBlockScopeToken[uint8(tok)]
 }
 
 // TraverseBranch traverses a branch.
 //
 // Java: NodeTraversal.traverseBranch(Node, Node)
 func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT:
-		t.HandleScript(n, parent)
-		return
-	case rhino.Token_FUNCTION:
-		t.HandleFunction(n, parent)
-		return
-	case rhino.Token_MODULE_BODY:
-		t.HandleModule(n, parent)
-		return
-	case rhino.Token_CLASS:
-		t.HandleClass(n, parent)
-		return
-	case rhino.Token_CLASS_MEMBERS:
-		t.HandleClassMembers(n, parent)
-		return
-	case rhino.Token_DEFAULT_VALUE, rhino.Token_DESTRUCTURING_LHS:
-		// TODO(nickreid): Handle ASSIGN with destructuring target.
-		if t.obeyDestructuringAndDefaultValueExecutionOrder {
-			t.HandleDestructuringOrDefaultValue(n, parent)
+	if nodeTraversalSpecialToken[uint8(n.GetToken())] {
+		switch n.GetToken() {
+		case rhino.Token_SCRIPT:
+			t.HandleScript(n, parent)
 			return
+		case rhino.Token_FUNCTION:
+			t.HandleFunction(n, parent)
+			return
+		case rhino.Token_MODULE_BODY:
+			t.HandleModule(n, parent)
+			return
+		case rhino.Token_CLASS:
+			t.HandleClass(n, parent)
+			return
+		case rhino.Token_CLASS_MEMBERS:
+			t.HandleClassMembers(n, parent)
+			return
+		case rhino.Token_DEFAULT_VALUE, rhino.Token_DESTRUCTURING_LHS:
+			// TODO(nickreid): Handle ASSIGN with destructuring target.
+			if t.obeyDestructuringAndDefaultValueExecutionOrder {
+				t.HandleDestructuringOrDefaultValue(n, parent)
+				return
+			}
 		}
-	default:
 	}
 
 	t.currentNode = n
@@ -1369,7 +1393,7 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 	if t.CreatesBlockScope(n) {
 		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
-		if NodeUtil_IsClassStaticBlock(n) {
+		if n.IsBlock() && n.GetParent().IsClassMembers() {
 			t.currentHoistScopeRoot = n
 		}
 		for child := n.GetFirstChild(); child != nil; {

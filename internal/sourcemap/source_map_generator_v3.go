@@ -62,11 +62,11 @@ type SourceMapGeneratorV3 struct {
 
 	// The position that the current source map is offset in the buffer being
 	// used to generated the compiled source file.
-	offsetPosition *FilePosition
+	offsetPosition FilePosition
 
 	// The position that the current source map is offset in the generated
 	// the compiled source file by the addition of a an output wrapper prefix.
-	prefixPosition *FilePosition
+	prefixPosition FilePosition
 
 	// A list of extensions to be added to sourcemap. The value is a object to
 	// permit single values, like strings or numbers, and JsonObject or
@@ -78,6 +78,8 @@ type SourceMapGeneratorV3 struct {
 	sourceRootPath *string
 
 	mappingSlab []SourceMapGeneratorV3_Mapping
+	mappingBuf  [16]SourceMapGeneratorV3_Mapping
+	mappingsBuf [16]*SourceMapGeneratorV3_Mapping
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -103,6 +105,8 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 // Java: SourceMapGeneratorV3()
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g := &SourceMapGeneratorV3{}
+	g.mappings = g.mappingsBuf[:0:len(g.mappingsBuf)]
+	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
@@ -112,8 +116,8 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.lastSymbolName = ""
 	g.hasLastSymbolName = false
 	g.lastSymbolNameIndex = -1
-	g.offsetPosition = NewFilePosition(0, 0)
-	g.prefixPosition = NewFilePosition(0, 0)
+	g.offsetPosition = MakeFilePosition(0, 0)
+	g.prefixPosition = MakeFilePosition(0, 0)
 	g.extensions = jutil.NewLinkedHashMap[string, any]()
 	return g
 }
@@ -123,7 +127,8 @@ func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
 	clear(g.mappings)
 	g.mappings = g.mappings[:0]
-	g.mappingSlab = nil
+	clear(g.mappingBuf[:])
+	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
@@ -133,16 +138,18 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastSymbolName = ""
 	g.hasLastSymbolName = false
 	g.lastSymbolNameIndex = -1
-	g.offsetPosition = NewFilePosition(0, 0)
-	g.prefixPosition = NewFilePosition(0, 0)
+	g.offsetPosition = MakeFilePosition(0, 0)
+	g.prefixPosition = MakeFilePosition(0, 0)
 }
 
 func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
-	if len(g.mappingSlab) == 0 {
-		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 4096)
+	if len(g.mappingSlab) == cap(g.mappingSlab) {
+		newCap := min(max(cap(g.mappingSlab)*4, 64), 16384)
+		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 0, newCap)
 	}
-	m := &g.mappingSlab[0]
-	g.mappingSlab = g.mappingSlab[1:]
+	i := len(g.mappingSlab)
+	g.mappingSlab = g.mappingSlab[:i+1]
+	m := &g.mappingSlab[i]
 	m.id = SourceMapGeneratorV3_UNMAPPED
 	return m
 }
@@ -176,7 +183,7 @@ func (g *SourceMapGeneratorV3) SetWrapperPrefix(prefix string) {
 		}
 	}
 
-	g.prefixPosition = NewFilePosition(prefixLine, prefixIndex)
+	g.prefixPosition = MakeFilePosition(prefixLine, prefixIndex)
 }
 
 // SetStartingPosition sets the source code that exists in the buffer for
@@ -189,7 +196,7 @@ func (g *SourceMapGeneratorV3) SetWrapperPrefix(prefix string) {
 func (g *SourceMapGeneratorV3) SetStartingPosition(offsetLine, offsetIndex int) {
 	jutil.CheckState(offsetLine >= 0)
 	jutil.CheckState(offsetIndex >= 0)
-	g.offsetPosition = NewFilePosition(offsetLine, offsetIndex)
+	g.offsetPosition = MakeFilePosition(offsetLine, offsetIndex)
 }
 
 // AddMapping adds a mapping for the given node. Mappings must be added in
@@ -533,17 +540,12 @@ func (g *SourceMapGeneratorV3) AddSymbolNameMap(out io.StringWriter) {
 func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap[string, int]) {
 	var buf [4096]byte
 	bufLen := 0
-	flush := func() {
-		if bufLen > 0 {
-			appendString(out, unsafe.String(&buf[0], bufLen))
-			bufLen = 0
-		}
-	}
 	i := 0
 	for key := range m.Keys() {
 		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
 			if bufLen+len(key)+3 > len(buf) {
-				flush()
+				appendString(out, unsafe.String(&buf[0], bufLen))
+				bufLen = 0
 			}
 			if i != 0 {
 				buf[bufLen] = ','
@@ -556,7 +558,10 @@ func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap
 			buf[bufLen] = '"'
 			bufLen++
 		} else {
-			flush()
+			if bufLen > 0 {
+				appendString(out, unsafe.String(&buf[0], bufLen))
+				bufLen = 0
+			}
 			if i != 0 {
 				appendString(out, ",")
 			}
@@ -564,7 +569,9 @@ func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap
 		}
 		i++
 	}
-	flush()
+	if bufLen > 0 {
+		appendString(out, unsafe.String(&buf[0], bufLen))
+	}
 }
 
 // SourceMapGeneratorV3_EscapeString escapes the given string for JSON.
@@ -607,13 +614,15 @@ func SourceMapGeneratorV3_AppendFieldStartWithFirst(out io.StringWriter, name st
 // Java: SourceMapGeneratorV3.appendFieldEnd(Appendable)
 func SourceMapGeneratorV3_AppendFieldEnd(out io.StringWriter) {}
 
+var sourceMapGeneratorV3_usedMappingCheck SourceMapGeneratorV3_UsedMappingCheck
+
 // PrepMappings assigns sequential ids to used mappings, and returns the last
 // line mapped.
 //
 // Java: SourceMapGeneratorV3.prepMappings()
 func (g *SourceMapGeneratorV3) PrepMappings() int {
 	// Mark any unused mappings.
-	NewSourceMapGeneratorV3_MappingTraversal(g).Traverse(&SourceMapGeneratorV3_UsedMappingCheck{})
+	NewSourceMapGeneratorV3_MappingTraversal(g).Traverse(&sourceMapGeneratorV3_usedMappingCheck)
 
 	// Renumber used mappings and keep track of the last line.
 	id := 0
@@ -713,7 +722,8 @@ func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_
 	// The mapping list is ordered as a pre-order traversal. The mapping
 	// positions give us enough information to rebuild the stack and this
 	// allows the building of the source map in O(n) time.
-	var stack []*SourceMapGeneratorV3_Mapping
+	var stackBuf [64]*SourceMapGeneratorV3_Mapping
+	stack := stackBuf[:0]
 	for _, m := range t.outer.mappings {
 		// Find the closest ancestor of the current mapping:
 		// An overlapping mapping is an ancestor of the current mapping, any

@@ -906,6 +906,9 @@ func (v AbstractScope_ImplicitVar) IsMadeByScope(scope AbstractScope) bool {
 
 // Java: AbstractScope.ImplicitVar.of(String)
 func AbstractScope_ImplicitVar_Of(name string) *AbstractScope_ImplicitVar {
+	if uint(len(name)-4) > 5 {
+		return nil
+	}
 	switch name {
 	case "arguments":
 		return AbstractScope_ImplicitVar_ARGUMENTS.ptr()

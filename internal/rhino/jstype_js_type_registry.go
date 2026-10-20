@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -187,7 +189,7 @@ type JSTypeRegistry struct {
 	// A map of properties to the types on which those properties have been
 	// declared. "Reference" types are excluded because those already exist in
 	// eachRefTypeIndexedByProperty to avoid blowing up the size of this map.
-	nonRefTypesIndexedByProperty *jutil.SetMultimap[string, JSType]
+	nonRefTypesIndexedByProperty map[string]*jutil.ObjectLinkedHashSet[JSType]
 
 	sentinelObjectLiteral JSType
 
@@ -209,7 +211,7 @@ type JSTypeRegistry struct {
 
 	// A map of properties to each reference type on which those properties
 	// have been declared.
-	eachRefTypeIndexedByProperty *jutil.SetMultimap[string, ObjectType]
+	eachRefTypeIndexedByProperty map[string]*jutil.ObjectLinkedHashSet[ObjectType]
 
 	// A single empty TemplateTypeMap, which can be safely reused in cases
 	// where there are no template types.
@@ -220,17 +222,21 @@ type JSTypeRegistry struct {
 
 // Java: JSTypeRegistry.DOT_SPLITTER (Splitter.on('.'))
 func JSTypeRegistry_DOT_SPLITTER_Split(s string) []string {
-	var out []string
-	start := 0
-	for {
-		i := jutil.StringIndexOfCharFrom(s, '.', start)
-		if i < 0 {
-			out = append(out, jutil.StringSubstringFrom(s, start))
-			return out
+	n := 1
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' {
+			n++
 		}
-		out = append(out, jutil.StringSubstring(s, start, i))
-		start = i + 1
 	}
+	out := make([]string, 0, n)
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' {
+			out = append(out, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(out, s[start:])
 }
 
 // Java: JSTypeRegistry.I_OBJECT_ELEMENT_TEMPLATE
@@ -254,10 +260,10 @@ func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDe
 		closureNamespaces:              jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),
 		nameTableGlobalRoot:            NewNode(Token_ROOT),
 		nonNullableTypeNames:           jutil.NewLinkedHashMap[*Node, *jutil.LinkedHashSet[string]](),
-		nonRefTypesIndexedByProperty:   jutil.NewSetMultimap[string, JSType](),
+		nonRefTypesIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[JSType]),
 		propertiesOfSupertypesInUnions: jutil.NewLinkedHashSet[string](),
 		droppedPropertiesOfUnions:      jutil.NewLinkedHashSet[string](),
-		eachRefTypeIndexedByProperty:   jutil.NewSetMultimap[string, ObjectType](),
+		eachRefTypeIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[ObjectType]),
 	}
 	r.reporter = reporter
 	r.forwardDeclaredTypes = forwardDeclaredTypes
@@ -1143,9 +1149,9 @@ func (r *JSTypeRegistry) InitializeRegistry() {
 
 // Java: JSTypeRegistry.getRootElementOfName(String)
 func JSTypeRegistry_GetRootElementOfName(name string) string {
-	index := jutil.StringIndexOfChar(name, '.')
+	index := strings.IndexByte(name, '.')
 	if index != -1 {
-		return jutil.StringSubstring(name, 0, index)
+		return name[:index]
 	}
 	return name
 }
@@ -1184,7 +1190,9 @@ func (r *JSTypeRegistry) IsDeclaredForScope(scope StaticScope, name string) bool
 
 // Java: JSTypeRegistry.checkTypeName(String)
 func JSTypeRegistry_CheckTypeName(typeName string) {
-	jutil.CheckArgumentMsg(jutil.StringIndexOf(typeName, "<") < 0, "Type names cannot contain template annotations.")
+	if strings.IndexByte(typeName, '<') >= 0 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Type names cannot contain template annotations."))
+	}
 }
 
 // Java: JSTypeRegistry.getTypeInternal(StaticScope, String)
@@ -1240,49 +1248,54 @@ func JSTypeRegistry_IsNameDefinedLocally(resolutionScope StaticTypedScope, refer
 //
 // Java: JSTypeRegistry.resolveViaClosureNamespace(String)
 func (r *JSTypeRegistry) ResolveViaClosureNamespace(reference string) JSType {
+	if r.closureNamespaces.IsEmpty() {
+		return nil
+	}
 	// Find the `exports` type of the longest prefix match of this namespace,
 	// if any. Then resolve it via property.
 	prefix := reference
-	unusedComponents := []string{}
 	for {
 		namespace := r.closureNamespaces.Get(prefix)
 		if namespace != nil {
 			if namespace.IsLegacy() {
 				// Try to resolve this name via registry or properties.
 				return nil
-			} else {
-				// Always stop resolution here whether successful or not, instead of
-				// continuing with resolution via registry or via properties, to
-				// match legacy behavior.
-				reversed := make([]string, len(unusedComponents))
-				for i, c := range unusedComponents {
-					reversed[len(unusedComponents)-1-i] = c
-				}
-				return r.ResolveViaPropertyGivenSlot(
-					namespace.Type(), namespace.DefinitionNode(), reversed)
 			}
+			// Always stop resolution here whether successful or not, instead of
+			// continuing with resolution via registry or via properties, to
+			// match legacy behavior.
+			var components []string
+			if len(prefix) < len(reference) {
+				components = JSTypeRegistry_DOT_SPLITTER_Split(reference[len(prefix)+1:])
+			}
+			return r.ResolveViaPropertyGivenSlot(
+				namespace.Type(), namespace.DefinitionNode(), components)
 		}
 
-		lastDot := jutil.StringLastIndexOf(prefix, ".")
+		lastDot := strings.LastIndexByte(prefix, '.')
 		if lastDot < 0 {
 			return nil
 		}
-
-		postfix := jutil.StringSubstringFrom(prefix, lastDot+1)
-		unusedComponents = append(unusedComponents, postfix)
-		prefix = jutil.StringSubstring(prefix, 0, lastDot)
+		prefix = prefix[:lastDot]
 	}
 }
 
 // Java: JSTypeRegistry.resolveViaProperties(StaticTypedScope, String)
 func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope, qualifiedName string) JSType {
 	jutil.CheckArgument(qualifiedName != "")
-	rootName := JSTypeRegistry_GetRootElementOfName(qualifiedName)
+	dotIdx := strings.IndexByte(qualifiedName, '.')
+	rootName := qualifiedName
+	if dotIdx != -1 {
+		rootName = qualifiedName[:dotIdx]
+	}
 	slot, _ := declarationScope.GetOwnSlot(rootName).(StaticTypedSlot)
 	if slot == nil {
 		return nil
 	}
-	componentNames := JSTypeRegistry_DOT_SPLITTER_Split(qualifiedName)[1:]
+	var componentNames []string
+	if dotIdx != -1 {
+		componentNames = JSTypeRegistry_DOT_SPLITTER_Split(qualifiedName[dotIdx+1:])
+	}
 	slotType := slot.GetType()
 	return r.ResolveViaPropertyGivenSlot(slotType, nil, componentNames)
 }
@@ -1415,14 +1428,21 @@ func JSTypeRegistry_IsObjectLiteralThatCanBeSkipped(t JSType) bool {
 // Java: JSTypeRegistry.registerDroppedPropertiesInUnion(RecordType, RecordType)
 func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, supertype *RecordType) {
 	foundDroppedProperty := false
-	for _, pname := range subtype.GetPropertyMap().GetOwnPropertyNames() {
+	subMap := subtype.GetPropertyMap()
+	subMap.ensureSorted()
+	for i := 0; i < len(subMap.entries); i++ {
+		pname := subMap.entries[i].key
 		if !supertype.HasProperty(pname) {
 			foundDroppedProperty = true
 			r.droppedPropertiesOfUnions.Add(pname)
 		}
 	}
 	if foundDroppedProperty {
-		r.propertiesOfSupertypesInUnions.AddAll(supertype.GetPropertyMap().GetOwnPropertyNames()...)
+		superMap := supertype.GetPropertyMap()
+		superMap.ensureSorted()
+		for i := 0; i < len(superMap.entries); i++ {
+			r.propertiesOfSupertypesInUnions.Add(superMap.entries[i].key)
+		}
 	}
 }
 
@@ -1458,9 +1478,19 @@ func (r *JSTypeRegistry) RegisterPropertyOnType(propertyName string, type_ JSTyp
 	}
 
 	if objType, ok := type_.(ObjectType); ok && objType.HasReferenceName() {
-		r.eachRefTypeIndexedByProperty.Put(propertyName, objType)
+		set := r.eachRefTypeIndexedByProperty[propertyName]
+		if set == nil {
+			set = jutil.NewObjectLinkedHashSet[ObjectType]()
+			r.eachRefTypeIndexedByProperty[propertyName] = set
+		}
+		set.Add(objType)
 	} else {
-		r.nonRefTypesIndexedByProperty.Put(propertyName, type_)
+		set := r.nonRefTypesIndexedByProperty[propertyName]
+		if set == nil {
+			set = jutil.NewObjectLinkedHashSet[JSType]()
+			r.nonRefTypesIndexedByProperty[propertyName] = set
+		}
+		set.Add(type_)
 	}
 }
 
@@ -1520,42 +1550,43 @@ func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string)
 			}
 		}
 
-		associatedTypes := []JSType{}
-		if r.nonRefTypesIndexedByProperty.ContainsKey(propertyName) {
-			associatedTypes = append(associatedTypes, r.nonRefTypesIndexedByProperty.Get(propertyName).ToSlice()...)
-		}
-		if r.eachRefTypeIndexedByProperty.ContainsKey(propertyName) {
-			for t := range r.eachRefTypeIndexedByProperty.Get(propertyName).All() {
-				associatedTypes = append(associatedTypes, t)
-			}
-		}
+		if set := r.nonRefTypesIndexedByProperty[propertyName]; set != nil {
+			for alternative := range set.All() {
+				greatestSubtype := alternative.GetGreatestSubtype(type_)
+				if !greatestSubtype.IsEmptyType() {
+					// We've found a type with this property. Now we just have to make
+					// sure it's not a type used for internal bookkeeping.
+					maybeRecordType := greatestSubtype.ToMaybeRecordType()
+					if maybeRecordType != nil && maybeRecordType.IsSynthetic() {
+						continue
+					}
 
-		for _, alternative := range associatedTypes {
-			greatestSubtype := alternative.GetGreatestSubtype(type_)
-			if !greatestSubtype.IsEmptyType() {
-				// We've found a type with this property. Now we just have to make
-				// sure it's not a type used for internal bookkeeping.
-				maybeRecordType := greatestSubtype.ToMaybeRecordType()
-				if maybeRecordType != nil && maybeRecordType.IsSynthetic() {
-					continue
-				}
-
-				return JSTypeRegistry_PropDefinitionKind_LOOSE
-			}
-		}
-
-		if type_.ToMaybeRecordType() != nil {
-			rec := type_.ToMaybeRecordType()
-			mayBeInUnion := false
-			for _, pname := range rec.GetPropertyMap().GetOwnPropertyNames() {
-				if r.propertiesOfSupertypesInUnions.Contains(pname) {
-					mayBeInUnion = true
-					break
+					return JSTypeRegistry_PropDefinitionKind_LOOSE
 				}
 			}
+		}
+		if set := r.eachRefTypeIndexedByProperty[propertyName]; set != nil {
+			for alternative := range set.All() {
+				greatestSubtype := alternative.GetGreatestSubtype(type_)
+				if !greatestSubtype.IsEmptyType() {
+					// We've found a type with this property. Now we just have to make
+					// sure it's not a type used for internal bookkeeping.
+					maybeRecordType := greatestSubtype.ToMaybeRecordType()
+					if maybeRecordType != nil && maybeRecordType.IsSynthetic() {
+						continue
+					}
 
-			if mayBeInUnion && r.droppedPropertiesOfUnions.Contains(propertyName) {
-				return JSTypeRegistry_PropDefinitionKind_LOOSE
+					return JSTypeRegistry_PropDefinitionKind_LOOSE
+				}
+			}
+		}
+
+		if rec := type_.ToMaybeRecordType(); rec != nil && r.droppedPropertiesOfUnions.Contains(propertyName) {
+			propMap := rec.GetPropertyMap()
+			for i := 0; i < len(propMap.entries); i++ {
+				if r.propertiesOfSupertypesInUnions.Contains(propMap.entries[i].key) {
+					return JSTypeRegistry_PropDefinitionKind_LOOSE
+				}
 			}
 		}
 	}
@@ -1572,11 +1603,10 @@ func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string)
 //
 // Java: JSTypeRegistry.getEachReferenceTypeWithProperty(String)
 func (r *JSTypeRegistry) GetEachReferenceTypeWithProperty(propertyName string) []ObjectType {
-	if r.eachRefTypeIndexedByProperty.ContainsKey(propertyName) {
-		return r.eachRefTypeIndexedByProperty.Get(propertyName).ToSlice()
-	} else {
-		return []ObjectType{}
+	if set := r.eachRefTypeIndexedByProperty[propertyName]; set != nil {
+		return set.ToSlice()
 	}
+	return []ObjectType{}
 }
 
 // FindCommonSuperObject finds the common supertype of the two given object
@@ -1584,8 +1614,15 @@ func (r *JSTypeRegistry) GetEachReferenceTypeWithProperty(propertyName string) [
 //
 // Java: JSTypeRegistry.findCommonSuperObject(ObjectType, ObjectType)
 func (r *JSTypeRegistry) FindCommonSuperObject(a ObjectType, b ObjectType) ObjectType {
-	stackA := JSTypeRegistry_GetSuperStack(a)
-	stackB := JSTypeRegistry_GetSuperStack(b)
+	var bufA, bufB [16]ObjectType
+	stackA := bufA[:0]
+	for current := a; current != nil; current = current.GetImplicitPrototype() {
+		stackA = append(stackA, current)
+	}
+	stackB := bufB[:0]
+	for current := b; current != nil; current = current.GetImplicitPrototype() {
+		stackB = append(stackB, current)
+	}
 
 	result := r.GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
 	for len(stackA) != 0 && len(stackB) != 0 {
@@ -1918,7 +1955,14 @@ func (r *JSTypeRegistry) CreateOptionalType(type_ JSType) JSType {
 	if _, ok := type_.(*UnknownType); ok || type_.IsAllType() {
 		return type_
 	} else {
-		return r.CreateUnionType(type_, r.GetNativeType(JSTypeNative_VOID_TYPE))
+		if type_ == nil {
+			panic(jutil.NewNullPointerExceptionMsg("at index 0"))
+		}
+		var b UnionType_Builder
+		initUnionType_Builder(&b, r)
+		b.AddAlternate(type_)
+		b.AddAlternate(r.GetNativeType(JSTypeNative_VOID_TYPE))
+		return b.Build()
 	}
 }
 
@@ -1927,7 +1971,14 @@ func (r *JSTypeRegistry) CreateOptionalType(type_ JSType) JSType {
 //
 // Java: JSTypeRegistry.createNullableType(JSType)
 func (r *JSTypeRegistry) CreateNullableType(type_ JSType) JSType {
-	return r.CreateUnionType(type_, r.GetNativeType(JSTypeNative_NULL_TYPE))
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("at index 0"))
+	}
+	var b UnionType_Builder
+	initUnionType_Builder(&b, r)
+	b.AddAlternate(type_)
+	b.AddAlternate(r.GetNativeType(JSTypeNative_NULL_TYPE))
+	return b.Build()
 }
 
 // CreateOptionalNullableType creates a nullable and undefine-able value of
@@ -1935,8 +1986,15 @@ func (r *JSTypeRegistry) CreateNullableType(type_ JSType) JSType {
 //
 // Java: JSTypeRegistry.createOptionalNullableType(JSType)
 func (r *JSTypeRegistry) CreateOptionalNullableType(type_ JSType) JSType {
-	return r.CreateUnionType(
-		type_, r.GetNativeType(JSTypeNative_VOID_TYPE), r.GetNativeType(JSTypeNative_NULL_TYPE))
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("at index 0"))
+	}
+	var b UnionType_Builder
+	initUnionType_Builder(&b, r)
+	b.AddAlternate(type_)
+	b.AddAlternate(r.GetNativeType(JSTypeNative_VOID_TYPE))
+	b.AddAlternate(r.GetNativeType(JSTypeNative_NULL_TYPE))
+	return b.Build()
 }
 
 // CreateUnionType creates a union type whose variants are the arguments.
@@ -1953,7 +2011,9 @@ func (r *JSTypeRegistry) CreateUnionType(variants ...JSType) JSType {
 
 // Java: JSTypeRegistry.createUnionType(List<? extends JSType>)
 func (r *JSTypeRegistry) CreateUnionTypeOfList(variants []JSType) JSType {
-	return UnionType_Builder_(r).AddAlternates(variants).Build()
+	var builder UnionType_Builder
+	initUnionType_Builder(&builder, r)
+	return builder.AddAlternates(variants).Build()
 }
 
 // CreateUnionTypeOfNatives creates a union type whose variants are the
@@ -1961,7 +2021,8 @@ func (r *JSTypeRegistry) CreateUnionTypeOfList(variants []JSType) JSType {
 //
 // Java: JSTypeRegistry.createUnionType(JSTypeNative...)
 func (r *JSTypeRegistry) CreateUnionTypeOfNatives(variants ...JSTypeNative) JSType {
-	builder := UnionType_Builder_(r)
+	var builder UnionType_Builder
+	initUnionType_Builder(&builder, r)
 	for _, type_ := range variants {
 		builder.AddAlternate(r.GetNativeType(type_))
 	}
@@ -2121,10 +2182,13 @@ func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JST
 //
 // Java: JSTypeRegistry.createObjectType(String, ObjectType)
 func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype ObjectType) ObjectType {
-	return PrototypeObjectType_Builder_(r).
-		SetName(name).
-		SetImplicitPrototype(implicitPrototype).
-		Build()
+	fields := PrototypeObjectType_BuilderFields{
+		registry:          r,
+		className:         name,
+		implicitPrototype: implicitPrototype,
+		templateTypeMap:   r.GetEmptyTemplateTypeMap(),
+	}
+	return NewPrototypeObjectType(&fields)
 }
 
 // CreateAnonymousObjectType creates an anonymous object type.
@@ -2133,7 +2197,12 @@ func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype Object
 //
 // Java: JSTypeRegistry.createAnonymousObjectType(JSDocInfo)
 func (r *JSTypeRegistry) CreateAnonymousObjectType(info *JSDocInfo) ObjectType {
-	type_ := PrototypeObjectType_Builder_(r).SetAnonymous(true).Build()
+	fields := PrototypeObjectType_BuilderFields{
+		registry:        r,
+		anonymousType:   true,
+		templateTypeMap: r.GetEmptyTemplateTypeMap(),
+	}
+	type_ := NewPrototypeObjectType(&fields)
 	type_.SetPrettyPrint(true)
 	type_.SetJSDocInfo(info)
 	return type_
@@ -2333,7 +2402,8 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 		return r.GetNativeType(JSTypeNative_ALL_TYPE)
 	case Token_PIPE:
 		// Union type
-		builder := []JSType{}
+		var buf [8]JSType
+		builder := buf[:0]
 		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
 			builder = append(builder, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(child, sourceName, scope)))
 		}
@@ -2509,35 +2579,43 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 		return nil
 	}
 
-	templateArgs := jutil.NewArrayList[JSType]()
+	count := 0
 	for templateNode := typeList.GetFirstChild(); templateNode != nil; templateNode = templateNode.GetNext() {
-		templateArgs.Add(r.CreateTypeFromCommentNodeWithScope(templateNode, sourceName, scope))
+		count++
 	}
-
 	// TODO(b/138617950): Eliminate the special case for `Object`.
-	isObject := typeNode.GetString() == "Object" || typeNode.GetString() == "window.Object"
-	if isObject && templateArgs.Size() == 1 {
-		templateArgs.AddAt(0, r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
+	name := typeNode.GetString()
+	isObject := name == "Object" || name == "window.Object"
+	capCount := count
+	if isObject && count == 1 {
+		capCount = 2
+	}
+	templateArgs := make([]JSType, 0, capCount)
+	if isObject && count == 1 {
+		templateArgs = append(templateArgs, r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
+	}
+	for templateNode := typeList.GetFirstChild(); templateNode != nil; templateNode = templateNode.GetNext() {
+		templateArgs = append(templateArgs, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(templateNode, sourceName, scope)))
 	}
 
 	if nominalType.IsNamedType() && !nominalType.IsResolved() {
 		// The required number of template args will not be known until
 		// resolution, so just return all the args.
-		return templateTypeMapCopyOfTypes(templateArgs.Slice())
+		return templateArgs
 	}
 
 	requiredTemplateArgCount := nominalType.GetTemplateParamCount()
-	if templateArgs.Size() <= requiredTemplateArgCount {
-		return templateTypeMapCopyOfTypes(templateArgs.Slice())
+	if len(templateArgs) <= requiredTemplateArgCount {
+		return templateArgs
 	}
 
 	if !nominalType.IsUnknownType() &&
 		// TODO(b/287880204): delete the following case after cleaning up the
 		// codebase
-		!r.IsNonNullableName(jsTypeStaticScopeOrNil(scope), typeNode.GetString()) {
+		!r.IsNonNullableName(jsTypeStaticScopeOrNil(scope), name) {
 		firstExtraTemplateParam := typeNode.GetFirstChild().GetChildAtIndex(requiredTemplateArgCount)
 		message := "Too many template parameters\nFound " +
-			jutil.ToJavaString(templateArgs.Size()) +
+			jutil.ToJavaString(len(templateArgs)) +
 			", required at most " +
 			jutil.ToJavaString(requiredTemplateArgCount)
 		r.reporter.Warning(
@@ -2546,7 +2624,8 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 			firstExtraTemplateParam.GetLineno(),
 			firstExtraTemplateParam.GetCharno())
 	}
-	return templateTypeMapCopyOfTypes(templateArgs.Slice()[0:requiredTemplateArgCount])
+	clear(templateArgs[requiredTemplateArgCount:])
+	return templateArgs[:requiredTemplateArgCount:requiredTemplateArgCount]
 }
 
 // CreateRecordTypeFromNodes creates a RecordType from the nodes representing

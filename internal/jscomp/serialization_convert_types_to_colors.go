@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -75,6 +76,10 @@ func (r *ConvertTypesToColors_RemoveTypesBase) GetConvertTypesToColors_RemoveTyp
 
 // Java: ConvertTypesToColors.RemoveTypes.visit(NodeTraversal, Node, Node)
 func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	convertTypesToColors_removeTypesFromNode(n)
+}
+
+func convertTypesToColors_removeTypesFromNode(n *rhino.Node) {
 	n.SetJSType(nil)
 	n.SetJSTypeBeforeCast(nil)
 	n.SetDeclaredTypeExpression(nil)
@@ -86,11 +91,22 @@ func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n *rhino.
 	}
 }
 
+func convertTypesToColors_removeTypesWalk(n *rhino.Node) {
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		convertTypesToColors_removeTypesWalk(c)
+	}
+	convertTypesToColors_removeTypesFromNode(n)
+}
+
 // Java: private static class ConvertTypesToColors.RemoveTypesAndApplyColors extends RemoveTypes
 type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
 	ConvertTypesToColors_RemoveTypesBase
 	colorPoolShard       *ColorPool_ShardView
 	typePointersByJstype *base.LinkedIdentityHashMap[rhino.JSType, int]
+	colorsByPointer      []*colors.Color
+	lastType             rhino.JSType
+	lastColor            *colors.Color
+	hasLast              bool
 }
 
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors(ColorPool.ShardView, LinkedIdentityHashMap<JSType, Integer>)
@@ -103,17 +119,49 @@ func NewConvertTypesToColors_RemoveTypesAndApplyColors(
 	return r
 }
 
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) initColors() {
+	if r.colorPoolShard != nil && r.colorPoolShard.colorPool != nil {
+		axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		trimmedIds := r.colorPoolShard.trimmedOffsetToId
+		idToColor := r.colorPoolShard.colorPool.idToColor
+		colorsByPointer := make([]*colors.Color, axiomaticCount+len(trimmedIds))
+		copy(colorsByPointer, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		for i, id := range trimmedIds {
+			colorsByPointer[axiomaticCount+i] = idToColor.Get(id)
+		}
+		r.colorsByPointer = colorsByPointer
+	}
+}
+
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors.visit(NodeTraversal, Node, Node)
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	r.visitNode(n)
+}
+
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node) {
 	oldType := n.GetJSType()
 	oldTypeBeforeCast := n.GetJSTypeBeforeCast()
 
-	r.ConvertTypesToColors_RemoveTypesBase.Visit(t, n, parent)
+	convertTypesToColors_removeTypesFromNode(n)
 
 	if oldType != nil {
-		pointer, ok := r.typePointersByJstype.Lookup(oldType)
-		if ok {
-			n.SetColor(r.colorPoolShard.GetColor(pointer))
+		var c *colors.Color
+		if r.hasLast && oldType == r.lastType {
+			c = r.lastColor
+		} else {
+			if pointer, ok := r.typePointersByJstype.Lookup(oldType); ok {
+				if r.colorsByPointer != nil {
+					c = r.colorsByPointer[pointer]
+				} else {
+					c = r.colorPoolShard.GetColor(pointer)
+				}
+			}
+			r.lastType = oldType
+			r.lastColor = c
+			r.hasLast = true
+		}
+		if c != nil {
+			n.SetColor(c)
 		}
 	}
 
@@ -122,6 +170,13 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal,
 		// more specific color
 		n.SetColorFromTypeCast()
 	}
+}
+
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) walk(n *rhino.Node) {
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		r.walk(c)
+	}
+	r.visitNode(n)
 }
 
 // Java: ConvertTypesToColors.process(Node, Node)
@@ -138,7 +193,7 @@ func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
 	externsAndJsRoot := root.GetParent()
 
 	if !c.compiler.HasTypeCheckingRun() {
-		NodeTraversal_Traverse(c.compiler, externsAndJsRoot, NewConvertTypesToColors_RemoveTypes())
+		convertTypesToColors_removeTypesWalk(externsAndJsRoot)
 		c.compiler.ClearJSTypeRegistry()
 		c.compiler.InitRuntimeLibraryTypedAsts(nil) // Optional.absent()
 		return
@@ -154,12 +209,13 @@ func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
 	colorPoolBuilder := ColorPool_Builder_()
 	c.compiler.InitRuntimeLibraryTypedAsts(colorPoolBuilder)
 
-	callback := NewConvertTypesToColors_RemoveTypesAndApplyColors(
-		colorPoolBuilder.AddShard(typePool, stringPool),
-		serializeJstypes.GetTypePointersByJstype())
+	var callback ConvertTypesToColors_RemoveTypesAndApplyColors
+	callback.colorPoolShard = colorPoolBuilder.AddShard(typePool, stringPool)
+	callback.typePointersByJstype = serializeJstypes.GetTypePointersByJstype()
 
 	colorPool := colorPoolBuilder.Build()
-	NodeTraversal_Traverse(c.compiler, externsAndJsRoot, callback)
+	callback.initColors()
+	callback.walk(externsAndJsRoot)
 
 	c.compiler.ClearJSTypeRegistry()
 	c.compiler.SetColorRegistry(colorPool.GetRegistry())

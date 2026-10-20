@@ -33,8 +33,11 @@ import (
 // See CodeConsumer, CodeGenerator, CodePrinter.
 type SourceMap struct {
 	generator                sourcemap.SourceMapGenerator
+	generatorV3              *sourcemap.SourceMapGeneratorV3
 	prefixMappings           []SourceMap_LocationMapping
-	sourceLocationFixupCache *jutil.LinkedHashMap[string, string]
+	sourceLocationFixupCache map[string]string
+	lastSourceFile           rhino.StaticSourceFile
+	lastFixedSourceFileName  string
 
 	// A mapping derived from input source maps. Maps back to input sources
 	// that inputs to this compilation job have been generated from, and used
@@ -176,10 +179,10 @@ func (m *SourceMap_PrefixLocationMapping) HashCode() int32 {
 
 // Java: SourceMap(SourceMapGenerator)
 func newSourceMap(generator sourcemap.SourceMapGenerator) *SourceMap {
+	v3, _ := generator.(*sourcemap.SourceMapGeneratorV3)
 	return &SourceMap{
-		generator:                generator,
-		prefixMappings:           []SourceMap_LocationMapping{},
-		sourceLocationFixupCache: jutil.NewLinkedHashMap[string, string](),
+		generator:   generator,
+		generatorV3: v3,
 	}
 }
 
@@ -228,12 +231,21 @@ func (s *SourceMap) AddMappingOfNodePositions(
 		return
 	}
 
-	sourceFileName := sourceFile.GetName()
 	lineNo := node.GetLineno()
 	charNo := node.GetCharno()
 	originalName := sourceMap_getOriginalName(node)
 
-	if s.mapping != nil {
+	var sourceFileName string
+	if s.mapping == nil {
+		if sourceFile == s.lastSourceFile {
+			sourceFileName = s.lastFixedSourceFileName
+		} else {
+			sourceFileName = s.fixupSourceLocation(sourceFile.GetName())
+			s.lastSourceFile = sourceFile
+			s.lastFixedSourceFileName = sourceFileName
+		}
+	} else {
+		sourceFileName = sourceFile.GetName()
 		sourceMapping := s.mapping.GetSourceMapping(sourceFileName, lineNo, charNo)
 		if sourceMapping == nil {
 			// The source file does not have a input map. We consider this to be an
@@ -249,35 +261,50 @@ func (s *SourceMap) AddMappingOfNodePositions(
 			sourceFileName = sourceMapping.GetOriginalFile()
 			lineNo = sourceMapping.GetLineNumber()
 			charNo = sourceMapping.GetColumnPosition()
-			identifier := sourceMapping.GetIdentifier()
-			if sourceMapping.HasIdentifier() && identifier != "" {
-				originalName = &identifier
+			if sourceMapping.HasIdentifier() {
+				if identifier := sourceMapping.GetIdentifier(); identifier != "" {
+					originalName = &identifier
+				}
 			}
 		}
+		sourceFileName = s.fixupSourceLocation(sourceFileName)
 	}
-
-	sourceFileName = s.fixupSourceLocation(sourceFileName)
 
 	// Rhino source lines are one based but for v3 source maps, we make
 	// them zero based.
 	lineBaseOffset := 1
 
 	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
-	if v3, ok := s.generator.(*sourcemap.SourceMapGeneratorV3); ok {
-		v3.AddMappingPositions(
+	if s.generatorV3 != nil {
+		s.generatorV3.AddMappingPositions(
 			sourceFileName,
 			originalName,
 			srcPos,
 			outputStartPosition,
 			outputEndPosition)
 	} else {
-		s.generator.AddMapping(
-			&sourceFileName,
+		s.addMappingFallback(
+			sourceFileName,
 			originalName,
-			&srcPos,
-			&outputStartPosition,
-			&outputEndPosition)
+			srcPos,
+			outputStartPosition,
+			outputEndPosition)
 	}
+}
+
+//go:noinline
+func (s *SourceMap) addMappingFallback(
+	sourceFileName string,
+	originalName *string,
+	srcPos sourcemap.FilePosition,
+	outputStartPosition sourcemap.FilePosition,
+	outputEndPosition sourcemap.FilePosition) {
+	s.generator.AddMapping(
+		&sourceFileName,
+		originalName,
+		&srcPos,
+		&outputStartPosition,
+		&outputEndPosition)
 }
 
 // Java: SourceMap.addSourceFile(String, String)
@@ -318,7 +345,7 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 		return sourceFile
 	}
 
-	if fixed, ok := s.sourceLocationFixupCache.Lookup(sourceFile); ok {
+	if fixed, ok := s.sourceLocationFixupCache[sourceFile]; ok {
 		return fixed
 	}
 
@@ -332,12 +359,16 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 	}
 
 	// If none of the mappings match then use the original file path.
-	if fixed == nil {
-		fixed = &sourceFile
+	res := sourceFile
+	if fixed != nil {
+		res = *fixed
 	}
 
-	s.sourceLocationFixupCache.Put(sourceFile, *fixed)
-	return *fixed
+	if s.sourceLocationFixupCache == nil {
+		s.sourceLocationFixupCache = make(map[string]string)
+	}
+	s.sourceLocationFixupCache[sourceFile] = res
+	return res
 }
 
 // AppendTo appends the source map to out. It panics with an IOException if
@@ -359,7 +390,9 @@ func (s *SourceMap) AppendTo(out io.StringWriter, name *string) {
 // Java: SourceMap.reset()
 func (s *SourceMap) Reset() {
 	s.generator.Reset()
-	s.sourceLocationFixupCache.Clear()
+	clear(s.sourceLocationFixupCache)
+	s.lastSourceFile = nil
+	s.lastFixedSourceFileName = ""
 }
 
 // Java: SourceMap.setStartingPosition(int, int)
@@ -380,6 +413,9 @@ func (s *SourceMap) Validate(validate bool) {
 // Java: SourceMap.setPrefixMappings(List<? extends LocationMapping>)
 func (s *SourceMap) SetPrefixMappings(sourceMapLocationMappings []SourceMap_LocationMapping) {
 	s.prefixMappings = sourceMapLocationMappings
+	clear(s.sourceLocationFixupCache)
+	s.lastSourceFile = nil
+	s.lastFixedSourceFileName = ""
 }
 
 // Java: SourceMap.setSourceFileMapping(SourceFileMapping)

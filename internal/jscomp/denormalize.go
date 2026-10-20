@@ -42,19 +42,145 @@ import (
 type Denormalize struct {
 	compiler         AbstractCompiler
 	outputFeatureSet *parser.FeatureSet
+	hasLogicalAssign bool
 }
 
 // Java: Denormalize(AbstractCompiler, FeatureSet)
 func NewDenormalize(compiler AbstractCompiler, outputFeatureSet *parser.FeatureSet) *Denormalize {
-	return &Denormalize{compiler: compiler, outputFeatureSet: outputFeatureSet}
+	return &Denormalize{
+		compiler:         compiler,
+		outputFeatureSet: outputFeatureSet,
+		hasLogicalAssign: outputFeatureSet != nil && outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT),
+	}
 }
 
 // Java: Denormalize.process(Node, Node)
 func (d *Denormalize) Process(externs *rhino.Node, root *rhino.Node) {
+	d.hasLogicalAssign = d.outputFeatureSet != nil && d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	NodeTraversal_Traverse(d.compiler, root, d)
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
 	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {
-		(NewReferenceCollector(d.compiler, d, NewSyntacticScopeCreator(d.compiler))).ProcessRoot(root)
+		inliner := newDenormalizeVarInliner()
+		NodeTraversal_Builder_().
+			SetCompiler(d.compiler).
+			SetCallback(inliner).
+			SetScopeCreator(NewSyntacticScopeCreator(d.compiler)).
+			SetObeyDestructuringAndDefaultValueExecutionOrder(true).
+			Traverse(root)
+	}
+}
+
+type denormalizeVarState struct {
+	declNode   *rhino.Node
+	assignNode *rhino.Node
+}
+
+type denormalizeVarInliner struct {
+	states          []denormalizeVarState
+	scopesWithDecls map[*rhino.Node]*Scope
+	statesBuf       [32]denormalizeVarState
+}
+
+func newDenormalizeVarInliner() *denormalizeVarInliner {
+	inliner := &denormalizeVarInliner{}
+	inliner.states = inliner.statesBuf[:0]
+	return inliner
+}
+
+func (inliner *denormalizeVarInliner) getOrAllocState(v *Var) *denormalizeVarState {
+	idx := v.nameHash
+	if idx == 0 {
+		idx = int32(len(inliner.states) + 1)
+		v.nameHash = idx
+		inliner.states = append(inliner.states, denormalizeVarState{})
+	}
+	return &inliner.states[idx-1]
+}
+
+func (inliner *denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	return true
+}
+
+func (inliner *denormalizeVarInliner) EnterScope(t *NodeTraversal) {}
+
+func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
+	if len(inliner.scopesWithDecls) == 0 {
+		return
+	}
+	scopeRoot := t.GetScopeRoot()
+	scope := inliner.scopesWithDecls[scopeRoot]
+	if scope == nil {
+		return
+	}
+	changed := false
+	for v := range scope.GetVarIterable() {
+		idx := v.nameHash
+		if idx == 0 {
+			continue
+		}
+		st := &inliner.states[idx-1]
+		if st.declNode != nil && st.assignNode != nil {
+			lhs := st.assignNode
+			assignNode := lhs.GetParent()
+			if assignNode.GetParent().IsExprResult() {
+				rhs := lhs.GetNext()
+				assignNode.GetParent().ReplaceWith(rhino.IR_VarWithValue(lhs.Detach(), rhs.Detach()))
+
+				var_ := st.declNode.GetParent()
+				jutil.CheckStateMsg1(var_.IsVar(), "%s", var_)
+				NodeUtil_RemoveChild(var_, st.declNode)
+
+				changed = true
+			}
+		}
+	}
+	if changed {
+		t.ReportCodeChange()
+	}
+}
+
+func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if !n.IsName() || parent == nil {
+		return
+	}
+	switch parent.GetToken() {
+	case rhino.Token_VAR:
+		if !n.HasChildren() && NodeUtil_IsStatement(parent) {
+			name := n.GetString()
+			if name == "" {
+				return
+			}
+			v := t.GetScope().GetVar(name)
+			if v != nil {
+				vRoot := v.scope.GetRootNode()
+				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
+					st := inliner.getOrAllocState(v)
+					st.declNode = n
+					if inliner.scopesWithDecls == nil {
+						inliner.scopesWithDecls = make(map[*rhino.Node]*Scope, 8)
+					}
+					inliner.scopesWithDecls[vRoot] = v.scope
+				}
+			}
+		}
+	case rhino.Token_ASSIGN:
+		if parent.GetFirstChild() == n {
+			name := n.GetString()
+			if name == "" {
+				return
+			}
+			scope := t.GetScope()
+			v := scope.GetVar(name)
+			if v != nil && scope.GetClosestHoistScope() == v.scope {
+				vRoot := v.scope.GetRootNode()
+				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
+					st := inliner.getOrAllocState(v)
+					if st.assignNode == nil {
+						st.assignNode = n
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -109,9 +235,16 @@ func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap
 
 // Java: Denormalize.visit(NodeTraversal, Node, Node)
 func (d *Denormalize) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	d.MaybeCollapseIntoForStatements(n, parent)
-	d.MaybeCollapseLogicalAssignShorthand(t, n, parent)
-	d.MaybeCollapseAssignShorthand(n, parent)
+	switch n.GetToken() {
+	case rhino.Token_EXPR_RESULT, rhino.Token_VAR:
+		d.MaybeCollapseIntoForStatements(n, parent)
+	case rhino.Token_ASSIGN:
+		d.MaybeCollapseAssignShorthand(n, parent)
+	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+		if d.hasLogicalAssign {
+			d.MaybeCollapseLogicalAssignShorthand(t, n, parent)
+		}
+	}
 }
 
 // MaybeCollapseIntoForStatements collapses VARs and EXPR_RESULT node into
@@ -119,6 +252,12 @@ func (d *Denormalize) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
 //
 // Java: Denormalize.maybeCollapseIntoForStatements(Node, Node)
 func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhino.Node) {
+	// Is the next statement a valid FOR?
+	nextSibling := n.GetNext()
+	if nextSibling == nil {
+		return
+	}
+
 	// Only SCRIPT, BLOCK, and LABELs can have FORs that can be collapsed into.
 	// LABELs are not supported here.
 	if parent == nil || !NodeUtil_IsStatementBlock(parent) {
@@ -130,11 +269,7 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhin
 		return
 	}
 
-	// Is the next statement a valid FOR?
-	nextSibling := n.GetNext()
-	if nextSibling == nil {
-		return
-	} else if nextSibling.IsForIn() || nextSibling.IsForOf() {
+	if nextSibling.IsForIn() || nextSibling.IsForOf() {
 		forNode := nextSibling
 		forVar := forNode.GetFirstChild()
 		if forVar.IsName() &&

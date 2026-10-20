@@ -289,6 +289,67 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 	return var_
 }
 
+func functionScopeVarSlotCount(fn *rhino.Node) int {
+	fnNameNode := fn.GetFirstChild()
+	n := 0
+	if fnNameNode.GetString() != "" && NodeUtil_IsFunctionExpression(fn) {
+		n = 1
+	}
+	for c := fnNameNode.GetNext().GetFirstChild(); c != nil; c = c.GetNext() {
+		switch c.GetToken() {
+		case rhino.Token_NAME:
+			n++
+		case rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST:
+			if c.GetFirstChild().IsName() {
+				n++
+			} else {
+				n += 4
+			}
+		default:
+			n += 4
+		}
+	}
+	if n < 1 {
+		return 1
+	}
+	if n > 8 {
+		return 8
+	}
+	return n
+}
+
+func functionBlockScopeVarSlotCount(block *rhino.Node) int {
+	n := 0
+	steps := 0
+	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
+		steps++
+		if steps > 12 {
+			return 8
+		}
+		switch c.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			if c.HasOneChild() && c.GetFirstChild().IsName() {
+				n++
+			} else {
+				n += 2
+			}
+		case rhino.Token_FUNCTION, rhino.Token_CLASS:
+			n++
+		case rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW,
+			rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER:
+		default:
+			n += 2
+		}
+		if n >= 8 {
+			return 8
+		}
+	}
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
 // declareNewVar declares a variable when the caller
 // (SyntacticScopeCreator_ScopeScanner.DeclareVar) has already verified that
 // s.getOwnSlotV(name) == nil.
@@ -304,10 +365,12 @@ func (s *Scope) declareNewVar(name string, nameNode *rhino.Node, input *Compiler
 	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", nameNode)))
 	}
-	if !s.vars.HasBacking() && s.arena != nil {
+	if !s.vars.HasBacking() && s.arena != nil && s.parent != nil {
 		n := 2
-		if s.rootNode.IsFunction() || s.parent == nil {
-			n = 6
+		if s.rootNode.IsFunction() {
+			n = functionScopeVarSlotCount(s.rootNode)
+		} else if s.parent.rootNode.IsFunction() && s.rootNode.IsBlock() {
+			n = functionBlockScopeVarSlotCount(s.rootNode)
 		}
 		s.vars.InitWithBuffer(s.arena.allocVarSlots(n))
 	}

@@ -111,6 +111,9 @@ func (c *CrossChunkCodeMotion) Process(externs *rhino.Node, root *rhino.Node) {
 // Java: CrossChunkCodeMotion.addInstanceofGuards(Collection<GlobalSymbol>)
 func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]) {
 	for globalSymbol := range globalSymbols.All() {
+		if globalSymbol.instanceofReferencesToGuard == nil {
+			continue
+		}
 		for instanceofReference := range globalSymbol.instanceofReferencesToGuard.All() {
 			if !globalSymbol.DeclarationsCoverChunk(instanceofReference.GetChunk()) {
 				c.AddGuardToInstanceofReference(instanceofReference.GetReference().GetNode())
@@ -125,6 +128,7 @@ type CrossChunkCodeMotion_GlobalSymbolCollector struct {
 	outer *CrossChunkCodeMotion
 
 	globalSymbolforVar *jutil.ObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]
+	symbols            []*CrossChunkCodeMotion_GlobalSymbol
 
 	// Returning the symbols in the reverse order in which they are defined
 	// helps to minimize unnecessary reordering of declaration statements.
@@ -134,9 +138,8 @@ type CrossChunkCodeMotion_GlobalSymbolCollector struct {
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector()
 func NewCrossChunkCodeMotion_GlobalSymbolCollector(outer *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCollector {
 	return &CrossChunkCodeMotion_GlobalSymbolCollector{
-		outer:              outer,
-		globalSymbolforVar: jutil.NewObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol](),
-		symbolStack:        jutil.NewArrayDeque[*CrossChunkCodeMotion_GlobalSymbol](),
+		outer:       outer,
+		symbolStack: jutil.NewArrayDeque[*CrossChunkCodeMotion_GlobalSymbol](),
 	}
 }
 
@@ -174,6 +177,9 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessImmovableReference(r
 			instanceofReference :=
 				NewCrossChunkCodeMotion_ImmovableInstanceofReference(chunk, ref)
 
+			if globalSymbol.instanceofReferencesToGuard == nil {
+				globalSymbol.instanceofReferencesToGuard = jutil.NewArrayDeque[CrossChunkCodeMotion_InstanceofReference]()
+			}
 			globalSymbol.instanceofReferencesToGuard.Push(instanceofReference)
 			return
 		}
@@ -208,6 +214,9 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 				instanceofReference :=
 					NewCrossChunkCodeMotion_MovableInstanceofReference(dsg, ref)
 
+				if refSymbol.instanceofReferencesToGuard == nil {
+					refSymbol.instanceofReferencesToGuard = jutil.NewArrayDeque[CrossChunkCodeMotion_InstanceofReference]()
+				}
 				refSymbol.instanceofReferencesToGuard.Push(instanceofReference)
 				continue
 			}
@@ -219,12 +228,28 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.getGlobalSymbol(Var)
 func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
-	globalSymbol := g.globalSymbolforVar.Get(var_)
-	if globalSymbol == nil {
-		globalSymbol = NewCrossChunkCodeMotion_GlobalSymbol(g.outer, var_)
-		g.globalSymbolforVar.Put(var_, globalSymbol)
-		g.symbolStack.Push(globalSymbol)
+	idx := var_.nameHash
+	if idx > 0 && int(idx) <= len(g.symbols) {
+		if sym := g.symbols[idx-1]; sym != nil && sym.var_ == var_ {
+			return sym
+		}
 	}
+	if g.globalSymbolforVar != nil {
+		if sym := g.globalSymbolforVar.Get(var_); sym != nil {
+			return sym
+		}
+	}
+	globalSymbol := NewCrossChunkCodeMotion_GlobalSymbol(g.outer, var_)
+	if idx == 0 {
+		g.symbols = append(g.symbols, globalSymbol)
+		var_.nameHash = int32(len(g.symbols))
+	} else {
+		if g.globalSymbolforVar == nil {
+			g.globalSymbolforVar = jutil.NewObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]()
+		}
+		g.globalSymbolforVar.Put(var_, globalSymbol)
+	}
+	g.symbolStack.Push(globalSymbol)
 	return globalSymbol
 }
 
@@ -277,12 +302,8 @@ func NewCrossChunkCodeMotion_GlobalSymbol(outer *CrossChunkCodeMotion, var_ *Var
 		outer:                         outer,
 		dsgStack:                      jutil.NewArrayDeque[*CrossChunkCodeMotion_DeclarationStatementGroup](),
 		chunksWithImmovableReferences: jutil.NewBitSetWithSize(outer.graph.GetChunkCount()),
-		referencingGlobalSymbols:      jutil.NewLinkedHashSet[*CrossChunkCodeMotion_GlobalSymbol](),
-		instanceofReferencesToGuard:   jutil.NewArrayDeque[CrossChunkCodeMotion_InstanceofReference](),
 		preorderNumber:                -1,
-		hasBeenAssignedToAStronglyConnectedComponent: false,
-		isMoveDeclarationStatementsDone:              false,
-		var_:                                         var_,
+		var_:                          var_,
 	}
 }
 
@@ -321,6 +342,9 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statement *C
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.addReferringGlobalSymbol(GlobalSymbol)
 func (s *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declaredSymbol *CrossChunkCodeMotion_GlobalSymbol) {
+	if s.referencingGlobalSymbols == nil {
+		s.referencingGlobalSymbols = jutil.NewLinkedHashSet[*CrossChunkCodeMotion_GlobalSymbol]()
+	}
 	s.referencingGlobalSymbols.Add(declaredSymbol)
 }
 
@@ -469,10 +493,9 @@ type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup(GlobalSymbol, JSChunk)
 func NewCrossChunkCodeMotion_DeclarationStatementGroup(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
 	return &CrossChunkCodeMotion_DeclarationStatementGroup{
-		referencedGlobalSymbols: jutil.NewLinkedHashSet[*CrossChunkCodeMotion_GlobalSymbol](),
-		statementStack:          jutil.NewArrayDeque[*CrossChunkReferenceCollector_TopLevelStatement](),
-		declaredGlobalSymbol:    declaredGlobalSymbol,
-		currentChunk:            currentChunk,
+		statementStack:       jutil.NewArrayDeque[*CrossChunkReferenceCollector_TopLevelStatement](),
+		declaredGlobalSymbol: declaredGlobalSymbol,
+		currentChunk:         currentChunk,
 	}
 }
 
@@ -488,12 +511,18 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() 
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.addReferenceToGlobalSymbol(GlobalSymbol)
 func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) {
+	if g.referencedGlobalSymbols == nil {
+		g.referencedGlobalSymbols = jutil.NewLinkedHashSet[*CrossChunkCodeMotion_GlobalSymbol]()
+	}
 	g.referencedGlobalSymbols.Add(refSymbol)
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.makeReferencesImmovable()
 func (g *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable() {
 	g.declaredGlobalSymbol.AddImmovableReference(g.currentChunk)
+	if g.referencedGlobalSymbols == nil {
+		return
+	}
 	for symbol := range g.referencedGlobalSymbols.All() {
 		jutil.CheckStateMsg2(
 			!symbol.isMoveDeclarationStatementsDone,
@@ -577,16 +606,18 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSymbol(
 	o.preorderCounter++
 	o.componentRoots.Push(symbol)    // could be the start of a new strongly connected component
 	o.componentContents.Push(symbol) // could be part of an existing strongly connected component
-	for referringSymbol := range symbol.referencingGlobalSymbols.All() {
-		if referringSymbol.preorderNumber < 0 {
-			o.ProcessGlobalSymbol(referringSymbol)
-		} else {
-			if !referringSymbol.hasBeenAssignedToAStronglyConnectedComponent {
-				// This GlobalSymbol is part of a not-yet-completed strongly connected component.
-				// Back off the potential roots stack to the earliest symbol that is part of the
-				// component.
-				for o.componentRoots.Peek().preorderNumber > referringSymbol.preorderNumber {
-					o.componentRoots.Pop()
+	if symbol.referencingGlobalSymbols != nil {
+		for referringSymbol := range symbol.referencingGlobalSymbols.All() {
+			if referringSymbol.preorderNumber < 0 {
+				o.ProcessGlobalSymbol(referringSymbol)
+			} else {
+				if !referringSymbol.hasBeenAssignedToAStronglyConnectedComponent {
+					// This GlobalSymbol is part of a not-yet-completed strongly connected component.
+					// Back off the potential roots stack to the earliest symbol that is part of the
+					// component.
+					for o.componentRoots.Peek().preorderNumber > referringSymbol.preorderNumber {
+						o.componentRoots.Pop()
+					}
 				}
 			}
 		}

@@ -96,6 +96,7 @@ type PrototypeObjectTypeBase struct {
 	// try to do this for multiple functions, then we'll have to create a new
 	// one.
 	ownerFunction FunctionType
+	ownerRefName  *string
 
 	// Whether the toString representation of this should be pretty-printed,
 	// by printing all properties.
@@ -290,16 +291,17 @@ func (p *PrototypeObjectTypeBase) DefinePropertyByKey(name Property_Key, type_ J
 // Java: PrototypeObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo)
 func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo) {
 	if info != nil {
-		if p.properties.GetOwnPropertyByKey(propertyName) == nil {
+		property := p.properties.GetOwnPropertyByKey(propertyName)
+		if property == nil {
 			// If docInfo was attached, but the type of the property was not
 			// defined anywhere, then we consider this an explicit declaration of
 			// the property.
 			p.self.DefineInferredPropertyByKey(propertyName, p.self.GetPropertyTypeByKey(propertyName), nil)
+			property = p.properties.GetOwnPropertyByKey(propertyName)
 		}
 
 		// The prototype property is not represented as a normal Property. We
 		// probably don't want to attach any JSDoc to it anyway.
-		property := p.properties.GetOwnPropertyByKey(propertyName)
 		if property != nil {
 			property.SetJSDocInfo(info)
 		}
@@ -531,8 +533,11 @@ func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 	if p.className != nil {
 		return p.className
 	} else if p.ownerFunction != nil {
-		name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
-		return &name
+		if p.ownerRefName == nil {
+			name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
+			p.ownerRefName = &name
+		}
+		return p.ownerRefName
 	} else {
 		return nil
 	}
@@ -554,6 +559,7 @@ func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
 func (p *PrototypeObjectTypeBase) SetOwnerFunction(type_ FunctionType) {
 	jutil.CheckState(p.ownerFunction == nil || type_ == nil)
 	p.ownerFunction = type_
+	p.ownerRefName = nil
 }
 
 // Java: PrototypeObjectType.getOwnerFunction()
@@ -583,7 +589,9 @@ func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType
 	if implicitPrototype != nil {
 		p.implicitPrototypeFallback = implicitPrototype.Resolve(reporter).(ObjectType)
 	}
-	for prop := range p.properties.Values() {
+	p.properties.ensureSorted()
+	for i := 0; i < len(p.properties.entries); i++ {
+		prop := p.properties.entries[i].prop
 		prop.SetType(JSType_SafeResolve(prop.GetType(), reporter))
 	}
 	return p.self
@@ -633,7 +641,11 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 // Java: PrototypeObjectType.recursionUnsafeHashCode()
 func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode() int32 {
 	if p.self.IsStructuralType() {
-		return jutil.ObjectsHash(jsTypeNullableString(p.className), &p.properties)
+		var classHash int32
+		if p.className != nil {
+			classHash = jutil.StringHashCode(*p.className)
+		}
+		return 31*(31+classHash) + p.properties.HashCode()
 	} else {
 		return jutil.IdentityHashCode(p.self)
 	}
