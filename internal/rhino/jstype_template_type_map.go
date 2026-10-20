@@ -191,7 +191,7 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 		return t, true
 	case NoObjectType:
 		return registry.GetNativeType(JSTypeNative_NO_OBJECT_TYPE), true
-	case *EnumElementType, *InstanceObjectType, PrototypeObjectType:
+	case *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase:
 		return t, true
 	default:
 		return nil, false
