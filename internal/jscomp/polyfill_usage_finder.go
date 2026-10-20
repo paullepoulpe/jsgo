@@ -355,6 +355,7 @@ func NewPolyfillUsageFinder(compiler AbstractCompiler, polyfills *PolyfillUsageF
 // Java: PolyfillUsageFinder.traverseExcludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
@@ -372,6 +373,7 @@ func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfil
 // Java: PolyfillUsageFinder.traverseIncludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
 	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
@@ -473,7 +475,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 	}
 
 	if tr.outer.IsPolyfillVisibleInScope(traversal, name) &&
-		tr.includeGuardedUsages.ShouldInclude(tr.IsGuarded(name)) {
+		tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(name)) {
 		tr.polyfillConsumer(PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, nameNode, name))
 	}
 }
@@ -485,7 +487,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 	staticPolyfillUsage :=
 		tr.outer.MaybeCreateStaticPolyfillUsageForGetPropChain(traversal, getPropNode)
 	if staticPolyfillUsage != nil {
-		if tr.includeGuardedUsages.ShouldInclude(tr.IsGuarded(staticPolyfillUsage.Name())) {
+		if tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(staticPolyfillUsage.Name())) {
 			tr.polyfillConsumer(staticPolyfillUsage)
 		}
 	} else {
@@ -498,7 +500,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 		// Note that we use ".foo" as the guard check for methods to keep them distinct in case
 		// there is also a static "foo" polyfill.
 		if len(methodPolyfills) != 0 &&
-			tr.includeGuardedUsages.ShouldInclude(tr.IsGuarded("."+propertyName)) {
+			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded("."+propertyName)) {
 			for _, polyfill := range methodPolyfills {
 				tr.polyfillConsumer(
 					PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, propertyName))
@@ -517,6 +519,38 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 		// doesn't match any of the known polyfills.
 		return nil
 	}
+	firstChild := getPropNode.GetFirstChild()
+	if firstChild.IsName() {
+		rootName := firstChild.GetString()
+		if len(rootName) == 0 {
+			return nil
+		}
+		totalLen := len(rootName) + 1 + len(lastComponent)
+		mayHaveGlobalPrefix := rootName == "goog" || rootName == "window" || rootName == "goog$global" || rootName == "globalThis"
+		if !mayHaveGlobalPrefix && totalLen < 64 && f.polyfills.staticsMask[rootName[0]]&(uint64(1)<<totalLen) == 0 {
+			return nil
+		}
+		fullName := rootName + "." + lastComponent
+		var globalPrefix *string
+		if mayHaveGlobalPrefix {
+			globalPrefix = PolyfillUsageFinder_FindGlobalPrefix(fullName)
+		}
+		if globalPrefix != nil {
+			polyfill := f.polyfills.getStatic(jutil.StringSubstringFrom(fullName, jutil.StringLength(*globalPrefix)))
+			if polyfill != nil {
+				return PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
+			}
+		} else {
+			polyfill := f.polyfills.getStatic(fullName)
+			if polyfill != nil && f.IsPolyfillVisibleInScope(traversal, rootName) {
+				return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
+			}
+		}
+		return nil
+	}
+	if !firstChild.IsGetProp() && !firstChild.IsOptChainGetProp() {
+		return nil
+	}
 	// NOTE: We are not using isQualifiedName() and getQualifiedName() here, because we want to
 	// locate the owner node and also have this code work for optional chains.
 	//
@@ -527,7 +561,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	reversedComponents = append(reversedComponents, lastComponent)
 	totalLen := len(lastComponent)
 	var ownerNode *rhino.Node
-	for ownerNode = getPropNode.GetFirstChild(); ownerNode.IsGetProp() || ownerNode.IsOptChainGetProp(); ownerNode = ownerNode.GetFirstChild() {
+	for ownerNode = firstChild; ownerNode.IsGetProp() || ownerNode.IsOptChainGetProp(); ownerNode = ownerNode.GetFirstChild() {
 		comp := ownerNode.GetString()
 		reversedComponents = append(reversedComponents, comp)
 		totalLen += 1 + len(comp)

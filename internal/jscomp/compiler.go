@@ -2363,6 +2363,7 @@ func (c *Compiler) InitializeModuleLoader() {
 //
 // Java: Compiler.parseInputs()
 func (c *Compiler) ParseInputs() (result *rhino.Node) {
+	defer parser.DrainParseArenaPool()
 	devMode := c.options.GetDevMode() != CompilerOptions_DevMode_OFF
 
 	// If old roots exist (we are parsing a second time), detach each of the

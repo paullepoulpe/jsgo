@@ -121,7 +121,16 @@ func (f *FindModuleDependencies) Process(root *rhino.Node) {
 		input.AddOrderedRequire(DependencyInfo_Require_BASE)
 	}
 
-	NodeTraversal_Traverse(f.compiler, root, f)
+	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     f.compiler,
+		callback:     f,
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
+	f.dynamicImportScope = nil
 
 	if f.moduleType == CompilerInput_ModuleType_ES6 {
 		f.ConvertToEs6Module(root, true)

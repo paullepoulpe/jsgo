@@ -47,7 +47,15 @@ func NewCheckTypeImportCodeReferences(compiler AbstractCompiler) *CheckTypeImpor
 
 // Java: CheckTypeImportCodeReferences.process(Node, Node)
 func (c *CheckTypeImportCodeReferences) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Traverse(c.compiler, root, c)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: sc,
+	}
+	b.Traverse(root)
 }
 
 // Java: CheckTypeImportCodeReferences.visit(NodeTraversal, Node, Node)

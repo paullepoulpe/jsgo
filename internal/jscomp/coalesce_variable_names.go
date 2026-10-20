@@ -187,8 +187,11 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	} else {
 		scopeCreator = t.GetScopeCreator()
 	}
-	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), scopeCreator, t.GetScope())
-	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(allVarsDeclaredInFunction.GetAllVariablesInOrder()) {
+	ownedCreator, ownsCreator := scopeCreator.(*MemoizedScopeCreator)
+	allowPrune := ownsCreator && ownedCreator == c.scopeCreator && c.canReuseControlFlowGraph(t, c.compiler)
+	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), scopeCreator, t.GetScope(), allowPrune)
+	orderedVars := allVarsDeclaredInFunction.GetAllVariablesInOrder()
+	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(orderedVars) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
@@ -214,18 +217,45 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		}
 	}
 
+	escaped := c.liveness.GetEscapedLocals()
+	unescapedCandidates := 0
+	unescapedNonParams := 0
+	for _, v := range orderedVars {
+		if escaped.Contains(v) {
+			continue
+		}
+		p := v.GetParentNode()
+		if p.IsFunction() || p.IsClass() || c.IsInMultipleLvalueDecl(v) {
+			continue
+		}
+		unescapedCandidates++
+		if !v.IsParam() {
+			unescapedNonParams++
+		}
+	}
+	if c.canReuseControlFlowGraph(t, c.compiler) && (unescapedCandidates < 2 || unescapedNonParams == 0) {
+		c.liveness = nil
+		c.liveAnalyses = append(c.liveAnalyses, nil)
+		c.colorings = append(c.colorings, nil)
+		return
+	}
+
 	c.liveness.Analyze()
 	c.liveAnalyses = append(c.liveAnalyses, c.liveness)
 
 	// The interference graph has the function's variables as its nodes and any interference
 	// between the variables as the edges. Interference between two variables means that they are
 	// alive at overlapping times, which means that their variable names cannot be coalesced.
-	c.computeVariableNamesInterferenceGraphInto(cfg, c.liveness.GetEscapedLocals(), &state.interferenceGraph)
+	c.computeVariableNamesInterferenceGraphInto(cfg, escaped, &state.interferenceGraph)
 
 	// Color any interfering variables with different colors and any variables that can be safely
 	// coalesced wih the same color.
-	state.colorInterferenceGraph()
-	c.colorings = append(c.colorings, &state.coloring)
+	colorCount := state.colorInterferenceGraph()
+	if c.canReuseControlFlowGraph(t, c.compiler) && !c.usePseudoNames && colorCount == state.interferenceGraph.nodes.Size() {
+		c.colorings = append(c.colorings, nil)
+	} else {
+		c.colorings = append(c.colorings, &state.coloring)
+	}
 }
 
 // Java: CoalesceVariableNames.exitScopeWithCfg(NodeTraversal)
@@ -261,6 +291,9 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 	}
 
 	coloringsPeek := c.colorings[len(c.colorings)-1]
+	if coloringsPeek == nil {
+		return
+	}
 	var_ := c.liveness.GetAllVariables().Get(n.GetString())
 	if var_ == nil {
 		return
@@ -487,7 +520,7 @@ func coalesceCompareNodesByDegreeDesc(
 	return right.neighborEdges.Size() - left.neighborEdges.Size()
 }
 
-func (s *coalesceScopeState) colorInterferenceGraph() {
+func (s *coalesceScopeState) colorInterferenceGraph() int {
 	g := &s.interferenceGraph
 	s.coloring.InitGraphColoringBase(g)
 	s.coloring.tieBreaker = nil
@@ -544,6 +577,7 @@ func (s *coalesceScopeState) colorInterferenceGraph() {
 	} else {
 		s.coloring.colorToNodeMap = make([]**Var, count)
 	}
+	return count
 }
 
 func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(

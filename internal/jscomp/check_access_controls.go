@@ -194,12 +194,28 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	collectPass.Process(externs, root)
 	c.defaultVisibilityForFiles = collectPass.GetFileOverviewVisibilityMap()
 
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.EnableArenaPool()
+	defer func() {
+		c.lastVarNode = nil
+		c.lastVar = nil
+		sc.ReleaseArena()
+	}()
+	b := NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: sc,
+	}
+
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
-	NodeTraversal_Traverse(c.compiler, externs, c)
+	c.lastVar = nil
+	b.Traverse(externs)
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
-	NodeTraversal_Traverse(c.compiler, root, c)
+	c.lastVar = nil
+	sc.ReleaseArena()
+	b.Traverse(root)
 }
 
 // Java: CheckAccessControls.enterAccessControlScope(Node)
