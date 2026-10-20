@@ -197,10 +197,10 @@ func initSyntacticScopeCreator_ScopeScanner(
 	s.compiler = compiler
 	s.redeclarationHandler = redeclarationHandler
 	s.scope = scope
-	// A supplied handler can observe and mutate independent declaration keys.
-	// Keep the compact storage for the original private stock implementation;
-	// replacement defaults, wrappers and noncomparable handlers use keyed state.
-	if handler, stock := redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stock || handler != syntacticScopeCreatorStockDefaultHandler {
+	// Preserve the original map for explicitly supplied stock handler variants.
+	// Unknown callbacks stay compact until a redeclaration actually publishes
+	// the scope; their binding keys are materialized immediately before callback.
+	if handler, stock := redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); stock && handler != syntacticScopeCreatorStockDefaultHandler {
 		scope.useKeyedVars()
 	}
 	s.changeRootSet = changeRootSet
@@ -673,6 +673,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			if sc.varHash == nil && s.smallLen > 0 {
 				s.flushSmallVarsForMore()
 			}
+			sc.useKeyedVars()
 		}
 		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
 	} else {
@@ -750,6 +751,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 		if existing != nil && !existing.IsImplicitGoogNamespace() {
 			if _, stockDefault := s.redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stockDefault {
 				sc.markArenaEscaped()
+				sc.useKeyedVars()
 			}
 			s.redeclarationHandler.OnRedeclaration(
 				sc, root, existing.GetNode(), s.getInput())
