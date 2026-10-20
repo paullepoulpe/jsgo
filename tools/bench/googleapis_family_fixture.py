@@ -10,6 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -166,11 +167,96 @@ def wire_oracle(a):
          'source_manifest_sha256': sha(source/'source-manifest.json'), 'payloads': proofs})
 
 
+def finalize(a):
+    source, generation, wire, runtime, out = [Path(getattr(a, name)).resolve() for name in ('source', 'generation', 'wire', 'runtime', 'out')]
+    sm = json.loads((source/'source-manifest.json').read_text()); gm = json.loads((generation/'generation.json').read_text()); wm = json.loads((wire/'wire-oracle.json').read_text())
+    if (gm['exit'] or gm['source_manifest_sha256'] != sha(source/'source-manifest.json') or
+        gm['generated_files'] != inventory(generation/'messages') or wm['source_manifest_sha256'] != sha(source/'source-manifest.json') or wm['status'] != 'PASS'):
+        raise ValueError('unchanged genuine generation and native wire oracle required')
+    for row in sm['records']:
+        if sha(source/'schemas'/row['path']) != row['sha256']:
+            raise ValueError('upstream schema changed after generation')
+    rm = json.loads((runtime/'fixture-manifest.json').read_text()); original = {row['relative']: row for row in rm['files']}
+    expected_runtime = {name for name in original if name.startswith('upstream/js/') and name.endswith('.js')}
+    if {p.relative_to(runtime).as_posix() for p in (runtime/'upstream/js').rglob('*.js')} != expected_runtime:
+        raise ValueError('matching genuine runtime file set changed')
+    for path in (runtime/'upstream/js').rglob('*.js'):
+        if sha(path) != original[path.relative_to(runtime).as_posix()]['sha256']:
+            raise ValueError('matching genuine protobuf JS runtime changed')
+    fresh(out); shutil.copytree(source/'schemas', out/'schemas'); shutil.copytree(generation/'messages', out/'messages')
+    shutil.copytree(runtime/'upstream/js', out/'upstream/js')
+    for name in ('GOOGLEAPIS-LICENSE', 'PROTOBUF-LICENSE'):
+        shutil.copyfile(source/name, out/name)
+    provides = set()
+    for path in (out/'messages').glob('*.js'):
+        provides.update(re.findall(r"goog\.provide\('([^']+)'\)", path.read_text()))
+    family = sorted(name for name in provides if name.startswith('proto.google.cloud.bigquery.v2.'))
+    if not family:
+        raise ValueError('missing actual generated BigQuery namespace')
+    requires = sorted(set(family) | {'proto.google.protobuf.StringValue', 'proto.google.protobuf.BoolValue'})
+    entry = "/** Complete real BigQueryV2 type catalog; no synthetic messages. */\ngoog.provide('enterprise.bigqueryV2');\n"
+    entry += ''.join("goog.require('"+name+"');\n" for name in requires)
+    entry += "globalThis['jsgoBigQueryV2Types'] = {\n"+''.join(json.dumps(name)+': '+name+',\n' for name in family)+'};\n'
+    template = (HERE/'generated/bigquery_exercise.js.txt').read_text()
+    for name in ('table', 'job'):
+        raw = (wire/(name+'.pb')).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != wm['payloads'][name]['wire_sha256']:
+            raise ValueError('native reference wire changed')
+        template = template.replace('__'+name.upper()+'_WIRE__', json.dumps(list(raw)))
+    template = template.replace('__CATALOG_COUNT__', str(len(family)))
+    (out/'bigquery_entry.js').write_text(entry+template)
+    save(out/'provenance.json', {'source': sm, 'generation': gm, 'native_wire_oracle': wm, 'runtime_fixture_manifest_sha256': sha(runtime/'fixture-manifest.json')})
+    save(out/'fixture-manifest.json', {'schema': 'jsgo-bigquery-family-fixture-v1', 'status': 'GENERATED; Closure compiler and compiled-runtime gates pending',
+         'googleapis_revision': sm['pin']['revision'], 'family_schemas': len(sm['roots']), 'all_transitive_schemas': len(sm['records']),
+         'generated_js_files': len(gm['generated_files']), 'generated_js_bytes': sum(x['bytes'] for x in gm['generated_files']),
+         'actual_api_type_catalog': family, 'owned_catalog_and_semantic_entry_bytes': (out/'bigquery_entry.js').stat().st_size,
+         'fixture_builder_sha256': sha(__file__), 'semantic_template_sha256': sha(HERE/'generated/bigquery_exercise.js.txt'),
+         'unchanged_upstream_files': True, 'synthetic_schemas': False, 'files': inventory(out)})
+    print(json.dumps({'generated_messages': len(gm['generated_files']), 'actual_exported_api_types': len(family)}))
+
+
+def specs(a):
+    import bench
+    from enterprise_specs import embedded_externs, replace_threads
+    fixture, out = Path(a.fixture).resolve(), Path(a.out).resolve(); record = json.loads((fixture/'fixture-manifest.json').read_text())
+    if a.threads < 1:
+        raise ValueError('positive compiler thread count required')
+    actual = [x for x in inventory(fixture) if x['path'] != 'fixture-manifest.json']
+    if actual != record['files']:
+        raise ValueError('frozen generated fixture changed')
+    cache = Path(a.cache).resolve(); inputs = cache/'bench-inputs'; closure = inputs/'closure-library@v20230802'
+    closure_files = sorted(p for prefix in ('closure/goog', 'third_party/closure/goog') for p in (closure/prefix).rglob('*.js') if not p.name.endswith('_test.js'))
+    fresh(out); sources = []; argv = ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes', '--jscomp_warning=checkVars', '--language_out=ECMASCRIPT_2017', '--dependency_mode=PRUNE', '--entry_point=goog:enterprise.bigqueryV2']
+    for link, root, files in [('inputs', inputs, closure_files), ('generated', fixture, sorted(fixture.rglob('*.js')))]:
+        for path in files:
+            rel = path.relative_to(root).as_posix(); argv += ['--js', link+'/'+rel]
+            sources.append({'flag': '--js', 'link': link, 'relative': rel, 'bytes': path.stat().st_size, 'sha256': sha(path)})
+    source_count = len(sources)
+    for path in sorted(fixture.rglob('*.proto')):
+        sources.append({'flag': 'upstream-schema-provenance', 'link': 'generated', 'relative': path.relative_to(fixture).as_posix(), 'bytes': path.stat().st_size, 'sha256': sha(path)})
+    argv = replace_threads(argv+['--js_output_file=out.js', '--create_source_map=out.js.map', '--output_manifest=inputs.manifest'], a.threads)
+    result = {'schema': 'jsgo-enterprise-cli-v1', 'name': 'generated-bigquery-v2-advanced', 'argv': argv, 'links': {'inputs': str(inputs), 'generated': str(fixture)},
+              'inputs': sources, 'artifacts': ['out.js', 'out.js.map', 'inputs.manifest'], 'fixture_manifest_sha256': sha(fixture/'fixture-manifest.json'),
+              'semantic_check': {'script': str(HERE/'generated/verify_semantics.js'), 'entry': 'jsgoEnterpriseBigQueryV2', 'expected': 'benchmark-project|analytics|invoices|2|INT64|42|false|Revenue € 🧾|query-invoices-001'},
+              'same_work': {'mode': 'ADVANCED/PRUNE/checkTypes/checkVars, complete genuine BigQueryV2 type catalog and native protobuf wire oracle', 'compiler_threads': a.threads,
+                            'source_count': source_count, 'source_bytes': sum(x['bytes'] for x in sources if x['flag'] == '--js'), 'builtin_externs': embedded_externs(a.jar, Path(bench.REPO)),
+                            'provided_family_schemas': record['family_schemas'], 'provided_transitive_schemas': record['all_transitive_schemas'], 'generated_js_files': record['generated_js_files'],
+                            'actual_manifest_work': 'PENDING actual stock Java and Go correctness gate; supplied Closure candidates may be normally pruned',
+                            'explicit_externs': [], 'synthetic_schemas': False, 'limitations': 'Coherent real generated API model library, not an enterprise application or a network service invocation.'}}
+    save(out/(result['name']+'.json'), result); print(json.dumps({'provided_js_sources': source_count, 'provided_schema_auxiliary_inputs': len(sources)-source_count, 'js_bytes': result['same_work']['source_bytes']}))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest='operation', required=True)
     f = sub.add_parser('fetch'); f.add_argument('--out', required=True); f.add_argument('--protobuf-archive', required=True); f.set_defaults(run=fetch)
     g = sub.add_parser('generate'); g.add_argument('--source', required=True); g.add_argument('--out', required=True); g.add_argument('--protoc', required=True); g.set_defaults(run=generate)
     w = sub.add_parser('wire-oracle'); w.add_argument('--source', required=True); w.add_argument('--out', required=True); w.add_argument('--protoc', required=True); w.set_defaults(run=wire_oracle)
+    f = sub.add_parser('finalize')
+    for name in ('source', 'generation', 'wire', 'runtime', 'out'): f.add_argument('--'+name, required=True)
+    f.set_defaults(run=finalize)
+    s = sub.add_parser('specs')
+    for name in ('fixture', 'out', 'cache', 'jar'): s.add_argument('--'+name, required=True)
+    s.add_argument('--threads', type=int, default=1); s.set_defaults(run=specs)
     a = p.parse_args(); a.run(a)
 
 

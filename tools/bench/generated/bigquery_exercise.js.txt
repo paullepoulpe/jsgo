@@ -1,0 +1,58 @@
+/** Benchmark-owned API payload check over unchanged generated BigQuery types. */
+enterprise.bigqueryV2.exercise = function() {
+  const bq = proto.google.cloud.bigquery.v2;
+  const stringValue = function(value) {
+    const result = new proto.google.protobuf.StringValue(); result.setValue(value); return result;
+  };
+  const ref = new bq.TableReference();
+  ref.setProjectId('benchmark-project'); ref.setDatasetId('analytics'); ref.setTableId('invoices');
+  const total = new bq.TableFieldSchema();
+  total.setName('total_cents'); total.setType('INT64'); total.setMode('REQUIRED');
+  const buyer = new bq.TableFieldSchema();
+  buyer.setName('buyer'); buyer.setType('STRING'); buyer.setMode('NULLABLE');
+  const schema = new bq.TableSchema(); schema.addFields(total); schema.addFields(buyer);
+  const table = new bq.Table();
+  table.setTableReference(ref); table.setDescription(stringValue('Revenue € 🧾')); table.setSchema(schema);
+  const parameterType = new bq.QueryParameterType(); parameterType.setType('INT64');
+  const parameterValue = new bq.QueryParameterValue(); parameterValue.setValue(stringValue('42'));
+  const parameter = new bq.QueryParameter();
+  parameter.setName('min_total'); parameter.setParameterType(parameterType); parameter.setParameterValue(parameterValue);
+  const legacy = new proto.google.protobuf.BoolValue(); legacy.setValue(false);
+  const query = new bq.JobConfigurationQuery();
+  query.setQuery('SELECT buyer, SUM(total_cents) FROM invoices WHERE total_cents >= @min_total GROUP BY buyer');
+  query.setUseLegacySql(legacy); query.setParameterMode('NAMED'); query.addQueryParameters(parameter);
+  const configuration = new bq.JobConfiguration(); configuration.setQuery(query); configuration.setJobType('QUERY');
+  const jobRef = new bq.JobReference(); jobRef.setProjectId('benchmark-project'); jobRef.setJobId('query-invoices-001');
+  const job = new bq.Job(); job.setConfiguration(configuration); job.setJobReference(jobRef);
+  const tableWire = __TABLE_WIRE__;
+  const jobWire = __JOB_WIRE__;
+  const decodedTable = bq.Table.deserializeBinary(new Uint8Array(tableWire));
+  const decodedJob = bq.Job.deserializeBinary(new Uint8Array(jobWire));
+  // Native and JS protobuf encoders may emit fields in different legal orders.
+  // Compare the complete decoded objects, including wrapper presence and lists.
+  const jsTable = bq.Table.deserializeBinary(table.serializeBinary());
+  const jsJob = bq.Job.deserializeBinary(job.serializeBinary());
+  if (JSON.stringify(jsTable.toObject()) !== JSON.stringify(decodedTable.toObject()) ||
+      JSON.stringify(jsJob.toObject()) !== JSON.stringify(decodedJob.toObject())) {
+    throw new Error('JS serialization differs from native protobuf payload');
+  }
+  globalThis['jsgoBigQueryV2ActualWires'] = {
+    'table': Array.from(table.serializeBinary()), 'job': Array.from(job.serializeBinary())
+  };
+  const decodedQuery = decodedJob.getConfiguration().getQuery();
+  if (decodedTable.getSchema().getFieldsList()[0].getName() !== 'total_cents' ||
+      decodedTable.getSchema().getFieldsList()[1].getMode() !== 'NULLABLE' ||
+      decodedQuery.getParameterMode() !== 'NAMED' || decodedQuery.getQuery() !== query.getQuery() ||
+      !decodedQuery.hasUseLegacySql() || decodedQuery.getUseLegacySql().getValue() !== false ||
+      Object.keys(globalThis['jsgoBigQueryV2Types']).length !== __CATALOG_COUNT__) {
+    throw new Error('genuine BigQuery API payload semantics failed');
+  }
+  const decodedRef = decodedTable.getTableReference();
+  return decodedRef.getProjectId()+'|'+decodedRef.getDatasetId()+'|'+decodedRef.getTableId()+'|'+
+      decodedTable.getSchema().getFieldsList().length+'|'+
+      decodedQuery.getQueryParametersList()[0].getParameterType().getType()+'|'+
+      decodedQuery.getQueryParametersList()[0].getParameterValue().getValue().getValue()+'|'+
+      decodedQuery.getUseLegacySql().getValue()+'|'+decodedTable.getDescription().getValue()+'|'+
+      decodedJob.getJobReference().getJobId();
+};
+globalThis['jsgoEnterpriseBigQueryV2'] = enterprise.bigqueryV2.exercise;
