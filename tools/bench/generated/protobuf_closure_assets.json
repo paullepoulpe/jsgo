@@ -1,0 +1,28 @@
+{
+  "schema": "jsgo-protobuf-closure-assets-v1",
+  "version": "3.20.3",
+  "upstream_tag": "v3.20.3",
+  "upstream_tag_object": "66b473b3a20d02cf0d1a01f6c55ab94a141437d6",
+  "upstream_commit": "fe271ab76f2ad2b2b28c10443865d2af21e27e0e",
+  "license": "BSD-3-Clause; unmodified protocolbuffers/protobuf source headers and LICENSE",
+  "notes": [
+    "Native protoc includes the upstream JavaScript generator; no protoc plugins or handwritten generated messages.",
+    "Runtime and schemas come from the same v3.20.3 source release. Its upstream js/package.json still says 3.20.1; this fixture identifies the source release, not a nonexistent npm 3.20.3 package.",
+    "Only actual descriptor.proto, struct.proto and timestamp.proto are generated. There is no benchmark-owned synthetic schema."
+  ],
+  "assets": [
+    {
+      "name": "protoc-3.20.3-linux-x86_64.exe",
+      "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protoc/3.20.3/protoc-3.20.3-linux-x86_64.exe",
+      "bytes": 5459080,
+      "sha256": "7bf21b9e0a5390dbebe784a4aca1d64683af157b5a22847369737509e8e6cf30",
+      "upstream_sha1": "898c37cfe230a987c908cff24f04a58d320578f1"
+    },
+    {
+      "name": "protobuf-v3.20.3.tar.gz",
+      "url": "https://codeload.github.com/protocolbuffers/protobuf/tar.gz/refs/tags/v3.20.3",
+      "bytes": 5374320,
+      "sha256": "9c0fd39c7a08dff543c643f0f4baf081988129a411b977a07c46221793605638"
+    }
+  ]
+}
