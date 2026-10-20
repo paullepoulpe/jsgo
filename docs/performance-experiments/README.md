@@ -1,9 +1,11 @@
 # Performance experiment record
 
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
-PR #23 is synchronized with main `2262bb6a`. The full normal Go suite passed;
-external parity, new candidates and paired benchmarks are still in progress.
-No new Java speedup is claimed by this progress snapshot. The sections below
+PR #23 is synchronized with main `289058de`. Completed normal/corpus gates,
+paired baseline and negative factor screens belong to earlier `2262bb6a`:
+Java/Go time 0.9551 (Go slower), Java/Go RSS 3.5708 (Go smaller) on the capped
+ADVANCED bundle. The newer main needs fresh validation and measurements.
+The raw evidence and recoverable source snapshots are now published. The sections below
 preserve the completed October 19 investigation and its original cohorts.
 
 This publishes the saved experiments through the final clean-main design/thread screens and requested wrap-up, rounds20–21 (2026-10-19). It includes positive, negative, rejected, superseded and inconclusive outcomes, validation failures, source-only audits, measurements and prototype source. Continued exploration after this snapshot is not represented as completed evidence.

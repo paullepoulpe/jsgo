@@ -1,7 +1,12 @@
-# Round 4: current main, verified base and enterprise benchmark protocol
+# Round 4: verified baselines and enterprise benchmark protocol
 
 Investigation resumed on 2026-10-20 from main
-`2262bb6a8a9d24ee34fdb52bd30c49269e4b5373`. This page records completed baseline measurements and ongoing experiments;
+`2262bb6a8a9d24ee34fdb52bd30c49269e4b5373`. At 08:25 UTC, remote main
+had advanced to `289058def0873f349f80e49e6777afe3091e18a9`: five
+optimization commits, 49 changed files and a new shipped PGO profile. That
+main is now merged into PR 23. **Every measurement below still belongs to
+2262bb6a**, and does not establish the performance or correctness of 289058de.
+The latest main needs a fresh full gate and paired baseline. This page records completed baseline measurements and ongoing experiments;
 no experimental optimization has been promoted. Earlier rounds retain their original
 source, machine, PGO and measurement cohorts; their percentages are not
 additional improvements over this main.
@@ -117,8 +122,10 @@ There is no clear compound speed gain. Inline-cost views show a roughly 4%
 RSS reduction in this small screen, warranting confirmation on other tasks.
 Small time differences remain exploratory, including the Scope/Var slabs.
 The seven-factor targeted plus corpus gate passed 310 test/subtest events,
-42 top-level, with no skips/failures; its full unfiltered jscomp suite is
-still running. No optimization is promoted based on this screen.
+42 top-level, with no skips/failures; its full unfiltered jscomp suite subsequently passed with 27,434 passing
+events, 1,540 passing top-level tests, 95 skipped events and zero failures.
+All 1,535 original top-level tests were present, plus 34 new tests; original
+statuses match the stock baseline after the supplemental corpus gate. No optimization is promoted based on this screen.
 
 ## Fresh diagnostic evidence
 
@@ -135,8 +142,12 @@ In typed-full, `Node.GetNext` accounts for 14.09% flat CPU samples,
 15.05% cumulative. Cumulative figures overlap and cannot be added.
 `GetNext` is already one inlined pointer load, so its attribution motivates
 locality investigation rather than predicting a removable-call win.
-The earlier madvise percentage does not appear as a leading flat symbol
-in this Linux cohort; fresh syscall attribution is still outstanding.
+Read-only decoding identifies madvise at 0.02 sampled CPU seconds in each
+profile: 0.0417% of typed CPU and 0.1405% of bundle CPU, all through the
+background Go scavenger. Generic syscall samples mostly attribute to source
+file reads/I/O. This does not reproduce the earlier 14% madvise hypothesis.
+A capped strace capture remains outstanding; old profiles are not evidence
+for syscall weights on the new 289058de source.
 
 Read-only disassembly also rejects two tempting duplicate optimizations:
 ordinary string maps already inline to Go fast-string operations, and PGO
@@ -147,7 +158,11 @@ shared cold records save only 2.96% of finalized bundle structural bytes and
 1.95% of typed-full structural bytes; 32-byte records increase bytes. These
 are structural projections, not RSS or speed gains. Added objects, indirection
 and copy-on-write costs make a wholesale AST64 rewrite unattractive on this
-evidence. A narrower property/string-only census remains open.
+evidence. A narrower property/string-only census was prepared but is not built.
+Main 289058de materially changes Node original-name storage, property-list
+sharing and traversal pooling while retaining the 80-byte header. The old
+extension-driven census cannot be used to reject layouts on that new source.
+It needs a new kind-aware census and fresh profile.
 
 ## Candidates and failures retained
 
@@ -167,3 +182,36 @@ Debian JDK configuration symlink targets. The fixes preserve compiler argv,
 check the manifest's expected absence, mount/fingerprint exact dependencies,
 and verify the real protocol startup. Neither failed attempt produced a
 valid Java speed ratio.
+
+## Reproducible first evidence snapshot
+
+[round4-measurement-records-v1.tar.gz](round4-measurement-records-v1.tar.gz)
+preserves 1,005 completed raw files (672,050,356 source bytes), including
+compiled JS/maps, individual samples, profiles, original failures and full
+unit logs. SHA256 blobs deduplicate identical artifacts; no samples are
+discarded. Six rebuildable binary/class files are excluded with their hashes
+and sizes recorded. Input symlinks are recorded as metadata, without following
+or recreating them; payload inventories remain pinned in the run records.
+Active SourceFile race and new-main runs are excluded from this first cut.
+
+Archive SHA256: `3c7512fe7197ed7d4a6de18ef996ae69ce979d12ef47b70b498b5759b82b5008`.
+
+```sh
+python3 -B docs/performance-experiments/verify_round4_records.py \
+  docs/performance-experiments/round4-measurement-records-v1.tar.gz
+# Optional: append --restore /tmp/jsgo-round4-records (must not exist).
+```
+
+The verifier validates every path/blob/hash and never executes archived code.
+The publisher's six synthetic tests cover roundtrip/deduplication, changing
+inputs and rejected malformed archives. The benchmark tooling's 15 tests pass.
+
+[round4-source-manifest.json](round4-source-manifest.json) fingerprints nine
+frozen source snapshots in
+[round4-prototype-sources.bundle](round4-prototype-sources.bundle), with exact
+commits, trees, changed-file hashes and recovery commands. The prerequisite
+is 2262bb6a, already in this PR. These include tested seven-factor code and
+separate unvalidated concurrency/layout diagnostics; a snapshot is not a
+promotion or proof of correctness. The SourceFile snapshot predates the
+new race-run fixture correction. Later cuts will retain that correction and
+the final race evidence. Earlier archives remain byte-for-byte unchanged.
