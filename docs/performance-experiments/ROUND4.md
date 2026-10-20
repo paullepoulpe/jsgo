@@ -434,3 +434,150 @@ counts remain pending at this cut. Its source/generator pins and semantic
 checker are included in the benchmark tools. An automatic approval rejection
 of the concurrent compiler launch is retained; no compiler ran, and that
 queue is deferred until the active build finishes. Earlier cuts are unchanged.
+
+## Results completed after the fourth evidence cut
+
+The BigQuery compiler workflow now passes. Both stock Java and main
+`5de6e335` produce identical bytes for all six required artifact/stream/exit
+digests. Both compiled programs execute independently, and native `protoc`
+decodes their actual Table and Job payloads into the complete expected
+messages. This verifies real generated-code behavior as well as compiler
+output identity; these correctness clocks are not warm-JVM measurements.
+
+The exact manifests select 251 of 1,209 supplied JavaScript candidates:
+199 generated sources, nine protobuf runtime sources, 42 Closure Library
+sources and one entry. All 194 BigQuery family providers remain selected.
+The 958 omitted candidates are normal dependency pruning in both compilers;
+the benchmark does not claim all supplied files become compiled output.
+
+The first concurrent launch was rejected by automatic approval review
+because a large Go build left insufficient assured outer-memory headroom.
+No compiler child ran. After that build finished, a safer sequential launch
+passed fresh total-headroom and no-other-workload checks before each step,
+under the same actual 4 GiB cap. The reviewer accepted that launch; all
+seven steps passed with no outer OOM-counter increase. The original
+rejection and the successful serial resource proofs are retained separately.
+
+Sass value-result and 102-node-slab candidates are still experimental.
+Their combined production source is frozen at `8fefd1cb`; later commits
+`bc88a93c` and `9d9d70b2` correct test fixtures only. The first new parsing
+fixture incorrectly constructed partial parser objects; another comparison
+ran type evaluation between raw AST snapshots even though type evaluation
+mutates shared implicit-bound metadata. Both failed attempts are retained.
+The final fixtures use complete constructors and compare both raw ASTs
+before type evaluation. All eight selected parsing targets are accounted
+for with the slab off/on: five pass, including the existing parsing/JSDoc
+goldens, and three unchanged optional external-oracle targets explicitly
+skip. Full-source jutil tests and CSS semantic tests also pass. These are
+focused checks, not an experimental-candidate full-suite claim.
+
+Actual candidate assembly shows the new slab allocation method did not
+inline at a hot node allocation callsite, unlike stock main. The planned
+five-variant screen therefore includes both stock main and the combined
+binary with both factors disabled, so default-off code-generation cost is
+visible. A tiny isolated Go compiler probe found that the explicit
+`noinline` growth helper pushed the allocation method to cost 87, above the
+ordinary budget of 80. Removing the pragma and using equivalent builtin
+min/max clamps reduces its probe cost to 59 (stock `New`: 61). The separate
+refinement is frozen at `4e3e56b2`; actual whole-binary inlining and its own
+tests/artifact gates remain required. The earlier candidate is preserved
+rather than silently replaced. No performance improvement is claimed for
+either candidate yet.
+
+The frozen original candidate passes all eight bundle/typed Java artifact
+gates: Sass off/on crossed with slab off/on. A same-diagnostic-binary Sass
+off/on bundle pair also passes every byte gate, with the slab disabled in
+both. The default sampled allocation profile attributes 425,987 objects /
+13,631,904 bytes to the old expert constructor when off and has zero samples
+at that site when on. This demonstrates the intended allocation-site
+change; it is not an exact allocation counter, total-heap reduction,
+peak-RSS improvement or elapsed-time result. The later refinement changes
+only the equivalent slab growth helper, not the Sass implementation.
+
+## Five-variant allocation-candidate screen
+
+Source `4e3e56b2`, normal CLI SHA256
+`a2964efec241cac2d11ae013e1a17964f63436691dce18936d632e42de130d44`,
+passes all 165 jutil tests, the focused full-source parsing checks off/on,
+and all eight Java artifact gates. Actual assembly confirms inline allocation
+at all nine factory and four JSDoc sites; capacity loads occur on rollover only.
+The candidate still has no full normal/race validation or paired-JVM result.
+
+The quiet Go-only screen runs five variants in three balanced rounds on each
+workload, under the actual 4 GiB cap and default runtime GC/CPU policy. All
+30 fresh invocations match the strict stock-Java artifact oracle for identical
+argv, inputs and externs. This is exploratory evidence from three rows per
+variant, not a settled-JVM comparison or confidence interval.
+
+Each table reports median (sample SD); ratios are medians of same-round
+variant/stock ratios, rather than ratios of independently selected medians.
+All ranges, variance, individual rows, order and the alternative default-off
+control summaries are retained in `sass-slab-inline-go-screen-v1/`.
+
+### bundle N1
+
+| Variant | Seconds (SD) | Peak RSS MiB (SD) | Time / stock | RSS / stock |
+|---|---:|---:|---:|---:|
+| stock-5de | 9.295 (0.015) | 389.18 (13.50) | 1.00000 | 1.00000 |
+| integrated-off | 9.601 (0.237) | 373.78 (11.60) | 1.03213 | 1.00427 |
+| sass-only | 9.524 (0.177) | 386.31 (5.74) | 1.02385 | 0.99261 |
+| slab-only | 9.238 (0.145) | 379.55 (5.12) | 0.99628 | 0.95399 |
+| sass-and-slab | 9.186 (0.055) | 372.29 (1.20) | 0.99068 | 0.95292 |
+
+### typed N1
+
+| Variant | Seconds (SD) | Peak RSS MiB (SD) | Time / stock | RSS / stock |
+|---|---:|---:|---:|---:|
+| stock-5de | 34.022 (0.157) | 1118.26 (10.30) | 1.00000 | 1.00000 |
+| integrated-off | 33.096 (0.508) | 1134.68 (13.71) | 0.97913 | 1.01469 |
+| sass-only | 34.140 (0.568) | 1131.23 (18.76) | 1.01000 | 1.01160 |
+| slab-only | 32.473 (0.675) | 1117.79 (15.18) | 0.95446 | 1.00804 |
+| sass-and-slab | 32.744 (0.898) | 1102.77 (22.73) | 0.96871 | 0.98615 |
+
+Slab-only is the better typed lead: median same-round time/stock is 0.95446,
+but time/default-off is 0.98298. Default-off itself is 2.1% faster than stock
+on typed input and 3.2% slower on bundle, showing why the control is required.
+Typed slab RSS/stock is 1.00804, so this does not establish a memory saving.
+Combined typed time/stock is 0.96871, weaker than slab-only. The combined
+bundle ratios are 0.99068 time and 0.95292 RSS; the RSS spread is substantial.
+Sass removes its targeted allocation-site samples but does not demonstrate a
+macro speed win here. No factor is promoted from this small screen.
+
+Matched PGO retraining remains an open discriminator. Changed concrete callback
+identities and relative call-site lines can change Go PGO decisions in either
+direction. There is no existing proof that stock PGO devirtualized the Sass
+callback or that PGO caused this result. Before training, the old `pgo.py`
+needs fail-closed workload/exit/profile checks; skipped training must never be
+silently accepted. The archived audit specifies stock/default-off/enabled
+training controls. No such retraining was performed in this screen.
+
+The test-only corpus-root correction is now checked into the PR. Its 12 source
+files match every byte of the overlays used for the completed full main5de
+normal run; production compiler/library source remains stock main. Use
+`JSGO_ORACLE_CORPUS=/path/to/the/pinned/corpus` to request that coverage; an
+explicit missing/empty/non-directory root fails instead of silently reducing
+coverage. Full external Java corpus and unfiltered race parity remain open.
+
+## Fifth completed evidence cut
+
+[round4-measurement-records-v5.tar.gz](round4-measurement-records-v5.tar.gz)
+adds 2,142 new/changed closed records (720,724,211 original
+bytes), 1,045 content-addressed blobs, and 11 excluded
+rebuildable binaries/classes with hashes. Archive SHA256:
+`a29fcd48d4c8ef3c770e4cf4514e7e9e613a6658415553c6b5ff40ee8c14645e`.
+The verifier passes every payload hash. This preserves the successful serial
+BigQuery workflow, original/refined candidate builds and tests, failed
+fixtures and launch attempts, byte gates, allocation-site/inlining evidence,
+all30 exploratory rows, numeric/source-only design audits and PGO caveats.
+
+[round4-source-manifest-v5.json](round4-source-manifest-v5.json) fingerprints
+24 source states in [round4-prototype-sources-v5.bundle](round4-prototype-sources-v5.bundle)
+(SHA256 `4bd4386e6762d9970c9939f626a9d0a2ee63f332dcd83383dc228a434a034fcd`). Earlier cuts remain unchanged.
+
+At the post-screen fetch, main advanced to
+`bb521c0f26b2fdeec9622247531174826e9fd23c` (23 changed files, new PGO).
+All completed performance numbers above remain measurements of their named
+frozen sources, including the5de warm-JVM bundle win. This new main has not
+yet been measured by these experiments. A fresh-base validation and
+compatibility review precede another long warm-JVM block; the commit title's
+claimed gains are not imported as our measured results.

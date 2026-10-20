@@ -1,5 +1,28 @@
 # Open performance ideas
 
+The [current round-4 report](ROUND4.md) supersedes historical profile weights
+and source-only status below. Main `5de6e335` already fixes the large source-map
+allocation issue; current `madvise`, futex and syscall CPU samples are small.
+Explicit Java-style string hashing is under 0.5% in the current typed sample.
+Those older targets should not drive another large rewrite without new evidence.
+
+Current bounded candidates are a private Sass classifier returning a value and
+a parser-node slab cap of 102. Both have focused tests and original-candidate
+Java artifact gates, but no measured speed/RSS win yet. Actual assembly caught
+a missed-inlining problem in the first slab implementation; a separately frozen
+min/max refinement must pass its own gates before the five-variant screen.
+
+The strongest open structural questions are AST locality and scope/variable
+arena traffic. The naive per-store metadata COW design modeled more allocation
+than its favorable node-slab saving; this does not reject a direct-pointer tagged
+union. That diagnostic is still unbuilt. Scope/Var/slot sites allocate roughly
+755 MiB on typed input, but numeric requested/reserved histories are still
+unmeasured and do not establish live retention. Keyless variable slots require
+original-key snapshots before public mutable escapes, and common early iteration
+may erase the saving. Exact-type traversal no-op classification has a much
+smaller sampled dispatch budget than inclusive traversal suggests and adds
+branches to other traversals; broad specialization is not yet justified.
+
 These are remaining experiments and source findings, not claimed gains or an
 exhaustive list. The final benchmark report determines what was validated and
 measured. All future comparisons should use the same latest-main baseline,
