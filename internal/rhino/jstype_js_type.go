@@ -1049,6 +1049,9 @@ func (t *JSTypeBase) Equals(other any) bool {
 //
 // Java: JSType.differsFrom(JSType)
 func (t *JSTypeBase) DiffersFrom(that JSType) bool {
+	if t.self == that {
+		return false
+	}
 	return !NewEqualityChecker().
 		SetEqMethod(EqualityChecker_EqMethod_DATA_FLOW).
 		Check(t.self, that)

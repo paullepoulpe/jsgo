@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"sync/atomic"
 )
 
 // ScopedName is a name together with a scope root node. This is suitable
@@ -70,18 +71,17 @@ func ScopedName_Of(name string, scopeRoot *rhino.Node) ScopedName {
 // ScopedName_Simple is the simple implementation with no additional data or
 // semantics.
 type ScopedName_Simple struct {
-	ScopedNameBase
 	name      string
 	scopeRoot *rhino.Node
+	hash      int32
 }
 
 // Java: ScopedName.Simple(String, Node)
 func newScopedName_Simple(name string, scopeRoot *rhino.Node) *ScopedName_Simple {
-	s := &ScopedName_Simple{}
-	s.InitScopedNameBase(s)
-	s.name = name
-	s.scopeRoot = scopeRoot
-	return s
+	return &ScopedName_Simple{
+		name:      name,
+		scopeRoot: scopeRoot,
+	}
 }
 
 // Java: ScopedName.Simple.getName()
@@ -92,6 +92,34 @@ func (s *ScopedName_Simple) GetName() string {
 // Java: ScopedName.Simple.getScopeRoot()
 func (s *ScopedName_Simple) GetScopeRoot() *rhino.Node {
 	return s.scopeRoot
+}
+
+// Java: ScopedName.equals(Object)
+func (s *ScopedName_Simple) Equals(other any) bool {
+	scopedName, ok := other.(ScopedName)
+	if !ok || jutil.IsNil(scopedName) {
+		return false
+	}
+	return s.name == scopedName.GetName() &&
+		scopedName_nodeEquals(s.scopeRoot, scopedName.GetScopeRoot())
+}
+
+// Java: ScopedName.hashCode()
+func (s *ScopedName_Simple) HashCode() int32 {
+	if h := atomic.LoadInt32(&s.hash); h != 0 {
+		return h
+	}
+	return s.computeHashCode()
+}
+
+//go:noinline
+func (s *ScopedName_Simple) computeHashCode() int32 {
+	if s.scopeRoot == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	h := 31*(31+jutil.StringHashCode(s.name)) + jutil.IdentityHashCodeOfPointer(s.scopeRoot)
+	atomic.StoreInt32(&s.hash, h)
+	return h
 }
 
 // Equals is final in Java.
@@ -109,9 +137,14 @@ func (b *ScopedNameBase) Equals(other any) bool {
 // scopedName_nodeEquals is a.equals(b) for Nodes (identity; null a throws).
 func scopedName_nodeEquals(a, b *rhino.Node) bool {
 	if a == nil {
-		panic(jutil.NewNullPointerException())
+		scopedName_failNull()
 	}
 	return a == b
+}
+
+//go:noinline
+func scopedName_failNull() {
+	panic(jutil.NewNullPointerException())
 }
 
 // HashCode is final in Java.

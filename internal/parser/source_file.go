@@ -31,15 +31,20 @@ type SourceFile struct {
 	// converted once, so that the scanner and every offset work in Java char
 	// indices. Read-only.
 	ContentsUTF16 []uint16
+	// Go-only: performance — length of the leading pure-ASCII prefix of
+	// Contents where UTF-16 offsets and Go byte offsets are identical.
+	asciiPrefix int
 }
 
 // NewSourceFile constructs a SourceFile.
 //
 // Java: SourceFile(String, String)
 func NewSourceFile(name, contents string) *SourceFile {
-	s := &SourceFile{}
-	s.Name = name
-	s.Contents = contents
-	s.ContentsUTF16 = jutil.StringToUTF16(contents)
-	return s
+	utf16, asciiPrefix := jutil.StringToUTF16AndASCIIPrefix(contents)
+	return &SourceFile{
+		Name:          name,
+		Contents:      contents,
+		ContentsUTF16: utf16,
+		asciiPrefix:   asciiPrefix,
+	}
 }

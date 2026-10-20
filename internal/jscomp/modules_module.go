@@ -19,7 +19,10 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"sync/atomic"
+)
 
 // Module holds information for modules, particularly ES modules, that is
 // useful for rewriting. The primary pieces of information are what
@@ -77,6 +80,7 @@ type Module struct {
 	boundNames             *jutil.LinkedHashMap[string, *Binding]
 	localNameToLocalExport *jutil.LinkedHashMap[string, *Export]
 	closureNamespace       *string
+	hash                   int32
 }
 
 // Java: Module(ModuleMetadata, ModulePath, ImmutableMap<String, Binding>, ImmutableMap<String, Binding>, ImmutableMap<String, Export>, String)
@@ -130,25 +134,34 @@ func (m *Module) ClosureNamespace() *string { return m.closureNamespace }
 func (m *Module) Equals(o any) bool {
 	other, ok := o.(*Module)
 	return ok && other != nil &&
-		m.metadata == other.metadata &&
-		m.path == other.path &&
-		jutil.ObjectsEquals(m.namespace, other.namespace) &&
-		jutil.ObjectsEquals(m.boundNames, other.boundNames) &&
-		jutil.ObjectsEquals(m.localNameToLocalExport, other.localNameToLocalExport) &&
-		modules_nullableStringEquals(m.closureNamespace, other.closureNamespace)
+		(m == other || (m.metadata == other.metadata &&
+			m.path == other.path &&
+			jutil.ObjectsEquals(m.namespace, other.namespace) &&
+			jutil.ObjectsEquals(m.boundNames, other.boundNames) &&
+			jutil.ObjectsEquals(m.localNameToLocalExport, other.localNameToLocalExport) &&
+			modules_nullableStringEquals(m.closureNamespace, other.closureNamespace)))
 }
 
 // HashCode is the record's hashCode.
 //
 // Go-only: language-adapter — identity hashes are jutil.IdentityHashCode.
 func (m *Module) HashCode() int32 {
+	if h := atomic.LoadInt32(&m.hash); h != 0 {
+		return h
+	}
+	return m.computeHashCode()
+}
+
+//go:noinline
+func (m *Module) computeHashCode() int32 {
 	h := int32(0)
-	h = 31*h + jutil.IdentityHashCode(m.metadata)
-	h = 31*h + jutil.IdentityHashCode(m.path)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(m.metadata)
+	h = 31*h + jutil.IdentityHashCodeOfPointer(m.path)
 	h = 31*h + jutil.ObjectHashCode(m.namespace)
 	h = 31*h + jutil.ObjectHashCode(m.boundNames)
 	h = 31*h + jutil.ObjectHashCode(m.localNameToLocalExport)
 	h = 31*h + modules_nullableStringHash(m.closureNamespace)
+	atomic.StoreInt32(&m.hash, h)
 	return h
 }
 

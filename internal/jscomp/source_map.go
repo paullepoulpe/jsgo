@@ -189,8 +189,8 @@ func newSourceMap(generator sourcemap.SourceMapGenerator) *SourceMap {
 // adjusted if that source is being concatenated to other sources.
 type SourceMap_Mapping struct {
 	node  *rhino.Node
-	start *sourcemap.FilePosition
-	end   *sourcemap.FilePosition
+	start sourcemap.FilePosition
+	end   sourcemap.FilePosition
 }
 
 // Java: SourceMap.Mapping()
@@ -201,7 +201,7 @@ func NewSourceMap_Mapping() *SourceMap_Mapping {
 // Java: SourceMap.Mapping.toString()
 func (m *SourceMap_Mapping) String() string {
 	// This toString() representation is used for debugging purposes only.
-	return "Mapping: start " + jutil.ToJavaString(m.start) + ", end " + jutil.ToJavaString(m.end) +
+	return "Mapping: start " + jutil.ToJavaString(&m.start) + ", end " + jutil.ToJavaString(&m.end) +
 		", node " + jutil.ToJavaString(m.node)
 }
 
@@ -209,12 +209,17 @@ func (m *SourceMap_Mapping) String() string {
 //
 // Java: SourceMap.addMapping(Mapping)
 func (s *SourceMap) AddMapping(mapping *SourceMap_Mapping) {
-	s.AddMappingOfNode(mapping.node, mapping.start, mapping.end)
+	s.AddMappingOfNodePositions(mapping.node, mapping.start, mapping.end)
 }
 
 // Java: SourceMap.addMapping(Node, FilePosition, FilePosition)
 func (s *SourceMap) AddMappingOfNode(
 	node *rhino.Node, outputStartPosition *sourcemap.FilePosition, outputEndPosition *sourcemap.FilePosition) {
+	s.AddMappingOfNodePositions(node, *outputStartPosition, *outputEndPosition)
+}
+
+func (s *SourceMap) AddMappingOfNodePositions(
+	node *rhino.Node, outputStartPosition sourcemap.FilePosition, outputEndPosition sourcemap.FilePosition) {
 	// If the node does not have an associated source file or
 	// its line number is -1, then the node does not have sufficient
 	// information for a mapping to be useful.
@@ -257,12 +262,22 @@ func (s *SourceMap) AddMappingOfNode(
 	// them zero based.
 	lineBaseOffset := 1
 
-	s.generator.AddMapping(
-		&sourceFileName,
-		originalName,
-		sourcemap.NewFilePosition(lineNo-lineBaseOffset, charNo),
-		outputStartPosition,
-		outputEndPosition)
+	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
+	if v3, ok := s.generator.(*sourcemap.SourceMapGeneratorV3); ok {
+		v3.AddMappingPositions(
+			&sourceFileName,
+			originalName,
+			srcPos,
+			outputStartPosition,
+			outputEndPosition)
+	} else {
+		s.generator.AddMapping(
+			&sourceFileName,
+			originalName,
+			&srcPos,
+			&outputStartPosition,
+			&outputEndPosition)
+	}
 }
 
 // Java: SourceMap.addSourceFile(String, String)

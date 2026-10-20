@@ -584,6 +584,112 @@ func NewNode(token Token) *Node {
 	return &Node{token: token, linenoCharno: -1}
 }
 
+// InitFromTemplate initializes a zero Node from a slab with token and template properties.
+func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.propListHead = template.propListHead
+	return n
+}
+
+// InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
+func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.propListHead = template.propListHead
+	n.first = child
+
+	child.CheckDetached()
+	child.previous = child
+	child.parent = n
+	return n
+}
+
+// InitWith2ChildrenFromTemplate initializes a zero Node from a slab with 2 children and template properties.
+func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Node, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.propListHead = template.propListHead
+	n.first = left
+
+	left.CheckDetached()
+	left.next = right
+	left.previous = right
+	left.parent = n
+
+	right.CheckDetached()
+	right.previous = left
+	right.parent = n
+	return n
+}
+
+// InitWith3ChildrenFromTemplate initializes a zero Node from a slab with 3 children and template properties.
+func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node, right *Node, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.propListHead = template.propListHead
+	n.first = left
+
+	left.CheckDetached()
+	left.next = mid
+	left.previous = right
+	left.parent = n
+
+	mid.CheckDetached()
+	mid.next = right
+	mid.previous = left
+	mid.parent = n
+
+	right.CheckDetached()
+	right.previous = mid
+	right.parent = n
+	return n
+}
+
+// InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
+func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.kind = node_kindString
+	n.propListHead = template.propListHead
+	n.SetString(str)
+	return n
+}
+
+// InitNumberFromTemplate initializes a zero Node from a slab as a NumberNode with template properties.
+func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
+	n.token = Token_NUMBER
+	n.linenoCharno = -1
+	n.kind = node_kindNumber
+	n.propListHead = template.propListHead
+	n.SetDouble(number)
+	return n
+}
+
+// InitBigIntFromTemplate initializes a zero Node from a slab as a BigIntNode with template properties.
+func (n *Node) InitBigIntFromTemplate(bigint *big.Int, template *Node) *Node {
+	n.token = Token_BIGINT
+	n.linenoCharno = -1
+	n.kind = node_kindBigInt
+	n.propListHead = template.propListHead
+	n.SetBigInt(bigint)
+	return n
+}
+
+// InitTemplateLitStringFromTemplate initializes a zero Node from a slab as a TemplateLiteralSubstringNode with template properties.
+func (n *Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, template *Node) *Node {
+	n.token = Token_TEMPLATELIT_STRING
+	n.linenoCharno = -1
+	n.kind = node_kindTemplateLiteralSubstring
+	n.propListHead = template.propListHead
+	if cooked != nil {
+		c := RhinoStringPool_AddOrGet(*cooked)
+		n.node_getExt().cooked = &c
+	}
+	n.str = rhinoStringPoolCell(raw)
+	return n
+}
+
 // Java: Node(Token, Node)
 func NewNodeWithChild(token Token, child *Node) *Node {
 	n := NewNode(token)
@@ -2914,6 +3020,12 @@ func (n *Node) GetQualifiedName() *string {
 	return &s
 }
 
+// GetQualifiedNameString is the body of GetQualifiedName; ok is false
+// where Java returns null.
+func (n *Node) GetQualifiedNameString() (string, bool) {
+	return n.getQualifiedNameString()
+}
+
 // getQualifiedNameString is the body of getQualifiedName; ok is false
 // where Java returns null.
 func (n *Node) getQualifiedNameString() (string, bool) {
@@ -3085,8 +3197,28 @@ func (n *Node) MatchesNameNode(other *Node) bool {
 // qualified name, such as `x` or `a.b.c` or `this.a`.
 //
 // Java: Node.matchesQualifiedName(String)
-func (n *Node) MatchesQualifiedName(name string) bool {
-	return n.MatchesQualifiedNameWithEnd(name, jutil.StringLength(name))
+func (n *Node) MatchesQualifiedName(qname string) bool {
+	for {
+		switch n.token {
+		case Token_NAME, Token_IMPORT_STAR:
+			name := n.GetString()
+			return name != "" && name == qname && strings.IndexByte(name, '.') < 0
+		case Token_THIS:
+			return qname == "this"
+		case Token_SUPER:
+			return qname == "super"
+		case Token_GETPROP:
+			prop := n.GetString()
+			dot := len(qname) - len(prop) - 1
+			if dot < 1 || qname[dot] != '.' || qname[dot+1:] != prop || strings.IndexByte(prop, '.') >= 0 {
+				return false
+			}
+			qname = qname[:dot]
+			n = n.first
+		default:
+			return false
+		}
+	}
 }
 
 // MatchesQualifiedNameWithEnd returns whether a node matches a simple or a

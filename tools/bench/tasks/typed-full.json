@@ -1,0 +1,98 @@
+{
+  "name": "typed-full",
+  "order": 8,
+  "title": "Closure Library + Shaka Player + Blockly + app, ADVANCED",
+  "description": "Full Closure Library v20230802 (`closure/goog` and `third_party/closure/goog`, 971 non-test files), Google Shaka Player 5.3.1 (`lib/`, `ui/`, `externs/`, `third_party/`, `dist/locales.js`, 520 files), Google Blockly 8.0.5 (`core/`, `blocks/`, `generators/`, 324 files), and the notes editor app (`app/notestore.js`, `app/notesview.js`, `app/main.js`) — 1,818 files (28.5 MB, 97.3% typed) compiled as a single `ADVANCED` unit with `--dependency_mode=SORT_ONLY`, `--language_out=ECMASCRIPT5`, `--jscomp_warning=checkTypes`, `--generate_exports`, and source map output.",
+  "mode": "ADVANCED, `--language_out=ECMASCRIPT5`, type checking on (`--jscomp_warning=checkTypes`), `--dependency_mode=SORT_ONLY`, source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--language_out=ECMASCRIPT5",
+    "--dependency_mode=SORT_ONLY",
+    "--jscomp_warning=checkTypes",
+    "--jscomp_off=lintChecks",
+    "--jscomp_off=deprecated",
+    "--jscomp_off=missingPolyfill",
+    "--jscomp_off=visibility",
+    "--extra_annotation_name=listens",
+    "--extra_annotation_name=exportDoc",
+    "--extra_annotation_name=exportInterface",
+    "--generate_exports",
+    "-D",
+    "COMPILED=true",
+    "-D",
+    "goog.ENABLE_DEBUG_LOADER=false",
+    "-D",
+    "goog.DEBUG=false",
+    "-D",
+    "goog.asserts.ENABLE_ASSERTS=false",
+    "-D",
+    "shaka.log.MAX_LOG_LEVEL=0",
+    "-D",
+    "shaka.Player.version=\"v5.3.1\""
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "file": "inputs/shaka-player@5.3.1/dist/locales.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/externs/**/*.js",
+      "exclude": [
+        "mediasession.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/lib/**/*.js",
+      "exclude": [
+        "*/lib/debug/asserts.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/ui/**/*.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/third_party/**/*.js",
+      "exclude": [
+        "*/third_party/closure-uri/uri.js"
+      ]
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/core/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/blocks/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/generators/**/*.js"
+    },
+    {
+      "file": "app/notestore.js"
+    },
+    {
+      "file": "app/notesview.js"
+    },
+    {
+      "file": "app/main.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ],
+  "warm_warmup": 1
+}

@@ -43,11 +43,6 @@ func TestBatchedCollectionMutationDuringIteration(t *testing.T) {
 			}
 			var want []int
 			last := 20
-			if name == "object" {
-				// ObjectLinkedHashMap.Clear replaces the map's storage;
-				// an iterator already on the old chain finishes that chain.
-				last = 300
-			}
 			for i := 0; i <= last; i++ {
 				if i != 11 {
 					want = append(want, i)

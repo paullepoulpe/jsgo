@@ -67,6 +67,11 @@ type MaybeReachingVariableUse struct {
 	// hence the Object set.
 	escaped     *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+
+	emptyLattice MaybeReachingVariableUse_ReachingUses
+	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
+	latticeSlab  []MaybeReachingVariableUse_ReachingUses
+	latticeBuf   [8]MaybeReachingVariableUse_ReachingUses
 }
 
 // Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
@@ -78,7 +83,21 @@ func NewMaybeReachingVariableUse(
 	u.InitDataFlowAnalysisBase(u, cfg)
 	u.escaped = escaped
 	u.allVarsInFn = allVarsInFn
+	u.emptyLattice.mayUsePMap = rhino.HamtPMap_Empty[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]()
+	u.latticeSlab = u.latticeBuf[:0:len(u.latticeBuf)]
 	return u
+}
+
+func (u *MaybeReachingVariableUse) allocLattice(m rhino.PMap[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
+	if len(u.latticeSlab) == cap(u.latticeSlab) {
+		nextCap := min(max(cap(u.latticeSlab)*2, 16), 256)
+		u.latticeSlab = make([]MaybeReachingVariableUse_ReachingUses, 0, nextCap)
+	}
+	idx := len(u.latticeSlab)
+	u.latticeSlab = u.latticeSlab[:idx+1]
+	lat := &u.latticeSlab[idx]
+	lat.mayUsePMap = m
+	return lat
 }
 
 // MaybeReachingVariableUse_ReachingUses is the may use definition lattice
@@ -122,9 +141,9 @@ func NewMaybeReachingVariableUse_ReachingUses() *MaybeReachingVariableUse_Reachi
 //
 // Java: MaybeReachingVariableUse.ReachingUses(ReachingUses)
 func NewMaybeReachingVariableUse_ReachingUsesCopy(other *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
-	r := NewMaybeReachingVariableUse_ReachingUses()
-	r.mayUsePMap = other.mayUsePMap
-	return r
+	return &MaybeReachingVariableUse_ReachingUses{
+		mayUsePMap: other.mayUsePMap,
+	}
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.get(Var)
@@ -153,29 +172,40 @@ func (r *MaybeReachingVariableUse_ReachingUses) Put(v *Var, n *rhino.Node) {
 	}
 }
 
+func maybeReachingUse_reconcileNodes(node *rhino.Node, unused1 *rhino.Node, unused2 *rhino.Node) *rhino.Node {
+	return node
+}
+
+func maybeReachingUse_reconcileVars(var_ *Var, thisVal rhino.PMap[*rhino.Node, *rhino.Node], thatVal rhino.PMap[*rhino.Node, *rhino.Node]) rhino.PMap[*rhino.Node, *rhino.Node] {
+	if thisVal == nil {
+		return thatVal
+	}
+	if thatVal == nil || thisVal == thatVal {
+		return thisVal
+	}
+	// The PMap as a set with the key and value pair have the same value.
+	return thisVal.Reconcile(thatVal, maybeReachingUse_reconcileNodes)
+}
+
 // Java: MaybeReachingVariableUse.ReachingUses.join(ReachingUses)
 func (r *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVariableUse_ReachingUses) {
-	r.mayUsePMap = r.mayUsePMap.Reconcile(
-		other.mayUsePMap,
-		func(var_ *Var, thisVal rhino.PMap[*rhino.Node, *rhino.Node], thatVal rhino.PMap[*rhino.Node, *rhino.Node]) rhino.PMap[*rhino.Node, *rhino.Node] {
-			if thisVal == nil {
-				return thatVal
-			}
-			if thatVal == nil {
-				return thisVal
-			}
-			// The PMap as a set with the key and value pair have the same value.
-			return thisVal.Reconcile(thatVal, func(node *rhino.Node, unused1 *rhino.Node, unused2 *rhino.Node) *rhino.Node {
-				return node
-			})
-		})
+	empty := rhino.HamtPMap_Empty[*Var, rhino.PMap[*rhino.Node, *rhino.Node]]()
+	if r.mayUsePMap == other.mayUsePMap || other.mayUsePMap == empty {
+		return
+	}
+	if r.mayUsePMap == empty {
+		r.mayUsePMap = other.mayUsePMap
+		return
+	}
+	r.mayUsePMap = r.mayUsePMap.Reconcile(other.mayUsePMap, maybeReachingUse_reconcileVars)
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.equals(Object)
 func (r *MaybeReachingVariableUse_ReachingUses) Equals(other any) bool {
 	reachingUses, ok := other.(*MaybeReachingVariableUse_ReachingUses)
 	return ok && reachingUses != nil &&
-		reachingUses.mayUsePMap.Equivalent(r.mayUsePMap, MaybeReachingVariableUse_ReachingUses_EqualMaps)
+		(r == reachingUses || r.mayUsePMap == reachingUses.mayUsePMap ||
+			reachingUses.mayUsePMap.Equivalent(r.mayUsePMap, MaybeReachingVariableUse_ReachingUses_EqualMaps))
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.equalMaps(PMap<Node, Node>, PMap<Node, Node>)
@@ -225,17 +255,18 @@ func (u *MaybeReachingVariableUse) IsForward() bool {
 
 // Java: MaybeReachingVariableUse.createEntryLattice()
 func (u *MaybeReachingVariableUse) CreateEntryLattice() *MaybeReachingVariableUse_ReachingUses {
-	return NewMaybeReachingVariableUse_ReachingUses()
+	return &u.emptyLattice
 }
 
 // Java: MaybeReachingVariableUse.createInitialEstimateLattice()
 func (u *MaybeReachingVariableUse) CreateInitialEstimateLattice() *MaybeReachingVariableUse_ReachingUses {
-	return NewMaybeReachingVariableUse_ReachingUses()
+	return &u.emptyLattice
 }
 
 // Java: MaybeReachingVariableUse.createFlowJoiner()
 func (u *MaybeReachingVariableUse) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*MaybeReachingVariableUse_ReachingUses] {
-	return NewMaybeReachingVariableUse_ReachingUsesJoinOp()
+	u.joinOp.result = u.allocLattice(u.emptyLattice.mayUsePMap)
+	return &u.joinOp
 }
 
 // FlowThrough computes the new LatticeElement for a given node given its
@@ -250,15 +281,17 @@ func (u *MaybeReachingVariableUse) CreateFlowJoiner() DataFlowAnalysis_FlowJoine
 //
 // Java: MaybeReachingVariableUse.flowThrough(Node, ReachingUses)
 func (u *MaybeReachingVariableUse) FlowThrough(n *rhino.Node, input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
-	output := NewMaybeReachingVariableUse_ReachingUsesCopy(input)
+	temp := MaybeReachingVariableUse_ReachingUses{mayUsePMap: input.mayUsePMap}
 
 	// If there's an ON_EX edge, this cfgNode may or may not get executed.
 	// We can express this concisely by just pretending this happens in
 	// a conditional.
 	conditional := u.HasExceptionHandler(n)
-	u.ComputeMayUse(n, n, output, conditional)
-
-	return output
+	u.ComputeMayUse(n, n, &temp, conditional)
+	if temp.mayUsePMap == input.mayUsePMap {
+		return input
+	}
+	return u.allocLattice(temp.mayUsePMap)
 }
 
 // Java: MaybeReachingVariableUse.hasExceptionHandler(Node)

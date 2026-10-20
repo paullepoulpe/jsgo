@@ -34,6 +34,9 @@ type JsDocTokenStream struct {
 	string_ string
 
 	stringBuffer    []uint16
+	stringBufferBuf [128]uint16
+	asciiBuffer     []byte
+	asciiBufferBuf  [128]byte
 	stringBufferTop int
 
 	// Room to backtrace from to < on failed match of the last - in <!--
@@ -48,8 +51,10 @@ type JsDocTokenStream struct {
 	initLineno  int
 
 	// Go-only: language-adapter — the Java String sourceString, which is
-	// only read through charAt, held as its UTF-16 code units.
+	// only read through charAt, held as its UTF-16 code units when non-ASCII
+	// or directly as rawSource when pure ASCII.
 	sourceString []uint16
+	rawSource    string
 	sourceEnd    int
 
 	// sourceCursor is an index into a small buffer that keeps a
@@ -79,22 +84,36 @@ func NewJsDocTokenStreamWithLineno(sourceString string, lineno int) *JsDocTokenS
 
 // Java: JsDocTokenStream(String, int, int)
 func NewJsDocTokenStreamWithLinenoCharno(sourceString string, lineno int, initCharno int) *JsDocTokenStream {
-	s := &JsDocTokenStream{
-		string_:      "",
-		stringBuffer: make([]uint16, 128),
-		lineStart:    0,
-		lineEndChar:  -1,
-		charno:       -1,
-	}
+	s := &JsDocTokenStream{}
+	s.Init(sourceString, lineno, initCharno)
+	return s
+}
+
+// Init resets the stream for a new JSDoc comment without allocating.
+func (s *JsDocTokenStream) Init(sourceString string, lineno int, initCharno int) {
+	s.string_ = ""
+	s.stringBufferTop = 0
+	s.ungetCursor = 0
+	s.lineStart = 0
+	s.lineEndChar = -1
+	s.charno = -1
 	// (checkNotNull(sourceString): a Go string is never null.)
 	s.lineno = lineno
-	s.sourceString = jutil.StringToUTF16(sourceString)
-	s.sourceEnd = len(s.sourceString)
+	if jutil.IsASCII(sourceString) {
+		s.rawSource = sourceString
+		s.sourceString = nil
+		s.sourceEnd = len(sourceString)
+		s.asciiBuffer = s.asciiBufferBuf[:]
+	} else {
+		s.rawSource = ""
+		s.sourceString = jutil.StringToUTF16(sourceString)
+		s.sourceEnd = len(s.sourceString)
+		s.stringBuffer = s.stringBufferBuf[:]
+	}
 	s.cursor = 0
-	s.sourceCursor = s.cursor
+	s.sourceCursor = 0
 	s.initLineno = lineno
 	s.initCharno = initCharno
-	return s
 }
 
 // GetJsDocToken tokenizes JSDoc comments.
@@ -284,12 +303,34 @@ func (s *JsDocTokenStream) GetString() string { return s.string_ }
 
 // Java: JsDocTokenStream.GetStringFromBuffer()
 func (s *JsDocTokenStream) GetStringFromBuffer() string {
-	return jutil.StringFromUTF16(s.stringBuffer[0:s.stringBufferTop])
+	n := s.stringBufferTop
+	if n == 0 {
+		return ""
+	}
+	if s.sourceString == nil {
+		end := s.sourceCursor - s.ungetCursor
+		start := end - n
+		if start >= 0 && end <= len(s.rawSource) && s.rawSource[start:end] == string(s.asciiBuffer[:n]) {
+			return s.rawSource[start:end]
+		}
+		return string(s.asciiBuffer[:n])
+	}
+	return jutil.StringFromUTF16(s.stringBuffer[0:n])
 }
 
 // Java: JsDocTokenStream.AddToString(int)
 func (s *JsDocTokenStream) AddToString(c int) {
 	n := s.stringBufferTop
+	if s.sourceString == nil {
+		if n == len(s.asciiBuffer) {
+			tmp := make([]byte, len(s.asciiBuffer)*2)
+			copy(tmp, s.asciiBuffer[:n])
+			s.asciiBuffer = tmp
+		}
+		s.asciiBuffer[n] = byte(c)
+		s.stringBufferTop = n + 1
+		return
+	}
 	if n == len(s.stringBuffer) {
 		tmp := make([]uint16, len(s.stringBuffer)*2)
 		copy(tmp, s.stringBuffer[:n])
@@ -391,7 +432,11 @@ func (s *JsDocTokenStream) GetChar() int {
 			return JsDocTokenStream_EOF_CHAR
 		}
 		s.cursor++
-		c = int(s.sourceString[s.sourceCursor])
+		if s.sourceString == nil {
+			c = int(s.rawSource[s.sourceCursor])
+		} else {
+			c = int(s.sourceString[s.sourceCursor])
+		}
 		s.sourceCursor++
 
 		if s.lineEndChar >= 0 {
@@ -447,7 +492,11 @@ func (s *JsDocTokenStream) GetCharIgnoreLineEnd() int {
 			return JsDocTokenStream_EOF_CHAR
 		}
 		s.cursor++
-		c = int(s.sourceString[s.sourceCursor])
+		if s.sourceString == nil {
+			c = int(s.rawSource[s.sourceCursor])
+		} else {
+			c = int(s.sourceString[s.sourceCursor])
+		}
 		s.sourceCursor++
 
 		if c <= 127 {

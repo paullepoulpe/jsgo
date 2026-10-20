@@ -30,10 +30,12 @@ type FilePosition struct {
 //
 // Java: FilePosition(int, int)
 func NewFilePosition(line, column int) *FilePosition {
-	p := &FilePosition{}
-	p.line = line
-	p.column = column
-	return p
+	return &FilePosition{line: line, column: column}
+}
+
+// MakeFilePosition constructs a FilePosition by value without heap allocation.
+func MakeFilePosition(line, column int) FilePosition {
+	return FilePosition{line: line, column: column}
 }
 
 // GetLine returns the line number of this position. Note: The v1 and v2

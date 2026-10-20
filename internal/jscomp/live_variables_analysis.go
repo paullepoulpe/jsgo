@@ -46,16 +46,28 @@ type LiveVariablesAnalysis struct {
 	// The scope of the body of the function that we are analyzing.
 	jsScopeChild *Scope
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
+	escapedSet   jutil.ObjectLinkedHashSet[*Var]
 
 	// Maps the variable name to it's position in this jsScope were we to
 	// combine the function and function body scopes. The Integer represents
 	// the equivalent of the variable index property within a scope
-	scopeVariables *jutil.LinkedHashMap[string, int]
+	scopeVariables      *jutil.LinkedHashMap[string, int]
+	scopeVariablesMap   jutil.LinkedHashMap[string, int]
+	scopeVariablesSlots [8]jutil.LhmSlot[string, int]
 
 	// obtain variables in the order in which they appear in the code
 	orderedVars []*Var
 
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+
+	escapedBits jutil.BitSet
+	genScratch  jutil.BitSet
+	killScratch jutil.BitSet
+
+	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
+	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
+	latticeSlab  []LiveVariablesAnalysis_LiveVariableLattice
+	latticeBuf   [8]LiveVariablesAnalysis_LiveVariableLattice
 }
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -115,7 +127,7 @@ func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis
 func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 	jutil.CheckNotNull(other)
 	liveVariableLattice, ok := other.(*LiveVariablesAnalysis_LiveVariableLattice)
-	return ok && l.liveSet.Equals(liveVariableLattice.liveSet)
+	return ok && (l == liveVariableLattice || l.liveSet.Equals(liveVariableLattice.liveSet))
 }
 
 // IsLive: there is only a version of this function with index since
@@ -174,15 +186,35 @@ func NewLiveVariablesAnalysis(
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
-	l.escaped = jutil.NewObjectLinkedHashSet[*Var]()
-	l.scopeVariables = jutil.NewLinkedHashMap[string, int]()
+	l.escaped = &l.escapedSet
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
+	if len(l.orderedVars) <= len(l.scopeVariablesSlots) {
+		l.scopeVariablesMap.InitWithBuffer(l.scopeVariablesSlots[:])
+		l.scopeVariables = &l.scopeVariablesMap
+	} else {
+		l.scopeVariables = jutil.NewLinkedHashMapWithCapacity[string, int](len(l.orderedVars))
+	}
+	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
+	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
+	l.latticeSlab = l.latticeBuf[:0:len(l.latticeBuf)]
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
 	l.AddScopeVariables()
 	return l
+}
+
+func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
+	if len(l.latticeSlab) == cap(l.latticeSlab) {
+		nextCap := min(max(cap(l.latticeSlab)*2, 16), 256)
+		l.latticeSlab = make([]LiveVariablesAnalysis_LiveVariableLattice, 0, nextCap)
+	}
+	idx := len(l.latticeSlab)
+	l.latticeSlab = l.latticeSlab[:idx+1]
+	lat := &l.latticeSlab[idx]
+	lat.liveSet = &lat.liveBits
+	return lat
 }
 
 // AddScopeVariables: parameters belong to the function scope, but variables
@@ -191,9 +223,23 @@ func NewLiveVariablesAnalysis(
 //
 // Java: LiveVariablesAnalysis.addScopeVariables()
 func (l *LiveVariablesAnalysis) AddScopeVariables() {
+	l.escapedBits.InitWithSize(len(l.orderedVars))
 	num := 0
 	for _, v := range l.orderedVars {
-		l.scopeVariables.Put(v.GetName(), num)
+		name := v.GetName()
+		l.scopeVariables.Put(name, num)
+		localScope, _ := v.GetScope().(*Scope)
+		var local bool
+		if localScope.IsFunctionBlockScope() {
+			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
+		} else if localScope == l.jsScope && l.jsScopeChild != nil {
+			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(l.jsScopeChild, name)
+		} else {
+			local = localScope.HasOwnSlot(name)
+		}
+		if !local || l.escaped.Contains(v) {
+			l.escapedBits.Set(num)
+		}
 		num++
 	}
 }
@@ -230,25 +276,27 @@ func (l *LiveVariablesAnalysis) IsForward() bool {
 
 // Java: LiveVariablesAnalysis.createEntryLattice()
 func (l *LiveVariablesAnalysis) CreateEntryLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return NewLiveVariablesAnalysis_LiveVariableLattice(len(l.orderedVars))
+	return &l.emptyLattice
 }
 
 // Java: LiveVariablesAnalysis.createInitialEstimateLattice()
 func (l *LiveVariablesAnalysis) CreateInitialEstimateLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return NewLiveVariablesAnalysis_LiveVariableLattice(len(l.orderedVars))
+	return &l.emptyLattice
 }
 
 // Java: LiveVariablesAnalysis.createFlowJoiner()
 func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*LiveVariablesAnalysis_LiveVariableLattice] {
-	return NewLiveVariablesAnalysis_LiveVariableJoinOp(l)
+	lat := l.allocLattice()
+	lat.liveBits.InitWithSize(len(l.orderedVars))
+	l.joinOp.result = lat
+	return &l.joinOp
 }
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
 func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill jutil.BitSet
 	size := input.liveSet.Size()
-	gen.InitWithSize(size)
-	kill.InitWithSize(size)
+	l.genScratch.InitWithSize(size)
+	l.killScratch.InitWithSize(size)
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -256,13 +304,18 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 	for _, edge := range edgeList {
 		if ControlFlowGraph_Branch_ON_EX == edge.GetValue() {
 			conditional = true
+			break
 		}
 	}
-	l.ComputeGenKill(node, &gen, &kill, conditional)
-	result := NewLiveVariablesAnalysis_LiveVariableLatticeOf(input)
+	l.ComputeGenKill(node, &l.genScratch, &l.killScratch, conditional)
+	if l.genScratch.IsEmpty() && l.killScratch.IsEmpty() {
+		return input
+	}
+	result := l.allocLattice()
+	input.liveSet.CloneInto(&result.liveBits)
 	// L_in = L_out - Kill + Gen
-	result.liveSet.AndNot(&kill)
-	result.liveSet.Or(&gen)
+	result.liveSet.AndNot(&l.killScratch)
+	result.liveSet.Or(&l.genScratch)
 	return result
 }
 
@@ -382,33 +435,11 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
 func (l *LiveVariablesAnalysis) AddToSetIfLocal(node *rhino.Node, set *jutil.BitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	name := node.GetString()
-
-	var_ := l.allVarsInFn.Get(name)
-	if var_ == nil {
+	idx, ok := l.scopeVariables.Lookup(node.GetString())
+	if !ok || l.escapedBits.Get(idx) {
 		return
 	}
-
-	var local bool
-	localScope, _ := var_.GetScope().(*Scope)
-	// add to the local set if the variable is declared in the function or function body because
-	// ES6 separates the scope but if the variable is declared in the param it should be local
-	// to the function body.
-	if localScope.IsFunctionBlockScope() {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
-	} else if localScope == l.jsScope && l.jsScopeChild != nil {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(l.jsScopeChild, name)
-	} else {
-		local = localScope.HasOwnSlot(name)
-	}
-
-	if !local {
-		return
-	}
-
-	if !l.escaped.Contains(var_) {
-		set.Set(l.GetVarIndex(var_.GetName()))
-	}
+	set.Set(idx)
 }
 
 // Java: LiveVariablesAnalysis.isDeclaredInFunctionBlockOrParameter(Scope, String)
@@ -440,7 +471,11 @@ func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 	paramList := NodeUtil_GetFunctionParameters(l.jsScope.GetRootNode())
 	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
 		if param.IsName() {
-			l.escaped.Add(l.jsScope.GetVar(param.GetString()))
+			name := param.GetString()
+			l.escaped.Add(l.jsScope.GetVar(name))
+			if idx, ok := l.scopeVariables.Lookup(name); ok {
+				l.escapedBits.Set(idx)
+			}
 		}
 	}
 }

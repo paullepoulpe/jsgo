@@ -19,3 +19,5 @@ npm  rxjs                  7.8.2     sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xY
 npm  @angular/core         16.2.12   sha512-GLLlDeke/NjroaLYOks0uyzFVo6HyLl7VOm0K1QpLXnYvW63W9Ql/T3yguRZa7tRkOAeFZ3jw+1wnBD4O8MoUA==
 npm  core-js               3.50.0    sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMMssoYrk6krtuEZ7MTKPIY5RzOnqsEKIR9kst7wNzphttraT+Yqw==
 npm  tslib                 2.8.1     sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==
+npm  shaka-player          5.3.1     sha512-nlhxDfgQKXfc+ecNQos/l1epXILup8C3n7CrQSm43M47vAY1WDlpIAq448YDXTRHK5vZ/4JGiDfxOVkv7vwegg==
+npm  blockly               8.0.5     sha512-jgr3PHImkFYSC2pNWZ74TmXP1HdajxeRd2DQaAt+9I+XLl9RCWvInqNHcS+blsKBTn6zOIxHK6nLzRATbLrDSw==

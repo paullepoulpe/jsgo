@@ -79,6 +79,30 @@ func NewGoogleCodingConventionWithConvention(convention CodingConvention) *Googl
 //
 // Java: GoogleCodingConvention.isConstant(String)
 func (c *GoogleCodingConvention) IsConstant(name string) bool {
+	if len(name) <= 1 {
+		return false
+	}
+
+	lastDollar := -1
+	ascii := true
+	for i := 0; i < len(name); i++ {
+		b := name[i]
+		if b >= 0x80 {
+			ascii = false
+			break
+		}
+		if b == '$' {
+			lastDollar = i
+		}
+	}
+	if ascii {
+		start := 0
+		if lastDollar >= 0 {
+			start = lastDollar + 1
+		}
+		return googleCodingConvention_isConstantKeyASCII(name, start, len(name))
+	}
+
 	if jutil.StringLength(name) <= 1 {
 		return false
 	}
@@ -96,7 +120,37 @@ func (c *GoogleCodingConvention) IsConstant(name string) bool {
 
 // Java: GoogleCodingConvention.isConstantKey(String)
 func (c *GoogleCodingConvention) IsConstantKey(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	ascii := true
+	for i := 0; i < len(name); i++ {
+		if name[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return googleCodingConvention_isConstantKeyASCII(name, 0, len(name))
+	}
 	return GoogleCodingConvention_IsConstantKeyWithRange(name, 0, jutil.StringLength(name))
+}
+
+func googleCodingConvention_isConstantKeyASCII(name string, start int, end int) bool {
+	if start >= end {
+		return false
+	}
+	first := name[start]
+	if first < 'A' || first > 'Z' {
+		return false
+	}
+	for i := start + 1; i < end; i++ {
+		ch := name[i]
+		if ch >= 'a' && ch <= 'z' {
+			return false
+		}
+	}
+	return true
 }
 
 // GoogleCodingConvention_IsConstantKeyWithRange returns true iff the
@@ -113,7 +167,8 @@ func GoogleCodingConvention_IsConstantKeyWithRange(name string, start int, end i
 	for i := start + 1; i < end; i++ {
 		// check this instead of Character.isUpperCase - they have different results for some
 		// characters like symbols. symbols are allowed unless at the start index.
-		if jutil.CharacterToUpperCase(jutil.StringCharAt(name, i)) != jutil.StringCharAt(name, i) {
+		ch := jutil.StringCharAt(name, i)
+		if jutil.CharacterToUpperCase(ch) != ch {
 			return false
 		}
 	}
@@ -130,7 +185,20 @@ func GoogleCodingConvention_IsConstantKeyWithRange(name string, start int, end i
 //
 // Java: GoogleCodingConvention.isValidEnumKey(String)
 func (c *GoogleCodingConvention) IsValidEnumKey(key string) bool {
-	return GoogleCodingConvention_ENUM_KEY_PATTERN.Matcher(key).Matches()
+	if len(key) == 0 {
+		return false
+	}
+	first := key[0]
+	if !((first >= 'A' && first <= 'Z') || (first >= '0' && first <= '9')) {
+		return false
+	}
+	for i := 1; i < len(key); i++ {
+		ch := key[i]
+		if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 // IsOptionalParameter: in Google code, parameter names beginning with opt_
@@ -159,8 +227,11 @@ func (c *GoogleCodingConvention) IsExportedWithLocal(name string, local bool) bo
 // Java: GoogleCodingConvention.isClassFactoryCall(Node)
 func (c *GoogleCodingConvention) IsClassFactoryCall(callNode *rhino.Node) bool {
 	callTarget := callNode.GetFirstChild()
+	// Go-only: performance — in Java, `callTarget.isName() && callTarget.toString().equals("Polymer")`
+	// always evaluates to false because `Node.toString()` starts with `"NAME "`. Calling `callTarget.String()`
+	// here formats the entire Node and its JSType into a new string on every CALL node during CheckJSDoc.
 	return c.CodingConventions_ProxyBase.IsClassFactoryCall(callNode) ||
-		(callTarget.IsName() && callTarget.String() == "Polymer")
+		(callTarget.IsName() && false)
 }
 
 // GetPackageName: in Google code, the package name of a source file is its

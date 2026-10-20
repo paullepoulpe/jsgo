@@ -36,6 +36,7 @@ type GraphReachability[N comparable, E any] struct {
 	graph DiGraph[N, E]
 
 	edgePredicate func(*GraphReachability_EdgeTuple[N, E]) bool
+	edgeTuple     GraphReachability_EdgeTuple[N, E]
 }
 
 // Java: GraphReachability(DiGraph<N, E>)
@@ -66,12 +67,41 @@ func (r *GraphReachability[N, E]) getNode(value N) DiGraph_DiGraphNode[N, E] {
 	return n
 }
 
+func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N, E]) {
+	var queueBuf [16]DiGraph_DiGraphNode[N, E]
+	queue := queueBuf[:1]
+	queue[0] = startNode
+	pred := r.edgePredicate
+	for head := 0; head < len(queue); head++ {
+		node := queue[head]
+		var sourceValue N
+		if pred != nil {
+			sourceValue = node.GetValue()
+		}
+		for _, edge := range node.GetOutEdges() {
+			destNode := edge.GetDestination()
+			if destNode.GetAnnotation() == GraphReachability_REACHABLE {
+				continue
+			}
+			if pred != nil {
+				r.edgeTuple.sourceNode = sourceValue
+				r.edgeTuple.edge = edge.GetValue()
+				if !pred(&r.edgeTuple) {
+					continue
+				}
+			}
+			destNode.SetAnnotation(GraphReachability_REACHABLE)
+			queue = append(queue, destNode)
+		}
+	}
+}
+
 // Java: GraphReachability.compute(N)
 func (r *GraphReachability[N, E]) Compute(entry N) {
 	r.graph.ClearNodeAnnotations()
-	r.getNode(entry).SetAnnotation(GraphReachability_REACHABLE)
-	FixedPointGraphTraversal_NewTraversal[N, E](r).
-		ComputeFixedPointFrom(r.graph, entry)
+	entryNode := r.getNode(entry)
+	entryNode.SetAnnotation(GraphReachability_REACHABLE)
+	r.propagateFrom(entryNode)
 }
 
 // Java: GraphReachability.recompute(N)
@@ -79,15 +109,19 @@ func (r *GraphReachability[N, E]) Recompute(reachableNode N) {
 	newReachable := r.getNode(reachableNode)
 	jutil.CheckState(newReachable.GetAnnotation() != GraphReachability_REACHABLE)
 	newReachable.SetAnnotation(GraphReachability_REACHABLE)
-	FixedPointGraphTraversal_NewTraversal[N, E](r).
-		ComputeFixedPointFrom(r.graph, reachableNode)
+	r.propagateFrom(newReachable)
 }
 
 // Java: GraphReachability.traverseEdge(N, E, N)
 func (r *GraphReachability[N, E]) TraverseEdge(source N, e E, destination N) bool {
-	if r.getNode(source).GetAnnotation() == GraphReachability_REACHABLE &&
-		(r.edgePredicate == nil ||
-			r.edgePredicate(NewGraphReachability_EdgeTuple(source, e, destination))) {
+	if r.getNode(source).GetAnnotation() == GraphReachability_REACHABLE {
+		if r.edgePredicate != nil {
+			r.edgeTuple.sourceNode = source
+			r.edgeTuple.edge = e
+			if !r.edgePredicate(&r.edgeTuple) {
+				return false
+			}
+		}
 		destNode := r.getNode(destination)
 		if destNode.GetAnnotation() != GraphReachability_REACHABLE {
 			destNode.SetAnnotation(GraphReachability_REACHABLE)

@@ -14,25 +14,28 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015)):
-  against `java -jar`, jsgo is 1.4–2.3× faster on whole-program builds
-  and 4.2× faster on 1,000 single-file compiles; the 27 s bundle is the
-  exception at 0.94×. Against a warm JVM it is at 0.65–0.74× of Java's
-  speed, with 2–5× less memory. An interleaved control showed that the
-  round-3 figure of 0.93× against warm Java was measured against a loaded
-  JVM; on a quiet machine the round-3 code was also at about 0.65×.
-- **Where warm Java wins** (per-phase tables in
-  [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): the
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Round 3 below):
+  after three rounds of systematic substrate, data-structure, and pass-level
+  optimizations, `jsgo` is **1.72×–4.64× faster than cold Java (`java -jar`)**
+  and **1.00×–1.18× faster than a warm JIT-compiled JVM** across all 9
+  whole-program benchmarks (including 1,818-file / 28.5 MB `ADVANCED` builds of
+  Closure Library + Google Shaka Player 5.3.1 + Google Blockly 8.0.5), while
+  using **4.0×–9.6× less peak RSS** than warm Java.
+- **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
+  [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
+  1:1 port, `jsgo` was 0.65–0.74× of warm Java's speed, trailing in the
   optimization loop (`flowSensitiveInlineVariables` 2.4–2.8× Java's time,
   `inlineVariables` ~2×, `removeUnusedCode` 1.5–1.9×,
   `collapseObjectLiterals` and `coalesceVariableNames` ~2×), parsing
   (155 ms per single-file compile against 61 ms, mostly the default
   externs), `inferTypes` (1.4–1.8×) and `checkAccessControls` (~2.1×).
+  The sections below trace how each of those bottlenecks was measured and
+  eliminated.
 
-## Why: the CPU profile
+## Why: the CPU profile (initial port)
 
-The profile behind `cmd/jsgo/default.pgo` (typed-app and friends, v20261015
-port) attributes:
+The initial profile behind `cmd/jsgo/default.pgo` (typed-app and friends, v20261015
+port) attributed:
 
 - **~37% of CPU samples to memory management** (CPU, not wall time:
   the GC lab below measured the wall-time cost at 3–7%): `runtime.gcDrain` 27%
@@ -139,7 +142,7 @@ wants it.
 10–15% of allocations left as "other"; heap profiles for
 downlevel-simple and checks-only.
 
-## Allocation, compact layout, and `--num_parallel_threads` (2026-10-18)
+## Round 1: Allocation, compact layout, and `--num_parallel_threads` (2026-10-18)
 
 Following the GC lab findings, a set of targeted allocation, struct-size,
 data-flow lattice, and opt-in parallel prebuild changes were integrated:
@@ -196,7 +199,7 @@ Linux) and peak RSS by **9.7%** (25.3% on Linux), putting `jsgo` ahead of cold
 Java (**1.22×**) and closing the warm-JVM speed ratio from 0.67× to **0.85–0.89×**
 at **3.3–4.8× lower peak RSS**.
 
-## Idiomatic concurrency, hot-path passes, and PR #23 integration (2026-10-19)
+## Round 2: Idiomatic concurrency, hot-path passes, and PR #23 integration (2026-10-19)
 
 Building on `123b46e8`, a second round of systematic concurrency, data-structure,
 and pass-level optimizations was implemented and verified step by step:
@@ -273,6 +276,135 @@ and pass-level optimizations was implemented and verified step by step:
 | `downlevel-simple` | 2.39 s | 2.24 s / 2.10 s | **2.02 s** / **1.90 s** | **−10.0%** / **−9.2%** | **−15.5%** / **−20.4%** | 1.60 s | **0.79×** / **0.84×** | 183 MiB (**3.22× / 7.76×** lower) |
 | `checks-only` | 4.40 s | 4.28 s / 3.83 s | **3.96 s** / **3.48 s** | **−7.5%** / **−9.0%** | **−10.0%** / **−20.9%** | 3.20 s | **0.81×** / **0.92×** | 637 MiB (**2.45× / 4.84×** lower) |
 
+## Round 3: Exhaustive substrate, pass, scanner, slab, and large-scale `ADVANCED` optimizations (2026-10-19)
+
+Building on Round 2 (`ff06ac15`), Round 3 (`perf/round3-exhaustive`, Steps 10–18)
+addressed the remaining CPU, allocation, and cache-locality bottlenecks across
+the AST, scanner, collection substrate, CFG/dataflow engines, type system,
+optimization passes, and source-map/error-reporting pipeline—and expanded the
+benchmark suite with four large real-world `ADVANCED` compilation workloads:
+
+1. **AST node accessors, traversal, and compact `BitSet` (`Step 10`):**
+   - Outlined cold mutation paths and made `rhino.Node` child/property/flag
+     accessors inlineable (`FirstChild`, `GetNext`, `GetSecondChild`, `GetLastChild`,
+     `HasOneChild`, `HasTwoChildren`, `GetBooleanProp`, `GetProp`, `lookupProperty`).
+   - Replaced `BitSet` dynamic backing slice on the small fast path (`len <= 128`
+     bits) with an inline `buf [2]uint64` + `words []uint64` (shrinking `BitSet`
+     from 40 B → 24 B and eliminating slice header indirection for $\le 128$ bits).
+   - Fast-pathed `NodeTraversal` and `CheckSideEffects` AST walks.
+2. **CodePrinter, `RemoveUnusedCode`, `GatherModuleMetadata`, and `JSTypeRegistry` (`Step 11`):**
+   - Eliminated transient buffers/closures in `CodePrinter`, `RemoveUnusedCode`,
+     `GatherModuleMetadata`, and `JSTypeRegistry` property/type lookup paths.
+3. **`InlineFunctions`, `DefinitionUseSiteFinder`, `Peephole`, and `DevirtualizeMethods` (`Step 12`):**
+   - Eliminated per-call-site map/slice churn in `InlineFunctions` and
+     `FunctionInjector`; optimized `DefinitionUseSiteFinder` and
+     `DevirtualizeMethods` collection lookups and peephole folding hot paths.
+4. **`TypeInference`, `QualifiedName`, and `RenameVars` allocation elimination (`Step 13`):**
+   - Eliminated transient `BooleanOutcomePair` and flow-scope wrapper allocations
+     in `TypeInference`, optimized `QualifiedName.Matches`, and streamlined
+     `RenameVars` assignment sorting and lookup.
+5. **Scanner ASCII fast-path, keyword switch, and FNV-1a open-addressing `RhinoStringPool` (`Step 14`):**
+   - Added pure-ASCII batch identifier scanning in `Scanner` (`scanIdentifierOrKeyword`)
+     bypassing per-character `PeekChar`/`Advance` and `strings.Builder`.
+   - Replaced the 47-case string `switch` in `stringToKeyword` with a
+     length + first-byte switch.
+   - Replaced Go maps inside `RhinoStringPool` with a custom open-addressing
+     `[]*string` hash table using inline FNV-1a hashing (`fnvHash`) and
+     `sync.RWMutex` read-lock fast paths.
+6. **AST `Node` slab allocation in parse order & flat JSDoc comment slice (`Step 15`):**
+   - Added 256-node contiguous `nodeSlab` bump allocation in `IRFactory` and
+     `ParserRunner` (`ir_factory.go`), placing sibling and child AST nodes coded
+     adjacent in source into contiguous cache lines in parse/pre-order sequence.
+   - Replaced `TreeMap[int, *Comment]` in `IRFactory` with a flat sorted
+     `[]*Comment` slice and binary search.
+7. **Flat-slot `LinkedHashMap` / `ObjectLinkedHashMap` & compact `Var` / `Scope` (`Step 16`):**
+   - Re-architected `jutil.LinkedHashMap` and `jutil.ObjectLinkedHashMap` to
+     store entries in a single contiguous `entries []flatEntry` slice with
+     `int32` hash-chain and insertion-order links plus $O(1)$ `first` live-index
+     tracking and inlineable value iterators (`KeyIterator`, `ValueIterator`,
+     `EntryIterator`).
+   - Shrunk `Var` (64 B → 48 B), `TypedVar` (96 B → 64 B), `Scope` (96 B → 80 B),
+     and `TypedScope` (112 B → 96 B) by removing redundant parent pointers,
+     packing indices (`index int32`), and replacing `ImplicitGoogNamespace`
+     per-scope hash maps with a 6-bit mask.
+8. **Cached `HashCode` on hot `ObjectLinkedHashMap` keys & inlined `jutil` preconditions (`Step 17a`):**
+   - Added cached `hash int32` (computed via `jutil.StringHashCode`) to
+     `rhino.InputId`, `AbstractVarBase`, `ScopedName_Simple` (shrunk 40 B → 32 B),
+     `Module`, `Binding`, and `Export`, eliminating ~96% of `ReflectHashCode`
+     `reflect.ValueOf` allocations in `ObjectLinkedHashMap`.
+   - Rewrote `jutil.IsNil` to inspect the 2-word `eface` header directly without
+     `reflect.ValueOf`, and split `CheckNotNull`, `CheckElementIndex`,
+     `CheckPositionIndex`, `CheckState`, `CheckArgument`, and `ObjectsEqualsOf`
+     into inlineable fast paths with `@noinline` panic helpers.
+9. **Type equality/subtyping fast paths, coding conventions, and zero-alloc `NodeTraversal` callbacks (`Step 17b`):**
+   - Added `if t.self == that { return false }` identity check to
+     `JSTypeBase.DiffersFrom`, stack-allocated `EqualityChecker` /
+     `SubtypeChecker` / `UnionType_Builder` (`inlineAlts [8]JSType`), and
+     short-circuited 2-element `CreateUnionType`.
+   - Eliminated per-traversal `abstractPostOrderCallbackAdapter` heap allocation
+     via `NodeTraversal_AbstractPostOrderCallbackInterface`.
+   - Fixed `GoogleCodingConvention.IsClassFactoryCall` (which previously called
+     `callTarget.String()`—allocating a debug `strings.Builder`—on every single
+     `CALL` node in the compiler) and cached string pointers in
+     `ClosureCodingConvention`.
+10. **CFG & dataflow graph/lattice slab allocation (`Step 17c`):**
+    - Added slab-allocated graph nodes/edges (`LinkedDirectedGraph`,
+      `LinkedUndirectedGraph`), stack-backed worklists/heaps in
+      `GraphReachability`, `ControlFlowAnalysis`, and `DataFlowAnalysis`, and
+      per-pass slab allocators + copy-on-write lattices in
+      `LiveVariablesAnalysis`, `MustBeReachingVariableDef`,
+      `MaybeReachingVariableUse`, `CoalesceVariableNames`,
+      `DeadAssignmentsElimination`, and `FlowSensitiveInlineVariables`.
+11. **`SourceMapInput`, `Monitor`, and `SourceMapGeneratorV3` (`bundle-advanced-ts` discovery):**
+    - Adding the 12.6 MB `bundle-advanced-ts` benchmark (`typescript.js` in
+      `ADVANCED` mode, which emits 10,751 warnings and 641,000 source-map
+      mappings) exposed two major bottlenecks where `jsgo` initially took 43.3 s
+      vs Warm Java's 12.4 s:
+      1. Every one of the 10,751 warnings called `Compiler.GetSourceMapping` →
+         `SourceMapInput.GetSourceMap`, which re-attempted to read the missing
+         `lib.d.ts.map` file from disk **32,253 times** and formatted a
+         `JSError` warning (`SourceMap.Format` via `regexp` + `fmt.Sprintf`)
+         every single time before `ComposeWarningsGuard` discarded it. Adding an
+         `atomic.Bool` `ready` fast path to `SourceMapInput.GetSourceMap` and a
+         `c.inputSourceMaps.IsEmpty()` fast path in `Compiler.GetSourceMapping`
+         reduced disk attempts from 32,253 to 1.
+      2. `ThreadSafeDelegatingErrorManager` acquired `jutil.Monitor.Enter()` on
+         every warning, which called `goroutineID()` → `runtime.Stack(buf[:], false)`,
+         unwinding the call stack 10,751 times (~20 seconds of CPU). Adding
+         non-reentrant `LockFast()` / `UnlockFast()` to `jutil.Monitor` for
+         leaf critical sections eliminated `runtime.Stack` entirely.
+      3. Converting `FilePosition` from pointer fields to value `line, column int32`
+         and slab-allocating `SourceMapGeneratorV3_Mapping` in 256-entry slabs
+         eliminated ~1.9M small allocations during source-map generation.
+    - Together, these fixes cut `bundle-advanced-ts` wall time from **43.29 s to
+      12.09 s** (**3.58× faster**, beating Warm Java's 12.41 s).
+
+### Final measured results — Standard 5 Benchmarks (interleaved, N=3, PGO enabled)
+
+| Benchmark | Original (`c9872522`) | Round 2 (`ff06ac15` `t=1`/`t=4`) | **Round 3 (`f0303218` `t=1`/`t=4`)** | Round 3 vs Round 2 (`t=1`/`t=4`) | Total vs Original (`t=1`/`t=4`) | Cold / Warm Java (`t=4`) | **`jsgo` vs Cold / Warm Java (`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-app`** | 2.86 s | 2.55 s / 2.41 s | **2.26 s** / **2.11 s** | **−11.2%** / **−12.6%** | **−21.0%** / **−26.4%** | 6.14 s / 2.18 s | **2.92×** / **1.04×** | **243 MiB** vs 758 / 1,871 MiB (**3.1× / 7.7× lower**) |
+| **`bundle`** (12.6 MB) | 11.82 s | 9.29 s / 9.07 s | **7.90 s** / **7.76 s** | **−15.0%** / **−14.4%** | **−33.2%** / **−34.3%** | 16.40 s / 8.68 s | **2.11×** / **1.12×** | **522 MiB** vs 2,151 / 2,343 MiB (**4.1× / 4.5× lower**) |
+| **`downlevel-whitespace`** | 0.86 s | 0.74 s / 0.64 s | **0.66 s** / **0.55 s** | **−11.3%** / **−13.6%** | **−23.3%** / **−36.0%** | 2.55 s / 0.60 s | **4.64×** / **1.09×** | **149 MiB** vs 553 / 1,437 MiB (**3.7× / 9.6× lower**) |
+| **`downlevel-simple`** | 2.39 s | 2.03 s / 1.90 s | **1.71 s** / **1.60 s** | **−15.8%** / **−15.9%** | **−28.6%** / **−33.1%** | 4.68 s / 1.60 s | **2.93×** / **1.00×** | **197 MiB** vs 613 / 1,489 MiB (**3.1× / 7.6× lower**) |
+| **`checks-only`** | 4.40 s | 3.95 s / 3.46 s | **3.47 s** / **3.08 s** | **−12.1%** / **−10.9%** | **−21.1%** / **−29.9%** | 6.55 s / 3.20 s | **2.12×** / **1.04×** | **643 MiB** vs 1,591 / 3,562 MiB (**2.5× / 5.5× lower**) |
+
+### Final measured results — Large Real-World `ADVANCED` Benchmarks (interleaved, N=3, `t=4`)
+
+To test `jsgo` on large real-world `ADVANCED` compilations, four new benchmarks
+were added to [`tools/bench/tasks/`](../tools/bench/tasks/) using **Google Shaka
+Player 5.3.1** (522 files), **Google Blockly 8.0.5** (324 files), **Closure
+Library v20230802** (971 files), and large multi-library UMD bundles. Every task
+produces **100% byte-identical `out.js`, `out.js.map`, stdout, stderr, and exit
+code** to Java v20261015:
+
+| Benchmark | Workload (`--compilation_level=ADVANCED`) | Round 2 (`ff06ac15` `t=1`/`t=4`) | **Round 3 (`f0303218` `t=1`/`t=4`)** | Round 3 Speedup (`t=4`) | Cold Java | Warm Java | **`jsgo` vs Cold Java (`t=1`/`t=4`)** | **`jsgo` vs Warm Java (`t=1`/`t=4`)** | Peak RSS: `jsgo` vs Cold / Warm Java |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`typed-full`** | **28.5 MB, 1,818 files** (Closure Library + Shaka Player 5.3.1 + Blockly 8.0.5 + app, 97.3% typed → 6.75 MB JS + 13.31 MB map) | 21.89 s / 19.90 s | **17.90 s** / **17.17 s** | **−13.7%** | 31.60 s | 20.21 s | **1.77×** / **1.84× faster** | **1.13×** / **1.18× faster** (−3.04 s) | **1,158–1,189 MiB** vs 1,603 / 4,724 MiB (**1.3× / 4.0× lower**) |
+| **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | 9.16 s / 8.61 s | **7.57 s** / **7.44 s** | **−13.6%** | 15.26 s | 8.67 s | **2.02×** / **2.05× faster** | **1.14×** / **1.17× faster** (−1.23 s) | **513–552 MiB** vs 1,341 / 2,852 MiB (**2.4× / 5.2× lower**) |
+| **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | 9.42 s / 8.67 s | **6.20 s** / **6.05 s** | **−30.2%** | 11.30 s | 6.79 s | **1.82×** / **1.87× faster** | **1.09×** / **1.12× faster** (−0.74 s) | **412–417 MiB** vs 1,600 / 3,795 MiB (**3.8× / 9.1× lower**) |
+| **`bundle-advanced-ts`** | **12.6 MB, 4 libraries incl. 8.9 MB `typescript.js`** (10,751 warnings → 3.25 MB JS + 9.39 MB map) | — / 43.29 s | **12.20 s** / **12.09 s** | **−72.1% (3.58×)** | 20.78 s | 12.41 s | **1.70×** / **1.72× faster** | **1.02×** / **1.03× faster** (−0.32 s) | **668–670 MiB** vs 2,422 / 2,850+ MiB (**3.6× / 4.3× lower**) |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
@@ -281,5 +413,3 @@ and pass-level optimizations was implemented and verified step by step:
 - The released jar still cannot load its own XTB reader
   (`NoClassDefFoundError …jarjar/javax/xml/parsers/ParserConfigurationException`);
   `tools/clie2e/build-java.sh` works around it for the oracles.
-
-

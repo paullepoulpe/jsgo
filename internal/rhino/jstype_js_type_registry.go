@@ -1943,7 +1943,12 @@ func (r *JSTypeRegistry) CreateOptionalNullableType(type_ JSType) JSType {
 //
 // Java: JSTypeRegistry.createUnionType(JSType...)
 func (r *JSTypeRegistry) CreateUnionType(variants ...JSType) JSType {
-	return r.CreateUnionTypeOfList(templateTypeMapCopyOfTypes(variants))
+	for i, e := range variants {
+		if e == nil {
+			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(i)))
+		}
+	}
+	return r.CreateUnionTypeOfList(variants)
 }
 
 // Java: JSTypeRegistry.createUnionType(List<? extends JSType>)

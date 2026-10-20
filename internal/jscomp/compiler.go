@@ -4029,7 +4029,7 @@ func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 // Java: Compiler.getSourceMapping(String, int, int)
 func (c *Compiler) GetSourceMapping(
 	sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
-	if sourceName == nil {
+	if sourceName == nil || c.inputSourceMaps.IsEmpty() {
 		return nil
 	}
 	sourceMap := c.inputSourceMaps.Get(*sourceName)

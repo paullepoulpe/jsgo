@@ -486,24 +486,25 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node,
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Function calls
 		child := n.GetFirstChild()
-		var name *string
+		var name string
+		var hasName bool
 		// NOTE: The normalization pass ensures that local names do not collide with global names.
 		if child.IsName() {
-			name = jutil.StringPtr(child.GetString())
+			name, hasName = child.GetString(), true
 		} else if child.IsFunction() {
-			name = inlineFunctions_lookupName(v.anonFunctionMap, child)
+			name, hasName = v.anonFunctionMap.Lookup(child)
 		} else if NodeUtil_IsFunctionObjectCall(n) {
 			jutil.CheckState(NodeUtil_IsNormalOrOptChainGet(child))
 			fnIdentifyingNode := child.GetFirstChild()
 			if fnIdentifyingNode.IsName() {
-				name = jutil.StringPtr(fnIdentifyingNode.GetString())
+				name, hasName = fnIdentifyingNode.GetString(), true
 			} else if fnIdentifyingNode.IsFunction() {
-				name = inlineFunctions_lookupName(v.anonFunctionMap, fnIdentifyingNode)
+				name, hasName = v.anonFunctionMap.Lookup(fnIdentifyingNode)
 			}
 		}
 
-		if name != nil {
-			functionState := v.functionMap.Get(*name)
+		if hasName {
+			functionState := v.functionMap.Get(name)
 
 			// Only visit call-sites for functions that can be inlined.
 			if functionState != nil {
@@ -512,17 +513,6 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node,
 		}
 	default:
 	}
-}
-
-// inlineFunctions_lookupName is `anonFunctionMap.get(node)` with Java's null
-// for an absent key.
-//
-// Go-only: language-adapter — the map's values are Go strings.
-func inlineFunctions_lookupName(anonFunctionMap *jutil.LinkedHashMap[*rhino.Node, string], node *rhino.Node) *string {
-	if name, ok := anonFunctionMap.Lookup(node); ok {
-		return &name
-	}
-	return nil
 }
 
 // InlineFunctions_IsCandidateUsage returns whether the name is used in a way

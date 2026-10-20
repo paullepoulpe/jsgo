@@ -1167,9 +1167,9 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 		//     || !resultType.isSubtype(varType));
 
 		if isVarTypeBetter {
-			scope = ti.RedeclareSimpleVar(scope, target, varType)
+			scope = ti.redeclareSimpleVar(scope, target, var_, varType)
 		} else {
-			scope = ti.RedeclareSimpleVar(scope, target, resultType)
+			scope = ti.redeclareSimpleVar(scope, target, var_, resultType)
 		}
 
 		if updateNode != nil {
@@ -1195,8 +1195,8 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 			var_.SetType(resultType)
 		}
 	case rhino.Token_GETPROP:
-		if target.IsQualifiedName() {
-			qualifiedName := *target.GetQualifiedName()
+		qualifiedName, isQName := target.GetQualifiedNameString()
+		if isQName {
 			declaredSlotType := false
 			rawObjType := target.GetFirstChild().GetJSType()
 			if rawObjType != nil {
@@ -1220,7 +1220,7 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 		if updateNode != nil {
 			updateNode.SetJSType(resultType)
 		}
-		ti.EnsurePropertyDefined(target, resultType, scope)
+		ti.ensurePropertyDefined(target, qualifiedName, isQName, resultType, scope)
 	default:
 	}
 	return scope
@@ -1231,6 +1231,11 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 //
 // Java: TypeInference.ensurePropertyDefined(Node, JSType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDefined(getprop *rhino.Node, rightType rhino.JSType, scope FlowScope) {
+	qName, isQName := getprop.GetQualifiedNameString()
+	ti.ensurePropertyDefined(getprop, qName, isQName, rightType, scope)
+}
+
+func (ti *TypeInference) ensurePropertyDefined(getprop *rhino.Node, qName string, isQName bool, rightType rhino.JSType, scope FlowScope) {
 	propName := getprop.GetString()
 	obj := getprop.GetFirstChild()
 	nodeType := ti.GetJSType(obj)
@@ -1269,7 +1274,7 @@ func (ti *TypeInference) EnsurePropertyDefined(getprop *rhino.Node, rightType rh
 			}
 		}
 
-		if ti.EnsurePropertyDeclaredHelper(getprop, objectType, scope) {
+		if ti.ensurePropertyDeclaredHelper(getprop, qName, isQName, objectType, scope) {
 			return
 		}
 
@@ -1324,9 +1329,14 @@ func (ti *TypeInference) DefineDeclaredProperty(
 // Java: TypeInference.ensurePropertyDeclaredHelper(Node, ObjectType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDeclaredHelper(
 	getprop *rhino.Node, objectType rhino.ObjectType, scope FlowScope) bool {
-	if getprop.IsQualifiedName() {
+	qName, isQName := getprop.GetQualifiedNameString()
+	return ti.ensurePropertyDeclaredHelper(getprop, qName, isQName, objectType, scope)
+}
+
+func (ti *TypeInference) ensurePropertyDeclaredHelper(
+	getprop *rhino.Node, qName string, isQName bool, objectType rhino.ObjectType, scope FlowScope) bool {
+	if isQName {
 		propName := getprop.GetString()
-		qName := *getprop.GetQualifiedName()
 		var_ := TypeInference_GetDeclaredVar(scope, qName)
 		if var_ != nil && !var_.IsTypeInferred() {
 			// Handle normal declarations that could not be addressed earlier.
@@ -2777,19 +2787,21 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 	isLocallyInferred := false
 
 	// Scopes sometimes contain inferred type info about qualified names.
-	qualifiedName := n.GetQualifiedName()
+	qualifiedName, hasQName := n.GetQualifiedNameString()
 	var var_ rhino.StaticTypedSlot
-	if qualifiedName != nil {
-		var_, _ = scope.GetSlot(*qualifiedName).(rhino.StaticTypedSlot)
+	if hasQName {
+		var_, _ = scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)
 	}
 	if var_ != nil {
 		varType := var_.GetType()
 		if varType != nil {
 			isDeclared := !var_.IsTypeInferred()
-			declaredVar := TypeInference_GetDeclaredVar(scope, *qualifiedName)
-			// Go-only: language-adapter — Java's `var != getDeclaredVar(...)` is an
-			// identity comparison; a null declared var differs from var.
-			isLocallyInferred = declaredVar == nil || var_ != rhino.StaticTypedSlot(declaredVar)
+			if !isDeclared || varType.Equals(ti.unknownType) {
+				declaredVar := TypeInference_GetDeclaredVar(scope, qualifiedName)
+				// Go-only: language-adapter — Java's `var != getDeclaredVar(...)` is an
+				// identity comparison; a null declared var differs from var.
+				isLocallyInferred = declaredVar == nil || var_ != rhino.StaticTypedSlot(declaredVar)
+			}
 			if isDeclared || isLocallyInferred {
 				propertyType = varType
 			}
@@ -2803,10 +2815,10 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 		}
 	}
 
-	if (propertyType == nil || propertyType.IsUnknownType()) && qualifiedName != nil {
+	if (propertyType == nil || propertyType.IsUnknownType()) && hasQName {
 		// If we find this node in the registry, then we can infer its type.
 		regType :=
-			rhino.ObjectType_Cast(ti.registry.GetType(scope.GetDeclarationScope(), *qualifiedName))
+			rhino.ObjectType_Cast(ti.registry.GetType(scope.GetDeclarationScope(), qualifiedName))
 		if regType != nil {
 			propertyType = regType.GetConstructor()
 		}
@@ -3091,10 +3103,16 @@ func (ti *TypeInference) NewBooleanOutcomePair(jsType rhino.JSType, flowScope Fl
 func (ti *TypeInference) RedeclareSimpleVar(scope FlowScope, nameNode *rhino.Node, varType rhino.JSType) FlowScope {
 	jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
 	varName := nameNode.GetString()
+	return ti.redeclareSimpleVar(scope, nameNode, TypeInference_GetDeclaredVar(scope, varName), varType)
+}
+
+func (ti *TypeInference) redeclareSimpleVar(scope FlowScope, nameNode *rhino.Node, declaredVar *TypedVar, varType rhino.JSType) FlowScope {
+	jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
+	varName := nameNode.GetString()
 	if varType == nil {
 		varType = ti.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 	}
-	if ti.IsUnflowable(TypeInference_GetDeclaredVar(scope, varName)) {
+	if ti.IsUnflowable(declaredVar) {
 		return scope
 	}
 	return scope.InferSlotType(varName, varType)

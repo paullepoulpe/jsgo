@@ -230,10 +230,15 @@ func ClosureCodingConvention_ExtractClassNameIfGoog(node *rhino.Node, parent *rh
 //
 // Returns closure's function name for exporting properties.
 //
+var (
+	closureCodingConvention_exportPropertyFunction = "goog.exportProperty"
+	closureCodingConvention_exportSymbolFunction   = "goog.exportSymbol"
+	closureCodingConvention_abstractMethodName     = "goog.abstractMethod"
+)
+
 // Java: ClosureCodingConvention.getExportPropertyFunction()
 func (c *ClosureCodingConvention) GetExportPropertyFunction() *string {
-	s := "goog.exportProperty"
-	return &s
+	return &closureCodingConvention_exportPropertyFunction
 }
 
 // GetExportSymbolFunction uses closure's implementation.
@@ -242,8 +247,7 @@ func (c *ClosureCodingConvention) GetExportPropertyFunction() *string {
 //
 // Java: ClosureCodingConvention.getExportSymbolFunction()
 func (c *ClosureCodingConvention) GetExportSymbolFunction() *string {
-	s := "goog.exportSymbol"
-	return &s
+	return &closureCodingConvention_exportSymbolFunction
 }
 
 var ClosureCodingConvention_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
@@ -264,8 +268,7 @@ func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n *rhino.Node) []s
 
 // Java: ClosureCodingConvention.getAbstractMethodName()
 func (c *ClosureCodingConvention) GetAbstractMethodName() *string {
-	s := "goog.abstractMethod"
-	return &s
+	return &closureCodingConvention_abstractMethodName
 }
 
 var ClosureCodingConvention_GOOG_ADDSINGLETONGETTER = rhino.QualifiedName_Of("goog.addSingletonGetter")

@@ -285,6 +285,105 @@ func (c *ControlFlowGraphBase[N]) String() string {
 	return s
 }
 
+// traverseCfgNode walks a single CFG node's subtree with a scope-free
+// ControlFlowGraph_AbstractCfgNodeTraversalCallback without allocating a
+// NodeTraversal or walking parent pointers to the script root.
+func traverseCfgNode[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](compiler AbstractCompiler, root *rhino.Node, cb T) {
+	jutil.CheckNotNull(compiler)
+	if root == nil {
+		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+		newNodeTraversal(&b).Traverse(root)
+		return
+	}
+	var currentNode *rhino.Node
+	jutil.Try(func() {
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		currentNode = root
+		walkCfgNodeBranch(root, nil, cb, &currentNode)
+	}, func(unexpectedException jutil.Throwable) {
+		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+		t := newNodeTraversal(&b)
+		t.InitTraversal(root)
+		t.currentNode = currentNode
+		t.ThrowUnexpectedException(unexpectedException)
+	})
+}
+
+func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, parent *rhino.Node, cb T, currentNode **rhino.Node) {
+	*currentNode = n
+	if parent != nil && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return
+	}
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			walkCfgNodeBranch(child, n, cb, currentNode)
+			child = next
+		}
+	case rhino.Token_FUNCTION:
+		fnName := n.GetFirstChild()
+		if parent != nil {
+			_ = NodeUtil_IsFunctionDeclaration(n)
+		}
+		args := fnName.GetNext()
+		body := args.GetNext()
+		walkCfgNodeBranch(fnName, n, cb, currentNode)
+		walkCfgNodeBranch(args, n, cb, currentNode)
+		walkCfgNodeBranch(body, n, cb, currentNode)
+	case rhino.Token_CLASS:
+		className := n.GetFirstChild()
+		extendsClause := className.GetNext()
+		body := extendsClause.GetNext()
+		_ = NodeUtil_IsClassExpression(n)
+		walkCfgNodeBranch(extendsClause, n, cb, currentNode)
+		walkCfgNodeBranch(className, n, cb, currentNode)
+		walkCfgNodeBranch(body, n, cb, currentNode)
+	case rhino.Token_CLASS_MEMBERS:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				walkCfgNodeBranch(child.GetFirstChild(), child, cb, currentNode)
+			}
+			child = next
+		}
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				*currentNode = n
+				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
+					if child.HasTwoChildren() {
+						walkCfgNodeBranch(child.GetLastChild(), child, cb, currentNode)
+					}
+					*currentNode = n
+					cb.Visit(nil, child, n)
+				}
+			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
+				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+				walkCfgNodeBranch(child, n, cb, currentNode)
+			default:
+				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+			}
+			child = next
+		}
+	default:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			walkCfgNodeBranch(child, n, cb, currentNode)
+			child = next
+		}
+	}
+	*currentNode = n
+	cb.Visit(nil, n, parent)
+}
+
 var (
 	_ ControlFlowGraph[*rhino.Node] = (*ControlFlowGraphBase[*rhino.Node])(nil)
 )
+

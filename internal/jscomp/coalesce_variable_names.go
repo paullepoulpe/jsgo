@@ -342,17 +342,18 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 	// First create a node for each non-escaped variable. We add these nodes in the order in which
 	// they appear in the code because we want the names that appear earlier in the code to be used
 	// when coalescing to variables that appear later in the code.
-	orderedVariables := append([]*Var(nil), c.liveness.GetAllVariablesInOrder()...)
+	orderedVariables := c.liveness.GetAllVariablesInOrder()
 
 	// index i in interferenceGraphNodes is set to true when interferenceGraph
 	// has node orderedVariables[i]
-	interferenceGraphNodes := jutil.NewBitSet()
+	var interferenceGraphNodes jutil.BitSet
 
 	// interferenceBitSet[i] = indices of all variables that should have an edge with
 	// orderedVariables[i]
+	interferenceBitSetBuf := make([]jutil.BitSet, len(orderedVariables))
 	interferenceBitSet := make([]*jutil.BitSet, len(orderedVariables))
 	for i := range interferenceBitSet {
-		interferenceBitSet[i] = jutil.NewBitSet()
+		interferenceBitSet[i] = &interferenceBitSetBuf[i]
 	}
 
 	vIndex := -1
@@ -393,9 +394,17 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 		interferenceGraphNodes.Set(vIndex)
 	}
 
+	var assignToBuf [8]int
+	var readFromBuf [8]int
+	liveRangeChecker := CoalesceVariableNames_LiveRangeChecker{
+		orderedVariables: orderedVariables,
+		isAssignToList:   assignToBuf[:0],
+		isReadFromList:   readFromBuf[:0],
+	}
+
 	// Go through every CFG node in the program and look at variables that are live.
 	// Set the pair of live variables in interferenceBitSet so we can add an edge between them.
-	for _, cfgNode := range cfg.GetDiGraphNodes() {
+	for cfgNode := range cfg.GetControlFlowGraphBase().nodes.Values() {
 		if cfg.IsImplicitReturn(cfgNode) {
 			continue
 		}
@@ -418,8 +427,10 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 			}
 		}
 
-		liveRangeChecker :=
-			NewCoalesceVariableNames_LiveRangeChecker(cfgNode.GetValue(), orderedVariables, state)
+		liveRangeChecker.root = cfgNode.GetValue()
+		liveRangeChecker.state = state
+		liveRangeChecker.isAssignToList = liveRangeChecker.isAssignToList[:0]
+		liveRangeChecker.isReadFromList = liveRangeChecker.isReadFromList[:0]
 		liveRangeChecker.Check(cfgNode.GetValue())
 		liveRangeChecker.SetCrossingVariables(interferenceBitSet)
 	}

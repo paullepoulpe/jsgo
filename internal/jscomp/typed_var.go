@@ -40,15 +40,6 @@ type TypedVar struct {
 	AbstractVarBase[*TypedScope, *TypedVar]
 
 	type_ rhino.JSType
-	// The next two fields and the associated methods are only used by
-	// TypeInference.java. Maybe there is a way to avoid having them in all typed variable instances.
-	markedEscaped             bool
-	markedAssignedExactlyOnce bool
-
-	// Whether the variable's type has been inferred or is declared. An
-	// inferred type may change over time (as more code is discovered),
-	// whereas a declared type is a static contract that must be matched.
-	typeInferred bool
 }
 
 // includes nodes that in plain JS semantics are not 'declarations', but that the type system
@@ -71,7 +62,7 @@ var typedVar_NAME_NODE_TYPES = jutil.NewEnumSet(
 func NewTypedVar(inferred bool, name string, nameNode *rhino.Node, type_ rhino.JSType,
 	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
 	v := &TypedVar{}
-	v.InitAbstractVarBase(v, name, nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
+	v.InitAbstractVarBase(name, nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
 	if nameNode != nil {
 		jutil.CheckArgumentMsg1(
 			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
@@ -79,7 +70,22 @@ func NewTypedVar(inferred bool, name string, nameNode *rhino.Node, type_ rhino.J
 			nameNode.GetToken())
 	}
 	v.type_ = type_
-	v.typeInferred = inferred
+	if inferred {
+		v.indexAndFlags |= varFlagTypeInferred
+	}
+	return v
+}
+
+// Java: AbstractVar.getSymbol()
+func (v *TypedVar) GetSymbol() rhino.StaticSlot {
+	return v
+}
+
+// Java: AbstractVar.getDeclaration()
+func (v *TypedVar) GetDeclaration() rhino.StaticRef {
+	if v.nameNode == nil {
+		return nil
+	}
 	return v
 }
 
@@ -108,7 +114,7 @@ func (v *TypedVar) ResolveType(errorReporter rhino.ErrorReporter) {
 //
 // Java: TypedVar.isTypeInferred()
 func (v *TypedVar) IsTypeInferred() bool {
-	return v.typeInferred
+	return v.indexAndFlags&varFlagTypeInferred != 0
 }
 
 // Java: TypedVar.getInputName()
@@ -126,20 +132,20 @@ func (v *TypedVar) String() string {
 
 // Java: TypedVar.markEscaped()
 func (v *TypedVar) MarkEscaped() {
-	v.markedEscaped = true
+	v.indexAndFlags |= varFlagMarkedEscaped
 }
 
 // Java: TypedVar.isMarkedEscaped()
 func (v *TypedVar) IsMarkedEscaped() bool {
-	return v.markedEscaped
+	return v.indexAndFlags&varFlagMarkedEscaped != 0
 }
 
 // Java: TypedVar.markAssignedExactlyOnce()
 func (v *TypedVar) MarkAssignedExactlyOnce() {
-	v.markedAssignedExactlyOnce = true
+	v.indexAndFlags |= varFlagMarkedAssignedOnce
 }
 
 // Java: TypedVar.isMarkedAssignedExactlyOnce()
 func (v *TypedVar) IsMarkedAssignedExactlyOnce() bool {
-	return v.markedAssignedExactlyOnce
+	return v.indexAndFlags&varFlagMarkedAssignedOnce != 0
 }

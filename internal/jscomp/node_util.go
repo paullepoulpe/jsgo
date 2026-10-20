@@ -4892,7 +4892,10 @@ func NodeUtil_VisitPostOrderWithPred(
 // Java: NodeUtil.preOrderIterable(Node, Predicate<Node>)
 func NodeUtil_PreOrderIterableWithPred(root *rhino.Node, travserseNodePredicate func(*rhino.Node) bool) iter.Seq[*rhino.Node] {
 	return func(yield func(*rhino.Node) bool) {
-		it := NewNodeUtil_PreOrderIterator(root, travserseNodePredicate)
+		if root == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		it := NodeUtil_PreOrderIterator{traverseNodePredicate: travserseNodePredicate, current: root}
 		for it.HasNext() {
 			if !yield(it.Next()) {
 				return
@@ -4930,7 +4933,9 @@ type NodeUtil_PreOrderIterator struct {
 
 // Java: NodeUtil.PreOrderIterator(Node, Predicate<Node>)
 func NewNodeUtil_PreOrderIterator(root *rhino.Node, traverseNodePredicate func(*rhino.Node) bool) *NodeUtil_PreOrderIterator {
-	jutil.CheckNotNull(root)
+	if root == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	return &NodeUtil_PreOrderIterator{traverseNodePredicate: traverseNodePredicate, current: root}
 }
 
@@ -4977,7 +4982,9 @@ func (it *NodeUtil_PreOrderIterator) ComputeNext() (next *rhino.Node, ok bool) {
 
 // Java: NodeUtil.PreOrderIterator.calculateNextNode(Node)
 func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode *rhino.Node) *rhino.Node {
-	jutil.CheckNotNull(currentNode)
+	if currentNode == nil {
+		panic(jutil.NewNullPointerException())
+	}
 
 	// If node does not match the predicate, do not descend into it.
 	if it.traverseNodePredicate(currentNode) {
@@ -6536,12 +6543,10 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
 
 	nameVarMap := jutil.NewLinkedHashMap[string, *Var]()
-	var orderedVars []*Var
 
 	finder := &nodeUtil_getAllVarsDeclaredInFunction_finder{
-		nameVarMap:  nameVarMap,
-		orderedVars: &orderedVars,
-		scope:       scope,
+		nameVarMap: nameVarMap,
+		scope:      scope,
 	}
 
 	NodeTraversal_Builder_().
@@ -6550,14 +6555,14 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 		SetScopeCreator(scopeCreator).
 		TraverseAtScope(scope)
 
-	return NewNodeUtil_AllVarsDeclaredInFunction(nameVarMap, orderedVars)
+	return NewNodeUtil_AllVarsDeclaredInFunction(nameVarMap, finder.orderedVars)
 }
 
 // nodeUtil_getAllVarsDeclaredInFunction_finder is the anonymous
 // ScopedCallback of getAllVarsDeclaredInFunction.
 type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
 	nameVarMap  *jutil.LinkedHashMap[string, *Var]
-	orderedVars *[]*Var
+	orderedVars []*Var
 	scope       *Scope
 }
 
@@ -6566,7 +6571,7 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) EnterScope(t *NodeTravers
 	currentScope := t.GetScope()
 	for v := range currentScope.GetVarIterable() {
 		f.nameVarMap.Put(v.GetName(), v)
-		*f.orderedVars = append(*f.orderedVars, v)
+		f.orderedVars = append(f.orderedVars, v)
 	}
 }
 

@@ -52,11 +52,7 @@ type TypedScope struct {
 	AbstractScopeBase[*TypedScope, *TypedVar]
 
 	parent *TypedScope
-	depth  int
 	module *Module
-
-	// Whether this is a bottom scope for the purposes of type inference.
-	isBottom bool
 
 	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
 	// elements from an empty set)
@@ -70,7 +66,7 @@ type TypedScope struct {
 
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
-	return NewTypedScopeWithReservedNames(parent, rootNode, jutil.NewLinkedHashSet[string](), nil)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
 // NewTypedScopeWithReservedNames creates a new global or local TypedScope.
@@ -82,16 +78,23 @@ func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
 // Java: TypedScope(TypedScope, Node, Set<String>, Module)
 func NewTypedScopeWithReservedNames(
 	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
+	var copied *jutil.LinkedHashSet[string]
+	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
+		copied = jutil.NewLinkedHashSet[string](reservedNames.ToSlice()...)
+	}
+	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module)
+}
+
+func newTypedScopeOwnedReservedNames(
+	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	s.CheckChildScope(parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
 	s.isBottom = false
-	if jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
-		s.reservedNames = nil
-	} else {
-		s.reservedNames = jutil.NewLinkedHashSet[string](reservedNames.ToSlice()...)
+	if reservedNames != nil && !reservedNames.IsEmpty() {
+		s.reservedNames = reservedNames
 	}
 	s.module = module
 	return s
@@ -159,14 +162,27 @@ func (s *TypedScope) GetModule() *Module {
 	return s.module
 }
 
-// Java: TypedScope.getDepth()
-func (s *TypedScope) GetDepth() int {
-	return s.depth
-}
-
 // Java: TypedScope.getParent()
 func (s *TypedScope) GetParent() *TypedScope {
 	return s.parent
+}
+
+// Java: AbstractScope.getParentScope()
+func (s *TypedScope) GetParentScope() rhino.StaticScope {
+	if s.parent != nil {
+		return s.parent
+	}
+	return nil
+}
+
+// Java: AbstractScope.isGlobal()
+func (s *TypedScope) IsGlobal() bool {
+	return s.parent == nil
+}
+
+// Java: AbstractScope.isLocal()
+func (s *TypedScope) IsLocal() bool {
+	return s.parent != nil
 }
 
 // GetTypeOfThis gets the type of `this` in the current scope.

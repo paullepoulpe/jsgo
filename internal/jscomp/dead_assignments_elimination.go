@@ -35,7 +35,8 @@ type DeadAssignmentsElimination struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (addFirst/peekFirst/removeFirst); the first element is the last one
 	// of the slice.
-	functionStack []*DeadAssignmentsElimination_BailoutInformation
+	functionStack    []DeadAssignmentsElimination_BailoutInformation
+	functionStackBuf [8]DeadAssignmentsElimination_BailoutInformation
 }
 
 // DeadAssignmentsElimination_BailoutInformation is the nested class
@@ -50,7 +51,7 @@ func NewDeadAssignmentsElimination(compiler AbstractCompiler) *DeadAssignmentsEl
 	d := &DeadAssignmentsElimination{}
 	d.InitNodeTraversal_AbstractCfgCallbackBase(d)
 	d.compiler = compiler
-	d.functionStack = nil
+	d.functionStack = d.functionStackBuf[:0]
 	return d
 }
 
@@ -69,7 +70,7 @@ func (d *DeadAssignmentsElimination) functionStackPeekFirst() *DeadAssignmentsEl
 	if len(d.functionStack) == 0 {
 		return nil
 	}
-	return d.functionStack[len(d.functionStack)-1]
+	return &d.functionStack[len(d.functionStack)-1]
 }
 
 // Java: DeadAssignmentsElimination.visit(NodeTraversal, Node, Node)
@@ -87,7 +88,7 @@ func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n *rhino.Node, pare
 // Java: DeadAssignmentsElimination.enterScopeWithCfg(NodeTraversal)
 func (d *DeadAssignmentsElimination) EnterScopeWithCfg(t *NodeTraversal) {
 	if t.InFunctionBlockScope() {
-		d.functionStack = append(d.functionStack, &DeadAssignmentsElimination_BailoutInformation{})
+		d.functionStack = append(d.functionStack, DeadAssignmentsElimination_BailoutInformation{})
 	}
 }
 
@@ -98,7 +99,6 @@ func (d *DeadAssignmentsElimination) ExitScopeWithCfg(t *NodeTraversal) {
 		if len(d.functionStack) == 0 {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeFirst()
 		}
-		d.functionStack[len(d.functionStack)-1] = nil
 		d.functionStack = d.functionStack[:len(d.functionStack)-1]
 	}
 }
@@ -167,9 +167,8 @@ func (d *DeadAssignmentsElimination) IsRemovableAssign(n *rhino.Node) bool {
 func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
 	cfg ControlFlowGraph[*rhino.Node],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	nodes := cfg.GetDiGraphNodes()
 
-	for _, cfgNode := range nodes {
+	for cfgNode := range cfg.GetControlFlowGraphBase().nodes.Values() {
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
 		n := cfgNode.GetValue()
 		if n == nil {

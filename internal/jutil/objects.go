@@ -40,6 +40,15 @@ func ObjectsEquals(a, b any) bool {
 		return e.Equals(b)
 	}
 	switch x := a.(type) {
+	case string:
+		y, ok := b.(string)
+		return ok && x == y
+	case int:
+		y, ok := b.(int)
+		return ok && x == y
+	case int32:
+		y, ok := b.(int32)
+		return ok && x == y
 	case float64:
 		y, ok := b.(float64)
 		return ok && doubleBits(x) == doubleBits(y)
@@ -79,14 +88,7 @@ func ObjectsEquals(a, b any) bool {
 func ObjectsEqualsOf[T any](a, b T) bool {
 	switch x := any(a).(type) {
 	case string:
-		y, ok := any(b).(string)
-		return ok && x == y
-	case int32:
-		y, ok := any(b).(int32)
-		return ok && x == y
-	case int:
-		y, ok := any(b).(int)
-		return ok && x == y
+		return any(b) == x
 	}
 	return ObjectsEquals(a, b)
 }
@@ -102,6 +104,12 @@ func ObjectHashCodeOf[T any](v T) int32 {
 		return x
 	case int:
 		return int32(x)
+	}
+	if h, ok := any(v).(Hashable); ok {
+		if IsNil(h) {
+			return 0
+		}
+		return h.HashCode()
 	}
 	return ObjectHashCode(v)
 }

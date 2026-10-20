@@ -130,8 +130,15 @@ type DataFlowAnalysis[N comparable, L LatticeElement] interface {
 type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 	self DataFlowAnalysis[N, L]
 
-	cfg       ControlFlowGraph[N]
-	workQueue *dataFlowAnalysis_UniqueQueue[DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]]
+	cfg      ControlFlowGraph[N]
+	priority func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
+
+	queue     []DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	queueHead int
+	queueBuf  [16]DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+
+	flowStateSlab []DataFlowAnalysis_LinearFlowState[L]
+	flowStateBuf  [8]DataFlowAnalysis_LinearFlowState[L]
 }
 
 // DataFlowAnalysis_MAX_STEPS_PER_NODE is the maximum number of steps per
@@ -161,11 +168,106 @@ const DataFlowAnalysis_MAX_STEPS_PER_NODE = 20000
 func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
 	b.self = self
 	b.cfg = cfg
-	b.workQueue = newDataFlowAnalysis_UniqueQueue(cfg.GetOptionalNodeComparator(b.self.IsForward()))
+	b.priority = cfg.GetOptionalNodeComparator(b.self.IsForward())
+	b.queue = b.queueBuf[:0:len(b.queueBuf)]
+	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
 
 	if b.self.IsBranched() {
 		jutil.CheckState(b.self.IsForward())
 	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) allocFlowState(in L, out L) *DataFlowAnalysis_LinearFlowState[L] {
+	jutil.CheckNotNull(in)
+	jutil.CheckNotNull(out)
+	if len(b.flowStateSlab) == cap(b.flowStateSlab) {
+		nextCap := min(max(cap(b.flowStateSlab)*2, 16), 256)
+		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, nextCap)
+	}
+	idx := len(b.flowStateSlab)
+	b.flowStateSlab = b.flowStateSlab[:idx+1]
+	s := &b.flowStateSlab[idx]
+	s.stepCount = 0
+	s.in = in
+	s.out = out
+	s.inQueue = false
+	return s
+}
+
+func (b *DataFlowAnalysisBase[N, L]) dfaSiftUp(i int, x DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+	for i > 0 {
+		parent := (i - 1) / 2
+		p := b.queue[parent]
+		if b.priority(x, p) >= 0 {
+			break
+		}
+		b.queue[i] = p
+		i = parent
+	}
+	b.queue[i] = x
+}
+
+func (b *DataFlowAnalysisBase[N, L]) dfaSiftDown(i int, x DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+	n := len(b.queue)
+	for {
+		pick := 2*i + 1
+		if pick >= n {
+			break
+		}
+		smaller := b.queue[pick]
+		if sibling := pick + 1; sibling < n && b.priority(smaller, b.queue[sibling]) > 0 {
+			pick = sibling
+			smaller = b.queue[sibling]
+		}
+		if b.priority(x, smaller) <= 0 {
+			break
+		}
+		b.queue[i] = smaller
+		i = pick
+	}
+	b.queue[i] = x
+}
+
+func (b *DataFlowAnalysisBase[N, L]) enqueueNode(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
+	if state.inQueue {
+		return
+	}
+	if node == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	state.inQueue = true
+	if b.priority != nil {
+		b.queue = append(b.queue, node)
+		b.dfaSiftUp(len(b.queue)-1, node)
+	} else {
+		b.queue = append(b.queue, node)
+	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) dequeueNode() (DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], *DataFlowAnalysis_LinearFlowState[L]) {
+	var curNode DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	var zero DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	if b.priority != nil {
+		n := len(b.queue)
+		curNode = b.queue[0]
+		last := b.queue[n-1]
+		b.queue[n-1] = zero
+		b.queue = b.queue[:n-1]
+		if n > 1 {
+			b.dfaSiftDown(0, last)
+		}
+	} else {
+		curNode = b.queue[b.queueHead]
+		b.queue[b.queueHead] = zero
+		b.queueHead++
+		if b.queueHead == len(b.queue) {
+			b.queue = b.queue[:0]
+			b.queueHead = 0
+		}
+	}
+	curState := dataFlowAnalysis_linearFlowStateOf[L](curNode)
+	curState.inQueue = false
+	return curNode, curState
 }
 
 // GetDataFlowAnalysisBase gives access to the base through the interface.
@@ -234,9 +336,10 @@ type DataFlowAnalysis_FlowBrancher[L any] func(branch ControlFlowGraph_Branch) L
 // Java: DataFlowAnalysis.analyze()
 func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 	b.Initialize()
-	for !b.workQueue.IsEmpty() {
-		curNode := b.workQueue.RemoveFirst()
-		curState := dataFlowAnalysis_linearFlowStateOf[L](curNode)
+	isForward := b.self.IsForward()
+	implicitReturn := b.cfg.GetImplicitReturn()
+	for len(b.queue) > b.queueHead {
+		curNode, curState := b.dequeueNode()
 		stepCount := curState.stepCount
 		curState.stepCount++
 		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
@@ -247,22 +350,25 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 		if b.Flow(curNode) {
 			// If there is a change in the current node, we want to grab the
 			// list of nodes that this node affects.
-			var nextNodes []DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
-			if b.self.IsForward() {
-				nextNodes = b.cfg.GetDirectedSuccNodes(curNode)
+			if isForward {
+				for _, edge := range curNode.GetOutEdges() {
+					nextNode := edge.GetDestination()
+					if nextNode != implicitReturn {
+						b.enqueueNode(nextNode, dataFlowAnalysis_linearFlowStateOf[L](nextNode))
+					}
+				}
 			} else {
-				nextNodes = b.cfg.GetDirectedPredNodes(curNode)
-			}
-
-			for _, nextNode := range nextNodes {
-				if nextNode != b.cfg.GetImplicitReturn() {
-					b.workQueue.Add(nextNode)
+				for _, edge := range curNode.GetInEdges() {
+					nextNode := edge.GetSource()
+					if nextNode != implicitReturn {
+						b.enqueueNode(nextNode, dataFlowAnalysis_linearFlowStateOf[L](nextNode))
+					}
 				}
 			}
 		}
 	}
-	if b.self.IsForward() {
-		b.JoinInputs(b.GetCfg().GetImplicitReturn())
+	if isForward {
+		b.JoinInputs(implicitReturn)
 	}
 }
 
@@ -297,20 +403,25 @@ func dataFlowAnalysis_latticeOf[L any](a Annotatable) L {
 //
 // Java: DataFlowAnalysis.initialize()
 func (b *DataFlowAnalysisBase[N, L]) Initialize() {
-	// TODO(user): Calling clear doesn't deallocate the memory in a
-	// LinkedHashSet. Consider creating a new work set if we plan to
-	// repeatedly call analyze.
-	b.workQueue.Clear()
-	for _, node := range b.cfg.GetDiGraphNodes() {
-		node.SetAnnotation(
-			newDataFlowAnalysis_LinearFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice()))
-		if node != b.cfg.GetImplicitReturn() {
-			b.workQueue.Add(node)
+	clear(b.queue)
+	b.queue = b.queue[:0]
+	b.queueHead = 0
+	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
+
+	implicitReturn := b.cfg.GetImplicitReturn()
+	cfgNodes := &b.cfg.GetControlFlowGraphBase().nodes
+	for node := range cfgNodes.Values() {
+		state := b.allocFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice())
+		node.SetAnnotation(state)
+		if node != implicitReturn {
+			b.enqueueNode(node, state)
 		}
 	}
 	if b.self.IsBranched() {
-		for _, edge := range b.cfg.GetDiGraphEdges() {
-			edge.SetAnnotation(b.self.CreateInitialEstimateLattice())
+		for node := range cfgNodes.Values() {
+			for _, edge := range node.outEdgeList.Slice() {
+				edge.SetAnnotation(b.self.CreateInitialEstimateLattice())
+			}
 		}
 	}
 }
@@ -408,6 +519,7 @@ type DataFlowAnalysis_LinearFlowState[L any] struct {
 	stepCount int
 	in        L
 	out       L
+	inQueue   bool
 }
 
 // Java: DataFlowAnalysis.LinearFlowState(L, L)
@@ -470,14 +582,22 @@ func DataFlowAnalysis_ComputeEscaped(
 
 	// Optimize for Class Static Blocks.
 	jutil.CheckArgument(jsScope.IsFunctionScope())
+	if allVarsInFn != nil && allVarsInFn.IsEmpty() {
+		return
+	}
 
-	finder := &dataFlowAnalysis_escapedFinder{jsScope: jsScope, escaped: escaped}
+	finder := dataFlowAnalysis_escapedFinder{
+		jsScope:     jsScope,
+		escaped:     escaped,
+		allVarsInFn: allVarsInFn,
+	}
 
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(finder).
-		SetScopeCreator(scopeCreator).
-		TraverseAtScope(jsScope)
+	b := NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     &finder,
+		scopeCreator: scopeCreator,
+	}
+	newNodeTraversal(&b).TraverseAtScope(jsScope)
 
 	// TODO (simranarora) catch variables should not be considered escaped in
 	// ES6. Getting rid of the catch check is causing breakages however
@@ -494,8 +614,9 @@ func DataFlowAnalysis_ComputeEscaped(
 type dataFlowAnalysis_escapedFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	jsScope *Scope
-	escaped *jutil.ObjectLinkedHashSet[*Var]
+	jsScope     *Scope
+	escaped     *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 }
 
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -506,8 +627,18 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 	}
 
 	name := n.GetString()
-	var_ := t.GetScope().GetVar(name)
+	if f.allVarsInFn != nil && !f.allVarsInFn.ContainsKey(name) {
+		return
+	}
 
+	curScope := t.GetScope()
+	referenceCfgScope := curScope.GetClosestCfgRootScope()
+	if referenceCfgScope == f.jsScope &&
+		!DataFlowAnalysis_IsReferencedInNonStaticClassField(curScope, f.jsScope) {
+		return
+	}
+
+	var_ := curScope.GetVar(name)
 	if var_ == nil {
 		return
 	}
@@ -522,16 +653,11 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 		return
 	}
 
-	referenceCfgScope := t.GetScope().GetClosestCfgRootScope()
-
 	// Variable is referenced outside of declaration scope it is 'escaped'.
 	// Non-static class field initializers are evaluated at instance creation time
 	// (like closures), so variables referenced in non-static class fields must also be
 	// marked as escaped.
-	if referenceCfgScope != variableCfgScope ||
-		DataFlowAnalysis_IsReferencedInNonStaticClassField(t.GetScope(), variableCfgScope) {
-		f.escaped.Add(var_)
-	}
+	f.escaped.Add(var_)
 }
 
 // Java: DataFlowAnalysis.isReferencedInNonStaticClassField(Scope, Scope)
@@ -543,72 +669,4 @@ func DataFlowAnalysis_IsReferencedInNonStaticClassField(refScope *Scope, targetS
 		}
 	}
 	return false
-}
-
-// dataFlowAnalysis_UniqueQueue is a work queue that holds each element at
-// most once.
-type dataFlowAnalysis_UniqueQueue[T comparable] struct {
-	seenSet *jutil.LinkedHashSet[T]
-	// Go-only: language-adapter — the Queue<T> is an ArrayDeque (deque,
-	// polled at the front) without a priority, else a PriorityQueue
-	// (priorityQueue).
-	deque         []T
-	priorityQueue *jutil.PriorityQueue[T]
-}
-
-// Java: DataFlowAnalysis.UniqueQueue(Comparator<T>)
-func newDataFlowAnalysis_UniqueQueue[T comparable](priority func(a, b T) int) *dataFlowAnalysis_UniqueQueue[T] {
-	q := &dataFlowAnalysis_UniqueQueue[T]{seenSet: jutil.NewLinkedHashSet[T]()}
-	if priority != nil {
-		q.priorityQueue = jutil.NewPriorityQueue(priority)
-	}
-	return q
-}
-
-// Java: DataFlowAnalysis.UniqueQueue.isEmpty()
-func (q *dataFlowAnalysis_UniqueQueue[T]) IsEmpty() bool {
-	if q.priorityQueue != nil {
-		return q.priorityQueue.IsEmpty()
-	}
-	return len(q.deque) == 0
-}
-
-// Java: DataFlowAnalysis.UniqueQueue.removeFirst()
-func (q *dataFlowAnalysis_UniqueQueue[T]) RemoveFirst() T {
-	var t T
-	if q.priorityQueue != nil {
-		t = q.priorityQueue.Poll()
-	} else if len(q.deque) > 0 {
-		// ArrayDeque.poll(): null when empty.
-		t = q.deque[0]
-		var zero T
-		q.deque[0] = zero
-		q.deque = q.deque[1:]
-	}
-	q.seenSet.Remove(t)
-	return t
-}
-
-// Java: DataFlowAnalysis.UniqueQueue.add(T)
-func (q *dataFlowAnalysis_UniqueQueue[T]) Add(t T) {
-	if q.seenSet.Add(t) {
-		if q.priorityQueue != nil {
-			q.priorityQueue.Add(t)
-		} else {
-			// ArrayDeque.add(E) is null-hostile.
-			jutil.CheckNotNull(t)
-			q.deque = append(q.deque, t)
-		}
-	}
-}
-
-// Java: DataFlowAnalysis.UniqueQueue.clear()
-func (q *dataFlowAnalysis_UniqueQueue[T]) Clear() {
-	q.seenSet.Clear()
-	if q.priorityQueue != nil {
-		q.priorityQueue.Clear()
-	} else {
-		clear(q.deque)
-		q.deque = q.deque[:0]
-	}
 }

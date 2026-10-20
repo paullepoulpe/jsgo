@@ -46,6 +46,18 @@ type MustBeReachingVariableDef struct {
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	// Go-only: performance — local variable IDs shared by lattice states.
 	layout *mustDefLayout
+
+	emptyLattice MustBeReachingVariableDef_MustDef
+	joinOp       MustBeReachingVariableDef_MustDefJoin
+	depCallback  mustBeReachingVariableDef_dependenceCallback
+
+	flowInput  *MustBeReachingVariableDef_MustDef
+	flowOutput *MustBeReachingVariableDef_MustDef
+
+	mustDefSlab []MustBeReachingVariableDef_MustDef
+	mustDefBuf  [8]MustBeReachingVariableDef_MustDef
+	defSlab     []MustBeReachingVariableDef_Definition
+	defBuf      [8]MustBeReachingVariableDef_Definition
 }
 
 // Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
@@ -60,7 +72,49 @@ func NewMustBeReachingVariableDef(
 	d.escaped = escaped
 	d.allVarsInFn = allVarsInFn
 	d.layout = newMustDefLayout(allVarsInFn)
+	d.emptyLattice.reachingDef.init(d.layout)
+	d.depCallback.outer = d
+	d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
+	d.defSlab = d.defBuf[:0:len(d.defBuf)]
 	return d
+}
+
+func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
+	if len(d.mustDefSlab) == cap(d.mustDefSlab) {
+		nextCap := min(max(cap(d.mustDefSlab)*2, 16), 256)
+		d.mustDefSlab = make([]MustBeReachingVariableDef_MustDef, 0, nextCap)
+	}
+	idx := len(d.mustDefSlab)
+	d.mustDefSlab = d.mustDefSlab[:idx+1]
+	m := &d.mustDefSlab[idx]
+	m.reachingDef.init(d.layout)
+	return m
+}
+
+func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
+	if len(d.defSlab) == cap(d.defSlab) {
+		nextCap := min(max(cap(d.defSlab)*2, 16), 256)
+		d.defSlab = make([]MustBeReachingVariableDef_Definition, 0, nextCap)
+	}
+	idx := len(d.defSlab)
+	d.defSlab = d.defSlab[:idx+1]
+	def := &d.defSlab[idx]
+	def.node = node
+	def.unknownDependencies = false
+	def.depends = &def.dependsSet
+	return def
+}
+
+func (d *MustBeReachingVariableDef) ensureMutable(def *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+	if def != nil && def == d.flowInput {
+		if d.flowOutput == d.flowInput {
+			cloned := d.allocMustDef()
+			d.flowInput.reachingDef.cloneInto(&cloned.reachingDef)
+			d.flowOutput = cloned
+		}
+		return d.flowOutput
+	}
+	return def
 }
 
 // MustBeReachingVariableDef_Definition is an abstraction of a local variable
@@ -152,13 +206,15 @@ func NewMustBeReachingVariableDef_MustDefWithVars(vars iter.Seq[*Var]) *MustBeRe
 //
 // Java: MustBeReachingVariableDef.MustDef(MustDef)
 func NewMustBeReachingVariableDef_MustDefCopy(other *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
-	return &MustBeReachingVariableDef_MustDef{reachingDef: other.reachingDef.clone()}
+	m := &MustBeReachingVariableDef_MustDef{}
+	other.reachingDef.cloneInto(&m.reachingDef)
+	return m
 }
 
 // Java: MustBeReachingVariableDef.MustDef.equals(Object)
 func (m *MustBeReachingVariableDef_MustDef) Equals(other any) bool {
 	mustDef, ok := other.(*MustBeReachingVariableDef_MustDef)
-	return ok && mustDef != nil && mustDef.reachingDef.equals(&m.reachingDef)
+	return ok && mustDef != nil && (m == mustDef || mustDef.reachingDef.equals(&m.reachingDef))
 }
 
 // Java: MustBeReachingVariableDef.MustDef.hashCode()
@@ -229,33 +285,43 @@ func (d *MustBeReachingVariableDef) IsForward() bool {
 
 // Java: MustBeReachingVariableDef.createEntryLattice()
 func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariableDef_MustDef {
-	m := &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
+	if d.allVarsInFn.IsEmpty() && d.layout != nil {
+		return &d.emptyLattice
+	}
+	m := d.allocMustDef()
 	for var_ := range d.allVarsInFn.Values() {
-		m.reachingDef.Put(var_, NewMustBeReachingVariableDef_Definition(var_.GetScope().(*Scope).GetRootNode()))
+		m.reachingDef.Put(var_, d.allocDefinition(var_.GetScope().(*Scope).GetRootNode()))
 	}
 	return m
 }
 
 // Java: MustBeReachingVariableDef.createInitialEstimateLattice()
 func (d *MustBeReachingVariableDef) CreateInitialEstimateLattice() *MustBeReachingVariableDef_MustDef {
-	return &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
+	if d.layout != nil {
+		return &d.emptyLattice
+	}
+	return d.allocMustDef()
 }
 
 // Java: MustBeReachingVariableDef.createFlowJoiner()
 func (d *MustBeReachingVariableDef) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*MustBeReachingVariableDef_MustDef] {
-	m := &MustBeReachingVariableDef_MustDef{reachingDef: newMustDefMap(d.layout)}
-	return &MustBeReachingVariableDef_MustDefJoin{result: m, resultMap: &m.reachingDef}
+	m := d.allocMustDef()
+	d.joinOp.result = m
+	d.joinOp.resultMap = &m.reachingDef
+	return &d.joinOp
 }
 
 // Java: MustBeReachingVariableDef.flowThrough(Node, MustDef)
 func (d *MustBeReachingVariableDef) FlowThrough(n *rhino.Node, input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
-	// TODO(user): We are doing a straight copy from input to output. There
-	// might be some opportunities to cut down overhead.
-	output := NewMustBeReachingVariableDef_MustDefCopy(input)
+	d.flowInput = input
+	d.flowOutput = input
 	// TODO(user): This must know about ON_EX edges but it should handle
 	// it better than what we did in liveness. Because we are in a forward mode,
 	// we can used the branched forward analysis.
-	d.ComputeMustDef(n, n, output, false)
+	d.ComputeMustDef(n, n, input, false)
+	output := d.flowOutput
+	d.flowInput = nil
+	d.flowOutput = nil
 	return output
 }
 
@@ -415,20 +481,14 @@ func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 		return
 	}
 
-	for key, otherDef := range def.reachingDef.All() {
-		if otherDef == nil {
-			continue
-		}
-		if otherDef.depends.Contains(var_) {
-			def.reachingDef.Put(key, nil)
-		}
-	}
+	def = d.ensureMutable(def)
+	def.reachingDef.invalidateDependent(var_)
 
 	if !d.escaped.Contains(var_) {
 		if node == nil {
 			def.reachingDef.Put(var_, nil)
 		} else {
-			definition := NewMustBeReachingVariableDef_Definition(node)
+			definition := d.allocDefinition(node)
 			if rValue != nil {
 				d.ComputeDependence(definition, rValue)
 			}
@@ -439,6 +499,7 @@ func (d *MustBeReachingVariableDef) AddToDefIfLocal(
 
 // Java: MustBeReachingVariableDef.escapeParameters(MustDef)
 func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVariableDef_MustDef) {
+	output = d.ensureMutable(output)
 	for v := range d.allVarsInFn.Values() {
 		if MustBeReachingVariableDef_IsParameter(v) {
 			// Assume we no longer know where the parameter comes from
@@ -448,17 +509,7 @@ func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVaria
 	}
 
 	// Also, assume we no longer know anything that depends on a parameter.
-	for key, value := range output.reachingDef.All() {
-		if value == nil {
-			continue
-		}
-		for dep := range value.depends.All() {
-			if MustBeReachingVariableDef_IsParameter(dep) {
-				output.reachingDef.Put(key, nil)
-				break
-			}
-		}
-	}
+	output.reachingDef.invalidateParameters()
 }
 
 // Java: MustBeReachingVariableDef.isParameter(Var)
@@ -471,10 +522,12 @@ func MustBeReachingVariableDef_IsParameter(v *Var) bool {
 //
 // Java: MustBeReachingVariableDef.computeDependence(Definition, Node)
 func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariableDef_Definition, rValue *rhino.Node) {
-	NodeTraversal_Traverse(
+	d.depCallback.def = def
+	traverseCfgNode(
 		d.compiler,
 		rValue,
-		&mustBeReachingVariableDef_dependenceCallback{outer: d, def: def})
+		&d.depCallback)
+	d.depCallback.def = nil
 }
 
 // mustBeReachingVariableDef_dependenceCallback is the anonymous

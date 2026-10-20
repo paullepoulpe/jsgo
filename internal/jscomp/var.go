@@ -50,13 +50,37 @@ func NewVar(
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) *Var {
 	v := &Var{}
-	v.InitAbstractVarBase(v, name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	initVar(v, name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	return v
+}
+
+func initVar(
+	v *Var,
+	name string,
+	nameNode *rhino.Node,
+	scope *Scope,
+	index int,
+	input *CompilerInput,
+	implicitGoogNamespaceDefinition *rhino.Node) {
+	v.InitAbstractVarBase(name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 	if nameNode != nil {
 		switch nameNode.GetToken() {
 		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
 		default:
 			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
 		}
+	}
+}
+
+// Java: AbstractVar.getSymbol()
+func (v *Var) GetSymbol() rhino.StaticSlot {
+	return v
+}
+
+// Java: AbstractVar.getDeclaration()
+func (v *Var) GetDeclaration() rhino.StaticRef {
+	if v.nameNode == nil {
+		return nil
 	}
 	return v
 }

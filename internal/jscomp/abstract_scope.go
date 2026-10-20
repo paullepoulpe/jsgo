@@ -266,7 +266,14 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 
 	rootNode *rhino.Node
 
+	depth           int32
 	varsInitialized bool
+	isBottom        bool
+}
+
+// Java: AbstractScope.getDepth()
+func (b *AbstractScopeBase[S, V]) GetDepth() int {
+	return int(b.depth)
 }
 
 // abstractScope_of is the implicit conversion of an S to AbstractScope<?, ?>.
@@ -289,6 +296,8 @@ func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(self S, rootNode *rhino.
 	b.self = self
 	b.vars = jutil.LinkedHashMap[string, V]{}
 	b.varsInitialized = false
+	b.isBottom = false
+	b.depth = 0
 	b.implicitVars = nil
 	b.rootNode = jutil.CheckNotNull(rootNode)
 }
@@ -387,7 +396,9 @@ func (b *AbstractScopeBase[S, V]) UndeclareInteral(var_ V) {
 
 // Java: AbstractScope.declareInternal(String, V)
 func (b *AbstractScopeBase[S, V]) DeclareInternal(name string, var_ V) {
-	jutil.CheckStateMsg1(b.self.HasOwnSlot(name) || b.self.CanDeclare(name), "Illegal shadow: %s", var_.GetNode())
+	if b.self.IsFunctionBlockScope() && b.self.GetParent().HasOwnSlot(name) && !b.self.HasOwnSlot(name) && !b.IsBleedingFunctionName(name) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
+	}
 
 	b.varsInitialized = true
 	b.vars.Put(name, var_)

@@ -228,14 +228,107 @@ func Keywords_IsStrictKeyword(token TokenType) bool {
 //
 // Java: Keywords.getTokenType(String)
 func Keywords_GetTokenType(value string) TokenType {
-	return keywords_KEYWORDS_BY_NAME[value].Type()
+	return Keywords_Get(value).Type()
 }
 
 // Keywords_Get returns the keyword named value, or nil.
 //
 // Java: Keywords.get(String)
 func Keywords_Get(value string) *Keywords {
-	return keywords_KEYWORDS_BY_NAME[value]
+	switch value {
+	case "break":
+		return &keywords_constants[Keywords_BREAK]
+	case "case":
+		return &keywords_constants[Keywords_CASE]
+	case "catch":
+		return &keywords_constants[Keywords_CATCH]
+	case "continue":
+		return &keywords_constants[Keywords_CONTINUE]
+	case "debugger":
+		return &keywords_constants[Keywords_DEBUGGER]
+	case "default":
+		return &keywords_constants[Keywords_DEFAULT]
+	case "delete":
+		return &keywords_constants[Keywords_DELETE]
+	case "do":
+		return &keywords_constants[Keywords_DO]
+	case "else":
+		return &keywords_constants[Keywords_ELSE]
+	case "finally":
+		return &keywords_constants[Keywords_FINALLY]
+	case "for":
+		return &keywords_constants[Keywords_FOR]
+	case "function":
+		return &keywords_constants[Keywords_FUNCTION]
+	case "if":
+		return &keywords_constants[Keywords_IF]
+	case "in":
+		return &keywords_constants[Keywords_IN]
+	case "instanceof":
+		return &keywords_constants[Keywords_INSTANCEOF]
+	case "new":
+		return &keywords_constants[Keywords_NEW]
+	case "return":
+		return &keywords_constants[Keywords_RETURN]
+	case "switch":
+		return &keywords_constants[Keywords_SWITCH]
+	case "this":
+		return &keywords_constants[Keywords_THIS]
+	case "throw":
+		return &keywords_constants[Keywords_THROW]
+	case "try":
+		return &keywords_constants[Keywords_TRY]
+	case "typeof":
+		return &keywords_constants[Keywords_TYPEOF]
+	case "var":
+		return &keywords_constants[Keywords_VAR]
+	case "void":
+		return &keywords_constants[Keywords_VOID]
+	case "while":
+		return &keywords_constants[Keywords_WHILE]
+	case "with":
+		return &keywords_constants[Keywords_WITH]
+	case "class":
+		return &keywords_constants[Keywords_CLASS]
+	case "const":
+		return &keywords_constants[Keywords_CONST]
+	case "enum":
+		return &keywords_constants[Keywords_ENUM]
+	case "export":
+		return &keywords_constants[Keywords_EXPORT]
+	case "extends":
+		return &keywords_constants[Keywords_EXTENDS]
+	case "import":
+		return &keywords_constants[Keywords_IMPORT]
+	case "super":
+		return &keywords_constants[Keywords_SUPER]
+	case "implements":
+		return &keywords_constants[Keywords_IMPLEMENTS]
+	case "interface":
+		return &keywords_constants[Keywords_INTERFACE]
+	case "let":
+		return &keywords_constants[Keywords_LET]
+	case "package":
+		return &keywords_constants[Keywords_PACKAGE]
+	case "private":
+		return &keywords_constants[Keywords_PRIVATE]
+	case "protected":
+		return &keywords_constants[Keywords_PROTECTED]
+	case "public":
+		return &keywords_constants[Keywords_PUBLIC]
+	case "static":
+		return &keywords_constants[Keywords_STATIC]
+	case "yield":
+		return &keywords_constants[Keywords_YIELD]
+	case "null":
+		return &keywords_constants[Keywords_NULL]
+	case "true":
+		return &keywords_constants[Keywords_TRUE]
+	case "false":
+		return &keywords_constants[Keywords_FALSE]
+	default:
+		return nil
+	}
 }
 
 // Keywords_GetByTokenType returns the keyword of token, or nil.

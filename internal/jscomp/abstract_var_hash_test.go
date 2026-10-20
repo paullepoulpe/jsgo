@@ -9,7 +9,7 @@ import (
 
 func TestVarHashMatchesScopedName(t *testing.T) {
 	for _, name := range []string{"", "x", "long_identifier_reused_by_passes", "λ", jutil.StringFromUTF16([]uint16{0xD800, 'x'})} {
-		for _, index := range []int{-1, 0, 1, 2147483647} {
+		for _, index := range []int{-1, 0, 1, int(varIndexMask) - 1} {
 			scope := Scope_CreateGlobalScope(rhino.IR_Root())
 			v := NewVar(name, nil, scope, index, nil, nil)
 			want := ScopedName_Of(name, scope.GetRootNode()).HashCode()

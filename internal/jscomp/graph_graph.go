@@ -341,14 +341,26 @@ func (s *Graph_SimpleSubGraph[N, E]) AddNode(value N) {
 	s.nodes = append(s.nodes, s.graph.GetNodeOrFail(value))
 }
 
+// graph_pushAnnotationFrame pushes or reuses a frame on stack.
+func graph_pushAnnotationFrame(stack *graph_annotationStack, capHint int) *graph_GraphAnnotationState {
+	idx := len(stack.states)
+	if idx < cap(stack.states) {
+		stack.states = stack.states[:idx+1]
+		top := &stack.states[idx]
+		*top = (*top)[:0]
+		return top
+	}
+	stack.states = append(stack.states, make(graph_GraphAnnotationState, 0, capHint))
+	return &stack.states[idx]
+}
+
 // graph_pushAnnotations pushes a new list on stack and stores nodes
 // annotations in the new list. Clears objects' annotations as well.
 //
 // Java: Graph.pushAnnotations(Deque<GraphAnnotationState>, Collection<? extends Annotatable>)
 func graph_pushAnnotations(stack *graph_annotationStack, haveAnnotations []Annotatable) {
-	stack.states = append(stack.states, make(graph_GraphAnnotationState, 0, len(haveAnnotations)))
+	top := graph_pushAnnotationFrame(stack, len(haveAnnotations))
 	for _, h := range haveAnnotations {
-		top := &stack.states[len(stack.states)-1]
 		*top = append(*top, graph_AnnotationState{first: h, second: h.GetAnnotation()})
 		h.SetAnnotation(nil)
 	}
@@ -362,9 +374,12 @@ func graph_popAnnotations(stack *graph_annotationStack) {
 	if len(stack.states) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 	}
-	top := stack.states[len(stack.states)-1]
-	stack.states = stack.states[:len(stack.states)-1]
-	for _, as := range top {
-		as.first.SetAnnotation(as.second)
+	topIdx := len(stack.states) - 1
+	top := stack.states[topIdx]
+	for i := range top {
+		top[i].first.SetAnnotation(top[i].second)
+		top[i] = graph_AnnotationState{}
 	}
+	stack.states[topIdx] = top[:0]
+	stack.states = stack.states[:topIdx]
 }

@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
@@ -31,6 +33,7 @@ type SourceMapInput struct {
 	sourceFile      *SourceFile
 	parsedSourceMap *sourcemap.SourceMapConsumerV3
 	cached          bool
+	ready           atomic.Bool
 }
 
 var SourceMapInput_SOURCEMAP_RESOLVE_FAILED = DiagnosticType_Warning("SOURCEMAP_RESOLVE_FAILED", "Failed to resolve sourcemap at {0}: {1}")
@@ -49,6 +52,9 @@ func NewSourceMapInput(sourceFile *SourceFile) *SourceMapInput {
 //
 // Java: SourceMapInput.getSourceMap(ErrorManager)
 func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.SourceMapConsumerV3 {
+	if i.ready.Load() {
+		return i.parsedSourceMap
+	}
 	i.monitor.Lock()
 	defer i.monitor.Unlock()
 	if !i.cached {
@@ -89,6 +95,7 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 				panic(e)
 			}
 		})
+		i.ready.Store(true)
 	}
 	return i.parsedSourceMap
 }

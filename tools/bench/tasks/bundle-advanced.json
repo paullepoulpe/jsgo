@@ -1,0 +1,55 @@
+{
+  "name": "bundle-advanced",
+  "order": 9,
+  "title": "Large multi-library plain-JS bundle, ADVANCED",
+  "description": "Eleven UMD/script library builds compiled together in `ADVANCED` mode with source map output (5.4 MB input): three.js r159 `build/three.js`, lodash 4.17.21 `lodash.js`, react-dom 18.3.1 `umd/react-dom.development.js`, rxjs 7.8.2 `dist/bundles/rxjs.umd.js`, d3 7.9.0 `dist/d3.js`, moment 2.31.0 `min/moment-with-locales.js`, vue 2.7.16 `dist/vue.js`, jquery 3.7.1 `dist/jquery.js`, handlebars 4.7.10 `dist/handlebars.js`, immutable 5.1.9 `dist/immutable.js`, and underscore 1.13.8 `underscore-umd.js`. `--jscomp_warning=checkVars` demotes undeclared UMD/WebXR globals (`require`, `define`, `XRWebGLLayer`, `XRWebGLBinding`) from error to warning so the full `ADVANCED` optimization and renaming pipeline runs to completion.",
+  "mode": "ADVANCED, `--jscomp_warning=checkVars`, source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--jscomp_warning=checkVars"
+  ],
+  "inputs": [
+    {
+      "file": "inputs/three@0.159.0/build/three.js"
+    },
+    {
+      "file": "inputs/lodash@4.17.21/lodash.js"
+    },
+    {
+      "file": "inputs/react-dom@18.3.1/umd/react-dom.development.js"
+    },
+    {
+      "file": "inputs/rxjs@7.8.2/dist/bundles/rxjs.umd.js"
+    },
+    {
+      "file": "corpus/d3@7.9.0/package/dist/d3.js"
+    },
+    {
+      "file": "corpus/moment@2.31.0/package/min/moment-with-locales.js"
+    },
+    {
+      "file": "corpus/vue@2.7.16/package/dist/vue.js"
+    },
+    {
+      "file": "corpus/jquery@3.7.1/package/dist/jquery.js"
+    },
+    {
+      "file": "corpus/handlebars@4.7.10/package/dist/handlebars.js"
+    },
+    {
+      "file": "corpus/immutable@5.1.9/package/dist/immutable.js"
+    },
+    {
+      "file": "corpus/underscore@1.13.8/package/underscore-umd.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ],
+  "warm_warmup": 1
+}
