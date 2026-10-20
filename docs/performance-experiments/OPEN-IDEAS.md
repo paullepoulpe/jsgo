@@ -1,16 +1,35 @@
 # Open performance ideas
 
+After the five-variant screen, main advanced to `bb521c0f`. The weights below
+belong to frozen `5de6e335`, not to a fresh profile of that new main. Main now
+implements private small-variable staging, independent lazy scope arenas and
+another concrete scope-free walker. Refresh attribution and adapt diagnostic
+hooks before pursuing those older proposals. Integrated compatibility fixes
+now pass the full normal suite and three Java CLI byte gates; fresh timing
+remains pending.
+
+A concrete isolated indexed-AST model (`0ec2cc95`) now passes nine roots
+under normal, race and package-only checkptr builds. It preserves stable
+native/foreign/copied-node identity with 56-byte handles and GC-tracked tables.
+It does not change Rhino or the CLI. Append-only node/type history, pointer
+registries, fallback snapshots, and extra getter/registration work remain
+explicit costs; the smaller header is not a compiler memory or speed result.
+
 The [current round-4 report](ROUND4.md) supersedes historical profile weights
 and source-only status below. Main `5de6e335` already fixes the large source-map
 allocation issue; current `madvise`, futex and syscall CPU samples are small.
 Explicit Java-style string hashing is under 0.5% in the current typed sample.
 Those older targets should not drive another large rewrite without new evidence.
 
-Current bounded candidates are a private Sass classifier returning a value and
-a parser-node slab cap of 102. Both have focused tests and original-candidate
-Java artifact gates, but no measured speed/RSS win yet. Actual assembly caught
-a missed-inlining problem in the first slab implementation; a separately frozen
-min/max refinement must pass its own gates before the five-variant screen.
+The five-variant Sass/slab screen on `5de6e335` is complete: 30 invocations,
+all Java artifacts matching. The refined slab-only variant takes about 1.7%
+less typed-build time against its same-binary off control; three samples per
+variant and the control's difference from stock make this an exploratory lead,
+not a selected improvement. Sass alone shows no reliable gain, and neither
+factor establishes a consistent typed RSS saving. Actual assembly caught and
+corrected a missed-inlining problem in the first slab implementation; both
+source states and failed fixture attempts remain archived. Neither factor has
+been measured on `bb521c0f`.
 
 The strongest open structural questions are AST locality and scope/variable
 arena traffic. The naive per-store metadata COW design modeled more allocation

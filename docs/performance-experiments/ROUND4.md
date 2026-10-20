@@ -1,5 +1,56 @@
 # Round 4: verified baselines and enterprise benchmark protocol
 
+The post-screen main sync is now `bb521c0f26b2fdeec9622247531174826e9fd23c`.
+The confirmed warm-JVM bundle win below belongs to frozen `5de6e335`.
+New main's first bundle N1/N2 and typed N1 CLI byte gates pass; fresh timing
+is still pending. The integrated compatibility fixes pass the full normal
+suite; their separately built CLI byte gates are next.
+
+The compatibility negative control uses unchanged `bb521c0f` production
+code, all original tests, and 17 new public-API regression roots. Fourteen
+roots reproduce the intended regressions; three positive controls pass.
+Three further isolated scope-handler subcases also reproduce their expected
+failures. All 20 dispositions match, with no fixture/compilation failures or
+OOM-counter increase. The failures cover retained scope-creator and variable-
+expert ownership, custom scope conversion and variable-filter callbacks,
+overridden removable callbacks, custom implicit-property protection, and
+redeclaration-handler visibility/comparability.
+
+The integrated fixes are frozen at `1fe9acbb7d3bee4ae4d31849c5a2882cfb3c86ff`.
+The complete normal suite passed: **29,535 PASS events / 3,820 top-level**,
+103 skipped events / 37 top-level, zero failures across 21 packages. All
+3,857 expected top-level names/statuses match; all 18 new regression roots
+pass. Every original nested test name/status event matches the completed
+5de run exactly, with 27 new passing events added. All 559 effective source
+hashes match the frozen inventory, with only corpus-path test overlays and
+no production overlay, filter, `-short`, cached result or runtime GC tuning.
+There were no pauses or OOM-counter increases. Full live-Java corpus parity
+and the unfiltered race suite remain outstanding.
+
+The separately built normal fixed CLI now passes all six stock-Java digests
+on bundle N1/N2 and typed N1, with verified 4 GiB caps and zero OOM deltas.
+Its SHA256 is `052ad6581befb4c011ba5e1d9150e0ab61451ee032ab47fc456a6577ff308df9`.
+The four compatibility fixes are retained as separate PR commits. Every one
+of the PR's 1,037 production Go sources and 559 effective test files matches
+the validated frozen source byte for byte, including the 12 corpus-path
+test overlays; no production differences are hidden by the cherry-picks.
+
+The subsequent screen retains stock main and the fixed build as separate
+variants so that compatibility costs remain visible. The byte-check clocks
+are diagnostic only, not a fresh timing comparison.
+
+An isolated indexed-AST model is frozen at
+`0ec2cc95065cc012eb949d12360a48f31d822649`. All nine focused roots pass in
+normal, race and package-only `checkptr=2` builds, with no skips or OOMs.
+The compiled layout is 56 bytes, and tests cover copied/foreign/overwritten
+identity, metadata aliases, capacity fallback and GC lifetimes. This does
+**not** change Rhino or the CLI and establishes no compiler speed/RSS gain.
+Its complete-owner ledger exposes retained native chunks, historical type
+graphs, pointer registries, fallback snapshots and unknown allocator costs.
+Owner-wide history and additional getter/registration work may erase the
+header saving; actual latest-main retained/allocation evidence is required
+before any compiler integration.
+
 Investigation resumed on 2026-10-20 from main
 `2262bb6a8a9d24ee34fdb52bd30c49269e4b5373`. At 08:25 UTC, remote main
 had advanced to `289058def0873f349f80e49e6777afe3091e18a9`: five
@@ -581,3 +632,23 @@ frozen sources, including the5de warm-JVM bundle win. This new main has not
 yet been measured by these experiments. A fresh-base validation and
 compatibility review precede another long warm-JVM block; the commit title's
 claimed gains are not imported as our measured results.
+
+## Sixth completed evidence cut
+
+[round4-measurement-records-v6.tar.gz](round4-measurement-records-v6.tar.gz)
+adds 288 closed records (111,835,792 source bytes), 213 content-addressed
+blobs, and five excluded rebuildable artifacts with hashes. Archive SHA256:
+`4050cfca6f4bd05fdf836dda4cbd43fbfbff833ed8fe14522abe9c6ec33f6cce`.
+Every payload hash passes verification. This cut preserves stock-main byte
+gates, all 20 stock negative/control dispositions, complete fixed normal
+inventory and raw logs, fixed CLI byte gates, independent source reviews,
+source-equivalence proof, rebuildable-cache cleanup, isolated model normal/
+race/checkptr validation, and prepared fresh benchmark/profile commands.
+Prepared commands establish no timing result.
+
+[round4-source-manifest-v6.json](round4-source-manifest-v6.json) fingerprints
+30 frozen source states in [round4-prototype-sources-v6.bundle](round4-prototype-sources-v6.bundle)
+(SHA256 `4e080067df3bd4051be09046ad4981687b4a9729102dee0344da1453024b1bd4`).
+The four compatibility corrections are now separate PR commits; experimental
+performance factors and the isolated model remain unpromoted. All earlier
+archives remain unchanged.
