@@ -1,6 +1,6 @@
 # Open performance ideas
 
-The measured integration is `62296baf` on main `e5d0987a`, with full normal
+The latest warm-JVM-measured integration is `62296baf` on main `e5d0987a`, with full normal
 and three strict Java CLI gates passing. A new generated BigQuery ADVANCED
 comparison measures 9.38% less elapsed and 72.96% less peak RSS versus warm Java 21
 (three settled JVMs, 15 alternating pairs, all bytes equal, actual 4 GiB/two CPUs).
@@ -10,7 +10,10 @@ together. [ROUND4.md](ROUND4.md) gives uncertainty and memory windows.
 
 New main `9c895b43` is integrated separately at `e225c0a0`; source review and full normal coverage pass across package runs after a disk
 guard stop. The original interrupted command remains failed. Seven added roots protect custom callbacks,
-creator ordering and stable names. Current CPU/allocation profiles and full
+creator ordering and stable names. Its four-pair Go-only screen versus 622
+reduces typed/bundle RSS by 8.15%/14.31%, with mixed small timing changes
+(1.07% lower / 1.92% higher); it establishes no new warm-JVM win.
+Current CPU/allocation profiles and full
 live-Java corpus/race coverage remain open. Historical budgets below are not
 latest-main evidence, and old Java timings cannot establish new-source wins.
 

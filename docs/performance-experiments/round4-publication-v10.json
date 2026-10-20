@@ -1,0 +1,424 @@
+{
+  "archive": "/workspace/jsgo-publish-records/docs/performance-experiments/round4-measurement-records-v10.tar.gz",
+  "sha256": "d6d1855acd50d2390305a009c9bc6e5e5b64828d8e63da03a15c29bdbf889e4e",
+  "files": 2173,
+  "excluded_files": 4,
+  "unique_blobs": 987,
+  "source_bytes": 741972601,
+  "blob_bytes": 184946464,
+  "verification": {
+    "archive": "/workspace/jsgo-publish-records/docs/performance-experiments/round4-measurement-records-v10.tar.gz",
+    "archive_sha256": "d6d1855acd50d2390305a009c9bc6e5e5b64828d8e63da03a15c29bdbf889e4e",
+    "files": 2173,
+    "excluded_files": 4,
+    "unique_blobs": 987,
+    "source_bytes": 741972601,
+    "blob_bytes": 184946464
+  },
+  "previous_versions_unchanged": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "source_snapshots": 86,
+  "round8_normal_at_cut": {
+    "status": "PASS",
+    "source": "3a9966047d96e14f6fc034ede9b33ccbe332c75b",
+    "path": "main-f1c0cd2e-sync-v1/benchmark-preparation-v1/normal-v4/main-f1-integrated-normal-inventory-and-stopped-proof.json",
+    "stdout_path": "main-f1c0cd2e-sync-v1/benchmark-preparation-v1/normal-v4/main-f1-integrated-normal.stdout",
+    "normal_only_not_controls_or_Java": true
+  },
+  "round9_runtime_validation_complete": true,
+  "round9_validation_at_cut": {
+    "normal": {
+      "status": "PASS",
+      "source": "62296bafbb5ad78f8927eef41689cb5a718165e3",
+      "path": "main-e5d0987a-sync-v1/benchmark-preparation-v2/normal-v2/main-e5-integrated-normal-inventory-and-stopped-proof.json",
+      "stdout_path": "main-e5d0987a-sync-v1/benchmark-preparation-v2/normal-v2/main-e5-integrated-normal.stdout",
+      "normal_only_not_controls_or_Java": true
+    },
+    "cli": {
+      "status": "PASS",
+      "source": "62296bafbb5ad78f8927eef41689cb5a718165e3",
+      "path": "main-e5d0987a-sync-v1/benchmark-preparation-v2/cli-integrated-v2/validation-summary.json"
+    },
+    "go_only_screen": {
+      "status": "PASS",
+      "source": "62296bafbb5ad78f8927eef41689cb5a718165e3",
+      "path": "main-e5d0987a-sync-v1/benchmark-preparation-v2/go-screen-v2/screen-summary.json",
+      "root_reviewed_completed_screen_receipts_and_rows": true
+    }
+  },
+  "fresh_java_comparison_at_cut": {
+    "status": "PASS",
+    "source": "62296bafbb5ad78f8927eef41689cb5a718165e3",
+    "speed_claim": true,
+    "reason": "Actualreviewedsource622 BigQueryADVANCED/N1/JDK21 only:3restartedsettledJVMcohorts/15alternatingpairs,14individualGoelapsedwins/all3cohortmedianwins; timeCI lower>1. No broadworkload/neweste225 claim.",
+    "completed_summary_path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+    "root_reviewed": {
+      "strict_bytes_every_warmup_and_measurement": true,
+      "all_three_cohorts_settled": true,
+      "actual_4GiB_swap0_CPU2": true,
+      "default_GC_same_compiler_work": true,
+      "exact_source_PGO_binary_proofs": true,
+      "fifteen_rows_each_runtime_from_paired_rows": true,
+      "memory_ratio_and_per_cohort_variance_published": true
+    },
+    "proof_references": {
+      "status": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/status"
+      },
+      "source": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/source"
+      },
+      "independent_JVM_cohorts": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/independent_jvm_cohorts"
+      },
+      "measured_pairs": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/pairs_total"
+      },
+      "measured_Java_requests": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/pairs_total"
+      },
+      "measured_Go_processes": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/pairs_total"
+      },
+      "Java_over_Go_time_ratio": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/java_over_go_time"
+      },
+      "Java_over_Go_RSS_ratio": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/java_over_go_rss"
+      },
+      "elapsed_variance": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/cohorts"
+      },
+      "RSS_variance": {
+        "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/reviewed-final/summary.json",
+        "pointer": "/cohorts"
+      }
+    },
+    "fill_policy": "For PASS root pins the actual review_completed.py summary in closed_receipt_checks, then supplies {path,pointer} references whose actual values also occur in that receipt required_values. All references use same completed summary source622. Measured Java/Go refs may use its pairs_total only after root verifies one row each runtime per accepted pair. Variance refs may point at its published percohort statistics. Speedclaim optional; true additionally requires actual pinned time-ratio ci95_low>1. Retain all rawpairs/warmups/variance/memory ratios; remove stale pending entry only after actual review.",
+    "historical_rejected_v2": {
+      "status": "REJECTED",
+      "source": "62296bafbb5ad78f8927eef41689cb5a718165e3",
+      "path": "main-e5d0987a-sync-v1/fresh-java-preparation-v2/launch/result.json",
+      "sha256": "0d591b0ad7999fcc37ef906d8ee91e131465f742559dc5da6a1cf9c8575ceb06",
+      "Java_warmup_requests": 30,
+      "admitted_measured_pairs": 0,
+      "zero_new_OOM_stopped": true,
+      "failure": {
+        "type": "RuntimeError",
+        "message": "warm target did not settle by30 requests; reject performance admission"
+      }
+    },
+    "root_independent_review_path": "main-e5d0987a-sync-v1/fresh-java-preparation-v3/root-independent-review.json",
+    "root_independent_review_sha256": "fdb3226c3a4bbbbd481f76a87fed21edbf88375440701595caa603dfb9533646",
+    "individual_elapsed_wins": 14,
+    "individual_elapsed_pairs": 15,
+    "all_three_cohort_medians_favor_Go": true,
+    "claim_scope": "Only frozen622 on generatedBigQueryADVANCED/N1/JDK21 atactual4GiB2CPU/defaultGC; allstreams/artifacts byteidentical and freshcompiler/externparse eachJavarequest. LatestRound10e225/unfilteredliveJava remain separate."
+  },
+  "latest_source_status_at_cut": {
+    "status": "PASS",
+    "source": "e225c0a03174de7e906ffc057713b963bdae3245",
+    "tree": "21d1790d667de9cf0e7012ad9ede3b326f8a5121",
+    "origin_main": "9c895b43dae4f8904606ccd4586ef58f74d4c8e7",
+    "pgo_sha256": "ac64b9d382f865d1497c8c5f186841fa6f63318bf52edf51b9931311d571b983",
+    "reason": "Actual e225 segmented normal PASS retains original FAILED/-15 attempt and combines nine completed packages plus twelve new successful package commands; full single-command PASS=false. CLI PASS3x6 gates/binary9448c93e and16-row Go-only screen PASS are independently pinned, stopped/zeroOOM. Latest screen timing mixed; no622 warm-JVM result transferred.",
+    "normal_proof_path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+    "normal_proof_references": {
+      "status": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/status"
+      },
+      "source": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/source"
+      },
+      "tree": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/tree"
+      },
+      "effective_test_files": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/effective_test_source_files"
+      },
+      "top_roots": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/actual_top_roots"
+      },
+      "top_counts": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/top_counts"
+      },
+      "packages": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/packages"
+      },
+      "new_roots_since622": {
+        "path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/main-r10-integrated-normal-inventory-and-stopped-proof.json",
+        "pointer": "/new_roots_since622_all_pass"
+      }
+    },
+    "root_reviewed_preserved_source_inventory_nested_stopped_zeroOOM": true,
+    "warm_JVM_speed_or_full_Java_parity_claim": false,
+    "validation_mode": "PACKAGE_SEGMENTED_AFTER_DISK_GUARD",
+    "normal_FULL_SINGLE_COMMAND_PASS": false,
+    "root_review_path": "main-9c895b43-sync-v1/benchmark-preparation-v1/normal-v2/root-independent-normal-review.json",
+    "go_only_screen_at_cut": {
+      "status": "PASS",
+      "source": "e225c0a03174de7e906ffc057713b963bdae3245",
+      "tree": "21d1790d667de9cf0e7012ad9ede3b326f8a5121",
+      "summary_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/go-screen-v2/screen-summary.json",
+      "summary_sha256": "ad3dcd02ad30128b43b2e82a4c0fa7fee0d24563b251446808a014ed3ce7f5c7",
+      "root_review_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/go-screen-v2/root-independent-screen-review.json",
+      "root_review_sha256": "ccf627a159d03056e2ab74e62153ea8e1acb08e6612700d6ae5b6d954da41c3c",
+      "stopped_proof_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/go-screen-v2/stopped-process-proof.json",
+      "stopped_proof_sha256": "4f7ab7050f0a64a3febc7b038bac317576476ebb6bbb2361b51b1fdc7cfc9cee",
+      "rows": 16,
+      "balanced_pairs_per_task": 4,
+      "strict_digest_count_each_row": 6,
+      "Java_timing_rows": 0,
+      "confidence_intervals": null,
+      "ratio_direction": "e225/622; <1 means lower elapsed/RSS",
+      "statistics": "four same-round paired ratios/task; mean/median/min/max/sampleSD/variance; no CI or Java parity claim",
+      "tasks": {
+        "typed-n1": {
+          "candidate_over_baseline": {
+            "elapsed_ratio": {
+              "raw": [
+                0.9803816695407095,
+                0.9787856878842496,
+                0.986223319587121,
+                1.0117963493005757
+              ],
+              "mean": 0.989296756578164,
+              "median": 0.9833024945639153,
+              "min": 0.9787856878842496,
+              "max": 1.0117963493005757,
+              "sample_stdev": 0.015336655758735792,
+              "sample_variance": 0.00023521300986196374
+            },
+            "rss_ratio": {
+              "raw": [
+                0.9206339206339207,
+                0.9428296077589163,
+                0.8911084445880852,
+                0.9192557949670794
+              ],
+              "mean": 0.9184569419870005,
+              "median": 0.9199448578005001,
+              "min": 0.8911084445880852,
+              "max": 0.9428296077589163,
+              "sample_stdev": 0.021192329971956986,
+              "sample_variance": 0.0004491148496403065
+            }
+          },
+          "absolute": {
+            "verified-62296baf": {
+              "elapsed_seconds": {
+                "raw": [
+                  27.898828605,
+                  28.115385441,
+                  27.930265018,
+                  27.707107061
+                ],
+                "mean": 27.91289653125,
+                "median": 27.9145468115,
+                "min": 27.707107061,
+                "max": 28.115385441,
+                "sample_stdev": 0.16718316852929166,
+                "sample_variance": 0.02795021183949354
+              },
+              "peak_rss_mib": {
+                "raw": [
+                  1116.0703125,
+                  1082.22265625,
+                  1136.12890625,
+                  1110.03515625
+                ],
+                "mean": 1111.1142578125,
+                "median": 1113.052734375,
+                "min": 1082.22265625,
+                "max": 1136.12890625,
+                "sample_stdev": 22.257464781848316,
+                "sample_variance": 495.3947385152181
+              }
+            },
+            "repaired-round10-e225c0a0": {
+              "elapsed_seconds": {
+                "raw": [
+                  27.351500166,
+                  27.518936879,
+                  27.545478683,
+                  28.033949774
+                ],
+                "mean": 27.6124663755,
+                "median": 27.532207781,
+                "min": 27.351500166,
+                "max": 28.033949774,
+                "sample_stdev": 0.2938178207517514,
+                "sample_variance": 0.08632891179130832
+              },
+              "peak_rss_mib": {
+                "raw": [
+                  1027.4921875,
+                  1020.3515625,
+                  1012.4140625,
+                  1020.40625
+                ],
+                "mean": 1020.166015625,
+                "median": 1020.37890625,
+                "min": 1012.4140625,
+                "max": 1027.4921875,
+                "sample_stdev": 6.160565769256159,
+                "sample_variance": 37.95257059733073
+              }
+            }
+          }
+        },
+        "bundle-n1": {
+          "candidate_over_baseline": {
+            "elapsed_ratio": {
+              "raw": [
+                1.0278654175604822,
+                1.00697280712763,
+                0.995895966385775,
+                1.045899040240978
+              ],
+              "mean": 1.0191583078287163,
+              "median": 1.0174191123440561,
+              "min": 0.995895966385775,
+              "max": 1.045899040240978,
+              "sample_stdev": 0.02221488604944406,
+              "sample_variance": 0.0004935011621897843
+            },
+            "rss_ratio": {
+              "raw": [
+                0.8892282886191607,
+                0.8129147323419099,
+                0.9024388048145914,
+                0.8228648974126233
+              ],
+              "mean": 0.8568616807970713,
+              "median": 0.856046593015892,
+              "min": 0.8129147323419099,
+              "max": 0.9024388048145914,
+              "sample_stdev": 0.04550453125652081,
+              "sample_variance": 0.0020706623648756796
+            }
+          },
+          "absolute": {
+            "verified-62296baf": {
+              "elapsed_seconds": {
+                "raw": [
+                  7.502839803,
+                  7.514403746,
+                  7.523635258,
+                  7.470031578
+                ],
+                "mean": 7.50272759625,
+                "median": 7.5086217745,
+                "min": 7.470031578,
+                "max": 7.523635258,
+                "sample_stdev": 0.023398753475316305,
+                "sample_variance": 0.0005475016641986268
+              },
+              "peak_rss_mib": {
+                "raw": [
+                  436.07421875,
+                  446.80078125,
+                  433.90234375,
+                  434.65234375
+                ],
+                "mean": 437.857421875,
+                "median": 435.36328125,
+                "min": 433.90234375,
+                "max": 446.80078125,
+                "sample_stdev": 6.029888309015825,
+                "sample_variance": 36.35955301920573
+              }
+            },
+            "repaired-round10-e225c0a0": {
+              "elapsed_seconds": {
+                "raw": [
+                  7.711909567,
+                  7.566800234,
+                  7.492758006,
+                  7.812898858
+                ],
+                "mean": 7.646091666249999,
+                "median": 7.6393549005,
+                "min": 7.492758006,
+                "max": 7.812898858,
+                "sample_stdev": 0.14370685192731406,
+                "sample_variance": 0.020651659290858965
+              },
+              "peak_rss_mib": {
+                "raw": [
+                  387.76953125,
+                  363.2109375,
+                  391.5703125,
+                  357.66015625
+                ],
+                "mean": 375.052734375,
+                "median": 375.490234375,
+                "min": 357.66015625,
+                "max": 391.5703125,
+                "sample_stdev": 17.10046039281279,
+                "sample_variance": 292.4257456461589
+              }
+            }
+          }
+        }
+      },
+      "warm_JVM_speed_or_full_Java_parity_claim": false,
+      "interpretation": "Mixed elapsed results; lower sampled peak RSS on both tasks. Four pairs/task, no CI. Delivered code plus shipped PGO together, not attribution to a pure code change or fresh Java performance."
+    },
+    "cli_at_cut": {
+      "status": "PASS",
+      "summary_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/cli-integrated-v2/validation-summary.json",
+      "summary_sha256": "9e9cf03d24a43927f4e8580c3b9fcf96cbda74eab61d4846e050f0f237dbc95a",
+      "source": "e225c0a03174de7e906ffc057713b963bdae3245",
+      "tree": "21d1790d667de9cf0e7012ad9ede3b326f8a5121",
+      "pgo_sha256": "ac64b9d382f865d1497c8c5f186841fa6f63318bf52edf51b9931311d571b983",
+      "binary_sha256": "9448c93ee68005aebb19b9d743cc781dd27bf6acc7bc95279422fe32f30d875f",
+      "gates": {
+        "bundle-n1": {
+          "status": "MATCH",
+          "digest_count": 6
+        },
+        "bundle-n2": {
+          "status": "MATCH",
+          "digest_count": 6
+        },
+        "typed-n1": {
+          "status": "MATCH",
+          "digest_count": 6
+        }
+      },
+      "stopped_proof_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/cli-integrated-v2/stopped-process-proof.json",
+      "build_proof_path": "main-9c895b43-sync-v1/benchmark-preparation-v2/cli-integrated-v2/steps/cli-build/result.json",
+      "performance_claim": false,
+      "root_reported_check_results_PASS": true
+    }
+  },
+  "experimental_promotion": false,
+  "fresh_Java_timing_rows": 15,
+  "new_main_warm_jvm_speed_claim": true
+}

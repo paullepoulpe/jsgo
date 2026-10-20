@@ -19,10 +19,17 @@ warm-JVM result at `1fe9acbb` remains 9.74% less time / 53.43% less RSS.
 Latest main `9c895b43` is integrated at `e225c0a0`, source-reviewed with seven
 new regressions. All 3,915 normal tests are accounted for across package runs
 (3,878 PASS, 37 existing SKIP); the initial disk-guard stop remains explicit.
-All three CLI byte checks also pass. Its performance is not
-established by the 622 receipts. The bare Node64 factor regresses typed/bundle time
+All three CLI byte checks also pass. A new four-pair Go-only screen versus
+`62296baf` shows 8.15%/14.31% less typed/bundle RSS, with mixed time changes
+(1.07% lower / 1.92% higher). This establishes no fresh warm-JVM result. The bare Node64 factor regresses typed/bundle time
 by 5.3%/8.1% and is not promoted. Full external-Java corpus and compiler-wide
 race coverage remain open. Failed, rejected and unrun states remain documented.
+
+The latest [v10 publication receipt](round4-publication-v10.json),
+[measurement archive](round4-measurement-records-v10.tar.gz), and
+[86-state source manifest](round4-source-manifest-v10.json) preserve the raw
+evidence and source. PR merge `f7f4f1f1` contains the tested latest-main compiler
+and compatibility fixes; rejected compact-AST designs remain archived.
 
 The sections below preserve the completed October19 investigation and its
 original cohorts. Their statements about final workload results and paused work

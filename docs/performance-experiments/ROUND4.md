@@ -1,6 +1,6 @@
 # Round 4: verified baselines and enterprise benchmark protocol
 
-The latest **measured** integration is `62296baf`, based on main `e5d0987a`.
+The latest **warm-JVM-measured** integration is `62296baf`, based on main `e5d0987a`.
 It passes the full normal suite: **583 effective files, 3,908 top-level tests =
 3,871 PASS + 37 existing SKIP, 21 packages**, including all 51 added regression
 roots. Three ordinary CLI gates match all six Java digests. Full external-Java
@@ -9,8 +9,8 @@ corpus parity and compiler-wide race coverage remain outstanding.
 New main `9c895b43` is integrated separately at `e225c0a0`, with callback,
 variable-key and scope/CFG compatibility corrections. Source review and normal validation pass: **587 effective files, 3,915 roots
 = 3,878 PASS + 37 existing SKIP, 21 packages**, including seven new roots. Its
-three ordinary CLI gates also match all six Java digests. Its new code/PGO is
-not the source measured by the following results.
+three ordinary CLI gates also match all six Java digests. Its separate Go-only
+screen is below; the following warm-JVM result measures the previous source.
 
 ### Completed generated-code warm-JVM comparison
 
@@ -74,6 +74,27 @@ The earlier typed warm-JVM comparison at `1fe9acbb` remains separately named:
 new source or multiplied by subsequent Go-only improvements. The bare 64-byte
 node factor below regressed and stays out of the compiler tree. Full successful,
 failed, rejected, superseded and unrun experiment records are retained.
+
+### Completed latest-main e225 versus 622 Go-only screen
+
+Four balanced pairs per task compare `e225c0a0`/PGO `ac64b9d3` with the
+verified `62296baf`/PGO `db143e88` binary. All 16 fresh CLI rows match all six
+Java digests under actual 4 GiB/swap-zero/two-CPU limits and default Go runtime
+settings. Independent review also rehashes the retained output artifacts;
+there is no new OOM and no compiler/container left running.
+
+| Workload | Mean paired latest/622 elapsed ratio ± sample SD | Mean paired latest/622 RSS ratio ± sample SD |
+| --- | ---: | ---: |
+| Typed N1 | 0.989297 ± 0.015337 | 0.918457 ± 0.021192 |
+| Bundle N1 | 1.019158 ± 0.022215 | 0.856862 ± 0.045505 |
+
+Latest main uses **8.15% less typed RSS and 14.31% less bundle RSS** in this
+screen. Typed time is 1.07% lower; bundle time is 1.92% higher. These mixed
+small timing differences do not establish a speed gain. Four pairs are a
+screen, with raw variance and no confidence interval. This compares delivered
+code plus PGO, not either alone, and contains **zero new Java timing rows**.
+The generated BigQuery warm-JVM result above remains attributed to `62296baf`.
+The new diagnostic-profile preparation is source-only and has not been run.
 
 ### Measured compact-node experiment
 
@@ -155,7 +176,16 @@ remaining packages ran unfiltered with the same flags/source/overlay/runtime.
 The aggregate verifies every expected root and original nested status. It is
 explicitly PACKAGE_SEGMENTED_AFTER_DISK_GUARD, not a passing original command.
 The interrupted command remains FAILED/-15 with its raw output and stop proof.
-Its new PGO is `ac64b9d3`; the `62296baf` performance result does not validate it.
+Its new PGO is `ac64b9d3`; the `62296baf` warm-JVM result does not validate it.
+
+PR merge `f7f4f1f1` contains main `9c895b43` and the tested `e225c0a0`
+corrections. Git-blob verification checks all 1,039 production Go files, module
+files, PGO and embedded compiler assets against that source. Twelve explicit
+test-only portability changes (eleven replacements and one helper addition)
+materialize the exact 587 effective test files used by the normal run; the raw
+e225 commit has 586 tracked test files. All 24 tools Go files and the existing
+48 additional benchmark runners/fixtures are preserved. This transfers source
+validation, not an unbuilt PR binary hash. Rejected AST designs stay archived.
 
 Current profiles, full live-Java corpus/race coverage and many-chunk warm-JVM
 measurements remain pending. The generated BigQuery timing above is complete.
@@ -1225,3 +1255,32 @@ local gzip archives outside the published cut, with original/archive hashes,
 metadata and exact restore instructions. These1.37GB payloads are not Git
 artifacts; logs, source prototypes and ordinary measurement records remain
 published. Current verified C1/Node/new-main gate binaries were not removed.
+
+
+## Tenth closed evidence checkpoint
+
+[round4-measurement-records-v10.tar.gz](round4-measurement-records-v10.tar.gz)
+adds **2,173 new/changed closed records**, 987 unique blobs (184,946,464 bytes),
+and four excluded rebuildable binary artifacts with hashes. The 16,912,684-byte
+archive SHA256 is
+`d6d1855acd50d2390305a009c9bc6e5e5b64828d8e63da03a15c29bdbf889e4e`.
+The standard streaming verifier checks every payload; cuts 1–9 remain unchanged.
+[The publication receipt](round4-publication-v10.json) records the admission,
+strict validation and source-specific claims.
+
+This cut includes the actual generated BigQuery v3 warm-JVM win and rejected
+v2 warmup attempt, both completed Go-only screens, latest-main normal and CLI
+coverage, raw failed/OOM/disk-guard attempts, separate segmented completion,
+source-equivalence proof for PR merge `f7f4f1f1`, and remaining unrun designs and
+benchmark/profile preparations. No active result prefix is included. Storage
+recovery records retain hashes and restoration information without publishing
+rebuildable executable payloads.
+
+[round4-source-manifest-v10.json](round4-source-manifest-v10.json) preserves
+all 80 v9 states and appends six (86 total), including separate scope fixes and
+latest-main `e225c0a0`. Its SHA256 is
+`a4e189d34105e43cb8d4e7f2938d70dba1004b5defdda7ab1d6209696cdb81a3`.
+The [source bundle](round4-prototype-sources-v10.bundle) SHA256 is
+`2bbed60c5deec1b304e67b7d8e35d85dcd270cf34e373f9e357caabbdfcb16b3`.
+Rejected compact-AST prototypes remain archived; the PR compiler contains the
+validated latest-main integration and compatibility corrections.
