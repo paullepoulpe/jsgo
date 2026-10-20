@@ -35,8 +35,24 @@ type SyntacticScopeCreator struct {
 	lastInputId                   *rhino.InputId
 	lastInput                     *CompilerInput
 	arena                         *scopeArena
+	arenaEscaped                  bool
 }
 
+// Publication through NodeTraversal.GetScopeCreator also covers scopes that
+// will be allocated after publication or a later release of this creator.
+func (c *SyntacticScopeCreator) markArenaEscaped() {
+	if c == nil {
+		return
+	}
+	c.arenaEscaped = true
+	if c.arena != nil {
+		c.arena.escaped = true
+	}
+}
+
+// ReleaseArena recycles private scratch storage after its scopes, vars, and
+// views are no longer in use. Storage published to custom callbacks or through
+// a traversal creator remains valid and is reclaimed normally by the GC.
 func (c *SyntacticScopeCreator) ReleaseArena() {
 	if c == nil {
 		return
@@ -109,6 +125,9 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 		scope = newScopeInArena(n, c.arena)
 	} else {
 		scope = newScopeWithParentInArena(parent, n, c.arena)
+	}
+	if c.arenaEscaped {
+		scope.markArenaEscaped()
 	}
 	// Go-only: performance — the scanner, which nothing keeps, is a local
 	// variable rather than a heap object (one per scope created).
@@ -595,8 +614,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		// The exported default handler can be replaced with arbitrary callbacks,
 		// including noncomparable values. Only the exact stock handler type is
 		// known not to inspect or mutate the scope (its nil receiver is safe too).
-		if _, stockDefault := s.redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stockDefault && !sc.varsInitialized && s.smallLen > 0 {
-			s.flushSmallVarsForMore()
+		if _, stockDefault := s.redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stockDefault {
+			// The public handler may retain the scope, its parents, vars, or
+			// views, reenter, or panic. Protect their backing storage first.
+			sc.markArenaEscaped()
+			if !sc.varsInitialized && s.smallLen > 0 {
+				s.flushSmallVarsForMore()
+			}
 		}
 		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
 	} else {
