@@ -22,6 +22,8 @@ func TestOptimizeCallsPrivateParametersRestoresBorrowedScope(t *testing.T) {
 	for _, shouldPanic := range []bool{false, true} {
 		t.Run(map[bool]string{false: "return", true: "panic"}[shouldPanic], func(t *testing.T) {
 			fixture := newSyntacticScopeCreatorTest(t)
+			// Indexed pass logging requires the same BeforePass setup as CompilerTestCase.
+			fixture.compiler.BeforePass(t.Name())
 			var compiler AbstractCompiler = fixture.compiler
 			if shouldPanic {
 				compiler = &optimizeCallsPrivateClosePanicCompiler{fixture.compiler}
