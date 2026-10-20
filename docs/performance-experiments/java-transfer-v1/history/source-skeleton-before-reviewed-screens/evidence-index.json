@@ -1,0 +1,298 @@
+{
+  "status": "DRAFT_REPORT_NO_BENCHMARK_RESULT_ADMITTED",
+  "root": "/workspace/jsgo-java-experiments/transfer-v1",
+  "hashes_newly_computed_for_report": "Only small original/new patch payloads; no archive/class/binary/source-tree hashes",
+  "factors": {
+    "fsiv-lazy": {
+      "review": "variants/fsiv-lazy/REVIEW.md",
+      "manifest": "variants/fsiv-lazy/source-manifest.json"
+    },
+    "namespace-lazy": {
+      "review": "variants/namespace-lazy/review-and-test-plan.json",
+      "manifest": "variants/namespace-lazy/source-freeze.json"
+    },
+    "coalesce-bitset": {
+      "review": "variants/coalesce-bitset/review-notes.json",
+      "manifest": "variants/coalesce-bitset/source-freeze.json"
+    },
+    "color-cache": {
+      "review": "variants/color-cache/review.json",
+      "manifest": "variants/color-cache/source-provenance.json"
+    },
+    "polyfill-cache": {
+      "review": "variants/polyfill-cache/review.json",
+      "manifest": "variants/polyfill-cache/source-manifest.json"
+    }
+  },
+  "build_receipts": [
+    {
+      "receipt": "build/all/build.json",
+      "variant": "all",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "fsiv-lazy",
+        "namespace-lazy",
+        "coalesce-bitset",
+        "color-cache",
+        "polyfill-cache"
+      ]
+    },
+    {
+      "receipt": "build/coalesce-bitset/build.json",
+      "variant": "coalesce-bitset",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "coalesce-bitset"
+      ]
+    },
+    {
+      "receipt": "build/color-cache/build.json",
+      "variant": "color-cache",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "color-cache"
+      ]
+    },
+    {
+      "receipt": "build/control/build.json",
+      "variant": "control",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": []
+    },
+    {
+      "receipt": "build/control-release-missing/build.json",
+      "variant": "control",
+      "status": "FAILED",
+      "exit": 2,
+      "class_count": 0,
+      "selected_factors": []
+    },
+    {
+      "receipt": "build/fsiv-lazy/build.json",
+      "variant": "fsiv-lazy",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "fsiv-lazy"
+      ]
+    },
+    {
+      "receipt": "build/namespace-lazy/build.json",
+      "variant": "namespace-lazy",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "namespace-lazy"
+      ]
+    },
+    {
+      "receipt": "build/polyfill-cache/build.json",
+      "variant": "polyfill-cache",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "polyfill-cache"
+      ]
+    }
+  ],
+  "build_manifest": "bench/build-manifest.json",
+  "methodology_source": "bench/README.md",
+  "focused_probe_receipt": "results/focused-probes-v1/results.json",
+  "focused_probe_observations": [
+    {
+      "factor": "fsiv-lazy",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "stock",
+          "exit": 0
+        },
+        {
+          "variant": "control",
+          "exit": 0
+        },
+        {
+          "variant": "fsiv-lazy",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": true
+    },
+    {
+      "factor": "color-cache",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "stock",
+          "exit": 0
+        },
+        {
+          "variant": "control",
+          "exit": 0
+        },
+        {
+          "variant": "color-cache",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    },
+    {
+      "factor": "coalesce-bitset",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "coalesce-bitset",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    },
+    {
+      "factor": "polyfill-cache",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "polyfill-cache",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    }
+  ],
+  "namespace_standalone_probe": {
+    "status": "PASS",
+    "receipt": "results/namespace-probe-v1/results.json",
+    "compile_exit": 0,
+    "byte_gate": true,
+    "runs": [
+      {
+        "variant": "stock",
+        "exit": 0
+      },
+      {
+        "variant": "control",
+        "exit": 0
+      },
+      {
+        "variant": "namespace-lazy",
+        "exit": 0
+      },
+      {
+        "variant": "all",
+        "exit": 0
+      }
+    ],
+    "extension_callback_or_error_parity_inferred": false
+  },
+  "unsuccessful_toolchain_attempts": [
+    {
+      "path": "build/control-launcher-missing",
+      "status": "PARENT_REPORTED_MISSING_JAVAC_LAUNCHER",
+      "build_receipt_present": false,
+      "exit_code": null,
+      "boundary": "Source/classes directories present; no build.json/raw exception there. No missing receipt invented."
+    },
+    {
+      "path": "build/control-release-missing",
+      "status": "FAILED",
+      "exit_code": 2,
+      "receipt": "build/control-release-missing/build.json",
+      "stderr": "build/control-release-missing/stderr",
+      "observed_error": "release version 21 not supported",
+      "parent_diagnosis": "ct.sym missing; successful retry uses Java21 jdk.compiler module with source/target21"
+    }
+  ],
+  "benchmark_results": {
+    "status": "PENDING_ROOT_REVIEW",
+    "timing_values": null,
+    "memory_values": null,
+    "allocation_values": null,
+    "active_or_unreviewed_result_trees_read": false
+  },
+  "publication": {
+    "status": "NOT_PERFORMED",
+    "publish_worktree_changed": false,
+    "archives_created": false,
+    "network_actions": false
+  },
+  "rejected_benchmark_attempts": [
+    {
+      "path": "results/screen-bigquery-stock-control-v1",
+      "status": "REJECTED no acceptedperformanceclaim",
+      "type": "AssertionError",
+      "reason": "outer memory pressure guard",
+      "failure_receipt": "results/screen-bigquery-stock-control-v1/failure.json",
+      "stopped_receipt": "results/screen-bigquery-stock-control-v1/stopped-proof.json",
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cleanup_errors": [],
+      "remaining_owned_containers": [],
+      "active_compilers": [],
+      "remaining_owned_driver_processes": [],
+      "performance_claim": false
+    }
+  ],
+  "pressure_recovery_before_retry": {
+    "receipt": "results/cache-reclaim-before-screen-v1.json",
+    "method": "posix_fadvise POSIX_FADV_DONTNEED on ordinary non-symlink workspace files before any accepted timed cohort; no content modifications",
+    "files": 23289,
+    "logical_bytes": 24460575574,
+    "errors": [],
+    "memory_current_before_bytes": 6426492928,
+    "memory_current_after_bytes": 4449914880,
+    "memory_events_unchanged": true,
+    "content_modified": false,
+    "retry_path": "results/screen-bigquery-stock-control-v2",
+    "retry_timing_results_read_or_admitted": false
+  },
+  "upstream_patches": {
+    "manifest": "patches/manifest.json",
+    "individual_factors": [
+      "fsiv-lazy",
+      "namespace-lazy",
+      "coalesce-bitset",
+      "color-cache",
+      "polyfill-cache"
+    ],
+    "combined": "patches/all.patch",
+    "source_files": 9,
+    "unshaded": true,
+    "original_patches_unchanged": true,
+    "actual_upstream_apply_build_run": false
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "status": "UPSTREAM_HEADER_NORMALIZED_SOURCE_PATCHES_APPLY_VERIFIED",
+  "baseline": "Closure Compiler v20261015 exact extracted unshaded Java sources",
+  "headers": "a/src/com/google/... and b/src/com/google/... for upstream repository root",
+  "patches": {
+    "fsiv-lazy": {
+      "path": "patches/fsiv-lazy.patch",
+      "sha256": "33f87197d0c23cd77826f48bb4c47ac96b244252396655fb5cd0dfa9497b1395",
+      "source_files": [
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java",
+          "candidate_source": "variants/fsiv-lazy/src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        }
+      ]
+    },
+    "namespace-lazy": {
+      "path": "patches/namespace-lazy.patch",
+      "sha256": "23ca2ac5f56d249313d12e923f97a6d36b2fb3ae7de1987284d4dd92bf3c546c",
+      "source_files": [
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/GlobalNamespace.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/GlobalNamespace.java",
+          "candidate_source": "variants/namespace-lazy/src/com/google/javascript/jscomp/GlobalNamespace.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        }
+      ]
+    },
+    "coalesce-bitset": {
+      "path": "patches/coalesce-bitset.patch",
+      "sha256": "fc96f0f519d223be045faf66c49333151414f6f288bc005e6e98ef5575bb387d",
+      "source_files": [
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/CoalesceVariableNames.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/CoalesceVariableNames.java",
+          "candidate_source": "variants/coalesce-bitset/src/com/google/javascript/jscomp/CoalesceVariableNames.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        },
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/LiveVariablesAnalysis.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/LiveVariablesAnalysis.java",
+          "candidate_source": "variants/coalesce-bitset/src/com/google/javascript/jscomp/LiveVariablesAnalysis.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        }
+      ]
+    },
+    "color-cache": {
+      "path": "patches/color-cache.patch",
+      "sha256": "4ff8bd1bddfd3e143a4f2244b650a3f9671df2c193aea2468ecfe584a53753c0",
+      "source_files": [
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java",
+          "candidate_source": "variants/color-cache/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        }
+      ]
+    },
+    "polyfill-cache": {
+      "path": "patches/polyfill-cache.patch",
+      "sha256": "841dc762788034890e6cba601f468f92ca1558f665d4c54510fedaf6acef0832",
+      "source_files": [
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/IsolatePolyfills.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/IsolatePolyfills.java",
+          "candidate_source": "variants/polyfill-cache/src/com/google/javascript/jscomp/IsolatePolyfills.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        },
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/PolyfillUsageFinder.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/PolyfillUsageFinder.java",
+          "candidate_source": "variants/polyfill-cache/src/com/google/javascript/jscomp/PolyfillUsageFinder.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        },
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/RemoveUnusedCode.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/RemoveUnusedCode.java",
+          "candidate_source": "variants/polyfill-cache/src/com/google/javascript/jscomp/RemoveUnusedCode.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        },
+        {
+          "upstream_path": "src/com/google/javascript/jscomp/RewritePolyfills.java",
+          "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/RewritePolyfills.java",
+          "candidate_source": "variants/polyfill-cache/src/com/google/javascript/jscomp/RewritePolyfills.java",
+          "unshaded": true,
+          "in_memory_hunk_reconstruction_exact": true
+        }
+      ]
+    },
+    "all": {
+      "path": "patches/all.patch",
+      "sha256": "923c0b12954aae4667707fb1d23f42c4f3a553ee3b663b488d829d2e8a119e75",
+      "factors": [
+        "fsiv-lazy",
+        "namespace-lazy",
+        "coalesce-bitset",
+        "color-cache",
+        "polyfill-cache"
+      ],
+      "production_source_files": 9,
+      "factor_paths_disjoint": true,
+      "in_memory_hunk_reconstruction_exact": true
+    }
+  },
+  "original_factor_patches_unchanged": {
+    "variants/fsiv-lazy/change.patch": "8b102cac3b62a02009e55a5d7cc0632881b69a48ba83b044744282a3c74d00b9",
+    "variants/namespace-lazy/namespace-lazy.patch": "8ff694372b2b4c15aeba998ffc69c6c989dc09986d22d87126b86f9a853e5875",
+    "variants/coalesce-bitset/coalesce-bitset.patch": "858c3b81380058d2d5952fc803174ddf1db34f2001abd58d19773cd72eb306bb",
+    "variants/color-cache/color-cache.patch": "c1f21bbec26b6814d6fdde8d83a089ecab32cf06fe9a211b521303f791606d12",
+    "variants/polyfill-cache/production.patch": "415c5a054879e8f9ba2745d94c9d0cbed71a2a2471cc156fbc2714b4774daf7b"
+  },
+  "source_or_class_trees_modified": false,
+  "actual_git_apply_check_run": true,
+  "validation": "All six patches pass git apply --check and actual apply in scratch trees of pinned originals; byte equality to each unshaded candidate. Full upstream build/tests remain unrun.",
+  "new_hashing_scope": "Only small patch payloads; no archives or class/binary/source trees hashed.",
+  "timing_values_read": false,
+  "performance_claim": false,
+  "actual_upstream_build_run": false,
+  "actual_validation_receipt": "../patch-apply-validation.json",
+  "original_preparation_manifest": "../history/before-root-final-review-v1/patches/manifest.json"
+}

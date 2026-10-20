@@ -1,0 +1,49 @@
+diff --git a/src/com/google/javascript/jscomp/GlobalNamespace.java b/src/com/google/javascript/jscomp/GlobalNamespace.java
+--- a/src/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/src/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -427,7 +427,7 @@
+         curMetadata = null;
+       }
+ 
+-      collect(t.getScope(), t.getChunk(), n);
++      collect(/* scope= */ null, /* chunk= */ null, t, n);
+ 
+       return true;
+     }
+@@ -454,6 +454,16 @@
+     }
+ 
+     private void collect(Scope scope, JSChunk chunk, Node n) {
++      collect(scope, chunk, /* traversal= */ null, n);
++    }
++
++    // Traversal callers resolve scope only for candidate names and chunk only
++    // after rejecting local names. Incremental scans retain their supplied context.
++    private void collect(
++        @Nullable Scope scope,
++        @Nullable JSChunk chunk,
++        @Nullable NodeTraversal traversal,
++        Node n) {
+       Node parent = n.getParent();
+ 
+       String name;
+@@ -600,6 +610,9 @@
+         return;
+       }
+ 
++      if (scope == null) {
++        scope = checkNotNull(traversal).getScope();
++      }
+       Node root = getRootNode(name, scope);
+       // We are only interested in global and module names.
+       if (!isTopLevelScopeRoot(root)) {
+@@ -607,6 +620,9 @@
+       }
+ 
+       ModuleMetadata nameMetadata = root == globalRoot ? null : curMetadata;
++      if (traversal != null) {
++        chunk = traversal.getChunk();
++      }
+       if (isSet) {
+         // Use the closest hoist scope to select handleSetFromGlobal or handleSetFromLocal
+         // because they use the term 'global' in an ES5, pre-block-scoping sense.

@@ -1,0 +1,1329 @@
+{
+  "status": "FINAL_RENDERED_AWAITING_ROOT_REVIEW",
+  "ratio_direction": "candidate/baseline; <1 lower cost",
+  "Java_vs_Go_claim": false,
+  "comparisons": [
+    {
+      "stage": "compilation-control",
+      "baseline": "STOCK",
+      "candidate": "CONTROL",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-stock-control-v4/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-stock-control-v4/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 1.0204666067035644,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 1.0004940367233965,
+      "allocation_candidate_over_baseline": 0.9944049755826357,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-stock-control-v4/review.json",
+      "mean_wall_ratio_sensitivity": 1.0264733296906947
+    },
+    {
+      "stage": "factor-screen",
+      "baseline": "CONTROL",
+      "candidate": "fsiv-lazy",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-fsiv-lazy-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-fsiv-lazy-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 1.0331203821346027,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.8373530481153799,
+      "allocation_candidate_over_baseline": 0.9854329236494126,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-fsiv-lazy-v1/review.json",
+      "mean_wall_ratio_sensitivity": 1.0350554318216456
+    },
+    {
+      "stage": "factor-screen",
+      "baseline": "CONTROL",
+      "candidate": "namespace-lazy",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-namespace-lazy-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-namespace-lazy-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 0.9482400327483805,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.9414526973669367,
+      "allocation_candidate_over_baseline": 0.9997582269845262,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-namespace-lazy-v1/review.json",
+      "mean_wall_ratio_sensitivity": 0.9864669318690914
+    },
+    {
+      "stage": "factor-screen",
+      "baseline": "CONTROL",
+      "candidate": "coalesce-bitset",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-coalesce-bitset-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-coalesce-bitset-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 0.9936485460026859,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.9542267185286128,
+      "allocation_candidate_over_baseline": 0.9962961511652734,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-coalesce-bitset-v1/review.json",
+      "mean_wall_ratio_sensitivity": 1.0094435310257523
+    },
+    {
+      "stage": "factor-screen",
+      "baseline": "CONTROL",
+      "candidate": "color-cache",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-color-cache-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-color-cache-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 0.9475562607922867,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.9779596635615447,
+      "allocation_candidate_over_baseline": 1.0065805416923779,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-color-cache-v1/review.json",
+      "mean_wall_ratio_sensitivity": 0.9617243024010067
+    },
+    {
+      "stage": "factor-screen",
+      "baseline": "CONTROL",
+      "candidate": "polyfill-cache",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-polyfill-cache-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-polyfill-cache-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 0.993503390650036,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.8964660068858583,
+      "allocation_candidate_over_baseline": 0.9946304850967201,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-polyfill-cache-v1/review.json",
+      "mean_wall_ratio_sensitivity": 0.9904838640005559
+    },
+    {
+      "stage": "compound-screen",
+      "baseline": "CONTROL",
+      "candidate": "ALL",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "workload": "BigQuery existing immutable ADVANCED spec",
+      "actual_summary_path": "results/screen-bigquery-control-all-v1/summary.json",
+      "actual_stopped_proof_path": "results/screen-bigquery-control-all-v1/stopped-proof.json",
+      "admitted_independent_cohorts": 1,
+      "admitted_pairs": 5,
+      "elapsed_candidate_over_baseline": 0.9740394275639087,
+      "current_RSS_candidate_over_baseline": null,
+      "lifetime_HWM_candidate_over_baseline": 0.9245254011288077,
+      "allocation_candidate_over_baseline": 0.9953882323641364,
+      "confidence_interval": null,
+      "selection_reason": null,
+      "independent_review_path": "reviews/screen-bigquery-control-all-v1/review.json",
+      "mean_wall_ratio_sensitivity": 0.995963526747487
+    }
+  ],
+  "confirmation": {
+    "status": "COMPLETE_PRESELECTED_FRESH_HOLDOUT_ANALYSIS",
+    "analysis": "results/confirmation-analysis-v1/analysis.json",
+    "browsing_copy": "confirmation-analysis.json",
+    "comparisons": {
+      "color-cache": {
+        "review_path": "/workspace/jsgo-java-experiments/transfer-v1/reviews/confirm-bigquery-stock-color-cache-v1/review.json",
+        "results": "/workspace/jsgo-java-experiments/transfer-v1/results/confirm-bigquery-stock-color-cache-v1",
+        "cohort_rows": [
+          {
+            "cohort": 1,
+            "ratios": {
+              "median_wall": 1.0265508678425144,
+              "mean_wall": 1.0254099705557795,
+              "median_CPU": 1.002020202020202,
+              "mean_CPU": 0.9967186218211647,
+              "lifetime_HWM": 1.2005074445457309,
+              "median_allocated_bytes": 0.994013272366312,
+              "mean_allocated_bytes": 0.9939636909797258
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.186277626,
+                "wall_mean_s": 4.16925966,
+                "wall_SD_s": 0.12572841628434128,
+                "wall_CV": 0.030156053241438382,
+                "CPU_median_s": 4.95,
+                "CPU_mean_s": 4.876,
+                "lifetime_HWM_MiB": 1285.546875,
+                "allocated_median_bytes": 2082470552,
+                "allocated_mean_bytes": 2082246478.4,
+                "warm_requests": 41
+              },
+              "color-cache": {
+                "wall_median_s": 4.29742693,
+                "wall_mean_s": 4.2752004251999995,
+                "wall_SD_s": 0.13884231366187225,
+                "wall_CV": 0.03247621160483418,
+                "CPU_median_s": 4.96,
+                "CPU_mean_s": 4.859999999999999,
+                "lifetime_HWM_MiB": 1543.30859375,
+                "allocated_median_bytes": 2070003368,
+                "allocated_mean_bytes": 2069677395.2,
+                "warm_requests": 41
+              }
+            }
+          },
+          {
+            "cohort": 2,
+            "ratios": {
+              "median_wall": 0.959121098430544,
+              "mean_wall": 0.9481094405712349,
+              "median_CPU": 0.99,
+              "mean_CPU": 0.9832134292565946,
+              "lifetime_HWM": 1.0682272549032212,
+              "median_allocated_bytes": 1.0008715042922718,
+              "mean_allocated_bytes": 1.0010431824834625
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.301241062,
+                "wall_mean_s": 4.391648934,
+                "wall_SD_s": 0.1907801520271909,
+                "wall_CV": 0.04344157624945321,
+                "CPU_median_s": 5.0,
+                "CPU_mean_s": 5.0040000000000004,
+                "lifetime_HWM_MiB": 1215.3203125,
+                "allocated_median_bytes": 2080375296,
+                "allocated_mean_bytes": 2080073270.4,
+                "warm_requests": 45
+              },
+              "color-cache": {
+                "wall_median_s": 4.125411052,
+                "wall_mean_s": 4.163763814,
+                "wall_SD_s": 0.17512708717774111,
+                "wall_CV": 0.04205980334160738,
+                "CPU_median_s": 4.95,
+                "CPU_mean_s": 4.92,
+                "lifetime_HWM_MiB": 1298.23828125,
+                "allocated_median_bytes": 2082188352,
+                "allocated_mean_bytes": 2082243166.4,
+                "warm_requests": 45
+              }
+            }
+          },
+          {
+            "cohort": 3,
+            "ratios": {
+              "median_wall": 1.019954879937816,
+              "mean_wall": 1.0136548131922514,
+              "median_CPU": 1.029598308668076,
+              "mean_CPU": 1.0185263157894737,
+              "lifetime_HWM": 1.0689889811495168,
+              "median_allocated_bytes": 0.9924597659956866,
+              "mean_allocated_bytes": 0.9925778072578653
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.117783332,
+                "wall_mean_s": 4.1428362588,
+                "wall_SD_s": 0.0749324507878079,
+                "wall_CV": 0.01808723447098355,
+                "CPU_median_s": 4.73,
+                "CPU_mean_s": 4.75,
+                "lifetime_HWM_MiB": 1217.01953125,
+                "allocated_median_bytes": 2091751528,
+                "allocated_mean_bytes": 2091625337.6,
+                "warm_requests": 58
+              },
+              "color-cache": {
+                "wall_median_s": 4.199953204,
+                "wall_mean_s": 4.199405914,
+                "wall_SD_s": 0.09613404837146712,
+                "wall_CV": 0.022892297229704556,
+                "CPU_median_s": 4.87,
+                "CPU_mean_s": 4.838,
+                "lifetime_HWM_MiB": 1300.98046875,
+                "allocated_median_bytes": 2075979232,
+                "allocated_mean_bytes": 2076100891.2,
+                "warm_requests": 58
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "lifetime_HWM": {
+            "candidate_over_STOCK": {
+              "raw": [
+                1.2005074445457309,
+                1.0682272549032212,
+                1.0689889811495168
+              ],
+              "count": 3,
+              "geomean": 1.1108802531153006,
+              "mean": 1.1125745601994896,
+              "median": 1.0689889811495168,
+              "min": 1.0682272549032212,
+              "max": 1.2005074445457309,
+              "sample_SD": 0.0761530640802171
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                0.8329810902408836,
+                0.9361303930506787,
+                0.9354633374468174
+              ],
+              "count": 3,
+              "geomean": 0.9001870338370377,
+              "mean": 0.9015249402461266,
+              "median": 0.9354633374468174,
+              "min": 0.8329810902408836,
+              "max": 0.9361303930506787,
+              "sample_SD": 0.059361652360346184
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 1.1108802531153006,
+              "lower": 1.0682272549032212,
+              "upper": 1.2005074445457309,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261117,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 0.9001870338370376,
+              "lower": 0.8329810902408836,
+              "upper": 0.9361303930506787
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 1.1108802531153006,
+              "lower": 0.9400948398917621,
+              "upper": 1.3126919587215233,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.06719725576553824,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 0.9001870338370376,
+              "lower": 0.7617933463795535,
+              "upper": 1.0637224645495715
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_CPU": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9967186218211647,
+                0.9832134292565946,
+                1.0185263157894737
+              ],
+              "count": 3,
+              "geomean": 0.9993805114070797,
+              "mean": 0.9994861222890776,
+              "median": 0.9967186218211647,
+              "min": 0.9832134292565946,
+              "max": 1.0185263157894737,
+              "sample_SD": 0.017818369256217666
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.003292181069959,
+                1.0170731707317073,
+                0.9818106655642828
+              ],
+              "count": 3,
+              "geomean": 1.000619872596923,
+              "mean": 1.000725339121983,
+              "median": 1.003292181069959,
+              "min": 0.9818106655642828,
+              "max": 1.0170731707317073,
+              "sample_SD": 0.01777083497925965
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9993805114070797,
+              "lower": 0.9832134292565946,
+              "upper": 1.0185263157894737,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261118,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.000619872596923,
+              "lower": 0.9818106655642828,
+              "upper": 1.0170731707317073
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9993805114070797,
+              "lower": 0.9561684899386388,
+              "upper": 1.0445454091928617,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.01779348060629522,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.000619872596923,
+              "lower": 0.9573542626286753,
+              "upper": 1.0458407807019179
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_allocated_bytes": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9939636909797258,
+                1.0010431824834625,
+                0.9925778072578653
+              ],
+              "count": 3,
+              "geomean": 0.9958546701290786,
+              "mean": 0.9958615602403512,
+              "median": 0.9939636909797258,
+              "min": 0.9925778072578653,
+              "max": 1.0010431824834625,
+              "sample_SD": 0.004540602958348015
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0060729673277344,
+                0.9989579046121921,
+                1.0074776936254897
+              ],
+              "count": 3,
+              "geomean": 1.0041625851595233,
+              "mean": 1.0041695218551387,
+              "median": 1.0060729673277344,
+              "min": 0.9989579046121921,
+              "max": 1.0074776936254897,
+              "sample_SD": 0.004567716027527881
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9958546701290786,
+              "lower": 0.9925778072578653,
+              "upper": 1.0010431824834625,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261119,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0041625851595235,
+              "lower": 0.9989579046121921,
+              "upper": 1.0074776936254897
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9958546701290786,
+              "lower": 0.9846519784790034,
+              "upper": 1.0071848182845482,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.004554125949193776,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0041625851595235,
+              "lower": 0.9928664350831008,
+              "upper": 1.0155872550469098
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_wall": {
+            "candidate_over_STOCK": {
+              "raw": [
+                1.0254099705557795,
+                0.9481094405712349,
+                1.0136548131922514
+              ],
+              "count": 3,
+              "geomean": 0.9951350691122385,
+              "mean": 0.9957247414397553,
+              "median": 1.0136548131922514,
+              "min": 0.9481094405712349,
+              "max": 1.0254099705557795,
+              "sample_SD": 0.04165283410237668
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                0.9752196962332957,
+                1.0547305587396125,
+                0.9865291290343219
+              ],
+              "count": 3,
+              "geomean": 1.004888714144203,
+              "mean": 1.00549312800241,
+              "median": 0.9865291290343219,
+              "min": 0.9752196962332957,
+              "max": 1.0547305587396125,
+              "sample_SD": 0.043014175067887093
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9951350691122385,
+              "lower": 0.9481094405712349,
+              "upper": 1.0254099705557795,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261120,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.004888714144203,
+              "lower": 0.9752196962332957,
+              "upper": 1.0547305587396125
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9951350691122385,
+              "lower": 0.8958346387255823,
+              "upper": 1.105442637478068,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.04231755524147959,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.004888714144203,
+              "lower": 0.9046150076872171,
+              "upper": 1.116277443147994
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_CPU": {
+            "candidate_over_STOCK": {
+              "raw": [
+                1.002020202020202,
+                0.99,
+                1.029598308668076
+              ],
+              "count": 3,
+              "geomean": 1.0070703990393073,
+              "mean": 1.007206170229426,
+              "median": 1.002020202020202,
+              "min": 0.99,
+              "max": 1.029598308668076,
+              "sample_SD": 0.020302147966246506
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                0.9979838709677419,
+                1.0101010101010102,
+                0.9712525667351131
+              ],
+              "count": 3,
+              "geomean": 0.9929792405316926,
+              "mean": 0.9931124826012884,
+              "median": 0.9979838709677419,
+              "min": 0.9712525667351131,
+              "max": 1.0101010101010102,
+              "sample_SD": 0.019877077412208833
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 1.0070703990393073,
+              "lower": 0.99,
+              "upper": 1.029598308668076,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261121,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 0.9929792405316926,
+              "lower": 0.9712525667351131,
+              "upper": 1.0101010101010102
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 1.0070703990393073,
+              "lower": 0.9580517541067898,
+              "upper": 1.0585970792013626,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.02008705077864542,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 0.9929792405316926,
+              "lower": 0.9446464756491015,
+              "upper": 1.0437849476433758
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_allocated_bytes": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.994013272366312,
+                1.0008715042922718,
+                0.9924597659956866
+              ],
+              "count": 3,
+              "geomean": 0.9957748178175004,
+              "mean": 0.9957815142180901,
+              "median": 0.994013272366312,
+              "min": 0.9924597659956866,
+              "max": 1.0008715042922718,
+              "sample_SD": 0.0044759741651783655
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0060227844035083,
+                0.9991292545661113,
+                1.0075975210911936
+              ],
+              "count": 3,
+              "geomean": 1.0042431100956741,
+              "mean": 1.0042498533536044,
+              "median": 1.0060227844035083,
+              "min": 0.9991292545661113,
+              "max": 1.0075975210911936,
+              "sample_SD": 0.0045039258281794805
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9957748178175004,
+              "lower": 0.9924597659956866,
+              "upper": 1.0008715042922718,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261122,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0042431100956741,
+              "lower": 0.9991292545661113,
+              "upper": 1.0075975210911936
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9957748178175004,
+              "lower": 0.9847300849938807,
+              "upper": 1.0069434283666048,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.004489915034921647,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0042431100956741,
+              "lower": 0.9931044503881733,
+              "upper": 1.015506701012607
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_wall": {
+            "candidate_over_STOCK": {
+              "raw": [
+                1.0265508678425144,
+                0.959121098430544,
+                1.019954879937816
+              ],
+              "count": 3,
+              "geomean": 1.001409313991265,
+              "mean": 1.0018756154036248,
+              "median": 1.019954879937816,
+              "min": 0.959121098430544,
+              "max": 1.0265508678425144,
+              "sample_SD": 0.037173085765252516
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                0.974135847843258,
+                1.0426212098100522,
+                0.9804355267764074
+              ],
+              "count": 3,
+              "geomean": 0.9985926693794689,
+              "mean": 0.9990641948099059,
+              "median": 0.9804355267764074,
+              "min": 0.974135847843258,
+              "max": 1.0426212098100522,
+              "sample_SD": 0.037852762851044594
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 1.001409313991265,
+              "lower": 0.959121098430544,
+              "upper": 1.0265508678425144,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261123,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 0.9985926693794689,
+              "lower": 0.974135847843258,
+              "upper": 1.0426212098100522
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 1.001409313991265,
+              "lower": 0.9123258777687,
+              "upper": 1.0991912414027774,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.03750450388217734,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 0.9985926693794689,
+              "lower": 0.9097597964152349,
+              "upper": 1.0960995674546983
+            },
+            "inference_role": "preselected primary median-wall endpoint",
+            "bonferroni_family95_log_t_candidate_over_STOCK": {
+              "geomean": 1.001409313991265,
+              "lower": 0.8755022882650035,
+              "upper": 1.1454231788882712,
+              "confidence": 0.975,
+              "df": 2,
+              "critical_t": 6.20534681657,
+              "log_cohort_SD": 0.03750450388217734,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "bonferroni_family95_log_t_STOCK_over_candidate": {
+              "geomean": 0.9985926693794689,
+              "lower": 0.8730397799096257,
+              "upper": 1.1422014692636788
+            },
+            "familywise_supported_reduction": false
+          }
+        },
+        "allocation_availability": "allthreecohorts",
+        "screen_observations_pooled": 0
+      },
+      "ALL": {
+        "review_path": "/workspace/jsgo-java-experiments/transfer-v1/reviews/confirm-bigquery-stock-all-v1/review.json",
+        "results": "/workspace/jsgo-java-experiments/transfer-v1/results/confirm-bigquery-stock-all-v1",
+        "cohort_rows": [
+          {
+            "cohort": 1,
+            "ratios": {
+              "median_wall": 0.9819304407735583,
+              "mean_wall": 0.9818025713311562,
+              "median_CPU": 0.956777996070727,
+              "mean_CPU": 0.972520908004779,
+              "lifetime_HWM": 0.9969572945857555,
+              "median_allocated_bytes": 0.9802020594711054,
+              "mean_allocated_bytes": 0.980248799320546
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.296817594,
+                "wall_mean_s": 4.2704101230000004,
+                "wall_SD_s": 0.2017229443352065,
+                "wall_CV": 0.0472373703051955,
+                "CPU_median_s": 5.09,
+                "CPU_mean_s": 5.022,
+                "lifetime_HWM_MiB": 1235.0234375,
+                "allocated_median_bytes": 2094515232,
+                "allocated_mean_bytes": 2094553372.8,
+                "warm_requests": 41
+              },
+              "ALL": {
+                "wall_median_s": 4.219175994,
+                "wall_mean_s": 4.1926996394,
+                "wall_SD_s": 0.0530178869786431,
+                "wall_CV": 0.012645286220939564,
+                "CPU_median_s": 4.87,
+                "CPU_mean_s": 4.884,
+                "lifetime_HWM_MiB": 1231.265625,
+                "allocated_median_bytes": 2053048144,
+                "allocated_mean_bytes": 2053183428.8,
+                "warm_requests": 41
+              }
+            }
+          },
+          {
+            "cohort": 2,
+            "ratios": {
+              "median_wall": 1.0382761312206144,
+              "mean_wall": 1.0087367695021743,
+              "median_CPU": 0.9978813559322034,
+              "mean_CPU": 1.0109565950273913,
+              "lifetime_HWM": 0.8277269437551695,
+              "median_allocated_bytes": 0.989922431381145,
+              "mean_allocated_bytes": 0.990025100634799
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.072717462,
+                "wall_mean_s": 4.1150007896,
+                "wall_SD_s": 0.10090764025044381,
+                "wall_CV": 0.024521900580304037,
+                "CPU_median_s": 4.72,
+                "CPU_mean_s": 4.746,
+                "lifetime_HWM_MiB": 1511.25,
+                "allocated_median_bytes": 2087460656,
+                "allocated_mean_bytes": 2087248566.4,
+                "warm_requests": 47
+              },
+              "ALL": {
+                "wall_median_s": 4.22860533,
+                "wall_mean_s": 4.150952603,
+                "wall_SD_s": 0.1533579483263646,
+                "wall_CV": 0.036945241970609076,
+                "CPU_median_s": 4.71,
+                "CPU_mean_s": 4.798,
+                "lifetime_HWM_MiB": 1250.90234375,
+                "allocated_median_bytes": 2066424128,
+                "allocated_mean_bytes": 2066428472,
+                "warm_requests": 47
+              }
+            }
+          },
+          {
+            "cohort": 3,
+            "ratios": {
+              "median_wall": 1.041879091168268,
+              "mean_wall": 1.0267136203468665,
+              "median_CPU": 1.0063025210084033,
+              "mean_CPU": 0.9995862639635913,
+              "lifetime_HWM": 0.9365546559643669,
+              "median_allocated_bytes": 0.9961022208002253,
+              "mean_allocated_bytes": 0.9960968831813698
+            },
+            "absolute": {
+              "STOCK": {
+                "wall_median_s": 4.045122668,
+                "wall_mean_s": 4.110328573,
+                "wall_SD_s": 0.11497638390029272,
+                "wall_CV": 0.027972553010859432,
+                "CPU_median_s": 4.76,
+                "CPU_mean_s": 4.834,
+                "lifetime_HWM_MiB": 1347.0625,
+                "allocated_median_bytes": 2073328320,
+                "allocated_mean_bytes": 2073353880,
+                "warm_requests": 58
+              },
+              "ALL": {
+                "wall_median_s": 4.214528729,
+                "wall_mean_s": 4.22013033,
+                "wall_SD_s": 0.12175007759052227,
+                "wall_CV": 0.028849838291729313,
+                "CPU_median_s": 4.79,
+                "CPU_mean_s": 4.832,
+                "lifetime_HWM_MiB": 1261.59765625,
+                "allocated_median_bytes": 2065246944,
+                "allocated_mean_bytes": 2065261337.6,
+                "warm_requests": 58
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "lifetime_HWM": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9969572945857555,
+                0.8277269437551695,
+                0.9365546559643669
+              ],
+              "count": 3,
+              "geomean": 0.9176961822859488,
+              "mean": 0.9204129647684307,
+              "median": 0.9365546559643669,
+              "min": 0.8277269437551695,
+              "max": 0.9969572945857555,
+              "sample_SD": 0.08576213358213246
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0030519917259935,
+                1.208127882684687,
+                1.0677433437884132
+              ],
+              "count": 3,
+              "geomean": 1.0896852567360968,
+              "mean": 1.0929744060663646,
+              "median": 1.0677433437884132,
+              "min": 1.0030519917259935,
+              "max": 1.208127882684687,
+              "sample_SD": 0.10484028396032173
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9176961822859488,
+              "lower": 0.8277269437551695,
+              "upper": 0.9969572945857555,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261217,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0896852567360968,
+              "lower": 1.0030519917259935,
+              "upper": 1.208127882684687
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9176961822859488,
+              "lower": 0.7253856109047707,
+              "upper": 1.160991161558574,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.09466584241183482,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0896852567360968,
+              "lower": 0.8613329998632796,
+              "upper": 1.37857711121772
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_CPU": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.972520908004779,
+                1.0109565950273913,
+                0.9995862639635913
+              ],
+              "count": 3,
+              "geomean": 0.9942232434192873,
+              "mean": 0.9943545889985872,
+              "median": 0.9995862639635913,
+              "min": 0.972520908004779,
+              "max": 1.0109565950273913,
+              "sample_SD": 0.019744703756441648
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0282555282555284,
+                0.989162150896207,
+                1.0004139072847682
+              ],
+              "count": 3,
+              "geomean": 1.0058103213930563,
+              "mean": 1.0059438621455012,
+              "median": 1.0004139072847682,
+              "min": 0.989162150896207,
+              "max": 1.0282555282555284,
+              "sample_SD": 0.020124818978338257
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9942232434192873,
+              "lower": 0.972520908004779,
+              "upper": 1.0109565950273913,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261218,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.005810321393056,
+              "lower": 0.989162150896207,
+              "upper": 1.0282555282555284
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9942232434192873,
+              "lower": 0.9461931618386862,
+              "upper": 1.0446913987777164,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.019932484407083666,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.005810321393056,
+              "lower": 0.9572204779038047,
+              "upper": 1.0568666529535617
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_allocated_bytes": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.980248799320546,
+                0.990025100634799,
+                0.9960968831813698
+              ],
+              "count": 3,
+              "geomean": 0.988768681343332,
+              "mean": 0.9887902610455716,
+              "median": 0.990025100634799,
+              "min": 0.980248799320546,
+              "max": 0.9960968831813698,
+              "sample_SD": 0.007995877820681637
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0201491709993875,
+                1.010075400470963,
+                1.0039184108338581
+              ],
+              "count": 3,
+              "geomean": 1.0113588940149372,
+              "mean": 1.011380994101403,
+              "median": 1.010075400470963,
+              "min": 1.0039184108338581,
+              "max": 1.0201491709993875,
+              "sample_SD": 0.008193767444443237
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.988768681343332,
+              "lower": 0.980248799320546,
+              "upper": 0.9960968831813698,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261219,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0113588940149372,
+              "lower": 1.0039184108338581,
+              "upper": 1.0201491709993875
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.988768681343332,
+              "lower": 0.9690861538117413,
+              "upper": 1.0088509688843996,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.008094114406892063,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0113588940149372,
+              "lower": 0.9912266834672447,
+              "upper": 1.0318999978140893
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "mean_wall": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9818025713311562,
+                1.0087367695021743,
+                1.0267136203468665
+              ],
+              "count": 3,
+              "geomean": 1.005581126040603,
+              "mean": 1.0057509870600656,
+              "median": 1.0087367695021743,
+              "min": 0.9818025713311562,
+              "max": 1.0267136203468665,
+              "sample_SD": 0.022603910137774533
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0185347127826028,
+                0.9913389005275519,
+                0.9739814298578784
+              ],
+              "count": 3,
+              "geomean": 0.9944498500458354,
+              "mean": 0.9946183477226777,
+              "median": 0.9913389005275519,
+              "min": 0.9739814298578784,
+              "max": 1.0185347127826028,
+              "sample_SD": 0.022456955164755706
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 1.005581126040603,
+              "lower": 0.9818025713311562,
+              "upper": 1.0267136203468665,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261220,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 0.9944498500458355,
+              "lower": 0.9739814298578784,
+              "upper": 1.0185347127826028
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 1.005581126040603,
+              "lower": 0.9508516992169832,
+              "upper": 1.0634606867525132,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.022528050490946555,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 0.9944498500458355,
+              "lower": 0.9403262503795012,
+              "upper": 1.0516887132067914
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_CPU": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.956777996070727,
+                0.9978813559322034,
+                1.0063025210084033
+              ],
+              "count": 3,
+              "geomean": 0.9867479118615834,
+              "mean": 0.9869872910037779,
+              "median": 0.9978813559322034,
+              "min": 0.956777996070727,
+              "max": 1.0063025210084033,
+              "sample_SD": 0.026498681676155024
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0451745379876796,
+                1.0021231422505308,
+                0.9937369519832986
+              ],
+              "count": 3,
+              "geomean": 1.0134300645373704,
+              "mean": 1.013678210740503,
+              "median": 1.0021231422505308,
+              "min": 0.9937369519832986,
+              "max": 1.0451745379876796,
+              "sample_SD": 0.02759702917608132
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9867479118615834,
+              "lower": 0.956777996070727,
+              "upper": 1.0063025210084033,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261221,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0134300645373704,
+              "lower": 0.9937369519832986,
+              "upper": 1.0451745379876796
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9867479118615834,
+              "lower": 0.922645256948387,
+              "upper": 1.0553042290420214,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.027039473060170176,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0134300645373704,
+              "lower": 0.9475940420591082,
+              "upper": 1.0838401785182974
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_allocated_bytes": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9802020594711054,
+                0.989922431381145,
+                0.9961022208002253
+              ],
+              "count": 3,
+              "geomean": 0.9887205514632548,
+              "mean": 0.9887422372174919,
+              "median": 0.989922431381145,
+              "min": 0.9802020594711054,
+              "max": 0.9961022208002253,
+              "sample_SD": 0.008015511603818583
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.0201978156825922,
+                1.0101801598785822,
+                1.0039130313319082
+              ],
+              "count": 3,
+              "geomean": 1.0114081259058003,
+              "mean": 1.0114303356310275,
+              "median": 1.0101801598785822,
+              "min": 1.0039130313319082,
+              "max": 1.0201978156825922,
+              "sample_SD": 0.008214058369409829
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 0.9887205514632548,
+              "lower": 0.9802020594711054,
+              "upper": 0.9961022208002253,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261222,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 1.0114081259058003,
+              "lower": 1.0039130313319082,
+              "upper": 1.0201978156825922
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 0.9887205514632548,
+              "lower": 0.9689909386673818,
+              "upper": 1.0088518786669118,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.00811407286856938,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 1.0114081259058003,
+              "lower": 0.9912257895791317,
+              "upper": 1.0320013945385949
+            },
+            "inference_role": "secondary descriptive sensitivity; no adjusted significance claim"
+          },
+          "median_wall": {
+            "candidate_over_STOCK": {
+              "raw": [
+                0.9819304407735583,
+                1.0382761312206144,
+                1.041879091168268
+              ],
+              "count": 3,
+              "geomean": 1.0203213450731439,
+              "mean": 1.020695221054147,
+              "median": 1.0382761312206144,
+              "min": 0.9819304407735583,
+              "max": 1.041879091168268,
+              "sample_SD": 0.033619584660549165
+            },
+            "STOCK_over_candidate": {
+              "raw": [
+                1.018402076640181,
+                0.9631349213666154,
+                0.9598042694941611
+              ],
+              "count": 3,
+              "geomean": 0.9800833872864954,
+              "mean": 0.9804470891669858,
+              "median": 0.9631349213666154,
+              "min": 0.9598042694941611,
+              "max": 1.018402076640181,
+              "sample_SD": 0.03291214238000421
+            },
+            "bootstrap95_candidate_over_STOCK": {
+              "geomean": 1.0203213450731439,
+              "lower": 0.9819304407735583,
+              "upper": 1.041879091168268,
+              "confidence": 0.95,
+              "resamples": 10000,
+              "seed": 20261223,
+              "unit": "whole pair-of-JVM cohort",
+              "limitation": "three-cohort discrete percentile interval confined to observed cohort range"
+            },
+            "bootstrap95_STOCK_over_candidate": {
+              "geomean": 0.9800833872864955,
+              "lower": 0.9598042694941611,
+              "upper": 1.018402076640181
+            },
+            "log_t95_candidate_over_STOCK": {
+              "geomean": 1.0203213450731439,
+              "lower": 0.9394101664202231,
+              "upper": 1.1082013846826708,
+              "confidence": 0.95,
+              "df": 2,
+              "critical_t": 4.302652729911275,
+              "log_cohort_SD": 0.033259309528188646,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "log_t95_STOCK_over_candidate": {
+              "geomean": 0.9800833872864955,
+              "lower": 0.9023630666968947,
+              "upper": 1.0644977409715124
+            },
+            "inference_role": "preselected primary median-wall endpoint",
+            "bonferroni_family95_log_t_candidate_over_STOCK": {
+              "geomean": 1.0203213450731439,
+              "lower": 0.905707265854835,
+              "upper": 1.149439434196532,
+              "confidence": 0.975,
+              "df": 2,
+              "critical_t": 6.20534681657,
+              "log_cohort_SD": 0.033259309528188646,
+              "assumption": "independent approximately normal log-cohort effects; cannot test normality withthree observations"
+            },
+            "bonferroni_family95_log_t_STOCK_over_candidate": {
+              "geomean": 0.9800833872864955,
+              "lower": 0.8699892923884316,
+              "upper": 1.1041095039203077
+            },
+            "familywise_supported_reduction": false
+          }
+        },
+        "allocation_availability": "allthreecohorts",
+        "screen_observations_pooled": 0
+      }
+    },
+    "bundle": {
+      "status": "ONE_COHORT_EXTERNAL_VALIDITY_SCREEN_NOT_CONFIRMATION",
+      "review_path": "/workspace/jsgo-java-experiments/transfer-v1/reviews/confirm-bundle-stock-all-v1/review.json",
+      "results": "/workspace/jsgo-java-experiments/transfer-v1/results/confirm-bundle-stock-all-v1",
+      "raw_cohort": {
+        "cohort": 1,
+        "ratios": {
+          "median_wall": 1.0501961039338943,
+          "mean_wall": 1.0352914407649476,
+          "median_CPU": 1.0297906602254427,
+          "mean_CPU": 1.027652733118971,
+          "lifetime_HWM": 1.0198856537724736,
+          "median_allocated_bytes": 0.982052881698985,
+          "mean_allocated_bytes": 0.9821072868373226
+        },
+        "absolute": {
+          "STOCK": {
+            "wall_median_s": 10.594292571,
+            "wall_mean_s": 10.6954262852,
+            "wall_SD_s": 0.3121224144549364,
+            "wall_CV": 0.029182793292385337,
+            "CPU_median_s": 12.42,
+            "CPU_mean_s": 12.44,
+            "lifetime_HWM_MiB": 1313.171875,
+            "allocated_median_bytes": 4743941984,
+            "allocated_mean_bytes": 4743850171.2,
+            "warm_requests": 20
+          },
+          "ALL": {
+            "wall_median_s": 11.126084782,
+            "wall_mean_s": 11.0728832884,
+            "wall_SD_s": 0.3042687513944772,
+            "wall_CV": 0.02747872830134771,
+            "CPU_median_s": 12.79,
+            "CPU_mean_s": 12.784,
+            "lifetime_HWM_MiB": 1339.28515625,
+            "allocated_median_bytes": 4658801896,
+            "allocated_mean_bytes": 4658969820.8,
+            "warm_requests": 20
+          }
+        }
+      },
+      "confidence_interval": null,
+      "pooled_into_BigQuery": false
+    },
+    "root_reviewed": false,
+    "screen_observations_pooled": 0
+  },
+  "completed_screens": "completed-screens.json"
+}

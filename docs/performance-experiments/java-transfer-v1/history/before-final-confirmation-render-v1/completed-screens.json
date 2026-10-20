@@ -1,0 +1,1539 @@
+{
+  "status": "SEVEN_REVIEWED_EXPLORATORY_ONE_COHORT_SCREENS",
+  "ratio_direction": "candidate/baseline; <1 lower cost",
+  "Java_vs_Go_claim": false,
+  "confidence_interval": null,
+  "recommendation": "bench/measurement-recommendation-v1.json",
+  "rows": [
+    {
+      "name": "screen-bigquery-stock-control-v4",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "STOCK",
+      "candidate": "CONTROL",
+      "review": "reviews/screen-bigquery-stock-control-v4/review.json",
+      "summary": "results/screen-bigquery-stock-control-v4/summary.json",
+      "stopped_proof": "results/screen-bigquery-stock-control-v4/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 82,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 1.0204666067035644,
+      "mean_wall_ratio_sensitivity": 1.0264733296906947,
+      "median_CPU_ratio": 1.01875,
+      "mean_CPU_ratio_sensitivity": 1.008695652173913,
+      "lifetime_HWM_RSS_ratio": 1.0004940367233965,
+      "allocated_bytes_median_ratio": 0.9944049755826357,
+      "same_pair_wall": {
+        "raw": [
+          1.11924989840968,
+          1.014139196278416,
+          0.978754628420823,
+          1.026000620696924,
+          1.0003079904914804
+        ],
+        "count": 5,
+        "mean": 1.0276904668594646,
+        "median": 1.014139196278416,
+        "min": 0.978754628420823,
+        "max": 1.11924989840968,
+        "sample_SD": 0.05411593646040983,
+        "sample_variance": 0.0029285345789871143,
+        "CV": 0.05265781692593059
+      },
+      "absolute": {
+        "STOCK": {
+          "wall_seconds": {
+            "raw": [
+              3.86710072,
+              4.179843029,
+              4.111975386,
+              4.089796326,
+              4.168498819
+            ],
+            "count": 5,
+            "mean": 4.083442856,
+            "median": 4.111975386,
+            "min": 3.86710072,
+            "max": 4.179843029,
+            "sample_SD": 0.1266746835940114,
+            "sample_variance": 0.0160464754636429,
+            "CV": 0.03102153943647875
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.63,
+              4.92,
+              4.8,
+              4.78,
+              5.02
+            ],
+            "count": 5,
+            "mean": 4.83,
+            "median": 4.8,
+            "min": 4.63,
+            "max": 5.02,
+            "sample_SD": 0.1479864858694873,
+            "sample_variance": 0.021899999999999965,
+            "CV": 0.03063902398954188
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              654.62109375,
+              605.8671875,
+              625.3984375,
+              665.40625,
+              592.8359375
+            ],
+            "count": 5,
+            "mean": 628.82578125,
+            "median": 625.3984375,
+            "min": 592.8359375,
+            "max": 665.40625,
+            "sample_SD": 30.974349897334406,
+            "sample_variance": 959.4103515625,
+            "CV": 0.049257442714518804
+          },
+          "final_lifetime_HWM_MiB": 1233.4609375,
+          "allocated_bytes": {
+            "raw": [
+              2091449352,
+              2091551008,
+              2091160368,
+              2091239720,
+              2091260936
+            ],
+            "count": 5,
+            "mean": 2091332276.8,
+            "median": 2091260936,
+            "min": 2091160368,
+            "max": 2091551008,
+            "sample_SD": 161832.3567745338,
+            "sample_variance": 26189711699.2,
+            "CV": 7.738242199472844e-05
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.007480291451689158,
+            "last4_JIT_time_over_wall": 0.019570571984757916,
+            "last4_max_over_min": 1.1018829149466358,
+            "stable": true
+          }
+        },
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.328252088,
+              4.23894265,
+              4.024614941,
+              4.196133569,
+              4.169782677
+            ],
+            "count": 5,
+            "mean": 4.191545185,
+            "median": 4.196133569,
+            "min": 4.024614941,
+            "max": 4.328252088,
+            "sample_SD": 0.11101313368286506,
+            "sample_variance": 0.012323915850089668,
+            "CV": 0.02648501418525566
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.89,
+              4.96,
+              4.73,
+              4.9,
+              4.88
+            ],
+            "count": 5,
+            "mean": 4.872,
+            "median": 4.89,
+            "min": 4.73,
+            "max": 4.96,
+            "sample_SD": 0.08526429498916865,
+            "sample_variance": 0.00726999999999997,
+            "CV": 0.017500881565921316
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              1147.34375,
+              611.6328125,
+              605.4609375,
+              1145.44140625,
+              678.32421875
+            ],
+            "count": 5,
+            "mean": 837.640625,
+            "median": 678.32421875,
+            "min": 605.4609375,
+            "max": 1147.34375,
+            "sample_SD": 283.2957829159851,
+            "sample_variance": 80256.50061798096,
+            "CV": 0.33820683293146764
+          },
+          "final_lifetime_HWM_MiB": 1234.0703125,
+          "allocated_bytes": {
+            "raw": [
+              2079566568,
+              2079329416,
+              2079411240,
+              2079567136,
+              2079560280
+            ],
+            "count": 5,
+            "mean": 2079486928,
+            "median": 2079560280,
+            "min": 2079329416,
+            "max": 2079567136,
+            "sample_SD": 110334.79987746387,
+            "sample_variance": 12173768064,
+            "CV": 5.3058664804198216e-05
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.0028673795434639437,
+            "last4_JIT_time_over_wall": 0.018870971084367857,
+            "last4_max_over_min": 1.0966975042338696,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-all-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "ALL",
+      "review": "reviews/screen-bigquery-control-all-v1/review.json",
+      "summary": "results/screen-bigquery-control-all-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-all-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 80,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 0.9740394275639087,
+      "mean_wall_ratio_sensitivity": 0.995963526747487,
+      "median_CPU_ratio": 1.0082815734989647,
+      "mean_CPU_ratio_sensitivity": 1.0012355848434926,
+      "lifetime_HWM_RSS_ratio": 0.9245254011288077,
+      "allocated_bytes_median_ratio": 0.9953882323641364,
+      "same_pair_wall": {
+        "raw": [
+          0.9548863053230133,
+          1.0388412879586293,
+          1.0520800101904542,
+          0.9677137162086169,
+          0.969766132606056
+        ],
+        "count": 5,
+        "mean": 0.996657490457354,
+        "median": 0.969766132606056,
+        "min": 0.9548863053230133,
+        "max": 1.0520800101904542,
+        "sample_SD": 0.04515763381636116,
+        "sample_variance": 0.002039211891892565,
+        "CV": 0.04530907984812202
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.210613836,
+              4.022593771,
+              4.045417392,
+              4.151816693,
+              4.170111761
+            ],
+            "count": 5,
+            "mean": 4.1201106906,
+            "median": 4.151816693,
+            "min": 4.022593771,
+            "max": 4.210613836,
+            "sample_SD": 0.08183036633892352,
+            "sample_variance": 0.006696208855162427,
+            "CV": 0.01986120579857693
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.83,
+              4.68,
+              4.77,
+              4.93,
+              5.07
+            ],
+            "count": 5,
+            "mean": 4.856,
+            "median": 4.83,
+            "min": 4.68,
+            "max": 5.07,
+            "sample_SD": 0.1502664300500949,
+            "sample_variance": 0.022580000000000062,
+            "CV": 0.030944487242606036
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              961.33203125,
+              871.48828125,
+              591.41796875,
+              551.3125,
+              606.3046875
+            ],
+            "count": 5,
+            "mean": 716.37109375,
+            "median": 606.3046875,
+            "min": 551.3125,
+            "max": 961.33203125,
+            "sample_SD": 186.43996309909812,
+            "sample_variance": 34759.85984039307,
+            "CV": 0.2602561224562226
+          },
+          "final_lifetime_HWM_MiB": 1321.22265625,
+          "allocated_bytes": {
+            "raw": [
+              2085784832,
+              2085891736,
+              2085645840,
+              2086285912,
+              2085896296
+            ],
+            "count": 5,
+            "mean": 2085900923.2,
+            "median": 2085891736,
+            "min": 2085645840,
+            "max": 2086285912,
+            "sample_SD": 238152.68074745664,
+            "sample_variance": 56716699347.2,
+            "CV": 0.00011417257555172103
+          },
+          "warm_requests": 40,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.004264643639353416,
+            "last4_JIT_time_over_wall": 0.01334877341539282,
+            "last4_max_over_min": 1.055082913023883,
+            "stable": true
+          }
+        },
+        "ALL": {
+          "wall_seconds": {
+            "raw": [
+              4.020657489,
+              4.178836494,
+              4.256102771,
+              4.017769961,
+              4.044033155
+            ],
+            "count": 5,
+            "mean": 4.103479974,
+            "median": 4.044033155,
+            "min": 4.017769961,
+            "max": 4.256102771,
+            "sample_SD": 0.10806481609417061,
+            "sample_variance": 0.011678004477466914,
+            "CV": 0.02633491981900205
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.8,
+              4.95,
+              4.94,
+              4.75,
+              4.87
+            ],
+            "count": 5,
+            "mean": 4.862,
+            "median": 4.87,
+            "min": 4.75,
+            "max": 4.95,
+            "sample_SD": 0.087005746936625,
+            "sample_variance": 0.007570000000000029,
+            "CV": 0.017895052845871038
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              604.84375,
+              583.82421875,
+              598.87109375,
+              605.015625,
+              590.8046875
+            ],
+            "count": 5,
+            "mean": 596.671875,
+            "median": 598.87109375,
+            "min": 583.82421875,
+            "max": 605.015625,
+            "sample_SD": 9.229306968386046,
+            "sample_variance": 85.18010711669922,
+            "CV": 0.015467977216767669
+          },
+          "final_lifetime_HWM_MiB": 1221.50390625,
+          "allocated_bytes": {
+            "raw": [
+              2076243424,
+              2076432000,
+              2076272088,
+              2076445088,
+              2076222328
+            ],
+            "count": 5,
+            "mean": 2076322985.6,
+            "median": 2076272088,
+            "min": 2076222328,
+            "max": 2076445088,
+            "sample_SD": 107058.04711837406,
+            "sample_variance": 11461425452.8,
+            "CV": 5.156136490365792e-05
+          },
+          "warm_requests": 40,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.02674299314909767,
+            "last4_JIT_time_over_wall": 0.019871531377124035,
+            "last4_max_over_min": 1.0854253272413499,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-fsiv-lazy-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "fsiv-lazy",
+      "review": "reviews/screen-bigquery-control-fsiv-lazy-v1/review.json",
+      "summary": "results/screen-bigquery-control-fsiv-lazy-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-fsiv-lazy-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 90,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 1.0331203821346027,
+      "mean_wall_ratio_sensitivity": 1.0350554318216456,
+      "median_CPU_ratio": 1.028747433264887,
+      "mean_CPU_ratio_sensitivity": 1.0068965517241382,
+      "lifetime_HWM_RSS_ratio": 0.8373530481153799,
+      "allocated_bytes_median_ratio": 0.9854329236494126,
+      "same_pair_wall": {
+        "raw": [
+          1.0650639493187937,
+          1.0077060534709619,
+          0.9816962331190298,
+          1.0961570404405396,
+          1.028049981188905
+        ],
+        "count": 5,
+        "mean": 1.035734651507646,
+        "median": 1.028049981188905,
+        "min": 0.9816962331190298,
+        "max": 1.0961570404405396,
+        "sample_SD": 0.04548593167729377,
+        "sample_variance": 0.0020689699805514373,
+        "CV": 0.043916587719724454
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.13466875,
+              4.238945022,
+              4.176667759,
+              3.982693667,
+              4.086548409
+            ],
+            "count": 5,
+            "mean": 4.1239047214,
+            "median": 4.13466875,
+            "min": 3.982693667,
+            "max": 4.238945022,
+            "sample_SD": 0.09678601289895306,
+            "sample_variance": 0.009367532292876308,
+            "CV": 0.02346950752686055
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.73,
+              5.21,
+              4.87,
+              4.72,
+              5.12
+            ],
+            "count": 5,
+            "mean": 4.93,
+            "median": 4.87,
+            "min": 4.72,
+            "max": 5.21,
+            "sample_SD": 0.22483327155917113,
+            "sample_variance": 0.050549999999999984,
+            "CV": 0.04560512607691098
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              686.01171875,
+              569.79296875,
+              624.55078125,
+              625.1640625,
+              678.8046875
+            ],
+            "count": 5,
+            "mean": 636.86484375,
+            "median": 625.1640625,
+            "min": 569.79296875,
+            "max": 686.01171875,
+            "sample_SD": 47.33272295455313,
+            "sample_variance": 2240.3866622924807,
+            "CV": 0.07432145677228416
+          },
+          "final_lifetime_HWM_MiB": 1579.29296875,
+          "allocated_bytes": {
+            "raw": [
+              2094125912,
+              2093978952,
+              2094210192,
+              2094275736,
+              2094143208
+            ],
+            "count": 5,
+            "mean": 2094146800,
+            "median": 2094143208,
+            "min": 2093978952,
+            "max": 2094275736,
+            "sample_SD": 110978.82666526981,
+            "sample_variance": 12316299968,
+            "CV": 5.299476935679476e-05
+          },
+          "warm_requests": 45,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.028552566443978078,
+            "last4_JIT_time_over_wall": 0.015522639676593666,
+            "last4_max_over_min": 1.0597262957894789,
+            "stable": true
+          }
+        },
+        "fsiv-lazy": {
+          "wall_seconds": {
+            "raw": [
+              4.403686628,
+              4.271610559,
+              4.100219006,
+              4.365657703,
+              4.201176015
+            ],
+            "count": 5,
+            "mean": 4.2684699822,
+            "median": 4.271610559,
+            "min": 4.100219006,
+            "max": 4.403686628,
+            "sample_SD": 0.12306068280741206,
+            "sample_variance": 0.015143931653026481,
+            "CV": 0.028830162404934075
+          },
+          "CPU_seconds": {
+            "raw": [
+              5.17,
+              4.98,
+              4.63,
+              5.03,
+              5.01
+            ],
+            "count": 5,
+            "mean": 4.964,
+            "median": 5.01,
+            "min": 4.63,
+            "max": 5.17,
+            "sample_SD": 0.200449494885869,
+            "sample_variance": 0.040180000000000014,
+            "CV": 0.04038063958216539
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              952.515625,
+              1030.8828125,
+              1127.38671875,
+              626.04296875,
+              605.80078125
+            ],
+            "count": 5,
+            "mean": 868.52578125,
+            "median": 952.515625,
+            "min": 605.80078125,
+            "max": 1127.38671875,
+            "sample_SD": 238.87518937499138,
+            "sample_variance": 57061.35609893799,
+            "CV": 0.27503523157504584
+          },
+          "final_lifetime_HWM_MiB": 1322.42578125,
+          "allocated_bytes": {
+            "raw": [
+              2063707008,
+              2063610240,
+              2063682296,
+              2063637664,
+              2063360880
+            ],
+            "count": 5,
+            "mean": 2063599617.6,
+            "median": 2063637664,
+            "min": 2063360880,
+            "max": 2063707008,
+            "sample_SD": 138676.26097065062,
+            "sample_variance": 19231105356.8,
+            "CV": 6.720114686391218e-05
+          },
+          "warm_requests": 45,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.02509035525324621,
+            "last4_JIT_time_over_wall": 0.018808835377856863,
+            "last4_max_over_min": 1.0768343636130568,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-namespace-lazy-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "namespace-lazy",
+      "review": "reviews/screen-bigquery-control-namespace-lazy-v1/review.json",
+      "summary": "results/screen-bigquery-control-namespace-lazy-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-namespace-lazy-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 90,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 0.9482400327483805,
+      "mean_wall_ratio_sensitivity": 0.9864669318690914,
+      "median_CPU_ratio": 0.9542743538767395,
+      "mean_CPU_ratio_sensitivity": 0.9823859087269814,
+      "lifetime_HWM_RSS_ratio": 0.9414526973669367,
+      "allocated_bytes_median_ratio": 0.9997582269845262,
+      "same_pair_wall": {
+        "raw": [
+          0.9206480294605519,
+          1.0323607236519035,
+          1.0982553727483677,
+          0.9451028168325197,
+          0.9467100260837622
+        ],
+        "count": 5,
+        "mean": 0.988615393755421,
+        "median": 0.9467100260837622,
+        "min": 0.9206480294605519,
+        "max": 1.0982553727483677,
+        "sample_SD": 0.07450427115388357,
+        "sample_variance": 0.005550886420171408,
+        "CV": 0.07536224058869509
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.43744301,
+              4.343921802,
+              3.925627548,
+              4.226988902,
+              4.308321756
+            ],
+            "count": 5,
+            "mean": 4.2484606036,
+            "median": 4.308321756,
+            "min": 3.925627548,
+            "max": 4.43744301,
+            "sample_SD": 0.19563535190053646,
+            "sample_variance": 0.038273190913246734,
+            "CV": 0.04604852678515173
+          },
+          "CPU_seconds": {
+            "raw": [
+              5.44,
+              5.03,
+              4.62,
+              5.1,
+              4.79
+            ],
+            "count": 5,
+            "mean": 4.996,
+            "median": 5.03,
+            "min": 4.62,
+            "max": 5.44,
+            "sample_SD": 0.3134166555880527,
+            "sample_variance": 0.09823000000000005,
+            "CV": 0.0627335179319561
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              563.3203125,
+              696.98046875,
+              665.25390625,
+              589.828125,
+              779.37890625
+            ],
+            "count": 5,
+            "mean": 658.95234375,
+            "median": 665.25390625,
+            "min": 563.3203125,
+            "max": 779.37890625,
+            "sample_SD": 86.47549935577456,
+            "sample_variance": 7478.011988830566,
+            "CV": 0.1312317957071908
+          },
+          "final_lifetime_HWM_MiB": 1385.03125,
+          "allocated_bytes": {
+            "raw": [
+              2075798240,
+              2075252240,
+              2075826728,
+              2075873016,
+              2074735144
+            ],
+            "count": 5,
+            "mean": 2075497073.6,
+            "median": 2075798240,
+            "min": 2074735144,
+            "max": 2075873016,
+            "sample_SD": 495274.19655459543,
+            "sample_variance": 245296529772.8,
+            "CV": 0.0002386291953163443
+          },
+          "warm_requests": 45,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.0051682651922876355,
+            "last4_JIT_time_over_wall": 0.018818031474898467,
+            "last4_max_over_min": 1.0201450159566396,
+            "stable": true
+          }
+        },
+        "namespace-lazy": {
+          "wall_seconds": {
+            "raw": [
+              4.085323163,
+              4.484494255,
+              4.311341546,
+              3.994939118,
+              4.078731402
+            ],
+            "count": 5,
+            "mean": 4.1909658968,
+            "median": 4.085323163,
+            "min": 3.994939118,
+            "max": 4.484494255,
+            "sample_SD": 0.20176264583810005,
+            "sample_variance": 0.040708165255590595,
+            "CV": 0.0481422781302409
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.8,
+              5.35,
+              5.06,
+              4.57,
+              4.76
+            ],
+            "count": 5,
+            "mean": 4.9079999999999995,
+            "median": 4.8,
+            "min": 4.57,
+            "max": 5.35,
+            "sample_SD": 0.30260535355475765,
+            "sample_variance": 0.09156999999999987,
+            "CV": 0.06165553250911933
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              1066.05859375,
+              595.4453125,
+              690.83203125,
+              966.46875,
+              659.64453125
+            ],
+            "count": 5,
+            "mean": 795.68984375,
+            "median": 690.83203125,
+            "min": 595.4453125,
+            "max": 1066.05859375,
+            "sample_SD": 207.28365588460468,
+            "sample_variance": 42966.51399688721,
+            "CV": 0.26050810816900627
+          },
+          "final_lifetime_HWM_MiB": 1303.94140625,
+          "allocated_bytes": {
+            "raw": [
+              2075296368,
+              2075254384,
+              2075285528,
+              2075436104,
+              2075352232
+            ],
+            "count": 5,
+            "mean": 2075324923.2,
+            "median": 2075296368,
+            "min": 2075254384,
+            "max": 2075436104,
+            "sample_SD": 71501.92447200285,
+            "sample_variance": 5112525203.2,
+            "CV": 3.4453363746893226e-05
+          },
+          "warm_requests": 45,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.0011954950031276557,
+            "last4_JIT_time_over_wall": 0.01627375846782158,
+            "last4_max_over_min": 1.0240648659963525,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-color-cache-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "color-cache",
+      "review": "reviews/screen-bigquery-control-color-cache-v1/review.json",
+      "summary": "results/screen-bigquery-control-color-cache-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-color-cache-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 82,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 0.9475562607922867,
+      "mean_wall_ratio_sensitivity": 0.9617243024010067,
+      "median_CPU_ratio": 0.95703125,
+      "mean_CPU_ratio_sensitivity": 0.9603235747303543,
+      "lifetime_HWM_RSS_ratio": 0.9779596635615447,
+      "allocated_bytes_median_ratio": 1.0065805416923779,
+      "same_pair_wall": {
+        "raw": [
+          0.8980292310341635,
+          0.9609181476027371,
+          0.9441528244547258,
+          1.0149425706460398,
+          0.9927897619504462
+        ],
+        "count": 5,
+        "mean": 0.9621665071376225,
+        "median": 0.9609181476027371,
+        "min": 0.8980292310341635,
+        "max": 1.0149425706460398,
+        "sample_SD": 0.04517393597550302,
+        "sample_variance": 0.0020406844915188457,
+        "CV": 0.04695022705570192
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.501323876,
+              4.78974817,
+              4.418281938,
+              4.443304206,
+              4.240858317
+            ],
+            "count": 5,
+            "mean": 4.4787033013999995,
+            "median": 4.443304206,
+            "min": 4.240858317,
+            "max": 4.78974817,
+            "sample_SD": 0.19920760175763566,
+            "sample_variance": 0.03968366859802877,
+            "CV": 0.04447885656890138
+          },
+          "CPU_seconds": {
+            "raw": [
+              5.12,
+              5.61,
+              5.03,
+              5.16,
+              5.04
+            ],
+            "count": 5,
+            "mean": 5.192,
+            "median": 5.12,
+            "min": 5.03,
+            "max": 5.61,
+            "sample_SD": 0.23993749185985927,
+            "sample_variance": 0.05757000000000004,
+            "CV": 0.04621292216098984
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              650.234375,
+              650.59375,
+              813.34375,
+              666.56640625,
+              589.5078125
+            ],
+            "count": 5,
+            "mean": 674.04921875,
+            "median": 650.59375,
+            "min": 589.5078125,
+            "max": 813.34375,
+            "sample_SD": 83.25189800676328,
+            "sample_variance": 6930.878521728516,
+            "CV": 0.12351011720056723
+          },
+          "final_lifetime_HWM_MiB": 1295.7421875,
+          "allocated_bytes": {
+            "raw": [
+              2084408224,
+              2084168256,
+              2083657816,
+              2084415856,
+              2084401048
+            ],
+            "count": 5,
+            "mean": 2084210240,
+            "median": 2084401048,
+            "min": 2083657816,
+            "max": 2084415856,
+            "sample_SD": 325890.4066584348,
+            "sample_variance": 106204557152,
+            "CV": 0.00015636158023023378
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.002356303202630361,
+            "last4_JIT_time_over_wall": 0.0167047694930601,
+            "last4_max_over_min": 1.0194008406517672,
+            "stable": true
+          }
+        },
+        "color-cache": {
+          "wall_seconds": {
+            "raw": [
+              4.042320419,
+              4.602555939,
+              4.171533371,
+              4.509698593,
+              4.210280719
+            ],
+            "count": 5,
+            "mean": 4.3072778082,
+            "median": 4.210280719,
+            "min": 4.042320419,
+            "max": 4.602555939,
+            "sample_SD": 0.2378028354979645,
+            "sample_variance": 0.056550188570871955,
+            "CV": 0.05520954210226381
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.8,
+              5.15,
+              4.88,
+              5.2,
+              4.9
+            ],
+            "count": 5,
+            "mean": 4.986,
+            "median": 4.9,
+            "min": 4.8,
+            "max": 5.2,
+            "sample_SD": 0.17742604092973516,
+            "sample_variance": 0.03148000000000006,
+            "CV": 0.035584845754058396
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              618.2265625,
+              1204.3984375,
+              606.1171875,
+              1019.33984375,
+              693.81640625
+            ],
+            "count": 5,
+            "mean": 828.3796875,
+            "median": 693.81640625,
+            "min": 606.1171875,
+            "max": 1204.3984375,
+            "sample_SD": 269.03908319279054,
+            "sample_variance": 72382.02828521728,
+            "CV": 0.32477749907742703
+          },
+          "final_lifetime_HWM_MiB": 1267.18359375,
+          "allocated_bytes": {
+            "raw": [
+              2098117536,
+              2097927656,
+              2097873912,
+              2098544320,
+              2098203536
+            ],
+            "count": 5,
+            "mean": 2098133392,
+            "median": 2098117536,
+            "min": 2097873912,
+            "max": 2098544320,
+            "sample_SD": 266313.06142958894,
+            "sample_variance": 70922646688,
+            "CV": 0.00012692856538341053
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.035428149016457744,
+            "last4_JIT_time_over_wall": 0.019652839468678605,
+            "last4_max_over_min": 1.042735695580944,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-coalesce-bitset-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "coalesce-bitset",
+      "review": "reviews/screen-bigquery-control-coalesce-bitset-v1/review.json",
+      "summary": "results/screen-bigquery-control-coalesce-bitset-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-coalesce-bitset-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 82,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 0.9936485460026859,
+      "mean_wall_ratio_sensitivity": 1.0094435310257523,
+      "median_CPU_ratio": 0.9758551307847082,
+      "mean_CPU_ratio_sensitivity": 0.9943388596845937,
+      "lifetime_HWM_RSS_ratio": 0.9542267185286128,
+      "allocated_bytes_median_ratio": 0.9962961511652734,
+      "same_pair_wall": {
+        "raw": [
+          1.0283254412448677,
+          0.9936485460026859,
+          1.0432853517650558,
+          1.0911349515712419,
+          0.9000331847970995
+        ],
+        "count": 5,
+        "mean": 1.0112854950761903,
+        "median": 1.0283254412448677,
+        "min": 0.9000331847970995,
+        "max": 1.0911349515712419,
+        "sample_SD": 0.07137651016117096,
+        "sample_variance": 0.005094606202787741,
+        "CV": 0.07057998014279188
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.31195327,
+              4.231353484,
+              3.9905115,
+              4.099405964,
+              4.428431476
+            ],
+            "count": 5,
+            "mean": 4.2123311388,
+            "median": 4.231353484,
+            "min": 3.9905115,
+            "max": 4.428431476,
+            "sample_SD": 0.1724397152925224,
+            "sample_variance": 0.02973545541016618,
+            "CV": 0.040936884971879646
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.97,
+              4.8,
+              4.73,
+              5.05,
+              5.18
+            ],
+            "count": 5,
+            "mean": 4.946,
+            "median": 4.97,
+            "min": 4.73,
+            "max": 5.18,
+            "sample_SD": 0.1831119875922926,
+            "sample_variance": 0.03352999999999992,
+            "CV": 0.037022237685461507
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              1159.57421875,
+              642.109375,
+              568.8671875,
+              683.10546875,
+              1298.51953125
+            ],
+            "count": 5,
+            "mean": 870.43515625,
+            "median": 683.10546875,
+            "min": 568.8671875,
+            "max": 1298.51953125,
+            "sample_SD": 333.551324221922,
+            "sample_variance": 111256.48589019776,
+            "CV": 0.38320065754113664
+          },
+          "final_lifetime_HWM_MiB": 1298.51953125,
+          "allocated_bytes": {
+            "raw": [
+              2079969072,
+              2079779352,
+              2079846032,
+              2079959616,
+              2079965016
+            ],
+            "count": 5,
+            "mean": 2079903817.6,
+            "median": 2079959616,
+            "min": 2079779352,
+            "max": 2079969072,
+            "sample_SD": 86527.02392200948,
+            "sample_variance": 7486925868.8,
+            "CV": 4.16014544469912e-05
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": -0.037838328353484774,
+            "last4_JIT_time_over_wall": 0.01957280107372695,
+            "last4_max_over_min": 1.1358241953700938,
+            "stable": true
+          }
+        },
+        "coalesce-bitset": {
+          "wall_seconds": {
+            "raw": [
+              4.434091249,
+              4.204478237,
+              4.163242194,
+              4.473005128,
+              3.985735285
+            ],
+            "count": 5,
+            "mean": 4.2521104186,
+            "median": 4.204478237,
+            "min": 3.985735285,
+            "max": 4.473005128,
+            "sample_SD": 0.20188709291453782,
+            "sample_variance": 0.04075839828548323,
+            "CV": 0.04747926865478926
+          },
+          "CPU_seconds": {
+            "raw": [
+              5.05,
+              4.85,
+              4.72,
+              5.17,
+              4.8
+            ],
+            "count": 5,
+            "mean": 4.918,
+            "median": 4.85,
+            "min": 4.72,
+            "max": 5.17,
+            "sample_SD": 0.18619881847100972,
+            "sample_variance": 0.03467000000000003,
+            "CV": 0.03786067882696415
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              776.453125,
+              683.01171875,
+              674.36328125,
+              728.62890625,
+              672.9296875
+            ],
+            "count": 5,
+            "mean": 707.07734375,
+            "median": 683.01171875,
+            "min": 672.9296875,
+            "max": 776.453125,
+            "sample_SD": 44.98026091937983,
+            "sample_variance": 2023.2238723754883,
+            "CV": 0.0636143433486725
+          },
+          "final_lifetime_HWM_MiB": 1239.08203125,
+          "allocated_bytes": {
+            "raw": [
+              2072482640,
+              2072255760,
+              2073113640,
+              2072155960,
+              2072227000
+            ],
+            "count": 5,
+            "mean": 2072447000,
+            "median": 2072255760,
+            "min": 2072155960,
+            "max": 2073113640,
+            "sample_SD": 392223.18850368855,
+            "sample_variance": 153839029600,
+            "CV": 0.00018925607675549172
+          },
+          "warm_requests": 41,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.0022638075373642152,
+            "last4_JIT_time_over_wall": 0.018120610623249118,
+            "last4_max_over_min": 1.0931986744741975,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    },
+    {
+      "name": "screen-bigquery-control-polyfill-cache-v1",
+      "status": "PASS_REVIEWED_EXPLORATORY_ONE_COHORT",
+      "task": "BigQuery existing immutable ADVANCED spec",
+      "baseline": "CONTROL",
+      "candidate": "polyfill-cache",
+      "review": "reviews/screen-bigquery-control-polyfill-cache-v1/review.json",
+      "summary": "results/screen-bigquery-control-polyfill-cache-v1/summary.json",
+      "stopped_proof": "results/screen-bigquery-control-polyfill-cache-v1/stopped-proof.json",
+      "independent_cohorts": 1,
+      "measured_pairs": 5,
+      "measured_requests": 10,
+      "warmup_requests_total": 118,
+      "strict_digests_every_request": 6,
+      "median_wall_ratio": 0.993503390650036,
+      "mean_wall_ratio_sensitivity": 0.9904838640005559,
+      "median_CPU_ratio": 1.019189765458422,
+      "mean_CPU_ratio_sensitivity": 1.022108843537415,
+      "lifetime_HWM_RSS_ratio": 0.8964660068858583,
+      "allocated_bytes_median_ratio": 0.9946304850967201,
+      "same_pair_wall": {
+        "raw": [
+          0.9810565688041117,
+          1.035808220249085,
+          0.945241978114457,
+          0.9710141769593299,
+          1.0216408955203684
+        ],
+        "count": 5,
+        "mean": 0.9909523679294704,
+        "median": 0.9810565688041117,
+        "min": 0.945241978114457,
+        "max": 1.035808220249085,
+        "sample_SD": 0.037211326399189636,
+        "sample_variance": 0.0013846828123870274,
+        "CV": 0.03755107470699146
+      },
+      "absolute": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              4.246996923,
+              4.022577693,
+              4.193789642,
+              4.205360939,
+              4.150875638
+            ],
+            "count": 5,
+            "mean": 4.163920167,
+            "median": 4.193789642,
+            "min": 4.022577693,
+            "max": 4.246996923,
+            "sample_SD": 0.08610912437350612,
+            "sample_variance": 0.007414781300371947,
+            "CV": 0.020679821158902188
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.67,
+              4.65,
+              4.71,
+              4.8,
+              4.69
+            ],
+            "count": 5,
+            "mean": 4.704,
+            "median": 4.69,
+            "min": 4.65,
+            "max": 4.8,
+            "sample_SD": 0.058137767414994365,
+            "sample_variance": 0.0033799999999999802,
+            "CV": 0.01235921926339166
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              714.99609375,
+              679.484375,
+              1052.6484375,
+              853.9765625,
+              812.75
+            ],
+            "count": 5,
+            "mean": 822.77109375,
+            "median": 812.75,
+            "min": 679.484375,
+            "max": 1052.6484375,
+            "sample_SD": 146.6836145966471,
+            "sample_variance": 21516.082791137695,
+            "CV": 0.1782799805570431
+          },
+          "final_lifetime_HWM_MiB": 1428.42578125,
+          "allocated_bytes": {
+            "raw": [
+              2081569224,
+              2081919168,
+              2081834696,
+              2082457352,
+              2082493392
+            ],
+            "count": 5,
+            "mean": 2082054766.4,
+            "median": 2081919168,
+            "min": 2081569224,
+            "max": 2082493392,
+            "sample_SD": 405289.06706793857,
+            "sample_variance": 164259227884.8,
+            "CV": 0.00019465821630076913
+          },
+          "warm_requests": 59,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.014049152602042758,
+            "last4_JIT_time_over_wall": 0.018119158281305118,
+            "last4_max_over_min": 1.1071920485929974,
+            "stable": true
+          }
+        },
+        "polyfill-cache": {
+          "wall_seconds": {
+            "raw": [
+              4.166544229,
+              4.166619041,
+              3.964146017,
+              4.083465091,
+              4.240704304
+            ],
+            "count": 5,
+            "mean": 4.1242957364,
+            "median": 4.166544229,
+            "min": 3.964146017,
+            "max": 4.240704304,
+            "sample_SD": 0.10540662464665083,
+            "sample_variance": 0.01111055651939994,
+            "CV": 0.02555748457036153
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.84,
+              4.78,
+              4.7,
+              4.65,
+              5.07
+            ],
+            "count": 5,
+            "mean": 4.808,
+            "median": 4.78,
+            "min": 4.65,
+            "max": 5.07,
+            "sample_SD": 0.16361540269791225,
+            "sample_variance": 0.026769999999999995,
+            "CV": 0.0340298258523112
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              567.88671875,
+              579.30859375,
+              559.7734375,
+              553.7265625,
+              694.9140625
+            ],
+            "count": 5,
+            "mean": 591.121875,
+            "median": 567.88671875,
+            "min": 553.7265625,
+            "max": 694.9140625,
+            "sample_SD": 58.807691283863406,
+            "sample_variance": 3458.3445541381834,
+            "CV": 0.09948488420237096
+          },
+          "final_lifetime_HWM_MiB": 1280.53515625,
+          "allocated_bytes": {
+            "raw": [
+              2070417560,
+              2070839776,
+              2070812528,
+              2070437640,
+              2070740272
+            ],
+            "count": 5,
+            "mean": 2070649555.2,
+            "median": 2070740272,
+            "min": 2070417560,
+            "max": 2070839776,
+            "sample_SD": 205975.39228558348,
+            "sample_variance": 42425862227.2,
+            "CV": 9.947380606646821e-05
+          },
+          "warm_requests": 59,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.006050649713833733,
+            "last4_JIT_time_over_wall": 0.018540541502596136,
+            "last4_max_over_min": 1.1063964991012507,
+            "stable": true
+          }
+        }
+      },
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "stopped": true,
+      "CI": null,
+      "runner_policy_version": "cache-aware-v3-PSIoptional",
+      "PSI_telemetry": [
+        "UNAVAILABLE_no_zeroPSI_claim"
+      ],
+      "review_limits": [
+        "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+        "JAR and compiler executables not bulk-rehashed; nine stock target-class entries and shared driver classes checked.",
+        "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+        "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+        "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+        "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+        "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+        "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI."
+      ]
+    }
+  ],
+  "pending": [
+    "fresh3cohort confirmation",
+    "bundle workload check"
+  ],
+  "notes": [
+    "No screen observation enters confirmationCI.",
+    "Median and mean ratios are separate estimators.",
+    "HWM includes warmup/JIT; allocation is not liveheap.",
+    "No bulk hash/compiler/runtime/controller executed for this report update."
+  ],
+  "frozen_confirmation_plan": "confirmation-plan-v1.json"
+}

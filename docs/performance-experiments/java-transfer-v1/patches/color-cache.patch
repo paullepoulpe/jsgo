@@ -1,0 +1,62 @@
+diff --git a/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java b/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+--- a/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
++++ b/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+@@ -22,6 +22,7 @@
+ import com.google.javascript.jscomp.colors.Color;
+ import com.google.javascript.jscomp.colors.ColorRegistry;
+ import com.google.javascript.jscomp.colors.StandardColors;
++import java.util.IdentityHashMap;
+ import java.util.LinkedHashMap;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -30,18 +31,29 @@
+ 
+   private final LinkedHashMap<Color, ColorGraphNode> typeIndex;
+   private final ColorRegistry registry;
++  // Identity keys avoid reconstructing a simplified union for repeated uses of the same Color.
++  // Only factories with a privately owned typeIndex may cache the corresponding graph nodes.
++  private final @Nullable IdentityHashMap<Color, ColorGraphNode> originalColorNodes;
+ 
+   protected ColorGraphNodeFactory(
+       LinkedHashMap<Color, ColorGraphNode> initialTypeIndex, ColorRegistry registry) {
++    this(initialTypeIndex, registry, false);
++  }
++
++  private ColorGraphNodeFactory(
++      LinkedHashMap<Color, ColorGraphNode> initialTypeIndex,
++      ColorRegistry registry,
++      boolean cacheOriginalColors) {
+     this.typeIndex = initialTypeIndex;
+     this.registry = registry;
++    this.originalColorNodes = cacheOriginalColors ? new IdentityHashMap<>() : null;
+   }
+ 
+   static ColorGraphNodeFactory createFactory(ColorRegistry colorRegistry) {
+     LinkedHashMap<Color, ColorGraphNode> typeIndex = new LinkedHashMap<>();
+     ColorGraphNode unknownColorNode = ColorGraphNode.create(StandardColors.UNKNOWN, 0);
+     typeIndex.put(StandardColors.UNKNOWN, unknownColorNode);
+-    return new ColorGraphNodeFactory(typeIndex, colorRegistry);
++    return new ColorGraphNodeFactory(typeIndex, colorRegistry, true);
+   }
+ 
+   /**
+@@ -51,8 +63,18 @@
+    * results are cached.
+    */
+   public ColorGraphNode createNode(@Nullable Color color) {
++    if (this.originalColorNodes != null) {
++      ColorGraphNode cached = this.originalColorNodes.get(color);
++      if (cached != null) {
++        return cached;
++      }
++    }
+     Color key = this.simplifyColor(color);
+-    return this.typeIndex.computeIfAbsent(key, this::newColorGraphNode);
++    ColorGraphNode node = this.typeIndex.computeIfAbsent(key, this::newColorGraphNode);
++    if (this.originalColorNodes != null) {
++      this.originalColorNodes.put(color, node);
++    }
++    return node;
+   }
+ 
+   public ImmutableSet<ColorGraphNode> getAllKnownTypes() {

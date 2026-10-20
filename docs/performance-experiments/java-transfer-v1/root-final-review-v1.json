@@ -1,0 +1,29 @@
+{
+  "status": "CLOSED_ROOT_REVIEWED",
+  "reviewed_by": "root",
+  "reviewed_unix": 1792539476.2280824,
+  "independent_review": "final-independent-review-v1.json",
+  "independent_review_sha256": "fb23532389fd1e8b334819a4966cb52ac3468d9bcd885ef405e175303582d85d",
+  "conclusion": "Five factors and ALL measured separately; fresh color and ALL BigQuery comparisons do not establish a reliable speed gain; bundle one-cohort result is descriptive only. No new Go/Java performance claim.",
+  "reviewed": [
+    "Final analysis and geometric-mean ratios, adjusted primary intervals and mean/CPU/allocation/RSS sensitivity",
+    "Three jobs closed with complete pairs, strict six-output checks, stopped ownership and zero new OOM",
+    "Both workload scopes and 4 GiB/default JVM/normal extern parsing conditions",
+    "All five activation diagnostics and focused probes; no full upstream suite or universal error-path guarantee claimed",
+    "Post hoc VmHWM review-policy amendment and original failure retained; approximate memory interpretation",
+    "All six normalized patches actually applied to pinned original source scratch trees and reproduced exact candidate text",
+    "Final rounded summary, links planned for publisher, historical notes labelled, pending root-review flags closed"
+  ],
+  "candidate_source_modified_during_final_review": false,
+  "measured_evidence_modified": false,
+  "claim_universal_compatibility": false,
+  "claim_statistical_equivalence_or_zero_effect": false,
+  "full_upstream_suite_run": false,
+  "publication_assets_to_be_verified_by_publisher": [
+    "java-transfer-v1-evidence.tar.gz",
+    "REPRODUCE.md"
+  ],
+  "reviewed_README_sha256": "fa75acd3136caebb4c44a1e58e0e3a5182f65dd534bec749857150753a0ff3be",
+  "original_render_saved": "history/before-root-final-review-v1/",
+  "scratch_patch_check": "patch-apply-validation.json"
+}

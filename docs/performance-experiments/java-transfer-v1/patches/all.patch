@@ -1,0 +1,348 @@
+diff --git a/src/com/google/javascript/jscomp/CoalesceVariableNames.java b/src/com/google/javascript/jscomp/CoalesceVariableNames.java
+--- a/src/com/google/javascript/jscomp/CoalesceVariableNames.java
++++ b/src/com/google/javascript/jscomp/CoalesceVariableNames.java
+@@ -392,17 +392,15 @@
+       // Check the live states and add edge when possible. An edge between two variables
+       // means that they are alive at overlapping times, which means that their
+       // variable names cannot be coalesced.
++      // Only the upper triangle is read when connecting the graph below, so bulk ORs may
++      // also populate the unused lower triangle without changing the graph or its edge order.
+       LiveVariableLattice livein = state.getIn();
+       for (int i = livein.nextSetBit(0); i >= 0; i = livein.nextSetBit(i + 1)) {
+-        for (int j = livein.nextSetBit(i); j >= 0; j = livein.nextSetBit(j + 1)) {
+-          interferenceBitSet[i].set(j);
+-        }
++        livein.orInto(interferenceBitSet[i]);
+       }
+       LiveVariableLattice liveout = state.getOut();
+       for (int i = liveout.nextSetBit(0); i >= 0; i = liveout.nextSetBit(i + 1)) {
+-        for (int j = liveout.nextSetBit(i); j >= 0; j = liveout.nextSetBit(j + 1)) {
+-          interferenceBitSet[i].set(j);
+-        }
++        liveout.orInto(interferenceBitSet[i]);
+       }
+ 
+       LiveRangeChecker liveRangeChecker =
+diff --git a/src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java b/src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+--- a/src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
++++ b/src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+@@ -62,7 +62,7 @@
+    * could be inlined using {@link GatherCandidates}.
+    *
+    * The second step involves verifying that each candidate is actually safe
+-   * to inline with {@link Candidate#canInline(Scope)} and finally perform
++   * to inline with {@link Candidate#canInline} and finally perform
+    * inlining using {@link Candidate#inlineVariable()}.
+    *
+    * The reason for the delayed evaluation of the candidates is because we
+@@ -77,7 +77,7 @@
+   private ControlFlowGraph<Node> cfg;
+   private Set<Candidate> candidates;
+   private MustBeReachingVariableDef reachingDef;
+-  private MaybeReachingVariableUse reachingUses;
++  private @Nullable MaybeReachingVariableUse reachingUses;
+ 
+   private class SideEffectPredicate implements Predicate<Node> {
+     // Check if there are side effects affecting the value of any of these names
+@@ -205,13 +205,16 @@
+     // candidates
+     NodeTraversal.traverse(compiler, t.getScopeRoot(), new GatherCandidates());
+ 
+-    // Compute the backward reaching use. The CFG and per-function variable info can be reused.
+-    reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
+-    reachingUses.analyze();
++    // Compute backward reaching use only if a candidate reaches its first use query.
++    // Keep the full per-function variable map and the original candidate-check order.
++    reachingUses = null;
++    if (candidates.isEmpty()) {
++      return;
++    }
+     while (!candidates.isEmpty()) {
+       Candidate c = candidates.iterator().next();
+       Var candidateVar = checkNotNull(allVarsInFn.get(c.varName));
+-      if (c.canInline(candidateVar.getScope())) {
++      if (c.canInline(candidateVar.getScope(), escaped, allVarsInFn)) {
+         c.inlineVariable();
+         candidates.remove(c);
+ 
+@@ -236,6 +239,15 @@
+     }
+   }
+ 
++  private MaybeReachingVariableUse getReachingUses(
++      Set<Var> escaped, Map<String, Var> allVarsInFn) {
++    if (reachingUses == null) {
++      reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
++      reachingUses.analyze();
++    }
++    return reachingUses;
++  }
++
+   private boolean isCandidateFunction(Node fn) {
+     Node fnBody = fn.getLastChild();
+     return containsCandidateExpressions(fnBody);
+@@ -337,8 +349,8 @@
+   /**
+    * Gathers a list of possible candidates for inlining based only on information from {@link
+    * MustBeReachingVariableDef}. The list will be stored in {@code candidates} and the validity of
+-   * each inlining Candidate should be later verified with {@link Candidate#canInline(Scope)} when
+-   * {@link MaybeReachingVariableUse} has been performed.
++   * each inlining Candidate should be later verified with {@link Candidate#canInline}, which
++   * computes {@link MaybeReachingVariableUse} on demand before its first use query.
+    */
+   private class GatherCandidates extends AbstractShallowCallback {
+     final GatherCandidatesCfgNodeCallback gatherCb = new GatherCandidatesCfgNodeCallback();
+@@ -389,7 +401,7 @@
+       return defMetadata.node;
+     }
+ 
+-    private boolean canInline(final Scope scope) {
++    private boolean canInline(final Scope scope, Set<Var> escaped, Map<String, Var> allVarsInFn) {
+       // Cannot inline a parameter.
+       if (getDefCfgNode().isFunction()) {
+         return false;
+@@ -453,7 +465,7 @@
+         return false;
+       }
+ 
+-      if (!hasExactlyOne(reachingUses.getUses(varName, getDefCfgNode()))) {
++      if (!hasExactlyOne(getReachingUses(escaped, allVarsInFn).getUses(varName, getDefCfgNode()))) {
+         return false;
+       }
+ 
+diff --git a/src/com/google/javascript/jscomp/GlobalNamespace.java b/src/com/google/javascript/jscomp/GlobalNamespace.java
+--- a/src/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/src/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -427,7 +427,7 @@
+         curMetadata = null;
+       }
+ 
+-      collect(t.getScope(), t.getChunk(), n);
++      collect(/* scope= */ null, /* chunk= */ null, t, n);
+ 
+       return true;
+     }
+@@ -454,6 +454,16 @@
+     }
+ 
+     private void collect(Scope scope, JSChunk chunk, Node n) {
++      collect(scope, chunk, /* traversal= */ null, n);
++    }
++
++    // Traversal callers resolve scope only for candidate names and chunk only
++    // after rejecting local names. Incremental scans retain their supplied context.
++    private void collect(
++        @Nullable Scope scope,
++        @Nullable JSChunk chunk,
++        @Nullable NodeTraversal traversal,
++        Node n) {
+       Node parent = n.getParent();
+ 
+       String name;
+@@ -600,6 +610,9 @@
+         return;
+       }
+ 
++      if (scope == null) {
++        scope = checkNotNull(traversal).getScope();
++      }
+       Node root = getRootNode(name, scope);
+       // We are only interested in global and module names.
+       if (!isTopLevelScopeRoot(root)) {
+@@ -607,6 +620,9 @@
+       }
+ 
+       ModuleMetadata nameMetadata = root == globalRoot ? null : curMetadata;
++      if (traversal != null) {
++        chunk = traversal.getChunk();
++      }
+       if (isSet) {
+         // Use the closest hoist scope to select handleSetFromGlobal or handleSetFromLocal
+         // because they use the term 'global' in an ES5, pre-block-scoping sense.
+diff --git a/src/com/google/javascript/jscomp/IsolatePolyfills.java b/src/com/google/javascript/jscomp/IsolatePolyfills.java
+--- a/src/com/google/javascript/jscomp/IsolatePolyfills.java
++++ b/src/com/google/javascript/jscomp/IsolatePolyfills.java
+@@ -25,7 +25,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage;
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+@@ -60,10 +59,7 @@
+   private boolean isTempVarInitialized = false;
+ 
+   IsolatePolyfills(AbstractCompiler compiler) {
+-    this(
+-        compiler,
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(IsolatePolyfills.class, "js/polyfills.txt")));
++    this(compiler, Polyfills.getDefault());
+   }
+ 
+   @VisibleForTesting
+diff --git a/src/com/google/javascript/jscomp/LiveVariablesAnalysis.java b/src/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+--- a/src/com/google/javascript/jscomp/LiveVariablesAnalysis.java
++++ b/src/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+@@ -106,6 +106,11 @@
+     // on or after the specified starting index.
+     public int nextSetBit(int fromIndex) {
+       return liveSet.nextSetBit(fromIndex);
++    }
++
++    /** Adds this lattice's live variables to the destination without modifying this lattice. */
++    void orInto(BitSet destination) {
++      destination.or(liveSet);
+     }
+ 
+     @Override
+diff --git a/src/com/google/javascript/jscomp/PolyfillUsageFinder.java b/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
+--- a/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
++++ b/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
+@@ -20,6 +20,7 @@
+ import static java.util.Objects.requireNonNull;
+ 
+ import com.google.common.base.Splitter;
++import com.google.common.base.Suppliers;
+ import com.google.common.collect.ImmutableCollection;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+@@ -29,10 +30,12 @@
+ import com.google.javascript.jscomp.CompilerOptions.LanguageMode;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature;
++import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayDeque;
+ import java.util.List;
+ import java.util.function.Consumer;
++import java.util.function.Supplier;
+ import java.util.stream.Collectors;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -91,6 +94,19 @@
+ 
+   /** Maps from polyfill names to the actual Polyfill object. */
+   static final class Polyfills {
++    // This immutable resource table contains no compiler- or traversal-specific state.
++    // Memoize only successful loads, so a failed resource load or parse remains retryable.
++    private static final Supplier<Polyfills> DEFAULT =
++        Suppliers.memoize(
++            () ->
++                fromTable(
++                    ResourceLoader.loadTextResource(
++                        PolyfillUsageFinder.class, "js/polyfills.txt")));
++
++    static Polyfills getDefault() {
++      return DEFAULT.get();
++    }
++
+     // Map of method polyfills, keyed by native method name.
+     private final ImmutableMultimap<String, Polyfill> methods;
+     // Map of static polyfills, keyed by fully-qualified native name.
+diff --git a/src/com/google/javascript/jscomp/RemoveUnusedCode.java b/src/com/google/javascript/jscomp/RemoveUnusedCode.java
+--- a/src/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/src/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -29,7 +29,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage;
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+@@ -158,9 +157,7 @@
+     this.removeUnusedObjectDefinePropertiesDefinitions =
+         builder.removeUnusedObjectDefinePropertiesDefinitions;
+     this.removeUnusedPolyfills = builder.removeUnusedPolyfills;
+-    this.polyfillsFromTable =
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(RemoveUnusedCode.class, "js/polyfills.txt"));
++    this.polyfillsFromTable = Polyfills.getDefault();
+     this.assumeGettersArePure = builder.assumeGettersArePure;
+ 
+     // All Vars that are completely unremovable will share this VarInfo instance.
+diff --git a/src/com/google/javascript/jscomp/RewritePolyfills.java b/src/com/google/javascript/jscomp/RewritePolyfills.java
+--- a/src/com/google/javascript/jscomp/RewritePolyfills.java
++++ b/src/com/google/javascript/jscomp/RewritePolyfills.java
+@@ -28,7 +28,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.js.RuntimeJsLibManager;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.QualifiedName;
+@@ -76,8 +75,7 @@
+     this(
+         compiler,
+         compiler.getRuntimeJsLibManager(),
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(RewritePolyfills.class, "js/polyfills.txt")),
++        Polyfills.getDefault(),
+         injectPolyfills,
+         isolatePolyfills,
+         injectPolyfillsNewerThan);
+diff --git a/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java b/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+--- a/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
++++ b/src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+@@ -22,6 +22,7 @@
+ import com.google.javascript.jscomp.colors.Color;
+ import com.google.javascript.jscomp.colors.ColorRegistry;
+ import com.google.javascript.jscomp.colors.StandardColors;
++import java.util.IdentityHashMap;
+ import java.util.LinkedHashMap;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -30,18 +31,29 @@
+ 
+   private final LinkedHashMap<Color, ColorGraphNode> typeIndex;
+   private final ColorRegistry registry;
++  // Identity keys avoid reconstructing a simplified union for repeated uses of the same Color.
++  // Only factories with a privately owned typeIndex may cache the corresponding graph nodes.
++  private final @Nullable IdentityHashMap<Color, ColorGraphNode> originalColorNodes;
+ 
+   protected ColorGraphNodeFactory(
+       LinkedHashMap<Color, ColorGraphNode> initialTypeIndex, ColorRegistry registry) {
++    this(initialTypeIndex, registry, false);
++  }
++
++  private ColorGraphNodeFactory(
++      LinkedHashMap<Color, ColorGraphNode> initialTypeIndex,
++      ColorRegistry registry,
++      boolean cacheOriginalColors) {
+     this.typeIndex = initialTypeIndex;
+     this.registry = registry;
++    this.originalColorNodes = cacheOriginalColors ? new IdentityHashMap<>() : null;
+   }
+ 
+   static ColorGraphNodeFactory createFactory(ColorRegistry colorRegistry) {
+     LinkedHashMap<Color, ColorGraphNode> typeIndex = new LinkedHashMap<>();
+     ColorGraphNode unknownColorNode = ColorGraphNode.create(StandardColors.UNKNOWN, 0);
+     typeIndex.put(StandardColors.UNKNOWN, unknownColorNode);
+-    return new ColorGraphNodeFactory(typeIndex, colorRegistry);
++    return new ColorGraphNodeFactory(typeIndex, colorRegistry, true);
+   }
+ 
+   /**
+@@ -51,8 +63,18 @@
+    * results are cached.
+    */
+   public ColorGraphNode createNode(@Nullable Color color) {
++    if (this.originalColorNodes != null) {
++      ColorGraphNode cached = this.originalColorNodes.get(color);
++      if (cached != null) {
++        return cached;
++      }
++    }
+     Color key = this.simplifyColor(color);
+-    return this.typeIndex.computeIfAbsent(key, this::newColorGraphNode);
++    ColorGraphNode node = this.typeIndex.computeIfAbsent(key, this::newColorGraphNode);
++    if (this.originalColorNodes != null) {
++      this.originalColorNodes.put(color, node);
++    }
++    return node;
+   }
+ 
+   public ImmutableSet<ColorGraphNode> getAllKnownTypes() {

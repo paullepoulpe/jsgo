@@ -1,0 +1,21 @@
+Draft method, from ../bench/README.md and ratio definitions in ../bench/run.py
+
+Source/build: pinned v20261015 jar and sources; one shared driver. STOCK uses unchanged jar classes. CONTROL, each factor and ALL overlay the same nine source families, including all generated nested classes, compiled with identical flags and mechanical dependency relocation. Other classes remain from the identical jar. Runtime class hashes/CodeSource must match the resolved PASS build manifest before warmup. First compare CONTROL with STOCK.
+
+Same work: every request creates a new CommandLineRunner/Compiler and parses stock externs. There is no worker, parsed-extern cache or compiler-result cache. Polyfill sharing is immutable resource metadata only; it is an explicitly named optimized Java factor.
+
+Resources: at most two persistent JVMs, each in an actual4GiB/swap-zero/CPU2 cgroup with affinity0–1. Same Java21/-Xmx3g/default collector; injected JVM flags cleared. Inactive container paused to prevent competing JIT/GC, but its resident pages remain charged. Parent headroom defaults1GiB, with disk/OOM/request/total guards. Two inner caps do not guarantee sufficient parent capacity; pressure invalidates a cohort. Default request bound300s, total14,400s.
+
+Settling: alternating warmup, reversed order each round; both JVMs must settle in the same round. Minimum12, maximum90 requests each. Last4/prior4 median drift≤5%; last4 compilation-MXBean JIT/wall≤2%; last4 max/min≤1.20. Missing monitoring or nonsettling rejects timing. Criteria and samples cannot be adjusted after seeing results.
+
+Measurements: five AB/BA pairs per settled cohort, reversing per pair. Five is odd: one direction appears three times; fresh-cohort starting order alternates. Start order seeded. Each invocation uses one baseline/candidate and immutable task spec. Screen BigQuery first, then bundle for selected promising factors; record every selection/omission. One cohort has no CI. Confirm against STOCK using three fresh independent pair-of-JVM cohorts with five pairs each. Optional coalescing stress must be a separately labelled deterministic spec with an actual stock oracle; source potential does not prove activation.
+
+Bytes: every warmup and measurement matches pinned stdout/stderr/exit/JS/map/input-manifest digests before its large artifact files are overwritten. Preserve per-request streams, metrics, digests and failures. Reusing existing immutable specs/oracles does not reuse old timing. Six-digest equality and focused probes do not replace full upstream extension/error-path suites.
+
+Metrics: report raw elapsed/process CPU/current RSS/allocation and same-pair ratios, plus mean/median/range/sample SD/variance. ThreadMXBean allocation totals cover JVM threads with small management-boundary overhead; they are allocated bytes, not live heap/RSS. Unsupported allocation remains null.
+
+Memory: distinguish current RSS per request, one final process-lifetime HWM per JVM/cohort including warmup/JIT, and cgroup memory.peak including charged cache/helpers. Never label lifetime HWM a per-compilation peak. Publish time and memory ratios separately. RSS current and lifetime ratios measure different windows.
+
+Ratio/statistics: candidate/baseline, below1 lower cost. Per-cohort elapsed/CPU ratios divide candidate median by baseline median; HWM ratio divides final lifetime HWMs. Keep same-pair ratios separately; do not silently exchange means of ratios, median ratios and ratios of medians. Confirmatory95% intervals use10,000 whole-independent-cohort bootstrap resamples and geometric means of cohort ratios. Three cohorts give limited/discrete resolution;15 pairs are not15 independent JVMs. Screens have no CI.
+
+Acceptance: actual summary.json PASS plus stopped-proof.json with zero OOM, no cleanup errors/owned containers/drivers/active compilers. Pressure, interrupted, nonsettled or artifact-mismatch attempts remain retained rejections, not replacement best samples. Use a new output path for retries. The report grants no execution/publication authority and makes no Java-versus-Go claim.

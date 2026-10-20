@@ -1,0 +1,499 @@
+{
+  "status": "FINAL_ROOT_REVIEWED",
+  "root": "/workspace/jsgo-java-experiments/transfer-v1",
+  "hashes_newly_computed_for_report": "Only small original/new patch payloads; no archive/class/binary/source-tree hashes",
+  "factors": {
+    "fsiv-lazy": {
+      "review": "variants/fsiv-lazy/REVIEW.md",
+      "manifest": "variants/fsiv-lazy/source-manifest.json"
+    },
+    "namespace-lazy": {
+      "review": "variants/namespace-lazy/review-and-test-plan.json",
+      "manifest": "variants/namespace-lazy/source-freeze.json"
+    },
+    "coalesce-bitset": {
+      "review": "variants/coalesce-bitset/review-notes.json",
+      "manifest": "variants/coalesce-bitset/source-freeze.json"
+    },
+    "color-cache": {
+      "review": "variants/color-cache/review.json",
+      "manifest": "variants/color-cache/source-provenance.json"
+    },
+    "polyfill-cache": {
+      "review": "variants/polyfill-cache/review.json",
+      "manifest": "variants/polyfill-cache/source-manifest.json"
+    }
+  },
+  "build_receipts": [
+    {
+      "receipt": "build/all/build.json",
+      "variant": "all",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "fsiv-lazy",
+        "namespace-lazy",
+        "coalesce-bitset",
+        "color-cache",
+        "polyfill-cache"
+      ]
+    },
+    {
+      "receipt": "build/coalesce-bitset/build.json",
+      "variant": "coalesce-bitset",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "coalesce-bitset"
+      ]
+    },
+    {
+      "receipt": "build/color-cache/build.json",
+      "variant": "color-cache",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "color-cache"
+      ]
+    },
+    {
+      "receipt": "build/control/build.json",
+      "variant": "control",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": []
+    },
+    {
+      "receipt": "build/control-release-missing/build.json",
+      "variant": "control",
+      "status": "FAILED",
+      "exit": 2,
+      "class_count": 0,
+      "selected_factors": []
+    },
+    {
+      "receipt": "build/fsiv-lazy/build.json",
+      "variant": "fsiv-lazy",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "fsiv-lazy"
+      ]
+    },
+    {
+      "receipt": "build/namespace-lazy/build.json",
+      "variant": "namespace-lazy",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "namespace-lazy"
+      ]
+    },
+    {
+      "receipt": "build/polyfill-cache/build.json",
+      "variant": "polyfill-cache",
+      "status": "PASS",
+      "exit": 0,
+      "class_count": 71,
+      "selected_factors": [
+        "polyfill-cache"
+      ]
+    }
+  ],
+  "build_manifest": "bench/build-manifest.json",
+  "methodology_source": "bench/README.md",
+  "focused_probe_receipt": "results/focused-probes-v1/results.json",
+  "focused_probe_observations": [
+    {
+      "factor": "fsiv-lazy",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "stock",
+          "exit": 0
+        },
+        {
+          "variant": "control",
+          "exit": 0
+        },
+        {
+          "variant": "fsiv-lazy",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": true
+    },
+    {
+      "factor": "color-cache",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "stock",
+          "exit": 0
+        },
+        {
+          "variant": "control",
+          "exit": 0
+        },
+        {
+          "variant": "color-cache",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    },
+    {
+      "factor": "coalesce-bitset",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "coalesce-bitset",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    },
+    {
+      "factor": "polyfill-cache",
+      "status": "PASS",
+      "compile_exit": 0,
+      "runs": [
+        {
+          "variant": "polyfill-cache",
+          "exit": 0
+        },
+        {
+          "variant": "all",
+          "exit": 0
+        }
+      ],
+      "byte_gate_recorded": null
+    }
+  ],
+  "namespace_standalone_probe": {
+    "status": "PASS",
+    "receipt": "results/namespace-probe-v1/results.json",
+    "compile_exit": 0,
+    "byte_gate": true,
+    "runs": [
+      {
+        "variant": "stock",
+        "exit": 0
+      },
+      {
+        "variant": "control",
+        "exit": 0
+      },
+      {
+        "variant": "namespace-lazy",
+        "exit": 0
+      },
+      {
+        "variant": "all",
+        "exit": 0
+      }
+    ],
+    "extension_callback_or_error_parity_inferred": false
+  },
+  "unsuccessful_toolchain_attempts": [
+    {
+      "path": "build/control-launcher-missing",
+      "status": "PARENT_REPORTED_MISSING_JAVAC_LAUNCHER",
+      "build_receipt_present": false,
+      "exit_code": null,
+      "boundary": "Source/classes directories present; no build.json/raw exception there. No missing receipt invented."
+    },
+    {
+      "path": "build/control-release-missing",
+      "status": "FAILED",
+      "exit_code": 2,
+      "receipt": "build/control-release-missing/build.json",
+      "stderr": "build/control-release-missing/stderr",
+      "observed_error": "release version 21 not supported",
+      "parent_diagnosis": "ct.sym missing; successful retry uses Java21 jdk.compiler module with source/target21"
+    }
+  ],
+  "benchmark_results": {
+    "status": "SEVEN_INDEPENDENTLY_REVIEWED_ONE_COHORT_SCREENS",
+    "completed_screens": "completed-screens.json",
+    "reviews": [
+      "reviews/screen-bigquery-stock-control-v4/review.json",
+      "reviews/screen-bigquery-control-all-v1/review.json",
+      "reviews/screen-bigquery-control-fsiv-lazy-v1/review.json",
+      "reviews/screen-bigquery-control-namespace-lazy-v1/review.json",
+      "reviews/screen-bigquery-control-color-cache-v1/review.json",
+      "reviews/screen-bigquery-control-coalesce-bitset-v1/review.json",
+      "reviews/screen-bigquery-control-polyfill-cache-v1/review.json"
+    ],
+    "summary_paths": [
+      "results/screen-bigquery-stock-control-v4/summary.json",
+      "results/screen-bigquery-control-all-v1/summary.json",
+      "results/screen-bigquery-control-fsiv-lazy-v1/summary.json",
+      "results/screen-bigquery-control-namespace-lazy-v1/summary.json",
+      "results/screen-bigquery-control-color-cache-v1/summary.json",
+      "results/screen-bigquery-control-coalesce-bitset-v1/summary.json",
+      "results/screen-bigquery-control-polyfill-cache-v1/summary.json"
+    ],
+    "cohorts_each": 1,
+    "pairs_each": 5,
+    "CI": null,
+    "polyfill": "PASS_REVIEWED_ONE_COHORT",
+    "bundle": "COMPLETE_ONE_COHORT_SCREEN_ONLY",
+    "confirmation": "COMPLETE_PRESELECTED_FRESH_HOLDOUT_ANALYSIS",
+    "Java_vs_Go_claim": false
+  },
+  "publication": {
+    "status": "CLOSED_FOR_LOCAL_PUBLICATION",
+    "receipt": "publication-receipt.json",
+    "note": "The final publisher supplies its actual archive verification receipt; no future network result inferred here."
+  },
+  "rejected_benchmark_attempts": [
+    {
+      "path": "results/screen-bigquery-stock-control-v1",
+      "status": "REJECTED no acceptedperformanceclaim",
+      "type": "AssertionError",
+      "reason": "outer memory pressure guard",
+      "failure_receipt": "results/screen-bigquery-stock-control-v1/failure.json",
+      "stopped_receipt": "results/screen-bigquery-stock-control-v1/stopped-proof.json",
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cleanup_errors": [],
+      "remaining_owned_containers": [],
+      "active_compilers": [],
+      "remaining_owned_driver_processes": [],
+      "performance_claim": false
+    },
+    {
+      "path": "results/screen-bigquery-stock-control-v2",
+      "status": "REJECTED no acceptedperformanceclaim",
+      "type": "AssertionError",
+      "reason": "outer memory pressure guard",
+      "failure_receipt": "results/screen-bigquery-stock-control-v2/failure.json",
+      "stopped_receipt": "results/screen-bigquery-stock-control-v2/stopped-proof.json",
+      "outer_OOM_delta": {
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cleanup_errors": [],
+      "remaining_owned_containers": [],
+      "active_compilers": [],
+      "remaining_owned_driver_processes": [],
+      "performance_claim": false
+    },
+    {
+      "path": "results/screen-bigquery-stock-control-v3",
+      "status": "LAUNCH_FAILED_MISSING_PSI_TELEMETRY",
+      "exit": 1,
+      "launcher_receipt": "launches/screen-bigquery-stock-control-v3/result.json",
+      "stderr": "launches/screen-bigquery-stock-control-v3/stderr",
+      "observed_error": "FileNotFoundError /sys/fs/cgroup/memory.pressure",
+      "benchmark_summary_present": false,
+      "benchmark_stopped_OOM_receipt_present": false,
+      "zero_PSI_or_OOM_claim_inferred": false,
+      "performance_claim": false
+    }
+  ],
+  "pressure_recovery_before_retry": {
+    "receipt": "results/cache-reclaim-before-screen-v1.json",
+    "method": "posix_fadvise POSIX_FADV_DONTNEED on ordinary non-symlink workspace files before any accepted timed cohort; no content modifications",
+    "files": 23289,
+    "logical_bytes": 24460575574,
+    "errors": [],
+    "memory_current_before_bytes": 6426492928,
+    "memory_current_after_bytes": 4449914880,
+    "memory_events_unchanged": true,
+    "content_modified": false,
+    "retry_path": "results/screen-bigquery-stock-control-v2",
+    "retry_timing_results_read_or_admitted": false
+  },
+  "upstream_patches": {
+    "manifest": "patches/manifest.json",
+    "individual_factors": [
+      "fsiv-lazy",
+      "namespace-lazy",
+      "coalesce-bitset",
+      "color-cache",
+      "polyfill-cache"
+    ],
+    "combined": "patches/all.patch",
+    "source_files": 9,
+    "unshaded": true,
+    "original_patches_unchanged": true,
+    "actual_upstream_apply_build_run": false,
+    "scratch_git_apply_check_and_exact_candidate_equality": true,
+    "actual_upstream_build_run": false,
+    "scratch_validation_receipt": "patch-apply-validation.json"
+  },
+  "measurement_sensitivity_recommendation": {
+    "path": "bench/measurement-recommendation-v1.json",
+    "original_scope": "five completed screens before bitset/polyfill",
+    "median_primary": true,
+    "mean_wall_secondary": true,
+    "bitset_added_only_from_independent_review": true,
+    "polyfill_added_only_from_independent_review": true
+  },
+  "transport_recovery": {
+    "receipt": "results/transport-recovery-v1.json",
+    "record": {
+      "time_unix": 1792534316.3847435,
+      "session_lost": "70477; exec-server transport disconnected during color warmup",
+      "sequence_state": "screen-sequence-v1.json retains actual outer wrapper failure",
+      "color_underlying_runner_exit": 0,
+      "color_independent_review": "reviews/screen-bigquery-control-color-cache-v1/review.json",
+      "color_accepted_after_review": true,
+      "cleanup": "two JVM exits0, no active compilers/ownedcontainers, zeroOOM",
+      "cause_limit": "Exact outer stderr unavailable after terminal transport loss; result.json was successfully written before launch.py final stdout print. Final stdout write failure is inferred, not directly captured.",
+      "recovery": "Preserve failed outer sequence; start remaining factors with durable stdout/stderr files, keeping frozen runner and same protocol."
+    },
+    "color_result_status": "PASS_INDEPENDENT_REVIEW_EXPLORATORY",
+    "failure_cause_proven": false,
+    "outer_failed_sequence": "screen-sequence-v1.json",
+    "remaining_sequence": "screen-sequence-v2-remaining.json"
+  },
+  "actual_completed_runner_policy": {
+    "version": "cache-aware-v3-PSIoptional",
+    "PSI": "UNAVAILABLE_no_zeroPSI_claim",
+    "limits": "Measured local/direct-reclaim/available fault guards are proxies, not proof of zero pressure. Warm reclamation recorded/allowed.",
+    "source_preparation": "bench/run-v3-source-preparation.json"
+  },
+  "fixed_confirmation_plan": {
+    "path": "confirmation-plan-v1.json",
+    "record": {
+      "status": "Frozen before any confirmation observations",
+      "baseline": "STOCK",
+      "candidates": [
+        "color-cache",
+        "ALL"
+      ],
+      "selection": "Color has the most consistent individual screen across median wall, mean wall and CPU; ALL measures the requested compound effect. Other factors remain exploratory, regardless of their screen ranking.",
+      "bigquery": {
+        "fresh_paired_JVM_cohorts_per_candidate": 3,
+        "measured_pairs_per_cohort": 5
+      },
+      "primary": "Geometric mean of three candidate/STOCK cohort ratios of median measured wall time; smaller is better.",
+      "sensitivity": [
+        "mean wall time",
+        "CPU time",
+        "lifetime peak RSS including warmup",
+        "allocated bytes"
+      ],
+      "intervals": "Whole-cohort bootstrap 95%, log-ratio Student t 95% df=2, and Bonferroni familywise 95% across the two selected primary comparisons (individual t97.5%, df=2). Three cohorts provide a limited variance estimate.",
+      "decision": "No reliable speed win if the adjusted primary interval includes 1; report all cohort ratios and sensitivity even when unfavorable. Do not pool selected screening observations into confirmation.",
+      "secondary_workload": {
+        "task": "bundle",
+        "baseline": "STOCK",
+        "candidate": "ALL",
+        "cohorts": 1,
+        "purpose": "External validity screen only, not a significance test"
+      },
+      "protocol": "Existing frozen run-v3.py, manifest and launch.py; byte parity on every request; default JVM collector, fresh compiler and normal extern parsing every request; same 4 GiB per-process cap and 2 CPU affinity. No benchmark tuning based on observed results.",
+      "scope": "Java experiments only; no new Go result and no inferred Java/Go ratio. No namespace+color subset build in this batch."
+    },
+    "actual_confirmation_results_admitted": true,
+    "selected_screen_observations_excluded": true,
+    "analysis_archive_path": "results/confirmation-analysis-v1/analysis.json"
+  },
+  "confirmation": {
+    "status": "COMPLETE_FRESH_PRESELECTED_HOLDOUT_ANALYSIS",
+    "analysis_archive_path": "results/confirmation-analysis-v1/analysis.json",
+    "analysis_browsing_copy": "confirmation-analysis.json",
+    "final_reviews": [
+      "reviews/confirm-bigquery-stock-color-cache-v1/review.json",
+      "reviews/confirm-bigquery-stock-all-v1/review.json",
+      "reviews/confirm-bundle-stock-all-v1/review.json"
+    ],
+    "sequence": "confirmation-sequence-v1.json",
+    "screens_pooled": 0,
+    "adjusted_primary_supported_candidates": [],
+    "root_reviewed": true
+  },
+  "diagnostic_activation": {
+    "archive_path": "diagnostic-activation/results-review-v1.json",
+    "performance_claim": false,
+    "all_five_paths_both_workloads": true
+  },
+  "post_hoc_VmHWM_review_amendment": {
+    "original_note": "results/review-telemetry-amendment-v1/amendment.json",
+    "original_note_record": {
+      "status": "V2_FULL_REVIEW_PASS_NO_MEASUREMENT_CHANGED",
+      "original_review_preserved_at": "reviews/confirm-bigquery-stock-color-cache-v1-review-v1-failed",
+      "original_review_sha256": "f48096429518ab450149e3512988059f1453db69162b08e23af7da5919ff0000",
+      "observed": {
+        "cohort": 3,
+        "variant": "STOCK",
+        "request": 8,
+        "kind": "warmup",
+        "previous_HWM_KiB": 1107716,
+        "HWM_KiB": 1107656,
+        "drop_KiB": 60,
+        "later_final_HWM_KiB": 1246228
+      },
+      "policy": "Allow only superseded warmup-only VmHWM dips, recording each and its later strictly higher sample. Measured VmHWM dips and cgroup memory.peak dips remain fatal. No sample or numeric maximum is changed. Re-run every independent admission check.",
+      "disclosure": "Review policy amendment made after observing this telemetry anomaly; not prespecified. Linux documents VmHWM as inaccurate; exact root cause and numerical accuracy bound unproved.",
+      "documentation": "bench/proc-status-documentation-v2.json",
+      "benchmark_runner_flags_inputs_and_raw_values_changed": false,
+      "original_progress_snapshot": "sequence-at-failure.json",
+      "accepted_review": "reviews/confirm-bigquery-stock-color-cache-v1/review.json",
+      "accepted_review_sha256": "d63a5d36db633b138fa588fd2529accf50d618ede60ef942036e1b1ea751a3eb",
+      "reviewer_v2_sha256": "79d8ac56b3a03e736c0ad85368ca6e5d0f1f60932322d19c2726c2ffe14387cb",
+      "telemetry_anomalies": [
+        {
+          "metric": "proc_VmHWM_kib",
+          "cohort": 3,
+          "variant": "STOCK",
+          "prior_request": 7,
+          "request": 8,
+          "kind": "warmup",
+          "before": 1107716,
+          "after": 1107656,
+          "delta_kib": -60,
+          "allowed": true,
+          "later_strictly_larger_sample": {
+            "request": 9,
+            "kind": "warmup",
+            "hwm_kib": 1138656,
+            "retained_protocol": "/workspace/jsgo-java-experiments/transfer-v1/results/confirm-bigquery-stock-color-cache-v1/cohort-3/STOCK/protocol/9/row.json"
+          },
+          "retained_protocol_rows_exact": true
+        }
+      ]
+    },
+    "failed_original_review": "reviews/confirm-bigquery-stock-color-cache-v1-review-v1-failed/review.json",
+    "failure_snapshot": "results/review-telemetry-amendment-v1/sequence-at-failure.json",
+    "documentation": "bench/proc-status-documentation-v2.json",
+    "prespecified": false,
+    "benchmark_runner_flags_inputs_raw_values_changed": false,
+    "review_policy": "recorded warmup-only dip later strictly exceeded; measured/cgroup dips fatal",
+    "root_cause_proved": false,
+    "numerical_error_bound": null,
+    "RSS_metric": "maximum observed approximate /proc VmHWM across warmup/JIT/measurement",
+    "accepted_after_complete_PASS_rereview": true
+  },
+  "final_independent_review": "final-independent-review-v1.json",
+  "final_root_review": "root-final-review-v1.json"
+}

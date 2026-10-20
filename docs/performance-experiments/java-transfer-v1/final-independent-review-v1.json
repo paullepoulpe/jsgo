@@ -1,0 +1,96 @@
+{
+  "status": "PASS_INDEPENDENT_FINAL_REPORT_NUMERICS_AND_INTERPRETATION_REVIEW",
+  "reviewer": "java_final_review",
+  "scope": "Read-only review of completed Java holdout and bundle review JSON, final analysis, prepared renderer source, rendered README, methodology and report status/evidence JSON. This receipt is the only file written by this reviewer.",
+  "evidence_root": "/workspace/jsgo-java-experiments/transfer-v1",
+  "sources": [
+    "confirmation-plan-v1.json",
+    "bench/confirm-analysis.py",
+    "bench/review-results.py",
+    "bench/review-results-v2.py",
+    "finalize_report.py",
+    "reviews/confirm-bigquery-stock-color-cache-v1/review.json",
+    "reviews/confirm-bigquery-stock-all-v1/review.json",
+    "reviews/confirm-bundle-stock-all-v1/review.json",
+    "results/confirmation-analysis-v1/analysis.json",
+    "results/review-telemetry-amendment-v1/amendment.json",
+    "report/README.md",
+    "report/methodology.md",
+    "report/evidence-index.json",
+    "report/rendered-final-status.json",
+    "report/results-template.json",
+    "report/completed-screens.json",
+    "report/patch-apply-validation.json"
+  ],
+  "independent_checks": {
+    "numeric_comparisons_passed": 183,
+    "holdout_metric_summaries_checked": 14,
+    "holdout_independent_cohorts": 6,
+    "candidate_over_STOCK_direction_correct": true,
+    "raw_cohort_metric_ratios_recomputed_from_review_samples": true,
+    "geometric_means_and_log_t_intervals_recomputed": true,
+    "inverse_intervals_reverse_endpoints_correctly": true,
+    "primary_family_is_two_preselected_median_wall_comparisons": true,
+    "adjusted_primary_intervals_contain_one_for_both_candidates": true,
+    "screen_observations_pooled": 0,
+    "mean_wall_and_CPU_sensitivities_reported": true,
+    "median_and_mean_allocated_bytes_reported": true,
+    "analysis_browsing_copy_equals_source_JSON": true,
+    "both_CSV_browsing_copies_equal_source_text": true,
+    "bundle_cohorts": 1,
+    "bundle_confidence_interval": null,
+    "bundle_pooled_into_BigQuery": false,
+    "bundle_ratios_recomputed_from_review_samples": true,
+    "final_three_row_rounded_summary_matches_exact_results": true,
+    "final_root_closure_Markdown_changes_reviewed": true,
+    "report_JSON_root_reviewed_flags_true": true,
+    "scratch_patch_application_claim_matches_receipt_scope": true
+  },
+  "primary_results": {
+    "color-cache": {
+      "median_wall_geomean_candidate_over_STOCK": 1.001409313991265,
+      "familywise95_log_t_interval": [0.8755022882650035, 1.1454231788882712],
+      "mean_wall_geomean_candidate_over_STOCK": 0.9951350691122385,
+      "approximate_VmHWM_geomean_candidate_over_STOCK": 1.1108802531153006
+    },
+    "ALL": {
+      "median_wall_geomean_candidate_over_STOCK": 1.0203213450731439,
+      "familywise95_log_t_interval": [0.905707265854835, 1.149439434196532],
+      "mean_wall_geomean_candidate_over_STOCK": 1.005581126040603,
+      "approximate_VmHWM_geomean_candidate_over_STOCK": 0.9176961822859488
+    }
+  },
+  "bundle_screen": {
+    "median_wall_ALL_over_STOCK": 1.0501961039338943,
+    "mean_wall_ALL_over_STOCK": 1.0352914407649476,
+    "approximate_VmHWM_ALL_over_STOCK": 1.0198856537724736,
+    "interpretation": "Separate one-cohort external-validity screen; no significance or universal-performance claim."
+  },
+  "interpretation_review": {
+    "supported_primary_candidates": [],
+    "finding": "Neither selected candidate demonstrates a reliable speed gain under the prespecified adjusted criterion. This does not prove zero effect, equivalence, or reliable regression.",
+    "memory": "VmHWM is approximate and includes warmup/JIT/measurement. Both HWM log-t95 intervals include one; no memory significance claim is supported by the selected descriptive endpoints. Allocation, current RSS and cgroup peak have distinct measurement windows.",
+    "review_amendment": "The exact v1/v2 source diff changes only the disclosed warmup VmHWM admission policy and anomaly reporting. Warmup-only dips require a later strictly higher retained sample; measured VmHWM and cgroup peak decreases remain fatal. The report identifies the amendment as post hoc, preserves the original failure, and makes no numerical accuracy-bound or proved-root-cause claim.",
+    "inference_limits": "Three independent cohorts give a limited variance estimate; log-t requires approximately normal independent log effects, and the three-cohort bootstrap is discrete. Persistent-JVM requests are not separate inferential units.",
+    "scope_limits": "No new Java/Go ratio, universal error-path equivalence, full upstream suite result, or timing benefit inferred from diagnostic activation."
+  },
+  "blocking_numerical_or_interpretive_findings": [],
+  "minor_findings_resolved": [
+    "The renderer now includes mean allocated bytes in the all-metrics tables."
+  ],
+  "publication_followup_at_review_time": {
+    "root_review_flags_and_wording": "Root closure verified: README and methodology no longer require pending root review, and evidence-index, rendered-final-status and results-template report FINAL_ROOT_REVIEWED with root_reviewed true.",
+    "linked_assets_not_yet_present_in_report_source": ["java-transfer-v1-evidence.tar.gz", "REPRODUCE.md"],
+    "publisher_responsibility": "Root confirms the publisher creates both assets at the final destination and verifies them after capture. All other README relative links resolve at review time.",
+    "final_edits_reviewed": "The concise three-row rounded summary, rounded primary intervals, explicit no-demonstrated-speed-win conclusion, and six-patch scratch-application receipt/link were reviewed after root closure. Scratch patch validation is explicitly not an upstream build or full test suite. Final publication/archive verification remains outside this receipt."
+  },
+  "review_execution_limits": {
+    "compiler_or_benchmark_execution": false,
+    "Docker_or_network_actions": false,
+    "archive_operations": false,
+    "bulk_hashing": false,
+    "measured_evidence_modified": false,
+    "raw_protocol_revalidation": false,
+    "note": "This is a source/report peer review with small JSON/text reads and simple arithmetic. It does not replace the existing independent full admission reviews or publication verification."
+  }
+}

@@ -1,5 +1,7 @@
 # Open performance ideas
 
+[The Java transfer study](java-transfer-v1/README.md) is complete for five factors and their combination: no replicated speed win was established. Preserve those negative/inconclusive results rather than assuming Go gains transfer to HotSpot. Open Java work includes profiling repeated immutable `Color.hashCode()` and, if material, testing a memoized hash; measuring cache retention and dense coalescing functions; more independent JVM cohorts; representative large multi-chunk workloads; and full upstream/error-path tests. These are unmeasured ideas or coverage gaps, not promised gains. Existing Go results below are unchanged.
+
 The latest warm-JVM-measured integration is `62296baf` on main `e5d0987a`, with full normal
 and three strict Java CLI gates passing. A new generated BigQuery ADVANCED
 comparison measures 9.38% less elapsed and 72.96% less peak RSS versus warm Java 21

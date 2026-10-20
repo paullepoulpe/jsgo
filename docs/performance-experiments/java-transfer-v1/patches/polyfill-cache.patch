@@ -1,0 +1,110 @@
+diff --git a/src/com/google/javascript/jscomp/IsolatePolyfills.java b/src/com/google/javascript/jscomp/IsolatePolyfills.java
+--- a/src/com/google/javascript/jscomp/IsolatePolyfills.java
++++ b/src/com/google/javascript/jscomp/IsolatePolyfills.java
+@@ -25,7 +25,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage;
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+@@ -60,10 +59,7 @@
+   private boolean isTempVarInitialized = false;
+ 
+   IsolatePolyfills(AbstractCompiler compiler) {
+-    this(
+-        compiler,
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(IsolatePolyfills.class, "js/polyfills.txt")));
++    this(compiler, Polyfills.getDefault());
+   }
+ 
+   @VisibleForTesting
+diff --git a/src/com/google/javascript/jscomp/PolyfillUsageFinder.java b/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
+--- a/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
++++ b/src/com/google/javascript/jscomp/PolyfillUsageFinder.java
+@@ -20,6 +20,7 @@
+ import static java.util.Objects.requireNonNull;
+ 
+ import com.google.common.base.Splitter;
++import com.google.common.base.Suppliers;
+ import com.google.common.collect.ImmutableCollection;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+@@ -29,10 +30,12 @@
+ import com.google.javascript.jscomp.CompilerOptions.LanguageMode;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature;
++import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayDeque;
+ import java.util.List;
+ import java.util.function.Consumer;
++import java.util.function.Supplier;
+ import java.util.stream.Collectors;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -91,6 +94,19 @@
+ 
+   /** Maps from polyfill names to the actual Polyfill object. */
+   static final class Polyfills {
++    // This immutable resource table contains no compiler- or traversal-specific state.
++    // Memoize only successful loads, so a failed resource load or parse remains retryable.
++    private static final Supplier<Polyfills> DEFAULT =
++        Suppliers.memoize(
++            () ->
++                fromTable(
++                    ResourceLoader.loadTextResource(
++                        PolyfillUsageFinder.class, "js/polyfills.txt")));
++
++    static Polyfills getDefault() {
++      return DEFAULT.get();
++    }
++
+     // Map of method polyfills, keyed by native method name.
+     private final ImmutableMultimap<String, Polyfill> methods;
+     // Map of static polyfills, keyed by fully-qualified native name.
+diff --git a/src/com/google/javascript/jscomp/RemoveUnusedCode.java b/src/com/google/javascript/jscomp/RemoveUnusedCode.java
+--- a/src/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/src/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -29,7 +29,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage;
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+@@ -158,9 +157,7 @@
+     this.removeUnusedObjectDefinePropertiesDefinitions =
+         builder.removeUnusedObjectDefinePropertiesDefinitions;
+     this.removeUnusedPolyfills = builder.removeUnusedPolyfills;
+-    this.polyfillsFromTable =
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(RemoveUnusedCode.class, "js/polyfills.txt"));
++    this.polyfillsFromTable = Polyfills.getDefault();
+     this.assumeGettersArePure = builder.assumeGettersArePure;
+ 
+     // All Vars that are completely unremovable will share this VarInfo instance.
+diff --git a/src/com/google/javascript/jscomp/RewritePolyfills.java b/src/com/google/javascript/jscomp/RewritePolyfills.java
+--- a/src/com/google/javascript/jscomp/RewritePolyfills.java
++++ b/src/com/google/javascript/jscomp/RewritePolyfills.java
+@@ -28,7 +28,6 @@
+ import com.google.javascript.jscomp.PolyfillUsageFinder.Polyfills;
+ import com.google.javascript.jscomp.js.RuntimeJsLibManager;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+-import com.google.javascript.jscomp.resources.ResourceLoader;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.QualifiedName;
+@@ -76,8 +75,7 @@
+     this(
+         compiler,
+         compiler.getRuntimeJsLibManager(),
+-        Polyfills.fromTable(
+-            ResourceLoader.loadTextResource(RewritePolyfills.class, "js/polyfills.txt")),
++        Polyfills.getDefault(),
+         injectPolyfills,
+         isolatePolyfills,
+         injectPolyfillsNewerThan);

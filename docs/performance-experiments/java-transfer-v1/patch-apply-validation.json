@@ -1,0 +1,271 @@
+{
+  "status": "PASS all six normalized patches apply exactly",
+  "scope": "git apply --check and actual apply in scratch trees containing pinned original source files; byte equality to measured unshaded candidates. This is not an upstream build or full upstream test suite.",
+  "patches": [
+    {
+      "factor": "fsiv-lazy",
+      "patch_sha256": "33f87197d0c23cd77826f48bb4c47ac96b244252396655fb5cd0dfa9497b1395",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/fsiv-lazy.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/fsiv-lazy.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java",
+          "candidate_sha256": "833e1fc2ee06d7bcb404bb4d14162c87ec7a2921e2f51806b15c3ff6c3c67549",
+          "applied_source_byte_identical": true
+        }
+      ]
+    },
+    {
+      "factor": "namespace-lazy",
+      "patch_sha256": "23ca2ac5f56d249313d12e923f97a6d36b2fb3ae7de1987284d4dd92bf3c546c",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/namespace-lazy.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/namespace-lazy.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/GlobalNamespace.java",
+          "candidate_sha256": "4e969ed536df88985b7ca194c579d51b01def7e8e48d50a790c50e1cf1a30c5e",
+          "applied_source_byte_identical": true
+        }
+      ]
+    },
+    {
+      "factor": "coalesce-bitset",
+      "patch_sha256": "fc96f0f519d223be045faf66c49333151414f6f288bc005e6e98ef5575bb387d",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/coalesce-bitset.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/coalesce-bitset.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/CoalesceVariableNames.java",
+          "candidate_sha256": "420d658c385693b97d47fb49a2e8200e30dfa70dcbe8f152ca145abe7903e972",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/LiveVariablesAnalysis.java",
+          "candidate_sha256": "8900502336dd962987a166c46c57eaf55cc972f7ea5b895aa62c55a0e2c7700c",
+          "applied_source_byte_identical": true
+        }
+      ]
+    },
+    {
+      "factor": "color-cache",
+      "patch_sha256": "4ff8bd1bddfd3e143a4f2244b650a3f9671df2c193aea2468ecfe584a53753c0",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/color-cache.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/color-cache.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java",
+          "candidate_sha256": "d0f38c76d587d0534e35b64ff33610f1cd5db18e853ddd132186091659413ca8",
+          "applied_source_byte_identical": true
+        }
+      ]
+    },
+    {
+      "factor": "polyfill-cache",
+      "patch_sha256": "841dc762788034890e6cba601f468f92ca1558f665d4c54510fedaf6acef0832",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/polyfill-cache.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/polyfill-cache.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/IsolatePolyfills.java",
+          "candidate_sha256": "fa26986abad0a759fd2ad9d6624a5aeb19d04d27d82f35a84d2fc1fc8fc4ffc2",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/PolyfillUsageFinder.java",
+          "candidate_sha256": "b58167fbdb6df844ec729e2f6bef3d64b17ae0ad96f2004967c5530c9637538c",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/RemoveUnusedCode.java",
+          "candidate_sha256": "2124bf74741685aeb80a87e68d77975e746ad72fb4c07fc348b9b243d52317d2",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/RewritePolyfills.java",
+          "candidate_sha256": "e207ed1e4342f5b075d424d7390e47942f38c68ed4935ebfbe1e510e9c763ff3",
+          "applied_source_byte_identical": true
+        }
+      ]
+    },
+    {
+      "factor": "all",
+      "patch_sha256": "923c0b12954aae4667707fb1d23f42c4f3a553ee3b663b488d829d2e8a119e75",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "apply",
+            "--check",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/all.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "apply",
+            "/workspace/jsgo-java-experiments/transfer-v1/report/patches/all.patch"
+          ],
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "files": [
+        {
+          "path": "src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java",
+          "candidate_sha256": "833e1fc2ee06d7bcb404bb4d14162c87ec7a2921e2f51806b15c3ff6c3c67549",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/GlobalNamespace.java",
+          "candidate_sha256": "4e969ed536df88985b7ca194c579d51b01def7e8e48d50a790c50e1cf1a30c5e",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/CoalesceVariableNames.java",
+          "candidate_sha256": "420d658c385693b97d47fb49a2e8200e30dfa70dcbe8f152ca145abe7903e972",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/LiveVariablesAnalysis.java",
+          "candidate_sha256": "8900502336dd962987a166c46c57eaf55cc972f7ea5b895aa62c55a0e2c7700c",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java",
+          "candidate_sha256": "d0f38c76d587d0534e35b64ff33610f1cd5db18e853ddd132186091659413ca8",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/IsolatePolyfills.java",
+          "candidate_sha256": "fa26986abad0a759fd2ad9d6624a5aeb19d04d27d82f35a84d2fc1fc8fc4ffc2",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/PolyfillUsageFinder.java",
+          "candidate_sha256": "b58167fbdb6df844ec729e2f6bef3d64b17ae0ad96f2004967c5530c9637538c",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/RemoveUnusedCode.java",
+          "candidate_sha256": "2124bf74741685aeb80a87e68d77975e746ad72fb4c07fc348b9b243d52317d2",
+          "applied_source_byte_identical": true
+        },
+        {
+          "path": "src/com/google/javascript/jscomp/RewritePolyfills.java",
+          "candidate_sha256": "e207ed1e4342f5b075d424d7390e47942f38c68ed4935ebfbe1e510e9c763ff3",
+          "applied_source_byte_identical": true
+        }
+      ]
+    }
+  ],
+  "previous_helper_failure": "results/upstream-patch-apply-v1/failure.json"
+}

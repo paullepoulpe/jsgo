@@ -1,0 +1,11 @@
+{
+  "status": "PASS final publication text checks",
+  "notes": [
+    "Added a historical label and final-validation links to the published patch-preparation README; the archive preserves its original bytes. No patches or results changed.",
+    "Default git diff --check identifies RFC-style CSV CRLF endings as trailing whitespace; the check passes with cr-at-eol enabled. CSV bytes are preserved exactly.",
+    "Literal unified-diff patch artifacts are excluded from prose whitespace checks; all six separately passed actual git apply and candidate-byte equality."
+  ],
+  "published_patch_README_before_sha256": "d716f2dfda2f783712b3ac22f7f733ce939d582ab8cd28fb9cafe99665bb245e",
+  "published_patch_README_after_sha256": "ddb649ecd8b1481112fe9ff2bbbcf26f4c16811ef97475a571a508952ac50608",
+  "archive_unchanged": true
+}

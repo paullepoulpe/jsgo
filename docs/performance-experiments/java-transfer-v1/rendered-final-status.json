@@ -1,0 +1,9 @@
+{
+  "status": "FINAL_ROOT_REVIEWED",
+  "source_analysis": "results/confirmation-analysis-v1/analysis.json",
+  "intervals_recomputed": false,
+  "root_reviewed": true,
+  "original_evidence_modified": false,
+  "build_benchmark_archive_performed": false,
+  "adjusted_primary_supported_candidates": []
+}

@@ -1,0 +1,60 @@
+{
+  "after_idle": {
+    "active_compiler_controller_processes": [],
+    "docker_environment_keys_removed": [
+      "DOCKER_CERT_PATH",
+      "DOCKER_CONTEXT",
+      "DOCKER_HOST",
+      "DOCKER_TLS",
+      "DOCKER_TLS_VERIFY"
+    ],
+    "docker_host": "unix:///var/run/docker.sock",
+    "docker_ps_exit": 0,
+    "running_containers": []
+  },
+  "archive_sha256": "0458d17181aaf24c7d413052984e28a4b13d941811c33ee072daed8a479e3354",
+  "before_capture_idle": {
+    "active_compiler_controller_processes": [],
+    "docker_environment_keys_removed": [
+      "DOCKER_CERT_PATH",
+      "DOCKER_CONTEXT",
+      "DOCKER_HOST",
+      "DOCKER_TLS",
+      "DOCKER_TLS_VERIFY"
+    ],
+    "docker_host": "unix:///var/run/docker.sock",
+    "docker_ps_exit": 0,
+    "running_containers": []
+  },
+  "before_idle": {
+    "active_compiler_controller_processes": [],
+    "docker_environment_keys_removed": [
+      "DOCKER_CERT_PATH",
+      "DOCKER_CONTEXT",
+      "DOCKER_HOST",
+      "DOCKER_TLS",
+      "DOCKER_TLS_VERIFY"
+    ],
+    "docker_host": "unix:///var/run/docker.sock",
+    "docker_ps_exit": 0,
+    "running_containers": []
+  },
+  "compiler_benchmark_executed": false,
+  "excluded": 71,
+  "external_output_guards": {
+    "stderr": {
+      "dev": 33,
+      "ino": 131181,
+      "path": "/tmp/java-transfer-publication-v1.stderr"
+    },
+    "stdout": {
+      "dev": 33,
+      "ino": 131180,
+      "path": "/tmp/java-transfer-publication-v1.stdout"
+    }
+  },
+  "files": 8584,
+  "git_or_network_actions": false,
+  "root_grant_sha256": "84e0fce8036fb86642543fd6e2ecb648322bd2429593bde6f94d68882f7d6706",
+  "status": "LOCAL_SNAPSHOT_VERIFIED"
+}

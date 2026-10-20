@@ -1,0 +1,12 @@
+{
+  "status": "PASS publication destination checks",
+  "publisher_exit": 0,
+  "completed_unix": 1792539522.122811,
+  "archive_sha256": "0458d17181aaf24c7d413052984e28a4b13d941811c33ee072daed8a479e3354",
+  "archive_bytes": 23456433,
+  "archive_files": 8584,
+  "all_README_local_links_resolve": true,
+  "reproduction_notes_exist": true,
+  "publisher_verified_all_members": true,
+  "source_snapshot_unmodified_after_capture": true
+}

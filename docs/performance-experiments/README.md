@@ -1,5 +1,7 @@
 # Performance experiment record
 
+**Java optimization transfer study (2026-10-20):** [Five factors, combined patches and full results](java-transfer-v1/README.md). All five were implemented and screened separately. Fresh BigQuery follow-ups did not confirm a reliable speed gain: color-cache/stock time **1.001**, approximate peak RSS **1.111**; all five/stock time **1.020**, RSS **0.918**. Each uses three independent paired-JVM cohorts; adjusted time intervals include 1 and memory changes remain uncertain. The separate one-cohort bundle screen is time **1.050**, RSS **1.020**. Lower ratios mean lower cost. Strict output checks passed; full upstream Java suites remain unrun. [Evidence archive](java-transfer-v1/java-transfer-v1-evidence.tar.gz), [patches](java-transfer-v1/patches/manifest.json), [publication receipt](java-transfer-v1/publication-receipt.json). These Java-versus-Java experiments do not update the historical Go comparisons below.
+
 **Current investigation (2026-10-20):** [Round 4 progress and protocol](ROUND4.md).
 The completed generated BigQuery ADVANCED comparison at `62296baf` uses three
 independently restarted, settled Java 21 JVMs and 15 alternating pairs:
