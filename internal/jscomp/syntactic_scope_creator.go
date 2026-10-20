@@ -734,6 +734,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 	if s.treatProvidesAsRedeclarations {
 		existing := sc.getOwnSlotV(root)
 		if existing != nil && !existing.IsImplicitGoogNamespace() {
+			if _, stockDefault := s.redeclarationHandler.(*SyntacticScopeCreator_DefaultRedeclarationHandler); !stockDefault {
+				sc.markArenaEscaped()
+			}
 			s.redeclarationHandler.OnRedeclaration(
 				sc, root, existing.GetNode(), s.getInput())
 		}
