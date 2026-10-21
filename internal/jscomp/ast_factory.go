@@ -1790,8 +1790,8 @@ func (a *AstFactory) ReplaceTemplate(templatedType rhino.JSType, templateTypes [
 		a.registry.
 			GetEmptyTemplateTypeMap().
 			CopyWithExtensionOfKeys(templatedType.GetTemplateTypeMap().GetTemplateKeys(), templateTypes)
-	replacer := rhino.TemplateTypeReplacer_ForPartialReplacement(a.registry, typeMap)
-	return templatedType.Visit(replacer).(rhino.JSType)
+	replacer := rhino.TemplateTypeReplacer_MakeForPartialReplacement(a.registry, typeMap)
+	return replacer.VisitJSType(templatedType)
 }
 
 // CreateEmptyAsyncGeneratorWrapperArgument creates an empty generator

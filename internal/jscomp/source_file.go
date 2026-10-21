@@ -262,8 +262,9 @@ func (f *SourceFile) FindLineOffsets() {
 	}
 
 	// getCode() updates numLines, so this is always in sync with the code.
-	offsets := make([]int, f.numLines)
-	byteOffsets := make([]int, f.numLines)
+	combined := make([]int, f.numLines*2)
+	offsets := combined[:f.numLines:f.numLines]
+	byteOffsets := combined[f.numLines:]
 	index := 1 // start at 1 since the offset for line 0 is always at byte 0
 	units := 0
 	for i := 0; i < len(localCode); i++ {

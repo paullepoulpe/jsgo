@@ -2308,7 +2308,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOverriddenProperty(
 	}
 
 	if result != nil && typeMap != nil && !typeMap.IsEmpty() {
-		result = result.Visit(rhino.TemplateTypeReplacer_ForPartialReplacement(b.outer.typeRegistry, typeMap)).(rhino.JSType)
+		replacer := rhino.TemplateTypeReplacer_MakeForPartialReplacement(b.outer.typeRegistry, typeMap)
+		result = replacer.VisitJSType(result)
 	}
 
 	return result

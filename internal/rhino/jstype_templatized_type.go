@@ -46,8 +46,6 @@ type TemplatizedType struct {
 	templateTypes []JSType
 	// Whether all type parameter values for this specialization are `?`.
 	isSpecializedOnlyWithUnknown bool
-
-	replacer *TemplateTypeReplacer
 }
 
 // Java: TemplatizedType.TYPE_CLASS
@@ -55,13 +53,19 @@ const TemplatizedType_TYPE_CLASS = JSTypeClass_TEMPLATIZED
 
 // Java: TemplatizedType(JSTypeRegistry, ObjectType, ImmutableList<JSType>)
 func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templateTypes []JSType) *TemplatizedType {
-	t := &TemplatizedType{}
+	t := registry.allocTemplatizedType()
 	t.InitProxyObjectTypeBaseWithTemplateTypeMap(
 		t, registry, objectType, objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes))
 
-	builder := []JSType{}
+	typeParams := objectType.GetTypeParameters()
+	var builder []JSType
+	if len(typeParams) == 0 {
+		builder = emptyJSTypeSlice
+	} else {
+		builder = registry.allocJSTypeSlice(len(typeParams))[:0]
+	}
 	maybeIsSpecializedOnlyWithUnknown := true
-	for _, newlyFilledTemplateKey := range objectType.GetTypeParameters() {
+	for _, newlyFilledTemplateKey := range typeParams {
 		resolvedType := t.GetTemplateTypeMap().GetResolvedTemplateType(newlyFilledTemplateKey)
 
 		builder = append(builder, jutil.CheckNotNull(resolvedType))
@@ -71,8 +75,6 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 	}
 	t.templateTypes = builder
 	t.isSpecializedOnlyWithUnknown = maybeIsSpecializedOnlyWithUnknown
-
-	t.replacer = TemplateTypeReplacer_ForPartialReplacement(registry, t.GetTemplateTypeMap())
 
 	registry.GetResolver().ResolveIfClosed(t, TemplatizedType_TYPE_CLASS)
 	return t
@@ -93,8 +95,9 @@ func (t *TemplatizedType) GetTypeClass() JSTypeClass {
 // Java: TemplatizedType.getCtorImplementedInterfaces()
 func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 	resolvedImplementedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorImplementedInterfaces() {
-		resolvedImplementedInterfaces.Add(JSType_VisitForJSType(obj, t.replacer).ToObjectType())
+		resolvedImplementedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
 	return resolvedImplementedInterfaces.ToSlice()
 }
@@ -102,8 +105,9 @@ func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 // Java: TemplatizedType.getCtorExtendedInterfaces()
 func (t *TemplatizedType) GetCtorExtendedInterfaces() []ObjectType {
 	resolvedExtendedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorExtendedInterfaces() {
-		resolvedExtendedInterfaces.Add(JSType_VisitForJSType(obj, t.replacer).ToObjectType())
+		resolvedExtendedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
 	return resolvedExtendedInterfaces.ToSlice()
 }
@@ -158,7 +162,8 @@ func (t *TemplatizedType) GetPropertyTypeByKey(propertyName Property_Key) JSType
 	if result == nil {
 		return nil
 	}
-	return JSType_VisitForJSType(result, t.replacer)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	return replacer.VisitJSType(result)
 }
 
 // Java: TemplatizedType.wrapsSameRawType(JSType)
@@ -223,14 +228,23 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 	t.ProxyObjectTypeBase.ResolveInternal(reporter)
 
 	rebuild := baseTypeBefore != t.GetReferencedType()
-	builder := []JSType{}
-	for _, type_ := range t.templateTypes {
+	var builder []JSType
+	for i, type_ := range t.templateTypes {
 		resolved := type_.Resolve(reporter)
-		rebuild = rebuild || resolved != type_
-		builder = append(builder, resolved)
+		if builder != nil {
+			builder[i] = resolved
+		} else if resolved != type_ {
+			rebuild = true
+			builder = t.registry.allocJSTypeSlice(len(t.templateTypes))
+			copy(builder[:i], t.templateTypes[:i])
+			builder[i] = resolved
+		}
 	}
 
 	if rebuild {
+		if builder == nil {
+			builder = t.templateTypes
+		}
 		return NewTemplatizedType(t.registry, t.GetReferencedType(), builder)
 	} else {
 		return t

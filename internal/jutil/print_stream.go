@@ -3,6 +3,8 @@ package jutil
 import (
 	"io"
 	"os"
+	"unicode/utf8"
+	"unsafe"
 )
 
 // Go-only: language-adapter — java.io.PrintStream over a Go io.Writer,
@@ -22,7 +24,13 @@ func NewPrintStream(out io.Writer) *PrintStream {
 }
 
 func (p *PrintStream) write(s string) {
-	if _, err := p.out.Write(StringGetBytesUTF8(s)); err != nil {
+	var b []byte
+	if utf8.ValidString(s) {
+		b = unsafe.Slice(unsafe.StringData(s), len(s))
+	} else {
+		b = StringGetBytesUTF8(s)
+	}
+	if _, err := p.out.Write(b); err != nil {
 		p.errorOccurred = true
 	}
 }
@@ -41,7 +49,22 @@ func (p *PrintStream) PrintNullable(s *string) {
 }
 
 // Println is PrintStream.println(String).
-func (p *PrintStream) Println(s string) { p.write(s + "\n") }
+func (p *PrintStream) Println(s string) {
+	if p == nil || p.out == nil {
+		return
+	}
+	if len(s) < 512 && utf8.ValidString(s) {
+		var buf [512]byte
+		copy(buf[:], s)
+		buf[len(s)] = '\n'
+		if _, err := p.out.Write(buf[:len(s)+1]); err != nil {
+			p.errorOccurred = true
+		}
+		return
+	}
+	p.write(s)
+	p.write("\n")
+}
 
 // PrintlnNullable is PrintStream.println(String) for a possibly-null String.
 func (p *PrintStream) PrintlnNullable(s *string) {

@@ -103,7 +103,7 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 
 	// Format the non-reverse-mapped position.
 	var b strings.Builder
-	var boldLine strings.Builder
+	b.Grow(256)
 
 	var mapping *sourcemap.Mapping_OriginalMapping
 	if source != nil {
@@ -111,35 +111,50 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 	}
 
 	// Check if we can reverse-map the source.
-	if f.includeLocation {
-		if mapping != nil {
+	if f.includeLocation && mapping != nil {
+		lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
+
+		originalFile := mapping.GetOriginalFile()
+		sourceName = &originalFile
+		lineNumber = mapping.GetLineNumber()
+		charno = mapping.GetColumnPosition()
+
+		b.WriteString("\nOriginally at:\n")
+	}
+
+	if !f.colorize {
+		if f.includeLocation {
 			lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
-
-			originalFile := mapping.GetOriginalFile()
-			sourceName = &originalFile
-			lineNumber = mapping.GetLineNumber()
-			charno = mapping.GetColumnPosition()
-
-			b.WriteString("\nOriginally at:\n")
 		}
-
-		lightweightMessageFormatter_appendPosition(&boldLine, sourceName, lineNumber, charno)
-	}
-
-	if f.includeLevel {
-		level := CheckLevel_ERROR
-		if warning {
-			level = CheckLevel_WARNING
+		if f.includeLevel {
+			level := CheckLevel_ERROR
+			if warning {
+				level = CheckLevel_WARNING
+			}
+			b.WriteString(f.GetLevelName(level))
+			b.WriteString(" - [")
+			b.WriteString(error.Type().key)
+			b.WriteString("] ")
 		}
-		boldLine.WriteString(f.GetLevelName(level))
-		boldLine.WriteString(" - [")
-		boldLine.WriteString(error.Type().key)
-		boldLine.WriteString("] ")
+		b.WriteString(error.Description())
+	} else {
+		var boldLine strings.Builder
+		if f.includeLocation {
+			lightweightMessageFormatter_appendPosition(&boldLine, sourceName, lineNumber, charno)
+		}
+		if f.includeLevel {
+			level := CheckLevel_ERROR
+			if warning {
+				level = CheckLevel_WARNING
+			}
+			boldLine.WriteString(f.GetLevelName(level))
+			boldLine.WriteString(" - [")
+			boldLine.WriteString(error.Type().key)
+			boldLine.WriteString("] ")
+		}
+		boldLine.WriteString(error.Description())
+		b.WriteString(f.MaybeEmbolden(boldLine.String()))
 	}
-
-	boldLine.WriteString(error.Description())
-
-	b.WriteString(f.MaybeEmbolden(boldLine.String()))
 	b.WriteByte('\n')
 
 	// For reverse-mapped sources, fall back to a single line excerpt because the excerpt length
@@ -148,11 +163,8 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 	if mapping != nil {
 		format = SourceExcerptProvider_SourceExcerpt_LINE
 	}
-	sourceExcerptWithPosition :=
-		f.GetExcerptWithPositionAndFormat(
-			error, sourceName, lineNumber, charno, format)
-
-	b.WriteString(sourceExcerptWithPosition)
+	f.appendExcerptWithPositionAndFormat(
+		&b, error, sourceName, lineNumber, charno, format)
 
 	return b.String()
 }
@@ -171,8 +183,19 @@ func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) str
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, SourceExcerpt)
 func (f *LightweightMessageFormatter) GetExcerptWithPositionAndFormat(
 	error *JSError, sourceName *string, lineNumber int, charno int, format SourceExcerptProvider_SourceExcerpt) string {
-	nodeLength := error.Length()
-	return f.GetExcerptWithPositionAndLength(error, sourceName, lineNumber, charno, nodeLength, format)
+	var b strings.Builder
+	f.appendExcerptWithPositionAndFormat(&b, error, sourceName, lineNumber, charno, format)
+	return b.String()
+}
+
+func (f *LightweightMessageFormatter) appendExcerptWithPositionAndFormat(
+	b *strings.Builder,
+	error *JSError,
+	sourceName *string,
+	lineNumber int,
+	charno int,
+	format SourceExcerptProvider_SourceExcerpt) {
+	f.appendExcerptWithPositionAndLength(b, error, sourceName, lineNumber, charno, error.Length(), format)
 }
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, int, SourceExcerpt)
@@ -184,7 +207,18 @@ func (f *LightweightMessageFormatter) GetExcerptWithPositionAndLength(
 	length int,
 	format SourceExcerptProvider_SourceExcerpt) string {
 	var b strings.Builder
+	f.appendExcerptWithPositionAndLength(&b, error, sourceName, lineNumber, charno, length, format)
+	return b.String()
+}
 
+func (f *LightweightMessageFormatter) appendExcerptWithPositionAndLength(
+	b *strings.Builder,
+	error *JSError,
+	sourceName *string,
+	lineNumber int,
+	charno int,
+	length int,
+	format SourceExcerptProvider_SourceExcerpt) {
 	source := f.GetSource()
 	cookedLength := -1
 	if charno >= 0 && length >= 0 {
@@ -197,16 +231,13 @@ func (f *LightweightMessageFormatter) GetExcerptWithPositionAndLength(
 	}
 
 	if sourceExcerpt == nil {
-		return ""
+		return
 	}
 
-	success := f.PadSourceExcerpt(error, *sourceExcerpt, charno, length, format, &b)
-	if success {
-		return b.String()
+	success := f.PadSourceExcerpt(error, *sourceExcerpt, charno, length, format, b)
+	if !success {
+		b.WriteString("Source excerpt could not be formatted. This may indicate a bug in the compiler.")
 	}
-	message :=
-		"Source excerpt could not be formatted. This may indicate a bug in the compiler."
-	return message
 }
 
 // Java: LightweightMessageFormatter.padSourceExcerpt(JSError, String, int, int, SourceExcerpt, StringBuilder)
@@ -287,6 +318,7 @@ func (f *LightweightMessageFormatter) PadLine(
 		if charno > len(sourceExcerpt) {
 			return false
 		}
+		b.Grow(max(charno, 0) + 16)
 		for i := 0; i < charno; i++ {
 			c := sourceExcerpt[i]
 			if rhino.TokenUtil_IsWhitespace(int(c)) {
@@ -311,29 +343,44 @@ func (f *LightweightMessageFormatter) PadLine(
 	// starting charno where we will insert '^' characters.
 	// This typically indicates a bug somewhere else in the compiler, and by using checkState we
 	// will automatically report a user-"friendly" message that asks them to file a bug.
-	units := jutil.StringToUTF16(sourceExcerpt)
-	if charno > len(units) {
+	unitsLen := jutil.StringLength(sourceExcerpt)
+	if charno > unitsLen {
 		return false
 	}
+	b.Grow(max(charno, 0) + 16)
 	// Append leading whitespace
-	for i := 0; i < charno; i++ {
-		c := units[i]
-		if rhino.TokenUtil_IsWhitespace(int(c)) {
-			// Whitespace characters are never surrogates.
-			b.WriteRune(rune(c))
+	utf16Pos := 0
+	for _, r := range sourceExcerpt {
+		if utf16Pos >= charno {
+			break
+		}
+		units := 1
+		if r >= 0x10000 {
+			units = 2
+		}
+		if units == 1 && rhino.TokenUtil_IsWhitespace(int(r)) {
+			b.WriteRune(r)
 		} else {
 			b.WriteByte(' ')
+			if units == 2 && utf16Pos+1 < charno {
+				b.WriteByte(' ')
+			}
 		}
+		utf16Pos += units
+	}
+	for utf16Pos < charno {
+		b.WriteByte(' ')
+		utf16Pos++
 	}
 	if errorNode == nil {
-		b.WriteString("^")
+		b.WriteByte('^')
 	} else {
-		length := max(1, min(errLength, len(units)-charno))
+		length := max(1, min(errLength, unitsLen-charno))
 		for i := 0; i < length; i++ {
-			b.WriteString("^")
+			b.WriteByte('^')
 		}
 	}
-	b.WriteString("\n")
+	b.WriteByte('\n')
 	return true
 }
 
@@ -354,20 +401,30 @@ func (f *LightweightMessageFormatter) PadLine(
 func (f *LightweightMessageFormatter) PadMultipleLines(
 	startCharno int, sourceExcerpt string, b *strings.Builder, errorNode *rhino.Node) bool {
 	if errorNode == nil {
-		b.WriteString(sourceExcerpt)
-		b.WriteString("\n")
 		charWithLineNumberOffset := startCharno + jutil.StringIndexOfChar(sourceExcerpt, '|') + 2
+		if charWithLineNumberOffset > jutil.StringLength(sourceExcerpt) {
+			return false
+		}
+		b.WriteString(sourceExcerpt)
+		b.WriteByte('\n')
 		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, nil)
 	}
-	lines := strings.Split(sourceExcerpt, "\n")
-	requiresTruncation := len(lines) > lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH
+	numLines := strings.Count(sourceExcerpt, "\n") + 1
+	requiresTruncation := numLines > lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH
 	truncationStart := lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH / 2
-	truncationEnd := len(lines) - lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH/2
+	truncationEnd := numLines - lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH/2
 
 	remainingLength := errorNode.GetLength()
 	charno := startCharno
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
+	rem := sourceExcerpt
+	for i := 0; i < numLines; i++ {
+		var line string
+		if nl := strings.IndexByte(rem, '\n'); nl >= 0 {
+			line = rem[:nl]
+			rem = rem[nl+1:]
+		} else {
+			line = rem
+		}
 		if requiresTruncation && i == truncationStart {
 			b.WriteString("...\n")
 		}
@@ -375,10 +432,14 @@ func (f *LightweightMessageFormatter) PadMultipleLines(
 		// The LineNumberingFormatter below will append "  5| " to the start of each line, so subtract
 		// that from the source line length in order to match the actual error length.
 		charWithLineNumberOffset := charno + jutil.StringIndexOfChar(line, '|') + 2
+		lineLen := jutil.StringLength(line)
 
 		if shouldPrintLine {
+			if charWithLineNumberOffset > lineLen {
+				return false
+			}
 			b.WriteString(line)
-			b.WriteString("\n")
+			b.WriteByte('\n')
 			success := f.PadLine(charWithLineNumberOffset, line, b, remainingLength, errorNode)
 			if !success {
 				return false
@@ -386,7 +447,7 @@ func (f *LightweightMessageFormatter) PadMultipleLines(
 		}
 
 		// add 1 to represent the newline; subtract the offset of the "  5| ".
-		remainingLength -= (jutil.StringLength(line) + 1 - charWithLineNumberOffset)
+		remainingLength -= (lineLen + 1 - charWithLineNumberOffset)
 		charno = 0
 	}
 	return true
@@ -435,7 +496,8 @@ func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region R
 
 	// formatting
 	var builder strings.Builder
-	builder.Grow(len(code) * 2)
+	numLines := strings.Count(code, "\n") + 1
+	builder.Grow(len(code) + (numberLength+4)*numLines)
 	start := 0
 	end := lightweightMessageFormatter_indexOfNewline(code, start)
 	lineNumber := region.GetBeginningLineNumber()
@@ -455,13 +517,16 @@ func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region R
 		builder.WriteString("  ")
 
 		// nice spaces for the line number
-		spaces := numberLength - len(strconv.Itoa(lineNumber))
+		lineNumberStr := strconv.Itoa(lineNumber)
+		spaces := numberLength - len(lineNumberStr)
 		if spaces < 0 {
 			// StringBuilder.repeat(CharSequence, int)
 			panic(jutil.NewIllegalArgumentExceptionMsg("count is negative: " + strconv.Itoa(spaces)))
 		}
-		builder.WriteString(strings.Repeat(" ", spaces))
-		builder.WriteString(strconv.Itoa(lineNumber))
+		for range spaces {
+			builder.WriteByte(' ')
+		}
+		builder.WriteString(lineNumberStr)
 		builder.WriteString("| ")
 
 		// end & update

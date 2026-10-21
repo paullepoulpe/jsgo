@@ -83,9 +83,23 @@ type TemplateTypeReplacer struct {
 // Java: TemplateTypeReplacer.forInference(JSTypeRegistry, Map<TemplateType, JSType>)
 func TemplateTypeReplacer_ForInference(
 	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplateTypeReplacer {
+	r := TemplateTypeReplacer_MakeForInference(registry, bindings)
+	return &r
+}
+
+// NewTemplateTypeReplacerForInference is an alias for TemplateTypeReplacer_ForInference.
+func NewTemplateTypeReplacerForInference(
+	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplateTypeReplacer {
+	return TemplateTypeReplacer_ForInference(registry, bindings)
+}
+
+// TemplateTypeReplacer_MakeForInference creates a value replacer for use during
+// TypeInference without heap allocation.
+func TemplateTypeReplacer_MakeForInference(
+	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) TemplateTypeReplacer {
 	n := bindings.Size()
 	if n == 0 {
-		return NewTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
+		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
 	}
 	var keysBuf [4]*TemplateType
 	var valuesBuf [4]JSType
@@ -111,7 +125,42 @@ func TemplateTypeReplacer_ForInference(
 		}
 	}
 	m := registry.GetEmptyTemplateTypeMap().CopyWithExtensionOfKeys(keys, values)
-	return NewTemplateTypeReplacer(registry, m, true, true, true)
+	return MakeTemplateTypeReplacer(registry, m, true, true, true)
+}
+
+// MakeTemplateTypeReplacerForInference creates a value replacer for use during
+// TypeInference from a map without heap allocation.
+func MakeTemplateTypeReplacerForInference(
+	registry *JSTypeRegistry, replacements map[*TemplateType]JSType) TemplateTypeReplacer {
+	n := len(replacements)
+	if n == 0 {
+		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
+	}
+	var keysBuf [4]*TemplateType
+	var valuesBuf [4]JSType
+	var keys []*TemplateType
+	var values []JSType
+	if n <= len(keysBuf) {
+		keys = keysBuf[:0]
+		values = valuesBuf[:0]
+	} else {
+		keys = make([]*TemplateType, 0, n)
+		values = make([]JSType, 0, n)
+	}
+	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+	for key, value := range replacements {
+		if key == nil {
+			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(len(keys))))
+		}
+		keys = append(keys, key)
+		if value != nil {
+			values = append(values, value)
+		} else {
+			values = append(values, unknown)
+		}
+	}
+	m := registry.GetEmptyTemplateTypeMap().CopyWithExtensionOfKeys(keys, values)
+	return MakeTemplateTypeReplacer(registry, m, true, true, true)
 }
 
 // TemplateTypeReplacer_ForTotalReplacement creates a replacer that will
@@ -126,6 +175,11 @@ func TemplateTypeReplacer_ForTotalReplacement(registry *JSTypeRegistry, bindings
 	return NewTemplateTypeReplacer(registry, bindings, false, false, true)
 }
 
+// MakeTemplateTypeReplacerForTotalReplacement creates a value replacer for total replacement.
+func MakeTemplateTypeReplacerForTotalReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) TemplateTypeReplacer {
+	return MakeTemplateTypeReplacer(registry, bindings, false, false, true)
+}
+
 // TemplateTypeReplacer_ForPartialReplacement creates a replacer that may
 // not totally eliminate TemplateTypes from the definitions of the types it
 // performs replacement on.
@@ -138,14 +192,29 @@ func TemplateTypeReplacer_ForPartialReplacement(registry *JSTypeRegistry, bindin
 	return NewTemplateTypeReplacer(registry, bindings, false, false, false)
 }
 
-// Java: TemplateTypeReplacer(JSTypeRegistry, TemplateTypeMap, boolean, boolean, boolean)
-func NewTemplateTypeReplacer(
+// NewTemplateTypeReplacerForPartialReplacement is an alias for TemplateTypeReplacer_ForPartialReplacement.
+func NewTemplateTypeReplacerForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) *TemplateTypeReplacer {
+	return TemplateTypeReplacer_ForPartialReplacement(registry, bindings)
+}
+
+// MakeTemplateTypeReplacerForPartialReplacement creates a value replacer for partial replacement without heap allocation.
+func MakeTemplateTypeReplacerForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) TemplateTypeReplacer {
+	return MakeTemplateTypeReplacer(registry, bindings, false, false, false)
+}
+
+// TemplateTypeReplacer_MakeForPartialReplacement creates a value replacer for partial replacement without heap allocation.
+func TemplateTypeReplacer_MakeForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) TemplateTypeReplacer {
+	return MakeTemplateTypeReplacer(registry, bindings, false, false, false)
+}
+
+// MakeTemplateTypeReplacer constructs a TemplateTypeReplacer value.
+func MakeTemplateTypeReplacer(
 	registry *JSTypeRegistry,
 	bindings *TemplateTypeMap,
 	visitProperties bool,
 	useUnknownForMissingKeys bool,
-	useUnknownForMissingValues bool) *TemplateTypeReplacer {
-	return &TemplateTypeReplacer{
+	useUnknownForMissingValues bool) TemplateTypeReplacer {
+	return TemplateTypeReplacer{
 		registry:                   registry,
 		bindings:                   bindings,
 		visitProperties:            visitProperties,
@@ -153,6 +222,17 @@ func NewTemplateTypeReplacer(
 		useUnknownForMissingValues: useUnknownForMissingValues,
 		ownSubMapBoundary:          -1,
 	}
+}
+
+// Java: TemplateTypeReplacer(JSTypeRegistry, TemplateTypeMap, boolean, boolean, boolean)
+func NewTemplateTypeReplacer(
+	registry *JSTypeRegistry,
+	bindings *TemplateTypeMap,
+	visitProperties bool,
+	useUnknownForMissingKeys bool,
+	useUnknownForMissingValues bool) *TemplateTypeReplacer {
+	r := MakeTemplateTypeReplacer(registry, bindings, visitProperties, useUnknownForMissingKeys, useUnknownForMissingValues)
+	return &r
 }
 
 // Java: TemplateTypeReplacer.hasMadeReplacement()
@@ -241,6 +321,11 @@ func (r *TemplateTypeReplacer) seenRemove(t JSType) {
 			return
 		}
 	}
+}
+
+// VisitJSType visits type_ directly without boxing r into a Visitor interface.
+func (r *TemplateTypeReplacer) VisitJSType(type_ JSType) JSType {
+	return r.visitJSType(type_)
 }
 
 func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
@@ -393,7 +478,7 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 				paramBuilder.AddRequiredParams(afterParamType)
 			}
 		} else if paramsChanged {
-			paramBuilder.NewParameterFrom(parameter)
+			paramBuilder.parameters = append(paramBuilder.parameters, parameter)
 		}
 	}
 
@@ -403,6 +488,16 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 			params = paramBuilder.parameters
 		} else {
 			params = parameters
+		}
+		if fb, ok := type_.(*FunctionTypeBase); ok {
+			var builder FunctionType_Builder
+			fb.initBuilder(&builder)
+			return builder.
+				WithParametersOfList(params).
+				WithReturnType(afterReturn).
+				WithTypeOfThis(afterThis).
+				WithIsAbstract(false). // TODO(b/187989034): Copy this from the source function.
+				BuildAndResolve()
 		}
 		return type_.ToBuilder().
 			WithParametersOfList(params).

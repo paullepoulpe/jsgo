@@ -879,6 +879,45 @@ Total `alloc_space` dropped another **−669.5 MB (−15.7%)** on `typed-mega` (
 | **`downlevel-simple`** (2.1 MB) | 1.17 s / 1.08 s | **1.16 s** / **1.08 s** | **−0.48%** / **−0.09%** | 214 / 216 MiB | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.56 s / 0.47 s | **0.56 s** / **0.47 s** | +0.05% / +0.29% | 169 / 169 MiB | `MATCH` |
 
+## Round 15: Zero-Clone Inlined Call Arguments (`−307 MB`), `SourceMapGeneratorV3` Symbol Deduplication & Adaptive `ToSource` Batching (`−285 MB`), Zero-Copy File & JSON Decoding (`−187 MB`), Stack `TemplateTypeReplacer` & `JSTypeRegistry` Slabs (`−95 MB`), and `OptimizeCalls` / `PureFunctionIdentifier` / `ColorPool` Reuse (`−145 MB`) (2026-10-21)
+
+Profiling Round 14 (`6daef8ee`) on `typed-mega` (`3.51 GB` `alloc_space`) and `bundle-mega` (`4.81 GB` `alloc_space`) identified five disjoint optimization targets:
+
+1. **Zero-Copy UTF-8 File Decoding, `JsonReader` Single-Allocation ASCII Fast Path, `SourceMapConsumerV3` Slice Trim, `PrintStream`, and `LightweightMessageFormatter` (`Subagent 15A`, `internal/jutil/files_read.go`, `internal/jutil/input_stream_reader.go`, `internal/jutil/gson_json_reader.go`, `internal/jutil/print_stream.go`, `internal/sourcemap/source_map_consumer_v3.go`, `lightweight_message_formatter.go`, `source_file.go`):**
+   - Returned `unsafe.String(unsafe.SliceData(b), len(b))` directly when `utf8.Valid(b)` holds on the freshly allocated `[]byte` from `os.ReadFile` / `io.ReadAll` in `Files_ReadString` and `InputStreamReader.decodeAll` (`−80.25 MB` on `bundle-mega`).
+   - Added a single-allocation ASCII fast path in `JsonReader.nextQuotedValue` when reading multi-MB unescaped strings (such as inline sourcemap `"mappings"`) from a `*StringReader`, plus `2x` capacity growth on `builder` (`−107.11 MB` on `bundle-mega`).
+   - Replaced `sourceMapConsumerV3_copyOfInt32s` / `sourceMapConsumerV3_copyOfInts` in `SourceMapConsumerV3_MappingBuilder.Trim` with in-place reslicing (`−23.77 MB` on `bundle-mega`), avoided `[]byte` allocations in `PrintStream.write` / `Println` (`−44.55 MB` on `bundle-mega`), and eliminated intermediate builders, UTF-16 slice conversions, and line-split slices in `LightweightMessageFormatter` and `SourceFile.FindLineOffsets` (`−65+ MB` on `bundle-mega`).
+2. **Zero-Clone Call Argument Transfer in `FunctionToBlockMutator`, Static `staticNumberExts` Table, and Slab-Backed `CloneTreeWithTypeExprs` (`Subagent 15B`, `internal/rhino/node.go`, `function_to_block_mutator.go`, `function_injector.go`, `inline_functions.go`):**
+   - Added `staticNumberExts [1024]node_ext` in `internal/rhino/node.go` for non-negative integer number nodes in `[0, 1024)` (`−23.50 MB`) and slab-backed `CloneTreeWithTypeExprs` (`nodeCloneSlab`, capped at 512 nodes per chunk and sized to exact subtree node count with zero tail waste).
+   - Added `takeOrCloneCallArg` and `rebindMovedArgFunctions` in `FunctionToBlockMutator.AliasAndInlineArguments` (plus `movedArgs` tracking in `InlineFunctions.RemoveInlinedFunctions`) to move call arguments directly out of `callNode` instead of cloning 100,000-node UMD factory arguments (`−307.02 MB` on `bundle-mega`).
+3. **`SourceMapGeneratorV3` Symbol & Source Deduplication and Adaptive `Compiler.ToSource` Batch Size (`Subagent 15C`, `internal/sourcemap/source_map_generator_v3.go`, `compiler.go`):**
+   - Deduplicated `g.addedSymbolNames` and `g.addedSourceFiles` in `SourceMapGeneratorV3.AddMappingPositions` (`−165.45 MB` on `bundle-mega`, `−109.99 MB` on `typed-mega`) and added dense `symbolIdxToNameId` and `sourceIdxToFileId` O(1) lookup slices in `WriteEntry`.
+   - Made `batchSize` in `Compiler.ToSource` adaptive (`max(numThreads, 4)` when `len(scripts) <= 64`) so `bundle-mega` (26 huge scripts) prints 4 scripts per batch and recycles `codePrinter_mappingSlabPool` slabs across batches (`−120 MB` on `bundle-mega`).
+4. **Stack-Allocated `TemplateTypeReplacer` and `JSTypeRegistry` Slabs for `TemplateTypeMap` & `TemplatizedType` (`Subagent 15D`, `internal/rhino/jstype_template_type_replacer.go`, `internal/rhino/jstype_template_type_map.go`, `internal/rhino/jstype_templatized_type.go`, `internal/rhino/jstype_js_type.go`, `internal/rhino/jstype_js_type_registry.go`, `internal/rhino/jstype_function_type.go`):**
+   - Added value constructors `MakeTemplateTypeReplacerForPartialReplacement` and `TemplateTypeReplacer_MakeForInference` plus direct `VisitJSType`, and removed the eager per-instance `replacer *TemplateTypeReplacer` field from `TemplatizedType` (`−38.01 MB` on `typed-mega`).
+   - Added `templateTypeMapSlab`, `templatizedTypeSlab`, and `jsTypeSliceSlab` on `JSTypeRegistry`, removed the 64-byte `valuesBuf [4]JSType` from `TemplateTypeMap`, reused unchanged `*FunctionType_Parameter` instances in `CaseFunctionTypeUnguarded`, and used a stack `FunctionType_Builder` (`−55+ MB` on `typed-mega`).
+5. **`OptimizeCalls_ReferenceMap` Slice Retention, Direct `PureFunctionIdentifier` Iteration, and Single-Shard `ColorPool_Builder` Fast Path (`Subagent 15E`, `optimize_calls.go`, `pure_function_identifier.go`, `serialization_js_type_reconserializer.go`, `serialization_color_pool.go`):**
+   - Increased `optimizeCalls_refListSlot.buf` to `[8]*rhino.Node` and retained grown `ArrayList` backing slices (`cap <= 4096`) across `releaseOptimizeCallsRefMap` pool reuse (`−60+ MB` on `typed-mega`).
+   - Eliminated `JavaHashMap` and `ArrayList` copies in `PureFunctionIdentifier.PopulateDatastructuresForAnalysisTraversal`, replaced `summariesForAllNamesOfFunctionByNode` (`ListMultimap`) with `map[*rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary` using `summary.selfSlice[:1:1]`, and added a single-shard direct-indexed fast path and set slabs in `ColorPool_Builder.Build` (`−75+ MB` on `typed-mega`).
+
+Total `alloc_space` dropped by **−827.3 MB (−16.8%)** on `bundle-mega` (`4.81 GB → 4.00 GB`, **−76.7% vs Round 5's `17.16 GB`**) and **−138.8 MB (−3.9%)** on `typed-mega` (`3.51 GB → 3.38 GB`, **−70.9% vs Round 5's `11.61 GB`**), cutting peak RSS by **−642.2 MiB (−25.86%)** on `bundle-mega (t=4)` (`2,483.8 MiB → 1,841.6 MiB`) and **−396.5 MiB (−17.55%)** on `bundle-mega (t=1)` (`2,258.9 MiB → 1,862.4 MiB`), with RSS reductions across all 11 benchmarks!
+
+### Final measured results — Round 15 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 14 (`6daef8ee` `t=1` / `t=4`) | **Round 15 (`t=1` / `t=4`)** | Round 15 Peak RSS (`t=1` / `t=4`) | Peak RSS vs Round 14 (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 25.02 s / 24.22 s | **25.11 s** / **24.32 s** | **1,862** / **1,842 MiB** | **−17.55%** / **−25.86%** (**−827.3 MB `alloc_space`**) | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 19.75 s / 18.59 s | **19.80 s** / **18.59 s** | **1,791** / **1,786 MiB** | **−8.02%** / **−2.36%** (**−138.8 MB `alloc_space`**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.34 s / 10.76 s | **11.41 s** / **10.73 s** | **1,082** / **1,078 MiB** | **−1.58%** / **−2.53%** | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 7.06 s / 6.94 s | **7.07 s** / **6.96 s** | **567** / **579 MiB** | **−11.73%** / **−7.72%** | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.59 s / 4.47 s | **4.65 s** / **4.55 s** | **538** / **523 MiB** | **−0.05%** / **−6.59%** | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.71 s / 4.50 s | **4.71 s** / **4.49 s** | **487** / **500 MiB** | **−3.85%** / **−6.84%** | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.60 s / 3.42 s | **3.61 s** / **3.46 s** | **334** / **331 MiB** | **−9.12%** / **−11.21%** | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.60 s / 2.20 s | **2.62 s** / **2.22 s** | **573** / **540 MiB** | **−0.23%** / **−7.91%** | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.48 s / 1.36 s | **1.48 s** / **1.37 s** | **266** / **271 MiB** | **−1.86%** / +1.29% | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.17 s / 1.08 s | **1.18 s** / **1.09 s** | **207** / **205 MiB** | **−5.03%** / **−5.62%** | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.56 s / 0.48 s | **0.57 s** / **0.48 s** | **165** / **169 MiB** | **−3.59%** / **−1.01%** | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

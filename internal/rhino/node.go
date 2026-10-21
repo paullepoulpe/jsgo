@@ -1707,7 +1707,15 @@ func (n *Node) SetDouble(x float64) {
 	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
 	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
-	n.node_getExt().number = x
+	if n.origOrExt == nil || node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
+		if ix := int(x); ix >= 0 && ix < len(staticNumberExts) && math.Float64bits(x) == math.Float64bits(float64(ix)) {
+			n.origOrExt = unsafe.Pointer(&staticNumberExts[ix])
+		} else {
+			n.origOrExt = unsafe.Pointer(&node_ext{number: x})
+		}
+		return
+	}
+	(*node_ext)(n.origOrExt).number = x
 }
 
 // Java: Node.getBigInt()
@@ -2061,12 +2069,30 @@ type node_ext struct {
 	cooked *string
 }
 
+var staticNumberExts [1024]node_ext
+
+func init() {
+	for i := range staticNumberExts {
+		staticNumberExts[i].number = float64(i)
+	}
+}
+
+func node_isStaticNumberExt(ext *node_ext) bool {
+	return uintptr(unsafe.Pointer(ext)) >= uintptr(unsafe.Pointer(&staticNumberExts[0])) &&
+		uintptr(unsafe.Pointer(ext)) < uintptr(unsafe.Pointer(&staticNumberExts[0]))+uintptr(len(staticNumberExts))*unsafe.Sizeof(staticNumberExts[0])
+}
+
 // node_getExt returns n's *node_ext (for kind > node_kindString), allocating it on first use.
 func (n *Node) node_getExt() *node_ext {
 	if n.origOrExt == nil {
 		ext := &node_ext{}
 		n.origOrExt = unsafe.Pointer(ext)
 		return ext
+	}
+	if node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
+		ext := *(*node_ext)(n.origOrExt)
+		n.origOrExt = unsafe.Pointer(&ext)
+		return &ext
 	}
 	return (*node_ext)(n.origOrExt)
 }
@@ -2088,13 +2114,23 @@ func (n *Node) node_setOriginalName(s *string) {
 		n.origOrExt = unsafe.Pointer(s)
 		return
 	}
-	if s == nil {
-		if n.origOrExt != nil {
-			(*node_ext)(n.origOrExt).originalName = nil
+	if n.origOrExt == nil {
+		if s == nil {
+			return
 		}
+		n.origOrExt = unsafe.Pointer(&node_ext{originalName: s})
 		return
 	}
-	n.node_getExt().originalName = s
+	if node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
+		if s == nil {
+			return
+		}
+		ext := *(*node_ext)(n.origOrExt)
+		ext.originalName = s
+		n.origOrExt = unsafe.Pointer(&ext)
+		return
+	}
+	(*node_ext)(n.origOrExt).originalName = s
 }
 
 // node_number is the NumberNode.number field.
@@ -3429,6 +3465,42 @@ func (n *Node) CloneNode() *Node {
 	return n.CloneNodeWithTypeExprs(false)
 }
 
+func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
+	dst.token = src.token
+	dst.kind = src.kind
+	switch src.kind {
+	case node_kindNumber:
+		// Java: NumberNode.cloneNode(boolean)
+		if src.origOrExt != nil && node_isStaticNumberExt((*node_ext)(src.origOrExt)) {
+			dst.origOrExt = src.origOrExt
+		} else {
+			dst.SetDouble(src.node_number())
+		}
+		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
+		return
+	case node_kindBigInt:
+		// Java: BigIntNode.cloneNode(boolean)
+		dst.SetBigInt(src.GetBigInt())
+		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
+		return
+	case node_kindString:
+		// Java: StringNode.cloneNode(boolean)
+		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
+		dst.str = src.str
+		return
+	case node_kindTemplateLiteralSubstring:
+		// Java: TemplateLiteralSubstringNode.cloneNode(boolean)
+		if cooked := src.node_cooked(); cooked != nil {
+			c := RhinoStringPool_AddOrGet(*cooked)
+			dst.node_getExt().cooked = &c
+		}
+		dst.str = rhinoStringPoolCell(src.nodeStringValue())
+		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
+		return
+	}
+	Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
+}
+
 // CloneNodeWithTypeExprs returns a detached clone of the Node, specifically
 // excluding its children.
 //
@@ -3437,32 +3509,9 @@ func (n *Node) CloneNode() *Node {
 //
 // Java: Node.cloneNode(boolean)
 func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
-	switch n.kind {
-	case node_kindNumber:
-		// Java: NumberNode.cloneNode(boolean)
-		clone := newNode_NumberNode(n.node_number())
-		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
-		return clone
-	case node_kindBigInt:
-		// Java: BigIntNode.cloneNode(boolean)
-		clone := newNode_BigIntNode(n.GetBigInt())
-		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
-		return clone
-	case node_kindString:
-		// Java: StringNode.cloneNode(boolean)
-		clone := newNode_StringNodeForClone(n.GetToken())
-		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
-		clone.str = n.str
-		return clone
-	case node_kindTemplateLiteralSubstring:
-		// Java: TemplateLiteralSubstringNode.cloneNode(boolean)
-		clone := newNode_TemplateLiteralSubstringNode(n.node_cooked(), n.nodeStringValue())
-		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
-		return clone
-	}
-	clone := NewNode(n.token)
-	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
-	return clone
+	var clone Node
+	cloneNodeInto(&clone, n, cloneTypeExprs)
+	return &clone
 }
 
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
@@ -3483,21 +3532,48 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	}
 }
 
-// CloneTree returns a detached clone of the Node and all its children.
-//
-// Java: Node.cloneTree()
-func (n *Node) CloneTree() *Node {
-	return n.CloneTreeWithTypeExprs(false)
+const cloneTreeMaxSlabSize = 512
+
+type nodeCloneSlab struct {
+	chunk []Node
+	rem   int
 }
 
-// Java: Node.cloneTree(boolean)
-func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
-	result := n.CloneNodeWithTypeExprs(cloneTypeExprs)
-	var firstChild *Node
-	var lastChild *Node
-	if n.HasChildren() {
-		for n2 := n.GetFirstChild(); n2 != nil; n2 = n2.next {
-			n2clone := n2.CloneTreeWithTypeExprs(cloneTypeExprs)
+func (s *nodeCloneSlab) alloc() *Node {
+	if len(s.chunk) == 0 {
+		sz := s.rem
+		if sz > cloneTreeMaxSlabSize {
+			sz = cloneTreeMaxSlabSize
+		} else if sz < 1 {
+			sz = 1
+		}
+		s.chunk = make([]Node, sz)
+	}
+	n := &s.chunk[0]
+	s.chunk = s.chunk[1:]
+	s.rem--
+	return n
+}
+
+func (n *Node) countCloneTreeNodes() int {
+	count := 1
+	for c := n.first; c != nil; c = c.next {
+		count += c.countCloneTreeNodes()
+	}
+	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+		count += shadow.countCloneTreeNodes()
+	}
+	return count
+}
+
+func (n *Node) cloneTreeWithSlab(cloneTypeExprs bool, slab *nodeCloneSlab) *Node {
+	result := slab.alloc()
+	cloneNodeInto(result, n, cloneTypeExprs)
+	if n.first != nil {
+		var firstChild *Node
+		var lastChild *Node
+		for n2 := n.first; n2 != nil; n2 = n2.next {
+			n2clone := n2.cloneTreeWithSlab(cloneTypeExprs, slab)
 			n2clone.parent = result
 			if firstChild == nil {
 				firstChild = n2clone
@@ -3513,12 +3589,27 @@ func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
 		result.first = firstChild
 	}
 
-	shadow := n.GetClosureUnawareShadow()
-	if shadow != nil {
-		result.SetClosureUnawareShadow(shadow.CloneTreeWithTypeExprs(cloneTypeExprs))
+	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+		result.SetClosureUnawareShadow(shadow.cloneTreeWithSlab(cloneTypeExprs, slab))
 	}
 
 	return result
+}
+
+// CloneTree returns a detached clone of the Node and all its children.
+//
+// Java: Node.cloneTree()
+func (n *Node) CloneTree() *Node {
+	return n.CloneTreeWithTypeExprs(false)
+}
+
+// Java: Node.cloneTree(boolean)
+func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
+	if n.first == nil && n.GetClosureUnawareShadow() == nil {
+		return n.CloneNodeWithTypeExprs(cloneTypeExprs)
+	}
+	slab := nodeCloneSlab{rem: n.countCloneTreeNodes()}
+	return n.cloneTreeWithSlab(cloneTypeExprs, &slab)
 }
 
 // Srcref copies the source info from `other` onto `this`.

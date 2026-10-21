@@ -2689,10 +2689,10 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n *rhino.Node, fnType rhino.
 
 	// Replace all template types. If we couldn't find a replacement, we
 	// replace it with UNKNOWN.
-	replacer := rhino.TemplateTypeReplacer_ForInference(ti.registry, inferred)
+	replacer := rhino.TemplateTypeReplacer_MakeForInference(ti.registry, inferred)
 	callTarget := n.GetFirstChild()
 
-	replacementFnType := rhino.JSType_VisitForJSType(fnType, replacer).ToMaybeFunctionType()
+	replacementFnType := replacer.VisitJSType(fnType).ToMaybeFunctionType()
 	jutil.CheckNotNull(replacementFnType)
 	callTarget.SetJSType(replacementFnType)
 	n.SetJSType(replacementFnType.GetReturnType())

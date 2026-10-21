@@ -31,6 +31,9 @@ type FunctionToBlockMutator struct {
 	functionArgumentInjector *FunctionArgumentInjector
 	localArena               scopeArena
 	localScopeCreator        SyntacticScopeCreator
+	allowMoveCallArgs        bool
+	currentCallNode          *rhino.Node
+	onMovedArg               func(*rhino.Node)
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -60,7 +63,10 @@ func (m *FunctionToBlockMutator) Mutate(
 	resultName *string,
 	needsDefaultResult bool,
 	isCallInLoop bool) *rhino.Node {
-	return m.MutateInternal(
+	if m.allowMoveCallArgs {
+		m.currentCallNode = callNode
+	}
+	res := m.MutateInternal(
 		fnName,
 		fnNode,
 		callNode,
@@ -68,6 +74,8 @@ func (m *FunctionToBlockMutator) Mutate(
 		needsDefaultResult,
 		isCallInLoop,
 		/* renameLocals= */ true)
+	m.currentCallNode = nil
+	return res
 }
 
 // MutateWithoutRenaming is used where the inlining occurs into an isolated
@@ -472,6 +480,38 @@ func (m *FunctionToBlockMutator) GetUniqueThisName() string {
 	return "JSCompiler_inline_this_" + m.safeNameIdSupplier()
 }
 
+func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedFnsHolder *rhino.Node) *rhino.Node {
+	if n.IsFunction() {
+		newFn := n.CloneNode()
+		newFn.AddChildrenToBack(n.RemoveChildren())
+		if n.GetParent() != nil {
+			n.ReplaceWith(newFn)
+		}
+		if m.onMovedArg != nil {
+			m.onMovedArg(n)
+		}
+		deletedFnsHolder.AddChildToBack(n)
+		n = newFn
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		c = m.rebindMovedArgFunctions(c, deletedFnsHolder)
+	}
+	return n
+}
+
+func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg *rhino.Node) *rhino.Node {
+	if m.currentCallNode != nil && origArg.GetParent() == m.currentCallNode {
+		placeholder := rhino.IR_Empty()
+		origArg.ReplaceWith(placeholder)
+		origArg = m.rebindMovedArgFunctions(origArg, placeholder)
+		if origArg.HasChildren() && m.onMovedArg != nil {
+			m.onMovedArg(origArg)
+		}
+		return origArg
+	}
+	return origArg.CloneTree()
+}
+
 // AliasAndInlineArguments inlines the arguments within the node tree using
 // the given argument map, replaces "unsafe" names with local aliases.
 //
@@ -523,7 +563,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 				if !originalValue.IsThis() &&
 					(referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue)) {
 					newName := m.GetUniqueThisName()
-					newValue := originalValue.CloneTree()
+					newValue := m.takeOrCloneCallArg(originalValue)
 					newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
 					newAliasesToAdd.AddAt(0, newNode)
 					replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
@@ -538,7 +578,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 				//    var x = computeValue();
 				// (as use(computeValue(), computeValue()) would compute the value twice).
 				newName := arg.ParamNode().CloneNode()
-				newValue := arg.Arg().CloneTree()
+				newValue := m.takeOrCloneCallArg(arg.Arg())
 				newName.Srcref(newValue) // source information should point to the argument.
 				newNode := rhino.IR_VarWithValue(newName, newValue).SrcrefTreeIfMissing(newValue)
 				newAliasesToAdd.AddAt(0, newNode)

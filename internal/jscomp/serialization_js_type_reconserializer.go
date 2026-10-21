@@ -138,9 +138,9 @@ func newJSTypeReconserializer(
 	serializationMode *SerializationOptions) *JSTypeReconserializer {
 	s := &JSTypeReconserializer{}
 	// Field initializers.
-	s.typeToRecordCache = make(map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord, 256)
-	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](256)
-	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, disambiguateEdgeSet](256)
+	s.typeToRecordCache = make(map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord, 4096)
+	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](4096)
+	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, disambiguateEdgeSet](2048)
 	s.state = JSTypeReconserializer_State_COLLECTING_TYPES
 	// Constructor body.
 	s.registry = registry
@@ -159,7 +159,7 @@ func newJSTypeReconserializer(
 
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
 	if len(s.recordSlab) == 0 {
-		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 256)
+		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 1024)
 	}
 	r := &s.recordSlab[0]
 	s.recordSlab = s.recordSlab[1:]
@@ -175,7 +175,7 @@ func (s *JSTypeReconserializer) allocInt32Slice(src []int32) []int32 {
 		return nil
 	}
 	if len(s.int32Slab) < n {
-		s.int32Slab = make([]int32, max(n, 1024))
+		s.int32Slab = make([]int32, max(n, 4096))
 	}
 	out := s.int32Slab[:n:n]
 	s.int32Slab = s.int32Slab[n:]
@@ -185,7 +185,7 @@ func (s *JSTypeReconserializer) allocInt32Slice(src []int32) []int32 {
 
 func (s *JSTypeReconserializer) allocSingleInt32(v int32) []int32 {
 	if len(s.int32Slab) < 1 {
-		s.int32Slab = make([]int32, 1024)
+		s.int32Slab = make([]int32, 4096)
 	}
 	out := s.int32Slab[:1:1]
 	s.int32Slab = s.int32Slab[1:]
@@ -933,7 +933,7 @@ type JSTypeReconserializer_SeenTypeRecord struct {
 	// these lists have low hit-rates for unions, and that union
 	// reconciliation doesn't actually look at most entries in this list.
 	jstypes   []rhino.JSType
-	jstypeBuf [2]rhino.JSType
+	jstypeBuf [4]rhino.JSType
 
 	unionMembers    []*JSTypeReconserializer_SeenTypeRecord
 	unionMembersBuf [4]*JSTypeReconserializer_SeenTypeRecord

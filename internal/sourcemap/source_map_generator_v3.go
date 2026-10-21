@@ -78,10 +78,14 @@ type SourceMapGeneratorV3 struct {
 	mappingChunks          [][]SourceMapGeneratorV3_Mapping
 	mappingSlab            []SourceMapGeneratorV3_Mapping
 	addedSourceFiles       []string
+	addedSourceFileIndex   map[string]int32
+	sourceIdxToFileId      []int32
 	lastAddedSourceFile    string
 	hasLastAddedSourceFile bool
 	lastAddedSourceFileIdx int32
 	addedSymbolNames       []string
+	addedSymbolIndex       map[string]int32
+	symbolIdxToNameId      []int32
 	lastAddedSymbolName    string
 	hasLastAddedSymbolName bool
 	lastAddedSymbolNameIdx int32
@@ -160,11 +164,15 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	clear(g.addedSourceFiles)
 	g.addedSourceFiles = g.addedSourceFiles[:0]
+	clear(g.addedSourceFileIndex)
+	g.sourceIdxToFileId = g.sourceIdxToFileId[:0]
 	g.lastAddedSourceFile = ""
 	g.hasLastAddedSourceFile = false
 	g.lastAddedSourceFileIdx = -1
 	clear(g.addedSymbolNames)
 	g.addedSymbolNames = g.addedSymbolNames[:0]
+	clear(g.addedSymbolIndex)
+	g.symbolIdxToNameId = g.symbolIdxToNameId[:0]
 	g.lastAddedSymbolName = ""
 	g.hasLastAddedSymbolName = false
 	g.lastAddedSymbolNameIdx = -1
@@ -319,8 +327,36 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
 		sourceFileIdx = g.lastAddedSourceFileIdx
 	} else {
-		sourceFileIdx = int32(len(g.addedSourceFiles))
-		g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
+		if len(g.addedSourceFiles) < 16 {
+			found := false
+			for i, s := range g.addedSourceFiles {
+				if s == sourceName {
+					sourceFileIdx = int32(i)
+					found = true
+					break
+				}
+			}
+			if !found {
+				sourceFileIdx = int32(len(g.addedSourceFiles))
+				g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
+			}
+		} else {
+			if len(g.addedSourceFileIndex) == 0 {
+				if g.addedSourceFileIndex == nil {
+					g.addedSourceFileIndex = make(map[string]int32, 256)
+				}
+				for i, s := range g.addedSourceFiles {
+					g.addedSourceFileIndex[s] = int32(i)
+				}
+			}
+			if idx, ok := g.addedSourceFileIndex[sourceName]; ok {
+				sourceFileIdx = idx
+			} else {
+				sourceFileIdx = int32(len(g.addedSourceFiles))
+				g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
+				g.addedSourceFileIndex[sourceName] = sourceFileIdx
+			}
+		}
 		g.lastAddedSourceFile = sourceName
 		g.lastAddedSourceFileIdx = sourceFileIdx
 		g.hasLastAddedSourceFile = true
@@ -332,8 +368,36 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		if g.hasLastAddedSymbolName && g.lastAddedSymbolName == name {
 			originalNameIdx = g.lastAddedSymbolNameIdx
 		} else {
-			originalNameIdx = int32(len(g.addedSymbolNames))
-			g.addedSymbolNames = append(g.addedSymbolNames, name)
+			if len(g.addedSymbolNames) < 16 {
+				found := false
+				for i, s := range g.addedSymbolNames {
+					if s == name {
+						originalNameIdx = int32(i)
+						found = true
+						break
+					}
+				}
+				if !found {
+					originalNameIdx = int32(len(g.addedSymbolNames))
+					g.addedSymbolNames = append(g.addedSymbolNames, name)
+				}
+			} else {
+				if len(g.addedSymbolIndex) == 0 {
+					if g.addedSymbolIndex == nil {
+						g.addedSymbolIndex = make(map[string]int32, 256)
+					}
+					for i, s := range g.addedSymbolNames {
+						g.addedSymbolIndex[s] = int32(i)
+					}
+				}
+				if idx, ok := g.addedSymbolIndex[name]; ok {
+					originalNameIdx = idx
+				} else {
+					originalNameIdx = int32(len(g.addedSymbolNames))
+					g.addedSymbolNames = append(g.addedSymbolNames, name)
+					g.addedSymbolIndex[name] = originalNameIdx
+				}
+			}
 			g.lastAddedSymbolName = name
 			g.lastAddedSymbolNameIdx = originalNameIdx
 			g.hasLastAddedSymbolName = true
@@ -1124,9 +1188,13 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 	l.previousColumn = column
 	if m != nil {
 		// The relative source file id
-		sourceId := l.outer.GetSourceId(l.outer.addedSourceFiles[m.sourceFileIdx])
-		l.writeVLQ(int32(sourceId - l.previousSourceFileId))
-		l.previousSourceFileId = sourceId
+		sourceId := l.outer.sourceIdxToFileId[m.sourceFileIdx]
+		if sourceId < 0 {
+			sourceId = int32(l.outer.GetSourceId(l.outer.addedSourceFiles[m.sourceFileIdx]))
+			l.outer.sourceIdxToFileId[m.sourceFileIdx] = sourceId
+		}
+		l.writeVLQ(sourceId - int32(l.previousSourceFileId))
+		l.previousSourceFileId = int(sourceId)
 
 		// The relative source file line and column
 		srcline := int(m.originalLine)
@@ -1139,9 +1207,13 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 
 		if m.originalNameIdx >= 0 {
 			// The relative id for the associated symbol name
-			nameId := l.outer.GetNameId(l.outer.addedSymbolNames[m.originalNameIdx])
-			l.writeVLQ(int32(nameId - l.previousNameId))
-			l.previousNameId = nameId
+			nameId := l.outer.symbolIdxToNameId[m.originalNameIdx]
+			if nameId < 0 {
+				nameId = int32(l.outer.GetNameId(l.outer.addedSymbolNames[m.originalNameIdx]))
+				l.outer.symbolIdxToNameId[m.originalNameIdx] = nameId
+			}
+			l.writeVLQ(nameId - int32(l.previousNameId))
+			l.previousNameId = int(nameId)
 		}
 	}
 }
@@ -1150,6 +1222,25 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 //
 // Java: SourceMapGeneratorV3.LineMapper.appendLineMappings()
 func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
+	nSources := len(l.outer.addedSourceFiles)
+	if cap(l.outer.sourceIdxToFileId) < nSources {
+		l.outer.sourceIdxToFileId = make([]int32, nSources)
+	} else {
+		l.outer.sourceIdxToFileId = l.outer.sourceIdxToFileId[:nSources]
+	}
+	for i := range l.outer.sourceIdxToFileId {
+		l.outer.sourceIdxToFileId[i] = -1
+	}
+	nSymbols := len(l.outer.addedSymbolNames)
+	if cap(l.outer.symbolIdxToNameId) < nSymbols {
+		l.outer.symbolIdxToNameId = make([]int32, nSymbols)
+	} else {
+		l.outer.symbolIdxToNameId = l.outer.symbolIdxToNameId[:nSymbols]
+	}
+	for i := range l.outer.symbolIdxToNameId {
+		l.outer.symbolIdxToNameId[i] = -1
+	}
+
 	l.buffering = true
 	// Start the first line.
 	l.OpenLine(true)

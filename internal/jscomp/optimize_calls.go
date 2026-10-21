@@ -181,7 +181,7 @@ const ocRefSlotChunkSize = 4096
 
 type optimizeCalls_refListSlot struct {
 	list jutil.ArrayList[*rhino.Node]
-	buf  [4]*rhino.Node
+	buf  [8]*rhino.Node
 }
 
 // OptimizeCalls_ReferenceMap is a reference map for global symbols and
@@ -208,7 +208,7 @@ func acquireOptimizeCallsRefMap() *OptimizeCalls_ReferenceMap {
 		return v.(*OptimizeCalls_ReferenceMap)
 	}
 	return &OptimizeCalls_ReferenceMap{
-		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](1024),
+		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](4096),
 		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](4096),
 	}
 }
@@ -233,10 +233,9 @@ func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
 		}
 		for i := 0; i < limit; i++ {
 			slot := &chunk[i]
-			if cap(slot.list.Slice()) <= 65536 {
-				slot.list.Clear()
-			} else {
-				clear(slot.list.Slice())
+			slot.list.Clear()
+			slot.buf = [8]*rhino.Node{}
+			if cap(slot.list.Slice()) > 4096 {
 				slot.list.InitWithBuffer(slot.buf[:])
 			}
 		}
@@ -300,7 +299,7 @@ func (m *OptimizeCalls_ReferenceMap) allocRefList() *jutil.ArrayList[*rhino.Node
 	}
 	slot := &m.slotChunks[m.slotChunkIdx][m.slotUsed]
 	m.slotUsed++
-	if slot.list.Slice() == nil {
+	if cap(slot.list.Slice()) == 0 {
 		slot.list.InitWithBuffer(slot.buf[:])
 	}
 	return &slot.list
@@ -1024,10 +1023,10 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) EnterScope(t *NodeTraversal
 		c.references.globalScope = c.globalScope
 		if !c.references.pooled {
 			varCount := c.globalScope.GetVarCount()
-			if varCount > 1024 && c.references.names.IsEmpty() {
+			if varCount > 4096 && c.references.names.IsEmpty() {
 				c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
 			}
-			if varCount > 512 && c.references.props.IsEmpty() {
+			if varCount > 1024 && c.references.props.IsEmpty() {
 				c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount*4, 16384))
 			}
 		}

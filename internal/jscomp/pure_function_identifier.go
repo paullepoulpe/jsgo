@@ -85,7 +85,7 @@ type PureFunctionIdentifier struct {
 	//
 	// Go-only: language-adapter — an ArrayListMultimap keyed by
 	// identity-hashed Nodes that is only looked up, so insertion order.
-	summariesForAllNamesOfFunctionByNode *jutil.ListMultimap[*rhino.Node, *PureFunctionIdentifier_AmbiguatedFunctionSummary]
+	summariesForAllNamesOfFunctionByNode map[*rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
 	// Set of FUNCTION nodes which are artificially marked as pure, via a
 	// `@nosideeffects` JSDoc tag in source code, which triggers the compiler
@@ -123,8 +123,9 @@ type PureFunctionIdentifier struct {
 	unknownFunctionSummary      *PureFunctionIdentifier_AmbiguatedFunctionSummary
 	unknownFunctionSummarySlice []*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
-	summarySlab []PureFunctionIdentifier_AmbiguatedFunctionSummary
-	propSlab    []PureFunctionIdentifier_SideEffectPropagation
+	summarySlab           []PureFunctionIdentifier_AmbiguatedFunctionSummary
+	propSlab              []PureFunctionIdentifier_SideEffectPropagation
+	scratchCallableLeaves []*rhino.Node
 
 	assumeGettersArePure bool
 
@@ -156,9 +157,6 @@ var PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION = DiagnosticType_Di
 func NewPureFunctionIdentifier(
 	compiler AbstractCompiler, assumeGettersArePure bool, validateArtificialPurity bool) *PureFunctionIdentifier {
 	p := &PureFunctionIdentifier{}
-	p.summariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, 1024)
-	p.propSummariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, 1024)
-	p.summariesForAllNamesOfFunctionByNode = jutil.ArrayListMultimap_Create[*rhino.Node, *PureFunctionIdentifier_AmbiguatedFunctionSummary]()
 	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[*rhino.Node]()
 	p.reverseCallGraph = LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
 	p.unknownFunctionSummary =
@@ -180,9 +178,20 @@ func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunction
 	s := &p.summarySlab[0]
 	p.summarySlab = p.summarySlab[1:]
 	s.name = name
-	s.graphNode = p.reverseCallGraph.CreateDiGraphNode(s)
+	n := p.reverseCallGraph.allocNode(s)
+	p.reverseCallGraph.nodes.PutNew(s, n)
+	s.graphNode = n
 	s.selfSlice[0] = s
 	return s
+}
+
+func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn *rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+	existing := p.summariesForAllNamesOfFunctionByNode[fn]
+	if len(existing) == 0 {
+		p.summariesForAllNamesOfFunctionByNode[fn] = summary.selfSlice[:1:1]
+	} else {
+		p.summariesForAllNamesOfFunctionByNode[fn] = append(existing, summary)
+	}
 }
 
 func (p *PureFunctionIdentifier) getSummaryOrDefault(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
@@ -267,7 +276,7 @@ func (p *PureFunctionIdentifier) ValidateArtificialPurity() {
 		return
 	}
 	for function := range p.artificiallyPureLiteralsForDebugging.All() {
-		for _, summary := range p.summariesForAllNamesOfFunctionByNode.Get(function) {
+		for _, summary := range p.summariesForAllNamesOfFunctionByNode[function] {
 			if summary.HasNoFlagsSet() {
 				// no flags set == the function is successfully treated as pure.
 				continue
@@ -596,7 +605,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 		}
 		if singleCallee != nil {
 			if singleCallee.IsFunction() {
-				summariesForFunction := p.summariesForAllNamesOfFunctionByNode.Get(singleCallee)
+				summariesForFunction := p.summariesForAllNamesOfFunctionByNode[singleCallee]
 				jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", singleCallee)
 				return summariesForFunction
 			}
@@ -611,7 +620,10 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 	if cacheCall != nil {
 		callees = p.GetGoogCacheCallableExpression(cacheCall)
 	} else {
-		callees = PureFunctionIdentifier_CollectCallableLeaves(invocation.GetFirstChild(), p.astAnalyzer)
+		p.scratchCallableLeaves = p.scratchCallableLeaves[:0]
+		if pureFunctionIdentifier_collectCallableLeavesSlice(invocation.GetFirstChild(), &p.scratchCallableLeaves, p.astAnalyzer) {
+			callees = p.scratchCallableLeaves
+		}
 	}
 
 	if callees == nil {
@@ -625,7 +637,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 			jutil.CheckStateMsg1(callee.IsFunction(), "%s", callee)
 
 			summariesForFunction :=
-				p.summariesForAllNamesOfFunctionByNode.Get(callee)
+				p.summariesForAllNamesOfFunctionByNode[callee]
 			jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", callee)
 
 			results = append(results, summariesForFunction...)
@@ -636,9 +648,18 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 	return results
 }
 
-type pureFunctionIdentifier_nameRefs struct {
-	summary *PureFunctionIdentifier_AmbiguatedFunctionSummary
-	refs    []*rhino.Node
+func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) {
+	if totalNodes <= 8 {
+		return
+	}
+	newNodes := jutil.NewLinkedHashMapWithCapacity[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *LinkedDirectedGraph_LinkedDiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](totalNodes)
+	for k, v := range p.reverseCallGraph.nodes.All() {
+		newNodes.PutNew(k, v)
+	}
+	p.reverseCallGraph.nodes = *newNodes
+	if len(p.summarySlab) < totalNodes {
+		p.summarySlab = make([]PureFunctionIdentifier_AmbiguatedFunctionSummary, totalNodes)
+	}
 }
 
 // PopulateDatastructuresForAnalysisTraversal fills all of the auxiliary
@@ -651,93 +672,79 @@ type pureFunctionIdentifier_nameRefs struct {
 //
 // Java: PureFunctionIdentifier.populateDatastructuresForAnalysisTraversal(ReferenceMap)
 func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(referenceMap *OptimizeCalls_ReferenceMap) {
-	if !p.validateArtificialPurity {
-		entries := make([]pureFunctionIdentifier_nameRefs, 0, referenceMap.names.Size()+referenceMap.props.Size())
+	totalRefs := referenceMap.names.Size() + referenceMap.props.Size()
+	p.summariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, totalRefs)
+	p.propSummariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, referenceMap.props.Size())
+	p.summariesForAllNamesOfFunctionByNode = make(map[*rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary, max(totalRefs/2, 16))
+	p.ensureReverseCallGraphCapacity(totalRefs + 2)
+
+	hasDotNameCollision := false
+	for key, value := range referenceMap.GetNameReferences() {
+		if value.IsEmpty() {
+			continue
+		}
+		jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
+		p.summariesByName[key] = p.createSummaryInGraph(key)
+	}
+	for key, value := range referenceMap.GetPropReferences() {
+		if value.IsEmpty() {
+			continue
+		}
+		jutil.CheckState(key != "")
+		propKey := PureFunctionIdentifier_PROP_NAME_PREFIX + key
+		if existing := p.summariesByName[propKey]; existing != nil {
+			p.propSummariesByName[key] = existing
+			hasDotNameCollision = true
+		} else {
+			s := p.createSummaryInGraph(propKey)
+			p.summariesByName[propKey] = s
+			p.propSummariesByName[key] = s
+		}
+	}
+
+	if !hasDotNameCollision {
 		for key, value := range referenceMap.GetNameReferences() {
 			refs := value.Slice()
 			if len(refs) == 0 {
 				continue
 			}
-			jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
-			s := p.createSummaryInGraph(key)
-			p.summariesByName[key] = s
-			entries = append(entries, pureFunctionIdentifier_nameRefs{summary: s, refs: refs})
+			p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
 		}
 		for key, value := range referenceMap.GetPropReferences() {
 			refs := value.Slice()
 			if len(refs) == 0 {
 				continue
 			}
-			jutil.CheckState(key != "")
+			p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
+		}
+	} else {
+		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[*rhino.Node]](max(totalRefs, 12))
+		for key, value := range referenceMap.GetNameReferences() {
+			if value.IsEmpty() {
+				continue
+			}
+			referencesByName.Put(key, value)
+		}
+		for key, value := range referenceMap.GetPropReferences() {
+			if value.IsEmpty() {
+				continue
+			}
 			propKey := PureFunctionIdentifier_PROP_NAME_PREFIX + key
-			if existing := p.summariesByName[propKey]; existing != nil {
-				p.propSummariesByName[key] = existing
-				// Defensive fallback in case a name ever started with '.'
-				for i := range entries {
-					if entries[i].summary == existing {
-						entries[i].refs = append(slices.Clone(entries[i].refs), refs...)
-						break
-					}
-				}
+			if existing := referencesByName.Get(propKey); existing != nil {
+				combined := jutil.NewArrayListWithCapacity[*rhino.Node](existing.Size() + value.Size())
+				combined.AddAll(existing.Slice()...)
+				combined.AddAll(value.Slice()...)
+				referencesByName.Put(propKey, combined)
 			} else {
-				s := p.createSummaryInGraph(propKey)
-				p.summariesByName[propKey] = s
-				p.propSummariesByName[key] = s
-				entries = append(entries, pureFunctionIdentifier_nameRefs{summary: s, refs: refs})
+				referencesByName.Put(propKey, value)
 			}
 		}
-		for _, entry := range entries {
-			p.populateFunctionDefinitionsWithSummary(entry.summary, entry.refs)
-		}
-		p.summariesForAllNamesOfFunctionByNode.Put(
-			PureFunctionIdentifier_IMPLICIT_PURE_FN,
-			p.createSummaryInGraph("<implicit pure class ctor"))
-		return
-	}
-
-	// Merge the prop and name references into a single multimap since only the name matters.
-	//
-	// Go-only: language-adapter — the ArrayListMultimap.create() of String
-	// keys is iterated (keySet, asMap), so it is its backing HashMap
-	// (Maps.newHashMapWithExpectedSize(12), Java hash order) of ArrayLists.
-	referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[*rhino.Node]](12)
-	putAll := func(key string, values []*rhino.Node) {
-		// AbstractMapBasedMultimap.putAll: an empty collection adds no key.
-		if len(values) == 0 {
-			return
-		}
-		list := referencesByName.Get(key)
-		if list == nil {
-			list = jutil.NewArrayListWithCapacity[*rhino.Node](3)
-			referencesByName.Put(key, list)
-		}
-		list.AddAll(values...)
-	}
-	for key, value := range referenceMap.GetNameReferences() {
-		putAll(key, value.Slice())
-	}
-	for key, value := range referenceMap.GetPropReferences() {
-		putAll(PureFunctionIdentifier_PROP_NAME_PREFIX+key, value.Slice())
-	}
-	// Empty function names cause a crash during analysis that is better to detect here.
-	// Additionally, functions require a name to be invoked in a statically analyzable way; there's
-	// no value in tracking the set of anonymous functions.
-	jutil.CheckState(!referencesByName.ContainsKey(""))
-	jutil.CheckState(!referencesByName.ContainsKey(PureFunctionIdentifier_PROP_NAME_PREFIX))
-
-	// Create and store a summary for all known names.
-	for name := range referencesByName.Keys() {
-		s := p.createSummaryInGraph(name)
-		p.summariesByName[name] = s
-		if strings.HasPrefix(name, PureFunctionIdentifier_PROP_NAME_PREFIX) {
-			p.propSummariesByName[name[len(PureFunctionIdentifier_PROP_NAME_PREFIX):]] = s
+		for name, references := range referencesByName.All() {
+			p.PopulateFunctionDefinitions(name, references.Slice())
 		}
 	}
 
-	for name, references := range referencesByName.All() {
-		p.PopulateFunctionDefinitions(name, references.Slice())
-	}
-	p.summariesForAllNamesOfFunctionByNode.Put(
+	p.putSummaryForFunctionNode(
 		PureFunctionIdentifier_IMPLICIT_PURE_FN,
 		p.createSummaryInGraph("<implicit pure class ctor"))
 }
@@ -760,7 +767,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 	// there are some we're missing. Overlooking a single R-value would invalidate the analysis.
 
 	invalid := false
-	var rvaluesAssignedToName [][]*rhino.Node
+	rvaluesAssignedToName := p.scratchCallableLeaves[:0]
 	for _, reference := range references {
 		// Eliminate any references that we're sure are R-values themselves. Otherwise
 		// there's a high probability we'll inspect an R-value for futher R-values. We wouldn't
@@ -775,13 +782,13 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 				// If the assigned R-value is an analyzable expression, collect all the possible
 				// FUNCTIONs that could result from that expression. If the expression isn't analyzable,
 				// represent that with `null` so we can skiplist `name`.
-				callables := PureFunctionIdentifier_CollectCallableLeaves(rvalue, p.astAnalyzer)
-				if callables == nil {
+				prevLen := len(rvaluesAssignedToName)
+				if !pureFunctionIdentifier_collectCallableLeavesSlice(rvalue, &rvaluesAssignedToName, p.astAnalyzer) {
 					invalid = true
 					break
 				}
 				if p.validateArtificialPurity && !reference.IsFromExterns() {
-					for _, callable := range callables {
+					for _, callable := range rvaluesAssignedToName[prevLen:] {
 						jsdoc := NodeUtil_GetBestJSDocInfo(callable)
 						isArtificiallyPure := jsdoc != nil && jsdoc.IsNoSideEffects()
 						if isArtificiallyPure {
@@ -790,11 +797,10 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 						}
 					}
 				}
-
-				rvaluesAssignedToName = append(rvaluesAssignedToName, callables)
 			}
 		}
 	}
+	p.scratchCallableLeaves = rvaluesAssignedToName[:0]
 
 	if len(rvaluesAssignedToName) == 0 || invalid {
 		// Any of:
@@ -803,19 +809,17 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 		// - There's a an L-value with R-values are not all known to be callable.
 		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(nil)
 	} else {
-		for _, callables := range rvaluesAssignedToName {
-			for _, rvalue := range callables {
-				if rvalue.IsFunction() {
-					p.summariesForAllNamesOfFunctionByNode.Put(rvalue, summaryForName)
-				} else if NodeUtil_IsUndefined(rvalue) {
-				} else {
-					rvalueSummary := p.getSummaryForReferenceOrDefault(rvalue)
+		for _, rvalue := range rvaluesAssignedToName {
+			if rvalue.IsFunction() {
+				p.putSummaryForFunctionNode(rvalue, summaryForName)
+			} else if NodeUtil_IsUndefined(rvalue) {
+			} else {
+				rvalueSummary := p.getSummaryForReferenceOrDefault(rvalue)
 
-					p.reverseCallGraph.ConnectNodes(
-						rvalueSummary.graphNode,
-						PureFunctionIdentifier_SideEffectPropagation_ForAlias(),
-						summaryForName.graphNode)
-				}
+				p.reverseCallGraph.ConnectNodes(
+					rvalueSummary.graphNode,
+					PureFunctionIdentifier_SideEffectPropagation_ForAlias(),
+					summaryForName.graphNode)
 			}
 		}
 	}
@@ -932,7 +936,7 @@ func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit(traversa
 		return
 	}
 
-	for _, definitionSummary := range a.outer.summariesForAllNamesOfFunctionByNode.Get(node) {
+	for _, definitionSummary := range a.outer.summariesForAllNamesOfFunctionByNode[node] {
 		a.UpdateSideEffectsForExternFunction(node, definitionSummary)
 	}
 }
@@ -1124,7 +1128,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit(traversal *NodeTrave
 		return
 	}
 
-	for _, summary := range b.outer.summariesForAllNamesOfFunctionByNode.Get(root) {
+	for _, summary := range b.outer.summariesForAllNamesOfFunctionByNode[root] {
 		b.UpdateSideEffectsForNode(jutil.CheckNotNull(summary), traversal, node)
 	}
 }
@@ -1365,12 +1369,12 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 			isArtificiallyPure: isArtificiallyPure,
 		})
 	}
-	if !b.outer.summariesForAllNamesOfFunctionByNode.ContainsKey(function) {
+	if len(b.outer.summariesForAllNamesOfFunctionByNode[function]) == 0 {
 		// This function was not part of a definition which is why it was not created by
 		// {@link populateDatastructuresForAnalysisTraversal}. For example, an anonymous
 		// function.
 		summary := b.outer.createSummaryInGraph("<anonymous>")
-		b.outer.summariesForAllNamesOfFunctionByNode.Put(function, summary)
+		b.outer.putSummaryForFunctionNode(function, summary)
 	}
 }
 
@@ -1404,7 +1408,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 		functionScope.GetRootNode() == functionEntry.root, "%s", functionScope.GetRootNode())
 
 	// Handle deferred local variable modifications:
-	for _, sideEffectInfo := range b.outer.summariesForAllNamesOfFunctionByNode.Get(functionEntry.root) {
+	for _, sideEffectInfo := range b.outer.summariesForAllNamesOfFunctionByNode[functionEntry.root] {
 		jutil.CheckNotNullMsg1(sideEffectInfo, "%s has no side effect info.", functionEntry.root)
 
 		if sideEffectInfo.MutatesGlobalState() {

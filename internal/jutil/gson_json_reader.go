@@ -20,7 +20,11 @@
 
 package jutil
 
-import "unicode/utf16"
+import (
+	"strings"
+	"unicode/utf16"
+	"unsafe"
+)
 
 // Go-only: language-adapter — Gson is a library dependency of Closure; it is
 // ported here as Java-semantics runtime. The reader keeps Gson's 1024-char
@@ -819,7 +823,7 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 				if !haveBuilder {
 					return StringFromUTF16(buffer[start : start+length])
 				} else {
-					builder = append(builder, buffer[start:start+length]...)
+					builder = jsonReader_appendUint16s(builder, buffer[start:start+length])
 					r.builder = builder[:0]
 					return StringFromUTF16(builder)
 				}
@@ -829,13 +833,13 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 				if !haveBuilder {
 					estimatedLength := max((length+1)*2, 16)
 					if cap(r.builder) < estimatedLength {
-						r.builder = make([]uint16, 0, estimatedLength)
+						r.builder = make([]uint16, 0, max(cap(r.builder)*2, max(estimatedLength, 64)))
 					}
 					builder = r.builder[:0]
 					haveBuilder = true
 				}
-				builder = append(builder, buffer[start:start+length]...)
-				builder = append(builder, r.readEscapeCharacter())
+				builder = jsonReader_appendUint16s(builder, buffer[start:start+length])
+				builder = jsonReader_appendUint16(builder, r.readEscapeCharacter())
 				p = r.pos
 				l = r.limit
 				start = p
@@ -846,20 +850,82 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 		}
 
 		if !haveBuilder {
+			if sr, ok := r.in.(*StringReader); ok && !sr.hasPendingLo && sr.next < len(sr.s) {
+				bufASCII := true
+				for _, u := range buffer[start:p] {
+					if u >= 0x80 {
+						bufASCII = false
+						break
+					}
+				}
+				if bufASCII {
+					rem := sr.s[sr.next:]
+					if qIdx := strings.IndexByte(rem, byte(quote)); qIdx >= 0 {
+						remASCII := true
+						for i := 0; i < qIdx; i++ {
+							c := rem[i]
+							if c >= 0x80 || c == '\\' || c == '\n' {
+								remASCII = false
+								break
+							}
+						}
+						if remASCII {
+							b := make([]byte, (p-start)+qIdx)
+							for i, u := range buffer[start:p] {
+								b[i] = byte(u)
+							}
+							copy(b[p-start:], rem[:qIdx])
+							fullChunks := qIdx / jsonReader_BUFFER_SIZE
+							if fullChunks > 0 {
+								r.lineStart -= p + (fullChunks-1)*jsonReader_BUFFER_SIZE
+								r.pos = jsonReader_BUFFER_SIZE
+								r.limit = jsonReader_BUFFER_SIZE
+								sr.next += fullChunks * jsonReader_BUFFER_SIZE
+								sr.converted = true
+							} else {
+								r.pos = p
+							}
+							r.fillBuffer(1)
+							r.pos = (qIdx % jsonReader_BUFFER_SIZE) + 1
+							return unsafe.String(unsafe.SliceData(b), len(b))
+						}
+					}
+				}
+			}
 			estimatedLength := max((p-start)*2, 16)
 			if cap(r.builder) < estimatedLength {
-				r.builder = make([]uint16, 0, estimatedLength)
+				r.builder = make([]uint16, 0, max(cap(r.builder)*2, max(estimatedLength, 64)))
 			}
 			builder = r.builder[:0]
 			haveBuilder = true
 		}
-		builder = append(builder, buffer[start:p]...)
+		builder = jsonReader_appendUint16s(builder, buffer[start:p])
 		r.pos = p
 		if !r.fillBuffer(1) {
 			r.builder = builder[:0]
 			panic(r.syntaxError("Unterminated string"))
 		}
 	}
+}
+
+func jsonReader_appendUint16s(builder, chunk []uint16) []uint16 {
+	if len(builder)+len(chunk) > cap(builder) {
+		newCap := max(cap(builder)*2, max(len(builder)+len(chunk), 64))
+		next := make([]uint16, len(builder), newCap)
+		copy(next, builder)
+		builder = next
+	}
+	return append(builder, chunk...)
+}
+
+func jsonReader_appendUint16(builder []uint16, c uint16) []uint16 {
+	if len(builder)+1 > cap(builder) {
+		newCap := max(cap(builder)*2, max(len(builder)+1, 64))
+		next := make([]uint16, len(builder), newCap)
+		copy(next, builder)
+		builder = next
+	}
+	return append(builder, c)
 }
 
 // nextUnquotedValue returns an unquoted value as a string.

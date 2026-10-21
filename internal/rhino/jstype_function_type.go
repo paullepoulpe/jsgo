@@ -223,6 +223,16 @@ func (a FunctionType_ConstructorAmbiguity) String() string {
 	return functionType_ConstructorAmbiguity_names[a]
 }
 
+var (
+	emptyObjectTypeSlice            = []ObjectType{}
+	emptyFunctionTypeParameterSlice = []*FunctionType_Parameter{}
+
+	functionTypePropAccessAny         = FunctionType_PropAccess_ANY
+	functionTypePropAccessAnyExplicit = FunctionType_PropAccess_ANY_EXPLICIT
+	functionTypePropAccessStruct      = FunctionType_PropAccess_STRUCT
+	functionTypePropAccessDict        = FunctionType_PropAccess_DICT
+)
+
 // NewFunctionType creates an instance for a function that might be a
 // constructor.
 //
@@ -240,8 +250,8 @@ func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
 // Java: FunctionType(Builder)
 func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *FunctionType_Builder) {
 	f.self = self
-	f.implementedInterfaces = []ObjectType{}
-	f.extendedInterfaces = []ObjectType{}
+	f.implementedInterfaces = emptyObjectTypeSlice
+	f.extendedInterfaces = emptyObjectTypeSlice
 	f.InitPrototypeObjectTypeBase(self, builder.GetBuilderFields())
 	f.self.SetPrettyPrint(true)
 
@@ -264,7 +274,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 			typeOfThisBuilder := InstanceObjectType_BuilderForCtor(self)
 
 			ctorKeys := builder.constructorOnlyKeys
-			if !ctorKeys.IsEmpty() {
+			if ctorKeys != nil && !ctorKeys.IsEmpty() {
 				typeOfThisBuilder.
 					SetTemplateTypeMap(f.templateTypeMap.CopyWithoutKeys(ctorKeys)).
 					SetTemplateParamCount(f.self.GetTemplateParamCount() - ctorKeys.Size())
@@ -279,8 +289,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	}
 
 	if f.kind == FunctionType_Kind_CONSTRUCTOR {
-		any_ := FunctionType_PropAccess_ANY
-		f.propAccess = &any_
+		f.propAccess = &functionTypePropAccessAny
 	}
 
 	var returnType JSType
@@ -411,20 +420,17 @@ func (f *FunctionTypeBase) MakesDicts() bool {
 
 // Java: FunctionType.setStruct()
 func (f *FunctionTypeBase) SetStruct() {
-	v := FunctionType_PropAccess_STRUCT
-	f.propAccess = &v
+	f.propAccess = &functionTypePropAccessStruct
 }
 
 // Java: FunctionType.setDict()
 func (f *FunctionTypeBase) SetDict() {
-	v := FunctionType_PropAccess_DICT
-	f.propAccess = &v
+	f.propAccess = &functionTypePropAccessDict
 }
 
 // Java: FunctionType.setExplicitUnrestricted()
 func (f *FunctionTypeBase) SetExplicitUnrestricted() {
-	v := FunctionType_PropAccess_ANY_EXPLICIT
-	f.propAccess = &v
+	f.propAccess = &functionTypePropAccessAnyExplicit
 }
 
 // Java: FunctionType.toMaybeFunctionType()
@@ -1652,32 +1658,38 @@ func FunctionType_Builder_(registry *JSTypeRegistry) *FunctionType_Builder {
 	return NewFunctionType_Builder(registry)
 }
 
+func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
+	b.registry = f.registry
+	b.implicitPrototype = jutil.CheckNotNull(f.registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
+	b.googModuleId = f.self.GetGoogModuleId()
+	b.className = f.self.GetReferenceName()
+	b.nativeType = f.self.IsNativeObjectType()
+	b.templateTypeMap = f.self.GetTemplateTypeMap()
+	b.canonicalRepresentation = f.self.GetCanonicalRepresentation()
+	b.isKnownAmbiguous = f.constructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
+	b.primitiveId = f.self.GetClosurePrimitive()
+	b.isAbstract = f.self.IsAbstract()
+	b.kind = f.self.GetKind()
+	b.parameters = f.self.GetParameters()
+	b.returnType = f.self.GetReturnType()
+	b.returnTypeIsInferred = f.self.IsReturnTypeInferred()
+	b.sourceNode = f.self.GetSource()
+	b.typeOfThis = f.self.GetTypeOfThis()
+	b.templateParamCount = f.self.GetTemplateParamCount()
+
+	if f.self.IsConstructor() {
+		b.WithConstructorTemplateKeys(f.self.GetConstructorOnlyTemplateParameters())
+	}
+}
+
 // ToBuilder copies all the information from another function type.
 //
 // Java: FunctionType.toBuilder()
 func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
-	builder := FunctionType_Builder_(f.registry).
-		SetGoogModuleId(f.self.GetGoogModuleId()).
-		SetName(f.self.GetReferenceName()).
-		SetNative(f.self.IsNativeObjectType()).
-		SetTemplateTypeMap(f.self.GetTemplateTypeMap()).
-		WithCanonicalRepresentation(f.self.GetCanonicalRepresentation()).
-		SetIsKnownAmbiguous(
-			f.constructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR).
-		WithClosurePrimitiveId(f.self.GetClosurePrimitive()).
-		WithIsAbstract(f.self.IsAbstract()).
-		WithKind(f.self.GetKind()).
-		WithParametersOfList(f.self.GetParameters()).
-		WithReturnTypeWithInferred(f.self.GetReturnType(), f.self.IsReturnTypeInferred()).
-		WithSourceNode(f.self.GetSource()).
-		WithTypeOfThis(f.self.GetTypeOfThis()).
-		SetTemplateParamCount(f.self.GetTemplateParamCount())
-
-	if f.self.IsConstructor() {
-		builder.WithConstructorTemplateKeys(f.self.GetConstructorOnlyTemplateParameters())
-	}
-
-	return builder
+	b := &FunctionType_Builder{}
+	b.self = b
+	f.initBuilder(b)
+	return b
 }
 
 // FunctionType_Builder is a builder class for function and arrow types.
@@ -1705,7 +1717,6 @@ type FunctionType_Builder struct {
 func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
 	b := &FunctionType_Builder{}
 	b.InitPrototypeObjectType_Builder(b, registry)
-	b.constructorOnlyKeys = jutil.NewLinkedHashSet[*TemplateType]()
 	b.kind = FunctionType_Kind_ORDINARY
 
 	b.SetImplicitPrototype(
@@ -1745,11 +1756,17 @@ func (b *FunctionType_Builder) WithParametersOfList(parameters []*FunctionType_P
 	return b
 }
 
+// WithParams sets the parameters of the function type from a FunctionParamBuilder.
+func (b *FunctionType_Builder) WithParams(paramBuilder *FunctionParamBuilder) *FunctionType_Builder {
+	b.parameters = paramBuilder.parameters
+	return b
+}
+
 // WithParameters sets the function to take zero parameters.
 //
 // Java: FunctionType.Builder.withParameters()
 func (b *FunctionType_Builder) WithParameters() *FunctionType_Builder {
-	b.parameters = []*FunctionType_Parameter{}
+	b.parameters = emptyFunctionTypeParameterSlice
 	return b
 }
 
@@ -1836,6 +1853,10 @@ func jsTypeCopyOfTemplateTypes(keys []*TemplateType) []*TemplateType {
 //
 // Java: FunctionType.Builder.withConstructorTemplateKeys(Iterable<TemplateType>)
 func (b *FunctionType_Builder) WithConstructorTemplateKeys(constructorOnlyKeys []*TemplateType) *FunctionType_Builder {
+	if len(constructorOnlyKeys) == 0 {
+		b.constructorOnlyKeys = nil
+		return b
+	}
 	b.constructorOnlyKeys = jutil.NewLinkedHashSet(jsTypeCopyOfTemplateTypes(constructorOnlyKeys)...)
 	return b
 }
@@ -1940,7 +1961,7 @@ func (b *FunctionType_Builder) Build() FunctionType {
 	switch b.kind {
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 	case FunctionType_Kind_NONE, FunctionType_Kind_ORDINARY:
-		jutil.CheckState(b.constructorOnlyKeys.IsEmpty())
+		jutil.CheckState(b.constructorOnlyKeys == nil || b.constructorOnlyKeys.IsEmpty())
 	}
 
 	return NewFunctionType(b)

@@ -4,6 +4,7 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // Go-only: language-adapter — java.io.InputStreamReader as a JavaReader.
@@ -38,6 +39,9 @@ func (r *InputStreamReader) decodeAll() string {
 	b, err := io.ReadAll(r.in)
 	if err != nil {
 		panic(IOExceptionFromError(err, ""))
+	}
+	if (r.cs == nil || r.cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
+		return unsafe.String(unsafe.SliceData(b), len(b))
 	}
 	if r.strict {
 		return r.cs.DecodeStrict(b)

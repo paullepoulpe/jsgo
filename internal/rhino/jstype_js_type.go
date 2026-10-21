@@ -1148,8 +1148,8 @@ func (t *JSTypeBase) FindPropertyTypeByKey(propertyName Property_Key) JSType {
 	}
 
 	typeMap := t.self.GetTemplateTypeMap()
-	replacer := TemplateTypeReplacer_ForPartialReplacement(t.registry, typeMap)
-	return JSType_VisitForJSType(propertyType, replacer)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, typeMap)
+	return replacer.VisitJSType(propertyType)
 }
 
 // FindPropertyType coerces this type to an Object type, then gets the type
@@ -1789,6 +1789,9 @@ func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_Subtyping
 //
 // Go-only: language-adapter — see Visitor.
 func JSType_VisitForJSType(type_ JSType, visitor Visitor) JSType {
+	if r, ok := visitor.(*TemplateTypeReplacer); ok {
+		return r.visitJSType(type_)
+	}
 	r, _ := type_.Visit(visitor).(JSType)
 	return r
 }

@@ -625,10 +625,10 @@ func (b *SourceMapConsumerV3_MappingBuilder) ValidateEntry(entriesCount int, lin
 // Java: SourceMapConsumerV3.MappingBuilder.trim(int, int)
 func (b *SourceMapConsumerV3_MappingBuilder) Trim(entriesCount int, linesCount int) {
 	if len(b.flatEntries) > entriesCount {
-		b.flatEntries = sourceMapConsumerV3_copyOfInt32s(b.flatEntries, entriesCount)
+		b.flatEntries = b.flatEntries[:entriesCount]
 	}
 	if len(b.lineStart) > linesCount+1 {
-		b.lineStart = sourceMapConsumerV3_copyOfInts(b.lineStart, linesCount+1)
+		b.lineStart = b.lineStart[:linesCount+1]
 	}
 	b.lineCount = linesCount
 }

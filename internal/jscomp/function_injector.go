@@ -691,8 +691,10 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	}
 
 	isCallInLoop := NodeUtil_IsWithinLoop(callNode)
+	f.mutator.allowMoveCallArgs = true
 	newBlock := f.mutator.Mutate(
 		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop)
+	f.mutator.allowMoveCallArgs = false
 	NodeUtil_MarkNewScopesChanged(newBlock, f.compiler)
 
 	// TODO(nicksantos): Create a common mutation function that

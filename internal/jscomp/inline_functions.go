@@ -60,6 +60,8 @@ type inlineFunctionsPoolState struct {
 	fnExprChunks [][]InlineFunctions_FunctionExpression
 	fnExprIdx    int
 	fnExprUsed   int
+
+	movedArgs map[*rhino.Node]struct{}
 }
 
 var ifPool sync.Pool
@@ -88,6 +90,7 @@ func releaseIfPoolState(p *inlineFunctionsPoolState) {
 	p.refsScratch = p.refsScratch[:0]
 	clear(p.paramScratch)
 	p.paramScratch = p.paramScratch[:0]
+	clear(p.movedArgs)
 
 	for ci := 0; ci <= p.fnStateIdx && ci < len(p.fnStateChunks); ci++ {
 		chunk := p.fnStateChunks[ci]
@@ -227,6 +230,14 @@ func NewInlineFunctions(
 		AssumeMinimumCapture(assumeMinimumCapture).
 		FunctionArgumentInjector(f.functionArgumentInjector).
 		Build()
+	f.injector.mutator.onMovedArg = func(arg *rhino.Node) {
+		if f.poolState != nil {
+			if f.poolState.movedArgs == nil {
+				f.poolState.movedArgs = make(map[*rhino.Node]struct{}, 16)
+			}
+			f.poolState.movedArgs[arg] = struct{}{}
+		}
+	}
 	return f
 }
 
@@ -1406,6 +1417,22 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 			fn := functionState.GetFn()
 			jutil.CheckState(functionState.CanInline())
 			jutil.CheckState(fn != nil)
+			if f.poolState != nil && len(f.poolState.movedArgs) > 0 {
+				inMovedArg := false
+				for anc := fn.GetFunctionNode(); anc != nil; anc = anc.GetParent() {
+					if _, ok := f.poolState.movedArgs[anc]; ok {
+						inMovedArg = true
+						break
+					}
+				}
+				if inMovedArg {
+					f.VerifyAllReferencesInlined(name, functionState)
+					if _, isExpr := fn.(*InlineFunctions_FunctionExpression); !isExpr {
+						f.compiler.GetChangeTracker().notifyChangeHandlers()
+					}
+					continue
+				}
+			}
 			f.VerifyAllReferencesInlined(name, functionState)
 			fn.Remove()
 			NodeUtil_MarkFunctionsDeleted(fn.GetFunctionNode(), f.compiler)

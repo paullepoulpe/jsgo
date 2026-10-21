@@ -218,6 +218,49 @@ type JSTypeRegistry struct {
 	emptyTemplateTypeMap *TemplateTypeMap
 
 	resolver *JSTypeResolver
+
+	templateTypeMapSlab []TemplateTypeMap
+	templatizedTypeSlab []TemplatizedType
+	jsTypeSliceSlab     []JSType
+}
+
+func (r *JSTypeRegistry) allocTemplateTypeMap() *TemplateTypeMap {
+	if r == nil {
+		return &TemplateTypeMap{}
+	}
+	if len(r.templateTypeMapSlab) == 0 {
+		r.templateTypeMapSlab = make([]TemplateTypeMap, 256)
+	}
+	m := &r.templateTypeMapSlab[0]
+	r.templateTypeMapSlab = r.templateTypeMapSlab[1:]
+	return m
+}
+
+func (r *JSTypeRegistry) allocTemplatizedType() *TemplatizedType {
+	if r == nil {
+		return &TemplatizedType{}
+	}
+	if len(r.templatizedTypeSlab) == 0 {
+		r.templatizedTypeSlab = make([]TemplatizedType, 256)
+	}
+	t := &r.templatizedTypeSlab[0]
+	r.templatizedTypeSlab = r.templatizedTypeSlab[1:]
+	return t
+}
+
+func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {
+	if n == 0 {
+		return emptyJSTypeSlice
+	}
+	if r == nil || n > 64 {
+		return make([]JSType, n)
+	}
+	if len(r.jsTypeSliceSlab) < n {
+		r.jsTypeSliceSlab = make([]JSType, 1024)
+	}
+	s := r.jsTypeSliceSlab[:n:n]
+	r.jsTypeSliceSlab = r.jsTypeSliceSlab[n:]
+	return s
 }
 
 // Java: JSTypeRegistry.DOT_SPLITTER (Splitter.on('.'))

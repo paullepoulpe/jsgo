@@ -1019,7 +1019,8 @@ func (v *TypeValidator) CheckPropertyType(
 	required := parent.GetPropertyTypeByKey(propertyName)
 	typeMap := instance.GetTemplateTypeMap()
 	if !typeMap.IsEmpty() && required.HasAnyTemplateTypes() {
-		required = rhino.JSType_VisitForJSType(required, rhino.TemplateTypeReplacer_ForPartialReplacement(v.typeRegistry, typeMap))
+		replacer := rhino.TemplateTypeReplacer_MakeForPartialReplacement(v.typeRegistry, typeMap)
+		required = replacer.VisitJSType(required)
 	}
 
 	if found.IsSubtypeOfWithMode(required, v.subtypingMode) {

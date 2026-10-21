@@ -98,7 +98,6 @@ type TemplateTypeMap struct {
 	// methods.
 	subMapStarts *jutil.BitSet
 	registry     *JSTypeRegistry
-	valuesBuf    [4]JSType
 }
 
 var emptyJSTypeSlice = []JSType{}
@@ -132,7 +131,7 @@ func NewTemplateTypeMap(
 	templateKeys []*TemplateType,
 	templateValues []JSType,
 	subMapStarts *jutil.BitSet) *TemplateTypeMap {
-	return initTemplateTypeMap(&TemplateTypeMap{}, registry, templateKeys, templateValues, subMapStarts)
+	return initTemplateTypeMap(registry.allocTemplateTypeMap(), registry, templateKeys, templateValues, subMapStarts)
 }
 
 func initTemplateTypeMap(
@@ -192,11 +191,7 @@ func initTemplateTypeMap(
 			resolved = m.templateKeys[i].GetBound()
 		}
 		if resolvedValues == nil {
-			if nKeys <= len(m.valuesBuf) && (nValues == 0 || &m.templateValues[0] != &m.valuesBuf[0]) {
-				resolvedValues = m.valuesBuf[:nKeys]
-			} else {
-				resolvedValues = make([]JSType, nKeys)
-			}
+			resolvedValues = registry.allocJSTypeSlice(nKeys)
 			copy(resolvedValues[:i], m.templateValues[:i])
 		}
 		resolvedValues[i] = resolved
@@ -251,13 +246,8 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	}
 
 	nKeys := len(m.templateKeys)
-	out := &TemplateTypeMap{}
-	var extendedValues []JSType
-	if nKeys <= len(out.valuesBuf) {
-		extendedValues = out.valuesBuf[:nKeys]
-	} else {
-		extendedValues = make([]JSType, nKeys)
-	}
+	out := m.registry.allocTemplateTypeMap()
+	extendedValues := m.registry.allocJSTypeSlice(nKeys)
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {
@@ -360,16 +350,9 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 		extendedKeys[nOldKeys+i] = k
 	}
 
-	out := &TemplateTypeMap{}
+	out := m.registry.allocTemplateTypeMap()
 	nTotalValues := nOldKeys + len(values)
-	var extendedValues []JSType
-	if nTotalValues == 0 {
-		extendedValues = emptyJSTypeSlice
-	} else if nTotalValues <= len(out.valuesBuf) {
-		extendedValues = out.valuesBuf[:nTotalValues]
-	} else {
-		extendedValues = make([]JSType, nTotalValues)
-	}
+	extendedValues := m.registry.allocJSTypeSlice(nTotalValues)
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {

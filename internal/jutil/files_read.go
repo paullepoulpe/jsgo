@@ -1,6 +1,10 @@
 package jutil
 
-import "os"
+import (
+	"os"
+	"unicode/utf8"
+	"unsafe"
+)
 
 // Go-only: language-adapter — the reading methods of java.nio.file.Files
 // (see files.go).
@@ -12,6 +16,9 @@ func Files_ReadString(path *Path, cs *Charset) string {
 	b, err := os.ReadFile(path.String())
 	if err != nil {
 		panic(IOExceptionFromError(err, path.String()))
+	}
+	if (cs == nil || cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
+		return unsafe.String(unsafe.SliceData(b), len(b))
 	}
 	return cs.DecodeStrict(b)
 }

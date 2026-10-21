@@ -2992,7 +2992,10 @@ func (c *Compiler) ToSource() string {
 					scripts = append(scripts, scriptNode)
 				}
 				if c.options.GetNumParallelThreads() > 1 && len(scripts) > 1 {
-					const batchSize = 64
+					batchSize := 64
+					if len(scripts) <= 64 {
+						batchSize = max(c.options.GetNumParallelThreads(), 4)
+					}
 					type scriptPrinted struct {
 						sm       CodePrinter_SourceAndMappings
 						licenses []string
