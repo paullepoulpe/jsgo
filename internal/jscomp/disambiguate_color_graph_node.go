@@ -38,7 +38,8 @@ type ColorGraphNode struct {
 
 	index int
 
-	subtypeIndices *jutil.BitSet
+	subtypeIndices   *jutil.BitSet
+	reflexiveSubtype bool
 }
 
 // ColorGraphNode_PropAssociation lists the reasons a property name became
@@ -104,10 +105,8 @@ func ColorGraphNode_CreateForTestingWithColor(single *colors.Color, index int) *
 func newColorGraphNode(single *colors.Color, index int) *ColorGraphNode {
 	jutil.CheckNotNull(single)
 	return &ColorGraphNode{
-		index:           index,
-		color:           single,
-		associatedProps: jutil.NewLinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation](),
-		subtypeIndices:  jutil.NewBitSet(),
+		index: index,
+		color: single,
 	}
 }
 
@@ -129,6 +128,9 @@ func (n *ColorGraphNode) GetIndex() int {
 //
 // Java: ColorGraphNode.getAssociatedProps()
 func (n *ColorGraphNode) GetAssociatedProps() *jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation] {
+	if n.associatedProps == nil {
+		n.associatedProps = jutil.NewLinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation]()
+	}
 	return n.associatedProps
 }
 
@@ -137,6 +139,12 @@ func (n *ColorGraphNode) GetAssociatedProps() *jutil.LinkedHashMap[*PropertyClus
 //
 // Java: ColorGraphNode.getSubtypeIndices()
 func (n *ColorGraphNode) GetSubtypeIndices() *jutil.BitSet {
+	if n.subtypeIndices == nil {
+		n.subtypeIndices = jutil.NewBitSet()
+		if n.reflexiveSubtype && n.index >= 0 {
+			n.subtypeIndices.Set(n.index)
+		}
+	}
 	return n.subtypeIndices
 }
 

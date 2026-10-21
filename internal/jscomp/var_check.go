@@ -175,6 +175,9 @@ func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 }
 
+func (*VarCheck) noShouldTraverse() {}
+func (*VarCheck) onlyNameLeaves()   {}
+
 // Java: VarCheck.shouldTraverse(NodeTraversal, Node, Node)
 func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	return true
@@ -207,8 +210,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node
 		return
 	}
 
-	scope := t.GetScope()
-	var_ := scope.GetVar(varName)
+	var_ := t.LookupVar(varName)
 
 	// Check that the var has been declared.
 	if var_ == nil {
@@ -226,7 +228,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node
 		}
 
 		v.HandleUndeclaredVariableRef(t, n)
-		scope.GetGlobalScope().Declare(varName, n, v.compiler.GetSynthesizedExternsInput())
+		t.GetScope().GetGlobalScope().Declare(varName, n, v.compiler.GetSynthesizedExternsInput())
 
 		return
 	}
@@ -258,7 +260,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node
 		if chunkGraph.DependsOn(currChunk, varChunk) {
 			// The chunk dependency was properly declared.
 		} else {
-			if scope.IsGlobal() {
+			if t.InGlobalScope() {
 				if chunkGraph.DependsOn(varChunk, currChunk) {
 					// The variable reference violates a declared chunk dependency.
 					t.Report(n, VarCheck_VIOLATED_CHUNK_DEP_ERROR, currChunk.GetName(), varChunk.GetName(), varName)

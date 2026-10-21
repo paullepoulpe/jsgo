@@ -1167,7 +1167,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 
 	var scope *Scope
 	if mode != FunctionInjector_InliningMode_DIRECT || (!r.outer.assumeMinimumCapture && functionState.HasInnerClosures()) {
-		scope = t.GetScope()
+		scope = t.resolveLookupScope(len(t.scopes) - 1)
 	}
 	r.scratchRef.requiresDecomposition = false
 	r.scratchRef.inlined = false

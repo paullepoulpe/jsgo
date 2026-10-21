@@ -225,7 +225,7 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	}
 
 	// Find the JSDocInfo for a top-level variable
-	var_ := t.GetScope().GetVar(name)
+	var_ := t.LookupVar(name)
 	var shouldBeConstant bool
 	if var_ != nil {
 		switch var_.nameHash {

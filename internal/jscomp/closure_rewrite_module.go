@@ -430,6 +430,8 @@ type ClosureRewriteModule_ScriptRecorder struct {
 	outer *ClosureRewriteModule
 }
 
+func (*ClosureRewriteModule_ScriptRecorder) noVisitLeaves() {}
+
 // Java: ClosureRewriteModule.ScriptRecorder.shouldTraverse(NodeTraversal, Node, Node)
 func (r *ClosureRewriteModule_ScriptRecorder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	m := r.outer
@@ -471,11 +473,13 @@ func (r *ClosureRewriteModule_ScriptRecorder) ShouldTraverse(t *NodeTraversal, n
 			m.RecordTopLevelVarNames(n)
 		}
 	case rhino.Token_GETPROP:
-		if closureRewriteModule_isExportPropertyAssignment(t, n) {
+		if m.currentScript.isModule && closureRewriteModule_isExportPropertyAssignment(t, n) {
 			m.RecordExportsPropertyAssignment(t, n)
 		}
 	case rhino.Token_NAME:
-		m.MaybeRecordExportDeclaration(t, n)
+		if m.currentScript.isModule {
+			m.MaybeRecordExportDeclaration(t, n)
+		}
 	default:
 	}
 
@@ -551,14 +555,16 @@ func (u *ClosureRewriteModule_ScriptUpdater) ShouldTraverse(t *NodeTraversal, n 
 			closureRewriteModule_updateGoogPreventModuleExportsSealing(n)
 		}
 	case rhino.Token_GETPROP:
-		if closureRewriteModule_isExportPropertyAssignment(t, n) {
+		if m.currentScript.isModule && closureRewriteModule_isExportPropertyAssignment(t, n) {
 			m.UpdateExportsPropertyAssignment(n, t)
 		}
 	default:
 	}
 
-	if n.GetJSDocInfo() != nil {
-		m.RewriteJsdoc(n.GetJSDocInfo(), t.GetScope())
+	if info := n.GetJSDocInfo(); info != nil {
+		if typeNodes := info.GetTypeNodes(); len(typeNodes) > 0 {
+			m.rewriteJsdocWithTraversal(typeNodes, t)
+		}
 	}
 
 	return true
@@ -571,10 +577,12 @@ func (u *ClosureRewriteModule_ScriptUpdater) Visit(t *NodeTraversal, n *rhino.No
 	case rhino.Token_MODULE_BODY:
 		m.UpdateModuleBody(n)
 	case rhino.Token_NAME:
-		m.MaybeUpdateTopLevelName(t, n)
-		m.MaybeUpdateExportDeclaration(t, n)
-		t.GetScope() // Creating the scope here has load-bearing side-effects.
-		m.MaybeUpdateExportNameRef(t, n)
+		if m.currentScript.isModule {
+			m.MaybeUpdateTopLevelName(t, n)
+			m.MaybeUpdateExportDeclaration(t, n)
+			t.GetScope() // Creating the scope here has load-bearing side-effects.
+			m.MaybeUpdateExportNameRef(t, n)
+		}
 	case rhino.Token_SCRIPT:
 		jutil.CheckState(m.currentScript.rootNode == n)
 		m.PopScript()
@@ -595,6 +603,13 @@ func (m *ClosureRewriteModule) RewriteJsdoc(info *rhino.JSDocInfo, scope *Scope)
 	}
 }
 
+func (m *ClosureRewriteModule) rewriteJsdocWithTraversal(typeNodes []*rhino.Node, t *NodeTraversal) {
+	replacer := ClosureRewriteModule_ReplaceJsDocRefs{outer: m, t: t}
+	for _, typeNode := range typeNodes {
+		NodeUtil_VisitPreOrder(typeNode, &replacer)
+	}
+}
+
 // ClosureRewriteModule_ReplaceJsDocRefs rewrites JsDoc type references to
 // match AST changes resulting from imported alias inlining, module content
 // renaming of top level constructor functions and classes, and module
@@ -604,6 +619,7 @@ func (m *ClosureRewriteModule) RewriteJsdoc(info *rhino.JSDocInfo, scope *Scope)
 type ClosureRewriteModule_ReplaceJsDocRefs struct {
 	outer *ClosureRewriteModule
 	scope *Scope
+	t     *NodeTraversal
 }
 
 var _ NodeUtil_Visitor = (*ClosureRewriteModule_ReplaceJsDocRefs)(nil)
@@ -611,6 +627,21 @@ var _ NodeUtil_Visitor = (*ClosureRewriteModule_ReplaceJsDocRefs)(nil)
 // Java: ClosureRewriteModule.ReplaceJsDocRefs(Scope)
 func (m *ClosureRewriteModule) NewReplaceJsDocRefs(scope *Scope) *ClosureRewriteModule_ReplaceJsDocRefs {
 	return &ClosureRewriteModule_ReplaceJsDocRefs{outer: m, scope: scope}
+}
+
+func (r *ClosureRewriteModule_ReplaceJsDocRefs) isLocalShadowVar(rootOfType string) bool {
+	var rootVar *Var
+	if r.t != nil {
+		if r.t.InGlobalScope() {
+			return false
+		}
+		rootVar = r.t.LookupVar(rootOfType)
+	} else if r.scope != nil {
+		rootVar = r.scope.GetVar(rootOfType)
+	}
+	return rootVar != nil &&
+		!rootVar.GetScope().(*Scope).GetClosestHoistScope().IsGlobal() &&
+		!rootVar.GetScope().(*Scope).IsModuleScope()
 }
 
 // Java: ClosureRewriteModule.ReplaceJsDocRefs.visit(Node)
@@ -627,14 +658,6 @@ func (r *ClosureRewriteModule_ReplaceJsDocRefs) Visit(typeRefNode *rhino.Node) {
 		rootOfType = typeName[:dot]
 	}
 
-	rootVar := r.scope.GetVar(rootOfType)
-	if rootVar != nil &&
-		!rootVar.GetScope().(*Scope).GetClosestHoistScope().IsGlobal() &&
-		!rootVar.GetScope().(*Scope).IsModuleScope() {
-		// this is a variable inside a local scope, not a module local or
-		// imported alias.
-		return
-	}
 	// Rewrite the type node if any of the following hold, in priority order:
 	//  - the root of the type name is in our set of aliases to inline
 	//  - the root of the type name is a name defined in the module scope
@@ -647,6 +670,9 @@ func (r *ClosureRewriteModule_ReplaceJsDocRefs) Visit(typeRefNode *rhino.Node) {
 	// "{module$exports$bar$Foo}" or
 	// "{bar.Foo}"
 	if m.currentScript.namesToInlineByAlias.ContainsKey(rootOfType) {
+		if r.isLocalShadowVar(rootOfType) {
+			return
+		}
 		if m.preprocessorSymbolTable != nil {
 			// Jsdoc type node is a single STRING node that spans the whole
 			// type. For example STRING node "bar.Foo". When rewriting modules
@@ -666,12 +692,18 @@ func (r *ClosureRewriteModule_ReplaceJsDocRefs) Visit(typeRefNode *rhino.Node) {
 		}
 		m.SafeSetString(typeRefNode, aliasedNamespace+remainder)
 	} else if m.currentScript.isModule && m.currentScript.topLevelNames.Contains(rootOfType) {
+		if r.isLocalShadowVar(rootOfType) {
+			return
+		}
 		// If this is a module and the type name is the name of a top level
 		// var/function/class defined in this script then that var will have
 		// been previously renamed from Foo to module$contents$Foo_Foo. Update
 		// the JsDoc reference to match.
 		m.SafeSetString(typeRefNode, jutil.ToJavaString(m.currentScript.contentsPrefix)+typeName)
 	} else if m.currentScript.isModule && rootOfType == "exports" {
+		if r.isLocalShadowVar(rootOfType) {
+			return
+		}
 		// rewrite a type reference to the implicit "exports" variable
 		// e.g. /** @type {exports.Foo} */ -> /** @type {module$exports$my$mod.Foo} */
 		namespace := m.currentScript.GetBinaryNamespace()
@@ -680,8 +712,35 @@ func (r *ClosureRewriteModule_ReplaceJsDocRefs) Visit(typeRefNode *rhino.Node) {
 			remainder = typeName[dot:]
 		}
 		m.SafeSetString(typeRefNode, jutil.ToJavaString(namespace)+remainder)
-	} else {
-		r.RewriteIfClosureNamespaceRef(typeName, typeRefNode)
+	} else if !m.rewriteState.scriptDescriptionsByGoogModuleNamespace.IsEmpty() {
+		r.rewriteIfClosureNamespaceRefForRoot(typeName, rootOfType, typeRefNode)
+	}
+}
+
+func (r *ClosureRewriteModule_ReplaceJsDocRefs) rewriteIfClosureNamespaceRefForRoot(typeName, rootOfType string, typeRefNode *rhino.Node) {
+	m := r.outer
+	prefixTypeName := typeName
+	suffix := ""
+
+	for {
+		binaryNamespaceIfModule := m.rewriteState.GetBinaryNamespace(prefixTypeName)
+		if m.legacyScriptNamespacesAndPrefixes.Contains(prefixTypeName) &&
+			binaryNamespaceIfModule == nil {
+			return
+		}
+		if binaryNamespaceIfModule != nil {
+			if r.isLocalShadowVar(rootOfType) {
+				return
+			}
+			m.SafeSetString(typeRefNode, *binaryNamespaceIfModule+suffix)
+			return
+		}
+		if strings.Contains(prefixTypeName, ".") {
+			prefixTypeName = prefixTypeName[:strings.LastIndexByte(prefixTypeName, '.')]
+			suffix = typeName[len(prefixTypeName):]
+		} else {
+			break
+		}
 	}
 }
 
@@ -1750,7 +1809,7 @@ func (m *ClosureRewriteModule) MaybeUpdateTopLevelName(t *NodeTraversal, nameNod
 	if !m.currentScript.isModule || !m.currentScript.topLevelNames.Contains(name) {
 		return
 	}
-	var_ := t.GetScope().GetVar(name)
+	var_ := t.LookupVar(name)
 	// If the name refers to a var that is not from the top level scope.
 	if var_ == nil || var_.GetScope().(*Scope).GetRootNode() != m.currentScript.rootNode {
 		// Then it shouldn't be renamed.
@@ -1791,7 +1850,7 @@ func (m *ClosureRewriteModule) MaybeUpdateTopLevelName(t *NodeTraversal, nameNod
 		// Make sure this action won't shadow a local variable.
 		if strings.IndexByte(namespaceToInline, '.') != -1 {
 			firstQualifiedName := namespaceToInline[:strings.IndexByte(namespaceToInline, '.')]
-			shadowedVar := t.GetScope().GetVar(firstQualifiedName)
+			shadowedVar := t.LookupVar(firstQualifiedName)
 			if shadowedVar == nil ||
 				shadowedVar.IsGlobal() ||
 				shadowedVar.GetScope().(*Scope).IsModuleScope() {
@@ -2354,7 +2413,7 @@ func closureRewriteModule_isGoogModuleExportsRef(t *NodeTraversal, target *rhino
 	if !target.IsName() || !target.MatchesName("exports") {
 		return false
 	}
-	exportsVar := t.GetScope().GetVar("exports")
+	exportsVar := t.LookupVar("exports")
 	// note: exportsVar may be null for third-party code using UMD patterns
 	// like
 	//   if ("object"==typeof exports) { [...]

@@ -365,8 +365,22 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 				continue
 			}
 		}
-		dsg.AddReferenceToGlobalSymbol(refSymbol)
-		refSymbol.AddReferringGlobalSymbol(declaredSymbol)
+		if dsg.AddReferenceToGlobalSymbol(refSymbol) {
+			if len(declaredSymbol.dsgs) == 1 {
+				refSymbol.referencingSlice = append(refSymbol.referencingSlice, declaredSymbol)
+			} else {
+				alreadyReferred := false
+				for _, prevDsg := range declaredSymbol.dsgs[:len(declaredSymbol.dsgs)-1] {
+					if prevDsg.hasReferenceToGlobalSymbol(refSymbol) {
+						alreadyReferred = true
+						break
+					}
+				}
+				if !alreadyReferred {
+					refSymbol.referencingSlice = append(refSymbol.referencingSlice, declaredSymbol)
+				}
+			}
+		}
 	}
 }
 
@@ -436,7 +450,6 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	// we iterate over these to identify cycles.
 	referencingSlice []*CrossChunkCodeMotion_GlobalSymbol
 	referencingBuf   [4]*CrossChunkCodeMotion_GlobalSymbol
-	referencingMap   map[*CrossChunkCodeMotion_GlobalSymbol]struct{}
 
 	// Instanceof references we may need to update with a guard after moving
 	// declarations.
@@ -529,23 +542,8 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statement *C
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.addReferringGlobalSymbol(GlobalSymbol)
 func (s *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declaredSymbol *CrossChunkCodeMotion_GlobalSymbol) {
-	if s.referencingMap != nil {
-		if _, exists := s.referencingMap[declaredSymbol]; exists {
-			return
-		}
-		s.referencingMap[declaredSymbol] = struct{}{}
-		s.referencingSlice = append(s.referencingSlice, declaredSymbol)
-		return
-	}
 	if slices.Contains(s.referencingSlice, declaredSymbol) {
 		return
-	}
-	if len(s.referencingSlice) == 8 {
-		s.referencingMap = make(map[*CrossChunkCodeMotion_GlobalSymbol]struct{}, 16)
-		for _, existing := range s.referencingSlice {
-			s.referencingMap[existing] = struct{}{}
-		}
-		s.referencingMap[declaredSymbol] = struct{}{}
 	}
 	s.referencingSlice = append(s.referencingSlice, declaredSymbol)
 }
@@ -778,18 +776,26 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() 
 	return true
 }
 
+func (g *CrossChunkCodeMotion_DeclarationStatementGroup) hasReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
+	if g.referencedMap != nil {
+		_, exists := g.referencedMap[refSymbol]
+		return exists
+	}
+	return slices.Contains(g.referencedSlice, refSymbol)
+}
+
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.addReferenceToGlobalSymbol(GlobalSymbol)
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) {
+func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
 	if g.referencedMap != nil {
 		if _, exists := g.referencedMap[refSymbol]; exists {
-			return
+			return false
 		}
 		g.referencedMap[refSymbol] = struct{}{}
 		g.referencedSlice = append(g.referencedSlice, refSymbol)
-		return
+		return true
 	}
 	if slices.Contains(g.referencedSlice, refSymbol) {
-		return
+		return false
 	}
 	if len(g.referencedSlice) == 8 {
 		g.referencedMap = make(map[*CrossChunkCodeMotion_GlobalSymbol]struct{}, 16)
@@ -799,6 +805,7 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSym
 		g.referencedMap[refSymbol] = struct{}{}
 	}
 	g.referencedSlice = append(g.referencedSlice, refSymbol)
+	return true
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.makeReferencesImmovable()

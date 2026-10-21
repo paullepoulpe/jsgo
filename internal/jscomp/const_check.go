@@ -73,13 +73,15 @@ func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	b.TraverseRoots(externs, root)
 }
 
+func (*ConstCheck) onlyNameLeaves() {}
+
 // Java: ConstCheck.visit(NodeTraversal, Node, Node)
 func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		if NodeUtil_IsNameDeclaration(parent) {
 			name := n.GetString()
-			var_ := t.GetScope().GetVar(name)
+			var_ := t.LookupVar(name)
 			if c.IsConstant(var_, n) {
 				// If a constant is declared in externs, add it to initializedConstants to indicate
 				// that it is initialized externally.
@@ -108,7 +110,7 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		lhs := n.GetFirstChild()
 		if lhs.IsName() {
 			name := lhs.GetString()
-			var_ := t.GetScope().GetVar(name)
+			var_ := t.LookupVar(name)
 			if c.IsConstant(var_, lhs) && !c.initializedConstants.Add(var_) {
 				c.ReportError(n, var_, name)
 			} else if var_ != nil && var_.IsGoogModuleExports() && !c.initializedConstants.Add(var_) {
@@ -121,7 +123,7 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		lhs := n.GetFirstChild()
 		if lhs.IsName() {
 			name := lhs.GetString()
-			var_ := t.GetScope().GetVar(name)
+			var_ := t.LookupVar(name)
 			if c.IsConstant(var_, lhs) {
 				c.ReportError(n, var_, name)
 			}

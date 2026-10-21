@@ -766,34 +766,37 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(c.topLevelStatementDraft))
 			c.topLevelStatementDraft = nil
 		} else if n.IsName() {
-			scope := t.GetScope()
-			v := scope.GetVar(n.GetString())
+			name := n.GetString()
+			if name != "" {
+				scope := t.resolveLookupScope(len(t.scopes) - 1)
+				v := scope.GetVar(name)
 
-			if v != nil && v.IsGlobal() {
-				var col *ReferenceCollection
-				if v == c.lastVar {
-					col = c.lastCollection
-				} else {
-					col = c.getExistingReferences(v)
-					if col == nil {
-						if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
-							goto checkBoundary
-						}
-						col = c.createReferencesForNewVar(v)
+				if v != nil && v.IsGlobal() {
+					var col *ReferenceCollection
+					if v == c.lastVar {
+						col = c.lastCollection
 					} else {
-						c.lastVar = v
-						c.lastCollection = col
+						col = c.getExistingReferences(v)
+						if col == nil {
+							if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
+								goto checkBoundary
+							}
+							col = c.createReferencesForNewVar(v)
+						} else {
+							c.lastVar = v
+							c.lastCollection = col
+						}
 					}
+					reference := c.allocReference(n, scope, crossChunkReferenceCollector_peek(c.blockStack), t.GetInput().GetInputId())
+					if n == c.topLevelStatementDraft.declaredNameNode {
+						c.topLevelStatementDraft.declaredNameReference = reference
+						c.topLevelStatementDraft.declaredVar = v
+					} else {
+						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
+						c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
+					}
+					col.Add(reference)
 				}
-				reference := c.allocReference(n, scope, crossChunkReferenceCollector_peek(c.blockStack), t.GetInput().GetInputId())
-				if n == c.topLevelStatementDraft.declaredNameNode {
-					c.topLevelStatementDraft.declaredNameReference = reference
-					c.topLevelStatementDraft.declaredVar = v
-				} else {
-					c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
-					c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
-				}
-				col.Add(reference)
 			}
 		}
 	}

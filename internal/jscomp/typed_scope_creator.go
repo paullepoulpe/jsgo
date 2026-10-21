@@ -4300,7 +4300,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 	// in the inner scope, not the scope where the name appears.
 	if n.IsName() && NodeUtil_IsLValue(n) && !NodeUtil_IsBleedingFunctionName(n) {
 		name := n.GetString()
-		scope := t.GetScope()
+		scope := t.resolveLookupScope(len(t.scopes) - 1)
 		var_ := scope.GetVar(name)
 		// TODO(sdh): consider checking hasSameHoistScope instead of container scope here and
 		// below. This will detect function(a) { a.foo = bar } as an escaped qualified name,
@@ -4320,7 +4320,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		}
 	} else if n.IsGetProp() && n.IsUnscopedQualifiedName() && NodeUtil_IsLValue(n) {
 		name := NodeUtil_GetRootOfQualifiedName(n).GetString()
-		scope := t.GetScope()
+		scope := t.resolveLookupScope(len(t.scopes) - 1)
 		var_ := scope.GetVar(name)
 		if var_ != nil {
 			ownerScope := var_.scope

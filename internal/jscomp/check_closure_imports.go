@@ -220,6 +220,8 @@ type CheckClosureImports_Checker struct {
 	moduleMetadataMap *ModuleMetadataMap
 }
 
+func (*CheckClosureImports_Checker) noVisitLeaves() {}
+
 // Java: CheckClosureImports.Checker(AbstractCompiler, ModuleMetadataMap)
 func (c *CheckClosureImports) NewChecker(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *CheckClosureImports_Checker {
 	k := &CheckClosureImports_Checker{outer: c}
@@ -283,35 +285,6 @@ func (k *CheckClosureImports_Checker) KindOfCall(callNode *rhino.Node) *CheckClo
 
 // Java: CheckClosureImports.Checker.checkValidImportCodeReference(NodeTraversal, Node)
 func (k *CheckClosureImports_Checker) CheckValidImportCodeReference(t *NodeTraversal, nameNode *rhino.Node) {
-	var_ := t.GetScope().GetVar(nameNode.GetString())
-
-	if var_ == nil || var_.GetNameNode() == nameNode {
-		return
-	}
-
-	declarationNameNode := var_.GetNameNode()
-	if declarationNameNode == nil || !NodeUtil_IsDeclarationLValue(declarationNameNode) {
-		return
-	}
-
-	var decl *rhino.Node
-	if declarationNameNode.GetParent().IsStringKey() {
-		decl = declarationNameNode.GetGrandparent().GetGrandparent()
-	} else {
-		decl = declarationNameNode.GetParent()
-	}
-	if !NodeUtil_IsNameDeclaration(decl) ||
-		!decl.HasOneChild() ||
-		!decl.GetFirstChild().HasChildren() ||
-		!decl.GetFirstChild().GetLastChild().IsCall() {
-		return
-	}
-
-	kindOfCall := k.KindOfCall(decl.GetFirstChild().GetLastChild())
-
-	if kindOfCall == nil {
-		return
-	}
 }
 
 // Java: CheckClosureImports.Checker.checkGoogModuleGet(NodeTraversal, Node, ModuleMetadata)

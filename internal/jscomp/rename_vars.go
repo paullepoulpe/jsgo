@@ -310,7 +310,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 	}
 
 	r := p.outer
-	var_ := t.GetScope().GetVar(name)
+	var_ := t.LookupVar(name)
 	if var_ != nil {
 		idx := var_.nameHash
 		if idx > 0 {

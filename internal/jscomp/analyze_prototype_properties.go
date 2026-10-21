@@ -32,6 +32,11 @@ import (
 //
 // Global functions are also represented by nodes in this graph, with
 // similar semantics.
+type analyzeProtoPropEdge struct {
+	chunk *JSChunk
+	dest  *AnalyzePrototypeProperties_NameInfo
+}
+
 type AnalyzePrototypeProperties struct {
 	compiler               AbstractCompiler
 	canModifyExterns       bool
@@ -40,24 +45,6 @@ type AnalyzePrototypeProperties struct {
 
 	chunkGraph *JSChunkGraph
 	firstChunk *JSChunk
-
-	// A graph where the nodes are property names or variable names,
-	// and the edges signify the chunks where the property is referenced.
-	// For example, if we had the code:
-	//
-	// Foo.prototype.bar = function(x) { x.baz(); }; // in chunk 2.;
-	//
-	// then this would be represented in the graph by a node representing
-	// "bar", a node representing "baz", and an edge between them representing
-	// chunk #2.
-	//
-	// Similarly, if we had:
-	//
-	// var scotch = function(f) { return f.age(); };
-	//
-	// then there would be a node for "scotch", a node for "age", and an edge
-	// from scotch to age.
-	symbolGraph *LinkedDirectedGraph[*AnalyzePrototypeProperties_NameInfo, *JSChunk]
 
 	// A dummy node for representing global references.
 	globalNode *AnalyzePrototypeProperties_NameInfo
@@ -75,6 +62,8 @@ type AnalyzePrototypeProperties struct {
 	// All the NameInfo for global functions, hashed by the name of the
 	// global variable that it's assigned to.
 	varNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
+
+	seededNodes []*AnalyzePrototypeProperties_NameInfo
 
 	scopeCreator *SyntacticScopeCreator
 
@@ -100,6 +89,7 @@ func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototyp
 	info.outer = a
 	info.name = name
 	info.declarations.InitWithBuffer(info.declBuf[:])
+	info.outEdges = info.outEdgesBuf[:0]
 	return info
 }
 
@@ -110,20 +100,35 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 		}
 		dest.hasGlobalEdge = true
 		dest.globalEdgeChunk = chunk
-	} else if src == a.externNode {
+		dest.MarkReference(chunk)
+		if !dest.seeded {
+			dest.seeded = true
+			a.seededNodes = append(a.seededNodes, dest)
+		}
+		return
+	}
+	if src == a.externNode {
 		if dest.hasExternEdge && dest.externEdgeChunk == chunk {
 			return
 		}
 		dest.hasExternEdge = true
 		dest.externEdgeChunk = chunk
-	} else {
-		if dest.lastSrc == src && dest.lastChunk == chunk {
-			return
+		dest.MarkReference(chunk)
+		if !dest.seeded {
+			dest.seeded = true
+			a.seededNodes = append(a.seededNodes, dest)
 		}
-		dest.lastSrc = src
-		dest.lastChunk = chunk
+		return
 	}
-	a.symbolGraph.ConnectNodes(src.graphNode, chunk, dest.graphNode)
+	if dest.lastSrc == src && dest.lastChunk == chunk {
+		return
+	}
+	if n := len(src.outEdges); n > 0 && src.outEdges[n-1].dest == dest && src.outEdges[n-1].chunk == chunk {
+		return
+	}
+	dest.lastSrc = src
+	dest.lastChunk = chunk
+	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 
 // Release returns pooled Scope/Var arenas owned by this AnalyzePrototypeProperties
@@ -160,7 +165,6 @@ func NewAnalyzePrototypeProperties(
 	anchorUnusedVars bool,
 	rootScopeUsesAreGlobal bool) *AnalyzePrototypeProperties {
 	a := &AnalyzePrototypeProperties{
-		symbolGraph:      LinkedDirectedGraph_CreateWithoutAnnotations[*AnalyzePrototypeProperties_NameInfo, *JSChunk](),
 		propertyNameInfo: jutil.NewLinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo](),
 		varNameInfo:      jutil.NewLinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo](),
 	}
@@ -181,17 +185,13 @@ func NewAnalyzePrototypeProperties(
 
 	a.globalNode.MarkReference(nil)
 	a.externNode.MarkReference(nil)
-	a.globalNode.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(a.globalNode)
-	a.externNode.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(a.externNode)
 
 	for _, property := range AnalyzePrototypeProperties_IMPLICITLY_USED_PROPERTIES {
 		nameInfo := a.GetNameInfoForName(property, AnalyzePrototypeProperties_PROPERTY)
 		if chunkGraph == nil {
 			a.connectSymbolNodes(a.externNode, nil, nameInfo)
-		} else {
-			for _, chunk := range chunkGraph.GetAllChunks() {
-				a.connectSymbolNodes(a.externNode, chunk, nameInfo)
-			}
+		} else if chunkGraph.GetChunkCount() > 0 {
+			a.connectSymbolNodes(a.externNode, chunkGraph.GetRootChunk(), nameInfo)
 		}
 	}
 	return a
@@ -208,11 +208,62 @@ func (a *AnalyzePrototypeProperties) Process(externRoot *rhino.Node, root *rhino
 		a.scopeCreator = NewSyntacticScopeCreator(a.compiler)
 		a.scopeCreator.EnableArenaPool()
 	}
-	NodeTraversal_Builder_().SetCompiler(a.compiler).SetScopeCreator(a.scopeCreator).SetCallback(&AnalyzePrototypeProperties_ProcessProperties{outer: a}).Traverse(root)
+	var propProc AnalyzePrototypeProperties_ProcessProperties
+	propProc.outer = a
+	propProc.symbolStack = propProc.symbolStackBuf[:0]
+	NodeTraversal_Builder_().SetCompiler(a.compiler).SetScopeCreator(a.scopeCreator).SetCallback(&propProc).Traverse(root)
 
-	t := FixedPointGraphTraversal_NewTraversal[*AnalyzePrototypeProperties_NameInfo, *JSChunk](
-		&AnalyzePrototypeProperties_PropagateReferences{outer: a})
-	t.ComputeFixedPointFromSet(a.symbolGraph, jutil.NewLinkedHashSet(a.externNode, a.globalNode))
+	a.propagateReferences()
+}
+
+func (a *AnalyzePrototypeProperties) propagateReferences() {
+	if len(a.seededNodes) == 0 {
+		return
+	}
+	totalNodes := a.propertyNameInfo.Size() + a.varNameInfo.Size() + 2
+	ringCap := 16
+	for ringCap < totalNodes+1 {
+		ringCap <<= 1
+	}
+	var ringBuf [64]*AnalyzePrototypeProperties_NameInfo
+	var ring []*AnalyzePrototypeProperties_NameInfo
+	if ringCap <= len(ringBuf) {
+		ring = ringBuf[:ringCap]
+	} else {
+		ring = make([]*AnalyzePrototypeProperties_NameInfo, ringCap)
+	}
+	var head, tail uint32
+	mask := uint32(ringCap - 1)
+	for _, info := range a.seededNodes {
+		if len(info.outEdges) > 0 && !info.inWorkSet {
+			info.inWorkSet = true
+			ring[tail&mask] = info
+			tail++
+		}
+	}
+	for head != tail {
+		idx := head & mask
+		start := ring[idx]
+		ring[idx] = nil
+		head++
+		start.inWorkSet = false
+		if !start.referenced {
+			continue
+		}
+		startChunk := start.deepestCommonChunkRef
+		for _, e := range start.outEdges {
+			targetChunk := e.chunk
+			if startChunk != nil && a.chunkGraph.DependsOn(startChunk, targetChunk) {
+				targetChunk = startChunk
+			}
+			dest := e.dest
+			if dest.MarkReference(targetChunk) && len(dest.outEdges) > 0 && !dest.inWorkSet {
+				dest.inWorkSet = true
+				ring[tail&mask] = dest
+				tail++
+			}
+		}
+	}
 }
 
 // GetAllNameInfo returns information on all prototype properties.
@@ -245,7 +296,6 @@ func (a *AnalyzePrototypeProperties) GetNameInfoForName(name string, type_ Analy
 	}
 	nameInfo := a.allocNameInfo(name)
 	map_.PutNew(name, nameInfo)
-	nameInfo.graphNode = a.symbolGraph.CreateLinkedDiGraphNode(nameInfo)
 	return nameInfo
 }
 
@@ -267,13 +317,14 @@ type AnalyzePrototypeProperties_ProcessProperties struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack (push/pop at
 	// the head, iterated from the head) is a slice whose top is its last
 	// element, iterated from the end.
-	symbolStack []*AnalyzePrototypeProperties_NameContext
+	symbolStack    []AnalyzePrototypeProperties_NameContext
+	symbolStackBuf [16]AnalyzePrototypeProperties_NameContext
 }
 
 // push is Deque.push on symbolStack.
 //
 // Go-only: language-adapter — see symbolStack.
-func (p *AnalyzePrototypeProperties_ProcessProperties) push(c *AnalyzePrototypeProperties_NameContext) {
+func (p *AnalyzePrototypeProperties_ProcessProperties) push(c AnalyzePrototypeProperties_NameContext) {
 	p.symbolStack = append(p.symbolStack, c)
 }
 
@@ -290,13 +341,15 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) pop() {
 // Java: AnalyzePrototypeProperties.ProcessProperties.enterScope(NodeTraversal)
 func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTraversal) {
 	a := p.outer
-	n := t.GetCurrentNode()
-	scope := t.GetScope()
-	root := scope.GetRootNode()
+	root := t.GetScopeRoot()
 	if root.IsFunction() {
+		n := t.GetCurrentNode()
 		propName := p.GetPrototypePropertyNameFromRValue(n)
 		if propName != nil {
-			p.push(NewAnalyzePrototypeProperties_NameContext(a.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY), scope))
+			p.push(AnalyzePrototypeProperties_NameContext{
+				name:      a.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY),
+				scopeRoot: root,
+			})
 		} else if p.IsGlobalFunctionDeclaration(t, n) {
 			parent := n.GetParent()
 			var name string
@@ -305,18 +358,20 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTravers
 			} else {
 				name = n.GetFirstChild().GetString() /* named function */
 			}
-			p.push(
-				NewAnalyzePrototypeProperties_NameContext(a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR), scope.GetClosestHoistScope()))
+			p.push(AnalyzePrototypeProperties_NameContext{
+				name:      a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR),
+				scopeRoot: t.GetClosestHoistScopeRoot(),
+			})
 		} else {
 			// NOTE(nicksantos): We use the same anonymous node for all
 			// functions that do not have reasonable names. I can't remember
 			// at the moment why we do this. I think it's because anonymous
 			// nodes can never have in-edges. They're just there as a placeholder
 			// for scope information, and do not matter in the edge propagation.
-			p.push(NewAnalyzePrototypeProperties_NameContext(a.anonymousNode, scope))
+			p.push(AnalyzePrototypeProperties_NameContext{name: a.anonymousNode, scopeRoot: root})
 		}
 	} else if t.InGlobalScope() {
-		p.push(NewAnalyzePrototypeProperties_NameContext(a.globalNode, scope))
+		p.push(AnalyzePrototypeProperties_NameContext{name: a.globalNode, scopeRoot: root})
 	} else {
 		// TODO(moz): It's not yet clear if we need another kind of NameContext for block scopes
 		// in ES6, use anonymous node for now and investigate later.
@@ -327,8 +382,8 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTravers
 				root.IsModuleBody() ||
 				root.IsComputedFieldDef() ||
 				root.IsMemberFieldDef(),
-			"%s", scope)
-		p.push(NewAnalyzePrototypeProperties_NameContext(a.anonymousNode, scope))
+			"%s", root)
+		p.push(AnalyzePrototypeProperties_NameContext{name: a.anonymousNode, scopeRoot: root})
 	}
 }
 
@@ -343,7 +398,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ShouldTraverse(t *NodeTra
 		// Process assignment of a non-function expression to a prototype property.
 		propName := p.ProcessNonFunctionPrototypeAssign(n, parent)
 		if propName != nil {
-			p.push(NewAnalyzePrototypeProperties_NameContext(p.outer.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY), nil))
+			p.push(AnalyzePrototypeProperties_NameContext{
+				name: p.outer.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY),
+			})
 		}
 	}
 	return true
@@ -364,9 +421,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 		// should be marked as referencing super, but not the class definition or anything
 		// containing it.
 		for i := len(p.symbolStack) - 1; i >= 0; i-- {
-			context := p.symbolStack[i]
+			context := &p.symbolStack[i]
 			context.name.referencesSuper = true
-			if NodeUtil_IsMethodDeclaration(context.scope.GetRootNode()) {
+			if NodeUtil_IsMethodDeclaration(context.scopeRoot) {
 				break
 			}
 		}
@@ -457,8 +514,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 			break
 		}
 
-		scope := t.GetScope()
-		var_ := scope.GetVar(name)
+		var_ := t.LookupVar(name)
 		if var_ != nil {
 			// Only process global functions.
 			if var_.IsGlobal() {
@@ -475,10 +531,10 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 				// If it is not a global, it might be accessing a local of the outer
 				// scope. If that's the case the functions between the variable's
 				// declaring scope and the variable reference scope cannot be moved.
-			} else if var_.GetScope().(*Scope) != scope {
+			} else if varScopeRoot := var_.GetScope().(*Scope).GetRootNode(); varScopeRoot != t.GetScopeRoot() {
 				for i := len(p.symbolStack) - 1; i >= 0; i-- {
-					context := p.symbolStack[i]
-					if context.scope == var_.GetScope().(*Scope) {
+					context := &p.symbolStack[i]
+					if context.scopeRoot == varScopeRoot {
 						break
 					}
 
@@ -726,7 +782,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessMemberDef(t *NodeT
 	classNameNode := NodeUtil_GetNameNode(n.GetGrandparent())
 	var var_ *Var
 	if classNameNode != nil && classNameNode.IsName() {
-		var_ = t.GetScope().GetVar(classNameNode.GetString())
+		var_ = t.LookupVar(classNameNode.GetString())
 	}
 	p.outer.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).
 		GetDeclarations().
@@ -736,7 +792,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessMemberDef(t *NodeT
 // Java: AnalyzePrototypeProperties.ProcessProperties.maybeGetVar(NodeTraversal, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraversal, maybeName *rhino.Node) *Var {
 	if maybeName.IsName() {
-		return t.GetScope().GetVar(maybeName.GetString())
+		return t.LookupVar(maybeName.GetString())
 	}
 	return nil
 }
@@ -1038,12 +1094,17 @@ type AnalyzePrototypeProperties_NameContext struct {
 
 	// If this is a function context, then scope will be the scope of the
 	// corresponding function. Otherwise, it will be null.
-	scope *Scope
+	scope     *Scope
+	scopeRoot *rhino.Node
 }
 
 // Java: AnalyzePrototypeProperties.NameContext(NameInfo, Scope)
 func NewAnalyzePrototypeProperties_NameContext(name *AnalyzePrototypeProperties_NameInfo, scope *Scope) *AnalyzePrototypeProperties_NameContext {
-	return &AnalyzePrototypeProperties_NameContext{name: name, scope: scope}
+	var root *rhino.Node
+	if scope != nil {
+		root = scope.GetRootNode()
+	}
+	return &AnalyzePrototypeProperties_NameContext{name: name, scope: scope, scopeRoot: root}
 }
 
 // AnalyzePrototypeProperties_NameInfo is information on all properties or
@@ -1060,13 +1121,16 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	declBuf               [2]AnalyzePrototypeProperties_Symbol
 	deepestCommonChunkRef *JSChunk
 
-	graphNode       *LinkedDirectedGraph_LinkedDiGraphNode[*AnalyzePrototypeProperties_NameInfo, *JSChunk]
+	outEdges        []analyzeProtoPropEdge
+	outEdgesBuf     [2]analyzeProtoPropEdge
 	lastSrc         *AnalyzePrototypeProperties_NameInfo
 	lastChunk       *JSChunk
 	globalEdgeChunk *JSChunk
 	externEdgeChunk *JSChunk
 	hasGlobalEdge   bool
 	hasExternEdge   bool
+	seeded          bool
+	inWorkSet       bool
 
 	// True if this property is a function that reads a variable from an
 	// outer scope which isn't the global scope.

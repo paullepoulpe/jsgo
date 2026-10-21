@@ -157,7 +157,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, par
 			if name == "" {
 				return
 			}
-			v := t.GetScope().GetVar(name)
+			v := t.LookupVar(name)
 			if v != nil {
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
@@ -176,7 +176,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, par
 			if name == "" {
 				return
 			}
-			scope := t.GetScope()
+			scope := t.resolveLookupScope(len(t.scopes) - 1)
 			v := scope.GetVar(name)
 			if v != nil && scope.GetClosestHoistScope() == v.scope {
 				vRoot := v.scope.GetRootNode()

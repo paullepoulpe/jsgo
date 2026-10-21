@@ -212,7 +212,7 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			return NewLowestCommonAncestorFinder(graph)
 		},
 		a.colorRegistry)
-	graphBuilder.AddAll(a.graphNodeFactory.GetAllKnownTypes().All())
+	graphBuilder.AddAll(a.graphNodeFactory.typeIndex.Values())
 	colorGraph := graphBuilder.Build()
 	func() {
 		chunkGraphLog := a.compiler.CreateOrReopenLog(reflect.TypeFor[AmbiguateProperties](), "color_graph.dot")
@@ -221,8 +221,8 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(colorGraph))
 		}
 	}()
-	for node := range a.graphNodeFactory.GetAllKnownTypes().All() {
-		node.GetSubtypeIndices().Set(node.GetIndex()) // Init subtyping as reflexive.
+	for node := range a.graphNodeFactory.typeIndex.Values() {
+		node.reflexiveSubtype = true // Init subtyping as reflexive.
 	}
 
 	FixedPointGraphTraversal_NewReverseTraversal[*ColorGraphNode, any](
@@ -237,25 +237,52 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			 * <p>We're guaranteed to converge because the sizes will be euqal after the OR
 			 * operation.
 			 */
-			if subtype.GetSubtypeIndices().Size() > supertype.GetSubtypeIndices().Size() {
-				supertype.GetSubtypeIndices().Or(subtype.GetSubtypeIndices())
+			superSet := supertype.GetSubtypeIndices()
+			if subtype.subtypeIndices == nil {
+				idx := subtype.GetIndex()
+				if superSet.Get(idx) {
+					return false
+				}
+				superSet.Set(idx)
+				return true
+			}
+			subSet := subtype.subtypeIndices
+			if subSet.Size() > superSet.Size() {
+				superSet.Or(subSet)
 				return true
 			}
 
-			startSize := supertype.GetSubtypeIndices().Cardinality()
-			supertype.GetSubtypeIndices().Or(subtype.GetSubtypeIndices())
-			return supertype.GetSubtypeIndices().Cardinality() > startSize
+			startSize := superSet.Cardinality()
+			superSet.Or(subSet)
+			return superSet.Cardinality() > startSize
 		})).
 		ComputeFixedPoint(colorGraph)
 
 	// Fill in all transitive edges in subtyping graph per property
 	for prop := range a.propertyMap.Values() {
+		if prop.skipAmbiguating || prop.firstColorSeed == nil {
+			prop.firstColorSeed = nil
+			prop.relatedColorsSeeds = nil
+			continue
+		}
 		if prop.relatedColorsSeeds == nil {
+			c := prop.firstColorSeed
+			prop.firstColorSeed = nil
+			if c.subtypeIndices == nil {
+				prop.singleColorIndex = int32(c.index)
+			} else {
+				prop.relatedColors.Or(c.subtypeIndices)
+			}
 			continue
 		}
 		for color := range prop.relatedColorsSeeds.Keys() {
-			prop.relatedColors.Or(color.GetSubtypeIndices())
+			if color.subtypeIndices != nil {
+				prop.relatedColors.Or(color.subtypeIndices)
+			} else {
+				prop.relatedColors.Set(color.index)
+			}
 		}
+		prop.firstColorSeed = nil
 		prop.relatedColorsSeeds = nil
 	}
 
@@ -405,12 +432,12 @@ func (g *AmbiguateProperties_PropertyGraph) GetWeight(value *AmbiguateProperties
 // Java: static class AmbiguateProperties.PropertySubGraph implements SubGraph<Property, Void>
 type AmbiguateProperties_PropertySubGraph struct {
 	// Types related to properties referenced in this subgraph.
-	relatedTypes *jutil.BitSet
+	relatedTypes jutil.BitSet
 }
 
 // Java: AmbiguateProperties.PropertySubGraph()
 func NewAmbiguateProperties_PropertySubGraph() *AmbiguateProperties_PropertySubGraph {
-	return &AmbiguateProperties_PropertySubGraph{relatedTypes: jutil.NewBitSet()}
+	return &AmbiguateProperties_PropertySubGraph{}
 }
 
 // IsIndependentOf returns true if prop is in an independent set from all
@@ -419,7 +446,10 @@ func NewAmbiguateProperties_PropertySubGraph() *AmbiguateProperties_PropertySubG
 //
 // Java: AmbiguateProperties.PropertySubGraph.isIndependentOf(AmbiguateProperties.Property)
 func (g *AmbiguateProperties_PropertySubGraph) IsIndependentOf(prop *AmbiguateProperties_Property) bool {
-	return !g.relatedTypes.Intersects(prop.relatedColors)
+	if prop.singleColorIndex >= 0 {
+		return !g.relatedTypes.Get(int(prop.singleColorIndex))
+	}
+	return !g.relatedTypes.Intersects(&prop.relatedColors)
 }
 
 // AddNode adds the node to the sub graph, adding all its related types to the
@@ -427,7 +457,11 @@ func (g *AmbiguateProperties_PropertySubGraph) IsIndependentOf(prop *AmbiguatePr
 //
 // Java: AmbiguateProperties.PropertySubGraph.addNode(AmbiguateProperties.Property)
 func (g *AmbiguateProperties_PropertySubGraph) AddNode(prop *AmbiguateProperties_Property) {
-	g.relatedTypes.Or(prop.relatedColors)
+	if prop.singleColorIndex >= 0 {
+		g.relatedTypes.Set(int(prop.singleColorIndex))
+		return
+	}
+	g.relatedTypes.Or(&prop.relatedColors)
 }
 
 // Java: static class AmbiguateProperties.PropertyGraphNode implements GraphNode<Property, Void>
@@ -465,6 +499,8 @@ type AmbiguateProperties_ProcessPropertiesAndConstructors struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *AmbiguateProperties
 }
+
+func (*AmbiguateProperties_ProcessPropertiesAndConstructors) onlyNameLeaves() {}
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.visit(NodeTraversal, Node, Node)
 func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
@@ -703,7 +739,7 @@ func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Pr
 	prop := &a.propertySlab[idx]
 	prop.outer = a
 	prop.oldName = name
-	prop.relatedColors = jutil.NewBitSet()
+	prop.singleColorIndex = -1
 	return prop
 }
 
@@ -727,24 +763,25 @@ func (a *AmbiguateProperties) GetColor(n *rhino.Node) *colors.Color {
 type AmbiguateProperties_Property struct {
 	outer *AmbiguateProperties
 
-	oldName         string
-	newName         *string // may be nil
-	numOccurrences  int
-	skipAmbiguating bool
+	oldName          string
+	newName          *string // may be nil
+	numOccurrences   int
+	skipAmbiguating  bool
+	singleColorIndex int32
 	// All colors upon which this property was directly accessed. For "a.b" this includes "a"'s type
+	firstColorSeed     *ColorGraphNode
 	relatedColorsSeeds *jutil.LinkedHashMap[*ColorGraphNode, int] // may be nil
 	// includes relatedTypesSeeds + all subtypes of those seed colors. For example if this property
 	// was accessed off of Iterable, then this bitset will include Array as well.
-	relatedColors *jutil.BitSet
+	relatedColors jutil.BitSet
 }
 
 // Java: AmbiguateProperties.Property(String)
 func NewAmbiguateProperties_Property(outer *AmbiguateProperties, name string) *AmbiguateProperties_Property {
 	return &AmbiguateProperties_Property{
-		outer:              outer,
-		oldName:            name,
-		relatedColorsSeeds: nil,
-		relatedColors:      jutil.NewBitSet(),
+		outer:            outer,
+		oldName:          name,
+		singleColorIndex: -1,
 	}
 }
 
@@ -760,13 +797,22 @@ func (p *AmbiguateProperties_Property) AddRelatedColor(color *colors.Color) {
 
 	if color.IsInvalidating() || color.GetPropertiesKeepOriginalName() {
 		p.skipAmbiguating = true
+		p.firstColorSeed = nil
+		p.relatedColorsSeeds = nil
 		return
 	}
 
+	newColorGraphNode := p.outer.graphNodeFactory.CreateNode(color)
+	if p.firstColorSeed == nil {
+		p.firstColorSeed = newColorGraphNode
+		return
+	}
+	if p.firstColorSeed == newColorGraphNode {
+		return
+	}
 	if p.relatedColorsSeeds == nil {
 		p.relatedColorsSeeds = jutil.NewLinkedHashMap[*ColorGraphNode, int]()
+		p.relatedColorsSeeds.Put(p.firstColorSeed, 0)
 	}
-
-	newColorGraphNode := p.outer.graphNodeFactory.CreateNode(color)
 	p.relatedColorsSeeds.Put(newColorGraphNode, 0)
 }

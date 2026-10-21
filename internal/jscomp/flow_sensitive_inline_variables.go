@@ -101,6 +101,10 @@ type FlowSensitiveInlineVariables struct {
 	maxCandDepth        int
 	dummyGlobalScope    *Scope
 	globalRoot          *rhino.Node
+	globalScopeOnce     sync.Once
+	realGlobalScope     *Scope
+	globalScopeCreator  *SyntacticScopeCreator
+	sharedParent        *FlowSensitiveInlineVariables
 	scopeCreator        *SyntacticScopeCreator
 	curFn               *rhino.Node
 	curFnEnclosingScope *Scope
@@ -267,12 +271,13 @@ func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveIn
 	return f
 }
 
-func newFlowSensitiveInlineVariablesWorker(compiler AbstractCompiler, astAnalyzer *AstAnalyzer, codingConvention CodingConvention, dummyGlobalScope *Scope, globalRoot *rhino.Node) *FlowSensitiveInlineVariables {
+func newFlowSensitiveInlineVariablesWorker(parent *FlowSensitiveInlineVariables, compiler AbstractCompiler, astAnalyzer *AstAnalyzer, codingConvention CodingConvention, dummyGlobalScope *Scope, globalRoot *rhino.Node) *FlowSensitiveInlineVariables {
 	f := NewFlowSensitiveInlineVariables(compiler)
 	f.astAnalyzer = astAnalyzer
 	f.codingConvention = codingConvention
 	f.dummyGlobalScope = dummyGlobalScope
 	f.globalRoot = globalRoot
+	f.sharedParent = parent
 	f.parallelMode = true
 	return f
 }
@@ -846,6 +851,9 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 	}
 	f.globalRoot = globalRoot
 	f.dummyGlobalScope = Scope_CreateGlobalScope(globalRoot)
+	f.globalScopeOnce = sync.Once{}
+	f.realGlobalScope = nil
+	f.globalScopeCreator = nil
 
 	sc := NewSyntacticScopeCreator(f.compiler)
 	sc.EnableArenaPool()
@@ -857,6 +865,11 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 			releaseReusableCfg(f.reusableCfg)
 			f.reusableCfg = nil
 		}
+		if f.globalScopeCreator != nil {
+			f.globalScopeCreator.ReleaseArena()
+			f.globalScopeCreator = nil
+		}
+		f.realGlobalScope = nil
 		f.scopeCreator = nil
 		f.dummyGlobalScope = nil
 		f.globalRoot = nil
@@ -936,7 +949,7 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 					}
 				}()
 				worker := newFlowSensitiveInlineVariablesWorker(
-					f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
+					f, f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
 				wsc := NewSyntacticScopeCreator(f.compiler)
 				wsc.EnableArenaPool()
 				wrc := acquireReusableCfg()
@@ -1573,6 +1586,22 @@ func fsivHasUnsafeRhsNode(n *rhino.Node) bool {
 	return false
 }
 
+func (f *FlowSensitiveInlineVariables) getRealGlobalScope(root *rhino.Node) *Scope {
+	if f.sharedParent != nil {
+		return f.sharedParent.getRealGlobalScope(root)
+	}
+	if f.globalRoot != nil && root == f.globalRoot {
+		f.globalScopeOnce.Do(func() {
+			gsc := NewSyntacticScopeCreator(f.compiler)
+			gsc.EnableArenaPool()
+			f.globalScopeCreator = gsc
+			f.realGlobalScope = gsc.CreateScopeOfScope(f.globalRoot, nil)
+		})
+		return f.realGlobalScope
+	}
+	return f.scopeCreator.CreateScopeOfScope(root, nil)
+}
+
 func (f *FlowSensitiveInlineVariables) buildEnclosingScope() *Scope {
 	if f.curFn == nil || f.scopeCreator == nil {
 		return nil
@@ -1588,12 +1617,22 @@ func (f *FlowSensitiveInlineVariables) buildEnclosingScope() *Scope {
 			continue
 		}
 		if (p.IsRoot() && p.GetParent() == nil) || p.GetParent() == nil || p.IsFunction() || NodeUtil_CreatesBlockScope(p) {
+			if p.GetParent() != nil &&
+				((p.IsBlock() && !NodeUtil_IsFunctionBlock(p) && !p.IsClassMembers() && !NodeUtil_IsClassStaticBlock(p) && !NodeUtil_IsBundledGoogModuleScopeRoot(p)) || NodeUtil_IsAnyFor(p)) &&
+				!syntacticScopeHasBlockDecls(p) {
+				continue
+			}
 			roots = append(roots, p)
 		}
 	}
 	var parentScope *Scope
 	for i := len(roots) - 1; i >= 0; i-- {
-		parentScope = f.scopeCreator.CreateScopeOfScope(roots[i], parentScope)
+		r := roots[i]
+		if parentScope == nil && r.GetParent() == nil {
+			parentScope = f.getRealGlobalScope(r)
+			continue
+		}
+		parentScope = f.scopeCreator.CreateScopeOfScope(r, parentScope)
 	}
 	return parentScope
 }

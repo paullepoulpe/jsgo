@@ -29,6 +29,7 @@ type ColorGraphNodeFactory struct {
 	// Colors are keyed with their equals()/hashCode().
 	typeIndex *jutil.ObjectLinkedHashMap[*colors.Color, *ColorGraphNode]
 	registry  *colors.ColorRegistry
+	nodeSlab  []ColorGraphNode
 }
 
 // Java: ColorGraphNodeFactory(LinkedHashMap<Color, ColorGraphNode>, ColorRegistry)
@@ -73,8 +74,22 @@ func (f *ColorGraphNodeFactory) GetAllKnownTypes() *jutil.LinkedHashSet[*ColorGr
 
 // Java: ColorGraphNodeFactory.newColorGraphNode(Color)
 func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraphNode {
+	jutil.CheckNotNull(key)
 	id := f.typeIndex.Size()
-	return ColorGraphNode_Create(key, id)
+	jutil.CheckArgument(id >= 0)
+	if len(f.nodeSlab) == cap(f.nodeSlab) {
+		newCap := 256
+		if cap(f.nodeSlab) >= 256 {
+			newCap = min(cap(f.nodeSlab)*2, 4096)
+		}
+		f.nodeSlab = make([]ColorGraphNode, 0, newCap)
+	}
+	idx := len(f.nodeSlab)
+	f.nodeSlab = f.nodeSlab[:idx+1]
+	n := &f.nodeSlab[idx]
+	n.index = id
+	n.color = key
+	return n
 }
 
 // simplifyColor merges different colors with the same ambiguation-behavior
