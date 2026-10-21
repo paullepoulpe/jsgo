@@ -25,8 +25,6 @@ import (
 // Es6CheckModule checks that ES6 Modules are used correctly, and do not
 // reference undefined keywords or features.
 type Es6CheckModule struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-
 	compiler                 AbstractCompiler
 	noImportsInCurrentScript bool
 }

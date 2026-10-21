@@ -128,7 +128,65 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 	initSyntacticScopeCreator_ScopeScanner(&scanner, c.compiler, c.redeclarationHandler, scope, nil, c.treatProvidesAsRedeclarations)
 	scanner.creator = c
 	scanner.Populate()
+	scope.scanDone = true
 	return scope
+}
+
+func syntacticScopeChildHasBlockDecls(c *rhino.Node) bool {
+	switch c.GetToken() {
+	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_EXPORT:
+		return true
+	case rhino.Token_FUNCTION:
+		return !NodeUtil_IsFunctionExpression(c) && c.GetFirstChild().GetString() != ""
+	case rhino.Token_CLASS:
+		return !NodeUtil_IsClassExpression(c) && c.GetFirstChild().GetString() != ""
+	case rhino.Token_BLOCK:
+		if !c.IsSyntheticBlock() {
+			return false
+		}
+		for gc := c.GetFirstChild(); gc != nil; gc = gc.GetNext() {
+			if syntacticScopeChildHasBlockDecls(gc) {
+				return true
+			}
+		}
+		return false
+	case rhino.Token_LABEL, rhino.Token_IF, rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH:
+		for gc := c.GetFirstChild(); gc != nil; gc = gc.GetNext() {
+			if scanVarsTokenKind[uint8(gc.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(gc) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func syntacticScopeHasBlockDecls(n *rhino.Node) bool {
+	if n.HasNoBlockScopeDecls() {
+		return false
+	}
+	if NodeUtil_IsAnyFor(n) {
+		first := n.GetFirstChild()
+		if first != nil && (first.IsLet() || first.IsConst()) {
+			return true
+		}
+		if last := n.GetLastChild(); last != nil && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
+			return true
+		}
+		n.SetNoBlockScopeDecls()
+		return false
+	}
+	if n.IsBlock() {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
+				return true
+			}
+		}
+		n.SetNoBlockScopeDecls()
+		return false
+	}
+	return true
 }
 
 // SyntacticScopeCreator_ScopeScanner is a class to traverse the AST looking
@@ -305,14 +363,44 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 	case rhino.Token_MODULE_BODY:
 		s.ScanVars(n, s.scope, s.scope)
 		return
-	case rhino.Token_FOR, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN, rhino.Token_SWITCH_BODY:
+	case rhino.Token_FOR, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
+		if n.HasNoBlockScopeDecls() {
+			return
+		}
+		first := n.GetFirstChild()
+		if first != nil && (first.IsLet() || first.IsConst()) {
+			s.DeclareLHS(s.scope, first)
+		}
+		last := n.GetLastChild()
+		if last != nil && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
+			s.ScanVars(last, nil, s.scope)
+		}
+		if s.smallLen == 0 && s.scope.varCount == 0 && (last == nil || last.IsBlock()) {
+			n.SetNoBlockScopeDecls()
+		}
+		return
+	case rhino.Token_SWITCH_BODY:
 		s.ScanVars(n, nil, s.scope)
 		return
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsFunctionBlock(n) || NodeUtil_IsClassStaticBlock(n) {
 			s.ScanVars(n, s.scope, s.scope)
 		} else {
-			s.ScanVars(n, nil, s.scope)
+			if n.HasNoBlockScopeDecls() {
+				return
+			}
+			canCacheNoDecls := true
+			for c := n.GetFirstChild(); c != nil; {
+				next := c.GetNext()
+				if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
+					canCacheNoDecls = false
+					s.ScanVars(c, nil, s.scope)
+				}
+				c = next
+			}
+			if canCacheNoDecls && s.smallLen == 0 && s.scope.varCount == 0 {
+				n.SetNoBlockScopeDecls()
+			}
 		}
 		return
 	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
@@ -595,7 +683,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				if idx == 0 {
 					break
 				}
-				if cand := sc.varList[idx-1]; cand.name == name {
+				if cand := sc.varList[idx-1]; scopeNameEq(cand.name, name) {
 					v = cand
 					break
 				}
@@ -606,7 +694,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				probeSlot = (probeSlot + 1) & mask
 			}
 		}
-		if v == nil {
+		if v == nil && sc.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
 			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}
@@ -614,13 +702,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	} else {
 		if alreadyMaybePresent {
 			for i := 0; i < s.smallLen; i++ {
-				if s.smallVars[i].name == name {
+				if scopeNameEq(s.smallVars[i].name, name) {
 					v = s.smallVars[i]
 					break
 				}
 			}
 		}
-		if v == nil {
+		if v == nil && sc.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
 			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}

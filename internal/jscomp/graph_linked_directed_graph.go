@@ -215,6 +215,7 @@ func (g *LinkedDirectedGraph[N, E]) ClearSlabsForPool() {
 		}
 		clear(n.outEdgeBuffer[:])
 		n.value = zeroN
+		n.inWorkSet = false
 		n.annotation = nil
 	}
 	clear(g.edgeBuf[:])
@@ -242,6 +243,7 @@ func (g *LinkedDirectedGraph[N, E]) ClearSlabsForPool() {
 			}
 			clear(n.outEdgeBuffer[:])
 			n.value = zeroN
+			n.inWorkSet = false
 			n.annotation = nil
 		}
 		g.nodeChunks[i] = chunk[:0]
@@ -304,6 +306,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 	n.value = nodeValue
 	n.priority = -1
 	n.annotated = g.useNodeAnnotations
+	n.inWorkSet = false
 	n.annotation = nil
 	if cap(n.inEdgeList.Slice()) == 0 {
 		n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])
@@ -858,6 +861,7 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 
 	priority  int32
 	annotated bool
+	inWorkSet bool
 }
 
 // newLinkedDirectedGraph_LinkedDiGraphNode is the constructor; nodeValue is

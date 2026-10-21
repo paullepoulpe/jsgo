@@ -258,9 +258,10 @@ func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
 		for i := 0; i < limit; i++ {
 			slot := &chunk[i]
 			clear(slot.list.Slice())
-			slot.list.Clear()
-			slot.buf = [8]*rhino.Node{}
-			if cap(slot.list.Slice()) > 4096 {
+			if cap(slot.list.Slice()) <= 65536 {
+				slot.list.Clear()
+			} else {
+				slot.buf = [8]*rhino.Node{}
 				slot.list.InitWithBuffer(slot.buf[:])
 			}
 		}
@@ -341,6 +342,20 @@ func (m *OptimizeCalls_ReferenceMap) allocRefList() *jutil.ArrayList[*rhino.Node
 	return &slot.list
 }
 
+func optimizeCallsAddNode(list *jutil.ArrayList[*rhino.Node], n *rhino.Node) {
+	s := list.Slice()
+	if len(s) == cap(s) {
+		newCap := max(cap(s)*4, 32)
+		next := make([]*rhino.Node, newCap)
+		list.InitWithBuffer(next)
+		list.AddAll(s...)
+		if cap(s) == 8 {
+			clear(s)
+		}
+	}
+	list.Add(n)
+}
+
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]], name string, n *rhino.Node) {
 	refs := data.Get(name)
@@ -348,13 +363,13 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[stri
 		refs = m.allocRefList()
 		data.PutNew(name, refs)
 	}
-	refs.Add(n)
+	optimizeCallsAddNode(refs, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node) {
 	if m.lastNameList != nil && name == m.lastNameKey {
-		m.lastNameList.Add(n)
+		optimizeCallsAddNode(m.lastNameList, n)
 		return
 	}
 	refs := m.names.Get(name)
@@ -364,13 +379,13 @@ func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node
 	}
 	m.lastNameKey = name
 	m.lastNameList = refs
-	refs.Add(n)
+	optimizeCallsAddNode(refs, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node) {
 	if m.lastPropList != nil && name == m.lastPropKey {
-		m.lastPropList.Add(n)
+		optimizeCallsAddNode(m.lastPropList, n)
 		return
 	}
 	refs := m.props.Get(name)
@@ -380,7 +395,7 @@ func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node
 	}
 	m.lastPropKey = name
 	m.lastPropList = refs
-	refs.Add(n)
+	optimizeCallsAddNode(refs, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
@@ -963,7 +978,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 		return
 	}
 	if c.references.lastNameList != nil && name == mLastNameKey(c.references) {
-		c.references.lastNameList.Add(n)
+		optimizeCallsAddNode(c.references.lastNameList, n)
 		return
 	}
 	idx := ocCacheIdx(name)
@@ -974,7 +989,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 		}
 		c.references.lastNameKey = name
 		c.references.lastNameList = e.list
-		e.list.Add(n)
+		optimizeCallsAddNode(e.list, n)
 		return
 	}
 	// TODO(b/129503101): Why are we limiting ourselves to global names?
@@ -997,7 +1012,7 @@ func mLastNameKey(m *OptimizeCalls_ReferenceMap) string {
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n *rhino.Node) {
 	if c.references.lastPropList != nil && name == c.references.lastPropKey {
-		c.references.lastPropList.Add(n)
+		optimizeCallsAddNode(c.references.lastPropList, n)
 		return
 	}
 	if name != "" {
@@ -1010,7 +1025,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name 
 			}
 			c.references.lastPropKey = name
 			c.references.lastPropList = e.list
-			e.list.Add(n)
+			optimizeCallsAddNode(e.list, n)
 			return
 		}
 		if !c.outer.considerExterns {

@@ -144,9 +144,10 @@ func (a *typedScopeArena) allocNames(n int) []string {
 type TypedScope struct {
 	AbstractScopeBase[*TypedScope, *TypedVar]
 
-	parent *TypedScope
-	module *Module
-	arena  *typedScopeArena
+	parent   *TypedScope
+	module   *Module
+	arena    *typedScopeArena
+	varBloom uint64
 
 	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
 	// elements from an empty set)
@@ -202,8 +203,32 @@ func newTypedScopeOwnedReservedNames(
 		s = &TypedScope{}
 	}
 	s.InitAbstractScopeBase(s, rootNode)
-	if arena != nil && len(reservedNames) > 0 {
-		s.vars.InitWithBuffer(arena.allocVarSlots(len(reservedNames)))
+	if arena != nil {
+		slotCap := len(reservedNames)
+		if rootNode != nil {
+			if rootNode.IsFunction() {
+				if params := rootNode.GetSecondChild(); params != nil {
+					for p := params.GetFirstChild(); p != nil; p = p.GetNext() {
+						slotCap++
+					}
+				}
+				slotCap++
+			} else if rootNode.IsBlock() || rootNode.IsModuleBody() || rootNode.IsScript() {
+				for c := rootNode.GetFirstChild(); c != nil; c = c.GetNext() {
+					if c.IsLet() || c.IsConst() || c.IsClass() {
+						slotCap++
+					}
+				}
+				if slotCap > 0 || NodeUtil_IsFunctionBlock(rootNode) {
+					slotCap += 4
+				}
+			}
+		}
+		if slotCap > 0 {
+			s.vars.InitWithBuffer(arena.allocVarSlots(slotCap))
+		} else {
+			s.vars.InitWithBuffer(nil)
+		}
 	} else {
 		s.vars.InitWithBuffer(nil)
 	}
@@ -374,6 +399,54 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 	}
 	s.DeclareInternal(name, var_)
 	return var_, wasReserved
+}
+
+func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
+	s.varBloom |= uint64(1) << (scopeNameHash(name) & 63)
+	s.AbstractScopeBase.DeclareInternal(name, var_)
+}
+
+func (s *TypedScope) ClearVarsInternal() {
+	s.varBloom = 0
+	s.AbstractScopeBase.ClearVarsInternal()
+}
+
+func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
+	if s.vars.IsEmpty() || (s.varBloom&(uint64(1)<<(scopeNameHash(name)&63))) == 0 {
+		return nil
+	}
+	return s.vars.Get(name)
+}
+
+func (s *TypedScope) getOwnSlotV(name string) *TypedVar {
+	if v := s.getOwnTypedSlot(name); v != nil {
+		return v
+	}
+	if len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			return s.GetOwnImplicitSlot(imp)
+		}
+	}
+	return nil
+}
+
+func (s *TypedScope) GetOwnSlot(name string) rhino.StaticSlot {
+	if v := s.getOwnSlotV(name); v != nil {
+		return v
+	}
+	return nil
+}
+
+func (s *TypedScope) HasOwnSlot(name string) bool {
+	if s.getOwnTypedSlot(name) != nil {
+		return true
+	}
+	if len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			return s.HasOwnImplicitSlot(imp)
+		}
+	}
+	return false
 }
 
 // Java: TypedScope.makeImplicitVar(ImplicitVar)

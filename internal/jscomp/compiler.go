@@ -2967,6 +2967,9 @@ func (c *Compiler) evictPassArenaCaches() {
 			scopeArenaPool.Put(a)
 		}
 	}
+	if ic := cachedInferConstsCollector.Swap(nil); ic != nil {
+		inferConstsCollectorPool.Put(ic)
+	}
 }
 
 // ToSource converts the main parse tree back to JS code.

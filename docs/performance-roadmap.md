@@ -1013,6 +1013,46 @@ Profiling Round 17 (`b97b6be8`) identified five disjoint targets:
 | **`downlevel-simple`** (2.1 MB) | 1.14 s / 1.05 s | **1.14 s** / **1.06 s** | +0.09% / +0.28% | 196 / 203 MiB | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.55 s / 0.46 s | **0.55 s** / **0.46 s** | **−0.47%** / +0.24% | 156 / 157 MiB | `MATCH` |
 
+## Round 19 (Phase 1 / Bucket A): Inline `rhino.Node` `boolFlags uint16` Bitmask Mirror, `NodeTraversal` Leaf-Child Unrolling & `noShouldTraverse`/`noVisit`, Empty-Block-Bypassing `t.LookupVar` & `Scope.lookupParent`, `scopeNameEq`, `TypedScope` Arena Pre-Sizing & `varBloom`, 2-Way Set-Associative `GlobalNamespace` Cache, and O(1) Ring-Buffer `FixedPointGraphTraversal` (2026-10-21)
+
+Phase 1 (Bucket A — 100% byte-identical shared architectural upgrades) delivered five structural improvements across the AST, scope resolution, traversal, and fixed-point graph engines:
+
+1. **Inline `boolFlags uint16` Mirror on `rhino.Node` & Slab-Backed `RhinoStringPool` (`Subagent 19A`, `internal/rhino/node.go`, `internal/rhino/rhino_string_pool.go`):**
+   - Packed `boolFlags uint16` into the 2 bytes of previously unused struct padding at offset 46..48 of `rhino.Node` (keeping `sizeof(rhino.Node) == 80`), mirroring the 14 hottest boolean properties (`IS_PARENTHESIZED`, `INCRDECR`, `QUOTED`, `SYNTHETIC`, `ADDED_BLOCK`, `IS_CONSTANT_NAME`, `IS_NAMESPACE`, `FREE_CALL`, `STATIC_MEMBER`, `ARROW_FN`, `ASYNC_FN`, `GENERATOR_FN`, `IS_SHORTHAND_PROPERTY`), 2-bit `CONSTANT_VAR_FLAGS`, and `nodeFlagNoBlockDecls` (`bit 15`).
+   - Turned hot property reads (`GetBooleanProp`, `GetIntProp`, `IsSyntheticBlock`, `IsArrowFunction`, `IsConstantVar`, `SetConstantVarFlag`, etc.) into single-instruction bitmask tests and short-circuited no-op writes before walking or allocating `propListHead`.
+   - Added per-shard `cellSlab []string` and `byteSlab []byte` to `rhinoStringPoolShard` and bumped `rhinoStringPool_MAX_SHARD_SIZE` from `16,384` to `65,536`.
+2. **`NodeTraversal` Leaf-Child Unrolling, `noShouldTraverse`/`noVisit` Dispatch Bypass, `t.LookupVar(name)` Empty-Block Scope Bypass, `Scope.lookupParent` + `scopeNameEq`, and `TypedScope` Arena Pre-Sizing & `varBloom` (`Subagent 19B`, `internal/jscomp/node_traversal.go`, `internal/jscomp/es6_check_module.go`, `internal/jscomp/syntactic_scope_creator.go`, `internal/jscomp/scope.go`, `internal/jscomp/typed_scope.go`):**
+   - Removed `NodeTraversal_AbstractPostOrderCallbackBase` embedding from `Es6CheckModule`, enabling marker interfaces `nodeTraversal_noShouldTraverse` and `nodeTraversal_noVisit` to skip no-op `ShouldTraverse` and `Visit` interface dispatches across `TraverseBranch` and `TraverseChildren`.
+   - Unrolled leaf children (`child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0`) inside `TraverseBranch` and `TraverseChildren`, eliminating ~60% of recursive `TraverseBranch` calls.
+   - Added `scopeNameEq(a, b string)` (`len(a) == len(b) && (unsafe.StringData(a) == unsafe.StringData(b) || (len(a) > 0 && a[0] == b[0] && a == b))`), eliminating out-of-line `runtime.memequal` calls on same-length variable name mismatches.
+   - Added `lookupParent *Scope` and `hasImplicitVars bool` on `Scope` plus `t.LookupVar(name)` (`lookupScope *Scope` on `scopeStackEntry`) and `syntacticScopeHasBlockDecls` (`nodeFlagNoBlockDecls`) so declaration-free inner `BLOCK` and `FOR*` scopes are never instantiated or walked during variable lookups.
+   - Eliminated the duplicate 256-node `countScopeVars` AST walk in `largeScopeVarSlotCount` when `sc.arena != nil`.
+   - Pre-sized `TypedScope.vars` from `typedScopeArena.allocVarSlots` for function parameter scopes and `LET`/`CONST`/`CLASS` block scopes, and added `varBloom uint64` on `TypedScope`.
+3. **`ReferenceCollector` `t.LookupVar` & `OptimizeCalls` 4x Growth + `cap <= 65536` Retention (`Subagent 19C`, `internal/jscomp/reference_collector.go`, `internal/jscomp/optimize_calls.go`):**
+   - Wired `t.LookupVar(name)` into `ReferenceCollector_CollectorCallback.Visit`, deferring `t.GetScope()` until `v != nil` and `varFilter` passes.
+   - Added `optimizeCallsAddNode` with 4x geometric slice growth and raised `releaseOptimizeCallsRefMap` capacity retention from `4,096` to `65,536`.
+4. **Word-Sampling String Hash & 2-Way Set-Associative `concatCache` in `GlobalNamespace`, plus `cachedInferConstsCollector` & `t.LookupVar` in `InferConsts` (`Subagent 19D`, `internal/jscomp/global_namespace.go`, `internal/jscomp/infer_consts.go`):**
+   - Replaced 5-byte `gnConcatHash` with 64-bit word-sampling `gnHashStr` across the full string (`0`, `n-8`, `(n-8)>>1`, `n>>2`, `n-16`, `(n*3)>>2`) and a 2-way set-associative `concatCache [65536][2]string`, eliminating `.prototype` hash collisions, and wired `t.LookupVar(topName)` into `getRootNodeOfTopNameWithTraversal`.
+   - Added 1-slot `cachedInferConstsCollector`, 4x state slice growth, and `t.LookupVar(name)` in `InferConsts`.
+5. **Zero-Allocation O(1) Ring-Buffer `FixedPointGraphTraversal` for `LinkedDirectedGraph` (`Subagent 19E`, `internal/jscomp/graph_fixed_point_graph_traversal.go`, `internal/jscomp/graph_linked_directed_graph.go`):**
+   - Added `inWorkSet bool` in the unused struct padding of `LinkedDirectedGraph_LinkedDiGraphNode[N, E]` and implemented `computeFixedPointLinked` using a power-of-2 ring buffer, eliminating `31.75 MB` of `LinkedHashSet` allocations and `O(Iterations^2)` tombstone scans in `PureFunctionIdentifier`, `AnalyzePrototypeProperties`, `AmbiguateProperties`, and `DisambiguateProperties`.
+
+### Final measured results — Round 19 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 18 (`bf0be5bd` `t=1` / `t=4`) | **Round 19 (`t=1` / `t=4`)** | Round 19 vs Round 18 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 24.12 s / 23.27 s | **23.33 s** / **22.54 s** | **−3.28%** / **−3.15%** | **1,675** / **1,657 MiB** (**−3.61%** / **−5.23%**, **−91.5 MiB**) | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 19.32 s / 18.18 s | **18.74 s** / **17.70 s** | **−3.00%** / **−2.66%** | **1,738** / **1,656 MiB** (**−3.86%** / **−1.67%**, **−69.7 MiB**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.10 s / 10.37 s | **10.71 s** / **10.18 s** | **−3.53%** / **−1.82%** | **1,040** / **1,071 MiB** (**−1.00%** / **−1.77%**) | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.88 s / 6.75 s | **6.68 s** / **6.55 s** | **−3.02%** / **−2.95%** | 546 / 754 MiB | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.49 s / 4.39 s | **4.36 s** / **4.21 s** | **−2.78%** / **−3.94%** | 667 / **518 MiB** (**−4.17%** `t=4`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.57 s / 4.35 s | **4.45 s** / **4.23 s** | **−2.71%** / **−2.76%** | 507 / 491 MiB | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.48 s / 3.32 s | **3.36 s** / **3.21 s** | **−3.54%** / **−3.39%** | 329 / 308 MiB | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.54 s / 2.15 s | **2.50 s** / **2.11 s** | **−1.47%** / **−1.90%** | 525 / **520 MiB** (**−3.98%** `t=4`) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.43 s / 1.32 s | **1.41 s** / **1.30 s** | **−1.61%** / **−1.85%** | 264 / **250 MiB** (**−2.78%** `t=4`) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.16 s / 1.05 s | **1.11 s** / **1.02 s** | **−4.23%** / **−3.61%** | **193** / **190 MiB** (**−3.19%** / **−5.35%**) | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.55 s / 0.46 s | **0.54 s** / **0.46 s** | **−2.34%** / **−1.79%** | 161 / 164 MiB | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

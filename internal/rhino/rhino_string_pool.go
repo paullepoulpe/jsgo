@@ -36,8 +36,8 @@ package rhino
 
 import (
 	"iter"
-	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -68,12 +68,41 @@ type RhinoStringPool struct{}
 // strings interned before.
 const (
 	rhinoStringPool_SHARDS         = 64
-	rhinoStringPool_MAX_SHARD_SIZE = (1 << 20) / rhinoStringPool_SHARDS
+	rhinoStringPool_MAX_SHARD_SIZE = 65536
 )
 
 type rhinoStringPoolShard struct {
-	mu      sync.RWMutex
-	strings map[string]*string
+	mu       sync.RWMutex
+	strings  map[string]*string
+	cellSlab []string
+	byteSlab []byte
+}
+
+func (s *rhinoStringPoolShard) allocCell(v string) *string {
+	if len(s.cellSlab) == 0 {
+		s.cellSlab = make([]string, 512)
+	}
+	cell := &s.cellSlab[0]
+	*cell = v
+	s.cellSlab = s.cellSlab[1:]
+	return cell
+}
+
+func (s *rhinoStringPoolShard) allocStringFromBytes(b []byte) string {
+	n := len(b)
+	if n == 0 {
+		return ""
+	}
+	if n > 1024 {
+		return string(b)
+	}
+	if len(s.byteSlab) < n {
+		s.byteSlab = make([]byte, 16384)
+	}
+	buf := s.byteSlab[:n]
+	s.byteSlab = s.byteSlab[n:]
+	copy(buf, b)
+	return unsafe.String(&buf[0], n)
 }
 
 var rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
@@ -93,6 +122,8 @@ func rhinoStringPoolClearForTest() {
 		s := &rhinoStringPool_shards[i]
 		s.mu.Lock()
 		clear(s.strings)
+		s.cellSlab = nil
+		s.byteSlab = nil
 		s.mu.Unlock()
 	}
 }
@@ -154,11 +185,13 @@ func rhinoStringPoolCell(s string) *string {
 	}
 	if len(shard.strings) >= rhinoStringPool_MAX_SHARD_SIZE {
 		clear(shard.strings)
+		shard.cellSlab = nil
+		shard.byteSlab = nil
 	}
 	// Like unique.Make, keep a copy rather than the larger string s may
 	// be a slice of.
-	value := strings.Clone(s)
-	interned := &value
+	value := shard.allocStringFromBytes(unsafe.Slice(unsafe.StringData(s), len(s)))
+	interned := shard.allocCell(value)
 	shard.strings[value] = interned
 	shard.mu.Unlock()
 	return interned

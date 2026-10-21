@@ -22,6 +22,7 @@ import (
 	"iter"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -44,6 +45,10 @@ const (
 	maxImplicitChunkSize = 128
 	maxImplicitChunks    = 32
 )
+
+func scopeNameEq(a, b string) bool {
+	return len(a) == len(b) && (unsafe.StringData(a) == unsafe.StringData(b) || (len(a) > 0 && a[0] == b[0] && a == b))
+}
 
 func scopeNameHash(s string) uint32 {
 	h := uint32(2166136261)
@@ -81,12 +86,15 @@ func scopeBloomMask(s string) uint64 {
 type Scope struct {
 	AbstractScopeBase[*Scope, *Var]
 
-	parent   *Scope
-	arena    *scopeArena
-	varList  []*Var
-	varHash  []int32
-	varBloom uint64
-	varCount int32
+	parent          *Scope
+	lookupParent    *Scope
+	arena           *scopeArena
+	varList         []*Var
+	varHash         []int32
+	varBloom        uint64
+	varCount        int32
+	hasImplicitVars bool
+	scanDone        bool
 }
 
 // scopeArena slab-allocates Scope, Var, varList, and varHash slices for a
@@ -530,6 +538,32 @@ func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) {
 	s.rootNode = rootNode
 	s.parent = parent
 	s.depth = parent.depth + 1
+	s.initLookupChain(parent)
+}
+
+func (s *Scope) initLookupChain(parent *Scope) {
+	if parent == nil {
+		s.hasImplicitVars = true
+		s.lookupParent = nil
+		return
+	}
+	if s.rootNode != nil {
+		switch s.rootNode.GetToken() {
+		case rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+			s.hasImplicitVars = true
+		case rhino.Token_BLOCK:
+			s.hasImplicitVars = s.IsStaticBlockScope() || NodeUtil_IsBundledGoogModuleScopeRoot(s.rootNode)
+		default:
+			s.hasImplicitVars = false
+		}
+	} else {
+		s.hasImplicitVars = false
+	}
+	if parent.scanDone && len(parent.varList) == 0 && !parent.hasImplicitVars && !NodeUtil_IsFunctionBlock(parent.rootNode) {
+		s.lookupParent = parent.lookupParent
+	} else {
+		s.lookupParent = parent
+	}
 }
 
 // Java: Scope(Node)
@@ -555,6 +589,7 @@ func initScope(s *Scope, rootNode *rhino.Node) {
 	}
 	s.self = s
 	s.rootNode = rootNode
+	s.initLookupChain(nil)
 }
 
 // Java: Scope.untyped()
@@ -643,14 +678,14 @@ func (s *Scope) lookupOwnVarWithBloom(name string, bloom uint64) *Var {
 			if idx == 0 {
 				return nil
 			}
-			if v := s.varList[idx-1]; v.name == name {
+			if v := s.varList[idx-1]; scopeNameEq(v.name, name) {
 				return v
 			}
 			slot = (slot + 1) & mask
 		}
 	}
 	for _, v := range s.varList {
-		if v != nil && v.name == name {
+		if v != nil && scopeNameEq(v.name, name) {
 			return v
 		}
 	}
@@ -661,8 +696,10 @@ func (s *Scope) hasOwnSlotWithBloom(name string, bloom uint64) bool {
 	if s.lookupOwnVarWithBloom(name, bloom) != nil {
 		return true
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-		return s.HasOwnImplicitSlot(imp)
+	if s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			return s.HasOwnImplicitSlot(imp)
+		}
 	}
 	return false
 }
@@ -679,8 +716,10 @@ func (s *Scope) getOwnSlotV(name string) *Var {
 	if v := s.lookupOwnVar(name); v != nil {
 		return v
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-		return s.GetOwnImplicitSlot(imp)
+	if s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			return s.GetOwnImplicitSlot(imp)
+		}
 	}
 	return nil
 }
@@ -690,8 +729,10 @@ func (s *Scope) HasOwnSlot(name string) bool {
 	if s.lookupOwnVar(name) != nil {
 		return true
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-		return s.HasOwnImplicitSlot(imp)
+	if s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			return s.HasOwnImplicitSlot(imp)
+		}
 	}
 	return false
 }
@@ -710,39 +751,46 @@ func (s *Scope) CanDeclare(name string) bool {
 
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
-	implicit := AbstractScope_ImplicitVar_Of(name)
 	bloom := scopeBloomMask(name)
 	var h uint32
 	var hashed bool
-	for ; s != nil; s = s.parent {
-		if (s.varBloom & bloom) == bloom {
-			if s.varHash != nil {
+	var implicit *AbstractScope_ImplicitVar
+	var checkedImplicit bool
+	for cur := s; cur != nil; cur = cur.lookupParent {
+		if (cur.varBloom & bloom) == bloom {
+			if cur.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
 					hashed = true
 				}
-				mask := uint32(len(s.varHash) - 1)
+				mask := uint32(len(cur.varHash) - 1)
 				slot := h & mask
 				for {
-					idx := s.varHash[slot]
+					idx := cur.varHash[slot]
 					if idx == 0 {
 						break
 					}
-					if s.varList[idx-1].name == name {
+					if scopeNameEq(cur.varList[idx-1].name, name) {
 						return true
 					}
 					slot = (slot + 1) & mask
 				}
 			} else {
-				for _, v := range s.varList {
-					if v != nil && v.name == name {
+				for _, v := range cur.varList {
+					if v != nil && scopeNameEq(v.name, name) {
 						return true
 					}
 				}
 			}
 		}
-		if implicit != nil && implicit.IsMadeByScope(s) {
-			return true
+		if cur.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+			if !checkedImplicit {
+				implicit = AbstractScope_ImplicitVar_Of(name)
+				checkedImplicit = true
+			}
+			if implicit != nil && implicit.IsMadeByScope(cur) {
+				return true
+			}
 		}
 	}
 	return false
@@ -765,47 +813,51 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 // generic base must support TypedScope's virtual methods; untyped scopes can
 // avoid those dictionary calls and classify implicit names once per lookup.
 func (s *Scope) GetVar(name string) *Var {
-	implicit := AbstractScope_ImplicitVar_Of(name)
 	bloom := scopeBloomMask(name)
 	var h uint32
 	var hashed bool
-	for {
-		if (s.varBloom & bloom) == bloom {
-			if s.varHash != nil {
+	var implicit *AbstractScope_ImplicitVar
+	var checkedImplicit bool
+	for cur := s; cur != nil; cur = cur.lookupParent {
+		if (cur.varBloom & bloom) == bloom {
+			if cur.varHash != nil {
 				if !hashed {
 					h = scopeNameHash(name)
 					hashed = true
 				}
-				mask := uint32(len(s.varHash) - 1)
+				mask := uint32(len(cur.varHash) - 1)
 				slot := h & mask
 				for {
-					idx := s.varHash[slot]
+					idx := cur.varHash[slot]
 					if idx == 0 {
 						break
 					}
-					if v := s.varList[idx-1]; v.name == name {
+					if v := cur.varList[idx-1]; scopeNameEq(v.name, name) {
 						return v
 					}
 					slot = (slot + 1) & mask
 				}
 			} else {
-				for _, v := range s.varList {
-					if v != nil && v.name == name {
+				for _, v := range cur.varList {
+					if v != nil && scopeNameEq(v.name, name) {
 						return v
 					}
 				}
 			}
 		}
-		if implicit != nil {
-			if v := s.GetOwnImplicitSlot(implicit); v != nil {
-				return v
+		if cur.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+			if !checkedImplicit {
+				implicit = AbstractScope_ImplicitVar_Of(name)
+				checkedImplicit = true
+			}
+			if implicit != nil {
+				if v := cur.GetOwnImplicitSlot(implicit); v != nil {
+					return v
+				}
 			}
 		}
-		s = s.parent
-		if s == nil {
-			return nil
-		}
 	}
+	return nil
 }
 
 // Java: AbstractScope.getVarCount()
@@ -869,7 +921,7 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 			if idx == 0 {
 				return
 			}
-			if s.varList[idx-1].name == name {
+			if scopeNameEq(s.varList[idx-1].name, name) {
 				s.varList[idx-1] = nil
 				s.varCount--
 				if s.varCount == 0 {
@@ -896,7 +948,7 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 		return
 	}
 	for i, v := range s.varList {
-		if v != nil && v.name == name {
+		if v != nil && scopeNameEq(v.name, name) {
 			s.varList[i] = nil
 			s.varCount--
 			if s.varCount == 0 {
@@ -1026,7 +1078,7 @@ func (s *Scope) DeclareInternal(name string, var_ *Var) {
 				if idx == 0 {
 					break
 				}
-				if s.varList[idx-1].name == name {
+				if scopeNameEq(s.varList[idx-1].name, name) {
 					s.varList[idx-1] = var_
 					return
 				}
@@ -1042,7 +1094,7 @@ func (s *Scope) DeclareInternal(name string, var_ *Var) {
 	}
 	if alreadyMaybePresent {
 		for i, existing := range s.varList {
-			if existing != nil && existing.name == name {
+			if existing != nil && scopeNameEq(existing.name, name) {
 				s.varList[i] = var_
 				return
 			}
@@ -1109,7 +1161,7 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 				if idx == 0 {
 					break
 				}
-				if s.varList[idx-1].name == name {
+				if scopeNameEq(s.varList[idx-1].name, name) {
 					panic(jutil.NewIllegalStateException())
 				}
 				slot = (slot + 1) & mask
@@ -1121,13 +1173,15 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 		}
 	} else if (s.varBloom & bloom) == bloom {
 		for _, v := range s.varList {
-			if v != nil && v.name == name {
+			if v != nil && scopeNameEq(v.name, name) {
 				panic(jutil.NewIllegalStateException())
 			}
 		}
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil && s.GetOwnImplicitSlot(imp) != nil {
-		panic(jutil.NewIllegalStateException())
+	if s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil && s.GetOwnImplicitSlot(imp) != nil {
+			panic(jutil.NewIllegalStateException())
+		}
 	}
 	var var_ *Var
 	if s.arena != nil {
@@ -1292,6 +1346,9 @@ func largeScopeVarSlotCount(sc *Scope) int {
 		}
 		return n
 	}
+	if sc.arena != nil {
+		return 16
+	}
 	isHoist := sc.IsHoistScope()
 	steps := 0
 	n := countScopeVars(root, isHoist, true, root, 0, &steps)
@@ -1326,7 +1383,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 				if idx == 0 {
 					break
 				}
-				if cand := s.varList[idx-1]; cand.name == name {
+				if cand := s.varList[idx-1]; scopeNameEq(cand.name, name) {
 					var_ = cand
 					break
 				}
@@ -1339,13 +1396,13 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 		}
 	} else if alreadyMaybePresent {
 		for _, cand := range s.varList {
-			if cand != nil && cand.name == name {
+			if cand != nil && scopeNameEq(cand.name, name) {
 				var_ = cand
 				break
 			}
 		}
 	}
-	if var_ == nil {
+	if var_ == nil && s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
 		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 			var_ = s.GetOwnImplicitSlot(imp)
 		}

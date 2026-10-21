@@ -1069,8 +1069,15 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino
 			}
 		}
 
-		scope := t.GetScope()
-		v := scope.GetVar(n.GetString())
+		name := n.GetString()
+		var v *Var
+		var scope *Scope
+		if name == Var_ARGUMENTS {
+			scope = t.GetScope()
+			v = scope.GetVar(name)
+		} else {
+			v = t.LookupVar(name)
+		}
 		if v != nil {
 			cb.c.addReferenceWithScope(v, n, t, scope)
 			if v.nameNode != n {

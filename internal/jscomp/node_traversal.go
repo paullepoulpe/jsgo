@@ -119,6 +119,8 @@ type NodeTraversal struct {
 	defaultScopeCreator                            SyntacticScopeCreator
 	obeyDestructuringAndDefaultValueExecutionOrder bool
 	mayContainSyntheticBlocks                      bool
+	noShouldTraverse                               bool
+	noVisit                                        bool
 
 	// Contains the current node
 	currentNode *rhino.Node
@@ -159,6 +161,15 @@ type scopeStackEntry struct {
 	node         *rhino.Node
 	scope        AbstractScope
 	untypedScope *Scope
+	lookupScope  *Scope
+}
+
+type nodeTraversal_noShouldTraverse interface {
+	nodeTraversalNoShouldTraverse()
+}
+
+type nodeTraversal_noVisit interface {
+	nodeTraversalNoVisit()
 }
 
 // NodeTraversal_Callback is the callback for tree-based traversals.
@@ -244,6 +255,8 @@ func (b *NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTravers
 	return true
 }
 
+func (NodeTraversal_AbstractPostOrderCallbackBase) nodeTraversalNoShouldTraverse() {}
+
 // NodeTraversal_ExternsSkippingCallback is the abstract callback to visit
 // all non-extern nodes in postorder. Note: Even though type-summary nodes are
 // included under the externs roots, they are traversed by this callback.
@@ -301,6 +314,8 @@ type NodeTraversal_AbstractPreOrderCallbackBase struct {
 func (b *NodeTraversal_AbstractPreOrderCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 }
 
+func (NodeTraversal_AbstractPreOrderCallbackBase) nodeTraversalNoVisit() {}
+
 // NodeTraversal_AbstractScopedCallback is the abstract scoped callback to
 // visit all nodes in postorder.
 type NodeTraversal_AbstractScopedCallback interface {
@@ -320,6 +335,8 @@ type NodeTraversal_AbstractScopedCallbackBase struct {
 func (b *NodeTraversal_AbstractScopedCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	return true
 }
+
+func (NodeTraversal_AbstractScopedCallbackBase) nodeTraversalNoShouldTraverse() {}
 
 // Java: NodeTraversal.AbstractScopedCallback.enterScope(NodeTraversal)
 func (b *NodeTraversal_AbstractScopedCallbackBase) EnterScope(t *NodeTraversal) {}
@@ -866,8 +883,14 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 
 func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Builder) {
 	t.compiler = builder.compiler
-	t.callback = builder.callback
-	if scopedCallback, ok := t.callback.(NodeTraversal_ScopedCallback); ok {
+	cb := builder.callback
+	t.callback = cb
+	_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverse)
+	if !t.noShouldTraverse {
+		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
+	}
+	_, t.noVisit = cb.(nodeTraversal_noVisit)
+	if scopedCallback, ok := cb.(NodeTraversal_ScopedCallback); ok {
 		t.scopeCallback = scopedCallback
 	} else {
 		t.scopeCallback = nil
@@ -1351,6 +1374,29 @@ func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n *rhino.Node, parent 
 	}
 }
 
+const (
+	nodeTraversalTokenNormal uint8 = iota
+	nodeTraversalTokenBlock
+	nodeTraversalTokenBlockScope
+	nodeTraversalTokenSpecial
+)
+
+var nodeTraversalTokenKind = [256]uint8{
+	rhino.Token_BLOCK:             nodeTraversalTokenBlock,
+	rhino.Token_FOR:               nodeTraversalTokenBlockScope,
+	rhino.Token_FOR_IN:            nodeTraversalTokenBlockScope,
+	rhino.Token_FOR_OF:            nodeTraversalTokenBlockScope,
+	rhino.Token_FOR_AWAIT_OF:      nodeTraversalTokenBlockScope,
+	rhino.Token_SWITCH_BODY:       nodeTraversalTokenBlockScope,
+	rhino.Token_SCRIPT:            nodeTraversalTokenSpecial,
+	rhino.Token_FUNCTION:          nodeTraversalTokenSpecial,
+	rhino.Token_MODULE_BODY:       nodeTraversalTokenSpecial,
+	rhino.Token_CLASS:             nodeTraversalTokenSpecial,
+	rhino.Token_CLASS_MEMBERS:     nodeTraversalTokenSpecial,
+	rhino.Token_DEFAULT_VALUE:     nodeTraversalTokenSpecial,
+	rhino.Token_DESTRUCTURING_LHS: nodeTraversalTokenSpecial,
+}
+
 var nodeTraversalBlockScopeToken = [256]bool{
 	rhino.Token_FOR:          true,
 	rhino.Token_FOR_IN:       true,
@@ -1358,16 +1404,6 @@ var nodeTraversalBlockScopeToken = [256]bool{
 	rhino.Token_FOR_AWAIT_OF: true,
 	rhino.Token_SWITCH_BODY:  true,
 	rhino.Token_CLASS:        true,
-}
-
-var nodeTraversalSpecialToken = [256]bool{
-	rhino.Token_SCRIPT:            true,
-	rhino.Token_FUNCTION:          true,
-	rhino.Token_MODULE_BODY:       true,
-	rhino.Token_CLASS:             true,
-	rhino.Token_CLASS_MEMBERS:     true,
-	rhino.Token_DEFAULT_VALUE:     true,
-	rhino.Token_DESTRUCTURING_LHS: true,
 }
 
 func (t *NodeTraversal) isBlockScopeBlock(n *rhino.Node) bool {
@@ -1400,7 +1436,8 @@ func (t *NodeTraversal) CreatesBlockScope(n *rhino.Node) bool {
 //
 // Java: NodeTraversal.traverseBranch(Node, Node)
 func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
-	if nodeTraversalSpecialToken[uint8(n.GetToken())] {
+	switch nodeTraversalTokenKind[uint8(n.GetToken())] {
+	case nodeTraversalTokenSpecial:
 		switch n.GetToken() {
 		case rhino.Token_SCRIPT:
 			t.HandleScript(n, parent)
@@ -1424,19 +1461,37 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 				return
 			}
 		}
-	}
-
-	t.currentNode = n
-	if !t.callback.ShouldTraverse(t, n, parent) {
-		return
-	}
-
-	if t.CreatesBlockScope(n) {
+	case nodeTraversalTokenBlock:
+		if t.isBlockScopeBlock(n) {
+			t.currentNode = n
+			if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+				return
+			}
+			previousHoistScopeRoot := t.currentHoistScopeRoot
+			t.PushScope(n)
+			if n.GetParent().IsClassMembers() {
+				t.currentHoistScopeRoot = n
+			}
+			for child := n.GetFirstChild(); child != nil; {
+				next := child.GetNext()
+				t.TraverseBranch(child, n)
+				child = next
+			}
+			t.PopScope()
+			t.currentHoistScopeRoot = previousHoistScopeRoot
+			if !t.noVisit {
+				t.currentNode = n
+				t.callback.Visit(t, n, parent)
+			}
+			return
+		}
+	case nodeTraversalTokenBlockScope:
+		t.currentNode = n
+		if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+			return
+		}
 		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
-		if n.IsBlock() && n.GetParent().IsClassMembers() {
-			t.currentHoistScopeRoot = n
-		}
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
 			t.TraverseBranch(child, n)
@@ -1444,25 +1499,47 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		}
 		t.PopScope()
 		t.currentHoistScopeRoot = previousHoistScopeRoot
-	} else {
-		/*
-		 * Intentionally inlined call to traverseChildren.
-		 *
-		 * <p>Calling traverseChildren here would double the maximum stack depth seen during
-		 * compilation. That can cause stack overflows on some very deep ASTs (e.g. b/188616350).
-		 * Inlining side-steps the issue.
-		 */
-		for child := n.GetFirstChild(); child != nil; {
-			// child could be replaced, in which case our child node
-			// would no longer point to the true next
-			next := child.GetNext()
-			t.TraverseBranch(child, n)
-			child = next
+		if !t.noVisit {
+			t.currentNode = n
+			t.callback.Visit(t, n, parent)
 		}
+		return
 	}
 
 	t.currentNode = n
-	t.callback.Visit(t, n, parent)
+	if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+		return
+	}
+
+	/*
+	 * Intentionally inlined call to traverseChildren.
+	 *
+	 * <p>Calling traverseChildren here would double the maximum stack depth seen during
+	 * compilation. That can cause stack overflows on some very deep ASTs (e.g. b/188616350).
+	 * Inlining side-steps the issue.
+	 */
+	for child := n.GetFirstChild(); child != nil; {
+		// child could be replaced, in which case our child node
+		// would no longer point to the true next
+		next := child.GetNext()
+		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
+			t.currentNode = child
+			if t.noShouldTraverse || t.callback.ShouldTraverse(t, child, n) {
+				if !t.noVisit {
+					t.callback.Visit(t, child, n)
+				}
+			}
+			child = next
+			continue
+		}
+		t.TraverseBranch(child, n)
+		child = next
+	}
+
+	if !t.noVisit {
+		t.currentNode = n
+		t.callback.Visit(t, n, parent)
+	}
 }
 
 // TraverseFunction traverses a function.
@@ -1641,6 +1718,16 @@ func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 		// child could be replaced, in which case our child node
 		// would no longer point to the true next
 		next := child.GetNext()
+		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
+			t.currentNode = child
+			if t.noShouldTraverse || t.callback.ShouldTraverse(t, child, n) {
+				if !t.noVisit {
+					t.callback.Visit(t, child, n)
+				}
+			}
+			child = next
+			continue
+		}
 		t.TraverseBranch(child, n)
 		child = next
 	}
@@ -1698,7 +1785,7 @@ func (t *NodeTraversal) PushScopeOfScopeWithQuietly(s AbstractScope, quietly boo
 		u, _ = s.(*Scope)
 	}
 	releaseInline := len(t.scopes) == len(t.scopesBuf) && &t.scopes[0] == &t.scopesBuf[0]
-	t.scopes = append(t.scopes, scopeStackEntry{node: root, scope: s, untypedScope: u})
+	t.scopes = append(t.scopes, scopeStackEntry{node: root, scope: s, untypedScope: u, lookupScope: u})
 	if releaseInline {
 		clear(t.scopesBuf[:])
 	}
@@ -1768,6 +1855,43 @@ func (t *NodeTraversal) GetScope() *Scope {
 	return t.getScopeSlow(idx)
 }
 
+func (t *NodeTraversal) LookupVar(name string) *Var {
+	idx := len(t.scopes) - 1
+	if s := t.scopes[idx].lookupScope; s != nil {
+		return s.GetVar(name)
+	}
+	return t.resolveLookupScope(idx).GetVar(name)
+}
+
+func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
+	e := &t.scopes[rootDepth]
+	if e.lookupScope != nil {
+		return e.lookupScope
+	}
+	if e.untypedScope != nil {
+		if e.untypedScope.scanDone && len(e.untypedScope.varList) == 0 && !e.untypedScope.hasImplicitVars && !NodeUtil_IsFunctionBlock(e.untypedScope.rootNode) && e.untypedScope.lookupParent != nil {
+			e.lookupScope = e.untypedScope.lookupParent
+		} else {
+			e.lookupScope = e.untypedScope
+		}
+		return e.lookupScope
+	}
+	if t.syntacticScopeCreator != nil && e.scope == nil && e.node != nil && rootDepth > 0 {
+		if ((e.node.IsBlock() && !NodeUtil_IsFunctionBlock(e.node) && !e.node.IsClassMembers() && !NodeUtil_IsClassStaticBlock(e.node) && !NodeUtil_IsBundledGoogModuleScopeRoot(e.node)) || NodeUtil_IsAnyFor(e.node)) && !syntacticScopeHasBlockDecls(e.node) {
+			s := t.resolveLookupScope(rootDepth - 1)
+			t.scopes[rootDepth].lookupScope = s
+			return s
+		}
+	}
+	s := t.getScopeSlow(rootDepth)
+	if s.scanDone && len(s.varList) == 0 && !s.hasImplicitVars && !NodeUtil_IsFunctionBlock(s.rootNode) && s.lookupParent != nil {
+		t.scopes[rootDepth].lookupScope = s.lookupParent
+	} else {
+		t.scopes[rootDepth].lookupScope = s
+	}
+	return t.scopes[rootDepth].lookupScope
+}
+
 func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 	e := &t.scopes[rootDepth]
 	if e.untypedScope != nil {
@@ -1776,6 +1900,9 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 	if e.scope != nil {
 		s := e.scope.Untyped()
 		e.untypedScope = s
+		if e.lookupScope == nil {
+			e.lookupScope = s
+		}
 		return s
 	}
 	if t.syntacticScopeCreator != nil {
@@ -1786,10 +1913,14 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 		s := t.syntacticScopeCreator.CreateScopeOfScope(e.node, parentScope)
 		t.scopes[rootDepth].scope = s
 		t.scopes[rootDepth].untypedScope = s
+		t.scopes[rootDepth].lookupScope = s
 		return s
 	}
 	s := t.GetAbstractScopeAt(rootDepth).Untyped()
 	t.scopes[rootDepth].untypedScope = s
+	if t.scopes[rootDepth].lookupScope == nil {
+		t.scopes[rootDepth].lookupScope = s
+	}
 	return s
 }
 

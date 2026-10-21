@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -181,9 +182,17 @@ type inferConstsCollector struct {
 	blockBuf            [32]BasicBlock
 }
 
+var cachedInferConstsCollector atomic.Pointer[inferConstsCollector]
+
 var inferConstsCollectorPool sync.Pool
 
 func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, scopeCreator ScopeCreator) *inferConstsCollector {
+	if c := cachedInferConstsCollector.Swap(nil); c != nil {
+		c.outer = outer
+		c.compiler = compiler
+		c.scopeCreator = scopeCreator
+		return c
+	}
 	if v := inferConstsCollectorPool.Get(); v != nil {
 		c := v.(*inferConstsCollector)
 		c.outer = outer
@@ -195,8 +204,8 @@ func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, 
 		outer:         outer,
 		compiler:      compiler,
 		scopeCreator:  scopeCreator,
-		localStates:   make([]inferConstVarState, 1, 4096),
-		globalStates:  make([]inferConstVarState, 1, 8192),
+		localStates:   make([]inferConstVarState, 1, 8192),
+		globalStates:  make([]inferConstVarState, 1, 16384),
 		blockChunkIdx: -1,
 	}
 	c.blockStack = c.blockStackBuf[:0]
@@ -204,14 +213,14 @@ func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, 
 }
 
 func releaseInferConstsCollector(c *inferConstsCollector) {
-	if cap(c.localStates) > 131072 {
-		c.localStates = make([]inferConstVarState, 1, 4096)
+	if cap(c.localStates) > 262144 {
+		c.localStates = make([]inferConstVarState, 1, 8192)
 	} else {
 		clear(c.localStates[1:])
 		c.localStates = c.localStates[:1]
 	}
-	if cap(c.globalStates) > 131072 {
-		c.globalStates = make([]inferConstVarState, 1, 8192)
+	if cap(c.globalStates) > 262144 {
+		c.globalStates = make([]inferConstVarState, 1, 16384)
 	} else {
 		clear(c.globalStates[1:])
 		c.globalStates = c.globalStates[:1]
@@ -220,7 +229,7 @@ func releaseInferConstsCollector(c *inferConstsCollector) {
 		clear(c.blockBuf[:c.blockUsed])
 	} else {
 		clear(c.blockBuf[:])
-		limit := min(c.blockChunkIdx, 63)
+		limit := min(c.blockChunkIdx, 127)
 		for i := 0; i <= limit; i++ {
 			if i == c.blockChunkIdx {
 				clear(c.blockChunks[i][:c.blockUsed])
@@ -228,9 +237,9 @@ func releaseInferConstsCollector(c *inferConstsCollector) {
 				clear(c.blockChunks[i])
 			}
 		}
-		if len(c.blockChunks) > 64 {
-			clear(c.blockChunks[64:])
-			c.blockChunks = c.blockChunks[:64]
+		if len(c.blockChunks) > 128 {
+			clear(c.blockChunks[128:])
+			c.blockChunks = c.blockChunks[:128]
 		}
 	}
 	c.blockChunkIdx = -1
@@ -250,6 +259,9 @@ func releaseInferConstsCollector(c *inferConstsCollector) {
 	c.outer = nil
 	c.compiler = nil
 	c.scopeCreator = nil
+	if cachedInferConstsCollector.CompareAndSwap(nil, c) {
+		return
+	}
 	inferConstsCollectorPool.Put(c)
 }
 
@@ -387,10 +399,9 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 		}
 		name := n.GetString()
 		if name != "" {
-			scope := t.GetScope()
-			v := scope.GetVar(name)
+			v := t.LookupVar(name)
 			if v != nil {
-				c.addReference(v, n, parent, scope)
+				c.addReference(v, n, parent, t)
 				c.maybeJumpToHoistedFunction(v, t)
 			}
 		}
@@ -432,7 +443,7 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	c.blockStack = newStack
 
 	firstChild := fnNode.GetFirstChild()
-	c.addReference(var_, firstChild, fnNode, t.GetScope())
+	c.addReference(var_, firstChild, fnNode, t)
 	c.jumpDepth++
 	c.createTraversalBuilder().TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 	c.jumpDepth--
@@ -464,7 +475,7 @@ func inferConsts_isLvalue(n *rhino.Node, parent *rhino.Node) bool {
 	}
 }
 
-func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino.Node, scope *Scope) {
+func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino.Node, t *NodeTraversal) {
 	currentBlock := c.blockStack[len(c.blockStack)-1]
 	idx := v.nameHash
 	if idx == 0 {
@@ -482,13 +493,23 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		if isAssign {
 			st.assignCount = 1
 			st.assignBlock = currentBlock
-			st.assignScope = scope
+			st.assignScope = t.GetScope()
 		}
 		if isInferConstsFuncLocal(v) {
 			v.nameHash = int32(len(c.localStates))
+			if len(c.localStates) == cap(c.localStates) {
+				next := make([]inferConstVarState, len(c.localStates), max(cap(c.localStates)*4, 8192))
+				copy(next, c.localStates)
+				c.localStates = next
+			}
 			c.localStates = append(c.localStates, st)
 		} else {
 			v.nameHash = -int32(len(c.globalStates))
+			if len(c.globalStates) == cap(c.globalStates) {
+				next := make([]inferConstVarState, len(c.globalStates), max(cap(c.globalStates)*4, 16384))
+				copy(next, c.globalStates)
+				c.globalStates = next
+			}
 			c.globalStates = append(c.globalStates, st)
 		}
 		return
@@ -509,7 +530,7 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		st.assignCount++
 		if st.assignCount == 1 {
 			st.assignBlock = currentBlock
-			st.assignScope = scope
+			st.assignScope = t.GetScope()
 		}
 	}
 	if st.assignCount <= 1 && st.firstIsInitDecl && st.allAfterFirst {
