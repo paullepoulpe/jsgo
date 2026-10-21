@@ -22,9 +22,33 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	tscReservedNamesPool = sync.Pool{
+		New: func() any {
+			return make(map[*rhino.Node][]string, 64)
+		},
+	}
+	tscNonEmptyReturnsPool = sync.Pool{
+		New: func() any {
+			return make(map[*rhino.Node]struct{}, 64)
+		},
+	}
+	tscVarFlagsPool = sync.Pool{
+		New: func() any {
+			return make(map[typedScopeCreator_ScopedNameKey]uint8, 64)
+		},
+	}
+	tscUnresolvedNodesPool = sync.Pool{
+		New: func() any {
+			return make([]*rhino.Node, 0, 128)
+		},
+	}
 )
 
 // TypedScopeCreator creates the symbol table of variables available in the
@@ -709,12 +733,28 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	}
 
 	// free up memory. we no longer need this state now that all scopes have been visited
+	if c.reservedNamesForScope != nil && len(c.reservedNamesForScope) <= 65536 {
+		clear(c.reservedNamesForScope)
+		tscReservedNamesPool.Put(c.reservedNamesForScope)
+	}
 	c.reservedNamesForScope = nil
 	c.arena.names = nil
 	c.scopeCount = 0
+	if c.functionsWithNonEmptyReturns != nil && len(c.functionsWithNonEmptyReturns) <= 65536 {
+		clear(c.functionsWithNonEmptyReturns)
+		tscNonEmptyReturnsPool.Put(c.functionsWithNonEmptyReturns)
+	}
 	c.functionsWithNonEmptyReturns = nil
+	if c.varFlags != nil && len(c.varFlags) <= 65536 {
+		clear(c.varFlags)
+		tscVarFlagsPool.Put(c.varFlags)
+	}
 	c.varFlags = nil
 	c.weakImports = nil
+	if c.unresolvedNodes != nil && cap(c.unresolvedNodes) <= 131072 {
+		clear(c.unresolvedNodes)
+		tscUnresolvedNodesPool.Put(c.unresolvedNodes[:0])
+	}
 	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = nil
 	c.providedNamesFromCall = nil
@@ -727,13 +767,30 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	c.reservedNamesForScope = make(map[*rhino.Node][]string)
+	if c.reservedNamesForScope != nil {
+		clear(c.reservedNamesForScope)
+	} else {
+		c.reservedNamesForScope = tscReservedNamesPool.Get().(map[*rhino.Node][]string)
+	}
 	c.arena.names = nil
 	c.scopeCount = 0
-	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
-	c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
+	if c.functionsWithNonEmptyReturns != nil {
+		clear(c.functionsWithNonEmptyReturns)
+	} else {
+		c.functionsWithNonEmptyReturns = tscNonEmptyReturnsPool.Get().(map[*rhino.Node]struct{})
+	}
+	if c.varFlags != nil {
+		clear(c.varFlags)
+	} else {
+		c.varFlags = tscVarFlagsPool.Get().(map[typedScopeCreator_ScopedNameKey]uint8)
+	}
 	c.weakImports = nil
-	c.unresolvedNodes = nil
+	if c.unresolvedNodes != nil {
+		clear(c.unresolvedNodes)
+		c.unresolvedNodes = c.unresolvedNodes[:0]
+	} else {
+		c.unresolvedNodes = tscUnresolvedNodesPool.Get().([]*rhino.Node)[:0]
+	}
 	c.undeclaredNamesForClosure = make(map[*rhino.Node]struct{})
 	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
 	c.normalScopeBuilderPool = nil
@@ -1333,12 +1390,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node *rhi
 		if classType != nil {
 			return classType.ToMaybeFunctionType().GetTemplateTypeMap().GetTemplateKeys()
 		}
-		return []*rhino.TemplateType{}
+		return emptyTemplateTypeSlice
 	}
 	ownerNode := NodeUtil_GetBestLValueOwner(node)
-	ownerName := NodeUtil_GetBestLValueName(ownerNode)
-	if ownerName != nil {
-		ownerVar := b.currentScope.GetVar(*ownerName)
+	if ownerName, ok := nodeUtil_getBestLValueNameString(ownerNode); ok {
+		ownerVar := b.currentScope.GetVar(ownerName)
 		if ownerVar != nil {
 			ownerType := b.GetPrototypeOwnerType(rhino.ObjectType_Cast(ownerVar.GetType()))
 			if ownerType != nil {
@@ -1346,7 +1402,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node *rhi
 			}
 		}
 	}
-	return []*rhino.TemplateType{}
+	return emptyTemplateTypeSlice
 }
 
 // AssertDefinitionNode asserts that it's OK to define this node's name. The
@@ -1707,7 +1763,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineModuleImport(
 
 	// The scope is null for modules that were not visited yet.
 	if exportScope != nil {
-		type_ := exportScope.LookupQualifiedName(rhino.QualifiedName_Of(exportedName.GetName()))
+		type_ := rhino.StaticTypedScope_LookupQualifiedNameString(exportScope, exportedName.GetName())
 
 		// The type is null if either the name is inferred or this is an early ref.
 		if type_ != nil {
@@ -1767,7 +1823,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 	builder := NewFunctionTypeBuilder(name, b.outer.compiler, clazz, b.currentScope).
 		UsingClassSyntax().
 		SetSyntacticFunctionName(syntacticName).
-		SetContents(NewFunctionTypeBuilder_AstFunctionContents(clazz)).
+		SetAstContents(clazz, false).
 		SetDeclarationScope(declarationScope).
 		InferKind(info).
 		InferTemplateTypeName(info, nil)
@@ -1797,7 +1853,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 		builder.InferConstructorParameters(constructor.GetSecondChild(), ctorInfo)
 	} else if extendsClause.IsEmpty() {
 		// No explicit constructor and no superclass: constructor is no-args.
-		builder.InferImplicitConstructorParameters([]*rhino.FunctionType_Parameter{})
+		builder.InferImplicitConstructorParameters(emptyFunctionParametersSlice)
 	} else {
 		// No explicit constructor, but we have a superclass.  If we know its type, then copy its
 		// constructor arguments (and templates).  If not, make the constructor arguments unknown.
@@ -1822,6 +1878,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 
 	// Add the type for the "constructor" property.
 	classType := builder.BuildAndRegister()
+	builder.Release()
 	if classType.IsConstructor() {
 		// NOTE: This logic is similar to the goog.inherits handling in
 		// ClosureCodingConvention#applySubclassRelationship. If this logic is modified
@@ -1866,9 +1923,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(ext
 	ctorType := extendsNode.GetJSType()
 	if ctorType == nil {
 		if extendsNode.IsQualifiedName() {
-			superclass := *extendsNode.GetQualifiedName()
+			superclass, _ := extendsNode.GetQualifiedNameString()
 			// Look up qualified names in the scope (types won't be set on the AST until inference).
-			ctorType = b.currentScope.LookupQualifiedName(rhino.QualifiedName_Of(superclass))
+			ctorType = rhino.StaticTypedScope_LookupQualifiedNameString(b.currentScope, superclass)
 			if ctorType == nil {
 				var_ := b.currentScope.GetVar(superclass)
 				if var_ != nil {
@@ -1953,8 +2010,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetCtorForGoogModuleGet(ext
 	}
 	moduleScope := b.outer.memoized.Get(extendsCall.GetScopeRoot())
 	properties = slices.Insert(properties, 0, extendsCall.GetName())
-	superclassName := rhino.QualifiedName_Of(strings.Join(properties, "."))
-	return moduleScope.LookupQualifiedName(superclassName)
+	return rhino.StaticTypedScope_LookupQualifiedNameString(moduleScope, strings.Join(properties, "."))
 }
 
 // CreateFunctionTypeFromNodes creates a new function type, based on the
@@ -2039,7 +2095,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	ownerNode := NodeUtil_GetBestLValueOwner(lvalueNode)
 
 	var ownerType rhino.ObjectType
-	var propName *string
+	var propName string
+	var hasPropName bool
 	if classRoot != nil {
 		// Static members are owned by the constructor, non-statics are owned by the prototype.
 		if ownerFn := rhino.JSType_ToMaybeFunctionType(classRoot.GetJSType()); ownerFn != nil {
@@ -2049,20 +2106,22 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 			ownerType = ownerType.(rhino.FunctionType).GetPrototype()
 		}
 		if !lvalueNode.IsComputedProp() {
-			propName = jutil.StringPtr(lvalueNode.GetString())
+			propName = lvalueNode.GetString()
+			hasPropName = true
 		}
 	} else {
-		ownerName := NodeUtil_GetBestLValueName(ownerNode)
-		if ownerName != nil {
+		ownerName, hasOwnerName := nodeUtil_getBestLValueNameString(ownerNode)
+		if hasOwnerName {
 			ownerType =
-				rhino.ObjectType_Cast(b.currentScope.LookupQualifiedName(rhino.QualifiedName_Of(*ownerName)))
+				rhino.ObjectType_Cast(rhino.StaticTypedScope_LookupQualifiedNameString(b.currentScope, ownerName))
 		}
 
-		if ownerName != nil && name != nil {
+		if hasOwnerName && name != nil {
 			// TODO(b/111621092): Use the AST rather than manipulating strings here.
 			jutil.CheckStateMsg2(
-				jutil.StringStartsWith(*name, *ownerName), "Expected \"%s\" to start with \"%s\"", *name, *ownerName)
-			propName = jutil.StringPtr(jutil.StringSubstringFrom(*name, jutil.StringLength(*ownerName)+1))
+				jutil.StringStartsWith(*name, ownerName), "Expected \"%s\" to start with \"%s\"", *name, ownerName)
+			propName = jutil.StringSubstringFrom(*name, jutil.StringLength(ownerName)+1)
+			hasPropName = true
 		}
 	}
 
@@ -2074,10 +2133,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 
 	// Find the type of any overridden function.
 	var overriddenType rhino.FunctionType
-	if ownerType != nil && propName != nil {
+	if ownerType != nil && hasPropName {
 		// the type of the property this overrides, not necessarily a function.
 		overriddenPropType :=
-			b.FindOverriddenProperty(ownerType, *propName, prototypeOwnerTypeMap)
+			b.FindOverriddenProperty(ownerType, propName, prototypeOwnerTypeMap)
 		if overriddenPropType != nil {
 			// Overridden getters and setters need special handling because we declare
 			// getters/setters as simple properties with their respective return/parameter type. This
@@ -2103,18 +2162,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 		}
 	}
 
-	var contents *FunctionTypeBuilder_AstFunctionContents
+	var hasNonEmptyReturn bool
 	if fnRoot != nil {
-		contents = NewFunctionTypeBuilder_AstFunctionContents(fnRoot)
-		if _, hasNonEmptyReturn := b.outer.functionsWithNonEmptyReturns[fnRoot]; hasNonEmptyReturn {
-			contents.RecordNonEmptyReturn()
-		}
-	}
-	// Go-only: language-adapter — a nil *AstFunctionContents must be passed
-	// as a nil FunctionContents interface (Java: setContents(null)).
-	var contentsOrNil FunctionTypeBuilder_FunctionContents
-	if contents != nil {
-		contentsOrNil = contents
+		_, hasNonEmptyReturn = b.outer.functionsWithNonEmptyReturns[fnRoot]
 	}
 
 	bestTypeName := b.GetBestTypeName(lvalueNode, name)
@@ -2130,7 +2180,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	}
 	builder := NewFunctionTypeBuilder(bestTypeName, b.outer.compiler, errorRoot, b.currentScope).
 		SetSyntacticFunctionName(name).
-		SetContents(contentsOrNil).
+		SetAstContents(fnRoot, hasNonEmptyReturn).
 		SetDeclarationScope(declarationScope).
 		InferFromOverriddenFunction(overriddenType, parametersNode).
 		InferKind(info).
@@ -2172,6 +2222,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 		InferThisTypeWithFallback(info, fallbackReceiverType).
 		InferParameterTypesWithParamsParent(parametersNode, info).
 		BuildAndRegister()
+	builder.Release()
 
 	// Do some additional validation for constructors and interfaces.
 	if fnType.HasInstanceType() && lvalueNode != nil {
@@ -3761,15 +3812,17 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 		//   /** @template U */
 		//   function foo() {}
 		// This declares 'U'.
-		infoTemplateNames := info.GetTemplateTypeNames()
-		if len(infoTemplateNames) > 0 {
+		infoTemplateNames := jsDocTemplateTypes(info)
+		if infoTemplateNames != nil && !infoTemplateNames.IsEmpty() {
 			if templateNames == nil {
 				templateNames = jutil.NewLinkedHashSet[string]()
 			}
-			templateNames.AddAll(infoTemplateNames...)
+			for name := range infoTemplateNames.Keys() {
+				templateNames.Add(name)
+			}
 		}
-		typeTransformations := info.GetTypeTransformations()
-		if !typeTransformations.IsEmpty() {
+		typeTransformations := jsDocTypeTransformations(info)
+		if typeTransformations != nil && !typeTransformations.IsEmpty() {
 			if templateNames == nil {
 				templateNames = jutil.NewLinkedHashSet[string]()
 			}

@@ -155,7 +155,11 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.cutChunkIdx = 0
 	m.cutElemIdx = 0
 	m.cutStackDepth = 0
-	m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
+	if cap(m.codeASCII) == 0 || m.codeFrozen {
+		m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
+	} else {
+		m.codeASCII = m.codeASCII[:0]
+	}
 	m.codeUTF16 = nil
 	m.codeFrozen = false
 	m.lineLength = 0
@@ -185,6 +189,47 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.licenseTracker = licenseTracker
 }
 
+func (m *CodePrinter_MappedCodePrinterBase) resetForPool() {
+	if m.createSrcMap {
+		m.releaseMappingSlabs()
+		if len(m.mappings) > 0 {
+			clear(m.mappings)
+		}
+		if unsafe.SliceData(m.mappings) != &m.mappingsBuf[0] {
+			clear(m.mappingsBuf[:])
+		}
+		m.mappings = nil
+		if len(m.completeMappings) > 0 {
+			clear(m.completeMappings)
+		}
+		if unsafe.SliceData(m.completeMappings) != &m.completeMappingsBuf[0] {
+			clear(m.completeMappingsBuf[:])
+		}
+		m.completeMappings = nil
+	}
+	if cap(m.codeASCII) > 1<<20 || m.codeFrozen {
+		m.codeASCII = nil
+		m.codeFrozen = false
+	} else {
+		m.codeASCII = m.codeASCII[:0]
+	}
+	m.codeUTF16 = nil
+	m.licenseTracker = nil
+	m.self = nil
+}
+
+func returnPooledPrinter(pooledCompact *CodePrinter_CompactCodePrinter, pooledPretty *CodePrinter_PrettyCodePrinter) {
+	if pooledCompact != nil {
+		pooledCompact.resetForPool()
+		codePrinter_compactPool.Put(pooledCompact)
+	} else if pooledPretty != nil {
+		pooledPretty.resetForPool()
+		pooledPretty.numberSourceCode = ""
+		pooledPretty.numberSourceUnits = nil
+		codePrinter_prettyPool.Put(pooledPretty)
+	}
+}
+
 func (m *CodePrinter_MappedCodePrinterBase) codeGrowASCII(n int) {
 	if need := len(m.codeASCII) + n; need > cap(m.codeASCII) || m.codeFrozen {
 		m.codeFrozen = false
@@ -206,8 +251,12 @@ func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
 		if len(m.codeASCII) > 0 {
 			m.codeUTF16.Append(unsafe.String(unsafe.SliceData(m.codeASCII), len(m.codeASCII)))
 		}
-		m.codeASCII = nil
-		m.codeFrozen = false
+		if m.codeFrozen {
+			m.codeASCII = nil
+			m.codeFrozen = false
+		} else {
+			m.codeASCII = m.codeASCII[:0]
+		}
 	}
 	before := m.codeUTF16.Length()
 	m.codeUTF16.Append(str)
@@ -491,11 +540,7 @@ func (m *CodePrinter_MappedCodePrinterBase) GetCode() string {
 	if len(m.codeASCII) == 0 {
 		return ""
 	}
-	if unsafe.SliceData(m.codeASCII) == &m.codeASCIIBuf[0] {
-		return string(m.codeASCII)
-	}
-	m.codeFrozen = true
-	return unsafe.String(unsafe.SliceData(m.codeASCII), len(m.codeASCII))
+	return string(m.codeASCII)
 }
 
 // Java: CodePrinter.MappedCodePrinter.getLastChar()
@@ -1343,22 +1388,22 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	source, _ := b.buildSourceAndMappings(false)
-	return source
+	var sm CodePrinter_SourceAndMappings
+	b.buildSourceAndMappingsInto(&sm, false)
+	return sm.source
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
 func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
-	source, mappings := b.buildSourceAndMappings(true)
-	return &CodePrinter_SourceAndMappings{
-		source:   source,
-		mappings: mappings,
-	}
+	sm := &CodePrinter_SourceAndMappings{}
+	b.buildSourceAndMappingsInto(sm, true)
+	sm.mappings = sm.iterMappings
+	return sm
 }
 
 func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
 
-func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string, iter.Seq2[int, *SourceMap_Mapping]) {
+func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) {
 	if b.root == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
@@ -1409,33 +1454,16 @@ func (b *CodePrinter_Builder) buildSourceAndMappings(wantMappings bool) (string,
 	cg.AddNode(b.root)
 	mcp.EndFile()
 
-	source := mcp.GetCode()
-	var mappings iter.Seq2[int, *SourceMap_Mapping]
+	sm.source = mcp.GetCode()
 	if gatherSourceMap {
 		base := mcp.GetCodePrinter_MappedCodePrinterBase()
-		base.adjustSourceMappings(source)
-		mappings = base.iterMappings
+		base.adjustSourceMappings(sm.source)
+		sm.takeMappingsFrom(base)
 	} else {
-		if wantMappings {
-			mappings = codePrinter_emptyMappingsSeq
-		}
-		if pooledCompact != nil {
-			pooledCompact.codeASCII = nil
-			pooledCompact.codeUTF16 = nil
-			pooledCompact.licenseTracker = nil
-			pooledCompact.self = nil
-			codePrinter_compactPool.Put(pooledCompact)
-		} else if pooledPretty != nil {
-			pooledPretty.codeASCII = nil
-			pooledPretty.codeUTF16 = nil
-			pooledPretty.licenseTracker = nil
-			pooledPretty.numberSourceCode = ""
-			pooledPretty.numberSourceUnits = nil
-			pooledPretty.self = nil
-			codePrinter_prettyPool.Put(pooledPretty)
-		}
+		sm.mappingChunks = nil
+		sm.mappingSlab = nil
 	}
-	return source, mappings
+	returnPooledPrinter(pooledCompact, pooledPretty)
 }
 
 // CodePrinter_Format specifies a format for code generation.
@@ -1473,13 +1501,92 @@ func CodePrinter_Format_FromOptions(options *CompilerOptions, outputTypes bool, 
 // CodePrinter_SourceAndMappings bundles together the source and generated
 // SourceMap Mappings for that source.
 type CodePrinter_SourceAndMappings struct {
-	source   string
-	mappings iter.Seq2[int, *SourceMap_Mapping] // nil is null
+	source           string
+	mappings         iter.Seq2[int, *SourceMap_Mapping] // nil is null
+	mappingChunks    [][]SourceMap_Mapping
+	mappingSlab      []SourceMap_Mapping
+	mappingChunksBuf [16][]SourceMap_Mapping
+	mappingBuf       [32]SourceMap_Mapping
 }
 
 // Java: CodePrinter.SourceAndMappings()
 func NewCodePrinter_SourceAndMappings() *CodePrinter_SourceAndMappings {
 	return &CodePrinter_SourceAndMappings{}
+}
+
+func (s *CodePrinter_SourceAndMappings) takeMappingsFrom(m *CodePrinter_MappedCodePrinterBase) {
+	if len(m.mappingChunks) == 0 {
+		s.mappingChunks = nil
+		n := len(m.mappingSlab)
+		if n == 0 {
+			s.mappingSlab = nil
+		} else {
+			copy(s.mappingBuf[:n], m.mappingSlab)
+			clear(m.mappingSlab)
+			s.mappingSlab = s.mappingBuf[:n]
+		}
+		m.mappingSlab = nil
+		return
+	}
+	n0 := len(m.mappingChunks[0])
+	copy(s.mappingBuf[:n0], m.mappingChunks[0])
+	clear(m.mappingChunks[0])
+	if len(m.mappingChunks) <= len(s.mappingChunksBuf) {
+		nChunks := len(m.mappingChunks)
+		copy(s.mappingChunksBuf[:nChunks], m.mappingChunks)
+		clear(m.mappingChunks)
+		s.mappingChunks = s.mappingChunksBuf[:nChunks]
+	} else {
+		clear(m.mappingChunksBuf[:])
+		s.mappingChunks = m.mappingChunks
+	}
+	s.mappingChunks[0] = s.mappingBuf[:n0]
+	s.mappingSlab = m.mappingSlab
+	m.mappingChunks = nil
+	m.mappingSlab = nil
+}
+
+func (s *CodePrinter_SourceAndMappings) iterMappings(yield func(int, *SourceMap_Mapping) bool) {
+	idx := 0
+	for _, chunk := range s.mappingChunks {
+		for i := range chunk {
+			if !yield(idx, &chunk[i]) {
+				return
+			}
+			idx++
+		}
+	}
+	for i := range s.mappingSlab {
+		if !yield(idx, &s.mappingSlab[i]) {
+			return
+		}
+		idx++
+	}
+	s.Release()
+}
+
+// Release returns any pooled mapping slabs owned by s to the pool.
+func (s *CodePrinter_SourceAndMappings) Release() {
+	if s.mappingChunks == nil && s.mappingSlab == nil {
+		return
+	}
+	for i, chunk := range s.mappingChunks {
+		if cap(chunk) == codePrinter_mappingSlabSize {
+			clear(chunk[:cap(chunk)])
+			codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(chunk[:cap(chunk)]))
+		} else {
+			clear(chunk)
+		}
+		s.mappingChunks[i] = nil
+	}
+	s.mappingChunks = nil
+	if cap(s.mappingSlab) == codePrinter_mappingSlabSize {
+		clear(s.mappingSlab[:cap(s.mappingSlab)])
+		codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(s.mappingSlab[:cap(s.mappingSlab)]))
+	} else {
+		clear(s.mappingSlab)
+	}
+	s.mappingSlab = nil
 }
 
 // CodePrinter_ToSource converts a tree to JS code.
@@ -1541,25 +1648,12 @@ func CodePrinter_ToSource(
 	if gatherSourceMap {
 		base := mcp.GetCodePrinter_MappedCodePrinterBase()
 		base.adjustSourceMappings(result.source)
-		result.mappings = base.iterMappings
+		result.takeMappingsFrom(base)
+		result.mappings = result.iterMappings
 	} else {
 		result.mappings = codePrinter_emptyMappingsSeq
-		if pooledCompact != nil {
-			pooledCompact.codeASCII = nil
-			pooledCompact.codeUTF16 = nil
-			pooledCompact.licenseTracker = nil
-			pooledCompact.self = nil
-			codePrinter_compactPool.Put(pooledCompact)
-		} else if pooledPretty != nil {
-			pooledPretty.codeASCII = nil
-			pooledPretty.codeUTF16 = nil
-			pooledPretty.licenseTracker = nil
-			pooledPretty.numberSourceCode = ""
-			pooledPretty.numberSourceUnits = nil
-			pooledPretty.self = nil
-			codePrinter_prettyPool.Put(pooledPretty)
-		}
 	}
+	returnPooledPrinter(pooledCompact, pooledPretty)
 
 	return result
 }

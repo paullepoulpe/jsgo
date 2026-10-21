@@ -2303,6 +2303,7 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 		gn.SetShouldTraverseScriptPredicate(
 			func(script *rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
 		gn.GetNameForest() // ensure namespace is generated
+		gn.ReleaseScopeArena()
 		// wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
 		c.transpilationNamespace = gn
 	}
@@ -2947,12 +2948,33 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // Convert back to source code
 // ------------------------------------------------------------------------
 
+func (c *Compiler) evictPassArenaCaches() {
+	evictCachedGlobalNamespaceArenas()
+	if a := cachedRUCArena.Swap(nil); a != nil {
+		removeUnusedCodeArenaPool.Put(a)
+	}
+	for i := range cachedRCArenas {
+		if a := cachedRCArenas[i].Swap(nil); a != nil {
+			referenceCollectorArenaPool.Put(a)
+		}
+	}
+	if a := cachedCCAArena.Swap(nil); a != nil {
+		crossChunkArenaPool.Put(a)
+	}
+	for i := range cachedScopeArenas {
+		if a := cachedScopeArenas[i].Swap(nil); a != nil {
+			scopeArenaPool.Put(a)
+		}
+	}
+}
+
 // ToSource converts the main parse tree back to JS code.
 //
 // Java: Compiler.toSource()
 func (c *Compiler) ToSource() string {
 	return Compiler_RunInCompilerThread(c,
 		func() string {
+			c.evictPassArenaCaches()
 			tracer := c.NewTracer("toSource")
 			defer c.StopTracer(tracer, "toSource")
 			cb := NewCompiler_CodeBuilder()
@@ -2970,28 +2992,52 @@ func (c *Compiler) ToSource() string {
 					scripts = append(scripts, scriptNode)
 				}
 				if c.options.GetNumParallelThreads() > 1 && len(scripts) > 1 {
+					const batchSize = 64
 					type scriptPrinted struct {
-						sm       *CodePrinter_SourceAndMappings
+						sm       CodePrinter_SourceAndMappings
 						licenses []string
+						lt       *Compiler_SingleBinaryLicenseTracker
 					}
-					printed := make([]scriptPrinted, len(scripts))
-					failures := parallelPrebuild(len(scripts), c.options.GetNumParallelThreads(), func(i int) {
-						localLT := newCompiler_SingleBinaryLicenseTracker(c)
-						printed[i].sm = c.toSourceAndMappings(scripts[i], i == 0, localLT)
-						printed[i].licenses = localLT.currentlySeenLicenses.ToSlice()
-					})
-					for _, f := range failures {
-						if f != nil {
-							panic(f)
-						}
-					}
-					for i, scriptNode := range scripts {
-						for _, lic := range printed[i].licenses {
-							if !lt.globallyUniqueLicenses.Contains(lic) {
-								lt.currentlySeenLicenses.Add(lic)
+					printed := make([]scriptPrinted, min(len(scripts), batchSize))
+					numThreads := c.options.GetNumParallelThreads()
+					for batchStart := 0; batchStart < len(scripts); batchStart += batchSize {
+						batchEnd := min(batchStart+batchSize, len(scripts))
+						batchLen := batchEnd - batchStart
+						failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+							idx := batchStart + j
+							localLT := printed[j].lt
+							if localLT == nil {
+								localLT = newCompiler_SingleBinaryLicenseTracker(c)
+								printed[j].lt = localLT
+							} else {
+								localLT.currentlySeenLicenses.Clear()
+								localLT.lastSeenFile = ""
+							}
+							c.toSourceAndMappingsInto(scripts[idx], idx == 0, localLT, &printed[j].sm)
+							if localLT.currentlySeenLicenses.IsEmpty() {
+								printed[j].licenses = nil
+							} else {
+								printed[j].licenses = localLT.currentlySeenLicenses.ToSlice()
+							}
+						})
+						for _, f := range failures {
+							if f != nil {
+								for j := 0; j < batchLen; j++ {
+									printed[j].sm.Release()
+								}
+								panic(f)
 							}
 						}
-						c.appendSourceAndMappingsToCodeBuilder(cb, lt, i, scriptNode, printed[i].sm)
+						for j := 0; j < batchLen; j++ {
+							idx := batchStart + j
+							for _, lic := range printed[j].licenses {
+								if !lt.globallyUniqueLicenses.Contains(lic) {
+									lt.currentlySeenLicenses.Add(lic)
+								}
+							}
+							printed[j].licenses = nil
+							c.appendSourceAndMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm)
+						}
 					}
 				} else {
 					for i, scriptNode := range scripts {
@@ -3064,8 +3110,9 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	root *rhino.Node) {
 	Compiler_RunInCompilerThread(c,
 		func() any {
-			sourceAndMappings := c.toSourceAndMappings(root, inputSeqNum == 0, licenseTracker)
-			c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, sourceAndMappings)
+			var sourceAndMappings CodePrinter_SourceAndMappings
+			c.toSourceAndMappingsInto(root, inputSeqNum == 0, licenseTracker, &sourceAndMappings)
+			c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, &sourceAndMappings)
 			return nil
 		})
 }
@@ -3076,6 +3123,7 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	inputSeqNum int,
 	root *rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
+	defer sourceAndMappings.Release()
 	if c.options.ShouldPrintInputDelimiter() {
 		if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
 			cb.Append("\n") // Make sure that the label starts on a new line
@@ -3130,8 +3178,14 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	}
 
 	if c.options.ShouldGatherSourceMapInfo() {
-		for _, mapping := range sourceAndMappings.mappings {
-			c.sourceMap.AddMapping(mapping)
+		if sourceAndMappings.mappings != nil {
+			for _, mapping := range sourceAndMappings.mappings {
+				c.sourceMap.AddMapping(mapping)
+			}
+		} else {
+			for _, mapping := range sourceAndMappings.iterMappings {
+				c.sourceMap.AddMapping(mapping)
+			}
 		}
 	}
 }
@@ -3415,17 +3469,25 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() *jutil.LinkedHas
 // Java: Compiler.toSourceAndMappings(Node, boolean, LicenseTracker)
 func (c *Compiler) toSourceAndMappings(
 	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) *CodePrinter_SourceAndMappings {
-	builder := NewCodePrinter_Builder(n)
+	sm := &CodePrinter_SourceAndMappings{}
+	c.toSourceAndMappingsInto(n, firstOutput, licenseTracker, sm)
+	sm.mappings = sm.iterMappings
+	return sm
+}
+
+func (c *Compiler) toSourceAndMappingsInto(
+	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker, sm *CodePrinter_SourceAndMappings) {
+	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
-	return builder.BuildWithSourceMappings()
+	builder.buildSourceAndMappingsInto(sm, true)
 }
 
 func (c *Compiler) toSourceWithoutMappings(
 	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
-	builder := NewCodePrinter_Builder(n)
+	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())

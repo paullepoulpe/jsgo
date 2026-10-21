@@ -59,6 +59,7 @@ type TypeInference struct {
 	arrayOfUnknownType      rhino.JSType
 
 	// Reusable per-analysis state to avoid allocations on every scope / CFG node.
+	flowScopeArena           linkedFlowScopeArena
 	bottomTypedScope         TypedScope
 	bottomFlowScope          LinkedFlowScope
 	flowJoiner               LinkedFlowScope_FlowScopeJoinOp
@@ -68,6 +69,20 @@ type TypeInference struct {
 	branchCondition          *rhino.Node
 	branchConditionFlowScope FlowScope
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
+
+	outcomePairBuf  [16]TypeInference_BooleanOutcomePair
+	outcomePairSlab []TypeInference_BooleanOutcomePair
+
+	optChainInfoBuf  [4]TypeInference_OptChainInfo
+	optChainInfoSlab []TypeInference_OptChainInfo
+
+	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
+	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
+	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
+
+	qnameCache [512]struct {
+		a, b, res string
+	}
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -96,6 +111,19 @@ func (ti *TypeInference) initTypeInference(
 	scopeCreator *TypedScopeCreator,
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
 	ti.ResetDataFlowAnalysisBase(ti, cfg)
+	ti.flowScopeArena.reset()
+	if cap(ti.outcomePairSlab) == 0 {
+		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
+	} else {
+		clear(ti.outcomePairSlab)
+		ti.outcomePairSlab = ti.outcomePairSlab[:0]
+	}
+	if cap(ti.optChainInfoSlab) == 0 {
+		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
+	} else {
+		clear(ti.optChainInfoSlab)
+		ti.optChainInfoSlab = ti.optChainInfoSlab[:0]
+	}
 	// Field initializers.
 	ti.inferredUnboundVarScope = nil
 	ti.inferredUnboundVarList = ti.inferredUnboundVarBuf[:0]
@@ -143,6 +171,7 @@ func (ti *TypeInference) initTypeInference(
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
 	ti.bottomFlowScope = LinkedFlowScope{
+		arena:          &ti.flowScopeArena,
 		inputProvider:  compiler,
 		scopes:         LinkedFlowScope_EMPTY_SCOPES,
 		syntacticScope: &ti.bottomTypedScope,
@@ -154,7 +183,7 @@ func (ti *TypeInference) initTypeInference(
 // Java: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(FlowScope)
 func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScope) FlowScope {
 	scope := flow.GetDeclarationScope().(*TypedScope)
-	if ti.inferredUnboundVarScope == scope {
+	if scope.vars.IsEmpty() || ti.inferredUnboundVarScope == scope {
 		return flow
 	}
 	if ti.inferredUnboundVarScope == nil {
@@ -178,12 +207,47 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	}
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.
+	l := flow.(*LinkedFlowScope)
+	var overlay *LinkedFlowScope_OverlayScope
+	var slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]
+	var voidType rhino.JSType
 	for var_ := range scope.vars.Values() {
 		if !scope.IsDeclarativelyUnboundVarWithoutType(var_) || ti.IsUnflowable(var_) {
 			continue
 		}
-
-		flow = flow.InferSlotType(var_.GetName(), ti.GetNativeType(rhino.JSTypeNative_VOID_TYPE))
+		if voidType == nil {
+			voidType = ti.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+			overlay = l.scopes.Get(scope)
+			if overlay != nil {
+				slots = overlay.slots
+			} else {
+				slots = LinkedFlowScope_EMPTY_SLOTS
+			}
+		}
+		name := var_.GetName()
+		slot := slots.Get(name)
+		if slot == nil || slot.type_ != voidType {
+			slots = slots.PlusMap(name, newLinkedFlowScope_OverlaySlotWithArena(l.arena, name, voidType))
+		}
+	}
+	if voidType == nil {
+		return flow
+	}
+	if overlay != nil && slots == overlay.slots {
+		return flow
+	}
+	if overlay == nil && slots.IsEmpty() {
+		return flow
+	}
+	newScope := newLinkedFlowScope_OverlayScopeWithArena(l.arena, scope, slots)
+	var newScopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
+	if !newScope.slots.IsEmpty() {
+		newScopes = l.scopes.PlusMap(scope, newScope)
+	} else {
+		newScopes = l.scopes.MinusMap(scope)
+	}
+	if newScopes != l.scopes {
+		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, newScopes, l.syntacticScope, l.functionScope)
 	}
 	return flow
 }
@@ -386,7 +450,7 @@ func (ti *TypeInference) CreateEntryLattice() FlowScope {
 	// only ever called once so we don't need to cache this computation
 	entryScope :=
 		ti.InferDeclarativelyUnboundVarsWithoutTypes(
-			LinkedFlowScope_CreateEntryLattice(ti.compiler, ti.containerScope))
+			newLinkedFlowScopeWithArena(&ti.flowScopeArena, ti.compiler, LinkedFlowScope_EMPTY_SCOPES, ti.containerScope, ti.containerScope))
 
 	return ti.InferParameters(entryScope)
 }
@@ -1269,7 +1333,7 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 			var_.SetType(resultType)
 		}
 	case rhino.Token_GETPROP:
-		qualifiedName, isQName := target.GetQualifiedNameString()
+		qualifiedName, isQName := ti.getQualifiedNameString(target)
 		if isQName {
 			declaredSlotType := false
 			rawObjType := target.GetFirstChild().GetJSType()
@@ -1305,7 +1369,7 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 //
 // Java: TypeInference.ensurePropertyDefined(Node, JSType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDefined(getprop *rhino.Node, rightType rhino.JSType, scope FlowScope) {
-	qName, isQName := getprop.GetQualifiedNameString()
+	qName, isQName := ti.getQualifiedNameString(getprop)
 	ti.ensurePropertyDefined(getprop, qName, isQName, rightType, scope)
 }
 
@@ -1403,7 +1467,7 @@ func (ti *TypeInference) DefineDeclaredProperty(
 // Java: TypeInference.ensurePropertyDeclaredHelper(Node, ObjectType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDeclaredHelper(
 	getprop *rhino.Node, objectType rhino.ObjectType, scope FlowScope) bool {
-	qName, isQName := getprop.GetQualifiedNameString()
+	qName, isQName := ti.getQualifiedNameString(getprop)
 	return ti.ensurePropertyDeclaredHelper(getprop, qName, isQName, objectType, scope)
 }
 
@@ -1889,7 +1953,7 @@ func (ti *TypeInference) TraverseObjectLiteral(n *rhino.Node, scope FlowScope) F
 
 		// Do normal flow inference if this is a direct property assignment.
 		if hasQObjName && key.IsStringKey() {
-			qKeyName := qObjName + "." + memberName
+			qKeyName := ti.concatQName(qObjName, memberName)
 			var_ := TypeInference_GetDeclaredVar(scope, qKeyName)
 			var oldType rhino.JSType
 			if var_ != nil {
@@ -2119,7 +2183,6 @@ func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode *
 	if assertedNode == nil {
 		return scope
 	}
-	assertedNodeName := assertedNode.GetQualifiedName()
 
 	// Handle assertions that enforce expressions evaluate to true.
 	switch assertionFunctionSpec.GetAssertionKind() {
@@ -2150,7 +2213,7 @@ func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode *
 			narrowed = type_.GetGreatestSubtype(assertedType)
 		}
 		callNode.SetJSType(narrowed)
-		if assertedNodeName != nil && type_.DiffersFrom(narrowed) {
+		if assertedNode.IsQualifiedName() && type_.DiffersFrom(narrowed) {
 			scope = ti.NarrowScope(scope, assertedNode, narrowed)
 		}
 	}
@@ -2166,8 +2229,9 @@ func (ti *TypeInference) NarrowScope(scope FlowScope, node *rhino.Node, narrowed
 	}
 
 	if node.IsGetProp() {
+		qName, _ := ti.getQualifiedNameString(node)
 		return scope.InferQualifiedSlot(
-			node, *node.GetQualifiedName(), ti.GetJSType(node), narrowed, false)
+			node, qName, ti.GetJSType(node), narrowed, false)
 	}
 	return ti.RedeclareSimpleVar(scope, node, narrowed)
 }
@@ -2424,6 +2488,170 @@ func (ti *TypeInference) EvaluateTypeTransformations(
 	return result
 }
 
+func (ti *TypeInference) matchInvocationTemplateTypes(
+	calleeType rhino.FunctionType, localThisType rhino.JSType, invocation *rhino.Node) *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
+	ti.templatedMatched.Clear()
+	if calleeType.GetTemplateTypeMap().IsEmpty() {
+		return &ti.templatedMatched
+	}
+
+	target := invocation.GetFirstChild()
+	if NodeUtil_IsNormalGet(target) {
+		obj := target.GetFirstChild()
+		typeOfThisRequiredByTheFunction := calleeType.GetTypeOfThis()
+		var typeOfThisProvidedByTheCall rhino.JSType
+		if obj.IsSuper() {
+			typeOfThisProvidedByTheCall = localThisType
+		} else {
+			typeOfThisProvidedByTheCall = ti.GetJSType(obj)
+		}
+		typeOfThisProvidedByTheCall = typeOfThisProvidedByTheCall.RestrictByNotNullOrUndefined()
+		ti.matchTemplateTypesRecursive(
+			typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall)
+	}
+
+	if invocation.IsTaggedTemplateLit() {
+		calleeParameters := calleeType.GetParameters()
+		if len(calleeParameters) == 0 {
+			return &ti.templatedMatched
+		}
+		ti.matchTemplateTypesRecursive(
+			calleeParameters[0].GetJSType(), ti.registry.GetNativeType(rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE))
+		declParams := calleeParameters[1:]
+		i := 0
+		var variadicParam *rhino.FunctionType_Parameter
+		for callParam := range NewNodeUtil_TemplateArgsIterable(invocation.GetLastChild()).All() {
+			if variadicParam != nil {
+				ti.matchTemplateTypesRecursive(
+					variadicParam.GetJSType(), ti.GetJSType(callParam))
+				continue
+			}
+			if i >= len(declParams) {
+				break
+			}
+			declParam := declParams[i]
+			i++
+			ti.matchTemplateTypesRecursive(
+				declParam.GetJSType(), ti.GetJSType(callParam))
+			if declParam.IsVariadic() {
+				variadicParam = declParam
+			}
+		}
+	} else if invocation.HasMoreThanOneChild() {
+		declParams := calleeType.GetParameters()
+		i := 0
+		var variadicParam *rhino.FunctionType_Parameter
+		for callParam := invocation.GetSecondChild(); callParam != nil; callParam = callParam.GetNext() {
+			if variadicParam != nil {
+				ti.matchTemplateTypesRecursive(
+					variadicParam.GetJSType(), ti.GetJSType(callParam))
+				continue
+			}
+			if i >= len(declParams) {
+				break
+			}
+			declParam := declParams[i]
+			i++
+			ti.matchTemplateTypesRecursive(
+				declParam.GetJSType(), ti.GetJSType(callParam))
+			if declParam.IsVariadic() {
+				variadicParam = declParam
+			}
+		}
+	}
+
+	return &ti.templatedMatched
+}
+
+func (ti *TypeInference) matchTemplateTypesRecursive(paramType rhino.JSType, argType rhino.JSType) {
+	if paramType.IsTemplateType() {
+		template := paramType.ToMaybeTemplateType()
+		if !argType.IsUnknownType() {
+			if prev, ok := ti.templatedMatched.Lookup(template); ok && prev != nil {
+				ti.templatedMatched.Put(template, prev.GetLeastSupertype(argType))
+			} else {
+				ti.templatedMatched.Put(template, argType)
+			}
+		}
+		return
+	}
+
+	if paramType.IsUnionType() {
+		unionType := paramType.ToMaybeUnionType()
+		for _, alternate := range unionType.GetAlternates() {
+			ti.matchTemplateTypesRecursive(alternate, argType)
+		}
+		return
+	} else if argType.IsUnionType() {
+		unionType := argType.ToMaybeUnionType()
+		for _, alternate := range unionType.GetAlternates() {
+			ti.matchTemplateTypesRecursive(paramType, alternate)
+		}
+		return
+	}
+
+	if paramType.IsFunctionType() {
+		paramFunctionType := paramType.ToMaybeFunctionType()
+		argFunctionType :=
+			argType.RestrictByNotNullOrUndefined().CollapseUnion().ToMaybeFunctionType()
+		if argFunctionType != nil && argFunctionType.IsSubtype(paramType) {
+			ti.matchTemplateTypesRecursive(
+				paramFunctionType.GetTypeOfThis(), argFunctionType.GetTypeOfThis())
+			ti.matchTemplateTypesRecursive(
+				paramFunctionType.GetReturnType(), argFunctionType.GetReturnType())
+			declParams := paramFunctionType.GetParameters()
+			callParams := argFunctionType.GetParameters()
+			i, j := 0, 0
+			for i < len(declParams) && j < len(callParams) {
+				declParam := declParams[i]
+				i++
+				ti.matchTemplateTypesRecursive(declParam.GetJSType(), callParams[j].GetJSType())
+				j++
+				if declParam.IsVariadic() {
+					for j < len(callParams) {
+						ti.matchTemplateTypesRecursive(declParam.GetJSType(), callParams[j].GetJSType())
+						j++
+					}
+				}
+			}
+		}
+	} else if paramType.IsRecordType() && !paramType.IsNominalType() {
+		if ti.templatedSeen.Add(paramType) {
+			paramRecordType := paramType.ToObjectType()
+			argObjectType := argType.RestrictByNotNullOrUndefined().ToObjectType()
+			if argObjectType != nil &&
+				!argObjectType.IsUnknownType() &&
+				!argObjectType.IsEmptyType() {
+				names := paramRecordType.GetPropertyNames()
+				for _, name := range names {
+					if paramRecordType.HasOwnProperty(name) && argObjectType.HasProperty(name) {
+						ti.matchTemplateTypesRecursive(
+							paramRecordType.GetPropertyType(name), argObjectType.GetPropertyType(name))
+					}
+				}
+			}
+			ti.templatedSeen.Remove(paramType)
+		}
+	} else if paramType.IsTemplatizedType() {
+		templatizedParamType := paramType.ToMaybeTemplatizedType()
+		keyCount := len(templatizedParamType.GetTemplateTypes())
+		if keyCount == 0 {
+			return
+		}
+
+		argObjectType := argType.RestrictByNotNullOrUndefined().CollapseUnion()
+		paramTypeMap := paramType.GetTemplateTypeMap()
+
+		keys := paramTypeMap.GetTemplateKeys()
+		argTypeMap := argObjectType.GetTemplateTypeMap()
+		for index := len(keys) - keyCount; index < len(keys); index++ {
+			key := keys[index]
+			ti.matchTemplateTypesRecursive(
+				paramTypeMap.GetResolvedTemplateType(key), argTypeMap.GetResolvedTemplateType(key))
+		}
+	}
+}
+
 // InferTemplatedTypesForCall: for functions that use template types,
 // specialize the function type for the call target based on the call-site
 // specific arguments. Specifically, this enables inference to set the type
@@ -2437,12 +2665,9 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n *rhino.Node, fnType rhino.
 	}
 
 	// Try to infer the template types
-	bindings :=
-		NewInvocationTemplateTypeMatcher(ti.registry, fnType, scope.GetTypeOfThis(), n).Match()
-	var inferredSlots [4]jutil.LhmSlot[*rhino.TemplateType, rhino.JSType]
-	var inferredMap jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-	inferredMap.InitWithBuffer(inferredSlots[:])
-	inferred := &inferredMap
+	bindings := ti.matchInvocationTemplateTypes(fnType, scope.GetTypeOfThis(), n)
+	inferred := &ti.templatedInferred
+	inferred.Clear()
 	// If the inferred type doesn't satisfy the template bound, swap to using the bound. This
 	// ensures errors will be reported in type-checking.
 	for _, key := range keys {
@@ -2517,9 +2742,7 @@ func (ti *TypeInference) TraverseInstantiation(n *rhino.Node, ctorType rhino.JST
 			instantiatedType = instantiatedType.ToMaybeTemplatizedType().GetRawType()
 		}
 		// If necessary, templatized the instance type based on the the constructor parameters.
-		inferredTypes :=
-			NewInvocationTemplateTypeMatcher(ti.registry, ctorFnType, scope.GetTypeOfThis(), n).
-				Match()
+		inferredTypes := ti.matchInvocationTemplateTypes(ctorFnType, scope.GetTypeOfThis(), n)
 		instantiatedType =
 			ti.registry.CreateTemplatizedTypeOfMap(instantiatedType, inferredTypes).ToMaybeObjectType()
 	}
@@ -2728,6 +2951,20 @@ func NewTypeInference_OptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.N
 	return o
 }
 
+func (ti *TypeInference) allocOptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.Node) *TypeInference_OptChainInfo {
+	if len(ti.optChainInfoSlab) == cap(ti.optChainInfoSlab) {
+		nextCap := max(cap(ti.optChainInfoSlab)*2, 8)
+		ti.optChainInfoSlab = make([]TypeInference_OptChainInfo, 0, nextCap)
+	}
+	idx := len(ti.optChainInfoSlab)
+	ti.optChainInfoSlab = ti.optChainInfoSlab[:idx+1]
+	o := &ti.optChainInfoSlab[idx]
+	o.endOfChain = endOfChain
+	o.startOfChain = startOfChain
+	o.unconditionalScope = nil
+	return o
+}
+
 // TraverseOptChain: traversal requires holding scopes from the
 // unconditional start (lhs of the `?.`) and the conditional part (rhs of the
 // `?.`), and using the startType to determine the resulting scope.
@@ -2739,7 +2976,7 @@ func (ti *TypeInference) TraverseOptChain(n *rhino.Node, scope FlowScope) FlowSc
 	if NodeUtil_IsEndOfOptChainSegment(n) {
 		// Create new optional chain tracking object and push it onto the stack.
 		startOfChain := NodeUtil_GetStartOfOptChainSegment(n)
-		optChainInfo := NewTypeInference_OptChainInfo(n, startOfChain)
+		optChainInfo := ti.allocOptChainInfo(n, startOfChain)
 		// optChainArrayDeque.addFirst(optChainInfo)
 		ti.optChainArrayDeque = append(ti.optChainArrayDeque, optChainInfo)
 	}
@@ -2884,6 +3121,71 @@ func (ti *TypeInference) TightenTypeAfterDereference(n *rhino.Node, scope FlowSc
 	return scope
 }
 
+func (ti *TypeInference) concatQName(a, b string) string {
+	var h uint32 = uint32(len(a))*31 + uint32(len(b))
+	if len(a) > 0 {
+		h = h*31 + uint32(a[0])
+		h = h*31 + uint32(a[len(a)-1])
+	}
+	if len(b) > 0 {
+		h = h*31 + uint32(b[0])
+		h = h*31 + uint32(b[len(b)-1])
+		if len(b) > 2 {
+			h = h*31 + uint32(b[len(b)/2])
+		}
+	}
+	idx := (h ^ (h >> 9)) & uint32(len(ti.qnameCache)-1)
+	entry := &ti.qnameCache[idx]
+	if entry.a == a && entry.b == b && entry.res != "" {
+		return entry.res
+	}
+	res := a + "." + b
+	entry.a = a
+	entry.b = b
+	entry.res = res
+	return res
+}
+
+func (ti *TypeInference) getQualifiedNameString(n *rhino.Node) (string, bool) {
+	switch n.GetToken() {
+	case rhino.Token_GETPROP:
+		left := n.GetFirstChild()
+		var a string
+		switch left.GetToken() {
+		case rhino.Token_NAME:
+			a = left.GetString()
+			if a == "" {
+				return "", false
+			}
+		case rhino.Token_THIS:
+			a = "this"
+		case rhino.Token_SUPER:
+			a = "super"
+		case rhino.Token_GETPROP:
+			var ok bool
+			a, ok = ti.getQualifiedNameString(left)
+			if !ok {
+				return "", false
+			}
+		default:
+			return "", false
+		}
+		return ti.concatQName(a, n.GetString()), true
+	case rhino.Token_NAME:
+		name := n.GetString()
+		if name == "" {
+			return "", false
+		}
+		return name, true
+	case rhino.Token_THIS:
+		return "this", true
+	case rhino.Token_SUPER:
+		return "super", true
+	default:
+		return "", false
+	}
+}
+
 // Java: TypeInference.getPropertyType(JSType, String, Node, FlowScope)
 func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, n *rhino.Node, scope FlowScope) rhino.JSType {
 	// We often have a couple of different types to choose from for the
@@ -2896,7 +3198,7 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 	isLocallyInferred := false
 
 	// Scopes sometimes contain inferred type info about qualified names.
-	qualifiedName, hasQName := n.GetQualifiedNameString()
+	qualifiedName, hasQName := ti.getQualifiedNameString(n)
 	var var_ rhino.StaticTypedSlot
 	if hasQName {
 		var_, _ = scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)
@@ -3152,7 +3454,20 @@ func NewTypeInference_BooleanOutcomePair(
 	booleanValues rhino.BooleanLiteralSet,
 	leftScope FlowScope,
 	rightScope FlowScope) *TypeInference_BooleanOutcomePair {
-	p := &TypeInference_BooleanOutcomePair{outer: outer}
+	var p *TypeInference_BooleanOutcomePair
+	if outer != nil {
+		if len(outer.outcomePairSlab) == cap(outer.outcomePairSlab) {
+			nextCap := max(cap(outer.outcomePairSlab)*2, 32)
+			outer.outcomePairSlab = make([]TypeInference_BooleanOutcomePair, 0, nextCap)
+		}
+		idx := len(outer.outcomePairSlab)
+		outer.outcomePairSlab = outer.outcomePairSlab[:idx+1]
+		p = &outer.outcomePairSlab[idx]
+		p.outer = outer
+		p.joinedScope = nil
+	} else {
+		p = &TypeInference_BooleanOutcomePair{outer: outer}
+	}
 	p.toBooleanOutcomes = toBooleanOutcomes
 	p.booleanValues = booleanValues
 	p.leftScope = leftScope

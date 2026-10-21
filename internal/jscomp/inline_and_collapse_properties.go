@@ -179,6 +179,7 @@ func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.N
 			p.namespace.Release()
 			p.namespace = nil
 		}
+		evictCachedGlobalNamespaceArenas()
 	}()
 	logFile := p.compiler.CreateOrReopenIndexedLog(reflect.TypeOf(p).Elem(), "decisions.log")
 	defer logFile.Close()
@@ -409,6 +410,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 	}
 	innerName := innerNameNode.GetString()
 	syntacticScopeCreator := NewSyntacticScopeCreator(a.outer.compiler)
+	syntacticScopeCreator.EnableArenaPool()
 	innerScope := syntacticScopeCreator.CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
 	innerNameVar := jutil.CheckNotNull(innerScope.GetVar(innerName))
 	collector := NewReferenceCollectorWithVarFilter(
@@ -416,6 +418,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
 		syntacticScopeCreator,
 		func(v *Var) bool { return jutil.ObjectsEquals(innerNameVar, v) })
+	collector.enableArenaPool()
+	defer collector.release()
 	collector.ProcessScope(innerScope)
 	innerNameRefs := collector.GetReferences(innerNameVar)
 
@@ -460,12 +464,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 		// usages of `this` in the method
 	}
 	subclass := InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclassRef.GetNode())
-	if subclass == nil || !subclass.IsQualifiedName() {
+	if subclass == nil {
 		return false
 	}
-
-	subclassName := *subclass.GetQualifiedName()
-	subclassQualifiedPropName := subclassName + "." + prop.GetBaseName()
+	subclassName, ok := namespace.qnameStringCached(subclass)
+	if !ok {
+		return false
+	}
+	subclassQualifiedPropName := namespace.concatDotCached(subclassName, prop.GetBaseName())
 	subclassPropNameObj, _ := namespace.GetOwnSlot(subclassQualifiedPropName).(*GlobalNamespace_Name)
 	// Don't rewrite if the subclass ever shadows the parent static property.
 	// This may also back off on cases where the subclass first accesses the parent property, then
@@ -601,6 +607,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			ReferenceCollector_DO_NOTHING_BEHAVIOR,
 			NewSyntacticScopeCreator(a.outer.compiler),
 			func(v *Var) bool { return jutil.ObjectsEquals(aliasVar, v) })
+		collector.enableArenaPool()
+		defer collector.release()
 		aliasScope := aliasVar.GetScope().(*Scope)
 		collector.ProcessScope(aliasScope)
 
@@ -799,14 +807,15 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 		} else {
 			lvalue = aliasParent.GetFirstChild()
 		}
-		if !lvalue.IsQualifiedName() {
+		lvalueName, ok := namespace.qnameStringCached(lvalue)
+		if !ok {
 			return
 		}
 		if lvalue.IsName() &&
-			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalue.GetString() /* local= */, false) {
+			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalueName /* local= */, false) {
 			return
 		}
-		aliasingName, _ := namespace.GetSlot(*lvalue.GetQualifiedName()).(*GlobalNamespace_Name)
+		aliasingName, _ := namespace.GetSlot(lvalueName).(*GlobalNamespace_Name)
 
 		if aliasingName == nil {
 			// this is true for names in externs or properties on extern names
@@ -1213,6 +1222,9 @@ func inlineAndCollapseProperties_getProperty(
 			}
 		}
 		return nil
+	}
+	if parent.outer != nil {
+		return nameMap.Get(parent.outer.concatDotCached(parent.GetFullName(), propName))
 	}
 	return nameMap.Get(parent.GetFullName() + "." + propName)
 }
@@ -2562,7 +2574,9 @@ func (a *InlineAndCollapseProperties_InlineAliases) Process(externs *rhino.Node,
 		a.namespace = nil
 	}()
 	NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(a), externs, root)
-	NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(a), externs, root)
+	if !a.aliases.IsEmpty() {
+		NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(a), externs, root)
+	}
 }
 
 // InlineAndCollapseProperties_InlineAliases_AliasesCollector is
@@ -2600,17 +2614,18 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *No
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visitAliasDefinition(Node, JSDocInfo)
 func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasDefinition(lhs *rhino.Node, info *rhino.JSDocInfo) {
 	if c.IsDeclaredConst(lhs, info) &&
-		(info == nil || !info.HasTypeInformation()) &&
-		lhs.IsQualifiedName() {
-		rhs := NodeUtil_GetRValueOfLValue(lhs)
-		if rhs != nil && rhs.IsQualifiedName() {
-			lhsName, _ := c.outer.namespace.GetOwnSlot(*lhs.GetQualifiedName()).(*GlobalNamespace_Name)
-			rhsName, _ := c.outer.namespace.GetOwnSlot(*rhs.GetQualifiedName()).(*GlobalNamespace_Name)
-			if lhsName != nil &&
-				lhsName.CalculateInlinability().ShouldInlineUsages() &&
-				rhsName != nil &&
-				rhsName.CalculateInlinability().ShouldInlineUsages() {
-				c.outer.aliases.Put(*lhs.GetQualifiedName(), *rhs.GetQualifiedName())
+		(info == nil || !info.HasTypeInformation()) {
+		if lhsQName, ok := c.outer.namespace.qnameStringCached(lhs); ok {
+			rhs := NodeUtil_GetRValueOfLValue(lhs)
+			if rhsQName, ok := c.outer.namespace.qnameStringCached(rhs); ok {
+				lhsName, _ := c.outer.namespace.GetOwnSlot(lhsQName).(*GlobalNamespace_Name)
+				rhsName, _ := c.outer.namespace.GetOwnSlot(rhsQName).(*GlobalNamespace_Name)
+				if lhsName != nil &&
+					lhsName.CalculateInlinability().ShouldInlineUsages() &&
+					rhsName != nil &&
+					rhsName.CalculateInlinability().ShouldInlineUsages() {
+					c.outer.aliases.Put(lhsQName, rhsQName)
+				}
 			}
 		}
 	}
@@ -2640,7 +2655,11 @@ func NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(outer *InlineAn
 func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_GETPROP:
-		if n.IsQualifiedName() && i.outer.aliases.ContainsKey(*n.GetQualifiedName()) {
+		if i.outer.aliases.IsEmpty() {
+			return
+		}
+		qname, ok := i.outer.namespace.qnameStringCached(n)
+		if ok && i.outer.aliases.ContainsKey(qname) {
 			if i.IsLeftmostNameLocal(t, n) {
 				// The alias is shadowed by a local variable. Don't rewrite.
 				return
@@ -2650,7 +2669,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 				return
 			}
 
-			newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(*n.GetQualifiedName(), n))
+			newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(qname, n))
 			if i.IsLeftmostNameLocal(t, newNode) {
 				// The aliased name is shadowed by a local variable. Don't rewrite.
 				return

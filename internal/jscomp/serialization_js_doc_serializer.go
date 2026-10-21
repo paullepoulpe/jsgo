@@ -39,8 +39,171 @@ type JSDocSerializer struct{}
 //
 // Java: JSDocSerializer.convertJSDocInfoForOptimizations(JSDocInfo)
 func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
-	stringPool := StringPool_Builder_()
-	return JSDocSerializer_DeserializeJsdoc(JSDocSerializer_SerializeJsdoc(jsdoc, stringPool), stringPool.Build())
+	if jsdoc == nil {
+		return nil
+	}
+
+	var builder rhino.JSDocInfo_Builder
+	var init bool
+	ensureBuilder := func() *rhino.JSDocInfo_Builder {
+		init = true
+		return &builder
+	}
+
+	if mode := jsdoc.GetPerFileClosureUnawareMode(); mode != nil {
+		ensureBuilder().RecordClosureUnawareCodeWithMode(*mode)
+	}
+	if license := jsdoc.GetLicense(); license != nil && *license != "" {
+		ensureBuilder().AddLicense(rhino.RhinoStringPool_AddOrGet(*license))
+	}
+	if meaning := jsdoc.GetMeaning(); meaning != nil && *meaning != "" {
+		ensureBuilder().RecordMeaning(rhino.RhinoStringPool_AddOrGet(*meaning))
+	}
+	if description := jsdoc.GetDescription(); description != nil && *description != "" {
+		ensureBuilder().RecordDescription(rhino.RhinoStringPool_AddOrGet(*description))
+	}
+	if alternateMessageId := jsdoc.GetAlternateMessageId(); alternateMessageId != nil && *alternateMessageId != "" {
+		ensureBuilder().RecordAlternateMessageId(rhino.RhinoStringPool_AddOrGet(*alternateMessageId))
+	}
+
+	if jsdoc.HasFileOverview() {
+		ensureBuilder().RecordFileOverview("")
+	}
+	if jsdoc.IsSassGeneratedCssTs() {
+		ensureBuilder().RecordSassGeneratedCssTs()
+	}
+	if jsdoc.IsNoCoverage() {
+		ensureBuilder().RecordNoCoverage()
+	}
+	if jsdoc.IsNoInline() {
+		ensureBuilder().RecordNoInline()
+	}
+	if jsdoc.IsEncourageInlining() {
+		ensureBuilder().RecordEncourageInlining()
+	}
+	if jsdoc.IsRequireInlining() {
+		ensureBuilder().RecordRequireInlining()
+	}
+	if jsdoc.IsNoCollapse() {
+		ensureBuilder().RecordNoCollapse()
+	}
+	if jsdoc.IsProvideGoog() {
+		ensureBuilder().RecordProvideGoog()
+	}
+	if jsdoc.IsProvideAlreadyProvided() {
+		ensureBuilder().RecordProvideAlreadyProvided()
+	}
+	if jsdoc.IsTypeSummary() {
+		ensureBuilder().RecordTypeSummary()
+	}
+	if jsdoc.IsPureOrBreakMyCode() {
+		ensureBuilder().RecordPureOrBreakMyCode()
+	}
+	if jsdoc.IsCollapsibleOrBreakMyCode() {
+		ensureBuilder().RecordCollapsibleOrBreakMyCode()
+	}
+	if jsdoc.HasThisType() {
+		ensureBuilder().RecordThisType(jsDocSerializer_placeholderType)
+	}
+	if jsdoc.HasEnumParameterType() {
+		ensureBuilder().RecordEnumParameterType(jsDocSerializer_placeholderType)
+	}
+	if jsdoc.IsDefine() {
+		ensureBuilder().RecordDefineType(jsDocSerializer_placeholderType)
+	}
+	if jsdoc.HasConstAnnotation() {
+		ensureBuilder().RecordConstancy()
+	}
+	if jsdoc.IsAnyIdGenerator() {
+		if jsdoc.IsConsistentIdGenerator() {
+			ensureBuilder().RecordConsistentIdGenerator()
+		} else if jsdoc.IsStableIdGenerator() {
+			ensureBuilder().RecordStableIdGenerator()
+		} else if jsdoc.IsXidGenerator() {
+			ensureBuilder().RecordXidGenerator()
+		} else if jsdoc.IsMappedIdGenerator() {
+			ensureBuilder().RecordMappedIdGenerator()
+		} else if jsdoc.IsIdGenerator() {
+			ensureBuilder().RecordIdGenerator()
+		} else {
+			panic(jutil.NewIllegalStateExceptionMsg("Failed to identify idGenerator inside JSDoc: " + jsdoc.String()))
+		}
+	}
+	if jsdoc.IsNoSideEffects() {
+		ensureBuilder().RecordNoSideEffects()
+	}
+
+	var hasModifiesArguments, hasModifiesThis bool
+	if jsdoc.HasModifies() {
+		for modifies := range jsdoc.GetModifies().All() {
+			if modifies == "this" {
+				hasModifiesThis = true
+			} else {
+				hasModifiesArguments = true
+			}
+		}
+	}
+
+	if len(jsdoc.GetThrowsAnnotations()) != 0 {
+		ensureBuilder().RecordThrowsAnnotation("{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}")
+	}
+	if jsdoc.IsConstructor() {
+		ensureBuilder().RecordConstructor()
+	}
+	if jsdoc.IsInterface() {
+		ensureBuilder().RecordInterface()
+	}
+
+	var hasSuppressMessageConvention, hasSuppressPartialAlias, hasSuppressUntranspilableFeatures bool
+	suppressions := jsdoc.GetSuppressions()
+	if !suppressions.IsEmpty() {
+		for s := range suppressions.All() {
+			switch s {
+			case "messageConventions":
+				hasSuppressMessageConvention = true
+			case "partialAlias":
+				hasSuppressPartialAlias = true
+			case "untranspilableFeatures":
+				hasSuppressUntranspilableFeatures = true
+			}
+		}
+	}
+
+	if jsdoc.IsAbstract() {
+		ensureBuilder().RecordAbstract()
+	}
+	if jsdoc.IsUsedViaDotConstructor() {
+		_ = ensureBuilder().RecordUsedViaDotConstructor()
+	}
+
+	if hasModifiesArguments || hasModifiesThis {
+		modSet := jutil.NewLinkedHashSet[string]()
+		if hasModifiesArguments {
+			modSet.Add("arguments")
+		}
+		if hasModifiesThis {
+			modSet.Add("this")
+		}
+		ensureBuilder().RecordModifies(modSet)
+	}
+	if hasSuppressMessageConvention || hasSuppressPartialAlias || hasSuppressUntranspilableFeatures {
+		suppSet := jutil.NewLinkedHashSet[string]()
+		if hasSuppressMessageConvention {
+			suppSet.Add("messageConventions")
+		}
+		if hasSuppressPartialAlias {
+			suppSet.Add("partialAlias")
+		}
+		if hasSuppressUntranspilableFeatures {
+			suppSet.Add("untranspilableFeatures")
+		}
+		ensureBuilder().RecordSuppressionsWithDescription(suppSet, "")
+	}
+
+	if !init {
+		return nil
+	}
+	return builder.Build()
 }
 
 // JSDocSerializer_SerializeJsdoc may return nil.

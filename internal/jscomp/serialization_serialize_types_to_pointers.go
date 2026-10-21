@@ -33,7 +33,7 @@ import (
 type SerializeTypesToPointers struct {
 	compiler                  AbstractCompiler
 	jstypeReconserializer     *JSTypeReconserializer
-	propertiesReferencedInAst *jutil.LinkedHashSet[string]
+	propertiesReferencedInAst map[string]struct{}
 	typePointersByJstype      *base.LinkedIdentityHashMap[rhino.JSType, int]
 	typePool                  *TypePool
 	lastProp                  string
@@ -47,9 +47,8 @@ var serializeTypesToPointers_GSON = jutil.NewGson()
 func newSerializeTypesToPointers(
 	compiler AbstractCompiler,
 	jstypeReconserializer *JSTypeReconserializer,
-	propertiesReferencedInAst *jutil.LinkedHashSet[string]) *SerializeTypesToPointers {
+	propertiesReferencedInAst map[string]struct{}) *SerializeTypesToPointers {
 	return &SerializeTypesToPointers{
-		typePointersByJstype:      base.NewLinkedIdentityHashMap[rhino.JSType, int](),
 		compiler:                  compiler,
 		jstypeReconserializer:     jstypeReconserializer,
 		propertiesReferencedInAst: propertiesReferencedInAst,
@@ -67,14 +66,15 @@ func SerializeTypesToPointers_Create(
 			Build()
 
 	// this set requires access to the externs and src ASTs, so can't be populated yet.
-	propertiesReferencedInAst := jutil.NewLinkedHashSet[string]()
+	propertiesReferencedInAst := make(map[string]struct{}, 256)
 	jsTypeReconserializer :=
 		JSTypeReconserializer_Create(
 			compiler.GetTypeRegistry(),
 			invalidatingTypes,
 			stringPoolBuilder,
-			propertiesReferencedInAst.Contains,
+			nil,
 			serializationOptions)
+	jsTypeReconserializer.allowedProperties = propertiesReferencedInAst
 	return newSerializeTypesToPointers(compiler, jsTypeReconserializer, propertiesReferencedInAst)
 }
 
@@ -110,7 +110,7 @@ func (s *SerializeTypesToPointers) gatherPropertiesWalk(n *rhino.Node) {
 		if !s.hasLastProp || prop != s.lastProp {
 			s.lastProp = prop
 			s.hasLastProp = true
-			s.propertiesReferencedInAst.Add(prop)
+			s.propertiesReferencedInAst[prop] = struct{}{}
 		}
 	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
 		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
@@ -122,7 +122,7 @@ func (s *SerializeTypesToPointers) gatherPropertiesWalk(n *rhino.Node) {
 			if !s.hasLastProp || prop != s.lastProp {
 				s.lastProp = prop
 				s.hasLastProp = true
-				s.propertiesReferencedInAst.Add(prop)
+				s.propertiesReferencedInAst[prop] = struct{}{}
 			}
 		}
 	default:
@@ -144,9 +144,7 @@ func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
 	}
 	if type_ := n.GetJSType(); type_ != nil && type_ != s.lastType {
 		s.lastType = type_
-		if _, ok := s.typePointersByJstype.Lookup(type_); !ok {
-			s.typePointersByJstype.Put(type_, s.jstypeReconserializer.SerializeType(type_))
-		}
+		s.jstypeReconserializer.SerializeType(type_)
 	}
 	if n.IsName() {
 		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
@@ -180,14 +178,14 @@ func (c *serializeTypesToPointers_PropertySearchCallback) Visit(t *NodeTraversal
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, // "name" from (someObject.name)
 		rhino.Token_OPTCHAIN_GETPROP: // "name" from (someObject?.name)
-		c.outer.propertiesReferencedInAst.Add(n.GetString())
+		c.outer.propertiesReferencedInAst[n.GetString()] = struct{}{}
 	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
 		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
 		rhino.Token_MEMBER_FIELD_DEF,    // "name" from class C { name = 0; }
 		rhino.Token_GETTER_DEF,          // "name" from class C { get name() {} }
 		rhino.Token_SETTER_DEF:          // "name" from class C { set name(n) {} }
 		if !n.IsQuotedStringKey() {
-			c.outer.propertiesReferencedInAst.Add(n.GetString())
+			c.outer.propertiesReferencedInAst[n.GetString()] = struct{}{}
 		}
 	default:
 	}
@@ -213,7 +211,7 @@ func (c *serializeTypesToPointers_TypeSearchCallback) Visit(t *NodeTraversal, n 
 	}
 	type_ := n.GetJSType()
 	if type_ != nil {
-		c.outer.typePointersByJstype.ComputeIfAbsent(type_, c.outer.jstypeReconserializer.SerializeType)
+		c.outer.GetTypePointersByJstype().ComputeIfAbsent(type_, c.outer.jstypeReconserializer.SerializeType)
 	}
 	shadow := n.GetClosureUnawareShadow()
 	if shadow != nil {
@@ -226,6 +224,12 @@ func (c *serializeTypesToPointers_TypeSearchCallback) Visit(t *NodeTraversal, n 
 
 // Java: SerializeTypesToPointers.getTypePointersByJstype()
 func (s *SerializeTypesToPointers) GetTypePointersByJstype() *base.LinkedIdentityHashMap[rhino.JSType, int] {
+	if s.typePointersByJstype == nil {
+		s.typePointersByJstype = base.NewLinkedIdentityHashMap[rhino.JSType, int]()
+		for jstype, record := range s.jstypeReconserializer.typeToRecordCache {
+			s.typePointersByJstype.Put(jstype, record.pointer)
+		}
+	}
 	return s.typePointersByJstype
 }
 

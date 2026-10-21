@@ -96,12 +96,13 @@ func convertTypesToColors_removeTypesWalk(n *rhino.Node) {
 // Java: private static class ConvertTypesToColors.RemoveTypesAndApplyColors extends RemoveTypes
 type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
 	ConvertTypesToColors_RemoveTypesBase
-	colorPoolShard       *ColorPool_ShardView
-	typePointersByJstype *base.LinkedIdentityHashMap[rhino.JSType, int]
-	colorsByPointer      []*colors.Color
-	lastType             rhino.JSType
-	lastColor            *colors.Color
-	hasLast              bool
+	colorPoolShard        *ColorPool_ShardView
+	typePointersByJstype  *base.LinkedIdentityHashMap[rhino.JSType, int]
+	jstypeReconserializer *JSTypeReconserializer
+	colorsByPointer       []*colors.Color
+	lastType              rhino.JSType
+	lastColor             *colors.Color
+	hasLast               bool
 }
 
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors(ColorPool.ShardView, LinkedIdentityHashMap<JSType, Integer>)
@@ -122,7 +123,7 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) initColors() {
 		colorsByPointer := make([]*colors.Color, axiomaticCount+len(trimmedIds))
 		copy(colorsByPointer, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
 		for i, id := range trimmedIds {
-			colorsByPointer[axiomaticCount+i] = idToColor.Get(id)
+			colorsByPointer[axiomaticCount+i] = idToColor[id]
 		}
 		r.colorsByPointer = colorsByPointer
 	}
@@ -144,7 +145,14 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node
 		if r.hasLast && oldType == r.lastType {
 			c = r.lastColor
 		} else {
-			if pointer, ok := r.typePointersByJstype.Lookup(oldType); ok {
+			var pointer int
+			var ok bool
+			if r.jstypeReconserializer != nil {
+				pointer, ok = r.jstypeReconserializer.LookupTypePointer(oldType)
+			} else if r.typePointersByJstype != nil {
+				pointer, ok = r.typePointersByJstype.Lookup(oldType)
+			}
+			if ok {
 				if r.colorsByPointer != nil {
 					c = r.colorsByPointer[pointer]
 				} else {
@@ -206,7 +214,7 @@ func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
 
 	var callback ConvertTypesToColors_RemoveTypesAndApplyColors
 	callback.colorPoolShard = colorPoolBuilder.AddShard(typePool, stringPool)
-	callback.typePointersByJstype = serializeJstypes.GetTypePointersByJstype()
+	callback.jstypeReconserializer = serializeJstypes.jstypeReconserializer
 
 	colorPool := colorPoolBuilder.Build()
 	callback.initColors()

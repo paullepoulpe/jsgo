@@ -24,10 +24,147 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type linkedFlowScopeArena struct {
+	scopeBuf       [64]LinkedFlowScope
+	scopeInlineLen int
+	scopeChunks    []*[256]LinkedFlowScope
+	scopeChunkIdx  int
+	scopeOffset    int
+
+	overlayBuf       [32]LinkedFlowScope_OverlayScope
+	overlayInlineLen int
+	overlayChunks    []*[256]LinkedFlowScope_OverlayScope
+	overlayChunkIdx  int
+	overlayOffset    int
+
+	slotBuf       [64]LinkedFlowScope_OverlaySlot
+	slotInlineLen int
+	slotChunks    []*[256]LinkedFlowScope_OverlaySlot
+	slotChunkIdx  int
+	slotOffset    int
+}
+
+func (a *linkedFlowScopeArena) reset() {
+	if a.scopeInlineLen > 0 {
+		clear(a.scopeBuf[:a.scopeInlineLen])
+		a.scopeInlineLen = 0
+	}
+	if a.scopeChunkIdx > 0 || a.scopeOffset > 0 {
+		for i := 0; i < a.scopeChunkIdx; i++ {
+			clear(a.scopeChunks[i][:])
+		}
+		if a.scopeOffset > 0 && a.scopeChunkIdx < len(a.scopeChunks) {
+			clear(a.scopeChunks[a.scopeChunkIdx][:a.scopeOffset])
+		}
+		a.scopeChunkIdx = 0
+		a.scopeOffset = 0
+	}
+
+	if a.overlayInlineLen > 0 {
+		clear(a.overlayBuf[:a.overlayInlineLen])
+		a.overlayInlineLen = 0
+	}
+	if a.overlayChunkIdx > 0 || a.overlayOffset > 0 {
+		for i := 0; i < a.overlayChunkIdx; i++ {
+			clear(a.overlayChunks[i][:])
+		}
+		if a.overlayOffset > 0 && a.overlayChunkIdx < len(a.overlayChunks) {
+			clear(a.overlayChunks[a.overlayChunkIdx][:a.overlayOffset])
+		}
+		a.overlayChunkIdx = 0
+		a.overlayOffset = 0
+	}
+
+	if a.slotInlineLen > 0 {
+		clear(a.slotBuf[:a.slotInlineLen])
+		a.slotInlineLen = 0
+	}
+	if a.slotChunkIdx > 0 || a.slotOffset > 0 {
+		for i := 0; i < a.slotChunkIdx; i++ {
+			clear(a.slotChunks[i][:])
+		}
+		if a.slotOffset > 0 && a.slotChunkIdx < len(a.slotChunks) {
+			clear(a.slotChunks[a.slotChunkIdx][:a.slotOffset])
+		}
+		a.slotChunkIdx = 0
+		a.slotOffset = 0
+	}
+}
+
+func (a *linkedFlowScopeArena) allocScope() *LinkedFlowScope {
+	if a.scopeInlineLen < len(a.scopeBuf) {
+		s := &a.scopeBuf[a.scopeInlineLen]
+		a.scopeInlineLen++
+		return s
+	}
+	return a.allocScopeChunk()
+}
+
+//go:noinline
+func (a *linkedFlowScopeArena) allocScopeChunk() *LinkedFlowScope {
+	if a.scopeOffset == 256 {
+		a.scopeChunkIdx++
+		a.scopeOffset = 0
+	}
+	if a.scopeChunkIdx == len(a.scopeChunks) {
+		a.scopeChunks = append(a.scopeChunks, new([256]LinkedFlowScope))
+	}
+	s := &a.scopeChunks[a.scopeChunkIdx][a.scopeOffset]
+	a.scopeOffset++
+	return s
+}
+
+func (a *linkedFlowScopeArena) allocOverlay() *LinkedFlowScope_OverlayScope {
+	if a.overlayInlineLen < len(a.overlayBuf) {
+		o := &a.overlayBuf[a.overlayInlineLen]
+		a.overlayInlineLen++
+		return o
+	}
+	return a.allocOverlayChunk()
+}
+
+//go:noinline
+func (a *linkedFlowScopeArena) allocOverlayChunk() *LinkedFlowScope_OverlayScope {
+	if a.overlayOffset == 256 {
+		a.overlayChunkIdx++
+		a.overlayOffset = 0
+	}
+	if a.overlayChunkIdx == len(a.overlayChunks) {
+		a.overlayChunks = append(a.overlayChunks, new([256]LinkedFlowScope_OverlayScope))
+	}
+	o := &a.overlayChunks[a.overlayChunkIdx][a.overlayOffset]
+	a.overlayOffset++
+	return o
+}
+
+func (a *linkedFlowScopeArena) allocSlot() *LinkedFlowScope_OverlaySlot {
+	if a.slotInlineLen < len(a.slotBuf) {
+		s := &a.slotBuf[a.slotInlineLen]
+		a.slotInlineLen++
+		return s
+	}
+	return a.allocSlotChunk()
+}
+
+//go:noinline
+func (a *linkedFlowScopeArena) allocSlotChunk() *LinkedFlowScope_OverlaySlot {
+	if a.slotOffset == 256 {
+		a.slotChunkIdx++
+		a.slotOffset = 0
+	}
+	if a.slotChunkIdx == len(a.slotChunks) {
+		a.slotChunks = append(a.slotChunks, new([256]LinkedFlowScope_OverlaySlot))
+	}
+	s := &a.slotChunks[a.slotChunkIdx][a.slotOffset]
+	a.slotOffset++
+	return s
+}
+
 // LinkedFlowScope is a flow scope that tries to store as little symbol
 // information as possible, instead delegating to its parents. Optimized for
 // low memory use.
 type LinkedFlowScope struct {
+	arena         *linkedFlowScopeArena
 	inputProvider CompilerInputProvider
 
 	// Map from TypedScope to OverlayScope.
@@ -62,12 +199,27 @@ func newLinkedFlowScope(
 	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
 	syntacticScope *TypedScope,
 	functionScope *TypedScope) *LinkedFlowScope {
-	return &LinkedFlowScope{
-		inputProvider:  inputProvider,
-		scopes:         scopes,
-		syntacticScope: syntacticScope,
-		functionScope:  functionScope,
+	return newLinkedFlowScopeWithArena(nil, inputProvider, scopes, syntacticScope, functionScope)
+}
+
+func newLinkedFlowScopeWithArena(
+	arena *linkedFlowScopeArena,
+	inputProvider CompilerInputProvider,
+	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
+	syntacticScope *TypedScope,
+	functionScope *TypedScope) *LinkedFlowScope {
+	var s *LinkedFlowScope
+	if arena != nil {
+		s = arena.allocScope()
+	} else {
+		s = &LinkedFlowScope{}
 	}
+	s.arena = arena
+	s.inputProvider = inputProvider
+	s.scopes = scopes
+	s.syntacticScope = syntacticScope
+	s.functionScope = functionScope
+	return s
 }
 
 // TrimScopes returns the scope map, trimmed to the common ancestor between
@@ -141,7 +293,7 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowS
 		newScopes = l.scopes.MinusMap(scope.scope)
 	}
 	if newScopes != l.scopes {
-		return newLinkedFlowScope(l.inputProvider, newScopes, l.syntacticScope, l.functionScope)
+		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, newScopes, l.syntacticScope, l.functionScope)
 	}
 	return l
 }
@@ -285,7 +437,7 @@ func (l *LinkedFlowScope) GetOverlayScopeForName(name string, create bool) *Link
 func (l *LinkedFlowScope) GetOverlayScopeForScope(scope *TypedScope, create bool) *LinkedFlowScope_OverlayScope {
 	overlay := l.scopes.Get(scope)
 	if overlay == nil && create {
-		overlay = NewLinkedFlowScope_OverlayScope(scope)
+		overlay = newLinkedFlowScope_OverlayScopeWithArena(l.arena, scope, LinkedFlowScope_EMPTY_SLOTS)
 	}
 	return overlay
 }
@@ -315,7 +467,7 @@ func (l *LinkedFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.J
 func (l *LinkedFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
 	typedScope := scope.(*TypedScope)
 	if typedScope != l.syntacticScope {
-		return newLinkedFlowScope(l.inputProvider, l.trimScopesMap(typedScope), typedScope, l.functionScope)
+		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, l.trimScopesMap(typedScope), typedScope, l.functionScope)
 	}
 	return l
 }
@@ -406,8 +558,13 @@ func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
 		j.result = linkedInput
 		return
 	}
+	arena := j.result.arena
+	if arena == nil {
+		arena = linkedInput.arena
+	}
 	j.result =
-		newLinkedFlowScope(
+		newLinkedFlowScopeWithArena(
+			arena,
 			j.inputProvider,
 			joinedScopes,
 			common,
@@ -487,6 +644,10 @@ func linkedFlowScope_JoinMap(
 	scopesB := linkedB.trimScopesMap(commonParent)
 	if scopesA == scopesB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
 		return scopesA
+	}
+	arena := linkedA.arena
+	if arena == nil {
+		arena = linkedB.arena
 	}
 	return scopesA.
 		ReconcileMap(
@@ -578,7 +739,7 @@ func linkedFlowScope_JoinMap(
 									if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
 										return slotA
 									}
-									return NewLinkedFlowScope_OverlaySlot(name, joinedType)
+									return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
 								}
 							} else if slotA == nil || slotA.GetType() == nil {
 								var fnSlot *TypedVar
@@ -598,7 +759,7 @@ func linkedFlowScope_JoinMap(
 									if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
 										return slotB
 									}
-									return NewLinkedFlowScope_OverlaySlot(name, joinedType)
+									return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
 								}
 							}
 							// Case #5
@@ -609,7 +770,7 @@ func linkedFlowScope_JoinMap(
 							if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
 								return slotA
 							}
-							return NewLinkedFlowScope_OverlaySlot(name, joinedType)
+							return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
 						})
 				}
 				if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
@@ -618,12 +779,13 @@ func linkedFlowScope_JoinMap(
 				if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
 					return scopeB
 				}
-				return newLinkedFlowScope_OverlayScopeWithSlots(bestScope, reconciledSlots)
+				return newLinkedFlowScope_OverlayScopeWithArena(arena, bestScope, reconciledSlots)
 			})
 }
 
 // LinkedFlowScope_OverlayScope is the overlay of one syntactic scope.
 type LinkedFlowScope_OverlayScope struct {
+	arena *linkedFlowScopeArena
 	scope *TypedScope
 	slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]
 }
@@ -648,10 +810,24 @@ func NewLinkedFlowScope_OverlayScopeWithSlots(
 
 func newLinkedFlowScope_OverlayScopeWithSlots(
 	scope *TypedScope, slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]) *LinkedFlowScope_OverlayScope {
-	return &LinkedFlowScope_OverlayScope{
-		scope: jutil.CheckNotNull(scope),
-		slots: slots,
+	return newLinkedFlowScope_OverlayScopeWithArena(nil, scope, slots)
+}
+
+func newLinkedFlowScope_OverlayScopeWithArena(
+	arena *linkedFlowScopeArena,
+	scope *TypedScope,
+	slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]) *LinkedFlowScope_OverlayScope {
+	jutil.CheckNotNull(scope)
+	var o *LinkedFlowScope_OverlayScope
+	if arena != nil {
+		o = arena.allocOverlay()
+	} else {
+		o = &LinkedFlowScope_OverlayScope{}
 	}
+	o.arena = arena
+	o.scope = scope
+	o.slots = slots
+	return o
 }
 
 // Java: LinkedFlowScope.OverlayScope.infer(String, JSType)
@@ -661,7 +837,7 @@ func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *L
 	if slot != nil && base.JSCompObjects_Identical(type_, slot.type_) {
 		return o
 	}
-	return newLinkedFlowScope_OverlayScopeWithSlots(o.scope, o.slots.PlusMap(name, NewLinkedFlowScope_OverlaySlot(name, type_)))
+	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, o.slots.PlusMap(name, newLinkedFlowScope_OverlaySlotWithArena(o.arena, name, type_)))
 }
 
 // GetSlot returns the overlay's slot for name, else the scope's (nil if
@@ -698,6 +874,19 @@ func NewLinkedFlowScope_OverlaySlot(name string, type_ rhino.JSType) *LinkedFlow
 		name:  name,
 		type_: type_,
 	}
+}
+
+func newLinkedFlowScope_OverlaySlotWithArena(
+	arena *linkedFlowScopeArena, name string, type_ rhino.JSType) *LinkedFlowScope_OverlaySlot {
+	var s *LinkedFlowScope_OverlaySlot
+	if arena != nil {
+		s = arena.allocSlot()
+	} else {
+		s = &LinkedFlowScope_OverlaySlot{}
+	}
+	s.name = name
+	s.type_ = type_
+	return s
 }
 
 // Java: LinkedFlowScope.OverlaySlot.getName()

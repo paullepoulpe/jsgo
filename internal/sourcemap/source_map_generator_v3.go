@@ -22,6 +22,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -80,9 +81,22 @@ type SourceMapGeneratorV3 struct {
 	lastAddedSourceFile    string
 	hasLastAddedSourceFile bool
 	lastAddedSourceFileIdx int32
+	addedSymbolNames       []string
+	lastAddedSymbolName    string
+	hasLastAddedSymbolName bool
+	lastAddedSymbolNameIdx int32
 	mappingChunksBuf       [16][]SourceMapGeneratorV3_Mapping
 	addedSourceFilesBuf    [16]string
+	addedSymbolNamesBuf    [16]string
 	mappingBuf             [16]SourceMapGeneratorV3_Mapping
+}
+
+const sourceMapGeneratorV3_mappingSlabSize = 16384
+
+var sourceMapGeneratorV3_mappingSlabPool = sync.Pool{
+	New: func() any {
+		return new([sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)
+	},
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -112,6 +126,8 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	g.addedSourceFiles = g.addedSourceFilesBuf[:0:len(g.addedSourceFilesBuf)]
 	g.lastAddedSourceFileIdx = -1
+	g.addedSymbolNames = g.addedSymbolNamesBuf[:0:len(g.addedSymbolNamesBuf)]
+	g.lastAddedSymbolNameIdx = -1
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
@@ -130,8 +146,16 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 // Java: SourceMapGeneratorV3.reset()
 func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
-	clear(g.mappingChunks)
+	for i, chunk := range g.mappingChunks {
+		if cap(chunk) == sourceMapGeneratorV3_mappingSlabSize {
+			sourceMapGeneratorV3_mappingSlabPool.Put((*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)(chunk[:cap(chunk)]))
+		}
+		g.mappingChunks[i] = nil
+	}
 	g.mappingChunks = g.mappingChunks[:0]
+	if cap(g.mappingSlab) == sourceMapGeneratorV3_mappingSlabSize {
+		sourceMapGeneratorV3_mappingSlabPool.Put((*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)(g.mappingSlab[:cap(g.mappingSlab)]))
+	}
 	clear(g.mappingBuf[:])
 	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	clear(g.addedSourceFiles)
@@ -139,6 +163,11 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastAddedSourceFile = ""
 	g.hasLastAddedSourceFile = false
 	g.lastAddedSourceFileIdx = -1
+	clear(g.addedSymbolNames)
+	g.addedSymbolNames = g.addedSymbolNames[:0]
+	g.lastAddedSymbolName = ""
+	g.hasLastAddedSymbolName = false
+	g.lastAddedSymbolNameIdx = -1
 	g.lastMapping = nil
 	g.sourceFileMap.Clear()
 	g.originalNameMap.Clear()
@@ -157,8 +186,13 @@ func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
 		if len(g.mappingSlab) > 0 {
 			g.mappingChunks = append(g.mappingChunks, g.mappingSlab)
 		}
-		newCap := min(max(cap(g.mappingSlab)*4, 64), 16384)
-		g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 0, newCap)
+		newCap := min(max(cap(g.mappingSlab)*4, 64), sourceMapGeneratorV3_mappingSlabSize)
+		if newCap == sourceMapGeneratorV3_mappingSlabSize {
+			arr := sourceMapGeneratorV3_mappingSlabPool.Get().(*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)
+			g.mappingSlab = arr[:0:sourceMapGeneratorV3_mappingSlabSize]
+		} else {
+			g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 0, newCap)
+		}
 	}
 	i := len(g.mappingSlab)
 	g.mappingSlab = g.mappingSlab[:i+1]
@@ -292,12 +326,26 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		g.hasLastAddedSourceFile = true
 	}
 
+	originalNameIdx := int32(-1)
+	if symbolName != nil {
+		name := *symbolName
+		if g.hasLastAddedSymbolName && g.lastAddedSymbolName == name {
+			originalNameIdx = g.lastAddedSymbolNameIdx
+		} else {
+			originalNameIdx = int32(len(g.addedSymbolNames))
+			g.addedSymbolNames = append(g.addedSymbolNames, name)
+			g.lastAddedSymbolName = name
+			g.lastAddedSymbolNameIdx = originalNameIdx
+			g.hasLastAddedSymbolName = true
+		}
+	}
+
 	// Create the new mapping.
 	mapping := g.allocMapping()
 	mapping.sourceFileIdx = sourceFileIdx
 	mapping.originalLine = int32(sourceStartPosition.GetLine())
 	mapping.originalCol = int32(sourceStartPosition.GetColumn())
-	mapping.originalName = symbolName
+	mapping.originalNameIdx = originalNameIdx
 	mapping.startLine = int32(adjustedStart.GetLine())
 	mapping.startCol = int32(adjustedStart.GetColumn())
 	mapping.endLine = int32(adjustedEnd.GetLine())
@@ -654,9 +702,8 @@ func (g *SourceMapGeneratorV3) PrepMappings() int {
 // SourceMapGeneratorV3_Mapping is a mapping from a given position in an
 // input source file to a given position in the generated code.
 type SourceMapGeneratorV3_Mapping struct {
-	// The original name of the token found at the position represented by
-	// this mapping (if any).
-	originalName *string
+	// Index into SourceMapGeneratorV3.addedSymbolNames, or -1 if none.
+	originalNameIdx int32
 
 	// Index into SourceMapGeneratorV3.addedSourceFiles.
 	sourceFileIdx int32
@@ -680,7 +727,7 @@ type SourceMapGeneratorV3_Mapping struct {
 //
 // Java: SourceMapGeneratorV3.Mapping()
 func NewSourceMapGeneratorV3_Mapping() *SourceMapGeneratorV3_Mapping {
-	return &SourceMapGeneratorV3_Mapping{}
+	return &SourceMapGeneratorV3_Mapping{originalNameIdx: -1}
 }
 
 // SourceMapGeneratorV3_UsedMappingCheck marks any visited mapping as
@@ -1090,9 +1137,9 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 		l.writeVLQ(int32(srcColumn - l.previousSourceColumn))
 		l.previousSourceColumn = srcColumn
 
-		if m.originalName != nil {
+		if m.originalNameIdx >= 0 {
 			// The relative id for the associated symbol name
-			nameId := l.outer.GetNameId(*m.originalName)
+			nameId := l.outer.GetNameId(l.outer.addedSymbolNames[m.originalNameIdx])
 			l.writeVLQ(int32(nameId - l.previousNameId))
 			l.previousNameId = nameId
 		}

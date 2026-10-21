@@ -38,17 +38,22 @@ import (
 // is likely a design error.
 type ColorPool struct {
 	// This could be an ImmutableMap, but because it's very large, creating an ImmutableMap copy has
-	// caused OOMs in large projects. So we just use a LinkedHashMap and hide the mutability behind
+	// caused OOMs in large projects. So we just use a map and hide the mutability behind
 	// accessor methods.
-	idToColor     *jutil.LinkedHashMap[colors.ColorId, *colors.Color]
+	idToColor     map[colors.ColorId]*colors.Color
 	colorRegistry *colors.ColorRegistry
 	// Non-empty for testing only. Normally empty to save on memory.
 	shardViews []*ColorPool_ShardView
 }
 
+var (
+	colorPool_emptyColorSet  = jutil.NewObjectLinkedHashSet[*colors.Color]()
+	colorPool_emptyStringSet = jutil.NewLinkedHashSet[string]()
+)
+
 // Java: ColorPool(LinkedHashMap<ColorId, Color>, ColorRegistry, ImmutableList<ShardView>)
 func newColorPool(
-	idToColor *jutil.LinkedHashMap[colors.ColorId, *colors.Color],
+	idToColor map[colors.ColorId]*colors.Color,
 	colorRegistry *colors.ColorRegistry,
 	shardViews []*ColorPool_ShardView) *ColorPool {
 	return &ColorPool{idToColor: idToColor, colorRegistry: colorRegistry, shardViews: shardViews}
@@ -56,7 +61,7 @@ func newColorPool(
 
 // Java: ColorPool.getColor(ColorId)
 func (p *ColorPool) GetColor(id colors.ColorId) *colors.Color {
-	return p.idToColor.Get(id)
+	return p.idToColor[id]
 }
 
 // Java: ColorPool.getRegistry()
@@ -154,30 +159,45 @@ func ColorPool_FromOnlyShardForTesting(typePool *TypePool, stringPool *StringPoo
 	return ColorPool_Builder_().AddShardAnd(typePool, stringPool).ForTesting().Build()
 }
 
+type colorPoolShardProto struct {
+	shard *ColorPool_ShardView
+	proto *TypeProto
+}
+
+type colorPoolIdEntry struct {
+	firstShard *ColorPool_ShardView
+	firstProto *TypeProto
+	extra      []colorPoolShardProto
+}
+
+func (e colorPoolIdEntry) rowString() string {
+	m := jutil.NewLinkedHashMap[*ColorPool_ShardView, *TypeProto]()
+	m.Put(e.firstShard, e.firstProto)
+	for _, sp := range e.extra {
+		m.Put(sp.shard, sp.proto)
+	}
+	return m.String()
+}
+
 // ColorPool_Builder collects TypePools and other data into ShardViews and
 // then reconciles them into a single ColorPool.
 type ColorPool_Builder struct {
 	protoToShard *base.LinkedIdentityHashMap[*TypePool, *ColorPool_ShardView]
-	idToColor    *jutil.LinkedHashMap[colors.ColorId, *colors.Color]
+	idToColor    map[colors.ColorId]*colors.Color
 	registry     *colors.ColorRegistry_Builder
-	idToProto    *jutil.HashBasedTable[colors.ColorId, *ColorPool_ShardView, *TypeProto]
+	idToProto    *jutil.LinkedHashMap[colors.ColorId, colorPoolIdEntry]
 	forTesting_  bool
+	built        bool
 
 	reconcilationDebugStack []colors.ColorId
 }
 
 // Java: ColorPool.Builder()
 func newColorPool_Builder() *ColorPool_Builder {
-	b := &ColorPool_Builder{
+	return &ColorPool_Builder{
 		protoToShard: base.NewLinkedIdentityHashMap[*TypePool, *ColorPool_ShardView](),
-		idToColor:    jutil.NewLinkedHashMap[colors.ColorId, *colors.Color](),
 		registry:     colors.ColorRegistry_Builder_(),
-		idToProto:    jutil.HashBasedTable_Create[colors.ColorId, *ColorPool_ShardView, *TypeProto](),
 	}
-	for k, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
-		b.idToColor.Put(k, v)
-	}
-	return b
 }
 
 // Java: ColorPool.Builder.addShardAnd(TypePool, StringPool)
@@ -194,7 +214,7 @@ func (b *ColorPool_Builder) ForTesting() *ColorPool_Builder {
 
 // Java: ColorPool.Builder.addShard(TypePool, StringPool)
 func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool) *ColorPool_ShardView {
-	jutil.CheckStateMsg(b.idToProto.IsEmpty(), "build has already been called")
+	jutil.CheckStateMsg(!b.built, "build has already been called")
 
 	existing := b.protoToShard.Get(typePool)
 	if existing != nil {
@@ -219,37 +239,101 @@ func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool)
 
 // Java: ColorPool.Builder.build()
 func (b *ColorPool_Builder) Build() *ColorPool {
-	jutil.CheckStateMsg(b.idToProto.IsEmpty(), "build has already been called")
+	jutil.CheckStateMsg(!b.built, "build has already been called")
+	b.built = true
 
-	b.ForEachShard(
-		func(shard *ColorPool_ShardView) {
-			for i := 0; i < shard.typePool.GetTypeCount(); i++ {
-				id := shard.trimmedOffsetToId[i]
-				b.idToProto.Put(id, shard, shard.typePool.GetType(i))
-			}
-		})
+	totalTypes := 0
+	shardCount := 0
+	b.ForEachShard(func(shard *ColorPool_ShardView) {
+		totalTypes += shard.typePool.GetTypeCount()
+		shardCount++
+	})
+
+	b.idToColor = make(map[colors.ColorId]*colors.Color, totalTypes+16)
+	for k, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
+		b.idToColor[k] = v
+	}
+
+	b.idToProto = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, colorPoolIdEntry](totalTypes)
+	if shardCount <= 1 {
+		b.ForEachShard(
+			func(shard *ColorPool_ShardView) {
+				typeList := shard.typePool.GetTypeList()
+				for i, proto := range typeList {
+					b.idToProto.PutNew(shard.trimmedOffsetToId[i], colorPoolIdEntry{
+						firstShard: shard,
+						firstProto: proto,
+					})
+				}
+			})
+	} else {
+		b.ForEachShard(
+			func(shard *ColorPool_ShardView) {
+				typeList := shard.typePool.GetTypeList()
+				for i, proto := range typeList {
+					id := shard.trimmedOffsetToId[i]
+					if entry, ok := b.idToProto.Lookup(id); !ok {
+						b.idToProto.PutNew(id, colorPoolIdEntry{
+							firstShard: shard,
+							firstProto: proto,
+						})
+					} else {
+						if entry.firstShard == shard {
+							entry.firstProto = proto
+						} else {
+							replaced := false
+							for j := range entry.extra {
+								if entry.extra[j].shard == shard {
+									entry.extra[j].proto = proto
+									replaced = true
+									break
+								}
+							}
+							if !replaced {
+								entry.extra = append(entry.extra, colorPoolShardProto{shard: shard, proto: proto})
+							}
+						}
+						b.idToProto.Put(id, entry)
+					}
+				}
+			})
+	}
 
 	for id := range colors.StandardColors_AXIOMATIC_COLORS.Keys() {
 		MalformedTypedAstException_CheckWellFormedWithParam(
-			!b.idToProto.ContainsRow(id), "Found serialized definiton for axiomatic color", id)
+			!b.idToProto.ContainsKey(id), "Found serialized definiton for axiomatic color", id)
 	}
 
-	for id := range b.idToProto.RowKeySet() {
+	for id := range b.idToProto.Keys() {
 		b.LookupOrReconcileColor(id)
 	}
 
 	for colorId := range colors.ColorRegistry_REQUIRED_IDS.All() {
-		b.registry.SetNativeColor(
-			b.idToColor.ComputeIfAbsent(
-				colorId, func(unused colors.ColorId) *colors.Color { return colors.Color_SingleBuilder().SetId(colorId).Build() }))
+		c := b.idToColor[colorId]
+		if c == nil {
+			var cb colors.Color_Builder
+			c = cb.
+				SetId(colorId).
+				SetInstanceColors(colorPool_emptyColorSet).
+				SetPrototypes(colorPool_emptyColorSet).
+				SetOwnProperties(colorPool_emptyStringSet).
+				SetUnionElements(colorPool_emptyColorSet).
+				SetClosureAssert(false).
+				SetConstructor(false).
+				SetInvalidating(false).
+				SetPropertiesKeepOriginalName(false).
+				Build()
+			b.idToColor[colorId] = c
+		}
+		b.registry.SetNativeColor(c)
 	}
 
 	b.ForEachShard(
 		func(shard *ColorPool_ShardView) {
 			for _, edge := range shard.typePool.GetDisambiguationEdgesList() {
 				b.registry.AddDisambiguationEdge(
-					b.idToColor.Get(shard.GetId(colorPool_validatePointer(int(edge.GetSubtype()), shard))), //
-					b.idToColor.Get(shard.GetId(colorPool_validatePointer(int(edge.GetSupertype()), shard))))
+					b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSubtype()), shard))], //
+					b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSupertype()), shard))])
 			}
 		})
 
@@ -275,60 +359,70 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	defer func() {
 		b.reconcilationDebugStack = b.reconcilationDebugStack[:len(b.reconcilationDebugStack)-1]
 	}()
-	existing := b.idToColor.PutIfAbsent(id, colorPool_PENDING_COLOR)
+	existing := b.idToColor[id]
 	if existing != nil {
 		if base.JSCompObjects_Identical(existing, colorPool_PENDING_COLOR) {
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
-				rows = append(rows, b.idToProto.Row(stackId).String())
+				rows = append(rows, b.idToProto.Get(stackId).rowString())
 			}
 			panic(NewMalformedTypedAstException(
 				"Cyclic Color structure detected: [" + strings.Join(rows, ", ") + "]"))
 		}
 		return existing
 	}
+	b.idToColor[id] = colorPool_PENDING_COLOR
 
-	viewToProto := b.idToProto.Row(id)
-	var sample *TypeProto
-	for v := range viewToProto.Values() {
-		sample = v
-		break
-	}
+	entry := b.idToProto.Get(id)
+	sample := entry.firstProto
 	jutil.CheckNotNullMsg1(sample, "%s", id)
 
 	var result *colors.Color
 	switch sample.GetKindCase() {
 	case TypeProto_KindCase_OBJECT:
-		result = b.ReconcileObjectProtos(id, viewToProto)
+		result = b.reconcileObjectProtos(id, entry)
 	case TypeProto_KindCase_UNION:
-		result = b.ReconcileUnionProtos(id, viewToProto)
+		result = b.reconcileUnionProtos(id, entry)
 	default:
 		panic(jutil.NewAssertionError(sample.String()))
 	}
 
 	jutil.CheckStateMsg1(result != nil, "%s", id)
-	b.idToColor.Put(id, result)
+	b.idToColor[id] = result
 	return result
 }
 
-// Java: ColorPool.Builder.reconcileObjectProtos(ColorId, Map<ShardView, TypeProto>)
-func (b *ColorPool_Builder) ReconcileObjectProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
-	instanceColors := jutil.NewObjectLinkedHashSet[*colors.Color]()
-	prototypes := jutil.NewObjectLinkedHashSet[*colors.Color]()
-	ownProperties := jutil.NewLinkedHashSet[string]()
+func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry colorPoolIdEntry) *colors.Color {
+	var instanceColors *jutil.ObjectLinkedHashSet[*colors.Color]
+	var prototypes *jutil.ObjectLinkedHashSet[*colors.Color]
+	var ownProperties *jutil.LinkedHashSet[string]
 	isClosureAssert := base.Tri_UNKNOWN
 	isConstructor := false
 	isInvalidating := false
 	propertiesKeepOriginalName := false
 
-	for shard, proto := range viewToProto.All() {
+	for idx := -1; idx < len(entry.extra); idx++ {
+		var shard *ColorPool_ShardView
+		var proto *TypeProto
+		if idx < 0 {
+			shard = entry.firstShard
+			proto = entry.firstProto
+		} else {
+			shard = entry.extra[idx].shard
+			proto = entry.extra[idx].proto
+		}
 		jutil.CheckState(proto.HasObject())
 		objProto := proto.GetObject()
 
 		instanceTypeIds := objProto.GetInstanceTypeList()
-		for i := 0; i < len(instanceTypeIds); i++ {
-			instanceTypePointer := instanceTypeIds[i]
-			instanceColors.Add(b.LookupOrReconcileColor(shard.GetId(int(instanceTypePointer))))
+		if len(instanceTypeIds) > 0 {
+			if instanceColors == nil {
+				instanceColors = jutil.NewObjectLinkedHashSet[*colors.Color]()
+			}
+			for i := 0; i < len(instanceTypeIds); i++ {
+				instanceTypePointer := instanceTypeIds[i]
+				instanceColors.Add(b.LookupOrReconcileColor(shard.GetId(int(instanceTypePointer))))
+			}
 		}
 
 		isClosureAssertBool := objProto.GetClosureAssert()
@@ -343,20 +437,43 @@ func (b *ColorPool_Builder) ReconcileObjectProtos(id colors.ColorId, viewToProto
 		propertiesKeepOriginalName = propertiesKeepOriginalName || objProto.GetPropertiesKeepOriginalName()
 
 		prototypeIds := objProto.GetPrototypeList()
-		for i := 0; i < len(prototypeIds); i++ {
-			prototypePointer := prototypeIds[i]
-			prototypes.Add(b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))))
+		if len(prototypeIds) > 0 {
+			if prototypes == nil {
+				prototypes = jutil.NewObjectLinkedHashSet[*colors.Color]()
+			}
+			for i := 0; i < len(prototypeIds); i++ {
+				prototypePointer := prototypeIds[i]
+				prototypes.Add(b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))))
+			}
 		}
-		for i := 0; i < objProto.GetOwnPropertyCount(); i++ {
-			ownProperties.Add(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
+		ownPropCount := objProto.GetOwnPropertyCount()
+		if ownPropCount > 0 {
+			if ownProperties == nil {
+				ownProperties = jutil.NewLinkedHashSet[string]()
+			}
+			for i := 0; i < ownPropCount; i++ {
+				ownProperties.Add(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
+			}
 		}
 	}
 
-	return colors.Color_SingleBuilder().
+	if instanceColors == nil {
+		instanceColors = colorPool_emptyColorSet
+	}
+	if prototypes == nil {
+		prototypes = colorPool_emptyColorSet
+	}
+	if ownProperties == nil {
+		ownProperties = colorPool_emptyStringSet
+	}
+
+	var cb colors.Color_Builder
+	return cb.
 		SetId(id).
 		SetInstanceColors(instanceColors).
 		SetPrototypes(prototypes).
 		SetOwnProperties(ownProperties).
+		SetUnionElements(colorPool_emptyColorSet).
 		SetClosureAssert(isClosureAssert.ToBoolean(false)).
 		SetConstructor(isConstructor).
 		SetInvalidating(isInvalidating).
@@ -364,10 +481,18 @@ func (b *ColorPool_Builder) ReconcileObjectProtos(id colors.ColorId, viewToProto
 		Build()
 }
 
-// Java: ColorPool.Builder.reconcileUnionProtos(ColorId, Map<ShardView, TypeProto>)
-func (b *ColorPool_Builder) ReconcileUnionProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
+func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, entry colorPoolIdEntry) *colors.Color {
 	union := jutil.NewObjectLinkedHashSet[*colors.Color]()
-	for shard, proto := range viewToProto.All() {
+	for idx := -1; idx < len(entry.extra); idx++ {
+		var shard *ColorPool_ShardView
+		var proto *TypeProto
+		if idx < 0 {
+			shard = entry.firstShard
+			proto = entry.firstProto
+		} else {
+			shard = entry.extra[idx].shard
+			proto = entry.extra[idx].proto
+		}
 		jutil.CheckStateMsg1(proto.HasUnion(), "%s", proto)
 		unionMemberList := proto.GetUnion().GetUnionMemberList()
 		for i := 0; i < len(unionMemberList); i++ {
@@ -386,64 +511,70 @@ func (b *ColorPool_Builder) ReconcileUnionProtos(id colors.ColorId, viewToProto 
 
 // Java: ColorPool.createTrimmedOffsetToId(TypePool)
 func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
-	ids := make([]*colors.ColorId, typePool.GetTypeCount())
+	typeList := typePool.GetTypeList()
+	n := len(typeList)
+	if n == 0 {
+		return nil
+	}
+	out := make([]colors.ColorId, n)
+	hasUnion := false
 
-	for i := 0; i < len(ids); i++ {
-		proto := typePool.GetType(i)
+	for i, proto := range typeList {
 		switch proto.GetKindCase() {
 		case TypeProto_KindCase_OBJECT:
-			id := colors.ColorId_FromBytes(proto.GetObject().GetUuid())
-			ids[i] = &id
+			out[i] = colors.ColorId_FromBytes(proto.GetObject().GetUuid())
 		case TypeProto_KindCase_UNION:
-			// Defer generating union IDs until we have the IDs of all the element types.
+			hasUnion = true
 		default:
 			panic(NewMalformedTypedAstException(proto))
 		}
 	}
 
-	for i := 0; i < len(ids); i++ {
-		proto := typePool.GetType(i)
-		switch proto.GetKindCase() {
-		case TypeProto_KindCase_OBJECT:
-		case TypeProto_KindCase_UNION:
-			id := colorPool_createUnionColorId(proto, ids)
-			ids[i] = &id
-		default:
-			panic(jutil.NewAssertionError(proto.String()))
+	if hasUnion {
+		scratchMembers := jutil.NewLinkedHashSet[colors.ColorId]()
+		for i, proto := range typeList {
+			if proto.GetKindCase() == TypeProto_KindCase_UNION {
+				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, scratchMembers)
+			}
 		}
 	}
 
-	seenIds := jutil.NewLinkedHashSet[colors.ColorId]()
-	for i := 0; i < len(ids); i++ {
-		proto := typePool.GetType(i)
-		MalformedTypedAstException_CheckWellFormedWithParam(seenIds.Add(*ids[i]), "Duplicate ID in single shard", proto)
+	seenIds := make(map[colors.ColorId]struct{}, n)
+	for i, proto := range typeList {
+		id := out[i]
+		if _, dup := seenIds[id]; dup {
+			MalformedTypedAstException_CheckWellFormedWithParam(false, "Duplicate ID in single shard", proto)
+		}
+		seenIds[id] = struct{}{}
 	}
 
-	out := make([]colors.ColorId, len(ids))
-	for i, id := range ids {
-		out[i] = *id
-	}
 	return out
 }
 
-// Java: ColorPool.createUnionColorId(TypeProto, ColorId[])
-func colorPool_createUnionColorId(proto *TypeProto, allObjectIds []*colors.ColorId) colors.ColorId {
+func colorPool_createUnionColorId(
+	proto *TypeProto,
+	unionIndex int,
+	typeList []*TypeProto,
+	allIds []colors.ColorId,
+	scratchMembers *jutil.LinkedHashSet[colors.ColorId],
+) colors.ColorId {
 	MalformedTypedAstException_CheckWellFormedWithParam(proto.GetUnion().GetUnionMemberCount() > 1, "Union has too few members", proto)
-	members := jutil.NewLinkedHashSet[colors.ColorId]()
+	scratchMembers.Clear()
 	unionMemberList := proto.GetUnion().GetUnionMemberList()
 	for i := 0; i < len(unionMemberList); i++ {
 		memberPointer := int(unionMemberList[i])
-		var memberId *colors.ColorId
 		if TypePointers_IsAxiomatic(memberPointer) {
-			id := TypePointers_OFFSET_TO_AXIOMATIC_COLOR[memberPointer].GetId()
-			memberId = &id
+			scratchMembers.Add(TypePointers_OFFSET_TO_AXIOMATIC_COLOR[memberPointer].GetId())
 		} else {
-			memberId = allObjectIds[TypePointers_TrimOffset(memberPointer)]
+			trimmed := TypePointers_TrimOffset(memberPointer)
+			MalformedTypedAstException_CheckWellFormedWithParam(
+				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].GetKindCase() == TypeProto_KindCase_OBJECT),
+				"Union member not found",
+				proto)
+			scratchMembers.Add(allIds[trimmed])
 		}
-		MalformedTypedAstException_CheckWellFormedWithParam(memberId != nil, "Union member not found", proto)
-		members.Add(*memberId)
 	}
-	return colors.ColorId_Union(members)
+	return colors.ColorId_Union(scratchMembers)
 }
 
 // Java: ColorPool.validatePointer(int, ShardView)

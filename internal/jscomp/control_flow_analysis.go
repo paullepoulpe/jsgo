@@ -124,7 +124,19 @@ var cfaEmptyFinallyMap = jutil.NewSetMultimap[*rhino.Node, *rhino.Node]()
 
 var cfaAstPositionPool = sync.Pool{
 	New: func() any {
-		return make(map[*rhino.Node]int32, 64)
+		return make(map[*rhino.Node]int32, 256)
+	},
+}
+
+var cfaLargeAstPositionPool = sync.Pool{
+	New: func() any {
+		return make(map[*rhino.Node]int32, 8192)
+	},
+}
+
+var cfaRootNodesPool = sync.Pool{
+	New: func() any {
+		return *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]](4096)
 	},
 }
 
@@ -239,11 +251,7 @@ func (c *ControlFlowAnalysis) ComputeReusableCfg(
 	c.shouldTraverseFunctions = shouldTraverseFunctions
 	c.edgeAnnotations = edgeAnnotations
 	c.cfgStorage = cfgStorage
-	if c.finallyMap != nil && c.finallyMap != cfaEmptyFinallyMap {
-		c.finallyMap.Clear()
-	} else {
-		c.finallyMap = cfaEmptyFinallyMap
-	}
+	c.finallyMap = cfaEmptyFinallyMap
 	if cap(c.exceptionHandler) == 0 {
 		c.exceptionHandler = c.exceptionHandlerBuf[:0]
 	} else {
@@ -264,12 +272,16 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
+	isRoot := root.IsRoot()
 	var astPos map[*rhino.Node]int32
-	if c.cfgStorage != nil {
+	if isRoot {
+		astPos = cfaLargeAstPositionPool.Get().(map[*rhino.Node]int32)
+		if len(astPos) > 0 {
+			clear(astPos)
+		}
+	} else if c.astPosition != nil {
 		astPos = c.astPosition
-		if astPos == nil {
-			astPos = make(map[*rhino.Node]int32, 64)
-		} else if len(astPos) > 0 {
+		if len(astPos) > 0 {
 			clear(astPos)
 		}
 	} else {
@@ -314,18 +326,41 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	}
 
 	// Free our large table now that it is no longer needed
-	if c.cfgStorage != nil {
-		if len(astPos) <= 4096 {
+	c.astPositionCounter = 0
+	if isRoot {
+		if len(astPos) <= 65536 {
+			clear(astPos)
+			cfaLargeAstPositionPool.Put(astPos)
+		}
+		c.astPosition = nil
+	} else if c.cfgStorage != nil {
+		if len(astPos) <= 1024 {
 			clear(astPos)
 		} else {
+			if len(astPos) <= 65536 {
+				clear(astPos)
+				cfaLargeAstPositionPool.Put(astPos)
+			}
 			c.astPosition = nil
 		}
 	} else {
-		if len(astPos) <= 4096 {
+		if len(astPos) <= 1024 {
 			clear(astPos)
 			cfaAstPositionPool.Put(astPos)
+		} else if len(astPos) <= 65536 {
+			clear(astPos)
+			cfaLargeAstPositionPool.Put(astPos)
 		}
 		c.astPosition = nil
+	}
+
+	if c.cfgStorage != nil {
+		if isRoot {
+			c.cfgStorage.wasRootCfg = true
+			c.cfgStorage.pendingRootNodes = *cfgNodes
+		} else if cfgNodes.Size() <= 256 {
+			c.cfgStorage.savedNodes = *cfgNodes
+		}
 	}
 
 	// At this point, all reachable nodes have been given a priority, but
@@ -1462,6 +1497,8 @@ func ControlFlowAnalysis_GetCatchHandlerForBlock(block *rhino.Node) *rhino.Node 
 // provides a node comparator based on the pre-order traversal of the AST.
 type ControlFlowAnalysis_AstControlFlowGraph struct {
 	ControlFlowGraphBase[*rhino.Node]
+	pendingRootNodes jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]
+	wasRootCfg       bool
 }
 
 // newControlFlowAnalysis_AstControlFlowGraph constructs this graph.
@@ -1478,7 +1515,22 @@ func newControlFlowAnalysis_AstControlFlowGraph(entry *rhino.Node, edgeAnnotatio
 // Reset resets g for reuse on a new CFG root while retaining node/edge slabs.
 func (g *ControlFlowAnalysis_AstControlFlowGraph) Reset(entry *rhino.Node, edgeAnnotations bool) {
 	g.self = g
+	if g.wasRootCfg {
+		g.wasRootCfg = false
+		g.nodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
+		if g.pendingRootNodes.HasBacking() {
+			g.pendingRootNodes.Clear()
+			cfaRootNodesPool.Put(g.pendingRootNodes)
+			g.pendingRootNodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
+		}
+	}
 	g.ResetLinkedDirectedGraph(g /* useNodeAnnotations= */, true, edgeAnnotations)
+	if entry != nil && entry.IsRoot() {
+		if pooled, ok := cfaRootNodesPool.Get().(jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]); ok && pooled.HasBacking() {
+			pooled.Clear()
+			g.nodes = pooled
+		}
+	}
 	g.implicitReturn = g.CreateDiGraphNode(nil)
 	g.entry = g.CreateDiGraphNode(entry)
 }

@@ -40,6 +40,7 @@ type FunctionInjector struct {
 	functionArgumentInjector *FunctionArgumentInjector
 	mutator                  FunctionToBlockMutator
 	paramReplacementsScratch *jutil.LinkedHashMap[string, *rhino.Node]
+	decomposer               *ExpressionDecomposer
 
 	// Cache of function node to whether it deeply contains an `eval` call.
 	referencesEvalCache *jutil.LinkedHashMap[*rhino.Node, bool]
@@ -627,7 +628,13 @@ func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allo
 
 // Java: FunctionInjector.getDecomposer(Scope)
 func (f *FunctionInjector) GetDecomposer(scope *Scope) *ExpressionDecomposer {
-	return f.compiler.CreateExpressionDecomposer(f.safeNameIdSupplier, f.knownConstantFunctions, scope)
+	if f.decomposer == nil {
+		f.decomposer = f.compiler.CreateExpressionDecomposer(f.safeNameIdSupplier, f.knownConstantFunctions, scope)
+	} else {
+		f.decomposer.scope = scope
+		f.decomposer.knownConstantFunctions = f.knownConstantFunctions
+	}
+	return f.decomposer
 }
 
 // MaybePrepareCall rewrites, if required, the statement containing the call
@@ -992,13 +999,12 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 			return false
 		}
 
-		args := f.functionArgumentInjector.GetFunctionCallParameterMap(
+		args := f.functionArgumentInjector.GetFunctionCallParameterMapScratch(
 			calleeFn, callRef.GetFunctionInjector_ReferenceBase().callNode, f.safeNameIdSupplier)
 		hasArgs := !args.IsEmpty()
 		if hasArgs {
-			allTemps := f.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
-				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention())
-			if !allTemps.IsEmpty() {
+			if f.functionArgumentInjector.HasCallArgumentsNeedingTemps(
+				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention()) {
 				return false
 			}
 		}
@@ -1050,13 +1056,12 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	args := f.functionArgumentInjector.GetFunctionCallParameterMap(
+	args := f.functionArgumentInjector.GetFunctionCallParameterMapScratch(
 		fnNode, callNode, f.throwawayNameSupplier)
 	hasArgs := !args.IsEmpty()
 	if hasArgs {
-		allTemps := f.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
-			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention())
-		if !allTemps.IsEmpty() {
+		if f.functionArgumentInjector.HasCallArgumentsNeedingTemps(
+			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention()) {
 			return FunctionInjector_CanInlineResult_NO
 		}
 	}

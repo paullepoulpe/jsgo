@@ -838,6 +838,47 @@ Total `alloc_space` dropped another **−430 MB (−9.3%)** on `typed-mega` (`4.
 | **`downlevel-simple`** (2.1 MB) | 1.18 s / 1.09 s | **1.17 s** / **1.09 s** | **−0.84%** / **−0.79%** | 210 / 205 MiB | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.57 s / 0.48 s | **0.57 s** / **0.47 s** | **−0.95%** / **−0.80%** | 170 / 169 MiB | `MATCH` |
 
+## Round 14: `GlobalNamespace` Chunked Arena Pooling & 4096-Entry QName Cache (`−312 MB`), Batched Parallel `ToSource` & Pointer-Free `SourceMapGeneratorV3_Mapping` (`−135 MB`), `JSDocSerializer` / `JSTypeReconserializer` / `ColorPool_Builder` Direct Construction (`−160 MB`), `LinkedDirectedGraph` / `FunctionTypeBuilder` Pooling (`−105 MB`), `LinkedFlowScope` Arena & Scratch `FunctionArgumentInjector` (`−140 MB`), and Pass Arena Eviction (2026-10-21)
+
+Profiling Round 13 (`fc40a451`) on `typed-mega` (`4.17 GB` `alloc_space`) and `bundle-mega` (`4.95 GB` `alloc_space`) identified five disjoint optimization targets:
+
+1. **`GlobalNamespace` Chunked Arena Pooling, 4096-Entry Qualified-Name Cache, and `SetShouldTraverseScriptPredicate` Private Arena (`Subagent 14A`, `global_namespace.go`, `process_defines.go`, `inline_and_collapse_properties.go`):**
+   - Extracted `GlobalNamespace` allocation state into a pooled `globalNamespaceArena` using chunked fixed-size array pointers (`nameChunks []*[256]GlobalNamespace_Name`, `refChunks []*[256]GlobalNamespace_Ref`, `propsChunks []*[256]globalNamespace_propsSlot`, `refSliceChunks []*[1024]*GlobalNamespace_Ref`) plus reusable `nameMap`, `globalNames`, and `spreadSiblingCache`.
+   - Added a 4096-entry direct-mapped `concatCache` (`concatDotCached`, `concatDot3Cached`, `concatDot4Cached`, `qnameStringCached`) and `globalNamespace_hasPrototype` early bailout across `GlobalNamespace` and `InlineAndCollapseProperties`.
+   - Prevented `Compiler.GetTranspilationNamespace()` (`SetShouldTraverseScriptPredicate`) from taking the full-AST `globalNamespaceArena` from `ProcessDefines`, allowing `ProcessDefines` (`CHECK` and `OPTIMIZE`), `Es6RewriteClass`, and `InlineAndCollapseProperties` to share a single `globalNamespaceArena` (`−312 MB` on `typed-mega`) and evicting it to `sync.Pool` immediately after `InlineAndCollapseProperties` completes.
+2. **`CodePrinter` Pool Reuse With `gatherSourceMap == true`, 64-Script Batched Parallel `ToSource`, and 32-Byte Pointer-Free `SourceMapGeneratorV3_Mapping` (`Subagent 14B`, `code_printer.go`, `compiler.go`, `internal/sourcemap/source_map_generator_v3.go`):**
+   - Detached source mappings into `CodePrinter_SourceAndMappings` (`takeMappingsFrom`, `iterMappings`, `Release`) and retained `m.codeASCII` scratch buffers across pool reuses so `pooledCompact` and `pooledPretty` are unconditionally recycled even when `gatherSourceMap == true`.
+   - Changed `Compiler.ToSource` to print scripts in parallel batches of 64 scripts and immediately release each batch's `*[512]SourceMap_Mapping` slabs (`−113.8 MB` of `codePrinter_mappingSlabPool` allocations on `typed-mega`), and evicted cached pass arenas (`evictPassArenaCaches`) before `ToSource`.
+   - Replaced `originalName *string` on `SourceMapGeneratorV3_Mapping` with `originalNameIdx int32` into `g.addedSymbolNames`, shrinking `SourceMapGeneratorV3_Mapping` from 40 B to 32 B with zero pointers (`noscan`, `−22.1 MB` on `typed-mega`) and pooling `*[16384]SourceMapGeneratorV3_Mapping` slabs.
+3. **Direct `JSDocSerializer_ConvertJSDocInfoForOptimizations`, Single-Map `JSTypeReconserializer` Slabs, and Inline `ColorPool_Builder` Entries (`Subagent 14C`, `serialization_js_doc_serializer.go`, `serialization_serialize_types_to_pointers.go`, `serialization_js_type_reconserializer.go`, `serialization_color_pool.go`, `serialization_convert_types_to_colors.go`):**
+   - Rewrote `JSDocSerializer_ConvertJSDocInfoForOptimizations` to construct the optimization `*rhino.JSDocInfo` directly via a stack-allocated `rhino.JSDocInfo_Builder` (returning `nil` with 0 allocations when no optimization properties exist) and replaced `TreeSet` allocations for `modifies` and `suppressions` with alphabetical boolean flags (`−41.0 MB` on `typed-mega`).
+   - Replaced `JSTypeReconserializer.typeToRecordCache` with `map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord`, cached forwarded/axiomatic types directly so `SerializeTypesToPointers` does not populate a duplicate `typePointersByJstype` map during `GatherTypesOnAst`, and added contiguous slab allocations for `TypeProto`, `ObjectTypeProto`, `UnionTypeProto`, `SubtypingEdge`, and `SeenTypeRecord`.
+   - Replaced `ColorPool_Builder.idToProto` (`*jutil.HashBasedTable`, ~30K inner `LinkedHashMap`s) with a single `LinkedHashMap[colors.ColorId, colorPoolIdEntry]` storing the first `(shard, proto)` inline, shared empty sets in `reconcileObjectProtos`, and eliminated `[]*colors.ColorId` pointer slices in `colorPool_createTrimmedOffsetToId`.
+4. **`LinkedDirectedGraph` Multi-Chunk Slab Retention, Root CFG Map Pooling, and `FunctionTypeBuilder` Pooling (`Subagent 14D`, `graph_linked_directed_graph.go`, `control_flow_analysis.go`, `function_type_builder.go`, `typed_scope_creator.go`):**
+   - Retained allocated node and edge slab chunks (`nodeChunks`, `edgeChunks`) and `savedNodes` across `ResetLinkedDirectedGraph`, pooled root CFG `nodes` and `astPosition` maps in `ControlFlowAnalysis`, and replaced `c.finallyMap.Clear()` with `cfaEmptyFinallyMap`.
+   - Pooled `FunctionTypeBuilder` via `functionTypeBuilderPool` with embedded `defaultContents FunctionTypeBuilder_AstFunctionContents`, avoided duplicate `LinkedHashSet` / `ToSlice()` allocations in `InferParameterTypesWithParamsParent` and `MaybeUseNativeClassTemplateNames`, and added zero-allocation `StaticTypedScope_LookupQualifiedNameString` lookups in `TypedScopeCreator`.
+5. **Chunked `linkedFlowScopeArena`, Batched Unbound-Var Inference, `TypeInference` QName/Template Caches, and Scratch `FunctionArgumentInjector` (`Subagent 14E`, `linked_flow_scope.go`, `type_inference.go`, `function_injector.go`, `function_argument_injector.go`):**
+   - Added a reusable chunked `linkedFlowScopeArena` on `TypeInference` (`[256]LinkedFlowScope`, `[256]LinkedFlowScope_OverlayScope`, `[256]LinkedFlowScope_OverlaySlot` chunks), batched `InferDeclarativelyUnboundVarsWithoutTypes` onto a single `OverlayScope`, added a 512-entry `qnameCache`, and reused `matchInvocationTemplateTypes` across calls.
+   - Added `GetFunctionCallParameterMapScratch` (using preallocated sentinel `undefined`/`this` nodes and a scratch `LinkedHashMap` + pair slab), `HasCallArgumentsNeedingTemps`, and a reusable `ExpressionDecomposer` on `FunctionInjector` / `FunctionArgumentInjector` (`−68.6 MB` on `bundle-mega`).
+
+Total `alloc_space` dropped another **−669.5 MB (−15.7%)** on `typed-mega` (`4.17 GB → 3.51 GB`, **−69.7% vs Round 5's `11.61 GB`**) and **−179.4 MB (−3.5%)** on `bundle-mega` (`4.95 GB → 4.78 GB`, **−72.2% vs Round 5's `17.16 GB`**), while end-of-compilation `inuse_space` dropped by **−161.2 MB** on `typed-mega` (`1,161.8 MB → 1,000.6 MB`) and **−312.8 MB (−22.1%)** on `bundle-mega` (`1,413.9 MB → 1,101.2 MB`).
+
+### Final measured results — Round 14 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 13 (`fc40a451` `t=1` / `t=4`) | **Round 14 (`t=1` / `t=4`)** | Round 14 vs Round 13 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`typed-mega`** (44.6 MB, 4,385 files) | 19.84 s / 18.68 s | **19.77 s** / **18.59 s** | **−0.33%** / **−0.53%** | 1,862 / 1,838 MiB (**−0.17%** `t=4`, **−15.7% `alloc_space`**) | `MATCH` |
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 25.05 s / 24.24 s | **25.04 s** / **24.26 s** | **−0.05%** / **+0.08%** | 2,340 / 2,494 MiB (**−1.65%** `t=1`, **−22.1% `inuse_space`**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.43 s / 10.80 s | **11.36 s** / **10.74 s** | **−0.58%** / **−0.52%** | 1,089 / 1,115 MiB | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 7.08 s / 6.95 s | **7.06 s** / **6.94 s** | **−0.31%** / **−0.28%** | 635 / 631 MiB (**−0.88%** `t=1`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.64 s / 4.52 s | **4.59 s** / **4.48 s** | **−1.23%** / **−0.94%** | 534 / 552 MiB (**−2.60%** `t=1`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.75 s / 4.55 s | **4.72 s** / **4.49 s** | **−0.74%** / **−1.39%** | 511 / 506 MiB (**−1.07%** `t=4`) | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.62 s / 3.44 s | **3.60 s** / **3.43 s** | **−0.43%** / **−0.05%** | 375 / 384 MiB (**−2.55%** `t=4`) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.57 s / 2.20 s | **2.59 s** / **2.21 s** | +0.73% / +0.52% | 580 / 561 MiB (**−8.24%** `t=4`) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.49 s / 1.38 s | **1.48 s** / **1.37 s** | **−0.87%** / **−0.43%** | 277 / 262 MiB | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.17 s / 1.08 s | **1.16 s** / **1.08 s** | **−0.48%** / **−0.09%** | 214 / 216 MiB | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.56 s / 0.47 s | **0.56 s** / **0.47 s** | +0.05% / +0.29% | 169 / 169 MiB | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

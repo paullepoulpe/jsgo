@@ -41,13 +41,18 @@ import (
 type LinkedDirectedGraph[N comparable, E any] struct {
 	DiGraphBase[N, E]
 
-	nodes     jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
-	nodeSlots [8]jutil.LhmSlot[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	nodes      jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	savedNodes jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	nodeSlots  [8]jutil.LhmSlot[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
 
-	nodeSlab []LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeSlab []LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
-	nodeBuf  [4]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeBuf  [4]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
+	nodeSlab     []LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	edgeSlab     []LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
+	nodeChunks   [][]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	edgeChunks   [][]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
+	nodeChunkIdx int
+	edgeChunkIdx int
+	nodeBuf      [4]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	edgeBuf      [4]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
@@ -109,6 +114,8 @@ func NewLinkedDirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdg
 func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
 	g.InitDiGraphBase(self)
 	g.nodes.InitWithBuffer(g.nodeSlots[:])
+	g.nodeChunkIdx = -1
+	g.edgeChunkIdx = -1
 	g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
 	g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
 	g.useNodeAnnotations = useNodeAnnotations
@@ -119,22 +126,48 @@ func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], 
 // map capacities.
 func (g *LinkedDirectedGraph[N, E]) ResetLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
 	g.InitDiGraphBase(self)
-	g.nodeAnnotationStack = nil
-	g.edgeAnnotationStack = nil
+	if g.nodeAnnotationStack != nil {
+		clear(g.nodeAnnotationStack.states)
+		g.nodeAnnotationStack.states = g.nodeAnnotationStack.states[:0]
+	}
+	if g.edgeAnnotationStack != nil {
+		clear(g.edgeAnnotationStack.states)
+		g.edgeAnnotationStack.states = g.edgeAnnotationStack.states[:0]
+	}
 	if !g.nodes.HasBacking() {
-		g.nodes.InitWithBuffer(g.nodeSlots[:])
+		if g.savedNodes.HasBacking() {
+			g.nodes = g.savedNodes
+			g.nodes.Clear()
+			g.savedNodes = g.nodes
+		} else {
+			g.nodes.InitWithBuffer(g.nodeSlots[:])
+		}
+	} else if g.nodes.Size() > 256 {
+		if g.savedNodes.HasBacking() && g.savedNodes.Size() <= 256 {
+			g.nodes = g.savedNodes
+			g.nodes.Clear()
+			g.savedNodes = g.nodes
+		} else {
+			g.nodes = jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]{}
+			g.nodes.InitWithBuffer(g.nodeSlots[:])
+		}
 	} else {
 		g.nodes.Clear()
+		g.savedNodes = g.nodes
 	}
-	if cap(g.nodeSlab) == 0 {
+	if len(g.nodeChunks) > 0 {
+		g.nodeChunkIdx = 0
+		g.nodeSlab = g.nodeChunks[0][:0]
+	} else {
+		g.nodeChunkIdx = -1
 		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-	} else {
-		g.nodeSlab = g.nodeSlab[:0]
 	}
-	if cap(g.edgeSlab) == 0 {
-		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
+	if len(g.edgeChunks) > 0 {
+		g.edgeChunkIdx = 0
+		g.edgeSlab = g.edgeChunks[0][:0]
 	} else {
-		g.edgeSlab = g.edgeSlab[:0]
+		g.edgeChunkIdx = -1
+		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
 	}
 	g.useNodeAnnotations = useNodeAnnotations
 	g.useEdgeAnnotations = useEdgeAnnotations
@@ -150,8 +183,14 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 
 func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 8), 4096)
-		g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
+		g.nodeChunkIdx++
+		if g.nodeChunkIdx < len(g.nodeChunks) {
+			g.nodeSlab = g.nodeChunks[g.nodeChunkIdx][:0]
+		} else {
+			nextCap := min(max(cap(g.nodeSlab)*2, 16), 4096)
+			g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
+			g.nodeChunks = append(g.nodeChunks, g.nodeSlab)
+		}
 	}
 	idx := len(g.nodeSlab)
 	g.nodeSlab = g.nodeSlab[:idx+1]
@@ -177,8 +216,14 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 func (g *LinkedDirectedGraph[N, E]) newEdge(
 	src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 8), 4096)
-		g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
+		g.edgeChunkIdx++
+		if g.edgeChunkIdx < len(g.edgeChunks) {
+			g.edgeSlab = g.edgeChunks[g.edgeChunkIdx][:0]
+		} else {
+			nextCap := min(max(cap(g.edgeSlab)*2, 16), 4096)
+			g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
+			g.edgeChunks = append(g.edgeChunks, g.edgeSlab)
+		}
 	}
 	idx := len(g.edgeSlab)
 	g.edgeSlab = g.edgeSlab[:idx+1]

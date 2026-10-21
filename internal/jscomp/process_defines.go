@@ -258,8 +258,12 @@ func (b *ProcessDefines_Builder) Build() *ProcessDefines {
 
 // Java: ProcessDefines.process(Node, Node)
 func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
+	if p.namespaceSupplier != nil {
+		p.namespace = p.namespaceSupplier()
+	}
+	ownNamespace := p.namespace == nil
 	p.InitNamespace(externs, root)
-	if p.namespaceSupplier == nil && p.namespace != nil {
+	if ownNamespace && p.namespace != nil {
 		defer func() {
 			p.namespace.Release()
 			p.namespace = nil
@@ -275,7 +279,7 @@ func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
 
 // Java: ProcessDefines.initNamespace(Node, Node)
 func (p *ProcessDefines) InitNamespace(externs *rhino.Node, root *rhino.Node) {
-	if p.namespaceSupplier != nil {
+	if p.namespace == nil && p.namespaceSupplier != nil {
 		p.namespace = p.namespaceSupplier()
 	}
 	if p.namespace == nil {
