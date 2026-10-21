@@ -738,7 +738,7 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 		tscReservedNamesPool.Put(c.reservedNamesForScope)
 	}
 	c.reservedNamesForScope = nil
-	c.arena.names = nil
+	c.arena = typedScopeArena{}
 	c.scopeCount = 0
 	if c.functionsWithNonEmptyReturns != nil && len(c.functionsWithNonEmptyReturns) <= 65536 {
 		clear(c.functionsWithNonEmptyReturns)

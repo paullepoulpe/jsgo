@@ -519,10 +519,9 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 	if cookedOffsetOrNegativeOne == -1 {
 		// n.cooked = nil: it is.
 	} else {
-		c := stringPool.Get(cookedOffsetOrNegativeOne)
-		n.node_getExt().cooked = &c
+		n.node_getExt().cooked = stringPool.GetCell(cookedOffsetOrNegativeOne)
 	}
-	n.str = rhinoStringPoolCell(stringPool.Get(rawOffset)) // raw
+	n.str = stringPool.GetCell(rawOffset) // raw
 	return n
 }
 
@@ -761,6 +760,38 @@ func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *
 	n.propListHead = template.propListHead
 	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
 	n.SetString(str)
+	return n
+}
+
+// InitStringFromStringPool initializes a zero Node from a slab as a StringNode from a LazyInternedStringList.
+func (n *Node) InitStringFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int, template *Node) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	n.kind = node_kindString
+	template.propListHead.markShared()
+	n.propListHead = template.propListHead
+	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.str = stringPool.GetCell(offset)
+	return n
+}
+
+// InitTemplateLitStringFromStringPool initializes a zero Node from a slab as a TemplateLiteralSubstringNode from a LazyInternedStringList.
+func (n *Node) InitTemplateLitStringFromStringPool(
+	stringPool *RhinoStringPool_LazyInternedStringList,
+	cookedOffsetOrNegativeOne int,
+	rawOffset int,
+	template *Node,
+) *Node {
+	n.token = Token_TEMPLATELIT_STRING
+	n.linenoCharno = -1
+	n.kind = node_kindTemplateLiteralSubstring
+	template.propListHead.markShared()
+	n.propListHead = template.propListHead
+	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	if cookedOffsetOrNegativeOne != -1 {
+		n.node_getExt().cooked = stringPool.GetCell(cookedOffsetOrNegativeOne)
+	}
+	n.str = stringPool.GetCell(rawOffset)
 	return n
 }
 
@@ -1948,7 +1979,7 @@ func (n *Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedS
 	// than RhinoStringPool.addOrGet because the LazyInternedStringList caches
 	// interning results.
 	n.node_castKind(node_kindString)
-	n.str = rhinoStringPoolCell(stringPool.Get(offset))
+	n.str = stringPool.GetCell(offset)
 }
 
 // Java: Node.getRawString()
@@ -2499,7 +2530,7 @@ func (n *Node) SetOriginalName(s *string) {
 func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
 	// RhinoStringPool.LazyInternedStringList guarantees that the result of
 	// calling get(offset) is interned, and sometimes caches results.
-	n.node_setOriginalName(rhinoStringPoolCell(stringPool.Get(offset)))
+	n.node_setOriginalName(stringPool.GetCell(offset))
 }
 
 // SetOriginalNameFromName copies the original name.

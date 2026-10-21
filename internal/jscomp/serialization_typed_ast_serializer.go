@@ -38,21 +38,164 @@ type TypedAstSerializer struct {
 	// Go-only: language-adapter — the ArrayDeque<SourceFile> is used only as
 	// a stack (addLast, removeLast, peekLast, clear): a slice, top last.
 	subtreeSourceFiles []*SourceFile
-	sourceFilePointers *jutil.LinkedHashMap[*SourceFile, int]
+	sourceFilePointers map[*SourceFile]int
+	sourceFileList     []*SourceFile
 
-	typeSerializer TypedAstSerializer_TypeSerializer
+	typeSerializer      TypedAstSerializer_TypeSerializer
+	colorTypeSerializer *TypedAstSerializer_ColorTypeSerializer
+	jsTypeSerializer    *TypedAstSerializer_JSTypeSerializer
+
+	nodeSlabs        [][]AstNode
+	nodeSlabIdx      int
+	nodeSlabPos      int
+	childPtrSlabs    [][]*AstNode
+	childSlabIdx     int
+	childSlabPos     int
+	childStack       []*AstNode
+	jsdocSlabs       [][]OptimizationJsdoc
+	jsdocSlabIdx     int
+	jsdocSlabPos     int
+	jsdocKindSlabs   [][]int32
+	jsdocKindSlabIdx int
+	jsdocKindSlabPos int
+	templateSlabs    [][]TemplateStringValue
+	templateSlabIdx  int
+	templateSlabPos  int
 }
 
 // Java: TypedAstSerializer(AbstractCompiler, SerializationOptions)
 func NewTypedAstSerializer(compiler AbstractCompiler, serializationMode *SerializationOptions) *TypedAstSerializer {
 	s := &TypedAstSerializer{
 		stringPool:         StringPool_Builder_(),
-		sourceFilePointers: jutil.NewLinkedHashMap[*SourceFile, int](),
+		sourceFilePointers: make(map[*SourceFile]int, 64),
 		typeSerializer:     nil,
 	}
 	s.compiler = compiler
 	s.serializationMode = serializationMode
 	return s
+}
+
+func (s *TypedAstSerializer) resetScriptSlabs() {
+	s.nodeSlabIdx = 0
+	s.nodeSlabPos = 0
+	s.childSlabIdx = 0
+	s.childSlabPos = 0
+	s.childStack = s.childStack[:0]
+	s.jsdocSlabIdx = 0
+	s.jsdocSlabPos = 0
+	s.jsdocKindSlabIdx = 0
+	s.jsdocKindSlabPos = 0
+	s.templateSlabIdx = 0
+	s.templateSlabPos = 0
+}
+
+func (s *TypedAstSerializer) allocAstNode() *AstNode {
+	if s.nodeSlabIdx >= len(s.nodeSlabs) {
+		s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, 4096))
+	}
+	slab := s.nodeSlabs[s.nodeSlabIdx]
+	if s.nodeSlabPos >= len(slab) {
+		s.nodeSlabIdx++
+		s.nodeSlabPos = 0
+		if s.nodeSlabIdx >= len(s.nodeSlabs) {
+			s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, 4096))
+		}
+		slab = s.nodeSlabs[s.nodeSlabIdx]
+	}
+	m := &slab[s.nodeSlabPos]
+	s.nodeSlabPos++
+	*m = AstNode{frozen: true, memoizedSize: -1}
+	return m
+}
+
+func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
+	n := len(children)
+	if n == 0 {
+		return nil
+	}
+	if s.childSlabIdx >= len(s.childPtrSlabs) {
+		s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(8192, n)))
+	}
+	slab := s.childPtrSlabs[s.childSlabIdx]
+	if s.childSlabPos+n > len(slab) {
+		s.childSlabIdx++
+		s.childSlabPos = 0
+		if s.childSlabIdx >= len(s.childPtrSlabs) || len(s.childPtrSlabs[s.childSlabIdx]) < n {
+			s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(8192, n)))
+			s.childSlabIdx = len(s.childPtrSlabs) - 1
+		}
+		slab = s.childPtrSlabs[s.childSlabIdx]
+	}
+	dst := slab[s.childSlabPos : s.childSlabPos+n : s.childSlabPos+n]
+	s.childSlabPos += n
+	copy(dst, children)
+	return dst
+}
+
+func (s *TypedAstSerializer) allocJsdoc(src OptimizationJsdoc) *OptimizationJsdoc {
+	if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
+		s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, 512))
+	}
+	slab := s.jsdocSlabs[s.jsdocSlabIdx]
+	if s.jsdocSlabPos >= len(slab) {
+		s.jsdocSlabIdx++
+		s.jsdocSlabPos = 0
+		if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
+			s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, 512))
+		}
+		slab = s.jsdocSlabs[s.jsdocSlabIdx]
+	}
+	dst := &slab[s.jsdocSlabPos]
+	s.jsdocSlabPos++
+	*dst = src
+	if n := len(src.kind_); n > 0 {
+		if s.jsdocKindSlabIdx >= len(s.jsdocKindSlabs) {
+			s.jsdocKindSlabs = append(s.jsdocKindSlabs, make([]int32, max(1024, n)))
+		}
+		kslab := s.jsdocKindSlabs[s.jsdocKindSlabIdx]
+		if s.jsdocKindSlabPos+n > len(kslab) {
+			s.jsdocKindSlabIdx++
+			s.jsdocKindSlabPos = 0
+			if s.jsdocKindSlabIdx >= len(s.jsdocKindSlabs) || len(s.jsdocKindSlabs[s.jsdocKindSlabIdx]) < n {
+				s.jsdocKindSlabs = append(s.jsdocKindSlabs, make([]int32, max(1024, n)))
+				s.jsdocKindSlabIdx = len(s.jsdocKindSlabs) - 1
+			}
+			kslab = s.jsdocKindSlabs[s.jsdocKindSlabIdx]
+		}
+		kdst := kslab[s.jsdocKindSlabPos : s.jsdocKindSlabPos+n : s.jsdocKindSlabPos+n]
+		s.jsdocKindSlabPos += n
+		copy(kdst, src.kind_)
+		dst.kind_ = kdst
+	} else {
+		dst.kind_ = nil
+	}
+	dst.frozen = true
+	dst.memoizedSize = dst.scalarsSerializedSize()
+	return dst
+}
+
+func (s *TypedAstSerializer) allocTemplateStringValue(rawPtr, cookedPtr int32) *TemplateStringValue {
+	if s.templateSlabIdx >= len(s.templateSlabs) {
+		s.templateSlabs = append(s.templateSlabs, make([]TemplateStringValue, 64))
+	}
+	slab := s.templateSlabs[s.templateSlabIdx]
+	if s.templateSlabPos >= len(slab) {
+		s.templateSlabIdx++
+		s.templateSlabPos = 0
+		if s.templateSlabIdx >= len(s.templateSlabs) {
+			s.templateSlabs = append(s.templateSlabs, make([]TemplateStringValue, 64))
+		}
+		slab = s.templateSlabs[s.templateSlabIdx]
+	}
+	dst := &slab[s.templateSlabPos]
+	s.templateSlabPos++
+	*dst = TemplateStringValue{
+		rawStringPointer_:    rawPtr,
+		cookedStringPointer_: cookedPtr,
+		frozen:               true,
+	}
+	dst.memoizedSize = dst.scalarsSerializedSize()
+	return dst
 }
 
 // SerializeRoots transforms the given compiler AST root nodes into into a
@@ -64,12 +207,14 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhi
 	jutil.CheckArgument(jsRoot.IsRoot())
 
 	if s.compiler.HasOptimizationColors() {
-		s.typeSerializer = s.CreateColorTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		s.colorTypeSerializer = s.CreateColorTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		s.typeSerializer = s.colorTypeSerializer
 	} else if s.compiler.HasTypeCheckingRun() {
 		// The AST has JSTypes, but we want to serialize colors instead.
 		// TODO(bradfordcsmith): Change this branch to throw an error and delete the related logic.
 		//     Nothing should be using it anymore.
-		s.typeSerializer = TypedAstSerializer_CreateJSTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		s.jsTypeSerializer = TypedAstSerializer_CreateJSTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		s.typeSerializer = s.jsTypeSerializer
 	} else {
 		s.typeSerializer = NewTypedAstSerializer_NoOpTypeSerializer()
 	}
@@ -88,8 +233,8 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhi
 		builder.AddCodeAst(s.SerializeScriptNode(script))
 	}
 
-	sourceFileProtos := make([]*SourceFileProto, 0, s.sourceFilePointers.Size())
-	for f := range s.sourceFilePointers.Keys() {
+	sourceFileProtos := make([]*SourceFileProto, 0, len(s.sourceFileList))
+	for _, f := range s.sourceFileList {
 		sourceFileProtos = append(sourceFileProtos, f.GetProto())
 	}
 	sourceFiles := SourceFilePool_NewBuilder().
@@ -117,24 +262,30 @@ func (s *TypedAstSerializer) SerializeScriptNode(script *rhino.Node) *LazyAst {
 	jutil.CheckState(script.IsScript())
 	s.previousColumn = 0
 	s.previousLine = s.previousColumn
+	s.resetScriptSlabs()
 
 	sourceFile := s.GetSourceFilePointer(script)
-	scriptProto := s.Visit(script)
+	scriptProto := s.visitArena(script)
 	s.subtreeSourceFiles = s.subtreeSourceFiles[:0]
 
 	encodedSourceMap := s.compiler.GetBase64SourceMapContents(*script.GetSourceFileName())
 
-	lazyAstBuilder := LazyAst_NewBuilder().SetScript(scriptProto.ToByteString()).SetSourceFile(int32(sourceFile))
+	lazyAst := &LazyAst{
+		script_:      scriptProto.ToByteString(),
+		sourceFile_:  int32(sourceFile),
+		frozen:       true,
+		memoizedSize: -1,
+	}
 
 	if encodedSourceMap != nil {
 		// This is the encoded source map taken from the inline sourcemap comment. It does not include
 		// the base64 prefix.
 		// E.g. We serialize "eyJ2ZXJzaW9uI..." from the "//# sourceMappingURL=
 		// data:application/json;base64,eyJ2ZXJzaW9uI..." comment.
-		lazyAstBuilder.SetSourceMappingUrl(*encodedSourceMap)
+		lazyAst.sourceMappingUrl_ = *encodedSourceMap
 	}
 
-	return lazyAstBuilder.Build()
+	return lazyAst
 }
 
 // Java: TypedAstSerializer.createWithPositionInfo(Node)
@@ -152,33 +303,65 @@ func (s *TypedAstSerializer) CreateWithPositionInfo(n *rhino.Node) *AstNode_Buil
 
 // Java: TypedAstSerializer.visit(Node)
 func (s *TypedAstSerializer) Visit(n *rhino.Node) *AstNode {
-	builder := s.CreateWithPositionInfo(n)
-	s.AddType(n, builder)
-	serializedJsdoc := JSDocSerializer_SerializeJsdoc(n.GetJSDocInfo(), s.stringPool)
-	if serializedJsdoc != nil {
-		builder.SetJsdoc(serializedJsdoc)
-	}
-	builder.SetKind(s.KindTranslator(n))
-	s.ValueTranslator(builder, n)
-	builder.SetBooleanProperties(n.SerializeProperties())
-	sourceFile := s.GetSourceFilePointer(n)
-	builder.SetSourceFile(int32(sourceFile))
+	return s.visitArena(n)
+}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
-		builder.AddChild(s.Visit(child))
+func (s *TypedAstSerializer) visitArena(n *rhino.Node) *AstNode {
+	jutil.CheckState(n.GetLength() >= 0)
+	currentLine := n.GetLineno()
+	currentColumn := n.GetCharno()
+	m := s.allocAstNode()
+	m.relativeLine_ = int32(currentLine - s.previousLine)
+	m.relativeColumn_ = int32(currentColumn - s.previousColumn)
+	s.previousLine = currentLine
+	s.previousColumn = currentColumn
+
+	if s.colorTypeSerializer != nil {
+		if color := n.GetColor(); color != nil {
+			m.type_ = int32(s.colorTypeSerializer.colorSerializer.AddColor(color))
+			m.bitField0_ |= 1 << 0
+		}
+	} else if s.jsTypeSerializer != nil {
+		s.jsTypeSerializer.addTypeToNode(n, m)
+	} else if s.typeSerializer != nil {
+		b := AstNode_Builder{m: m}
+		s.typeSerializer.AddTypeForNode(n, &b)
 	}
+
+	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
+		var doc OptimizationJsdoc
+		var kindBuf [8]int32
+		if jsDocSerializer_fillJsdocProto(jsdoc, s.stringPool, &doc, kindBuf[:0]) {
+			m.jsdoc_ = s.allocJsdoc(doc)
+		}
+	}
+	m.kind_ = s.KindTranslator(n).GetNumber()
+	s.valueTranslatorToNode(m, n)
+	m.booleanProperties_ = n.SerializeProperties()
+	sourceFile := s.GetSourceFilePointer(n)
+	m.sourceFile_ = int32(sourceFile)
+
+	firstChild := n.GetFirstChild()
 	shadowedCode := n.GetClosureUnawareShadow()
-	if shadowedCode != nil {
-		// For Closure shadow hosts, the ASTNode will get a boolean property bit set
-		// (CLOSURE_UNAWARE_SHADOW) that indicates this child ASTNode is not a normal child, but is
-		// the contents of the shadow.
-		// Shadow roots are structured as
-		// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
-		// We avoid including the ROOT -> SCRIPT -> EXPR_RESULT structure in the serialization as it
-		// is all synthetic code that would unnecessarily bloat the TypedAST and is instead recreated
-		// upon deserialization.
-		// The child ASTNode is just the FUNCTION.
-		builder.AddChild(s.Visit(shadowedCode.GetFirstFirstChild().GetFirstChild()))
+	if firstChild != nil || shadowedCode != nil {
+		childrenStart := len(s.childStack)
+		for child := firstChild; child != nil; child = child.GetNext() {
+			s.childStack = append(s.childStack, s.visitArena(child))
+		}
+		if shadowedCode != nil {
+			// For Closure shadow hosts, the ASTNode will get a boolean property bit set
+			// (CLOSURE_UNAWARE_SHADOW) that indicates this child ASTNode is not a normal child, but is
+			// the contents of the shadow.
+			// Shadow roots are structured as
+			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+			// We avoid including the ROOT -> SCRIPT -> EXPR_RESULT structure in the serialization as it
+			// is all synthetic code that would unnecessarily bloat the TypedAST and is instead recreated
+			// upon deserialization.
+			// The child ASTNode is just the FUNCTION.
+			s.childStack = append(s.childStack, s.visitArena(shadowedCode.GetFirstFirstChild().GetFirstChild()))
+		}
+		m.child_ = s.allocChildren(s.childStack[childrenStart:])
+		s.childStack = s.childStack[:childrenStart]
 	}
 
 	if sourceFile != 0 {
@@ -188,9 +371,26 @@ func (s *TypedAstSerializer) Visit(n *rhino.Node) *AstNode {
 		}
 		s.subtreeSourceFiles = s.subtreeSourceFiles[:len(s.subtreeSourceFiles)-1]
 	}
-	s.SetOriginalName(builder, n)
+	if originalName := n.GetOriginalName(); originalName != nil {
+		m.originalNamePointer_ = int32(s.stringPool.Put(*originalName))
+	}
 
-	return builder.Build()
+	size := m.scalarsSerializedSize()
+	for _, c := range m.child_ {
+		cs := c.memoizedSize
+		size += 1 + protoVarintLen(uint64(cs)) + cs
+	}
+	if m.jsdoc_ != nil {
+		js := m.jsdoc_.memoizedSize
+		size += 1 + protoVarintLen(uint64(js)) + js
+	}
+	if m.valueCase_ == 8 {
+		ts := m.templateStringValue_.memoizedSize
+		size += 1 + protoVarintLen(uint64(ts)) + ts
+	}
+	m.memoizedSize = size
+
+	return m
 }
 
 // peekLastSubtreeSourceFile is subtreeSourceFiles.peekLast(): the top of the
@@ -229,13 +429,59 @@ func (s *TypedAstSerializer) GetSourceFilePointer(n *rhino.Node) int {
 	}
 
 	s.subtreeSourceFiles = append(s.subtreeSourceFiles, sourceFile)
-	return s.sourceFilePointers.ComputeIfAbsent(
-		sourceFile, func(f *SourceFile) int { return 1 + s.sourceFilePointers.Size() })
+	if idx, ok := s.sourceFilePointers[sourceFile]; ok {
+		return idx
+	}
+	idx := 1 + len(s.sourceFileList)
+	s.sourceFileList = append(s.sourceFileList, sourceFile)
+	s.sourceFilePointers[sourceFile] = idx
+	return idx
 }
 
 // Java: TypedAstSerializer.addType(Node, AstNode.Builder)
 func (s *TypedAstSerializer) AddType(n *rhino.Node, builder *AstNode_Builder) {
 	s.typeSerializer.AddTypeForNode(n, builder)
+}
+
+func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_NAME,
+		rhino.Token_STRINGLIT,
+		rhino.Token_STRING_KEY,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_LABEL_NAME,
+		rhino.Token_IMPORT_STAR:
+		m.stringValuePointer_ = int32(s.stringPool.Put(n.GetString()))
+		m.valueCase_ = 3
+		return
+	case rhino.Token_TEMPLATELIT_STRING:
+		// The raw string is put in the pool before the cooked one (Java's
+		// evaluation order).
+		rawPtr := int32(s.stringPool.Put(n.GetRawString()))
+		cookedPtr := int32(-1)
+		if n.GetCookedString() != nil {
+			cookedPtr = int32(s.stringPool.Put(*n.GetCookedString()))
+		}
+		m.templateStringValue_ = s.allocTemplateStringValue(rawPtr, cookedPtr)
+		m.valueCase_ = 8
+		return
+	case rhino.Token_NUMBER:
+		m.doubleValue_ = n.GetDouble()
+		m.valueCase_ = 4
+		return
+	case rhino.Token_BIGINT:
+		m.stringValuePointer_ = int32(s.stringPool.Put(n.GetBigInt().String()))
+		m.valueCase_ = 3
+		return
+	default:
+		// No value
+		return
+	}
 }
 
 // Java: TypedAstSerializer.valueTranslator(AstNode.Builder, Node)
@@ -685,8 +931,10 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 	serializeTypesToPointers := SerializeTypesToPointers_Create(compiler, stringPoolBuilder, serializationMode)
 	// Gather and serialize all the types now.
 	serializeTypesToPointers.GatherTypesOnAst(compiler.GetRoot())
-	return NewTypedAstSerializer_JSTypeSerializer(
-		serializeTypesToPointers.GetTypePointersByJstype(), serializeTypesToPointers.GetTypePool())
+	return &TypedAstSerializer_JSTypeSerializer{
+		typeToRecordCache: serializeTypesToPointers.jstypeReconserializer.typeToRecordCache,
+		typePool:          serializeTypesToPointers.GetTypePool(),
+	}
 }
 
 // TypedAstSerializer_JSTypeSerializer is used when the AST's JSTypes have not
@@ -695,8 +943,11 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 // Java: private static class TypedAstSerializer.JSTypeSerializer
 type TypedAstSerializer_JSTypeSerializer struct {
 	// Everything is pre-calculated with this form of serialization.
-	typesToPointers *base.LinkedIdentityHashMap[rhino.JSType, int]
-	typePool        *TypePool
+	typesToPointers   *base.LinkedIdentityHashMap[rhino.JSType, int]
+	typeToRecordCache map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord
+	typePool          *TypePool
+	lastType          rhino.JSType
+	lastPointer       int32
 }
 
 // Java: TypedAstSerializer.JSTypeSerializer(LinkedIdentityHashMap<JSType, Integer>, TypePool)
@@ -705,17 +956,42 @@ func NewTypedAstSerializer_JSTypeSerializer(
 	return &TypedAstSerializer_JSTypeSerializer{typesToPointers: typesToPointers, typePool: typePool}
 }
 
-// Java: TypedAstSerializer.JSTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (s *TypedAstSerializer_JSTypeSerializer) AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder) {
+func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node *rhino.Node, m *AstNode) {
 	type_ := node.GetJSType()
-	if type_ != nil {
-		pointer, ok := s.typesToPointers.Lookup(type_)
+	if type_ == nil {
+		return
+	}
+	if type_ == s.lastType {
+		m.type_ = s.lastPointer
+		m.bitField0_ |= 1 << 0
+		return
+	}
+	if s.typeToRecordCache != nil {
+		rec, ok := s.typeToRecordCache[type_]
 		if !ok {
-			// checkNotNull(typesToPointers.get(type), "cannot find pointer for %s", type)
 			jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", type_)
 		}
-		astNodeBuilder.SetType(int32(pointer))
+		ptr := int32(rec.pointer)
+		s.lastType = type_
+		s.lastPointer = ptr
+		m.type_ = ptr
+		m.bitField0_ |= 1 << 0
+		return
 	}
+	pointer, ok := s.typesToPointers.Lookup(type_)
+	if !ok {
+		jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", type_)
+	}
+	ptr := int32(pointer)
+	s.lastType = type_
+	s.lastPointer = ptr
+	m.type_ = ptr
+	m.bitField0_ |= 1 << 0
+}
+
+// Java: TypedAstSerializer.JSTypeSerializer.addTypeForNode(Node, AstNode.Builder)
+func (s *TypedAstSerializer_JSTypeSerializer) AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder) {
+	s.addTypeToNode(node, astNodeBuilder.m)
 }
 
 // Java: TypedAstSerializer.JSTypeSerializer.generateTypePool()
@@ -732,13 +1008,55 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 	serializationMode *SerializationOptions,
 	stringPoolBuilder *StringPool_Builder) *TypedAstSerializer_ColorTypeSerializer {
 	// Gather all the property names that are actually used in the AST.
-	usedPropertyNames := TypedAstSerializer_CollectUsedPropertyNames(compiler)
+	usedPropertyNames := make(map[string]struct{}, 256)
+	var lastProp string
+	hasLastProp := false
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
+			return
+		}
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			walk(c)
+		}
+		switch n.GetToken() {
+		case rhino.Token_GETPROP,
+			rhino.Token_OPTCHAIN_GETPROP:
+			prop := n.GetString()
+			if !hasLastProp || prop != lastProp {
+				lastProp = prop
+				hasLastProp = true
+				usedPropertyNames[prop] = struct{}{}
+			}
+		case rhino.Token_STRING_KEY,
+			rhino.Token_MEMBER_FUNCTION_DEF,
+			rhino.Token_MEMBER_FIELD_DEF,
+			rhino.Token_GETTER_DEF,
+			rhino.Token_SETTER_DEF:
+			if !n.IsQuotedStringKey() {
+				prop := n.GetString()
+				if !hasLastProp || prop != lastProp {
+					lastProp = prop
+					hasLastProp = true
+					usedPropertyNames[prop] = struct{}{}
+				}
+			}
+		case rhino.Token_NAME:
+			if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+				walk(shadow.GetFirstFirstChild().GetFirstChild())
+			}
+		}
+	}
+	walk(compiler.GetRoot())
 	colorSerializer := NewColorSerializer(
 		serializationMode,
 		// lookup / allocate strings from the shared string pool
 		stringPoolBuilder.Put,
 		// only include property names known to be used in the AST
-		usedPropertyNames.Contains)
+		func(prop string) bool {
+			_, ok := usedPropertyNames[prop]
+			return ok
+		})
 	return NewTypedAstSerializer_ColorTypeSerializer(colorSerializer, compiler.GetColorRegistry())
 }
 

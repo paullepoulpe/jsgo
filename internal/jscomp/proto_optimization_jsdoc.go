@@ -184,13 +184,25 @@ func (e JsdocTag) GetNumber() int32 {
 	return jsdocTag_numbers[e]
 }
 
+var jsdocTag_byNumber = func() [41]JsdocTag {
+	var t [41]JsdocTag
+	for i := range t {
+		t[i] = JsdocTag_UNRECOGNIZED
+	}
+	for i, n := range jsdocTag_numbers {
+		if n >= 0 && int(n) < len(t) && JsdocTag(i) != JsdocTag_UNRECOGNIZED {
+			t[n] = JsdocTag(i)
+		}
+	}
+	return t
+}()
+
 // JsdocTag_ForNumber returns the constant with the given number, or nil.
 //
 // Java: JsdocTag.forNumber(int)
 func JsdocTag_ForNumber(value int32) *JsdocTag {
-	for i, n := range jsdocTag_numbers {
-		if n == value && JsdocTag(i) != JsdocTag_UNRECOGNIZED {
-			e := JsdocTag(i)
+	if value >= 0 && int(value) < len(jsdocTag_byNumber) {
+		if e := jsdocTag_byNumber[value]; e != JsdocTag_UNRECOGNIZED {
 			return &e
 		}
 	}
@@ -211,8 +223,8 @@ func JsdocTag_ValueOfName(name string) JsdocTag {
 }
 
 func jsdocTag_fromNumber(value int32) JsdocTag {
-	if e := JsdocTag_ForNumber(value); e != nil {
-		return *e
+	if value >= 0 && int(value) < len(jsdocTag_byNumber) {
+		return jsdocTag_byNumber[value]
 	}
 	return JsdocTag_UNRECOGNIZED
 }
@@ -586,12 +598,15 @@ func (m *OptimizationJsdoc) HashCode() int32 {
 // appendTo is OptimizationJsdoc.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *OptimizationJsdoc) appendTo(b []byte) []byte {
 	if len(m.kind_) > 0 {
-		var packed []byte
+		packedLen := 0
 		for _, x := range m.kind_ {
-			packed = protoAppendInt32(packed, x)
+			packedLen += protoVarintLen(uint64(int64(x)))
 		}
 		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
+		b = protoAppendVarint(b, uint64(packedLen))
+		for _, x := range m.kind_ {
+			b = protoAppendInt32(b, x)
+		}
 	}
 	if m.licenseTextPointer_ != 0 {
 		b = protoAppendTag(b, 2, 0)
@@ -624,10 +639,39 @@ func (m *OptimizationJsdoc) serializedSize() int {
 	if m.frozen && m.memoizedSize >= 0 {
 		return m.memoizedSize
 	}
-	size := 0
-	size += len(m.appendScalarsOnly(nil))
+	size := m.scalarsSerializedSize()
 	if m.frozen {
 		m.memoizedSize = size
+	}
+	return size
+}
+
+func (m *OptimizationJsdoc) scalarsSerializedSize() int {
+	size := 0
+	if len(m.kind_) > 0 {
+		packedLen := 0
+		for _, x := range m.kind_ {
+			packedLen += protoVarintLen(uint64(int64(x)))
+		}
+		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
+	}
+	if m.licenseTextPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.licenseTextPointer_)))
+	}
+	if m.descriptionPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.descriptionPointer_)))
+	}
+	if m.meaningPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.meaningPointer_)))
+	}
+	if m.alternateMessageIdPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.alternateMessageIdPointer_)))
+	}
+	if m.closureUnawareModePointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.closureUnawareModePointer_)))
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
 	return size
 }
@@ -690,10 +734,14 @@ func (m *OptimizationJsdoc) mergeFromReader(r *protoReader) {
 		switch tag {
 		case 0:
 			return
-		case 8, 10:
-			r.readRepeated(tag, 0, func(r *protoReader) {
-				m.kind_ = append(m.kind_, r.readInt32())
-			})
+		case 8:
+			m.kind_ = append(m.kind_, r.readInt32())
+		case 10:
+			data := r.readBytesView()
+			sub := protoReader{b: data}
+			for !sub.atEnd() {
+				m.kind_ = append(m.kind_, sub.readInt32())
+			}
 		case 16:
 			m.licenseTextPointer_ = r.readInt32()
 		case 24:

@@ -33,6 +33,7 @@ func (b *BitSet) ensure(wordIndex int) {
 		return
 	}
 	if b.words == nil && wordIndex < len(b.buf) {
+		clear(b.buf[:wordIndex+1])
 		b.words = b.buf[:wordIndex+1]
 		return
 	}
@@ -42,7 +43,10 @@ func (b *BitSet) ensure(wordIndex int) {
 		clear(b.words[prev:])
 		return
 	}
-	b.words = append(b.words, make([]uint64, wordIndex+1-len(b.words))...)
+	newCap := max(wordIndex+1, 2*cap(b.words))
+	newWords := make([]uint64, wordIndex+1, newCap)
+	copy(newWords, b.words)
+	b.words = newWords
 }
 
 // trim drops trailing zero words so that len(words) is Java's wordsInUse.
@@ -74,8 +78,22 @@ func (b *BitSet) SetTo(bitIndex int, value bool) {
 // SetRange is BitSet.set(int fromIndex, int toIndex).
 func (b *BitSet) SetRange(fromIndex, toIndex int) {
 	bitSetCheckRange(fromIndex, toIndex)
-	for i := fromIndex; i < toIndex; i++ {
-		b.Set(i)
+	if fromIndex == toIndex {
+		return
+	}
+	startWord := fromIndex >> 6
+	endWord := (toIndex - 1) >> 6
+	b.ensure(endWord)
+	firstWordMask := ^uint64(0) << (uint(fromIndex) & 63)
+	lastWordMask := ^uint64(0) >> (63 - (uint(toIndex-1) & 63))
+	if startWord == endWord {
+		b.words[startWord] |= firstWordMask & lastWordMask
+	} else {
+		b.words[startWord] |= firstWordMask
+		for i := startWord + 1; i < endWord; i++ {
+			b.words[i] = ^uint64(0)
+		}
+		b.words[endWord] |= lastWordMask
 	}
 }
 
@@ -264,6 +282,22 @@ func (b *BitSet) Clone() *BitSet {
 	c := &BitSet{}
 	b.CloneInto(c)
 	return c
+}
+
+// CopyFrom copies src into b, reusing b's existing slice capacity when possible.
+func (b *BitSet) CopyFrom(src *BitSet) {
+	if b == src {
+		return
+	}
+	n := len(src.words)
+	if n <= cap(b.words) {
+		b.words = b.words[:n]
+	} else if b.words == nil && n <= len(b.buf) {
+		b.words = b.buf[:n]
+	} else {
+		b.words = make([]uint64, n)
+	}
+	copy(b.words, src.words)
 }
 
 // CloneInto copies b into dst, using dst's inline buffer when it fits.

@@ -98,12 +98,19 @@ func StringPool_Builder_() *StringPool_Builder {
 // StringPool_Builder is StringPool.Builder.
 type StringPool_Builder struct {
 	maxLength int
-	pool      *jutil.LinkedHashMap[string, int]
+	pool      map[string]int
+	keys      []string
+	lastStr   string
+	lastIdx   int
 }
 
 func newStringPool_Builder() *StringPool_Builder {
-	b := &StringPool_Builder{pool: jutil.NewLinkedHashMap[string, int]()}
-	b.Put("")
+	b := &StringPool_Builder{
+		pool: make(map[string]int, 1024),
+		keys: make([]string, 0, 1024),
+	}
+	b.pool[""] = 0
+	b.keys = append(b.keys, "")
 	return b
 }
 
@@ -112,10 +119,25 @@ func newStringPool_Builder() *StringPool_Builder {
 //
 // Java: StringPool.Builder.put(String)
 func (b *StringPool_Builder) Put(s string) int {
-	if n := jutil.StringLength(s); n > b.maxLength {
-		b.maxLength = n
+	if s == b.lastStr {
+		return b.lastIdx
 	}
-	return b.pool.ComputeIfAbsent(s, func(string) int { return b.pool.Size() })
+	if idx, ok := b.pool[s]; ok {
+		b.lastStr = s
+		b.lastIdx = idx
+		return idx
+	}
+	if len(s) > b.maxLength {
+		if n := jutil.StringLength(s); n > b.maxLength {
+			b.maxLength = n
+		}
+	}
+	idx := len(b.keys)
+	b.keys = append(b.keys, s)
+	b.pool[s] = idx
+	b.lastStr = s
+	b.lastIdx = idx
+	return idx
 }
 
 // Java: StringPool.Builder.putAnd(String)
@@ -126,7 +148,7 @@ func (b *StringPool_Builder) PutAnd(s string) *StringPool_Builder {
 
 // Java: StringPool.Builder.build()
 func (b *StringPool_Builder) Build() *StringPool {
-	return newStringPool(b.maxLength, b.pool.KeySlice())
+	return newStringPool(b.maxLength, b.keys)
 }
 
 var stringPool_EMPTY = StringPool_Builder_().Build()

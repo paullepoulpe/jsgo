@@ -897,19 +897,18 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 	jutil.CheckState(len(specs) != 0)
 	jutil.CheckState(inputs != nil)
 
-	chunkNames := make([]string, 0, len(specs))
-	chunksByName := jutil.NewLinkedHashMap[string, *JSChunk]()
-	chunksFileCountMap := jutil.NewLinkedHashMap[string, int]()
+	result := make([]*JSChunk, 0, len(specs))
+	chunksByName := make(map[string]*JSChunk, len(specs))
 	numJsFilesExpected := 0
 	minJsFilesRequired := 0
 	for _, spec := range specs {
-		if chunksByName.ContainsKey(spec.name) {
+		if _, exists := chunksByName[spec.name]; exists {
 			panic(NewFlagUsageException("Duplicate chunk name: " + spec.name))
 		}
 		chunk := NewJSChunk(spec.name)
 
 		for _, dep := range spec.deps {
-			other := chunksByName.Get(dep)
+			other := chunksByName[dep]
 			if other == nil {
 				panic(NewFlagUsageException(
 					"Chunk '" +
@@ -932,12 +931,8 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 			numJsFilesExpected += spec.numJsFiles
 		}
 
-		// Add chunks in reverse order so that source files are allocated to
-		// chunks in reverse order. This allows the first chunk
-		// (presumably the base chunk) to have a size of 'auto'
-		chunkNames = append([]string{spec.name}, chunkNames...)
-		chunksFileCountMap.Put(spec.name, spec.numJsFiles)
-		chunksByName.Put(spec.name, chunk)
+		chunksByName[spec.name] = chunk
+		result = append(result, chunk)
 	}
 
 	totalNumJsFiles := len(inputs)
@@ -962,15 +957,15 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 		}
 	}
 
+	// Allocate source files to chunks in reverse order so that the first chunk
+	// (presumably the base chunk) can have a size of 'auto' (-1).
 	numJsFilesLeft := totalNumJsFiles
-	chunkIndex := 0
-	for _, chunkName := range chunkNames {
-		// Parse chunk inputs.
-		numJsFiles := chunksFileCountMap.Get(chunkName)
-		chunk := chunksByName.Get(chunkName)
+	for i := len(specs) - 1; i >= 0; i-- {
+		numJsFiles := specs[i].numJsFiles
+		chunk := result[i]
 
 		// Check if the first chunk specified 'auto' for the number of files
-		if chunkIndex == len(chunkNames)-1 && numJsFiles == -1 {
+		if i == 0 && numJsFiles == -1 {
 			numJsFiles = numJsFilesLeft
 		}
 
@@ -979,13 +974,8 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 			chunk.Add(input)
 		}
 		numJsFilesLeft -= numJsFiles
-		chunkIndex++
 	}
 
-	var result []*JSChunk
-	for chunk := range chunksByName.Values() {
-		result = append(result, chunk)
-	}
 	return result
 }
 

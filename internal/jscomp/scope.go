@@ -34,16 +34,16 @@ const (
 	maxScopeChunks       = 128
 	minVarChunkSize      = 32
 	maxVarChunkSize      = 4096
-	maxVarChunks         = 128
+	maxVarChunks         = 64
 	minSlotChunkSize     = 128
 	maxSlotChunkSize     = 16384
-	maxSlotChunks        = 128
+	maxSlotChunks        = 64
 	minHashChunkSize     = 256
 	maxHashChunkSize     = 32768
-	maxHashChunks        = 128
+	maxHashChunks        = 64
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
-	maxImplicitChunks    = 32
+	maxImplicitChunks    = 16
 )
 
 func scopeNameEq(a, b string) bool {
@@ -189,13 +189,13 @@ func (a *scopeArena) release() {
 	}
 	if gs := a.globalScope; gs != nil {
 		a.globalScope = nil
-		if cap(gs.varList) <= 32768 {
+		if cap(gs.varList) <= 65536 {
 			clear(gs.varList)
 			a.globalVarList = gs.varList[:0]
 		} else {
 			a.globalVarList = nil
 		}
-		if len(gs.varHash) <= 65536 {
+		if len(gs.varHash) <= 131072 {
 			clear(gs.varHash)
 			a.globalVarHash = gs.varHash
 		} else {

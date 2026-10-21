@@ -6,7 +6,11 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"io"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 var _ = jutil.CheckNotNull[any]
 
@@ -616,13 +620,25 @@ func (e NodeKind) GetNumber() int32 {
 	return nodeKind_numbers[e]
 }
 
+var nodeKind_byNumber = func() [636]NodeKind {
+	var t [636]NodeKind
+	for i := range t {
+		t[i] = NodeKind_UNRECOGNIZED
+	}
+	for i, n := range nodeKind_numbers {
+		if n >= 0 && int(n) < len(t) && NodeKind(i) != NodeKind_UNRECOGNIZED {
+			t[n] = NodeKind(i)
+		}
+	}
+	return t
+}()
+
 // NodeKind_ForNumber returns the constant with the given number, or nil.
 //
 // Java: NodeKind.forNumber(int)
 func NodeKind_ForNumber(value int32) *NodeKind {
-	for i, n := range nodeKind_numbers {
-		if n == value && NodeKind(i) != NodeKind_UNRECOGNIZED {
-			e := NodeKind(i)
+	if value >= 0 && int(value) < len(nodeKind_byNumber) {
+		if e := nodeKind_byNumber[value]; e != NodeKind_UNRECOGNIZED {
 			return &e
 		}
 	}
@@ -643,8 +659,8 @@ func NodeKind_ValueOfName(name string) NodeKind {
 }
 
 func nodeKind_fromNumber(value int32) NodeKind {
-	if e := NodeKind_ForNumber(value); e != nil {
-		return *e
+	if value >= 0 && int(value) < len(nodeKind_byNumber) {
+		return nodeKind_byNumber[value]
 	}
 	return NodeKind_UNRECOGNIZED
 }
@@ -1447,6 +1463,91 @@ func (m *TypedAst) appendScalarsOnly(b []byte) []byte {
 	return b
 }
 
+// writeAsListItemTo streams a single TypedAst wrapped in a TypedAst.List item (field 1) to out
+// without allocating a contiguous byte slice for the entire TypedAst.
+func (m *TypedAst) writeAsListItemTo(out io.Writer) error {
+	buf := make([]byte, 0, 64*1024)
+	flush := func() error {
+		if len(buf) == 0 {
+			return nil
+		}
+		_, err := out.Write(buf)
+		buf = buf[:0]
+		return err
+	}
+	buf = protoAppendTag(buf, 1, 2)
+	buf = protoAppendVarint(buf, uint64(m.serializedSize()))
+	if m.typePool_ != nil {
+		buf = protoAppendTag(buf, 1, 2)
+		buf = protoAppendVarint(buf, uint64(m.typePool_.serializedSize()))
+		buf = m.typePool_.appendTo(buf)
+		if err := flush(); err != nil {
+			return err
+		}
+	}
+	if m.stringPool_ != nil {
+		buf = protoAppendTag(buf, 2, 2)
+		buf = protoAppendVarint(buf, uint64(m.stringPool_.serializedSize()))
+		for _, x := range m.stringPool_.strings_ {
+			buf = protoAppendTag(buf, 1, 2)
+			buf = protoAppendBytes(buf, x)
+			if len(buf) >= 64*1024 {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+		}
+		if m.stringPool_.maxLength_ != 0 {
+			buf = protoAppendTag(buf, 2, 0)
+			buf = protoAppendInt32(buf, m.stringPool_.maxLength_)
+		}
+		if len(m.stringPool_.unknownFields) > 0 {
+			buf = append(buf, protoCanonicalUnknownFields(m.stringPool_.unknownFields)...)
+		}
+		if err := flush(); err != nil {
+			return err
+		}
+	}
+	for _, x := range m.externAst_ {
+		buf = protoAppendTag(buf, 3, 2)
+		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
+		buf = x.appendTo(buf)
+		if len(buf) >= 64*1024 {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+	for _, x := range m.codeAst_ {
+		buf = protoAppendTag(buf, 4, 2)
+		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
+		buf = x.appendTo(buf)
+		if len(buf) >= 64*1024 {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+	if m.sourceFilePool_ != nil {
+		buf = protoAppendTag(buf, 5, 2)
+		buf = protoAppendVarint(buf, uint64(m.sourceFilePool_.serializedSize()))
+		buf = m.sourceFilePool_.appendTo(buf)
+	}
+	if m.externsSummary_ != nil {
+		buf = protoAppendTag(buf, 6, 2)
+		buf = protoAppendVarint(buf, uint64(m.externsSummary_.serializedSize()))
+		buf = m.externsSummary_.appendTo(buf)
+	}
+	for _, x := range m.runtimeLibraryToInject_ {
+		buf = protoAppendTag(buf, 7, 2)
+		buf = protoAppendString(buf, x)
+	}
+	if len(m.unknownFields) > 0 {
+		buf = append(buf, protoCanonicalUnknownFields(m.unknownFields)...)
+	}
+	return flush()
+}
+
 // Java: TypedAst.getSerializedSize()
 func (m *TypedAst) GetSerializedSize() int { return m.serializedSize() }
 
@@ -2078,7 +2179,19 @@ func (m *LazyAst) serializedSize() int {
 		return m.memoizedSize
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
+	if len(m.script_) != 0 {
+		size += 1 + protoVarintLen(uint64(len(m.script_))) + len(m.script_)
+	}
+	if m.sourceFile_ != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(m.sourceFile_)))
+	}
+	if m.sourceMappingUrl_ != "" {
+		b := jutil.StringGetBytesUTF8(m.sourceMappingUrl_)
+		size += 1 + protoVarintLen(uint64(len(b))) + len(b)
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
 	if m.frozen {
 		m.memoizedSize = size
 	}
@@ -2126,7 +2239,7 @@ func (m *LazyAst) mergeFromReader(r *protoReader) {
 		case 0:
 			return
 		case 10:
-			m.script_ = r.readBytes()
+			m.script_ = r.readBytesView()
 		case 16:
 			m.sourceFile_ = r.readUint32()
 		case 26:
@@ -3885,7 +3998,15 @@ func (m *StringPoolProto) serializedSize() int {
 		return m.memoizedSize
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
+	for _, x := range m.strings_ {
+		size += 1 + protoVarintLen(uint64(len(x))) + len(x)
+	}
+	if m.maxLength_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.maxLength_)))
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
 	if m.frozen {
 		m.memoizedSize = size
 	}
@@ -3924,6 +4045,9 @@ func (m *StringPoolProto) IsInitialized() bool { return true }
 
 // mergeFromReader is StringPoolProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *StringPoolProto) mergeFromReader(r *protoReader) {
+	if m.strings_ == nil && len(r.b) > 1024 {
+		m.strings_ = make([][]byte, 0, min(len(r.b)/20, 4_000_000))
+	}
 	for {
 		start := r.pos
 		tag := r.readTag()
@@ -3931,7 +4055,7 @@ func (m *StringPoolProto) mergeFromReader(r *protoReader) {
 		case 0:
 			return
 		case 10:
-			m.strings_ = append(m.strings_, r.readBytes())
+			m.strings_ = append(m.strings_, r.readBytesView())
 		case 16:
 			m.maxLength_ = r.readInt32()
 		default:
@@ -5059,7 +5183,7 @@ func (m *AstNode) serializedSize() int {
 	if m.frozen && m.memoizedSize >= 0 {
 		return m.memoizedSize
 	}
-	size := 0
+	size := m.scalarsSerializedSize()
 	for _, x := range m.child_ {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
@@ -5072,9 +5196,43 @@ func (m *AstNode) serializedSize() int {
 		s := m.templateStringValue_.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
 	if m.frozen {
 		m.memoizedSize = size
+	}
+	return size
+}
+
+func (m *AstNode) scalarsSerializedSize() int {
+	size := 0
+	if m.kind_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.kind_)))
+	}
+	if m.valueCase_ == 3 {
+		size += 1 + protoVarintLen(uint64(uint32(m.stringValuePointer_)))
+	}
+	if m.valueCase_ == 4 {
+		size += 9
+	}
+	if m.relativeLine_ != 0 {
+		size += 1 + protoVarintLen(uint64(uint32((m.relativeLine_<<1)^(m.relativeLine_>>31))))
+	}
+	if m.relativeColumn_ != 0 {
+		size += 1 + protoVarintLen(uint64(uint32((m.relativeColumn_<<1)^(m.relativeColumn_>>31))))
+	}
+	if m.originalNamePointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(m.originalNamePointer_)))
+	}
+	if m.booleanProperties_ != 0 {
+		size += 1 + protoVarintLen(uint64(m.booleanProperties_))
+	}
+	if m.bitField0_&(1<<0) != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.type_)))
+	}
+	if m.sourceFile_ != 0 {
+		size += 2 + protoVarintLen(uint64(uint32(m.sourceFile_)))
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
 	return size
 }
@@ -5440,10 +5598,23 @@ func (m *TemplateStringValue) serializedSize() int {
 	if m.frozen && m.memoizedSize >= 0 {
 		return m.memoizedSize
 	}
-	size := 0
-	size += len(m.appendScalarsOnly(nil))
+	size := m.scalarsSerializedSize()
 	if m.frozen {
 		m.memoizedSize = size
+	}
+	return size
+}
+
+func (m *TemplateStringValue) scalarsSerializedSize() int {
+	size := 0
+	if m.rawStringPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(m.rawStringPointer_)))
+	}
+	if m.cookedStringPointer_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.cookedStringPointer_)))
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
 	return size
 }

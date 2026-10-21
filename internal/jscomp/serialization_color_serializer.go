@@ -41,7 +41,9 @@ type ColorSerializer struct {
 	// Stores the `Integer` values assigned to `Color`s as they are added for
 	// serialization, so they can be looked up and used for references
 	// between the output `TypeProto`s.
-	colorIdToTypePointer *jutil.LinkedHashMap[colors.ColorId, int]
+	colorIdToTypePointer map[colors.ColorId]int
+	lastColor            *colors.Color
+	lastPointer          int
 
 	// Stores the `Color`s to be serialized in the order they will be
 	// serialized.
@@ -69,7 +71,7 @@ func NewColorSerializer(
 		serializationMode:       serializationMode,
 		getStringPoolIndexFn:    stringPoolIndexFn,
 		propertyFilter:          propertyFilter,
-		colorIdToTypePointer:    jutil.NewLinkedHashMap[colors.ColorId, int](),
+		colorIdToTypePointer:    make(map[colors.ColorId]int, 1024),
 		colorsInSerializedOrder: jutil.NewArrayList[*colors.Color](),
 	}
 	// We must pre-populate the type pointers with the few axiomatic colors
@@ -102,13 +104,19 @@ func (s *ColorSerializer) AddColors(cs []*colors.Color) []int {
 //
 // Java: ColorSerializer.addColor(Color)
 func (s *ColorSerializer) AddColor(color *colors.Color) int {
-	return s.colorIdToTypePointer.ComputeIfAbsent(
-		color.GetId(),
-		func(colors.ColorId) int {
-			index := s.colorsInSerializedOrder.Size()
-			s.colorsInSerializedOrder.Add(color)
-			return index
-		})
+	if color == s.lastColor && color != nil {
+		return s.lastPointer
+	}
+	id := color.GetId()
+	idx, ok := s.colorIdToTypePointer[id]
+	if !ok {
+		idx = s.colorsInSerializedOrder.Size()
+		s.colorsInSerializedOrder.Add(color)
+		s.colorIdToTypePointer[id] = idx
+	}
+	s.lastColor = color
+	s.lastPointer = idx
+	return idx
 }
 
 func colorSerializer_int32s(xs []int) []int32 {
@@ -141,7 +149,7 @@ func (s *ColorSerializer) GenerateTypePool(
 	//    an iteration that is in progress.
 	for i := TypePointers_UntrimOffset(0); i < s.colorsInSerializedOrder.Size(); i++ {
 		color := s.colorsInSerializedOrder.Get(i)
-		typePointer := s.colorIdToTypePointer.Get(color.GetId())
+		typePointer := s.colorIdToTypePointer[color.GetId()]
 		typePoolBuilder.AddType(s.GenerateTypeProto(color))
 		for supertype := range getDisambiguationSupertypesFn(color).All() {
 			typePoolBuilder.
@@ -161,7 +169,7 @@ func (s *ColorSerializer) GenerateTypePool(
 		// serialized in order to save space.
 		srcRefToTypePointerList := jutil.NewLinkedHashMap[string, *jutil.ArrayList[int]]()
 		for color := range s.colorsInSerializedOrder.All() {
-			typePointer := s.colorIdToTypePointer.Get(color.GetId())
+			typePointer := s.colorIdToTypePointer[color.GetId()]
 			for srcRef := range getMismatchSourceRefsFn(color).All() {
 				typePointerList := srcRefToTypePointerList.ComputeIfAbsent(srcRef, func(string) *jutil.ArrayList[int] {
 					return jutil.NewArrayList[int]()

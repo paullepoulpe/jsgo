@@ -5,12 +5,36 @@ package main
 
 import (
 	"os"
+	"runtime"
+	"runtime/pprof"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func main() {
+	if cpuProf := os.Getenv("JSGO_CPU_PROFILE"); cpuProf != "" {
+		if f, err := os.Create(cpuProf); err == nil {
+			_ = pprof.StartCPUProfile(f)
+			stopCPU := func() {
+				pprof.StopCPUProfile()
+				_ = f.Close()
+			}
+			jutil.System_AtExit(stopCPU)
+			defer stopCPU()
+		}
+	}
+	if memProf := os.Getenv("JSGO_MEM_PROFILE"); memProf != "" {
+		writeMem := func() {
+			runtime.GC()
+			if f, err := os.Create(memProf); err == nil {
+				_ = pprof.WriteHeapProfile(f)
+				_ = f.Close()
+			}
+		}
+		jutil.System_AtExit(writeMem)
+		defer writeMem()
+	}
 	// Go-only: language-adapter — the JVM's startup and shutdown around
 	// CommandLineRunner.main:
 	//   - System.err encodes text with native.encoding (the locale's

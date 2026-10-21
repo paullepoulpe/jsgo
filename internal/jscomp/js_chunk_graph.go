@@ -56,6 +56,9 @@ type JSChunkGraph struct {
 	// NOTE: JSChunk has identity semantics so this map implementation is
 	// safe.
 	dependencyMap *base.LinkedIdentityHashMap[*JSChunk, *jutil.LinkedHashSet[*JSChunk]]
+
+	// Go-only: reusable candidate BitSet for GetSmallestCoveringSubtree.
+	scratchCandidates jutil.BitSet
 }
 
 // Java: JSChunkGraph.WEAK_FILE_REACHABLE_FROM_ENTRY_POINT_ERROR
@@ -293,6 +296,9 @@ func (g *JSChunkGraph) GetIntegralChunkArrayForSerialization() []*JSChunk {
 //
 // Java: JSChunkGraph.getChunkByName(String)
 func (g *JSChunkGraph) GetChunkByName(name string) *JSChunk {
+	if n := len(g.chunks); n > 0 && g.chunks[n-1].GetName() == name {
+		return g.chunks[n-1]
+	}
 	for _, m := range g.chunks {
 		if m.GetName() == name {
 			return m
@@ -385,11 +391,21 @@ func (g *JSChunkGraph) GetSmallestCoveringSubtree(parentTree *JSChunk, dependent
 	// Candidate chunks are those that all of the given dependent chunks depend on, including
 	// themselves. The dependent chunk with the smallest index might be our answer, if all
 	// the other chunks depend on it.
-	minDependentChunkIndex := len(g.chunks)
-	candidates := jutil.NewBitSet()
-	candidates.SetRange(0, len(g.chunks))
-	for dependentIndex := dependentChunks.NextSetBit(0); dependentIndex >= 0; dependentIndex = dependentChunks.NextSetBit(dependentIndex + 1) {
-		minDependentChunkIndex = min(minDependentChunkIndex, dependentIndex)
+	minDependentChunkIndex := dependentChunks.NextSetBit(0)
+	nextDependent := dependentChunks.NextSetBit(minDependentChunkIndex + 1)
+	if nextDependent < 0 {
+		// Fast path for a single dependent chunk: by transitivity of selfPlusTransitiveDeps,
+		// if minDependentChunkIndex depends on parentTree, it is itself the smallest covering
+		// subtree; otherwise no chunk in its dependency set depends on parentTree.
+		if g.selfPlusTransitiveDeps[minDependentChunkIndex].Get(parentTree.GetIndex()) {
+			return g.chunks[minDependentChunkIndex]
+		}
+		return parentTree
+	}
+
+	candidates := &g.scratchCandidates
+	candidates.CopyFrom(g.selfPlusTransitiveDeps[minDependentChunkIndex])
+	for dependentIndex := nextDependent; dependentIndex >= 0; dependentIndex = dependentChunks.NextSetBit(dependentIndex + 1) {
 		candidates.And(g.selfPlusTransitiveDeps[dependentIndex])
 	}
 	jutil.CheckStateMsg1(!candidates.IsEmpty(), "No common dependency found for %s", dependentChunks)

@@ -70,6 +70,8 @@ type CrossChunkCodeMotion struct {
 	// declarations that have to be moved into that chunk
 	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
 
+	scratchImmovableChunks jutil.BitSet
+
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 }
 
@@ -99,6 +101,7 @@ func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotio
 		s.dsgs = s.dsgBuf[:0]
 		s.referencingSlice = s.referencingBuf[:0]
 		s.preorderNumber = -1
+		s.singleImmovableChunk = -1
 		s.var_ = var_
 		return s
 	}
@@ -425,6 +428,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	dsgBuf [1]*CrossChunkCodeMotion_DeclarationStatementGroup
 
 	chunksWithImmovableReferences jutil.BitSet
+	singleImmovableChunk          int32
 
 	// Symbols whose declaration statements refer to this symbol.
 	//
@@ -448,9 +452,10 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 // Java: CrossChunkCodeMotion.GlobalSymbol(Var)
 func NewCrossChunkCodeMotion_GlobalSymbol(outer *CrossChunkCodeMotion, var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
 	s := &CrossChunkCodeMotion_GlobalSymbol{
-		outer:          outer,
-		preorderNumber: -1,
-		var_:           var_,
+		outer:                outer,
+		preorderNumber:       -1,
+		singleImmovableChunk: -1,
+		var_:                 var_,
 	}
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
@@ -474,7 +479,27 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) String() string {
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.addImmovableReference(JSChunk)
 func (s *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk) {
-	s.chunksWithImmovableReferences.Set(chunk.GetIndex())
+	idx := int32(chunk.GetIndex())
+	if s.singleImmovableChunk == -1 {
+		s.singleImmovableChunk = idx
+		return
+	}
+	if s.singleImmovableChunk == idx {
+		return
+	}
+	if s.singleImmovableChunk >= 0 {
+		s.chunksWithImmovableReferences.Set(int(s.singleImmovableChunk))
+		s.singleImmovableChunk = -2
+	}
+	s.chunksWithImmovableReferences.Set(int(idx))
+}
+
+func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *jutil.BitSet) {
+	if s.singleImmovableChunk >= 0 {
+		dst.Set(int(s.singleImmovableChunk))
+	} else if s.singleImmovableChunk == -2 {
+		dst.Or(&s.chunksWithImmovableReferences)
+	}
 }
 
 // AddDeclarationStatement adds the statement to the appropriate
@@ -567,8 +592,37 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 	if len(y.symbolsSlice) == 1 {
 		symbol := y.symbolsSlice[0]
 		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
-		if len(symbol.dsgs) > 0 {
-			var chunksWithImmovableReferences jutil.BitSet
+		if len(symbol.dsgs) == 1 {
+			dsg := symbol.dsgs[0]
+			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
+			dsgCycle.outer = y.outer
+			dsgCycle.currentChunk = dsg.currentChunk
+			dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
+			dsgCycle.dsgsSlice[0] = dsg
+			if symbol.singleImmovableChunk == -1 {
+				dsg.MakeReferencesImmovable()
+			} else if symbol.singleImmovableChunk >= 0 {
+				var preferredChunk *JSChunk
+				if !dsg.AllStatementsCanMove() {
+					preferredChunk = dsg.currentChunk
+				} else {
+					targetChunk := y.outer.graph.chunks[symbol.singleImmovableChunk]
+					if targetChunk == dsg.currentChunk || y.outer.graph.DependsOn(targetChunk, dsg.currentChunk) {
+						preferredChunk = targetChunk
+					} else {
+						preferredChunk = dsg.currentChunk
+					}
+				}
+				dsgCycle.moveToPreferredChunkDirect(preferredChunk)
+			} else {
+				dsgCycle.MoveToPreferredChunk(&symbol.chunksWithImmovableReferences)
+			}
+			symbol.isMoveDeclarationStatementsDone = true
+			return
+		}
+		if len(symbol.dsgs) > 1 {
+			chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
+			chunksWithImmovableReferences.ClearAll()
 			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
 			dsgCycle.outer = y.outer
 			for i := len(symbol.dsgs) - 1; i >= 0; i-- {
@@ -576,8 +630,8 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 				dsgCycle.currentChunk = dsg.currentChunk
 				dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
 				dsgCycle.dsgsSlice[0] = dsg
-				chunksWithImmovableReferences.Or(&symbol.chunksWithImmovableReferences)
-				dsgCycle.MoveToPreferredChunk(&chunksWithImmovableReferences)
+				symbol.orImmovableChunksInto(chunksWithImmovableReferences)
+				dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
 			}
 		}
 		symbol.isMoveDeclarationStatementsDone = true
@@ -586,14 +640,15 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 	for _, symbol := range y.symbolsSlice {
 		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
 	}
-	var chunksWithImmovableReferences jutil.BitSet
+	chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
+	chunksWithImmovableReferences.ClearAll()
 	cyclesLatestFirst := y.GetDsgCyclesLatestFirst()
 	for _, dsgCycle := range cyclesLatestFirst {
 		// Each move may change chunksWithImmovableReferences
 		for _, symbol := range y.symbolsSlice {
-			chunksWithImmovableReferences.Or(&symbol.chunksWithImmovableReferences)
+			symbol.orImmovableChunksInto(chunksWithImmovableReferences)
 		}
-		dsgCycle.MoveToPreferredChunk(&chunksWithImmovableReferences)
+		dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
 	}
 	for _, symbol := range y.symbolsSlice {
 		symbol.isMoveDeclarationStatementsDone = true
@@ -910,7 +965,10 @@ func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCod
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveToPreferredChunk(BitSet)
 func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *jutil.BitSet) {
-	preferredChunk := y.GetPreferredChunk(chunksWithImmovableReferences)
+	y.moveToPreferredChunkDirect(y.GetPreferredChunk(chunksWithImmovableReferences))
+}
+
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveToPreferredChunkDirect(preferredChunk *JSChunk) {
 	if preferredChunk != y.currentChunk {
 		if y.outer.cccmLog.IsLogging() {
 			// Write a separate log for each global symbol, because this is easier to work

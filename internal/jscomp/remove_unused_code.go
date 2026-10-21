@@ -83,7 +83,7 @@ func (s *rucSlab[T]) reset() {
 	if limit >= len(s.chunks) {
 		limit = len(s.chunks) - 1
 	}
-	const maxRetainedChunks = 160
+	const maxRetainedChunks = 64
 	for i := 0; i < limit && i < maxRetainedChunks; i++ {
 		clear(s.chunks[i])
 	}

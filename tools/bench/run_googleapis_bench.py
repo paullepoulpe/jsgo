@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import resource
@@ -93,6 +94,28 @@ def main() -> None:
         help="Path to jsgo binary (default: ./jsgo)",
     )
     ap.add_argument(
+        "--java",
+        action="store_true",
+        help="Run Java Closure Compiler jar instead of jsgo",
+    )
+    ap.add_argument(
+        "--java-bin",
+        default="/opt/homebrew/opt/openjdk/bin/java"
+        if os.path.exists("/opt/homebrew/opt/openjdk/bin/java")
+        else "java",
+        help="Path to Java >=21 binary",
+    )
+    ap.add_argument(
+        "--java-jar",
+        default=os.path.join(ROOT_DIR, ".cache", "closure-compiler-v20261015-maven.jar"),
+        help="Path to Java Closure Compiler jar",
+    )
+    ap.add_argument(
+        "--java-heap",
+        default="20g",
+        help="JVM -Xmx heap limit when --java is set (default: 20g)",
+    )
+    ap.add_argument(
         "--threads",
         type=int,
         default=1,
@@ -128,6 +151,11 @@ def main() -> None:
         action="store_true",
         help="Keep checks.state and optimizations.state on disk after completion",
     )
+    ap.add_argument(
+        "--profile-dir",
+        default="",
+        help="Optional directory to write per-stage CPU and heap profiles",
+    )
     args = ap.parse_args()
 
     flagfile = os.path.join(BENCH_DIR, "flags.txt")
@@ -142,22 +170,32 @@ def main() -> None:
     opt_state = os.path.join(args.work_dir, "optimizations.state")
     chunks_dir = os.path.join(args.work_dir, "chunks")
 
-    base_cmd = [
-        args.compiler,
-        f"--flagfile={flagfile}",
-        f"--num_parallel_threads={args.threads}",
-    ]
-    if args.fast_mode:
-        base_cmd.append("--fast_mode")
+    if args.java:
+        base_cmd = [
+            args.java_bin,
+            f"-Xmx{args.java_heap}",
+            "-jar",
+            args.java_jar,
+            f"--flagfile={flagfile}",
+        ]
+    else:
+        base_cmd = [
+            args.compiler,
+            f"--flagfile={flagfile}",
+            f"--num_parallel_threads={args.threads}",
+        ]
+        if args.fast_mode:
+            base_cmd.append("--fast_mode")
     if args.tracer_mode and args.tracer_mode != "OFF":
         base_cmd.append(f"--tracer_mode={args.tracer_mode}")
 
     env = os.environ.copy()
     stages = [s.strip().upper() for s in args.stages.split(",") if s.strip()]
     summary: dict[str, object] = {
-        "compiler": args.compiler,
-        "threads": args.threads,
-        "fast_mode": args.fast_mode,
+        "compiler": args.java_jar if args.java else args.compiler,
+        "java": args.java,
+        "threads": args.threads if not args.java else "jvm_default",
+        "fast_mode": args.fast_mode if not args.java else False,
         "tracer_mode": args.tracer_mode,
         "stages": {},
     }
@@ -166,6 +204,11 @@ def main() -> None:
     peak_rss = 0.0
 
     if "CHECKS" in stages:
+        stage_env = env.copy()
+        if args.profile_dir:
+            os.makedirs(args.profile_dir, exist_ok=True)
+            stage_env["JSGO_CPU_PROFILE"] = os.path.join(args.profile_dir, "checks-cpu.pprof")
+            stage_env["JSGO_MEM_PROFILE"] = os.path.join(args.profile_dir, "checks-heap.pprof")
         res = run_stage(
             "CHECKS",
             base_cmd
@@ -173,19 +216,25 @@ def main() -> None:
                 "--segment_of_compilation_to_run=CHECKS",
                 f"--filename_to_save_to={checks_state}",
             ],
-            env,
+            stage_env,
             os.path.join(args.work_dir, "checks.log"),
         )
         if os.path.exists(checks_state):
             res["state_size_mib"] = round(
                 os.path.getsize(checks_state) / (1024 * 1024), 2
             )
-            print(f"[CHECKS] checks.state size: {res['state_size_mib']} MiB")
+            res["state_sha256"] = hashlib.sha256(open(checks_state, "rb").read()).hexdigest()
+            print(f"[CHECKS] checks.state size: {res['state_size_mib']} MiB (sha256: {res['state_sha256'][:16]}...)")
         summary["stages"]["CHECKS"] = res
         total_wall += float(res["wall_s"])
         peak_rss = max(peak_rss, float(res["max_rss_mib"]))
 
     if "OPTIMIZATIONS" in stages:
+        stage_env = env.copy()
+        if args.profile_dir:
+            os.makedirs(args.profile_dir, exist_ok=True)
+            stage_env["JSGO_CPU_PROFILE"] = os.path.join(args.profile_dir, "optimizations-cpu.pprof")
+            stage_env["JSGO_MEM_PROFILE"] = os.path.join(args.profile_dir, "optimizations-heap.pprof")
         res = run_stage(
             "OPTIMIZATIONS",
             base_cmd
@@ -194,14 +243,15 @@ def main() -> None:
                 f"--filename_to_restore_from={checks_state}",
                 f"--filename_to_save_to={opt_state}",
             ],
-            env,
+            stage_env,
             os.path.join(args.work_dir, "optimizations.log"),
         )
         if os.path.exists(opt_state):
             res["state_size_mib"] = round(
                 os.path.getsize(opt_state) / (1024 * 1024), 2
             )
-            print(f"[OPTIMIZATIONS] optimizations.state size: {res['state_size_mib']} MiB")
+            res["state_sha256"] = hashlib.sha256(open(opt_state, "rb").read()).hexdigest()
+            print(f"[OPTIMIZATIONS] optimizations.state size: {res['state_size_mib']} MiB (sha256: {res['state_sha256'][:16]}...)")
         summary["stages"]["OPTIMIZATIONS"] = res
         total_wall += float(res["wall_s"])
         peak_rss = max(peak_rss, float(res["max_rss_mib"]))
@@ -210,6 +260,11 @@ def main() -> None:
         if os.path.exists(chunks_dir):
             shutil.rmtree(chunks_dir)
         os.makedirs(chunks_dir, exist_ok=True)
+        stage_env = env.copy()
+        if args.profile_dir:
+            os.makedirs(args.profile_dir, exist_ok=True)
+            stage_env["JSGO_CPU_PROFILE"] = os.path.join(args.profile_dir, "finalizations-cpu.pprof")
+            stage_env["JSGO_MEM_PROFILE"] = os.path.join(args.profile_dir, "finalizations-heap.pprof")
         res = run_stage(
             "FINALIZATIONS",
             base_cmd
@@ -218,18 +273,29 @@ def main() -> None:
                 f"--filename_to_restore_from={opt_state}",
                 f"--chunk_output_path_prefix={chunks_dir}/",
             ],
-            env,
+            stage_env,
             os.path.join(args.work_dir, "finalizations.log"),
         )
-        chunk_files = glob.glob(os.path.join(chunks_dir, "*.js"))
-        total_out_bytes = sum(os.path.getsize(p) for p in chunk_files)
-        non_empty_chunks = sum(1 for p in chunk_files if os.path.getsize(p) > 1)
+        chunk_files = sorted(glob.glob(os.path.join(chunks_dir, "*.js")))
+        total_out_bytes = 0
+        non_empty_chunks = 0
+        composite_hash = hashlib.sha256()
+        for p in chunk_files:
+            data = open(p, "rb").read()
+            sz = len(data)
+            total_out_bytes += sz
+            if sz > 1:
+                non_empty_chunks += 1
+            composite_hash.update(os.path.basename(p).encode("utf-8"))
+            composite_hash.update(b"\0")
+            composite_hash.update(hashlib.sha256(data).digest())
         res["output_chunks_count"] = len(chunk_files)
         res["non_empty_chunks_count"] = non_empty_chunks
         res["output_total_mib"] = round(total_out_bytes / (1024 * 1024), 2)
+        res["chunks_sha256"] = composite_hash.hexdigest()
         print(
             f"[FINALIZATIONS] Emitted {len(chunk_files)} chunk files "
-            f"({non_empty_chunks} non-empty, {res['output_total_mib']} MiB total)"
+            f"({non_empty_chunks} non-empty, {res['output_total_mib']} MiB total, sha256={res['chunks_sha256'][:16]}...)"
         )
         if not args.keep_chunks:
             shutil.rmtree(chunks_dir)

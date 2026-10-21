@@ -456,40 +456,76 @@ func typedAstDeserializer_deserializeTypedAsts(
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) {
 	jutil.Try(func() {
-		// Go-only: language-adapter — CodedInputStream.newInstance(InputStream) over the whole
-		// stream: the bytes are read up front and decoded with the shared protoReader (the size
-		// limit that resetSizeCounter() resets is Integer.MAX_VALUE, as in protobuf's default).
-		//
-		// Go-only: performance — a bytes.Reader (the embedded runtime
-		// libraries, read for every compilation) is copied once, at its
-		// size, instead of through io.ReadAll's growing buffer.
-		var data []byte
-		var err error
-		if br, ok := typedAstsStream.(*bytes.Reader); ok {
-			data = make([]byte, br.Len())
-			_, err = io.ReadFull(br, data)
-		} else {
-			data, err = io.ReadAll(typedAstsStream)
-		}
-		if err != nil {
-			panic(jutil.NewIOException(err.Error()))
-		}
-		codedInput := &protoReader{b: data, limit: math.MaxInt32}
-		// The typedAstsStream is an encoded 'TypedAst.List' message:
-		//  message TypedAst {
-		//    // (other fields)
-		//   message List {
-		//     repeated TypedAst typed_asts = 1;
-		//   }
-		// }
-		// We could use the Java proto API to create a TypedAst.List object from this stream. However,
-		// in some compiler modes the TypedAst.List may contain thousands of TypedAst objects, and
-		// pulling them all into memory at once is unnecessarily expensive. Instead we read a single
-		// TypedAst object at a time from the stream.
 		typedAstBuilder := TypedAst_NewBuilder()
-		for !codedInput.atEnd() {
-			tag := codedInput.readTag()
-			// WireFormat.getTagFieldNumber(tag) is tag >>> 3; getTagWireType(tag) is tag & 7.
+		if br, ok := typedAstsStream.(*bytes.Reader); ok {
+			data := make([]byte, br.Len())
+			if _, err := io.ReadFull(br, data); err != nil {
+				panic(jutil.NewIOException(err.Error()))
+			}
+			codedInput := &protoReader{b: data, limit: math.MaxInt32}
+			for !codedInput.atEnd() {
+				tag := codedInput.readTag()
+				if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+					tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+					panic(NewInvalidProtocolBufferException(
+						"Unexpected field number " +
+							strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
+							" or wire type " +
+							strconv.Itoa(tag&7)))
+				}
+				messageBytes := codedInput.readMessageBytes()
+				typedAstBuilder.m.mergeFromReader(codedInput.sub(messageBytes))
+				typedAst := typedAstBuilder.Build()
+				typedAstBuilder.Clear()
+				deserializer.deserializeTypedAst(
+					typedAst, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+			}
+			return
+		}
+
+		var oneByte [1]byte
+		readByte := func(allowEOF bool) (byte, bool) {
+			for {
+				n, err := typedAstsStream.Read(oneByte[:])
+				if n == 1 {
+					return oneByte[0], true
+				}
+				if err == io.EOF {
+					if allowEOF {
+						return 0, false
+					}
+					panic(protoTruncatedMessage())
+				}
+				if err != nil {
+					panic(jutil.NewIOException(err.Error()))
+				}
+			}
+		}
+		readVarint64 := func(firstByte byte) uint64 {
+			x := uint64(firstByte & 0x7f)
+			if firstByte < 0x80 {
+				return x
+			}
+			for shift := uint(7); shift < 64; shift += 7 {
+				b, _ := readByte(false)
+				x |= uint64(b&0x7f) << shift
+				if b < 0x80 {
+					return x
+				}
+			}
+			panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
+		}
+
+		for {
+			first, ok := readByte(true)
+			if !ok {
+				break
+			}
+			uTag := readVarint64(first)
+			if uTag>>3 == 0 || uTag > math.MaxUint32 {
+				panic(NewInvalidProtocolBufferException("Protocol message contained an invalid tag (zero)."))
+			}
+			tag := int(int32(uTag))
 			if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
 				tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
 				panic(NewInvalidProtocolBufferException(
@@ -498,9 +534,40 @@ func typedAstDeserializer_deserializeTypedAsts(
 						" or wire type " +
 						strconv.Itoa(tag&7)))
 			}
-			// codedInput.readMessage(typedAstBuilder, ExtensionRegistry.getEmptyRegistry())
-			messageBytes := codedInput.readMessageBytes()
-			typedAstBuilder.m.mergeFromReader(codedInput.sub(messageBytes))
+			lenFirst, _ := readByte(false)
+			msgLen := int(int32(readVarint64(lenFirst)))
+			if msgLen < 0 {
+				panic(protoNegativeSize())
+			}
+			var messageBytes []byte
+			const probeSize = 64 * 1024
+			if msgLen <= probeSize {
+				messageBytes = make([]byte, msgLen)
+				if _, err := io.ReadFull(typedAstsStream, messageBytes); err != nil {
+					if err == io.EOF || err == io.ErrUnexpectedEOF {
+						panic(protoTruncatedMessage())
+					}
+					panic(jutil.NewIOException(err.Error()))
+				}
+			} else {
+				var probe [probeSize]byte
+				if _, err := io.ReadFull(typedAstsStream, probe[:]); err != nil {
+					if err == io.EOF || err == io.ErrUnexpectedEOF {
+						panic(protoTruncatedMessage())
+					}
+					panic(jutil.NewIOException(err.Error()))
+				}
+				messageBytes = make([]byte, msgLen)
+				copy(messageBytes, probe[:])
+				if _, err := io.ReadFull(typedAstsStream, messageBytes[probeSize:]); err != nil {
+					if err == io.EOF || err == io.ErrUnexpectedEOF {
+						panic(protoTruncatedMessage())
+					}
+					panic(jutil.NewIOException(err.Error()))
+				}
+			}
+			rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
+			typedAstBuilder.m.mergeFromReader(rd)
 			typedAst := typedAstBuilder.Build()
 			typedAstBuilder.Clear()
 			deserializer.deserializeTypedAst(

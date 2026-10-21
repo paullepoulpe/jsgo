@@ -1234,6 +1234,7 @@ func (c *Compiler) Stage1Passes() {
 	Compiler_RunInCompilerThread(c,
 		func() any {
 			c.performChecks()
+			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1272,6 +1273,7 @@ func (c *Compiler) Stage2Passes(segmentOfCompilationToRun CompilerOptions_Segmen
 			if c.options.ShouldOptimize() {
 				c.PerformTranspilationAndOptimizations(segmentOfCompilationToRun)
 			}
+			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1296,6 +1298,7 @@ func (c *Compiler) Stage3Passes() {
 			if c.options.ShouldOptimize() {
 				c.PerformFinalizations()
 			}
+			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -2196,7 +2199,10 @@ func (c *Compiler) GetTypedScopeCreator() ScopeCreator {
 
 // Java: Compiler.clearTypedScopeCreator()
 func (c *Compiler) ClearTypedScopeCreator() {
-	c.typedScopeCreator = nil
+	if c.typedScopeCreator != nil {
+		c.typedScopeCreator.memoized = nil
+		c.typedScopeCreator = nil
+	}
 }
 
 // Java: Compiler.ensureDefaultPassConfig()
@@ -3541,6 +3547,7 @@ func Compiler_GetLicenseForFile(compiler AbstractCompiler, fileName *string) *st
 func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chunk *JSChunk) []string {
 	return Compiler_RunInCompilerThread(c,
 		func() []string {
+			c.evictPassArenaCaches()
 			inputs := chunk.GetInputs()
 			numInputs := len(inputs)
 			if numInputs == 0 {
@@ -4992,6 +4999,7 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 	// Do not close the outputstream, caller is responsible for closing it.
 	Compiler_RunInCompilerThread(c,
 		func() any {
+			c.evictPassArenaCaches()
 			tracer := c.NewTracer("serializeCompilerState")
 			nonClosingOut := NewCompiler_NonClosingOutputStream(outputStream)
 			var compressionStream io.Writer

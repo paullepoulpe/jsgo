@@ -232,7 +232,7 @@ func (c *ReferenceCollector) release() {
 	}
 	c.arena = nil
 	if cap(c.vars) > len(c.varsBuf) {
-		if cap(c.vars) <= 1048576 {
+		if cap(c.vars) <= 524288 {
 			clear(c.vars)
 			a.vars = c.vars[:0]
 			clear(c.cols)
@@ -285,10 +285,10 @@ func (c *ReferenceCollector) release() {
 	}
 	c.argumentsRefs = nil
 	const (
-		maxRetainedRefChunks    = 256
-		maxRetainedRefPtrChunks = 256
-		maxRetainedColChunks    = 128
-		maxRetainedBlkChunks    = 128
+		maxRetainedRefChunks    = 128
+		maxRetainedRefPtrChunks = 128
+		maxRetainedColChunks    = 96
+		maxRetainedBlkChunks    = 96
 	)
 	if a.refChunkIdx > 0 {
 		a.refChunks[a.refChunkIdx-1] = c.refSlab

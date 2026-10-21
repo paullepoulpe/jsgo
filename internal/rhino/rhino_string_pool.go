@@ -208,7 +208,8 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // This is a performance win if creating a lot of string nodes with the same
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
-	pool *jutil.ArrayList[string]
+	pool  *jutil.ArrayList[string]
+	cells []*string
 
 	isInterned *RhinoStringPool_WriteOnlyBitset
 }
@@ -217,8 +218,26 @@ type RhinoStringPool_LazyInternedStringList struct {
 func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{
 		pool:       jutil.NewArrayListFrom(pool),
+		cells:      make([]*string, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
 	}
+}
+
+// GetCell returns the interned *string cell at offset, interning on first access.
+func (l *RhinoStringPool_LazyInternedStringList) GetCell(offset int) *string {
+	if uint(offset) < uint(len(l.cells)) {
+		if cell := l.cells[offset]; cell != nil {
+			return cell
+		}
+	} else {
+		_ = l.isInterned.Get(offset)
+	}
+	uninterned := l.pool.Get(offset)
+	cell := rhinoStringPoolCell(uninterned)
+	l.pool.Set(offset, *cell)
+	l.cells[offset] = cell
+	l.isInterned.Set(offset) // must happen after this.pool.set() to avoid a race condition
+	return cell
 }
 
 // Get returns the interned string at offset.
@@ -230,14 +249,7 @@ func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_L
 //
 // Java: RhinoStringPool.LazyInternedStringList.get(int)
 func (l *RhinoStringPool_LazyInternedStringList) Get(offset int) string {
-	if !l.isInterned.Get(offset) {
-		uninterned := l.pool.Get(offset)
-		interned := RhinoStringPool_AddOrGet(uninterned)
-		l.pool.Set(offset, interned)
-		l.isInterned.Set(offset) // must happen after this.pool.set() to avoid a race condition
-		return interned
-	}
-	return l.pool.Get(offset)
+	return *l.GetCell(offset)
 }
 
 // Java: RhinoStringPool.LazyInternedStringList.stream()

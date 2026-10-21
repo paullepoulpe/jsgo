@@ -253,6 +253,7 @@ func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 		// object), a NamedType is created solely for the purpose of naming an
 		// already-known type. When that happens, there's nothing to look up, so
 		// just resolve the referenced type.
+		t.resolutionScope = nil
 		return t.ProxyObjectTypeBase.ResolveInternal(reporter)
 	}
 	jutil.CheckStateMsg(
@@ -274,11 +275,10 @@ func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 		t.HandleTypeCycle(reporter)
 	}
 	t.FinishPropertyContinuations()
+	t.resolutionScope = nil
 
 	result := t.GetReferencedType()
 	if t.IsSuccessfullyResolved() {
-		t.resolutionScope = nil
-
 		resultAsObject := result.ToMaybeObjectType()
 
 		if resultAsObject == nil {

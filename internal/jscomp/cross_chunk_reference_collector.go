@@ -178,7 +178,7 @@ func (c *CrossChunkReferenceCollector) release() {
 	if a := c.arena; a != nil {
 		c.arena = nil
 		if cap(c.vars) > len(c.varsBuf) {
-			if cap(c.vars) <= 1048576 {
+			if cap(c.vars) <= 524288 {
 				clear(c.vars)
 				a.vars = c.vars[:0]
 				clear(c.cols)
@@ -191,9 +191,9 @@ func (c *CrossChunkReferenceCollector) release() {
 		c.vars = nil
 		c.cols = nil
 		const (
-			maxRetainedRefChunks = 256
-			maxRetainedColChunks = 192
-			maxRetainedBlkChunks = 224
+			maxRetainedRefChunks = 128
+			maxRetainedColChunks = 96
+			maxRetainedBlkChunks = 96
 		)
 		if a.refChunkIdx > 0 {
 			a.refChunks[a.refChunkIdx-1] = c.refSlab
@@ -248,7 +248,7 @@ func (c *CrossChunkReferenceCollector) release() {
 	if ca := c.ccArena; ca != nil {
 		c.ccArena = nil
 		if cap(c.topLevelStatements) > 0 {
-			if cap(c.topLevelStatements) <= 131072 {
+			if cap(c.topLevelStatements) <= 65536 {
 				clear(c.topLevelStatements)
 				ca.topLevelStatements = c.topLevelStatements[:0]
 			} else {
@@ -257,7 +257,7 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		c.topLevelStatements = nil
 		const (
-			maxRetainedStmtChunks     = 32
+			maxRetainedStmtChunks     = 64
 			maxRetainedStmtRefsChunks = 64
 			maxRetainedSymChunks      = 64
 			maxRetainedDsgChunks      = 64

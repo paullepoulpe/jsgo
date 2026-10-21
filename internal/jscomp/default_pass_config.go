@@ -769,6 +769,9 @@ func (c *DefaultPassConfig) initFields() {
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
 					return CompilerPassFunc(func(unused *rhino.Node, srcRoot *rhino.Node) {
+						if comp, ok := compiler.(*Compiler); ok {
+							comp.evictPassArenaCaches()
+						}
 						globalRoot := srcRoot.GetParent()
 
 						inferencePass :=

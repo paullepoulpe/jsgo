@@ -67,7 +67,7 @@ func SerializeTypedAstPass_CreateFromOutputStream(
 	c AbstractCompiler, out io.Writer, serializationOptions *SerializationOptions) *SerializeTypedAstPass {
 	toOutputStream := func(ast *TypedAst) {
 		// TypedAst.List.newBuilder().addTypedAsts(ast).build().writeTo(out)
-		if _, err := out.Write(TypedAst_List_NewBuilder().AddTypedAsts(ast).Build().ToByteArray()); err != nil {
+		if err := ast.writeAsListItemTo(out); err != nil {
 			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
 				"Cannot write to stream", jutil.NewIOException(err.Error())))
 		}
@@ -94,7 +94,9 @@ func SerializeTypedAstPass_CreateFromPath(
 			}
 			out := NewFastGzipOutputStream(file)
 			defer out.Close()
-			out.Write(TypedAst_List_NewBuilder().AddTypedAsts(ast).Build().ToByteArray())
+			if err := ast.writeAsListItemTo(out); err != nil {
+				panic(jutil.NewIOException(err.Error()))
+			}
 		}, func(e jutil.IIOException) {
 			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
 				"Cannot create TypedAst output file", e))

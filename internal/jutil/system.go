@@ -44,9 +44,25 @@ func System_SetErr(err *PrintStream) {
 	system_err = err
 }
 
+var system_atExit []func()
+
+// System_AtExit registers a callback to run before System_Exit calls os.Exit.
+func System_AtExit(fn func()) {
+	system_mu.Lock()
+	defer system_mu.Unlock()
+	system_atExit = append(system_atExit, fn)
+}
+
 // System_Exit is System.exit(int): terminates the process with the given
 // status (the shell sees its low 8 bits).
 func System_Exit(status int) {
+	system_mu.Lock()
+	hooks := system_atExit
+	system_atExit = nil
+	system_mu.Unlock()
+	for i := len(hooks) - 1; i >= 0; i-- {
+		hooks[i]()
+	}
 	os.Exit(status)
 }
 

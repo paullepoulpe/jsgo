@@ -1,6 +1,9 @@
 package jutil
 
-import "io"
+import (
+	"io"
+	"sync"
+)
 
 // Go-only: language-adapter — java.io.OutputStreamWriter(OutputStream,
 // Charset), encoding with CodingErrorAction.REPLACE as the Javadoc
@@ -14,6 +17,12 @@ import "io"
 // ASCII there); a charset that writes a byte-order mark writes it before
 // its first char, so an empty output stays empty.
 
+var charsetWriterByteBufPool = sync.Pool{
+	New: func() any {
+		return new([8192]byte)
+	},
+}
+
 // NewOutputStreamWriterWithCharset is new OutputStreamWriter(out, cs).
 func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if out == nil || cs == nil {
@@ -22,9 +31,12 @@ func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if cs == StandardCharsets_UTF_8 {
 		return NewOutputStreamWriter(out)
 	}
+	slab := charsetWriterByteBufPool.Get().(*[8192]byte)
 	return &charsetOutputStreamWriter{
 		out:     out,
 		enc:     cs.impl().newEncoder(),
+		byteBuf: slab[:0],
+		slab:    slab,
 		isASCII: cs == StandardCharsets_US_ASCII || cs == StandardCharsets_ISO_8859_1,
 	}
 }
@@ -33,6 +45,7 @@ type charsetOutputStreamWriter struct {
 	out                     io.WriteCloser
 	enc                     charsetEncoder
 	byteBuf                 []byte
+	slab                    *[8192]byte
 	pendingHighSurrogate    uint16
 	hasPendingHighSurrogate bool
 	isASCII                 bool
@@ -173,6 +186,10 @@ func (w *charsetOutputStreamWriter) Close() {
 	}
 	b = w.enc.finish(b)
 	w.byteBuf = nil
+	if w.slab != nil {
+		charsetWriterByteBufPool.Put(w.slab)
+		w.slab = nil
+	}
 	w.emit(b)
 	if err := w.out.Close(); err != nil {
 		panic(NewIOException(err.Error()))

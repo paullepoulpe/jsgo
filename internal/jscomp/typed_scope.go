@@ -295,6 +295,7 @@ func (s *TypedScope) ValidateCompletelyBuilt() {
 	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
 	// singleton)
 	s.reservedNames = nil
+	s.arena = nil
 }
 
 // IsBottom reports whether this is the bottom of the lattice.
