@@ -255,10 +255,6 @@ type abstractScopeBound[S any, V any] interface {
 type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
 	self S
 
-	// Go-only: performance — held by value so declaring the first variable
-	// in a scope does not allocate a separate LinkedHashMap header.
-	vars jutil.LinkedHashMap[string, V]
-
 	// Go-only: language-adapter — the EnumMap<ImplicitVar, V>, indexed by
 	// ordinal (a zero V is an absent key, as EnumMap.computeIfAbsent never
 	// stores null); nil is the ImmutableMap.of() sentinel.
@@ -269,6 +265,8 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	depth           int32
 	varsInitialized bool
 	isBottom        bool
+	hasImplicitVars bool
+	scanDone        bool
 }
 
 // Java: AbstractScope.getDepth()
@@ -294,9 +292,10 @@ func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S)
 // Java: AbstractScope(Node)
 func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(self S, rootNode *rhino.Node) {
 	b.self = self
-	b.vars = jutil.LinkedHashMap[string, V]{}
 	b.varsInitialized = false
 	b.isBottom = false
+	b.hasImplicitVars = false
+	b.scanDone = false
 	b.depth = 0
 	b.implicitVars = nil
 	b.rootNode = jutil.CheckNotNull(rootNode)
@@ -367,64 +366,12 @@ func (b *AbstractScopeBase[S, V]) GetParentScope() rhino.StaticScope {
 	return nil
 }
 
-// Undeclare undeclares a variable, to be used when the compiler optimizes
-// out a variable and removes it from the scope.
-//
-// Java: AbstractScope.undeclare(V)
-func (b *AbstractScopeBase[S, V]) Undeclare(var_ V) {
-	var null V
-	jutil.CheckState(var_.getScopeS() == b.self)
-	current := b.vars.Get(var_.GetName())
-	if current == null {
-		panic(jutil.NewNullPointerException())
-	}
-	jutil.CheckState(current.Equals(var_))
-	b.UndeclareInteral(var_)
-}
-
-// UndeclareInteral undeclares without any safety checks.
-//
-// Java: AbstractScope.undeclareInteral(V)
-func (b *AbstractScopeBase[S, V]) UndeclareInteral(var_ V) {
-	// Assume that vars must contain var, and thus not be empty
-	if !b.varsInitialized {
-		// Go-only: language-adapter — ImmutableMap.of().remove throws.
-		panic(jutil.NewUnsupportedOperationException())
-	}
-	b.vars.Remove(var_.GetName())
-}
-
-// Java: AbstractScope.declareInternal(String, V)
-func (b *AbstractScopeBase[S, V]) DeclareInternal(name string, var_ V) {
-	if b.self.IsFunctionBlockScope() && b.self.GetParent().HasOwnSlot(name) && !b.self.HasOwnSlot(name) && !b.IsBleedingFunctionName(name) {
-		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
-	}
-
-	b.varsInitialized = true
-	b.vars.Put(name, var_)
-}
-
-// Java: AbstractScope.clearVarsInternal()
-func (b *AbstractScopeBase[S, V]) ClearVarsInternal() {
-	if !b.vars.IsEmpty() {
-		b.vars.Clear()
-	}
-}
-
 // HasOwnImplicitSlot returns true iff this scope implies a slot with the
 // given name.
 //
 // Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
 func (b *AbstractScopeBase[S, V]) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
 	return name != nil && name.IsMadeByScope(abstractScope_of(b.self))
-}
-
-// HasOwnSlot returns true if a variable is declared in this scope, with no
-// recursion.
-//
-// Java: AbstractScope.hasOwnSlot(String)
-func (b *AbstractScopeBase[S, V]) HasOwnSlot(name string) bool {
-	return b.vars.ContainsKey(name) || b.self.HasOwnImplicitSlot(AbstractScope_ImplicitVar_Of(name))
 }
 
 // HasSlot returns true if a variable is declared in this or any parent
@@ -474,18 +421,6 @@ func (b *AbstractScopeBase[S, V]) GetOwnSlot(name string) rhino.StaticSlot {
 		return v
 	}
 	return nil
-}
-
-// getOwnSlotV is getOwnSlot with its Java return type V.
-//
-// Go-only: language-adapter — see GetOwnSlot.
-func (b *AbstractScopeBase[S, V]) getOwnSlotV(name string) V {
-	var null V
-	if var_ := b.vars.Get(name); var_ != null {
-		return var_
-	}
-
-	return b.GetOwnImplicitSlot(AbstractScope_ImplicitVar_Of(name))
 }
 
 // GetSlot is final in Java and returns V; see the note at the top of this
@@ -569,16 +504,6 @@ func (b *AbstractScopeBase[S, V]) IsBleedingFunctionName(name string) bool {
 		var_.GetNode().GetParent().IsFunction()
 }
 
-// GetVarIterable returns an iterable over all of the variables declared in
-// this scope (except the special 'arguments' variable).
-//
-// Java: AbstractScope.getVarIterable()
-func (b *AbstractScopeBase[S, V]) GetVarIterable() iter.Seq[V] {
-	// Go-only: language-adapter — vars.values() is a view of the map object
-	// current at the call.
-	return b.vars.Values()
-}
-
 // GetAllAccessibleVariables returns an iterable over all of the variables
 // accessible to this scope (i.e. the variables in this scope and its parent
 // scopes). Any variables declared in the local scope with the same name as a
@@ -604,19 +529,6 @@ func (b *AbstractScopeBase[S, V]) GetAllAccessibleVariables() iter.Seq[V] {
 		s = s.GetParent()
 	}
 	return accessibleVars.Values()
-}
-
-// Java: AbstractScope.getAllSymbols()
-func (b *AbstractScopeBase[S, V]) GetAllSymbols() iter.Seq[V] {
-	return b.vars.Values()
-}
-
-// GetVarCount returns number of variables in this scope (excluding the
-// special 'arguments' variable)
-//
-// Java: AbstractScope.getVarCount()
-func (b *AbstractScopeBase[S, V]) GetVarCount() int {
-	return b.vars.Size()
 }
 
 // IsGlobal returns whether this is the global scope.

@@ -2972,6 +2972,7 @@ func (c *Compiler) evictPassArenaCaches() {
 	}
 	for i := range cachedScopeArenas {
 		if a := cachedScopeArenas[i].Swap(nil); a != nil {
+			a.trimSmall()
 			scopeArenaPool.Put(a)
 		}
 	}

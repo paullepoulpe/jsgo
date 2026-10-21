@@ -46,6 +46,12 @@ type propMapEntry struct {
 	prop *Property
 }
 
+type propMapExt struct {
+	knownSymbols             *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]
+	cachedKeySet             []string
+	cachedKnownSymbolsKeySet []*KnownSymbolType
+}
+
 // PropertyMap is the representation for a collection of properties on an
 // object.
 type PropertyMap struct {
@@ -55,26 +61,13 @@ type PropertyMap struct {
 	// parents and secondary parents directly.
 	parentSource ObjectType
 
-	// Own string properties. Small maps (<=8 entries) scan entries directly
+	// Own string properties. Small maps (<=24 entries) scan entries directly
 	// with string equality; larger maps maintain byName for O(1) lookup and
 	// sort entries by StringCompareTo lazily when key-ordered iteration is
 	// requested.
 	entries []propMapEntry
 	byName  map[string]*Property
-
-	knownSymbols *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property] // lazily initialized
-
-	// The set of keys for this map and its ancestors.
-	//
-	// Collecting the set of properties turns out to be expensive for some
-	// high volume callers (e.g. structural type equality). Since the results
-	// don't change often, this cache eliminates most of the cost.
-	//
-	// Go: nil is Java null; the sorted keys otherwise.
-	cachedKeySet []string
-
-	// The set of known symbols keys for this map and its ancestors.
-	cachedKnownSymbolsKeySet []*KnownSymbolType
+	ext     *propMapExt
 
 	// A "timestamp" for map mutations to validate cachedKeySet and
 	// cachedKnownSymbolsKeySet.
@@ -92,6 +85,13 @@ type PropertyMap struct {
 	hasNonASCII bool
 }
 
+func (m *PropertyMap) ensureExt() *propMapExt {
+	if m.ext == nil {
+		m.ext = &propMapExt{}
+	}
+	return m.ext
+}
+
 func propMapIsASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= 0x80 {
@@ -103,9 +103,11 @@ func propMapIsASCII(s string) bool {
 
 // Java: PropertyMap.EMPTY_MAP
 var PropertyMap_EMPTY_MAP = &PropertyMap{
-	knownSymbols: jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property](),
-	immutable:    true,
-	sorted:       true,
+	ext: &propMapExt{
+		knownSymbols: jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property](),
+	},
+	immutable: true,
+	sorted:    true,
 }
 
 // Java: PropertyMap()
@@ -242,8 +244,8 @@ func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
 	case Property_KeyKind_STRING:
 		return m.GetOwnProperty(propertyName.String_())
 	}
-	if m.knownSymbols != nil {
-		return m.knownSymbols.Get(propertyName.Symbol())
+	if m.ext != nil && m.ext.knownSymbols != nil {
+		return m.ext.knownSymbols.Get(propertyName.Symbol())
 	}
 	return nil
 }
@@ -274,8 +276,8 @@ func (m *PropertyMap) GetOwnPropertyNames() []string {
 
 // Java: PropertyMap.getOwnKnownSymbols()
 func (m *PropertyMap) GetOwnKnownSymbols() []*KnownSymbolType {
-	if m.knownSymbols != nil {
-		return m.knownSymbols.KeySlice()
+	if m.ext != nil && m.ext.knownSymbols != nil {
+		return m.ext.knownSymbols.KeySlice()
 	}
 	return nil
 }
@@ -294,7 +296,8 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 
 	// If any counter is greater than this counter, there has been a mutation
 	// and the cache must be rebuilt.
-	if maxAncestorCounter != m.cachedKeySetCounter || m.cachedKeySet == nil {
+	ext := m.ensureExt()
+	if maxAncestorCounter != m.cachedKeySetCounter || ext.cachedKeySet == nil {
 		keys := jutil.NewTreeSet[string](jutil.StringCompareTo)
 		knownSymbolsKeys := jutil.NewObjectLinkedHashSet[*KnownSymbolType]()
 		for ancestor := range ancestors.All() {
@@ -304,28 +307,30 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			// mutations, calls #keySet will eventually set stable caches on all
 			// maps.
 			ancestor.cachedKeySetCounter = maxAncestorCounter
-			ancestor.cachedKeySet = nil
-			ancestor.cachedKnownSymbolsKeySet = nil
+			if ancestor.ext != nil {
+				ancestor.ext.cachedKeySet = nil
+				ancestor.ext.cachedKnownSymbolsKeySet = nil
+			}
 
 			ancestor.ensureSorted()
 			for _, e := range ancestor.entries {
 				keys.Add(e.key)
 			}
-			if ancestor.knownSymbols != nil {
-				for s := range ancestor.knownSymbols.Keys() {
+			if ancestor.ext != nil && ancestor.ext.knownSymbols != nil {
+				for s := range ancestor.ext.knownSymbols.Keys() {
 					knownSymbolsKeys.Add(s)
 				}
 			}
 		}
 		if keys.IsEmpty() {
-			m.cachedKeySet = []string{}
+			ext.cachedKeySet = []string{}
 		} else {
-			m.cachedKeySet = keys.ToSlice()
+			ext.cachedKeySet = keys.ToSlice()
 		}
-		m.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
+		ext.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
 	}
 
-	return NewPropertyMap_AllKeys(m.cachedKeySet, m.cachedKnownSymbolsKeySet)
+	return NewPropertyMap_AllKeys(ext.cachedKeySet, ext.cachedKnownSymbolsKeySet)
 }
 
 // PropertyMap_AllKeys is the record of all the keys of a map and its
@@ -473,8 +478,8 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	if !m.hasNonASCII {
 		if m.byName != nil {
 			m.byName[name] = newProp
-		} else if len(m.entries) > 8 {
-			m.byName = make(map[string]*Property, 16)
+		} else if len(m.entries) > 24 {
+			m.byName = make(map[string]*Property, 32)
 			for _, e := range m.entries {
 				m.byName[e.key] = e.prop
 			}
@@ -485,8 +490,8 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 // Java: PropertyMap.putProperty(KnownSymbolType, Property)
 func (m *PropertyMap) PutPropertyBySymbol(symbol *KnownSymbolType, newProp *Property) {
 	var oldProp *Property
-	if m.knownSymbols != nil {
-		oldProp = m.knownSymbols.Get(symbol)
+	if m.ext != nil && m.ext.knownSymbols != nil {
+		oldProp = m.ext.knownSymbols.Get(symbol)
 	}
 
 	if oldProp == nil {
@@ -494,13 +499,14 @@ func (m *PropertyMap) PutPropertyBySymbol(symbol *KnownSymbolType, newProp *Prop
 		m.IncrementCachedKeySetCounter()
 	}
 
-	if m.knownSymbols == nil {
-		m.knownSymbols = jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property]()
+	ext := m.ensureExt()
+	if ext.knownSymbols == nil {
+		ext.knownSymbols = jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property]()
 	}
 	if m.immutable {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	m.knownSymbols.Put(symbol, newProp)
+	ext.knownSymbols.Put(symbol, newProp)
 }
 
 // Java: PropertyMap.putProperty(Property.Key, Property)
@@ -538,11 +544,11 @@ func (m *PropertyMap) HashCode() int32 {
 	for _, e := range m.entries {
 		propHash += jutil.StringHashCode(e.key)
 	}
-	if m.knownSymbols == nil {
+	if m.ext == nil || m.ext.knownSymbols == nil {
 		return propHash
 	}
 	var symHash int32
-	for s := range m.knownSymbols.Keys() {
+	for s := range m.ext.knownSymbols.Keys() {
 		symHash += jutil.ObjectHashCode(s)
 	}
 	return 31*(31*1+propHash) + symHash
@@ -556,7 +562,9 @@ func (m *PropertyMap) Equals(o any) bool {
 // Java: PropertyMap.IncrementCachedKeySetCounter()
 func (m *PropertyMap) IncrementCachedKeySetCounter() {
 	m.cachedKeySetCounter++
-	m.cachedKeySet = nil
+	if m.ext != nil {
+		m.ext.cachedKeySet = nil
+	}
 
 	jutil.CheckState(m.cachedKeySetCounter >= 0)
 }

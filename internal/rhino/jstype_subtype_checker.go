@@ -299,7 +299,13 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 		return true
 	} else if supertype.IsUnionType() {
 		// Some alternate must be a supertype.
-		for _, sup := range supertype.ToMaybeUnionType().GetAlternates() {
+		alts := supertype.ToMaybeUnionType().GetAlternates()
+		for _, sup := range alts {
+			if subtype == sup {
+				return true
+			}
+		}
+		for _, sup := range alts {
 			if c.IsSubtypeCaching(subtype, sup) {
 				return true
 			}
@@ -422,36 +428,32 @@ func (c *SubtypeChecker) IsStructuralSubtypeHelper(
 	// 2) And for each property of supertype, its type must be
 	//    a super type of the corresponding property of subtype.
 
-	var keys *PropertyMap_AllKeys
-	if !supertype.IsRecordType() {
-		keys = supertype.GetPropertyMap().GetAllKeys()
-	}
-	// NOTE: Inline record literal types always have Object as a supertype. In
-	// these cases, we really only care about the properties explicitly
-	// declared in the record literal, and not about any properties inherited
-	// from Object.prototype. On the other hand, @record types allow
-	// inheritance and we need to match against inherited properties as well.
-	var props []string
 	if supertype.IsRecordType() {
-		props = supertype.GetOwnPropertyNames()
-	} else {
-		props = keys.StringKeys()
+		pm := supertype.GetPropertyMap()
+		pm.ensureSorted()
+		for i := range pm.entries {
+			if !c.CheckPropertyPresence(
+				NewProperty_StringKey(pm.entries[i].key), subtype, supertype, optionality) {
+				return false
+			}
+		}
+		for _, knownSymbolType := range pm.GetOwnKnownSymbols() {
+			if !c.CheckPropertyPresence(
+				NewProperty_SymbolKey(knownSymbolType), subtype, supertype, optionality) {
+				return false
+			}
+		}
+		return true
 	}
 
-	for _, property := range props {
+	keys := supertype.GetPropertyMap().GetAllKeys()
+	for _, property := range keys.StringKeys() {
 		if !c.CheckPropertyPresence(
 			NewProperty_StringKey(property), subtype, supertype, optionality) {
 			return false
 		}
 	}
-	var knownSymbols []*KnownSymbolType
-	if supertype.IsRecordType() {
-		knownSymbols = supertype.GetOwnPropertyKnownSymbols()
-	} else {
-		knownSymbols = keys.KnownSymbolKeys()
-	}
-
-	for _, knownSymbolType := range knownSymbols {
+	for _, knownSymbolType := range keys.KnownSymbolKeys() {
 		knownSymbolTypeKey := NewProperty_SymbolKey(knownSymbolType)
 		if !c.CheckPropertyPresence(knownSymbolTypeKey, subtype, supertype, optionality) {
 			return false

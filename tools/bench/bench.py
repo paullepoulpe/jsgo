@@ -161,8 +161,10 @@ def task_jobs(task, ws):
 
 
 def loadavg():
-    with open("/proc/loadavg") as f:
-        return [float(x) for x in f.read().split()[:3]]
+    try:
+        return list(os.getloadavg())
+    except OSError:
+        return [0.0, 0.0, 0.0]
 
 
 def run_proc(argv, cwd, env, out_path, err_path, nice):
@@ -175,9 +177,10 @@ def run_proc(argv, cwd, env, out_path, err_path, nice):
                              preexec_fn=(lambda: os.nice(nice)) if nice else None)
         _, status, ru = os.wait4(p.pid, 0)
     wall = time.monotonic() - t0
+    rss_div = (1024 * 1024) if sys.platform == "darwin" else 1024
     return {
         "wall_s": wall, "user_s": ru.ru_utime, "sys_s": ru.ru_stime, "cpu_s": ru.ru_utime + ru.ru_stime,
-        "rss_mb": ru.ru_maxrss / 1024, "exit": os.waitstatus_to_exitcode(status),
+        "rss_mb": ru.ru_maxrss / rss_div, "exit": os.waitstatus_to_exitcode(status),
         "launch_epoch_ms": launch * 1000, "exit_epoch_ms": time.time() * 1000, "load1": load[0],
     }
 
@@ -702,22 +705,33 @@ def machine_info(runner, jsgo_info):
         except OSError as e:
             return str(e)
     cpu = ""
-    with open("/proc/cpuinfo") as f:
-        for line in f:
-            if line.startswith("model name"):
-                cpu = line.split(":", 1)[1].strip()
-                break
+    if os.path.exists("/proc/cpuinfo"):
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    cpu = line.split(":", 1)[1].strip()
+                    break
+    elif sys.platform == "darwin":
+        cpu = cmd("sysctl", "-n", "machdep.cpu.brand_string")
     mem = ""
-    with open("/proc/meminfo") as f:
-        for line in f:
-            if line.startswith("MemTotal"):
-                mem = f"{int(line.split()[1]) / 1048576:.1f} GiB"
+    if os.path.exists("/proc/meminfo"):
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal"):
+                    mem = f"{int(line.split()[1]) / 1048576:.1f} GiB"
+    elif sys.platform == "darwin":
+        try:
+            mem = f"{int(cmd('sysctl', '-n', 'hw.memsize')) / (1 << 30):.1f} GiB"
+        except ValueError:
+            pass
     osname = ""
     if os.path.exists("/etc/os-release"):
         with open("/etc/os-release") as f:
             for line in f:
                 if line.startswith("PRETTY_NAME="):
                     osname = line.split("=", 1)[1].strip().strip('"')
+    else:
+        osname = platform.platform()
     return {
         "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "host": platform.node(), "cpu": cpu, "cpus": os.cpu_count(), "memory": mem,

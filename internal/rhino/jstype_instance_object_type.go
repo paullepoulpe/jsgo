@@ -52,7 +52,7 @@ const InstanceObjectType_TYPE_CLASS = JSTypeClass_INSTANCE_OBJECT
 
 // Java: InstanceObjectType(Builder)
 func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectType {
-	t := &InstanceObjectType{}
+	t := builder.registry.allocInstanceObjectType()
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
 	t.constructor = jutil.CheckNotNull(builder.constructor)
 
@@ -103,6 +103,11 @@ func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Bu
 // Java: InstanceObjectType.getTypeClass()
 func (t *InstanceObjectType) GetTypeClass() JSTypeClass {
 	return InstanceObjectType_TYPE_CLASS
+}
+
+// Java: ObjectType.hasReferenceName()
+func (t *InstanceObjectType) HasReferenceName() bool {
+	return t.constructor.HasReferenceName()
 }
 
 // Java: InstanceObjectType.getReferenceName()

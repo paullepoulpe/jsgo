@@ -64,7 +64,7 @@ func NewArrowType(
 	parameters []*FunctionType_Parameter,
 	returnType JSType,
 	returnTypeInferred bool) *ArrowType {
-	t := &ArrowType{}
+	t := registry.allocArrowType()
 	t.InitJSTypeBase(t, registry)
 
 	if parameters == nil {
@@ -86,6 +86,9 @@ func NewArrowType(
 // arrowTypeCopyParameters is ImmutableList.copyOf(parameters), which
 // rejects null elements.
 func arrowTypeCopyParameters(parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
+	if len(parameters) == 0 {
+		return emptyFunctionTypeParameterSlice
+	}
 	out := make([]*FunctionType_Parameter, len(parameters))
 	for i, p := range parameters {
 		out[i] = jutil.CheckNotNull(p)

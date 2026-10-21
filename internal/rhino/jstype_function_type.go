@@ -104,14 +104,32 @@ type FunctionType interface {
 	GetFunctionTypeBase() *FunctionTypeBase
 }
 
+type functionTypeExt struct {
+	// The interfaces directly implemented by this function (for
+	// constructors) It is only relevant for constructors.
+	implementedInterfaces []ObjectType
+
+	// The interfaces directly extended by this function (for interfaces) It
+	// is only relevant for constructors.
+	extendedInterfaces []ObjectType
+
+	// If non-null, the original canonical variant of this function; only used
+	// for constructors.
+	canonicalRepresentation FunctionType
+
+	// The primitive id associated with this FunctionType, or null if none.
+	closurePrimitive *ClosurePrimitive
+
+	// The ID of the goog.module in which this function was declared.
+	googModuleId *string
+}
+
 // FunctionTypeBase holds FunctionType's fields and methods; plain function
 // types are *FunctionTypeBase values. self (shadowing
-// PrototypeObjectTypeBase.self) dispatches the virtual calls.
+// ObjectTypeBase.self) dispatches the virtual calls.
 type FunctionTypeBase struct {
 	PrototypeObjectTypeBase
 	self FunctionType
-
-	constructorAmbiguity FunctionType_ConstructorAmbiguity
 
 	// [[Call]] property.
 	call *ArrowType
@@ -125,22 +143,22 @@ type FunctionTypeBase struct {
 	// If non-null, the type must be a PrototypeObjectType.
 	prototypeSlot *Property
 
-	// Whether a function is a constructor, an interface, or just an ordinary
-	// function.
-	kind FunctionType_Kind
-
-	// Whether the instances are structs, dicts, or unrestricted.
-	// Go: nil is Java null.
-	propAccess *FunctionType_PropAccess
-
 	// The type of this in the scope of this function.
 	typeOfThis JSType
 
 	// The function node which this type represents. It may be null.
 	source *Node
 
-	// The ID of the goog.module in which this function was declared.
-	googModuleId *string
+	ext *functionTypeExt
+
+	constructorAmbiguity FunctionType_ConstructorAmbiguity
+
+	// Whether a function is a constructor, an interface, or just an ordinary
+	// function.
+	kind FunctionType_Kind
+
+	// 0 = nil, 1 = ANY, 2 = ANY_EXPLICIT, 3 = STRUCT, 4 = DICT
+	propAccess uint8
 
 	// if this is an interface, indicate whether or not it supports
 	// structural interface matching
@@ -149,28 +167,20 @@ type FunctionTypeBase struct {
 	// If true, the function type represents an abstract method or the
 	// constructor of an abstract class
 	isAbstract bool
+}
 
-	// The interfaces directly implemented by this function (for
-	// constructors) It is only relevant for constructors. May not be null.
-	implementedInterfaces []ObjectType
-
-	// The interfaces directly extended by this function (for interfaces) It
-	// is only relevant for constructors. May not be null.
-	extendedInterfaces []ObjectType
-
-	// The primitive id associated with this FunctionType, or null if none.
-	closurePrimitive *ClosurePrimitive
-
-	// If non-null, the original canonical variant of this function; only used
-	// for constructors.
-	canonicalRepresentation FunctionType
+func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
+	if f.ext == nil {
+		f.ext = &functionTypeExt{}
+	}
+	return f.ext
 }
 
 // Java: FunctionType.TYPE_CLASS
 const FunctionType_TYPE_CLASS = JSTypeClass_FUNCTION
 
 // FunctionType_Kind is FunctionType.Kind.
-type FunctionType_Kind int32
+type FunctionType_Kind uint8
 
 const (
 	FunctionType_Kind_ORDINARY FunctionType_Kind = iota
@@ -192,7 +202,7 @@ func FunctionType_Kind_values() []FunctionType_Kind {
 func (k FunctionType_Kind) String() string { return functionType_Kind_names[k] }
 
 // FunctionType_PropAccess is relevant only for constructors.
-type FunctionType_PropAccess int32
+type FunctionType_PropAccess uint8
 
 const (
 	// An implicit any behavior (default of ES5 classes)
@@ -206,7 +216,7 @@ const (
 )
 
 // FunctionType_ConstructorAmbiguity is FunctionType.ConstructorAmbiguity.
-type FunctionType_ConstructorAmbiguity int32
+type FunctionType_ConstructorAmbiguity uint8
 
 const (
 	FunctionType_ConstructorAmbiguity_UNKNOWN FunctionType_ConstructorAmbiguity = iota
@@ -226,11 +236,6 @@ func (a FunctionType_ConstructorAmbiguity) String() string {
 var (
 	emptyObjectTypeSlice            = []ObjectType{}
 	emptyFunctionTypeParameterSlice = []*FunctionType_Parameter{}
-
-	functionTypePropAccessAny         = FunctionType_PropAccess_ANY
-	functionTypePropAccessAnyExplicit = FunctionType_PropAccess_ANY_EXPLICIT
-	functionTypePropAccessStruct      = FunctionType_PropAccess_STRUCT
-	functionTypePropAccessDict        = FunctionType_PropAccess_DICT
 )
 
 // NewFunctionType creates an instance for a function that might be a
@@ -250,15 +255,15 @@ func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
 // Java: FunctionType(Builder)
 func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *FunctionType_Builder) {
 	f.self = self
-	f.implementedInterfaces = emptyObjectTypeSlice
-	f.extendedInterfaces = emptyObjectTypeSlice
 	f.InitPrototypeObjectTypeBase(self, builder.GetBuilderFields())
 	f.self.SetPrettyPrint(true)
 
 	source := builder.sourceNode
 	jutil.CheckArgument(source == nil || source.IsFunction() || source.IsClass())
 	f.source = source
-	f.googModuleId = builder.googModuleId
+	if builder.googModuleId != nil {
+		f.ensureExt().googModuleId = builder.googModuleId
+	}
 	f.kind = builder.kind
 	if builder.isKnownAmbiguous {
 		f.constructorAmbiguity = FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
@@ -289,7 +294,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	}
 
 	if f.kind == FunctionType_Kind_CONSTRUCTOR {
-		f.propAccess = &functionTypePropAccessAny
+		f.propAccess = uint8(FunctionType_PropAccess_ANY) + 1
 	}
 
 	var returnType JSType
@@ -300,14 +305,18 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	}
 	f.call = NewArrowType(f.registry, builder.parameters, returnType, builder.returnTypeIsInferred)
 
-	f.closurePrimitive = builder.primitiveId
+	if builder.primitiveId != nil {
+		f.ensureExt().closurePrimitive = builder.primitiveId
+	}
 	f.isStructuralInterface = false
 	f.isAbstract = builder.isAbstract
 	canonicalRepresentation := builder.canonicalRepresentation
 	jutil.CheckArgumentMsg(
 		canonicalRepresentation == nil || f.kind == FunctionType_Kind_CONSTRUCTOR,
 		"Only constructors should have canonical representations")
-	f.canonicalRepresentation = canonicalRepresentation
+	if canonicalRepresentation != nil {
+		f.ensureExt().canonicalRepresentation = canonicalRepresentation
+	}
 
 	if builder.setPrototypeBasedOn != nil {
 		f.self.SetPrototypeBasedOn(builder.setPrototypeBasedOn)
@@ -366,10 +375,10 @@ func (f *FunctionTypeBase) GetKind() FunctionType_Kind {
 //
 // Java: FunctionType.makesStructs()
 func (f *FunctionTypeBase) MakesStructs() bool {
-	if !f.self.HasInstanceType() || f.propAccess == nil {
+	if !f.self.HasInstanceType() || f.propAccess == 0 {
 		return false
 	}
-	switch *f.propAccess {
+	switch FunctionType_PropAccess(f.propAccess - 1) {
 	case FunctionType_PropAccess_STRUCT:
 		return true
 	case FunctionType_PropAccess_DICT:
@@ -395,10 +404,10 @@ func (f *FunctionTypeBase) MakesStructs() bool {
 //
 // Java: FunctionType.makesDicts()
 func (f *FunctionTypeBase) MakesDicts() bool {
-	if !f.self.IsConstructor() || f.propAccess == nil {
+	if !f.self.IsConstructor() || f.propAccess == 0 {
 		return false
 	}
-	switch *f.propAccess {
+	switch FunctionType_PropAccess(f.propAccess - 1) {
 	case FunctionType_PropAccess_DICT:
 		return true
 	case FunctionType_PropAccess_STRUCT:
@@ -420,17 +429,22 @@ func (f *FunctionTypeBase) MakesDicts() bool {
 
 // Java: FunctionType.setStruct()
 func (f *FunctionTypeBase) SetStruct() {
-	f.propAccess = &functionTypePropAccessStruct
+	f.propAccess = uint8(FunctionType_PropAccess_STRUCT) + 1
 }
 
 // Java: FunctionType.setDict()
 func (f *FunctionTypeBase) SetDict() {
-	f.propAccess = &functionTypePropAccessDict
+	f.propAccess = uint8(FunctionType_PropAccess_DICT) + 1
 }
 
 // Java: FunctionType.setExplicitUnrestricted()
 func (f *FunctionTypeBase) SetExplicitUnrestricted() {
-	f.propAccess = &functionTypePropAccessAnyExplicit
+	f.propAccess = uint8(FunctionType_PropAccess_ANY_EXPLICIT) + 1
+}
+
+// Java: JSType.isFunctionType()
+func (f *FunctionTypeBase) IsFunctionType() bool {
+	return true
 }
 
 // Java: FunctionType.toMaybeFunctionType()
@@ -445,7 +459,7 @@ func (f *FunctionTypeBase) CanBeCalled() bool {
 
 // Java: FunctionType.hasImplementedInterfaces()
 func (f *FunctionTypeBase) HasImplementedInterfaces() bool {
-	if len(f.implementedInterfaces) != 0 {
+	if f.ext != nil && len(f.ext.implementedInterfaces) != 0 {
 		return true
 	}
 	var superCtor FunctionType
@@ -731,12 +745,13 @@ func (f *FunctionTypeBase) GetImplementedInterfaces() []ObjectType {
 	if f.self.IsConstructor() {
 		superCtor = f.self.GetSuperClassConstructor()
 	}
+	own := f.GetOwnImplementedInterfaces()
 	if superCtor == nil {
-		return f.implementedInterfaces
+		return own
 	}
-	builder := append([]ObjectType{}, f.implementedInterfaces...)
+	builder := append([]ObjectType{}, own...)
 	for superCtor != nil {
-		builder = append(builder, superCtor.GetFunctionTypeBase().implementedInterfaces...)
+		builder = append(builder, superCtor.GetFunctionTypeBase().GetOwnImplementedInterfaces()...)
 		superCtor = superCtor.GetSuperClassConstructor()
 	}
 	return builder
@@ -747,14 +762,20 @@ func (f *FunctionTypeBase) GetImplementedInterfaces() []ObjectType {
 //
 // Java: FunctionType.getOwnImplementedInterfaces()
 func (f *FunctionTypeBase) GetOwnImplementedInterfaces() []ObjectType {
-	return f.implementedInterfaces
+	if f.ext != nil && f.ext.implementedInterfaces != nil {
+		return f.ext.implementedInterfaces
+	}
+	return emptyObjectTypeSlice
 }
 
 // Java: FunctionType.setImplementedInterfaces(List<ObjectType>)
 func (f *FunctionTypeBase) SetImplementedInterfaces(implementedInterfaces []ObjectType) {
 	jutil.CheckState(f.self.IsConstructor())
 
-	f.implementedInterfaces = functionTypeCopyOfObjectTypes(implementedInterfaces)
+	copied := functionTypeCopyOfObjectTypes(implementedInterfaces)
+	if len(copied) > 0 || f.ext != nil {
+		f.ensureExt().implementedInterfaces = copied
+	}
 	for _, type_ := range implementedInterfaces {
 		f.typeOfThis.MergeSupertypeTemplateTypes(type_)
 	}
@@ -763,6 +784,9 @@ func (f *FunctionTypeBase) SetImplementedInterfaces(implementedInterfaces []Obje
 // functionTypeCopyOfObjectTypes is ImmutableList.copyOf(list), which
 // rejects null elements.
 func functionTypeCopyOfObjectTypes(list []ObjectType) []ObjectType {
+	if len(list) == 0 {
+		return emptyObjectTypeSlice
+	}
 	out := make([]ObjectType, len(list))
 	for i, e := range list {
 		if e == nil {
@@ -778,7 +802,10 @@ func functionTypeCopyOfObjectTypes(list []ObjectType) []ObjectType {
 //
 // Java: FunctionType.getExtendedInterfaces()
 func (f *FunctionTypeBase) GetExtendedInterfaces() []ObjectType {
-	return f.extendedInterfaces
+	if f.ext != nil && f.ext.extendedInterfaces != nil {
+		return f.ext.extendedInterfaces
+	}
+	return emptyObjectTypeSlice
 }
 
 // GetExtendedInterfacesCount returns the number of interfaces directly
@@ -786,14 +813,20 @@ func (f *FunctionTypeBase) GetExtendedInterfaces() []ObjectType {
 //
 // Java: FunctionType.getExtendedInterfacesCount()
 func (f *FunctionTypeBase) GetExtendedInterfacesCount() int {
-	return len(f.extendedInterfaces)
+	if f.ext != nil {
+		return len(f.ext.extendedInterfaces)
+	}
+	return 0
 }
 
 // Java: FunctionType.setExtendedInterfaces(List<ObjectType>)
 func (f *FunctionTypeBase) SetExtendedInterfaces(extendedInterfaces []ObjectType) {
 	jutil.CheckState(f.self.IsInterface())
 
-	f.extendedInterfaces = functionTypeCopyOfObjectTypes(extendedInterfaces)
+	copied := functionTypeCopyOfObjectTypes(extendedInterfaces)
+	if len(copied) > 0 || f.ext != nil {
+		f.ensureExt().extendedInterfaces = copied
+	}
 	for _, extendedInterface := range extendedInterfaces {
 		f.typeOfThis.MergeSupertypeTemplateTypes(extendedInterface)
 	}
@@ -1253,7 +1286,10 @@ func (f *FunctionTypeBase) GetSource() *Node {
 
 // Java: FunctionType.getGoogModuleId()
 func (f *FunctionTypeBase) GetGoogModuleId() *string {
-	return f.googModuleId
+	if f.ext != nil {
+		return f.ext.googModuleId
+	}
+	return nil
 }
 
 // SetSource sets the source node.
@@ -1331,14 +1367,19 @@ func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 		}
 	}
 
-	resolvedImplemented := f.ResolveTypeListHelper(f.implementedInterfaces, reporter)
-	if resolvedImplemented != nil {
-		f.implementedInterfaces = resolvedImplemented
-	}
-
-	resolvedExtended := f.ResolveTypeListHelper(f.extendedInterfaces, reporter)
-	if resolvedExtended != nil {
-		f.extendedInterfaces = resolvedExtended
+	if f.ext != nil {
+		if len(f.ext.implementedInterfaces) > 0 {
+			resolvedImplemented := f.ResolveTypeListHelper(f.ext.implementedInterfaces, reporter)
+			if resolvedImplemented != nil {
+				f.ext.implementedInterfaces = resolvedImplemented
+			}
+		}
+		if len(f.ext.extendedInterfaces) > 0 {
+			resolvedExtended := f.ResolveTypeListHelper(f.ext.extendedInterfaces, reporter)
+			if resolvedExtended != nil {
+				f.ext.extendedInterfaces = resolvedExtended
+			}
+		}
 	}
 
 	return f.PrototypeObjectTypeBase.ResolveInternal(reporter)
@@ -1650,7 +1691,10 @@ func (f *FunctionTypeBase) IsDelegateProxy() bool {
 //
 // Java: FunctionType.getClosurePrimitive()
 func (f *FunctionTypeBase) GetClosurePrimitive() *ClosurePrimitive {
-	return f.closurePrimitive
+	if f.ext != nil {
+		return f.ext.closurePrimitive
+	}
+	return nil
 }
 
 // Java: FunctionType.builder(JSTypeRegistry)
@@ -1974,7 +2018,10 @@ func (b *FunctionType_Builder) BuildAndResolve() FunctionType {
 
 // Java: FunctionType.getCanonicalRepresentation()
 func (f *FunctionTypeBase) GetCanonicalRepresentation() FunctionType {
-	return f.canonicalRepresentation
+	if f.ext != nil {
+		return f.ext.canonicalRepresentation
+	}
+	return nil
 }
 
 // FunctionType_Parameter models a single JavaScript parameter.

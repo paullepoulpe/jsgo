@@ -219,12 +219,15 @@ type JSTypeRegistry struct {
 
 	resolver *JSTypeResolver
 
-	templateTypeMapSlab []TemplateTypeMap
-	templatizedTypeSlab []TemplatizedType
-	functionTypeSlab    []FunctionTypeBase
-	jsTypeSliceSlab     []JSType
-	unionBuilderStack   [8]UnionType_Builder
-	unionBuilderDepth   int
+	templateTypeMapSlab     []TemplateTypeMap
+	templatizedTypeSlab     []TemplatizedType
+	functionTypeSlab        []FunctionTypeBase
+	arrowTypeSlab           []ArrowType
+	prototypeObjectTypeSlab []PrototypeObjectTypeBase
+	instanceObjectTypeSlab  []InstanceObjectType
+	jsTypeSliceSlab         []JSType
+	unionBuilderStack       [8]UnionType_Builder
+	unionBuilderDepth       int
 }
 
 func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
@@ -281,6 +284,42 @@ func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
 	}
 	t := &r.functionTypeSlab[0]
 	r.functionTypeSlab = r.functionTypeSlab[1:]
+	return t
+}
+
+func (r *JSTypeRegistry) allocArrowType() *ArrowType {
+	if r == nil {
+		return &ArrowType{}
+	}
+	if len(r.arrowTypeSlab) == 0 {
+		r.arrowTypeSlab = make([]ArrowType, 256)
+	}
+	t := &r.arrowTypeSlab[0]
+	r.arrowTypeSlab = r.arrowTypeSlab[1:]
+	return t
+}
+
+func (r *JSTypeRegistry) allocPrototypeObjectType() *PrototypeObjectTypeBase {
+	if r == nil {
+		return &PrototypeObjectTypeBase{}
+	}
+	if len(r.prototypeObjectTypeSlab) == 0 {
+		r.prototypeObjectTypeSlab = make([]PrototypeObjectTypeBase, 256)
+	}
+	t := &r.prototypeObjectTypeSlab[0]
+	r.prototypeObjectTypeSlab = r.prototypeObjectTypeSlab[1:]
+	return t
+}
+
+func (r *JSTypeRegistry) allocInstanceObjectType() *InstanceObjectType {
+	if r == nil {
+		return &InstanceObjectType{}
+	}
+	if len(r.instanceObjectTypeSlab) == 0 {
+		r.instanceObjectTypeSlab = make([]InstanceObjectType, 256)
+	}
+	t := &r.instanceObjectTypeSlab[0]
+	r.instanceObjectTypeSlab = r.instanceObjectTypeSlab[1:]
 	return t
 }
 

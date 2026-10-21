@@ -31,16 +31,20 @@ import (
 const (
 	minScopeChunkSize    = 16
 	maxScopeChunkSize    = 4096
-	maxScopeChunks       = 128
+	maxScopeChunks       = 400
+	smallScopeChunks     = 32
 	minVarChunkSize      = 32
 	maxVarChunkSize      = 4096
-	maxVarChunks         = 64
+	maxVarChunks         = 256
+	smallVarChunks       = 32
 	minSlotChunkSize     = 128
 	maxSlotChunkSize     = 16384
-	maxSlotChunks        = 64
+	maxSlotChunks        = 128
+	smallSlotChunks      = 16
 	minHashChunkSize     = 256
 	maxHashChunkSize     = 32768
-	maxHashChunks        = 64
+	maxHashChunks        = 128
+	smallHashChunks      = 16
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
 	maxImplicitChunks    = 16
@@ -106,15 +110,13 @@ func scopeBloomMask(s string) uint64 {
 type Scope struct {
 	AbstractScopeBase[*Scope, *Var]
 
-	parent          *Scope
-	lookupParent    *Scope
-	arena           *scopeArena
-	varList         []*Var
-	varHash         []int32
-	varBloom        uint64
-	varCount        int32
-	hasImplicitVars bool
-	scanDone        bool
+	parent       *Scope
+	lookupParent *Scope
+	arena        *scopeArena
+	varList      []*Var
+	varHash      []int32
+	varBloom     uint64
+	varCount     int32
 }
 
 // scopeArena slab-allocates Scope, Var, varList, and varHash slices for a
@@ -278,20 +280,49 @@ func (a *scopeArena) release() {
 	a.implicitUsed = 0
 	a.implicitChunkIdx = 0
 
-	for i := range cachedScopeArenas {
+	if cachedScopeArenas[0].CompareAndSwap(nil, a) {
+		return
+	}
+	if old := cachedScopeArenas[0].Load(); old != nil && len(a.scopeChunks) > len(old.scopeChunks) {
+		if cachedScopeArenas[0].CompareAndSwap(old, a) {
+			old.trimSmall()
+			for i := 1; i < len(cachedScopeArenas); i++ {
+				if cachedScopeArenas[i].CompareAndSwap(nil, old) {
+					return
+				}
+			}
+			scopeArenaPool.Put(old)
+			return
+		}
+	}
+	a.trimSmall()
+	for i := 1; i < len(cachedScopeArenas); i++ {
 		if cachedScopeArenas[i].CompareAndSwap(nil, a) {
 			return
 		}
 	}
-	for i := range cachedScopeArenas {
-		if old := cachedScopeArenas[i].Load(); old != nil && len(a.scopeChunks) > len(old.scopeChunks) {
-			if cachedScopeArenas[i].CompareAndSwap(old, a) {
-				scopeArenaPool.Put(old)
-				return
-			}
-		}
-	}
 	scopeArenaPool.Put(a)
+}
+
+func (a *scopeArena) trimSmall() {
+	if len(a.scopeChunks) > smallScopeChunks {
+		clear(a.scopeChunks[smallScopeChunks:])
+		a.scopeChunks = a.scopeChunks[:smallScopeChunks]
+	}
+	if len(a.varChunks) > smallVarChunks {
+		clear(a.varChunks[smallVarChunks:])
+		a.varChunks = a.varChunks[:smallVarChunks]
+	}
+	if len(a.slotChunks) > smallSlotChunks {
+		clear(a.slotChunks[smallSlotChunks:])
+		a.slotChunks = a.slotChunks[:smallSlotChunks]
+	}
+	if len(a.hashChunks) > smallHashChunks {
+		clear(a.hashChunks[smallHashChunks:])
+		a.hashChunks = a.hashChunks[:smallHashChunks]
+	}
+	a.globalVarList = nil
+	a.globalVarHash = nil
 }
 
 func (a *scopeArena) allocScope() *Scope {

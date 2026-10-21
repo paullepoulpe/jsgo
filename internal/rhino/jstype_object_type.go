@@ -159,11 +159,8 @@ type ObjectType interface {
 // virtual methods.
 type ObjectTypeBase struct {
 	JSTypeBase
-	self ObjectType
-
-	visited bool
+	self    ObjectType
 	docInfo *JSDocInfo
-	unknown bool
 }
 
 // InitObjectTypeBase is the Go form of the ObjectType(JSTypeRegistry)
@@ -957,6 +954,11 @@ func (o *ObjectTypeBase) IsUnknownType() bool {
 
 // Java: ObjectType.isObject()
 func (o *ObjectTypeBase) IsObject() bool {
+	return true
+}
+
+// Java: JSType.isObjectType()
+func (o *ObjectTypeBase) IsObjectType() bool {
 	return true
 }
 

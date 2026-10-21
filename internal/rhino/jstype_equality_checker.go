@@ -360,6 +360,14 @@ func (c *EqualityChecker) AreUnionEqual(left *UnionType, right *UnionType) bool 
 outer:
 	for i := 0; i < len(rightAlternates); i++ {
 		rightAlt := rightAlternates[i]
+		if i < len(leftAlternates) && leftAlternates[i] == rightAlt {
+			continue outer
+		}
+		for k := 0; k < len(leftAlternates); k++ {
+			if leftAlternates[k] == rightAlt {
+				continue outer
+			}
+		}
 
 		for k := 0; k < len(leftAlternates); k++ {
 			leftAlt := leftAlternates[k]
@@ -486,14 +494,22 @@ func (c *EqualityChecker) AreRecordEqual(left *RecordType, right *RecordType) bo
 	// Additionally, code that makes heavy use of inline record types compiles
 	// very slowly if the set of inherited properties is recomputed during
 	// every equality check.
-	leftKeys := left.GetOwnPropertyNames()
-	rightKeys := right.GetOwnPropertyNames()
-	if !jsTypeStringSetsEqual(rightKeys, leftKeys) {
+	leftEntries := left.properties.entries
+	rightEntries := right.properties.entries
+	if len(leftEntries) != len(rightEntries) {
 		return false
 	}
-
-	for _, key := range leftKeys {
-		if !c.AreEqualCaching(left.GetPropertyType(key), right.GetPropertyType(key)) {
+	left.properties.ensureSorted()
+	right.properties.ensureSorted()
+	leftEntries = left.properties.entries
+	rightEntries = right.properties.entries
+	for i := range leftEntries {
+		if leftEntries[i].key != rightEntries[i].key {
+			return false
+		}
+	}
+	for i := range leftEntries {
+		if !c.AreEqualCaching(leftEntries[i].prop.GetType(), rightEntries[i].prop.GetType()) {
 			return false
 		}
 	}
@@ -530,8 +546,11 @@ func (c *EqualityChecker) AreTypeMapEqual(left *TemplateTypeMap, right *Template
 	if len(leftKeys) == 0 {
 		return true
 	}
-	leftValues := left.GetTemplateValues()
 	rightKeys := right.GetTemplateKeys()
+	if len(rightKeys) == 0 {
+		return false
+	}
+	leftValues := left.GetTemplateValues()
 	rightValues := right.GetTemplateValues()
 
 outer:

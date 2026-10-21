@@ -99,6 +99,11 @@ func (t *NoObjectTypeBase) GetTypeClass() JSTypeClass {
 	return JSTypeClass_NO_OBJECT
 }
 
+// Java: JSType.isFunctionType()
+func (t *NoObjectTypeBase) IsFunctionType() bool {
+	return false
+}
+
 // Java: NoObjectType.toMaybeFunctionType()
 func (t *NoObjectTypeBase) ToMaybeFunctionType() FunctionType {
 	return nil
@@ -112,6 +117,11 @@ func (t *NoObjectTypeBase) IsNoObjectType() bool {
 // Java: NoObjectType.getImplicitPrototype()
 func (t *NoObjectTypeBase) GetImplicitPrototype() ObjectType {
 	return nil
+}
+
+// Java: ObjectType.hasReferenceName()
+func (t *NoObjectTypeBase) HasReferenceName() bool {
+	return false
 }
 
 // Java: NoObjectType.getReferenceName()

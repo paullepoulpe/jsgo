@@ -240,22 +240,22 @@ type JSType interface {
 
 // JSTypeBase holds the fields and base method implementations of JSType.
 type JSTypeBase struct {
-	self JSType
-
-	resolveResult                                     JSType
-	templateTypeMap                                   *TemplateTypeMap
-	loosenTypecheckingDueToForwardReferencedSupertype bool
-
-	hashCodeInProgress bool
-
-	inTemplatedCheckVisit bool
-	// 0 = unset, 1 = false, 2 = true.
-	templateCheckResult uint8
+	self            JSType
+	resolveResult   JSType
+	templateTypeMap *TemplateTypeMap
+	registry        *JSTypeRegistry
 
 	SerialGen     uint32
 	SerialPointer int32
 
-	registry *JSTypeRegistry
+	loosenTypecheckingDueToForwardReferencedSupertype bool
+	hashCodeInProgress                                bool
+	inTemplatedCheckVisit                             bool
+	// 0 = unset, 1 = false, 2 = true.
+	templateCheckResult uint8
+
+	visited bool
+	unknown bool
 }
 
 // Java: JSType.serialVersionUID
@@ -606,7 +606,7 @@ func (t *JSTypeBase) IsCheckedUnknownType() bool {
 
 // Java: JSType.isUnionType()
 func (t *JSTypeBase) IsUnionType() bool {
-	return t.self.ToMaybeUnionType() != nil
+	return false
 }
 
 // Java: JSType.isRawTypeOfTemplatizedType()
@@ -691,7 +691,7 @@ func (t *JSTypeBase) IsGlobalThisType() bool {
 //
 // Java: JSType.isFunctionType()
 func (t *JSTypeBase) IsFunctionType() bool {
-	return t.self.ToMaybeFunctionType() != nil
+	return false
 }
 
 // ToMaybeFunctionType downcasts this to a FunctionType, or returns null if
@@ -752,7 +752,7 @@ func (t *JSTypeBase) ToMaybeKnownSymbolType() *KnownSymbolType {
 
 // Java: JSType.isEnumElementType()
 func (t *JSTypeBase) IsEnumElementType() bool {
-	return t.self.ToMaybeEnumElementType() != nil
+	return false
 }
 
 // Java: JSType.getEnumeratedTypeOfEnumElement()
@@ -777,7 +777,7 @@ func (t *JSTypeBase) IsEnumType() bool {
 	// TODO(sdh): Consider changing this to isEnumObjectType(), though this
 	// would be inconsistent with the EnumType class and toMaybeEnumType(), so
 	// we would need to consider changing them, too.
-	return t.self.ToMaybeEnumType() != nil
+	return false
 }
 
 // ToMaybeEnumType downcasts this to an EnumType, or returns null if this is
@@ -790,7 +790,7 @@ func (t *JSTypeBase) ToMaybeEnumType() *EnumType {
 
 // Java: JSType.isNamedType()
 func (t *JSTypeBase) IsNamedType() bool {
-	return t.self.ToMaybeNamedType() != nil
+	return false
 }
 
 // Java: JSType.toMaybeNamedType()
@@ -800,7 +800,7 @@ func (t *JSTypeBase) ToMaybeNamedType() *NamedType {
 
 // Java: JSType.isRecordType()
 func (t *JSTypeBase) IsRecordType() bool {
-	return t.self.ToMaybeRecordType() != nil
+	return false
 }
 
 // Java: JSType.isStructuralInterface()
@@ -823,7 +823,7 @@ func (t *JSTypeBase) ToMaybeRecordType() *RecordType {
 
 // Java: JSType.isTemplatizedType()
 func (t *JSTypeBase) IsTemplatizedType() bool {
-	return t.self.ToMaybeTemplatizedType() != nil
+	return false
 }
 
 // ToMaybeTemplatizedType downcasts this to a TemplatizedType, or returns
@@ -836,7 +836,7 @@ func (t *JSTypeBase) ToMaybeTemplatizedType() *TemplatizedType {
 
 // Java: JSType.isTemplateType()
 func (t *JSTypeBase) IsTemplateType() bool {
-	return t.self.ToMaybeTemplateType() != nil
+	return false
 }
 
 // ToMaybeTemplateType downcasts this to a TemplateType, or returns null if
@@ -940,7 +940,7 @@ func (t *JSTypeBase) IsObject() bool {
 //
 // Java: JSType.isObjectType()
 func (t *JSTypeBase) IsObjectType() bool {
-	return t.self.IsObject()
+	return false
 }
 
 // IsConstructor reports whether this type is a FunctionType that is a
@@ -1048,7 +1048,7 @@ func (t *JSTypeBase) Equals(other any) bool {
 	}
 	jSType, ok := other.(JSType)
 	return ok && jSType != nil &&
-		NewEqualityChecker().SetEqMethod(EqualityChecker_EqMethod_IDENTITY).Check(t.self, jSType)
+		equalityChecker_AreIdentityEqual(t.self, jSType)
 }
 
 // DiffersFrom reports whether this type is meaningfully different from that
@@ -1062,9 +1062,11 @@ func (t *JSTypeBase) DiffersFrom(that JSType) bool {
 	if t.self == that {
 		return false
 	}
-	return !NewEqualityChecker().
-		SetEqMethod(EqualityChecker_EqMethod_DATA_FLOW).
-		Check(t.self, that)
+	c := EqualityChecker{
+		eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_DATA_FLOW],
+		hasRun:   true,
+	}
+	return !c.AreEqualInternal(t.self, that)
 }
 
 // JSType_AreSimilar reports whether the first type is meaningfully same as
@@ -1711,12 +1713,21 @@ func (t *JSTypeBase) RestrictByNotNull() JSType {
 //
 // Java: JSType.isSubtypeWithoutStructuralTyping(JSType)
 func (t *JSTypeBase) IsSubtypeWithoutStructuralTyping(supertype JSType) bool {
-	return NewSubtypeChecker(t.registry).
-		SetSubtype(t.self).
-		SetSupertype(supertype).
-		SetUsingStructuralSubtyping(false).
-		SetSubtypingMode(JSType_SubtypingMode_NORMAL).
-		Check()
+	if supertype == nil {
+		failJSTypeNull()
+	}
+	if t.self == supertype {
+		return true
+	}
+	c := SubtypeChecker{
+		initialSubtype:          t.self,
+		initialSupertype:        supertype,
+		registry:                t.registry,
+		isUsingStructuralTyping: &subtypeChecker_booleans[0],
+		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
+		hasRun:                  true,
+	}
+	return c.IsSubtypeDispatching(t.self, supertype)
 }
 
 // JSType_SubtypingMode: in files translated from Java, we typecheck null
@@ -1764,34 +1775,59 @@ func (m JSType_SubtypingMode) String() string { return jsType_SubtypingMode_name
 //
 // Java: JSType.isSubtype(JSType)
 func (t *JSTypeBase) IsSubtype(supertype JSType) bool {
-	return t.self.IsSubtypeOf(supertype)
+	return t.IsSubtypeOf(supertype)
 }
 
 // IsSubtypeWithMode is deprecated: prefer isSubtype(JSType) instead.
 //
 // Java: JSType.isSubtype(JSType, SubtypingMode)
 func (t *JSTypeBase) IsSubtypeWithMode(supertype JSType, mode JSType_SubtypingMode) bool {
-	return t.self.IsSubtypeOfWithMode(supertype, mode)
+	return t.IsSubtypeOfWithMode(supertype, mode)
 }
 
 // Java: JSType.isSubtypeOf(JSType)
 func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
-	return NewSubtypeChecker(t.registry).
-		SetSubtype(t.self).
-		SetSupertype(supertype).
-		SetUsingStructuralSubtyping(true).
-		SetSubtypingMode(JSType_SubtypingMode_NORMAL).
-		Check()
+	if supertype == nil {
+		failJSTypeNull()
+	}
+	if t.self == supertype {
+		return true
+	}
+	c := SubtypeChecker{
+		initialSubtype:          t.self,
+		initialSupertype:        supertype,
+		registry:                t.registry,
+		isUsingStructuralTyping: &subtypeChecker_booleans[1],
+		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
+		hasRun:                  true,
+	}
+	return c.IsSubtypeDispatching(t.self, supertype)
 }
 
 // Java: JSType.isSubtypeOf(JSType, SubtypingMode)
 func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_SubtypingMode) bool {
-	return NewSubtypeChecker(t.registry).
-		SetSubtype(t.self).
-		SetSupertype(supertype).
-		SetUsingStructuralSubtyping(true).
-		SetSubtypingMode(mode).
-		Check()
+	if supertype == nil {
+		failJSTypeNull()
+	}
+	if t.self == supertype {
+		return true
+	}
+	var modePtr *JSType_SubtypingMode
+	if mode >= 0 && int(mode) < len(subtypeChecker_subtypingModes) {
+		modePtr = &subtypeChecker_subtypingModes[mode]
+	} else {
+		other := mode
+		modePtr = &other
+	}
+	c := SubtypeChecker{
+		initialSubtype:          t.self,
+		initialSupertype:        supertype,
+		registry:                t.registry,
+		isUsingStructuralTyping: &subtypeChecker_booleans[1],
+		subtypingMode:           modePtr,
+		hasRun:                  true,
+	}
+	return c.IsSubtypeDispatching(t.self, supertype)
 }
 
 // JSType_VisitForJSType is type.visit(visitor) for a Visitor<JSType>: the

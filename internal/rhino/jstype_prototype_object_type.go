@@ -74,17 +74,12 @@ type PrototypeObjectType interface {
 }
 
 // PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
-// plain prototype object types are *PrototypeObjectTypeBase values. self
-// (shadowing ObjectTypeBase.self) dispatches the virtual calls.
+// plain prototype object types are *PrototypeObjectTypeBase values.
 type PrototypeObjectTypeBase struct {
 	ObjectTypeBase
-	self PrototypeObjectType
 
-	className          *string
-	templateParamCount int
-	properties         PropertyMap
-	nativeType         bool
-	anonymousType      bool
+	className  *string
+	properties PropertyMap
 
 	// NOTE(nicksantos): The implicit prototype can change over time.
 	// Modeling this is a bear. Always call getImplicitPrototype(), because
@@ -96,7 +91,10 @@ type PrototypeObjectTypeBase struct {
 	// try to do this for multiple functions, then we'll have to create a new
 	// one.
 	ownerFunction FunctionType
-	ownerRefName  *string
+
+	templateParamCount int32
+	nativeType         bool
+	anonymousType      bool
 
 	// Whether the toString representation of this should be pretty-printed,
 	// by printing all properties.
@@ -115,7 +113,7 @@ const PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
 //
 // Java: PrototypeObjectType(Builder<?>)
 func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *PrototypeObjectTypeBase {
-	t := &PrototypeObjectTypeBase{}
+	t := builder.registry.allocPrototypeObjectType()
 	t.InitPrototypeObjectTypeBase(t, builder)
 	return t
 }
@@ -125,11 +123,10 @@ func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *Prototy
 //
 // Java: PrototypeObjectType(Builder<?>)
 func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_BuilderFields) {
-	p.self = self
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, builder.registry, builder.templateTypeMap)
 
 	p.className = builder.className
-	p.templateParamCount = builder.templateParamCount
+	p.templateParamCount = int32(builder.templateParamCount)
 	p.nativeType = builder.nativeType
 	p.anonymousType = builder.anonymousType
 
@@ -146,7 +143,7 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	}
 	jutil.CheckNotNull(p.templateTypeMap)
 	// Also guarantees `templateParamCount >= 0`.
-	jutil.CheckState(p.templateTypeMap.Size() >= p.templateParamCount)
+	jutil.CheckState(p.templateTypeMap.Size() >= int(p.templateParamCount))
 
 	p.registry.GetResolver().ResolveIfClosed(self, PrototypeObjectType_TYPE_CLASS)
 }
@@ -525,7 +522,12 @@ func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectT
 
 // Java: PrototypeObjectType.getTemplateParamCount()
 func (p *PrototypeObjectTypeBase) GetTemplateParamCount() int {
-	return p.templateParamCount
+	return int(p.templateParamCount)
+}
+
+// Java: ObjectType.hasReferenceName()
+func (p *PrototypeObjectTypeBase) HasReferenceName() bool {
+	return p.className != nil || p.ownerFunction != nil
 }
 
 // Java: PrototypeObjectType.getReferenceName()
@@ -533,11 +535,8 @@ func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 	if p.className != nil {
 		return p.className
 	} else if p.ownerFunction != nil {
-		if p.ownerRefName == nil {
-			name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
-			p.ownerRefName = &name
-		}
-		return p.ownerRefName
+		name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
+		return &name
 	} else {
 		return nil
 	}
@@ -559,7 +558,6 @@ func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
 func (p *PrototypeObjectTypeBase) SetOwnerFunction(type_ FunctionType) {
 	jutil.CheckState(p.ownerFunction == nil || type_ == nil)
 	p.ownerFunction = type_
-	p.ownerRefName = nil
 }
 
 // Java: PrototypeObjectType.getOwnerFunction()
@@ -614,11 +612,11 @@ func (p *PrototypeObjectTypeBase) MatchConstraint(constraint JSType) {
 	// any each property on the record and trying to match properties on this
 	// object.
 	if constraint.IsRecordType() {
-		p.self.MatchRecordTypeConstraint(constraint.ToObjectType())
+		p.MatchRecordTypeConstraint(constraint.ToObjectType())
 	} else if constraint.IsUnionType() {
 		for _, alt := range constraint.ToMaybeUnionType().GetAlternates() {
 			if alt.IsRecordType() {
-				p.self.MatchRecordTypeConstraint(alt.ToObjectType())
+				p.MatchRecordTypeConstraint(alt.ToObjectType())
 			}
 		}
 	}

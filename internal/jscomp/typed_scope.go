@@ -144,6 +144,10 @@ func (a *typedScopeArena) allocNames(n int) []string {
 type TypedScope struct {
 	AbstractScopeBase[*TypedScope, *TypedVar]
 
+	// Go-only: performance — held by value so declaring the first variable
+	// in a scope does not allocate a separate LinkedHashMap header.
+	vars jutil.LinkedHashMap[string, *TypedVar]
+
 	parent   *TypedScope
 	module   *Module
 	arena    *typedScopeArena
@@ -402,14 +406,56 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 	return var_, wasReserved
 }
 
-func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
-	s.varBloom |= scopeBloomMask(name)
-	s.AbstractScopeBase.DeclareInternal(name, var_)
+// Java: AbstractScope.undeclare(V)
+func (s *TypedScope) Undeclare(var_ *TypedVar) {
+	jutil.CheckState(var_.getScopeS() == s)
+	current := s.vars.Get(var_.GetName())
+	if current == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	jutil.CheckState(current.Equals(var_))
+	s.UndeclareInteral(var_)
 }
 
+// Java: AbstractScope.undeclareInteral(V)
+func (s *TypedScope) UndeclareInteral(var_ *TypedVar) {
+	if !s.varsInitialized {
+		panic(jutil.NewUnsupportedOperationException())
+	}
+	s.vars.Remove(var_.GetName())
+}
+
+// Java: AbstractScope.declareInternal(String, V)
+func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
+	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
+	}
+	s.varBloom |= scopeBloomMask(name)
+	s.varsInitialized = true
+	s.vars.Put(name, var_)
+}
+
+// Java: AbstractScope.clearVarsInternal()
 func (s *TypedScope) ClearVarsInternal() {
 	s.varBloom = 0
-	s.AbstractScopeBase.ClearVarsInternal()
+	if !s.vars.IsEmpty() {
+		s.vars.Clear()
+	}
+}
+
+// Java: AbstractScope.getVarIterable()
+func (s *TypedScope) GetVarIterable() iter.Seq[*TypedVar] {
+	return s.vars.Values()
+}
+
+// Java: AbstractScope.getAllSymbols()
+func (s *TypedScope) GetAllSymbols() iter.Seq[*TypedVar] {
+	return s.vars.Values()
+}
+
+// Java: AbstractScope.getVarCount()
+func (s *TypedScope) GetVarCount() int {
+	return s.vars.Size()
 }
 
 func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
