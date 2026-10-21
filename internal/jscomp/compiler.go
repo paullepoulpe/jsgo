@@ -3185,12 +3185,20 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	}
 
 	if c.options.ShouldGatherSourceMapInfo() {
-		if sourceAndMappings.mappings != nil {
-			for _, mapping := range sourceAndMappings.mappings {
-				c.sourceMap.AddMapping(mapping)
+		if len(sourceAndMappings.mappingChunks) > 0 || len(sourceAndMappings.mappingSlab) > 0 {
+			for _, chunk := range sourceAndMappings.mappingChunks {
+				for i := range chunk {
+					m := &chunk[i]
+					c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
+				}
 			}
-		} else {
-			for _, mapping := range sourceAndMappings.iterMappings {
+			for i := range sourceAndMappings.mappingSlab {
+				m := &sourceAndMappings.mappingSlab[i]
+				c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
+			}
+			sourceAndMappings.Release()
+		} else if sourceAndMappings.mappings != nil {
+			for _, mapping := range sourceAndMappings.mappings {
 				c.sourceMap.AddMapping(mapping)
 			}
 		}

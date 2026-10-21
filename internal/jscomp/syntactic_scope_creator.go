@@ -198,6 +198,7 @@ type SyntacticScopeCreator_ScopeScanner struct {
 	redeclarationHandler          SyntacticScopeCreator_RedeclarationHandler
 	treatProvidesAsRedeclarations bool
 	isFnBlock                     bool
+	parentBloom                   uint64
 
 	// Will be null, when a detached node is traversed.
 	inputId         *rhino.InputId
@@ -238,6 +239,11 @@ func initSyntacticScopeCreator_ScopeScanner(
 	jutil.CheckState(changeRootSet == nil || scope.IsGlobal())
 	s.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations
 	s.isFnBlock = scope.parent != nil && scope.parent.rootNode.IsFunction() && scope.rootNode.IsBlock()
+	if s.isFnBlock {
+		s.parentBloom = scope.parent.varBloom
+	} else {
+		s.parentBloom = 0
+	}
 }
 
 func (s *SyntacticScopeCreator_ScopeScanner) setInputId(id *rhino.InputId) {
@@ -248,29 +254,34 @@ func (s *SyntacticScopeCreator_ScopeScanner) setInputId(id *rhino.InputId) {
 }
 
 func (s *SyntacticScopeCreator_ScopeScanner) getInput() *CompilerInput {
-	if !s.inputResolved {
-		if !s.inputIdResolved {
-			if s.scope.parent != nil {
-				if inp, ok := s.scope.inheritedInput(); ok {
-					s.input = inp
-					s.inputResolved = true
-					return inp
-				}
-			}
-			s.inputId = NodeUtil_GetInputId(s.scope.GetRootNode())
-			s.inputIdResolved = true
-		}
-		if s.creator != nil && s.inputId != nil && s.inputId == s.creator.lastInputId {
-			s.input = s.creator.lastInput
-		} else {
-			s.input = s.compiler.GetInput(s.inputId)
-			if s.creator != nil && s.inputId != nil {
-				s.creator.lastInputId = s.inputId
-				s.creator.lastInput = s.input
-			}
-		}
-		s.inputResolved = true
+	if s.inputResolved {
+		return s.input
 	}
+	return s.resolveInputSlow()
+}
+
+func (s *SyntacticScopeCreator_ScopeScanner) resolveInputSlow() *CompilerInput {
+	if !s.inputIdResolved {
+		if s.scope.parent != nil {
+			if inp, ok := s.scope.inheritedInput(); ok {
+				s.input = inp
+				s.inputResolved = true
+				return inp
+			}
+		}
+		s.inputId = NodeUtil_GetInputId(s.scope.GetRootNode())
+		s.inputIdResolved = true
+	}
+	if s.creator != nil && s.inputId != nil && s.inputId == s.creator.lastInputId {
+		s.input = s.creator.lastInput
+	} else {
+		s.input = s.compiler.GetInput(s.inputId)
+		if s.creator != nil && s.inputId != nil {
+			s.creator.lastInputId = s.inputId
+			s.creator.lastInput = s.input
+		}
+	}
+	s.inputResolved = true
 	return s.input
 }
 
@@ -646,7 +657,38 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 	for child := n.GetFirstChild(); child != nil; {
 		next := child.GetNext()
 		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
-			s.ScanVars(child, hoistScope, blockScope)
+			switch child.GetToken() {
+			case rhino.Token_VAR:
+				if hoistScope != nil {
+					if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+						s.DeclareVar(hoistScope, first)
+					} else {
+						s.DeclareLHS(hoistScope, child)
+					}
+				}
+			case rhino.Token_LET, rhino.Token_CONST:
+				if blockScope != nil {
+					if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+						s.DeclareVar(blockScope, first)
+					} else {
+						s.DeclareLHS(blockScope, child)
+					}
+				}
+			case rhino.Token_FUNCTION:
+				if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
+					if fnNameNode := child.GetFirstChild(); fnNameNode.GetString() != "" {
+						s.DeclareVar(blockScope, fnNameNode)
+					}
+				}
+			case rhino.Token_CLASS:
+				if blockScope != nil && !NodeUtil_IsClassExpression(child) {
+					if classNameNode := child.GetFirstChild(); classNameNode.GetString() != "" {
+						s.DeclareVar(blockScope, classNameNode)
+					}
+				}
+			default:
+				s.ScanVars(child, hoistScope, blockScope)
+			}
 		}
 		child = next
 	}
@@ -694,7 +736,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				probeSlot = (probeSlot + 1) & mask
 			}
 		}
-		if v == nil && sc.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if v == nil && sc.hasImplicitVars {
 			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}
@@ -708,7 +750,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				}
 			}
 		}
-		if v == nil && sc.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
+		if v == nil && sc.hasImplicitVars {
 			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}
@@ -733,7 +775,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 
 	isFnBlock := s.isFnBlock
 	var parentVar *Var
-	if v == nil && isFnBlock {
+	if v == nil && (s.parentBloom&bloom) == bloom {
 		parentVar = sc.parent.lookupOwnVarWithBloom(name, bloom)
 	}
 

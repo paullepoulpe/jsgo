@@ -6027,7 +6027,7 @@ func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
 func nodeUtil_countAstSizeUpToLimit(n *rhino.Node, limit int, count int) int {
 	count++
 	if count < limit {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); c != nil && count < limit; c = c.GetNext() {
 			if c.GetFirstChild() == nil {
 				count++
 			} else {
@@ -6729,6 +6729,26 @@ func nodeUtilScopeRootMayDeclareVars(root, fnRoot *rhino.Node) bool {
 	}
 }
 
+func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) appendScopeVars(currentScope *Scope) {
+	n := currentScope.GetVarCount()
+	if n == 0 {
+		return
+	}
+	if need := len(f.result.orderedVars) + n; need > cap(f.result.orderedVars) {
+		newCap := max(need, 2*cap(f.result.orderedVars))
+		buf := make([]*Var, len(f.result.orderedVars), newCap)
+		copy(buf, f.result.orderedVars)
+		f.result.orderedVars = buf
+	}
+	for _, v := range currentScope.varList {
+		if v == nil {
+			continue
+		}
+		f.result.mapStorage.Put(v.name, v)
+		f.result.orderedVars = append(f.result.orderedVars, v)
+	}
+}
+
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.enterScope(NodeTraversal)
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) EnterScope(t *NodeTraversal) {
 	root := t.GetScopeRoot()
@@ -6741,21 +6761,10 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) EnterScope(t *NodeTravers
 		}
 		currentScope = t.GetScope()
 	}
-	n := currentScope.GetVarCount()
-	if n == 0 {
-		return
-	}
-	if need := len(f.result.orderedVars) + n; need > cap(f.result.orderedVars) {
-		newCap := max(need, 2*cap(f.result.orderedVars))
-		buf := make([]*Var, len(f.result.orderedVars), newCap)
-		copy(buf, f.result.orderedVars)
-		f.result.orderedVars = buf
-	}
-	for v := range currentScope.GetVarIterable() {
-		f.result.mapStorage.Put(v.GetName(), v)
-		f.result.orderedVars = append(f.result.orderedVars, v)
-	}
+	f.appendScopeVars(currentScope)
 }
+
+func (*nodeUtil_getAllVarsDeclaredInFunction_finder) nodeTraversalNoVisit() {}
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.exitScope(NodeTraversal)
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ExitScope(t *NodeTraversal) {}

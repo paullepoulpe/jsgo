@@ -306,17 +306,23 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
+	fnScope := t.GetScope()
+	if fnScope.GetVarCount() >= LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE {
+		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
+		return
+	}
 	depth := len(c.liveAnalyses)
 	for len(c.scopeStates) <= depth {
 		c.scopeStates = append(c.scopeStates, &coalesceScopeState{})
 	}
 	state := c.scopeStates[depth]
-	allVarsDeclaredInFunction := state.varsFinder.collect(t.GetCompiler(), t.GetScopeCreator(), t.GetScope())
-	orderedVars := allVarsDeclaredInFunction.GetAllVariablesInOrder()
-	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <= len(orderedVars) {
+	allVarsDeclaredInFunction := state.varsFinder.collectWithLimit(
+		t.GetCompiler(), t.GetScopeCreator(), fnScope, LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE)
+	if allVarsDeclaredInFunction == nil {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
+	orderedVars := allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
 
 	candidateCount := 0
@@ -423,6 +429,8 @@ func (c *CoalesceVariableNames) ExitScopeWithCfg(t *NodeTraversal) {
 		c.liveness = c.liveAnalyses[len(c.liveAnalyses)-1]
 	}
 }
+
+func (*CoalesceVariableNames) onlyNameLeaves() {}
 
 // Java: CoalesceVariableNames.visit(NodeTraversal, Node, Node)
 func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {

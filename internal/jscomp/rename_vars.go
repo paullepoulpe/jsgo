@@ -264,7 +264,10 @@ func (p *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 		return
 	}
 	scope := t.GetScope()
-	for current := range scope.GetVarIterable() {
+	for _, current := range scope.varList {
+		if current == nil {
+			continue
+		}
 		if current.IsBleedingFunction() {
 			if r.localBleedingFunctions == nil {
 				r.localBleedingFunctions = jutil.NewLinkedHashSet[*Var]()

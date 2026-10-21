@@ -14,13 +14,14 @@ can be resumed from the repository alone.
   1,360/1,360, bench gate 5/5 tasks). The only differences are accepted
   JVM-only ones: Java's stack frames (11 of the 1,000 single files) and
   one fixture where Java catches a StackOverflowError (PLAN.md §7).
-- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–12 below):
-  after twelve rounds of systematic substrate, data-structure, pass-level, and
-  inter-pass arena optimizations, `jsgo` (`t=4`) is **1.83×–5.03× faster than cold Java (`java -jar`)**
-  and **1.18×–1.94× faster than a 5-warmup JIT-compiled JVM** across all 11
-  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` in **19.34 s** `[19.32, 19.38]` and
-  26-library / 36.1 MB `bundle-mega` in **24.92 s** `[24.84, 24.98]`), while using
-  **2.14×–5.48× less per-iteration RSS** (**3.09×–10.70× less** than JVM peak RSS).
+- **Speed** ([benchmarks.md](benchmarks.md#end-to-end-v20261015) and Rounds 3–22 below):
+  after twenty-two rounds of systematic substrate, data-structure, pass-level,
+  inter-pass arena, and multi-threaded middle-end architectural optimizations,
+  `jsgo` (`t=4`) is **2.12×–5.60× faster than cold Java (`java -jar`)** (**2.20×–5.60×** with `--fast_mode`)
+  and **1.30×–2.39× faster than a 5-warmup JIT-compiled JVM** across all 11
+  whole-program benchmarks (including 4,385-file / 44.6 MB `typed-mega` in **16.72 s** `compat` / **16.13 s** `fast` and
+  26-library / 36.1 MB `bundle-mega` in **20.27 s** `compat` / **20.22 s** `fast`), while using
+  **2.55×–7.33× less per-iteration RSS** (**4.01×–11.81× less** than JVM peak RSS).
 - **Historical starting point (initial v20261015 port, before Rounds 1–3)** (per-phase tables in
   [benchmarks-e2e-v20261015.md](benchmarks-e2e-v20261015.md)): on the initial
   1:1 port, `jsgo` was 0.65–0.74× of warm Java's speed, trailing in the
@@ -1135,6 +1136,41 @@ Total `alloc_space` on `typed-mega` dropped another **−80 MB** down to **`2.87
 | **`typed-app`** (2.8 MB) | 1.38 s / 1.26 s | **1.39 s** / **1.26 s** | +0.48% / **−0.19%** | 265 / 271 MiB | `MATCH` |
 | **`downlevel-simple`** (2.1 MB) | 1.09 s / 0.97 s | **1.09 s** / **0.97 s** | +0.12% / +0.37% | **197** / **204 MiB** (**−0.96%** / **−0.37%**) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.54 s** / **0.45 s** | **−0.09%** / +1.20% | **149** / **159 MiB** (**−0.35%** / **−2.71%**) | `MATCH` |
+
+## Round 22 (Phase 3 / Post-Architecture Turn 2): `nodeFlagHasJSDoc` Bitmask (`−0.79 s` CPU), `Scope` / `TypedScope` / `SyntacticScopeCreator` Fast Paths (`−1.86 s` CPU), `CoalesceVariableNames` / `LiveVariablesAnalysis` / `DataFlowAnalysis` Early Bailouts (`−0.79 s` CPU), and Compact 24-Byte `SourceMap_Mapping` (`−40%` Memory) (2026-10-21)
+
+Profiling Round 21 (`f3eb8b4c`) on `bundle-mega` and `typed-mega` identified four remaining post-architecture hotspots across `rhino.Node` property lists, scope lookup/scanning, data-flow analysis, and source-map generation:
+
+1. **Inline `nodeFlagHasJSDoc uint16 = 1 << 4` Bitmask on `rhino.Node` (`internal/rhino/node.go`, `internal/jscomp/node_util.go`):**
+   - Repurposed bit 4 of `Node.boolFlags` as `nodeFlagHasJSDoc` (keeping `sizeof(rhino.Node) == 80`). Since ~98% of AST nodes have no `JSDOC_INFO` property, `n.GetJSDocInfo()` and `n.RemoveProp(Node_Prop_JSDOC_INFO)` now return immediately after a 2-instruction bitmask test without walking `n.propListHead` (`−0.34 s` flat in `Node.LookupProperty`, `−0.26 s` in `Node.RemoveProp` across `MarkNoSideEffectCalls` / `PureFunctionIdentifier`, and `−0.19 s` in `NodeUtil_GetBestJSDocInfo`).
+2. **`Scope`, `TypedScope`, and `SyntacticScopeCreator` Lookup & Scanner Fast Paths (`internal/jscomp/scope.go`, `internal/jscomp/typed_scope.go`, `internal/jscomp/syntactic_scope_creator.go`, `internal/jscomp/abstract_scope.go`, `internal/jscomp/variable_reference_check.go`, `internal/jscomp/rename_vars.go`, `internal/jscomp/denormalize.go`, `internal/jscomp/make_declared_names_unique.go`):**
+   - Eliminated per-ancestor `hasImplicitVars` branches inside the `Scope.GetVar` and `Scope.HasSlot` upward walk loops by handling `arguments` once on entry via `GetArgumentsVar()`, made `scopeBloomMask` bounds-check-free and inlineable (`109 ms → 0 ms`), replaced byte-by-byte FNV-1a in `scopeNameHash` with O(1) word-sampling, and added `TypedScope.lookupRootVar` for `TypeCheck` / `TypeValidator` (`−1.18 s` cumulative CPU across `Scope.GetVar` and `TypedScope.GetVar`).
+   - Added `parentBloom` caching, inlined `getInput()`, and unrolled `VAR`/`LET`/`CONST`/`FUNCTION`/`CLASS` child declarations in `SyntacticScopeCreator_ScopeScanner.scanVars` (`−0.68 s` cumulative CPU).
+   - Replaced closure-allocating `GetOwnSlotMap().Values()` iterations with direct `scope.varList` slice loops in `VariableReferenceCheck`, `RenameVars`, `Denormalize`, and `MakeDeclaredNamesUnique`.
+3. **`CoalesceVariableNames`, `LiveVariablesAnalysis`, and `DataFlowAnalysis` Early Bailouts & `onlyNameLeaves()` (`internal/jscomp/coalesce_variable_names.go`, `internal/jscomp/live_variables_analysis.go`, `internal/jscomp/data_flow_analysis.go`, `internal/jscomp/flow_sensitive_inline_variables.go`, `internal/jscomp/inline_object_literals.go`):**
+   - Added `onlyNameLeaves()` to `CoalesceVariableNames_Callback`, hoisted `lvaAllVarsFinder.collectWithLimit(fnScope, LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE)` before `ComputeEscaped` and `UndirectedGraph` construction in `CoalesceVariableNames.EnterScope` and `FlowSensitiveInlineVariables`, and added `onlyNameLeaves()` + early `nonEscapingDepth > 0` skip to `dataFlowAnalysis_escapedFinder` (`−0.79 s` cumulative CPU on `bundle-mega`).
+   - Reused `behavior` per worker with `behavior.staleVars.Clear()` in `InlineObjectLiterals.Process` (`--fast_mode`), fixing a recycled `*Var` arena pointer bug between `candFns` in single-threaded `--fast_mode`.
+4. **Compact 8-Byte `sourcemap.FilePosition` & 24-Byte `SourceMap_Mapping` (`−40%` Memory) (`internal/sourcemap/file_position.go`, `internal/sourcemap/source_map_generator_v3.go`, `internal/jscomp/source_map.go`, `internal/jscomp/code_printer.go`, `internal/jscomp/compiler.go`):**
+   - Changed `FilePosition.line` and `column` from `int` (16 B) to `int32` (8 B) and reordered `SourceMap_Mapping` fields to eliminate padding, shrinking `SourceMap_Mapping` from 40 B to **24 B (−40%)**.
+   - Raised `codePrinter_mappingSlabSize` from `512` to `4096`, iterated `mappingChunks`/`mappingSlab` by value without constructing an intermediate `allMappings []*SourceMap_Mapping` pointer slice in `Compiler.appendSourceAndMappingsToCodeBuilder`, and added pointer-first string comparison in `SourceMapGeneratorV3.AddMappingPositions`.
+
+### Final measured results — Round 22 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, `compat` & `fast` modes, PGO enabled)
+
+All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Round 22 over Round 21 in `compat` mode (100% byte-identical to Java), with `--fast_mode` (`t=4`) reaching **16.13 s** on `typed-mega` (**2.20× faster than Cold Java**, **1.70× faster than Warm Java**) and **20.22 s** on `bundle-mega` (**2.39× faster than Cold Java**, **2.04× faster than Warm Java**):
+
+| Benchmark | Round 21 (`f3eb8b4c` `t=1` / `t=4`) | **Round 22 `compat` (`t=1` / `t=4`)** | **`--fast_mode` (`t=4`)** | Round 22 vs Round 21 (`t=1` / `t=4`) | Cumulative vs Round 18 (`t=4` `compat` / `fast`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 22.22 s / 20.98 s | **21.67 s** / **20.27 s** | **20.22 s** | **−2.48%** / **−3.38%** | **−12.89%** (**−3.00 s**) / **−13.11%** (**−3.05 s**) | 1,782 / 1,746 MiB | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 18.43 s / 17.08 s | **17.96 s** / **16.72 s** | **16.13 s** | **−2.57%** / **−2.08%** | **−8.03%** (**−1.46 s**) / **−11.28%** (**−2.05 s**) | **1,727** / **1,773 MiB** (**−1.22%** / **−2.89%**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 10.55 s / 9.76 s | **10.25 s** / **9.50 s** | **9.23 s** | **−2.85%** / **−2.67%** | **−8.39%** (**−0.87 s**) / **−10.99%** (**−1.14 s**) | **1,038** / 1,113 MiB (**−5.11%** `t=1`) | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.40 s / 6.12 s | **6.16 s** / **5.86 s** | **5.85 s** | **−3.73%** / **−4.11%** | **−13.19%** (**−0.89 s**) / **−13.33%** (**−0.90 s**) | 546 / 587 MiB | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.14 s / 3.86 s | **4.03 s** / **3.75 s** | — | **−2.74%** / **−2.79%** | **−14.58%** (**−0.64 s**) | **522** / **559 MiB** (**−4.31%** / **−2.84%**) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.31 s / 3.98 s | **4.18 s** / **3.88 s** | **3.75 s** | **−2.95%** / **−2.65%** | **−10.80%** (**−0.47 s**) / **−13.79%** (**−0.60 s**) | **464** / 517 MiB (**−1.93%** `t=1`) | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.24 s / 2.99 s | **3.14 s** / **2.91 s** | — | **−2.82%** / **−2.93%** | **−12.35%** (**−0.41 s**) | **319** / 312 MiB (**−1.70%** `t=1`) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.43 s / 2.03 s | **2.39 s** / **2.00 s** | — | **−1.56%** / **−1.75%** | **−6.98%** (**−0.15 s**) | **545** / **519 MiB** (**−2.46%** / **−1.50%**) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.39 s / 1.25 s | **1.35 s** / **1.23 s** | **1.22 s** | **−2.65%** / **−1.89%** | **−6.82%** (**−0.09 s**) / **−7.58%** (**−0.10 s**) | **256** / **265 MiB** (**−1.37%** / **−1.23%**) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.09 s / 0.98 s | **1.01 s** / **0.90 s** | — | **−7.41%** / **−8.16%** | **−14.29%** (**−0.15 s**) | **196** / 204 MiB (**−0.74%** `t=1`) | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.52 s** / **0.43 s** | — | **−3.34%** / **−3.69%** | **−6.52%** (**−0.03 s**) | **148** / **155 MiB** (**−8.54%** / **−2.33%**) | `MATCH` |
 
 ## Smaller open items
 

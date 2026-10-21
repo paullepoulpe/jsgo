@@ -135,11 +135,16 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 	scope := t.GetScope()
 	if scope.IsFunctionBlockScope() {
 		b.varsInFunctionBody.Clear()
-		for v := range scope.GetVarIterable() {
-			b.varsInFunctionBody.Add(v.GetName())
+		for _, v := range scope.varList {
+			if v != nil {
+				b.varsInFunctionBody.Add(v.name)
+			}
 		}
 	}
-	for v := range scope.GetVarIterable() {
+	for _, v := range scope.varList {
+		if v == nil {
+			continue
+		}
 		referenceCollection := referenceMap.GetReferences(v)
 		// TODO(moz): Figure out why this could be null
 		if referenceCollection != nil {

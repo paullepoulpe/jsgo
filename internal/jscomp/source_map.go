@@ -337,8 +337,8 @@ func (s *SourceMap) AddSourceFile(name string, code *string) {
 
 // Java: SourceMap.getOriginalName(Node)
 func sourceMap_getOriginalName(node *rhino.Node) *string {
-	if node.GetOriginalName() != nil {
-		return node.GetOriginalName()
+	if orig := node.GetOriginalName(); orig != nil {
+		return orig
 	}
 	// If this is the name identifier of a function declaration/expression and the name node itself
 	// has no originalName, fall back to the enclosing FUNCTION node's originalName.
@@ -352,6 +352,7 @@ func sourceMap_getOriginalName(node *rhino.Node) *string {
 		if parent != nil && parent.IsFunction() && parent.GetFirstChild() == node {
 			return parent.GetOriginalName()
 		}
+		return nil
 	}
 	if node.IsMemberFunctionDef() {
 		return node.GetFirstChild().GetOriginalName()

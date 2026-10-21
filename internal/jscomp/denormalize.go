@@ -117,7 +117,10 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 		return
 	}
 	changed := false
-	for v := range scope.GetVarIterable() {
+	for _, v := range scope.varList {
+		if v == nil {
+			continue
+		}
 		idx := v.nameHash
 		if idx == 0 {
 			continue

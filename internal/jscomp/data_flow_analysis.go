@@ -948,10 +948,12 @@ func (f *dataFlowAnalysis_escapedFinder) isInsideEscapingScope(t *NodeTraversal)
 	return false
 }
 
+func (*dataFlowAnalysis_escapedFinder) onlyNameLeaves() {}
+
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 
-	if !n.IsName() || parent.IsFunction() {
+	if !n.IsName() || parent.IsFunction() || len(t.scopes)-1 <= f.nonEscapingDepth || !f.isInsideEscapingScope(t) {
 		return
 	}
 
@@ -964,10 +966,6 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 		if !f.hasDuplicateVarNames && f.escaped.Contains(targetVar) {
 			return
 		}
-	}
-
-	if !f.isInsideEscapingScope(t) {
-		return
 	}
 
 	var_ := t.LookupVar(name)

@@ -22,20 +22,20 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // FilePosition represents a position in a source file.
 type FilePosition struct {
-	line   int
-	column int
+	line   int32
+	column int32
 }
 
 // NewFilePosition constructs a FilePosition.
 //
 // Java: FilePosition(int, int)
 func NewFilePosition(line, column int) *FilePosition {
-	return &FilePosition{line: line, column: column}
+	return &FilePosition{line: int32(line), column: int32(column)}
 }
 
 // MakeFilePosition constructs a FilePosition by value without heap allocation.
 func MakeFilePosition(line, column int) FilePosition {
-	return FilePosition{line: line, column: column}
+	return FilePosition{line: int32(line), column: int32(column)}
 }
 
 // GetLine returns the line number of this position. Note: The v1 and v2
@@ -45,7 +45,7 @@ func MakeFilePosition(line, column int) FilePosition {
 //
 // Java: FilePosition.getLine()
 func (p *FilePosition) GetLine() int {
-	return p.line
+	return int(p.line)
 }
 
 // GetColumn returns the character index on the line of this position, with
@@ -53,7 +53,7 @@ func (p *FilePosition) GetLine() int {
 //
 // Java: FilePosition.getColumn()
 func (p *FilePosition) GetColumn() int {
-	return p.column
+	return int(p.column)
 }
 
 // String is for debugging only.
@@ -63,5 +63,5 @@ func (p *FilePosition) String() string {
 	// TODO(nickreid): Make this class an @AutoValue and delete this. Too many
 	// places were using the public constructor to do so when this method was
 	// added.
-	return jutil.MoreObjects_ToStringHelper("FilePosition").Add("line", p.line).Add("column", p.column).String()
+	return jutil.MoreObjects_ToStringHelper("FilePosition").Add("line", int(p.line)).Add("column", int(p.column)).String()
 }

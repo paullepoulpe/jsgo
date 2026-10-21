@@ -332,13 +332,13 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	}
 
 	var sourceFileIdx int32
-	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
+	if g.hasLastAddedSourceFile && len(g.lastAddedSourceFile) == len(sourceName) && (unsafe.StringData(g.lastAddedSourceFile) == unsafe.StringData(sourceName) || g.lastAddedSourceFile == sourceName) {
 		sourceFileIdx = g.lastAddedSourceFileIdx
 	} else {
 		if len(g.addedSourceFiles) < 16 {
 			found := false
 			for i, s := range g.addedSourceFiles {
-				if s == sourceName {
+				if len(s) == len(sourceName) && (unsafe.StringData(s) == unsafe.StringData(sourceName) || s == sourceName) {
 					sourceFileIdx = int32(i)
 					found = true
 					break
@@ -373,13 +373,13 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	originalNameIdx := int32(-1)
 	if symbolName != nil {
 		name := *symbolName
-		if g.hasLastAddedSymbolName && g.lastAddedSymbolName == name {
+		if g.hasLastAddedSymbolName && len(g.lastAddedSymbolName) == len(name) && (unsafe.StringData(g.lastAddedSymbolName) == unsafe.StringData(name) || g.lastAddedSymbolName == name) {
 			originalNameIdx = g.lastAddedSymbolNameIdx
 		} else {
 			if len(g.addedSymbolNames) < 16 {
 				found := false
 				for i, s := range g.addedSymbolNames {
-					if s == name {
+					if len(s) == len(name) && (unsafe.StringData(s) == unsafe.StringData(name) || s == name) {
 						originalNameIdx = int32(i)
 						found = true
 						break

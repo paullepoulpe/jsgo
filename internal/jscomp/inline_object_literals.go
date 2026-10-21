@@ -322,6 +322,8 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 					sc := NewSyntacticScopeCreator(o.compiler)
 					sc.EnableArenaPool()
 					defer sc.ReleaseArena()
+					behavior := NewInlineObjectLiterals_InliningBehavior(o)
+					behavior.scanner = &s
 					dummyGlobalScope := newScope(root)
 					dummyGlobalScope.scanDone = true
 					dummyGlobalScope.hasImplicitVars = false
@@ -333,8 +335,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 						candFn := s.candFns[fnIdx]
 						localCounter := 0
 						prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-						behavior := NewInlineObjectLiterals_InliningBehavior(o)
-						behavior.scanner = &s
+						behavior.staleVars.Clear()
 						behavior.idSupplier = func() string {
 							id := prefix + strconv.Itoa(localCounter)
 							localCounter++
@@ -387,6 +388,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 				for fnIdx, candFn := range s.candFns {
 					localCounter := 0
 					prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
+					behavior.staleVars.Clear()
 					behavior.idSupplier = func() string {
 						id := prefix + strconv.Itoa(localCounter)
 						localCounter++
@@ -493,7 +495,10 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 			return
 		}
 	}
-	for v := range scope.GetVarIterable() {
+	for _, v := range scope.varList {
+		if v == nil {
+			continue
+		}
 		referenceInfo := referenceMap.GetReferences(v)
 		if referenceInfo == nil {
 			continue

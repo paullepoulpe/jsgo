@@ -97,7 +97,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 	lineIndex            int
 }
 
-const codePrinter_mappingSlabSize = 512
+const codePrinter_mappingSlabSize = 4096
 
 var codePrinter_mappingSlabPool = sync.Pool{
 	New: func() any {

@@ -569,11 +569,15 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 	var allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	if !fsivHasNestedBlockScopeDecls(functionScopeRoot, fnBody) {
 		f.allVarsMap.Clear()
-		for v := range fnScope.GetVarIterable() {
-			f.allVarsMap.Put(v.GetName(), v)
+		for _, v := range fnScope.varList {
+			if v != nil {
+				f.allVarsMap.Put(v.name, v)
+			}
 		}
-		for v := range scope.GetVarIterable() {
-			f.allVarsMap.Put(v.GetName(), v)
+		for _, v := range scope.varList {
+			if v != nil {
+				f.allVarsMap.Put(v.name, v)
+			}
 		}
 		allVarsInFn = &f.allVarsMap
 	} else {

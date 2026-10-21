@@ -914,19 +914,23 @@ func (v AbstractScope_ImplicitVar) IsMadeByScope(scope AbstractScope) bool {
 
 // Java: AbstractScope.ImplicitVar.of(String)
 func AbstractScope_ImplicitVar_Of(name string) *AbstractScope_ImplicitVar {
-	if uint(len(name)-4) > 5 {
-		return nil
+	switch len(name) {
+	case 4:
+		if name == "this" {
+			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_THIS]
+		}
+	case 5:
+		if name == "super" {
+			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_SUPER]
+		}
+	case 7:
+		if name == "exports" {
+			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_EXPORTS]
+		}
+	case 9:
+		if name == "arguments" {
+			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_ARGUMENTS]
+		}
 	}
-	switch name {
-	case "arguments":
-		return AbstractScope_ImplicitVar_ARGUMENTS.ptr()
-	case "super":
-		return AbstractScope_ImplicitVar_SUPER.ptr()
-	case "this":
-		return AbstractScope_ImplicitVar_THIS.ptr()
-	case "exports":
-		return AbstractScope_ImplicitVar_EXPORTS.ptr()
-	default:
-		return nil
-	}
+	return nil
 }

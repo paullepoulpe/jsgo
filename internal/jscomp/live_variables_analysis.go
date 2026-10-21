@@ -245,7 +245,16 @@ func (*lvaAllVarsFinder) nodeTraversalNoVisit() {}
 func (f *lvaAllVarsFinder) collect(
 	compiler AbstractCompiler, scopeCreator ScopeCreator, scope *Scope,
 ) *NodeUtil_AllVarsDeclaredInFunction {
+	return f.collectWithLimit(compiler, scopeCreator, scope, 0)
+}
+
+func (f *lvaAllVarsFinder) collectWithLimit(
+	compiler AbstractCompiler, scopeCreator ScopeCreator, scope *Scope, maxVars int,
+) *NodeUtil_AllVarsDeclaredInFunction {
 	jutil.CheckStateMsg1(scope.IsFunctionScope(), "%s", scope)
+	if maxVars > 0 && scope.GetVarCount() >= maxVars {
+		return nil
+	}
 	if !f.finder.result.mapStorage.HasBacking() {
 		f.finder.result.mapStorage.InitWithBuffer(f.finder.slotBuf[:])
 		f.finder.result.allVarsInFn = &f.finder.result.mapStorage
@@ -260,6 +269,24 @@ func (f *lvaAllVarsFinder) collect(
 	}
 	f.finder.scope = scope
 
+	fnRoot := scope.GetRootNode()
+	fnBody := fnRoot.GetLastChild()
+	if fnBody != nil && fnBody.IsBlock() && !fsivHasNestedBlockScopeDecls(fnRoot, fnBody) {
+		var bodyScope *Scope
+		if fnBody.HasChildren() {
+			bodyScope = scopeCreator.CreateScope(fnBody, scope).(*Scope)
+			if maxVars > 0 && scope.GetVarCount()+bodyScope.GetVarCount() >= maxVars {
+				return nil
+			}
+		}
+		f.finder.appendScopeVars(scope)
+		if bodyScope != nil {
+			f.finder.appendScopeVars(bodyScope)
+		}
+		jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
+		return &f.finder.result
+	}
+
 	b := NodeTraversal_Builder{
 		compiler:     compiler,
 		callback:     f,
@@ -269,6 +296,9 @@ func (f *lvaAllVarsFinder) collect(
 	t.TraverseAtScope(scope)
 	releaseNodeTraversal(t)
 
+	if maxVars > 0 && len(f.finder.result.orderedVars) >= maxVars {
+		return nil
+	}
 	jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
 	return &f.finder.result
 }

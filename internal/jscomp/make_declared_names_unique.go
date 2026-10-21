@@ -216,8 +216,11 @@ func (m *MakeDeclaredNamesUnique) GetReplacementName(oldName string) *string {
 func (m *MakeDeclaredNamesUnique) FindDeclaredNames(t *NodeTraversal, n *rhino.Node) {
 	jutil.CheckStateMsg1(NodeUtil_CreatesScope(n) || n.IsScript(), "%s", n)
 
-	for v := range t.GetScope().GetVarIterable() {
-		m.renamerStack[len(m.renamerStack)-1].AddDeclaredName(v.GetName(), false)
+	topRenamer := m.renamerStack[len(m.renamerStack)-1]
+	for _, v := range t.GetScope().varList {
+		if v != nil {
+			topRenamer.AddDeclaredName(v.name, false)
+		}
 	}
 }
 
@@ -336,7 +339,10 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *NodeTra
 	var declaredVariablesBuilder []*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo
 	if varCount := scope.GetVarCount(); varCount > 0 {
 		declaredVariablesBuilder = make([]*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo, 0, varCount)
-		for var_ := range scope.GetVarIterable() {
+		for _, var_ := range scope.varList {
+			if var_ == nil {
+				continue
+			}
 			variableInfo := c.CreateDeclaredVariableInfo(var_)
 			declaredVariablesBuilder = append(declaredVariablesBuilder, variableInfo)
 			c.variablesStackedByName.PushVariableInfo(variableInfo)

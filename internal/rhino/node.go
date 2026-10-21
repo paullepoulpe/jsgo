@@ -1337,6 +1337,9 @@ func (n *Node) DetachChildren() {
 
 // Java: Node.lookupProperty(Prop)
 func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
+	if prop == Node_Prop_JSDOC_INFO && n.boolFlags&nodeFlagHasJSDoc == 0 {
+		return nil
+	}
 	propType := int8(prop.Ordinal())
 	x := n.propListHead
 	for x != nil && propType != x.propType {
@@ -1530,12 +1533,15 @@ func (n *Node) GetIntProp(propType Node_Prop) int32 {
 //
 // Java: Node.putProp(Prop, Object)
 func (n *Node) PutProp(prop Node_Prop, value any) {
-	if !jutil.IsNil(value) && n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
-		n.propListHead.objectValue = value
-		return
-	}
 	if jutil.IsNil(value) {
 		n.RemoveProp(prop)
+		return
+	}
+	if prop == Node_Prop_JSDOC_INFO {
+		n.boolFlags |= nodeFlagHasJSDoc
+	}
+	if n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
+		n.propListHead.objectValue = value
 		return
 	}
 	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
@@ -1616,7 +1622,12 @@ func (n *Node) PutIntProp(prop Node_Prop, value int32) {
 
 // Java: Node.removeProp(Prop)
 func (n *Node) RemoveProp(prop Node_Prop) {
-	if prop == Node_Prop_CONSTANT_VAR_FLAGS {
+	if prop == Node_Prop_JSDOC_INFO {
+		if n.boolFlags&nodeFlagHasJSDoc == 0 {
+			return
+		}
+		n.boolFlags &^= nodeFlagHasJSDoc
+	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 		if n.boolFlags&nodeFlagConstVarMask == 0 {
 			return
 		}
@@ -2247,7 +2258,7 @@ const (
 	nodeFlagIncrDecr            uint16 = 1 << 1
 	nodeFlagQuoted              uint16 = 1 << 2
 	nodeFlagSynthetic           uint16 = 1 << 3
-	nodeFlagAddedBlock          uint16 = 1 << 4
+	nodeFlagHasJSDoc            uint16 = 1 << 4
 	nodeFlagIsConstantName      uint16 = 1 << 5
 	nodeFlagIsNamespace         uint16 = 1 << 6
 	nodeFlagFreeCall            uint16 = 1 << 7
@@ -2266,7 +2277,6 @@ var nodePropBoolFlagMask = [64]uint16{
 	Node_Prop_INCRDECR:              nodeFlagIncrDecr,
 	Node_Prop_QUOTED:                nodeFlagQuoted,
 	Node_Prop_SYNTHETIC:             nodeFlagSynthetic,
-	Node_Prop_ADDED_BLOCK:           nodeFlagAddedBlock,
 	Node_Prop_IS_CONSTANT_NAME:      nodeFlagIsConstantName,
 	Node_Prop_IS_NAMESPACE:          nodeFlagIsNamespace,
 	Node_Prop_FREE_CALL:             nodeFlagFreeCall,
@@ -2684,8 +2694,12 @@ func (n *Node) SetPropListHead(propListHead *Node_PropListItem) {
 	n.propListHead = propListHead
 	flags := n.boolFlags & nodeFlagNoBlockDecls
 	for x := propListHead; x != nil; x = x.next {
-		if !x.isObject && x.intValue != 0 {
-			prop := Node_Prop(x.propType)
+		prop := Node_Prop(x.propType)
+		if x.isObject {
+			if prop == Node_Prop_JSDOC_INFO && !jutil.IsNil(x.objectValue) {
+				flags |= nodeFlagHasJSDoc
+			}
+		} else if x.intValue != 0 {
 			if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 				flags |= uint16(x.intValue&3) << nodeFlagConstVarShift
 			} else if mask := nodePropBoolFlagMask[prop]; mask != 0 {
@@ -3987,6 +4001,9 @@ func (n *Node) CopyTypeFrom(other *Node) *Node {
 //
 // Java: Node.getJSDocInfo()
 func (n *Node) GetJSDocInfo() *JSDocInfo {
+	if n.boolFlags&nodeFlagHasJSDoc == 0 {
+		return nil
+	}
 	return node_cast[*JSDocInfo](n.GetProp(Node_Prop_JSDOC_INFO))
 }
 
@@ -4190,7 +4207,7 @@ func (n *Node) SetIsAddedBlock(val bool) {
 //
 // Java: Node.isAddedBlock()
 func (n *Node) IsAddedBlock() bool {
-	return n.boolFlags&nodeFlagAddedBlock != 0
+	return n.GetBooleanProp(Node_Prop_ADDED_BLOCK)
 }
 
 // SetStaticMember sets whether this node is a static member node. This

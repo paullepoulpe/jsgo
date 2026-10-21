@@ -402,7 +402,7 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 }
 
 func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
-	s.varBloom |= uint64(1) << (scopeNameHash(name) & 63)
+	s.varBloom |= scopeBloomMask(name)
 	s.AbstractScopeBase.DeclareInternal(name, var_)
 }
 
@@ -412,7 +412,8 @@ func (s *TypedScope) ClearVarsInternal() {
 }
 
 func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
-	if s.vars.IsEmpty() || (s.varBloom&(uint64(1)<<(scopeNameHash(name)&63))) == 0 {
+	bloom := scopeBloomMask(name)
+	if (s.varBloom&bloom) != bloom || s.vars.IsEmpty() {
 		return nil
 	}
 	return s.vars.Get(name)
@@ -422,10 +423,8 @@ func (s *TypedScope) getOwnSlotV(name string) *TypedVar {
 	if v := s.getOwnTypedSlot(name); v != nil {
 		return v
 	}
-	if len(name) >= 4 && len(name) <= 9 {
-		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-			return s.GetOwnImplicitSlot(imp)
-		}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+		return s.GetOwnImplicitSlot(imp)
 	}
 	return nil
 }
@@ -441,10 +440,8 @@ func (s *TypedScope) HasOwnSlot(name string) bool {
 	if s.getOwnTypedSlot(name) != nil {
 		return true
 	}
-	if len(name) >= 4 && len(name) <= 9 {
-		if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-			return s.HasOwnImplicitSlot(imp)
-		}
+	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+		return s.HasOwnImplicitSlot(imp)
 	}
 	return false
 }
@@ -564,35 +561,53 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 // function scope, AbstractScope::getVar returns "a.b". This method returns
 // null because the global "a" is shadowed.
 //
+func (s *TypedScope) lookupRootVar(name string) *TypedVar {
+	bloom := scopeBloomMask(name)
+	implicit := AbstractScope_ImplicitVar_Of(name)
+	if implicit == nil {
+		for cur := s; cur != nil; cur = cur.parent {
+			if (cur.varBloom&bloom) == bloom && !cur.vars.IsEmpty() {
+				if v := cur.vars.Get(name); v != nil {
+					return v
+				}
+			}
+		}
+		return nil
+	}
+	for cur := s; cur != nil; cur = cur.parent {
+		if (cur.varBloom&bloom) == bloom && !cur.vars.IsEmpty() {
+			if v := cur.vars.Get(name); v != nil {
+				return v
+			}
+		}
+		if v := cur.GetOwnImplicitSlot(implicit); v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
 // Java: TypedScope.getVar(String)
 func (s *TypedScope) GetVar(name string) *TypedVar {
+	dot := strings.IndexByte(name, '.')
+	if dot < 0 {
+		return s.lookupRootVar(name)
+	}
 	ownSlot := s.getOwnSlotV(name)
 	if ownSlot != nil {
 		// Micro-optimization: variables declared directly in this scope cannot have been shadowed.
 		return ownSlot
-	} else if s.GetParent() == nil {
+	} else if s.parent == nil {
 		return nil
 	}
-	// Find the root name and its slot.
-	// Go-only: language-adapter — '.' is ASCII, so its byte index splits the
-	// string exactly where Java's UTF-16 index does.
-	dot := strings.IndexByte(name, '.')
-	rootName := name
-	if dot >= 0 {
-		rootName = name[:dot]
-	}
-	rootVar := s.AbstractScopeBase.GetVar(rootName) // Use the superclass method to skip string checks.
-
-	if dot < 0 {
-		return rootVar
-	} else if rootVar == nil {
+	rootVar := s.lookupRootVar(name[:dot])
+	if rootVar == nil {
 		// Default to the global scope because externs may have qualified names with undeclared roots.
-		return s.GetParent().GetGlobalScope().getOwnSlotV(name)
-	} else {
-		// Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
-		// is why calling `getOwnSlot` is sufficient.
-		return rootVar.getScopeS().getOwnSlotV(name)
+		return s.parent.GetGlobalScope().getOwnSlotV(name)
 	}
+	// Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
+	// is why calling `getOwnSlot` is sufficient.
+	return rootVar.getScopeS().getOwnSlotV(name)
 }
 
 // Java: TypedScope.getTypeThroughNamespace(String)

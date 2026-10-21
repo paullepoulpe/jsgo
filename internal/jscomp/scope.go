@@ -51,12 +51,31 @@ func scopeNameEq(a, b string) bool {
 }
 
 func scopeNameHash(s string) uint32 {
-	h := uint32(2166136261)
-	for i := 0; i < len(s); i++ {
-		h ^= uint32(s[i])
-		h *= 16777619
+	n := len(s)
+	if n == 0 {
+		return 0
 	}
-	return h ^ (h >> 16)
+	p := unsafe.Pointer(unsafe.StringData(s))
+	var h uint64
+	if n >= 8 {
+		v0 := *(*uint64)(p)
+		v1 := *(*uint64)(unsafe.Add(p, n-8))
+		v2 := uint64(*(*uint32)(unsafe.Add(p, n>>1)))
+		h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9 ^ v2) + uint64(n)*0x94d049bb133111eb
+	} else if n >= 4 {
+		v0 := uint64(*(*uint32)(p))
+		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
+		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
+	} else {
+		b0 := uint32(*(*byte)(p))
+		b1 := uint32(*(*byte)(unsafe.Add(p, n>>1)))
+		b2 := uint32(*(*byte)(unsafe.Add(p, n-1)))
+		u := (b0 | (b1 << 8) | (b2 << 16) | (uint32(n) << 24)) * 0xcc9e2d51
+		return u ^ (u >> 16)
+	}
+	h ^= h >> 33
+	h *= 0xff51afd7ed558ccd
+	return uint32(h ^ (h >> 32))
 }
 
 func scopeBloomMask(s string) uint64 {
@@ -64,9 +83,10 @@ func scopeBloomMask(s string) uint64 {
 	if n == 0 {
 		return 1
 	}
-	b0 := uint32(s[0])
-	b1 := uint32(s[n-1])
-	b2 := uint32(s[n>>1])
+	p := unsafe.Pointer(unsafe.StringData(s))
+	b0 := uint32(*(*byte)(p))
+	b1 := uint32(*(*byte)(unsafe.Add(p, n-1)))
+	b2 := uint32(*(*byte)(unsafe.Add(p, n>>1)))
 	h1 := (b0*31 + b1 + uint32(n)*7) & 63
 	h2 := (b2*37 + b1*13 + b0 + uint32(n)) & 63
 	return (uint64(1) << h1) | (uint64(1) << h2)
@@ -752,10 +772,40 @@ func (s *Scope) CanDeclare(name string) bool {
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
 	bloom := scopeBloomMask(name)
+	implicit := AbstractScope_ImplicitVar_Of(name)
 	var h uint32
 	var hashed bool
-	var implicit *AbstractScope_ImplicitVar
-	var checkedImplicit bool
+	if implicit == nil {
+		for cur := s; cur != nil; cur = cur.lookupParent {
+			if (cur.varBloom & bloom) == bloom {
+				if cur.varHash != nil {
+					if !hashed {
+						h = scopeNameHash(name)
+						hashed = true
+					}
+					mask := uint32(len(cur.varHash) - 1)
+					slot := h & mask
+					for {
+						idx := cur.varHash[slot]
+						if idx == 0 {
+							break
+						}
+						if scopeNameEq(cur.varList[idx-1].name, name) {
+							return true
+						}
+						slot = (slot + 1) & mask
+					}
+				} else {
+					for _, v := range cur.varList {
+						if v != nil && scopeNameEq(v.name, name) {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	}
 	for cur := s; cur != nil; cur = cur.lookupParent {
 		if (cur.varBloom & bloom) == bloom {
 			if cur.varHash != nil {
@@ -783,14 +833,8 @@ func (s *Scope) HasSlot(name string) bool {
 				}
 			}
 		}
-		if cur.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
-			if !checkedImplicit {
-				implicit = AbstractScope_ImplicitVar_Of(name)
-				checkedImplicit = true
-			}
-			if implicit != nil && implicit.IsMadeByScope(cur) {
-				return true
-			}
+		if cur.hasImplicitVars && implicit.IsMadeByScope(cur) {
+			return true
 		}
 	}
 	return false
@@ -814,10 +858,40 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 // avoid those dictionary calls and classify implicit names once per lookup.
 func (s *Scope) GetVar(name string) *Var {
 	bloom := scopeBloomMask(name)
+	implicit := AbstractScope_ImplicitVar_Of(name)
 	var h uint32
 	var hashed bool
-	var implicit *AbstractScope_ImplicitVar
-	var checkedImplicit bool
+	if implicit == nil {
+		for cur := s; cur != nil; cur = cur.lookupParent {
+			if (cur.varBloom & bloom) == bloom {
+				if cur.varHash != nil {
+					if !hashed {
+						h = scopeNameHash(name)
+						hashed = true
+					}
+					mask := uint32(len(cur.varHash) - 1)
+					slot := h & mask
+					for {
+						idx := cur.varHash[slot]
+						if idx == 0 {
+							break
+						}
+						if v := cur.varList[idx-1]; scopeNameEq(v.name, name) {
+							return v
+						}
+						slot = (slot + 1) & mask
+					}
+				} else {
+					for _, v := range cur.varList {
+						if v != nil && scopeNameEq(v.name, name) {
+							return v
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}
 	for cur := s; cur != nil; cur = cur.lookupParent {
 		if (cur.varBloom & bloom) == bloom {
 			if cur.varHash != nil {
@@ -845,15 +919,9 @@ func (s *Scope) GetVar(name string) *Var {
 				}
 			}
 		}
-		if cur.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
-			if !checkedImplicit {
-				implicit = AbstractScope_ImplicitVar_Of(name)
-				checkedImplicit = true
-			}
-			if implicit != nil {
-				if v := cur.GetOwnImplicitSlot(implicit); v != nil {
-					return v
-				}
+		if cur.hasImplicitVars {
+			if v := cur.GetOwnImplicitSlot(implicit); v != nil {
+				return v
 			}
 		}
 	}
