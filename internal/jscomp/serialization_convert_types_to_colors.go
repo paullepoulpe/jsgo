@@ -99,10 +99,6 @@ type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
 	colorPoolShard        *ColorPool_ShardView
 	typePointersByJstype  *base.LinkedIdentityHashMap[rhino.JSType, int]
 	jstypeReconserializer *JSTypeReconserializer
-	colorsByPointer       []*colors.Color
-	lastType              rhino.JSType
-	lastColor             *colors.Color
-	hasLast               bool
 }
 
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors(ColorPool.ShardView, LinkedIdentityHashMap<JSType, Integer>)
@@ -113,20 +109,6 @@ func NewConvertTypesToColors_RemoveTypesAndApplyColors(
 	r.colorPoolShard = colorPoolShard
 	r.typePointersByJstype = typePointersByJstype
 	return r
-}
-
-func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) initColors() {
-	if r.colorPoolShard != nil && r.colorPoolShard.colorPool != nil {
-		axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
-		trimmedIds := r.colorPoolShard.trimmedOffsetToId
-		idToColor := r.colorPoolShard.colorPool.idToColor
-		colorsByPointer := make([]*colors.Color, axiomaticCount+len(trimmedIds))
-		copy(colorsByPointer, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
-		for i, id := range trimmedIds {
-			colorsByPointer[axiomaticCount+i] = idToColor[id]
-		}
-		r.colorsByPointer = colorsByPointer
-	}
 }
 
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors.visit(NodeTraversal, Node, Node)
@@ -142,26 +124,14 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node
 
 	if oldType != nil {
 		var c *colors.Color
-		if r.hasLast && oldType == r.lastType {
-			c = r.lastColor
-		} else {
-			var pointer int
-			var ok bool
-			if r.jstypeReconserializer != nil {
-				pointer, ok = r.jstypeReconserializer.LookupTypePointer(oldType)
-			} else if r.typePointersByJstype != nil {
-				pointer, ok = r.typePointersByJstype.Lookup(oldType)
+		if r.jstypeReconserializer != nil {
+			if oldType.SerialGen == r.jstypeReconserializer.serialGen {
+				c = r.colorPoolShard.GetColor(int(oldType.SerialPointer))
 			}
-			if ok {
-				if r.colorsByPointer != nil {
-					c = r.colorsByPointer[pointer]
-				} else {
-					c = r.colorPoolShard.GetColor(pointer)
-				}
+		} else if r.typePointersByJstype != nil {
+			if pointer, ok := r.typePointersByJstype.Lookup(oldType.Self()); ok {
+				c = r.colorPoolShard.GetColor(pointer)
 			}
-			r.lastType = oldType
-			r.lastColor = c
-			r.hasLast = true
 		}
 		if c != nil {
 			n.SetColor(c)
@@ -217,7 +187,6 @@ func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
 	callback.jstypeReconserializer = serializeJstypes.jstypeReconserializer
 
 	colorPool := colorPoolBuilder.Build()
-	callback.initColors()
 	callback.walk(externsAndJsRoot)
 
 	c.compiler.ClearJSTypeRegistry()

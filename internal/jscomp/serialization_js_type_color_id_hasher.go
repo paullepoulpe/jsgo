@@ -30,6 +30,7 @@ type JSTypeColorIdHasher struct {
 	// equals/hashCode are JSType.equals/hashCode, so it is an
 	// ObjectLinkedHashMap rather than a Go-== keyed map.
 	standardColorObjectIds *jutil.ObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]
+	standardColorByPtr     map[*rhino.JSTypeBase]colors.ColorId
 }
 
 // Java: JSTypeColorIdHasher(JSTypeRegistry)
@@ -37,6 +38,7 @@ func NewJSTypeColorIdHasher(registry *rhino.JSTypeRegistry) *JSTypeColorIdHasher
 	h := &JSTypeColorIdHasher{}
 	// NATIVE_TYPE_TO_ID.entrySet().stream().collect(toImmutableMap(...))
 	standardColorObjectIds := jutil.NewObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]()
+	standardColorByPtr := make(map[*rhino.JSTypeBase]colors.ColorId, 16)
 	for e, v := range JSTypeColorIdHasher_NATIVE_TYPE_TO_ID.All() {
 		k := registry.GetNativeObjectType(e)
 		if old, ok := standardColorObjectIds.Lookup(k); ok {
@@ -44,8 +46,10 @@ func NewJSTypeColorIdHasher(registry *rhino.JSTypeRegistry) *JSTypeColorIdHasher
 				k.String() + "=" + v.String() + " and " + k.String() + "=" + old.String()))
 		}
 		standardColorObjectIds.Put(k, v)
+		standardColorByPtr[k.GetJSTypeBase()] = v
 	}
 	h.standardColorObjectIds = standardColorObjectIds
+	h.standardColorByPtr = standardColorByPtr
 	return h
 }
 
@@ -61,8 +65,15 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 		"%s",
 		type_)
 
-	if boxId, ok := h.standardColorObjectIds.Lookup(type_); ok {
-		return boxId
+	if type_.IsNominalType() {
+		if boxId, ok := h.standardColorByPtr[type_.GetJSTypeBase()]; ok {
+			return boxId
+		}
+		if type_.IsNamedType() {
+			if boxId, ok := h.standardColorObjectIds.Lookup(type_); ok {
+				return boxId
+			}
+		}
 	}
 
 	hasher := jsTypeColorIdHasher_FARM_64()

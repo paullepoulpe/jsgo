@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -39,11 +41,10 @@ type StringPool struct {
 func StringPool_FromProto(proto *StringPoolProto) *StringPool {
 	decoder := Wtf8_Decoder_(int(proto.GetMaxLength()))
 
-	pool := []string{""}
 	stringsList := proto.GetStringsList()
+	pool := make([]string, len(stringsList)+1)
 	for i := 0; i < len(stringsList); i++ {
-		s := stringsList[i]
-		pool = append(pool, decoder.Decode(s))
+		pool[i+1] = decoder.Decode(stringsList[i])
 	}
 
 	return newStringPool(int(proto.GetMaxLength()), pool)
@@ -75,16 +76,24 @@ func (p *StringPool) GetInternedStrings() *rhino.RhinoStringPool_LazyInternedStr
 
 // Java: StringPool.toProto()
 func (p *StringPool) ToProto() *StringPoolProto {
-	builder := StringPoolProto_NewBuilder().SetMaxLength(int32(p.maxLength))
-	first := true
-	for s := range p.pool.Stream() {
-		if first {
-			first = false
-			continue
+	raw := p.pool.Slice()
+	var strings [][]byte
+	if len(raw) > 1 {
+		strings = make([][]byte, len(raw)-1)
+		for i, s := range raw[1:] {
+			if jutil.IsASCII(s) {
+				strings[i] = unsafe.Slice(unsafe.StringData(s), len(s))
+			} else {
+				strings[i] = Wtf8_EncodeToWtf8(s)
+			}
 		}
-		builder.AddStrings(Wtf8_EncodeToWtf8(s))
 	}
-	return builder.Build()
+	return &StringPoolProto{
+		strings_:     strings,
+		maxLength_:   int32(p.maxLength),
+		frozen:       true,
+		memoizedSize: -1,
+	}
 }
 
 // StringPool_Builder_ is StringPool.builder().

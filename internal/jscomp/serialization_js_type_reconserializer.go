@@ -20,11 +20,14 @@ package jscomp
 
 import (
 	"slices"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var nextReconserializerGen uint32
 
 // JSTypeReconserializer takes JSTypes produced by JSCompiler's typechecker
 // and deduplicates and serializes them into the TypedAST colors format.
@@ -46,7 +49,9 @@ type JSTypeReconserializer struct {
 	unknownRecord     *JSTypeReconserializer_SeenTypeRecord
 	topFunctionRecord *JSTypeReconserializer_SeenTypeRecord
 
-	typeToRecordCache      map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord
+	serialGen              uint32
+	recordsByPointer       []*JSTypeReconserializer_SeenTypeRecord
+	forwardedTypes         []rhino.JSType
 	seenTypeRecords        *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
 	disambiguateEdges      *jutil.LinkedHashMap[int32, disambiguateEdgeSet]
 	totalDisambiguateEdges int
@@ -138,7 +143,11 @@ func newJSTypeReconserializer(
 	serializationMode *SerializationOptions) *JSTypeReconserializer {
 	s := &JSTypeReconserializer{}
 	// Field initializers.
-	s.typeToRecordCache = make(map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord, 4096)
+	s.serialGen = atomic.AddUint32(&nextReconserializerGen, 1)
+	if s.serialGen == 0 {
+		s.serialGen = atomic.AddUint32(&nextReconserializerGen, 1)
+	}
+	s.recordsByPointer = make([]*JSTypeReconserializer_SeenTypeRecord, 0, 4096)
 	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](4096)
 	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, disambiguateEdgeSet](2048)
 	s.state = JSTypeReconserializer_State_COLLECTING_TYPES
@@ -258,10 +267,18 @@ func JSTypeReconserializer_Create(
 
 // LookupTypePointer returns the cached pointer for type_ if it was serialized.
 func (s *JSTypeReconserializer) LookupTypePointer(type_ rhino.JSType) (int, bool) {
-	if rec := s.typeToRecordCache[type_]; rec != nil {
-		return rec.pointer, true
+	tb := type_.GetJSTypeBase()
+	if tb.SerialGen == s.serialGen {
+		return int(tb.SerialPointer), true
 	}
 	return 0, false
+}
+
+func (s *JSTypeReconserializer) cacheForwardedRecord(type_ rhino.JSType, tb *rhino.JSTypeBase, rec *JSTypeReconserializer_SeenTypeRecord) *JSTypeReconserializer_SeenTypeRecord {
+	tb.SerialGen = s.serialGen
+	tb.SerialPointer = int32(rec.pointer)
+	s.forwardedTypes = append(s.forwardedTypes, type_)
+	return rec
 }
 
 // SerializeType returns a pointer to the given type. If it is not already
@@ -275,8 +292,9 @@ func (s *JSTypeReconserializer) SerializeType(type_ rhino.JSType) int {
 
 // Java: JSTypeReconserializer.recordType(JSType)
 func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
-	if jstypeRecord := s.typeToRecordCache[type_]; jstypeRecord != nil {
-		return jstypeRecord
+	tb := type_.GetJSTypeBase()
+	if tb.SerialGen == s.serialGen {
+		return s.recordsByPointer[tb.SerialPointer]
 	}
 
 	var forwardedType rhino.JSType
@@ -296,15 +314,13 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 	}
 	if forwardedType != nil {
 		rec := s.RecordType(forwardedType)
-		s.typeToRecordCache[type_] = rec
-		return rec
+		return s.cacheForwardedRecord(type_, tb, rec)
 	}
 
 	if type_.IsUnknownType() || type_.IsNoResolvedType() || type_.IsTemplateType() {
 		// template types are not serialized because optimizations don't seem to care about them.
 		// serialize as the UNKNOWN_TYPE because bounded generics are unsupported
-		s.typeToRecordCache[type_] = s.unknownRecord
-		return s.unknownRecord
+		return s.cacheForwardedRecord(type_, tb, s.unknownRecord)
 	}
 	if type_.IsFunctionType() &&
 		!type_.ToMaybeFunctionType().HasInstanceType() &&
@@ -313,8 +329,7 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 		// are a constructor/interface or have a @closurePrimitive tag associated. Optimization colors
 		// don't track function parameter/return/template types, and function literals are all
 		// invalidating types during property disambiguation.
-		s.typeToRecordCache[type_] = s.topFunctionRecord
-		return s.topFunctionRecord
+		return s.cacheForwardedRecord(type_, tb, s.topFunctionRecord)
 	}
 
 	if type_.IsUnionType() {
@@ -363,8 +378,7 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 	// Some elements of the union may be equal as Colors
 	if altRecords.Size() == 1 {
 		only := jsTypeReconserializer_getOnlyElement(altRecords)
-		s.typeToRecordCache[type_] = only
-		return only
+		return s.cacheForwardedRecord(type_, type_.GetJSTypeBase(), only)
 	}
 
 	alternateIds := s.scratchAlternateIds
@@ -495,9 +509,12 @@ func (s *JSTypeReconserializer) GetOrCreateRecord(id colors.ColorId, jstype rhin
 		pointer := s.seenTypeRecords.Size()
 		record = s.allocSeenTypeRecord(id, pointer)
 		s.seenTypeRecords.PutNew(id, record)
+		s.recordsByPointer = append(s.recordsByPointer, record)
 	}
-	if _, exists := s.typeToRecordCache[jstype]; !exists {
-		s.typeToRecordCache[jstype] = record
+	tb := jstype.GetJSTypeBase()
+	if tb.SerialGen != s.serialGen {
+		tb.SerialGen = s.serialGen
+		tb.SerialPointer = int32(record.pointer)
 		record.jstypes = append(record.jstypes, jstype)
 	}
 
@@ -735,6 +752,7 @@ func (s *JSTypeReconserializer) SeedCachesWithAxiomaticTypes() {
 		index := s.seenTypeRecords.Size()
 		record := s.allocSeenTypeRecord(axiomatic.GetId(), index)
 		s.seenTypeRecords.PutNew(axiomatic.GetId(), record)
+		s.recordsByPointer = append(s.recordsByPointer, record)
 	}
 
 	// Add JSTypes corresponding to axiomatic IDs.

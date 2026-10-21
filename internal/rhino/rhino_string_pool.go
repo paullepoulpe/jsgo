@@ -257,6 +257,11 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 	return l.pool.All()
 }
 
+// Slice returns the underlying string slice.
+func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
+	return l.pool.Slice()
+}
+
 // RhinoStringPool_WriteOnlyBitset is a bitset implementation that only
 // supports setting bits from false => true, not vice versa, and is not
 // resizable once created.

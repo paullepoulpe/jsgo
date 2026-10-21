@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strconv"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -34,6 +35,9 @@ const wtf8_CONTINUATION_MASK = 0x3F
 //
 // Java: Wtf8.encodeToWtf8(String)
 func Wtf8_EncodeToWtf8(s string) []byte {
+	if jutil.IsASCII(s) {
+		return []byte(s)
+	}
 	units := jutil.StringToUTF16(s)
 	length := len(units)
 	output := make([]byte, 0, length)
@@ -87,6 +91,7 @@ func Wtf8_Decoder_(maxLength int) *Wtf8_Decoder {
 // maximize performance, it reuses buffers between decodings.
 type Wtf8_Decoder struct {
 	codepointBuffer []int32
+	unitBuffer      []uint16
 }
 
 func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
@@ -96,7 +101,28 @@ func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
 		jutil.InitThrowable(e, "java.lang.NegativeArraySizeException", &msg, nil)
 		panic(e)
 	}
-	return &Wtf8_Decoder{codepointBuffer: make([]int32, maxLength)}
+	return &Wtf8_Decoder{
+		codepointBuffer: make([]int32, maxLength),
+		unitBuffer:      make([]uint16, 0, maxLength*2),
+	}
+}
+
+func wtf8_isASCIIBytes(b []byte) bool {
+	i := 0
+	if len(b) >= 8 {
+		p := unsafe.Pointer(unsafe.SliceData(b))
+		for ; i+8 <= len(b); i += 8 {
+			if *(*uint64)(unsafe.Add(p, i))&0x8080808080808080 != 0 {
+				return false
+			}
+		}
+	}
+	for ; i < len(b); i++ {
+		if b[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 // wtf8_byteAt is ByteString.byteAt(int) (signed).
@@ -110,6 +136,9 @@ func wtf8_byteAt(encoded []byte, i int) int32 {
 // Java: Wtf8.Decoder.decode(ByteString)
 func (d *Wtf8_Decoder) Decode(encoded []byte) string {
 	encodedByteCount := len(encoded)
+	if encodedByteCount <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
+		return string(encoded)
+	}
 	codepointCount := 0
 
 	for i := 0; i < encodedByteCount; i++ {
@@ -154,12 +183,11 @@ func (d *Wtf8_Decoder) Decode(encoded []byte) string {
 		codepointCount++
 	}
 
-	return wtf8_newStringFromCodePoints(d.codepointBuffer[:codepointCount])
+	return wtf8_newStringFromCodePoints(d.codepointBuffer[:codepointCount], d.unitBuffer[:0])
 }
 
 // wtf8_newStringFromCodePoints is new String(int[] codePoints, 0, n).
-func wtf8_newStringFromCodePoints(codePoints []int32) string {
-	units := make([]uint16, 0, len(codePoints))
+func wtf8_newStringFromCodePoints(codePoints []int32, units []uint16) string {
 	for _, cp := range codePoints {
 		switch {
 		case cp >= 0 && cp < 0x10000:

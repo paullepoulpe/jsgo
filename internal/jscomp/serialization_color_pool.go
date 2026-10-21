@@ -104,6 +104,7 @@ func colorPool_getOnlyElement[T any](list []T) T {
 type ColorPool_ShardView struct {
 	trimmedOffsetToId    []colors.ColorId
 	trimmedOffsetToColor []*colors.Color
+	offsetToColor        []*colors.Color
 
 	// Fields only present before/while the ColorPool is being built. Null afterwards.
 	typePool   *TypePool
@@ -125,6 +126,9 @@ func newColorPool_ShardView(
 
 // Java: ColorPool.ShardView.getColor(int)
 func (s *ColorPool_ShardView) GetColor(pointer int) *colors.Color {
+	if uint(pointer) < uint(len(s.offsetToColor)) {
+		return s.offsetToColor[pointer]
+	}
 	jutil.CheckStateMsg1(s.colorPool != nil, "%s", s)
 	if TypePointers_IsAxiomatic(pointer) {
 		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[pointer]
@@ -149,6 +153,19 @@ func (s *ColorPool_ShardView) UpdateStateAfterColorPoolIsBuilt(colorPool *ColorP
 	s.colorPool = colorPool
 	s.typePool = nil
 	s.stringPool = nil
+	axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	offsetToColor := make([]*colors.Color, axiomaticCount+len(s.trimmedOffsetToId))
+	copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	if s.trimmedOffsetToColor != nil {
+		copy(offsetToColor[axiomaticCount:], s.trimmedOffsetToColor)
+		s.trimmedOffsetToColor = nil
+	} else {
+		idToColor := colorPool.idToColor
+		for i, id := range s.trimmedOffsetToId {
+			offsetToColor[axiomaticCount+i] = idToColor[id]
+		}
+	}
+	s.offsetToColor = offsetToColor
 }
 
 // String is Object.toString().

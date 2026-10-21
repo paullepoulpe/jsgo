@@ -44,6 +44,8 @@ type TypedAstSerializer struct {
 	typeSerializer      TypedAstSerializer_TypeSerializer
 	colorTypeSerializer *TypedAstSerializer_ColorTypeSerializer
 	jsTypeSerializer    *TypedAstSerializer_JSTypeSerializer
+	usedPropBits        []uint64
+	recordUsedProps     bool
 
 	nodeSlabs        [][]AstNode
 	nodeSlabIdx      int
@@ -207,7 +209,21 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhi
 	jutil.CheckArgument(jsRoot.IsRoot())
 
 	if s.compiler.HasOptimizationColors() {
-		s.colorTypeSerializer = s.CreateColorTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		if root := s.compiler.GetRoot(); root != nil && externsRoot.GetParent() == root {
+			s.usedPropBits = make([]uint64, 64)
+			s.recordUsedProps = true
+			colorSerializer := NewColorSerializer(
+				s.serializationMode,
+				s.stringPool.Put,
+				func(prop string) bool {
+					_, ok := s.lookupUsedPropIndex(prop)
+					return ok
+				})
+			colorSerializer.lookupUsedPropIndexFn = s.lookupUsedPropIndex
+			s.colorTypeSerializer = NewTypedAstSerializer_ColorTypeSerializer(colorSerializer, s.compiler.GetColorRegistry())
+		} else {
+			s.colorTypeSerializer = s.CreateColorTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
+		}
 		s.typeSerializer = s.colorTypeSerializer
 	} else if s.compiler.HasTypeCheckingRun() {
 		// The AST has JSTypes, but we want to serialize colors instead.
@@ -443,17 +459,54 @@ func (s *TypedAstSerializer) AddType(n *rhino.Node, builder *AstNode_Builder) {
 	s.typeSerializer.AddTypeForNode(n, builder)
 }
 
+func (s *TypedAstSerializer) markUsedProp(ptr int) {
+	word := ptr >> 6
+	if word >= len(s.usedPropBits) {
+		newLen := max(len(s.usedPropBits)*2, word+1)
+		grown := make([]uint64, newLen)
+		copy(grown, s.usedPropBits)
+		s.usedPropBits = grown
+	}
+	s.usedPropBits[word] |= uint64(1) << (uint(ptr) & 63)
+}
+
+func (s *TypedAstSerializer) lookupUsedPropIndex(prop string) (int, bool) {
+	idx, ok := s.stringPool.pool[prop]
+	if !ok {
+		return 0, false
+	}
+	word := idx >> 6
+	if word >= len(s.usedPropBits) || (s.usedPropBits[word]&(uint64(1)<<(uint(idx)&63))) == 0 {
+		return 0, false
+	}
+	return idx, true
+}
+
 func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
-		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP:
+		ptr := s.stringPool.Put(n.GetString())
+		if s.recordUsedProps {
+			s.markUsedProp(ptr)
+		}
+		m.stringValuePointer_ = int32(ptr)
+		m.valueCase_ = 3
+		return
+	case rhino.Token_STRING_KEY,
 		rhino.Token_MEMBER_FUNCTION_DEF,
 		rhino.Token_MEMBER_FIELD_DEF,
-		rhino.Token_NAME,
-		rhino.Token_STRINGLIT,
-		rhino.Token_STRING_KEY,
 		rhino.Token_GETTER_DEF,
-		rhino.Token_SETTER_DEF,
+		rhino.Token_SETTER_DEF:
+		ptr := s.stringPool.Put(n.GetString())
+		if s.recordUsedProps && !n.IsQuotedStringKey() {
+			s.markUsedProp(ptr)
+		}
+		m.stringValuePointer_ = int32(ptr)
+		m.valueCase_ = 3
+		return
+	case rhino.Token_NAME,
+		rhino.Token_STRINGLIT,
 		rhino.Token_LABEL_NAME,
 		rhino.Token_IMPORT_STAR:
 		m.stringValuePointer_ = int32(s.stringPool.Put(n.GetString()))
@@ -932,8 +985,8 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 	// Gather and serialize all the types now.
 	serializeTypesToPointers.GatherTypesOnAst(compiler.GetRoot())
 	return &TypedAstSerializer_JSTypeSerializer{
-		typeToRecordCache: serializeTypesToPointers.jstypeReconserializer.typeToRecordCache,
-		typePool:          serializeTypesToPointers.GetTypePool(),
+		serialGen: serializeTypesToPointers.jstypeReconserializer.serialGen,
+		typePool:  serializeTypesToPointers.GetTypePool(),
 	}
 }
 
@@ -943,11 +996,9 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 // Java: private static class TypedAstSerializer.JSTypeSerializer
 type TypedAstSerializer_JSTypeSerializer struct {
 	// Everything is pre-calculated with this form of serialization.
-	typesToPointers   *base.LinkedIdentityHashMap[rhino.JSType, int]
-	typeToRecordCache map[rhino.JSType]*JSTypeReconserializer_SeenTypeRecord
-	typePool          *TypePool
-	lastType          rhino.JSType
-	lastPointer       int32
+	typesToPointers *base.LinkedIdentityHashMap[rhino.JSType, int]
+	serialGen       uint32
+	typePool        *TypePool
 }
 
 // Java: TypedAstSerializer.JSTypeSerializer(LinkedIdentityHashMap<JSType, Integer>, TypePool)
@@ -957,35 +1008,24 @@ func NewTypedAstSerializer_JSTypeSerializer(
 }
 
 func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node *rhino.Node, m *AstNode) {
-	type_ := node.GetJSType()
-	if type_ == nil {
+	tb := node.GetJSTypeBase()
+	if tb == nil {
 		return
 	}
-	if type_ == s.lastType {
-		m.type_ = s.lastPointer
-		m.bitField0_ |= 1 << 0
-		return
-	}
-	if s.typeToRecordCache != nil {
-		rec, ok := s.typeToRecordCache[type_]
-		if !ok {
-			jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", type_)
+	if s.serialGen != 0 {
+		if tb.SerialGen != s.serialGen {
+			jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", tb.Self())
 		}
-		ptr := int32(rec.pointer)
-		s.lastType = type_
-		s.lastPointer = ptr
-		m.type_ = ptr
+		m.type_ = tb.SerialPointer
 		m.bitField0_ |= 1 << 0
 		return
 	}
+	type_ := tb.Self()
 	pointer, ok := s.typesToPointers.Lookup(type_)
 	if !ok {
 		jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", type_)
 	}
-	ptr := int32(pointer)
-	s.lastType = type_
-	s.lastPointer = ptr
-	m.type_ = ptr
+	m.type_ = int32(pointer)
 	m.bitField0_ |= 1 << 0
 }
 
@@ -1058,51 +1098,6 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 			return ok
 		})
 	return NewTypedAstSerializer_ColorTypeSerializer(colorSerializer, compiler.GetColorRegistry())
-}
-
-// TypedAstSerializer_CollectUsedPropertyNames adds all unquoted property
-// names appearing in the AST.
-//
-// Java: TypedAstSerializer.collectUsedPropertyNames(AbstractCompiler)
-func TypedAstSerializer_CollectUsedPropertyNames(compiler AbstractCompiler) *jutil.LinkedHashSet[string] {
-	propertyNamesBuilder := jutil.NewLinkedHashSet[string]()
-
-	NodeTraversal_Traverse(
-		compiler,
-		compiler.GetRoot(),
-		&typedAstSerializer_collectUsedPropertyNamesCallback{propertyNamesBuilder: propertyNamesBuilder})
-	return propertyNamesBuilder
-}
-
-// typedAstSerializer_collectUsedPropertyNamesCallback is the anonymous
-// NodeTraversal.Callback of collectUsedPropertyNames.
-type typedAstSerializer_collectUsedPropertyNamesCallback struct {
-	propertyNamesBuilder *jutil.LinkedHashSet[string]
-}
-
-// Java: TypedAstSerializer.collectUsedPropertyNames(...).new Callback() {...}.shouldTraverse(NodeTraversal, Node, Node)
-func (c *typedAstSerializer_collectUsedPropertyNamesCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	// We won't serialize type summary files, so we don't care about property names
-	// appearing in them.
-	return !n.IsScript() || !NodeUtil_IsFromTypeSummary(n)
-}
-
-// Java: TypedAstSerializer.collectUsedPropertyNames(...).new Callback() {...}.visit(NodeTraversal, Node, Node)
-func (c *typedAstSerializer_collectUsedPropertyNamesCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, // "name" from (someObject.name)
-		rhino.Token_OPTCHAIN_GETPROP: // "name" from (someObject?.name)
-		c.propertyNamesBuilder.Add(n.GetString())
-	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
-		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
-		rhino.Token_MEMBER_FIELD_DEF,    // "name" from class C { name = 0; }
-		rhino.Token_GETTER_DEF,          // "name" from class C { get name() {} }
-		rhino.Token_SETTER_DEF:          // "name" from class C { set name(n) {} }
-		if !n.IsQuotedStringKey() {
-			c.propertyNamesBuilder.Add(n.GetString())
-		}
-	default:
-	}
 }
 
 // TypedAstSerializer_ColorTypeSerializer is used when the AST has `Color`s

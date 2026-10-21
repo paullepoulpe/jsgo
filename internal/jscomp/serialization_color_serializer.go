@@ -37,6 +37,9 @@ type ColorSerializer struct {
 	getStringPoolIndexFn func(string) int
 	// Only property names that pass this predicate will be serialized.
 	propertyFilter func(string) bool
+	// Optional combined fast path that checks if a property is used and returns
+	// its stringPool index in a single lookup.
+	lookupUsedPropIndexFn func(string) (int, bool)
 
 	// Stores the `Integer` values assigned to `Color`s as they are added for
 	// serialization, so they can be looked up and used for references
@@ -50,6 +53,13 @@ type ColorSerializer struct {
 	//
 	// This is used as a worklist when the `TypePool` is generated.
 	colorsInSerializedOrder *jutil.ArrayList[*colors.Color]
+
+	typeProtoSlab  []TypeProto
+	objProtoSlab   []ObjectTypeProto
+	unionProtoSlab []UnionTypeProto
+	edgeSlab       []SubtypingEdge
+	int32Slab      []int32
+	scratchInt32s  []int32
 }
 
 // NewColorSerializer creates a ColorSerializer.
@@ -127,6 +137,97 @@ func colorSerializer_int32s(xs []int) []int32 {
 	return out
 }
 
+func (s *ColorSerializer) allocTypeProto() *TypeProto {
+	if len(s.typeProtoSlab) == 0 {
+		s.typeProtoSlab = make([]TypeProto, 1024)
+	}
+	p := &s.typeProtoSlab[0]
+	s.typeProtoSlab = s.typeProtoSlab[1:]
+	return p
+}
+
+func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
+	if len(s.objProtoSlab) == 0 {
+		s.objProtoSlab = make([]ObjectTypeProto, 1024)
+	}
+	p := &s.objProtoSlab[0]
+	s.objProtoSlab = s.objProtoSlab[1:]
+	return p
+}
+
+func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
+	if len(s.unionProtoSlab) == 0 {
+		s.unionProtoSlab = make([]UnionTypeProto, 256)
+	}
+	p := &s.unionProtoSlab[0]
+	s.unionProtoSlab = s.unionProtoSlab[1:]
+	return p
+}
+
+func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *SubtypingEdge {
+	if len(s.edgeSlab) == 0 {
+		s.edgeSlab = make([]SubtypingEdge, 1024)
+	}
+	e := &s.edgeSlab[0]
+	s.edgeSlab = s.edgeSlab[1:]
+	*e = SubtypingEdge{
+		subtype_:     subtype,
+		supertype_:   supertype,
+		frozen:       true,
+		memoizedSize: -1,
+	}
+	return e
+}
+
+func (s *ColorSerializer) allocInt32Slice(src []int32) []int32 {
+	n := len(src)
+	if n == 0 {
+		return nil
+	}
+	if len(s.int32Slab) < n {
+		s.int32Slab = make([]int32, max(n, 4096))
+	}
+	out := s.int32Slab[:n:n]
+	s.int32Slab = s.int32Slab[n:]
+	copy(out, src)
+	return out
+}
+
+func (s *ColorSerializer) addColorSetInt32s(set *jutil.ObjectLinkedHashSet[*colors.Color]) []int32 {
+	if set == nil || set.IsEmpty() {
+		return nil
+	}
+	tmp := s.scratchInt32s[:0]
+	for c := range set.All() {
+		tmp = append(tmp, int32(s.AddColor(c)))
+	}
+	s.scratchInt32s = tmp
+	return s.allocInt32Slice(tmp)
+}
+
+func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
+	props := color.GetOwnProperties()
+	if props == nil || props.IsEmpty() {
+		return nil
+	}
+	tmp := s.scratchInt32s[:0]
+	if s.lookupUsedPropIndexFn != nil {
+		for ownProperty := range props.All() {
+			if idx, ok := s.lookupUsedPropIndexFn(ownProperty); ok {
+				tmp = append(tmp, int32(idx))
+			}
+		}
+	} else {
+		for ownProperty := range props.All() {
+			if s.propertyFilter(ownProperty) {
+				tmp = append(tmp, int32(s.getStringPoolIndexFn(ownProperty)))
+			}
+		}
+	}
+	s.scratchInt32s = tmp
+	return s.allocInt32Slice(tmp)
+}
+
 // GenerateTypePool generates a `TypePool` proto built from the previously
 // added `Color`s and the arguments supplied to this method.
 //
@@ -140,36 +241,40 @@ func colorSerializer_int32s(xs []int) []int32 {
 func (s *ColorSerializer) GenerateTypePool(
 	getDisambiguationSupertypesFn func(*colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color],
 	getMismatchSourceRefsFn func(*colors.Color) *jutil.LinkedHashSet[string]) *TypePool {
-	typePoolBuilder := TypePool_NewBuilder()
+	startIdx := TypePointers_UntrimOffset(0)
+	initialCap := max(0, s.colorsInSerializedOrder.Size()-startIdx)
+	var types []*TypeProto
+	if initialCap > 0 {
+		types = make([]*TypeProto, 0, initialCap)
+	}
+	var disambiguationEdges []*SubtypingEdge
 	// We use an indexed loop here for 2 reasons.
 	// 1. We must skip serialization of the axiomatic colors that start our
 	//    list of serialized colors.
 	// 2. The logic in the loop may end up adding more colors to the list.
 	//    It's often hard to tell what effect changing an iterable will have on
 	//    an iteration that is in progress.
-	for i := TypePointers_UntrimOffset(0); i < s.colorsInSerializedOrder.Size(); i++ {
+	for i := startIdx; i < s.colorsInSerializedOrder.Size(); i++ {
 		color := s.colorsInSerializedOrder.Get(i)
-		typePointer := s.colorIdToTypePointer[color.GetId()]
-		typePoolBuilder.AddType(s.GenerateTypeProto(color))
+		typePointer := int32(i)
+		types = append(types, s.GenerateTypeProto(color))
 		for supertype := range getDisambiguationSupertypesFn(color).All() {
-			typePoolBuilder.
-				AddDisambiguationEdgesBuilder().
-				SetSubtype(int32(typePointer)).
-				SetSupertype(int32(s.AddColor(supertype)))
+			disambiguationEdges = append(disambiguationEdges, s.allocSubtypingEdge(typePointer, int32(s.AddColor(supertype))))
 		}
 	}
 
+	var debugInfoProto *TypePool_DebugInfo
 	if s.serializationMode.IncludeDebugInfo() {
 		jutil.CheckNotNull(getMismatchSourceRefsFn)
-		debugInfoBuilder := typePoolBuilder.GetDebugInfoBuilder()
+		debugInfoBuilder := TypePool_DebugInfo_NewBuilder()
 
 		// Construct a map from source reference string to type pointers,
 		// because that's the way the Mismatch protos work.
 		// Construct entries only for those colors that we have actually
 		// serialized in order to save space.
 		srcRefToTypePointerList := jutil.NewLinkedHashMap[string, *jutil.ArrayList[int]]()
-		for color := range s.colorsInSerializedOrder.All() {
-			typePointer := s.colorIdToTypePointer[color.GetId()]
+		for i, color := range s.colorsInSerializedOrder.Slice() {
+			typePointer := i
 			for srcRef := range getMismatchSourceRefsFn(color).All() {
 				typePointerList := srcRefToTypePointerList.ComputeIfAbsent(srcRef, func(string) *jutil.ArrayList[int] {
 					return jutil.NewArrayList[int]()
@@ -186,27 +291,54 @@ func (s *ColorSerializer) GenerateTypePool(
 				SetSourceRef(key).
 				AddAllInvolvedColor(colorSerializer_int32s(value.Slice()))
 		}
+		debugInfoProto = debugInfoBuilder.Build()
 	}
-	return typePoolBuilder.Build()
+	return &TypePool{
+		type_:                types,
+		disambiguationEdges_: disambiguationEdges,
+		debugInfo_:           debugInfoProto,
+		frozen:               true,
+		memoizedSize:         -1,
+	}
 }
 
 func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
-	typeProtoBuilder := TypeProto_NewBuilder()
+	tp := s.allocTypeProto()
 	if color.IsUnion() {
-		typeProtoBuilder.GetUnionBuilder().AddAllUnionMember(colorSerializer_int32s(s.AddColors(color.GetUnionElements().ToSlice())))
+		up := s.allocUnionTypeProto()
+		*up = UnionTypeProto{
+			unionMember_: s.addColorSetInt32s(color.GetUnionElements()),
+			frozen:       true,
+			memoizedSize: -1,
+		}
+		*tp = TypeProto{
+			union_:       up,
+			kindCase_:    TypeProto_UNION_FIELD_NUMBER,
+			frozen:       true,
+			memoizedSize: -1,
+		}
 	} else {
-		objectTypeProtoBuilder := typeProtoBuilder.GetObjectBuilder()
-		objectTypeProtoBuilder.
-			SetIsInvalidating(color.IsInvalidating()).
-			SetUuid(color.GetId().AsByteString()).
-			SetPropertiesKeepOriginalName(color.GetPropertiesKeepOriginalName()).
-			AddAllInstanceType(colorSerializer_int32s(s.AddColors(color.GetInstanceColors().ToSlice()))).
-			AddAllPrototype(colorSerializer_int32s(s.AddColors(color.GetPrototypes().ToSlice()))).
-			SetMarkedConstructor(color.IsConstructor()).
-			AddAllOwnProperty(colorSerializer_int32s(s.GetOwnPropertyStringPoolOffsets(color))).
-			SetClosureAssert(color.IsClosureAssert())
+		op := s.allocObjectTypeProto()
+		*op = ObjectTypeProto{
+			instanceType_:               s.addColorSetInt32s(color.GetInstanceColors()),
+			ownProperty_:                s.ownPropertyInt32s(color),
+			prototype_:                  s.addColorSetInt32s(color.GetPrototypes()),
+			closureAssert_:              color.IsClosureAssert(),
+			isInvalidating_:             color.IsInvalidating(),
+			markedConstructor_:          color.IsConstructor(),
+			propertiesKeepOriginalName_: color.GetPropertiesKeepOriginalName(),
+			uuid_:                       color.GetId().AsByteString(),
+			frozen:                      true,
+			memoizedSize:                -1,
+		}
+		*tp = TypeProto{
+			object_:      op,
+			kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
+			frozen:       true,
+			memoizedSize: -1,
+		}
 	}
-	return typeProtoBuilder.Build()
+	return tp
 }
 
 func (s *ColorSerializer) GetOwnPropertyStringPoolOffsets(color *colors.Color) []int {

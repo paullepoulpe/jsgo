@@ -249,8 +249,11 @@ type JSTypeBase struct {
 	hashCodeInProgress bool
 
 	inTemplatedCheckVisit bool
-	// Use "Boolean" as a 3-state value where not set is `null`.
-	templateCheckResult *bool
+	// 0 = unset, 1 = false, 2 = true.
+	templateCheckResult uint8
+
+	SerialGen     uint32
+	SerialPointer int32
 
 	registry *JSTypeRegistry
 }
@@ -291,6 +294,9 @@ func (t *JSTypeBase) InitJSTypeBaseWithTemplateTypeMap(
 //
 // Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (t *JSTypeBase) GetJSTypeBase() *JSTypeBase { return t }
+
+// Self returns the concrete JSType embedding this base.
+func (t *JSTypeBase) Self() JSType { return t.self }
 
 // GetRegistry returns the registry field.
 //
@@ -844,8 +850,8 @@ func (t *JSTypeBase) ToMaybeTemplateType() *TemplateType {
 // Java: JSType.hasAnyTemplateTypes()
 func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 	// If the result has been cached use that.
-	if t.templateCheckResult != nil {
-		return *t.templateCheckResult
+	if t.templateCheckResult != 0 {
+		return t.templateCheckResult == 2
 	}
 
 	if t.inTemplatedCheckVisit {
@@ -859,7 +865,11 @@ func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 
 	// Cache the result if the type has been resolved.
 	if t.self.IsResolved() {
-		t.templateCheckResult = &result
+		if result {
+			t.templateCheckResult = 2
+		} else {
+			t.templateCheckResult = 1
+		}
 	}
 	return result
 }

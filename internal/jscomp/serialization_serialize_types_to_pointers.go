@@ -38,7 +38,6 @@ type SerializeTypesToPointers struct {
 	typePool                  *TypePool
 	lastProp                  string
 	hasLastProp               bool
-	lastType                  rhino.JSType
 }
 
 var serializeTypesToPointers_GSON = jutil.NewGson()
@@ -81,8 +80,7 @@ func SerializeTypesToPointers_Create(
 // Java: SerializeTypesToPointers.gatherTypesOnAst(Node)
 func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
 	jutil.CheckStateMsg(s.typePool == nil, "Cannot call process() twice")
-	s.gatherPropertiesWalk(root)
-	s.gatherTypesWalk(root)
+	s.gatherPropertiesAndTypesWalk(root)
 
 	// these types are only used when debug logging is enabled, but we always serialize them as not
 	// to have a different TypePool with and without debug logging.
@@ -96,12 +94,12 @@ func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
 	s.logSerializationDebugInfo(s.jstypeReconserializer, s.typePool)
 }
 
-func (s *SerializeTypesToPointers) gatherPropertiesWalk(n *rhino.Node) {
+func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
 	if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
 		return
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		s.gatherPropertiesWalk(c)
+		s.gatherPropertiesAndTypesWalk(c)
 	}
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, // "name" from (someObject.name)
@@ -125,7 +123,24 @@ func (s *SerializeTypesToPointers) gatherPropertiesWalk(n *rhino.Node) {
 				s.propertiesReferencedInAst[prop] = struct{}{}
 			}
 		}
-	default:
+	case rhino.Token_ROOT:
+		// the ROOT node is given the 'global this' type for use during typechecking, but this is
+		// not needed for optimizations. (The 'global this' type will still be serialized if
+		// referenced in actual code though.)
+		return
+	case rhino.Token_NAME:
+		if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+			s.jstypeReconserializer.SerializeType(tb.Self())
+		}
+		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+			// Shadow roots are structured as
+			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+			s.gatherTypesWalk(shadow.GetFirstFirstChild().GetFirstChild())
+		}
+		return
+	}
+	if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+		s.jstypeReconserializer.SerializeType(tb.Self())
 	}
 }
 
@@ -137,88 +152,15 @@ func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
 		s.gatherTypesWalk(c)
 	}
 	if n.IsRoot() {
-		// the ROOT node is given the 'global this' type for use during typechecking, but this is
-		// not needed for optimizations. (The 'global this' type will still be serialized if
-		// referenced in actual code though.)
 		return
 	}
-	if type_ := n.GetJSType(); type_ != nil && type_ != s.lastType {
-		s.lastType = type_
-		s.jstypeReconserializer.SerializeType(type_)
+	if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+		s.jstypeReconserializer.SerializeType(tb.Self())
 	}
 	if n.IsName() {
 		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
-			// Shadow roots are structured as
-			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
 			s.gatherTypesWalk(shadow.GetFirstFirstChild().GetFirstChild())
 		}
-	}
-}
-
-// serializeTypesToPointers_PropertySearchCallback finds all unquoted
-// property names referenced outside @typeSummary files
-//
-// Only property names found in this traversal will be serialized onto a
-// color's list of "own properties". Properties referenced only inside
-// `@typeSummary` files may be excluded because they don't matter for
-// optimization of this library's srcs.
-//
-// Java: private final class SerializeTypesToPointers.PropertySearchCallback implements NodeTraversal.Callback
-type serializeTypesToPointers_PropertySearchCallback struct {
-	outer *SerializeTypesToPointers
-}
-
-// Java: SerializeTypesToPointers.PropertySearchCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *serializeTypesToPointers_PropertySearchCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	return !n.IsScript() || !NodeUtil_IsFromTypeSummary(n)
-}
-
-// Java: SerializeTypesToPointers.PropertySearchCallback.visit(NodeTraversal, Node, Node)
-func (c *serializeTypesToPointers_PropertySearchCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, // "name" from (someObject.name)
-		rhino.Token_OPTCHAIN_GETPROP: // "name" from (someObject?.name)
-		c.outer.propertiesReferencedInAst[n.GetString()] = struct{}{}
-	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
-		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
-		rhino.Token_MEMBER_FIELD_DEF,    // "name" from class C { name = 0; }
-		rhino.Token_GETTER_DEF,          // "name" from class C { get name() {} }
-		rhino.Token_SETTER_DEF:          // "name" from class C { set name(n) {} }
-		if !n.IsQuotedStringKey() {
-			c.outer.propertiesReferencedInAst[n.GetString()] = struct{}{}
-		}
-	default:
-	}
-}
-
-// Java: private final class SerializeTypesToPointers.TypeSearchCallback implements NodeTraversal.Callback
-type serializeTypesToPointers_TypeSearchCallback struct {
-	outer *SerializeTypesToPointers
-}
-
-// Java: SerializeTypesToPointers.TypeSearchCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *serializeTypesToPointers_TypeSearchCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	return !n.IsScript() || !NodeUtil_IsFromTypeSummary(n)
-}
-
-// Java: SerializeTypesToPointers.TypeSearchCallback.visit(NodeTraversal, Node, Node)
-func (c *serializeTypesToPointers_TypeSearchCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if n.IsRoot() {
-		// the ROOT node is given the 'global this' type for use during typechecking, but this is
-		// not needed for optimizations. (The 'global this' type will still be serialized if
-		// referenced in actual code though.)
-		return
-	}
-	type_ := n.GetJSType()
-	if type_ != nil {
-		c.outer.GetTypePointersByJstype().ComputeIfAbsent(type_, c.outer.jstypeReconserializer.SerializeType)
-	}
-	shadow := n.GetClosureUnawareShadow()
-	if shadow != nil {
-		// Shadow roots are structured as
-		// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
-		NodeTraversal_Traverse(
-			c.outer.compiler, shadow.GetFirstFirstChild().GetFirstChild(), &serializeTypesToPointers_TypeSearchCallback{outer: c.outer})
 	}
 }
 
@@ -226,8 +168,13 @@ func (c *serializeTypesToPointers_TypeSearchCallback) Visit(t *NodeTraversal, n 
 func (s *SerializeTypesToPointers) GetTypePointersByJstype() *base.LinkedIdentityHashMap[rhino.JSType, int] {
 	if s.typePointersByJstype == nil {
 		s.typePointersByJstype = base.NewLinkedIdentityHashMap[rhino.JSType, int]()
-		for jstype, record := range s.jstypeReconserializer.typeToRecordCache {
-			s.typePointersByJstype.Put(jstype, record.pointer)
+		for _, record := range s.jstypeReconserializer.recordsByPointer {
+			for _, jstype := range record.jstypes {
+				s.typePointersByJstype.Put(jstype, record.pointer)
+			}
+		}
+		for _, jstype := range s.jstypeReconserializer.forwardedTypes {
+			s.typePointersByJstype.Put(jstype, int(jstype.GetJSTypeBase().SerialPointer))
 		}
 	}
 	return s.typePointersByJstype

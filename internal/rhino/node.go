@@ -3979,6 +3979,15 @@ func (n *Node) GetJSType() JSType {
 	return (*JSTypeBase)(n.typeOrColor).self
 }
 
+// GetJSTypeBase returns the JSTypeBase on this node without constructing the
+// JSType interface value, or nil if no JSType is attached.
+func (n *Node) GetJSTypeBase() *JSTypeBase {
+	if n.typeOrColor == nil || n.typeIsColor {
+		return nil
+	}
+	return (*JSTypeBase)(n.typeOrColor)
+}
+
 // GetJSTypeRequired returns the compiled inferred type on this node, or
 // throws an NPE if there isn't one.
 //
@@ -4088,14 +4097,14 @@ func (n *Node) GetTypedefTypeProp() JSType {
 
 // TakeTypesAndJSDocForColorConversion clears the node's JSType and removes
 // TYPE_BEFORE_CAST, DECLARED_TYPE_EXPR, and TYPEDEF_TYPE properties in a single
-// pass over propListHead, returning the old JSType, whether TYPE_BEFORE_CAST
+// pass over propListHead, returning the old JSTypeBase, whether TYPE_BEFORE_CAST
 // was present, and the node's JSDocInfo if any.
-func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType JSType, hadBeforeCast bool, jsdoc *JSDocInfo) {
+func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBeforeCast bool, jsdoc *JSDocInfo) {
 	if n.typeOrColor != nil {
 		if n.typeIsColor {
 			jutil.CheckStateMsg1(false, "%s", n)
 		}
-		oldType = (*JSTypeBase)(n.typeOrColor).self
+		oldType = (*JSTypeBase)(n.typeOrColor)
 		n.typeOrColor = nil
 	}
 	head := n.propListHead
