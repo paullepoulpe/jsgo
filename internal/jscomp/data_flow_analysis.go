@@ -134,11 +134,14 @@ type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 
 	cfg            ControlFlowGraph[N]
 	priority       func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
+	isForward      bool
+	isBranched     bool
 	curDiGraphNode DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	curLinkedNode  *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
-	queue     []DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	queue     []*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	queueHead int
-	queueBuf  [16]DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	queueBuf  [16]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
 	flowStateSlab []DataFlowAnalysis_LinearFlowState[L]
 	flowStateBuf  [8]DataFlowAnalysis_LinearFlowState[L]
@@ -171,12 +174,14 @@ const DataFlowAnalysis_MAX_STEPS_PER_NODE = 20000
 func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
 	b.self = self
 	b.cfg = cfg
-	b.priority = cfg.GetOptionalNodeComparator(b.self.IsForward())
+	b.isForward = b.self.IsForward()
+	b.isBranched = b.self.IsBranched()
+	b.priority = cfg.GetOptionalNodeComparator(b.isForward)
 	b.queue = b.queueBuf[:0:len(b.queueBuf)]
 	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
 
-	if b.self.IsBranched() {
-		jutil.CheckState(b.self.IsForward())
+	if b.isBranched {
+		jutil.CheckState(b.isForward)
 	}
 }
 
@@ -185,8 +190,11 @@ func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnaly
 func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
 	b.self = self
 	b.cfg = cfg
-	b.priority = cfg.GetOptionalNodeComparator(b.self.IsForward())
+	b.isForward = b.self.IsForward()
+	b.isBranched = b.self.IsBranched()
+	b.priority = cfg.GetOptionalNodeComparator(b.isForward)
 	b.curDiGraphNode = nil
+	b.curLinkedNode = nil
 	if cap(b.queue) == 0 {
 		b.queue = b.queueBuf[:0:len(b.queueBuf)]
 	} else {
@@ -201,8 +209,8 @@ func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnal
 		b.flowStateSlab = b.flowStateSlab[:0]
 	}
 
-	if b.self.IsBranched() {
-		jutil.CheckState(b.self.IsForward())
+	if b.isBranched {
+		jutil.CheckState(b.isForward)
 	}
 }
 
@@ -223,41 +231,87 @@ func (b *DataFlowAnalysisBase[N, L]) allocFlowState(in L, out L) *DataFlowAnalys
 	return s
 }
 
-func (b *DataFlowAnalysisBase[N, L]) dfaSiftUp(i int, x DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
-	for i > 0 {
-		parent := (i - 1) / 2
-		p := b.queue[parent]
-		if b.priority(x, p) >= 0 {
-			break
+func (b *DataFlowAnalysisBase[N, L]) dfaSiftUp(i int, x *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) {
+	xPrio := x.priority
+	if xPrio < 0 {
+		panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
+	}
+	if b.isForward {
+		for i > 0 {
+			parent := (i - 1) / 2
+			p := b.queue[parent]
+			if xPrio >= p.priority {
+				break
+			}
+			b.queue[i] = p
+			i = parent
 		}
-		b.queue[i] = p
-		i = parent
+	} else {
+		for i > 0 {
+			parent := (i - 1) / 2
+			p := b.queue[parent]
+			if xPrio <= p.priority {
+				break
+			}
+			b.queue[i] = p
+			i = parent
+		}
 	}
 	b.queue[i] = x
 }
 
-func (b *DataFlowAnalysisBase[N, L]) dfaSiftDown(i int, x DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+func (b *DataFlowAnalysisBase[N, L]) dfaSiftDown(i int, x *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) {
 	n := len(b.queue)
-	for {
-		pick := 2*i + 1
-		if pick >= n {
-			break
+	xPrio := x.priority
+	if b.isForward {
+		for {
+			pick := 2*i + 1
+			if pick >= n {
+				break
+			}
+			smaller := b.queue[pick]
+			smallerPrio := smaller.priority
+			if sibling := pick + 1; sibling < n {
+				sib := b.queue[sibling]
+				if sibPrio := sib.priority; smallerPrio > sibPrio {
+					pick = sibling
+					smaller = sib
+					smallerPrio = sibPrio
+				}
+			}
+			if xPrio <= smallerPrio {
+				break
+			}
+			b.queue[i] = smaller
+			i = pick
 		}
-		smaller := b.queue[pick]
-		if sibling := pick + 1; sibling < n && b.priority(smaller, b.queue[sibling]) > 0 {
-			pick = sibling
-			smaller = b.queue[sibling]
+	} else {
+		for {
+			pick := 2*i + 1
+			if pick >= n {
+				break
+			}
+			smaller := b.queue[pick]
+			smallerPrio := smaller.priority
+			if sibling := pick + 1; sibling < n {
+				sib := b.queue[sibling]
+				if sibPrio := sib.priority; smallerPrio < sibPrio {
+					pick = sibling
+					smaller = sib
+					smallerPrio = sibPrio
+				}
+			}
+			if xPrio >= smallerPrio {
+				break
+			}
+			b.queue[i] = smaller
+			i = pick
 		}
-		if b.priority(x, smaller) <= 0 {
-			break
-		}
-		b.queue[i] = smaller
-		i = pick
 	}
 	b.queue[i] = x
 }
 
-func (b *DataFlowAnalysisBase[N, L]) enqueueNode(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
+func (b *DataFlowAnalysisBase[N, L]) enqueueNode(node *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
 	if state.inQueue {
 		return
 	}
@@ -265,36 +319,33 @@ func (b *DataFlowAnalysisBase[N, L]) enqueueNode(node DiGraph_DiGraphNode[N, Con
 		panic(jutil.NewNullPointerException())
 	}
 	state.inQueue = true
+	b.queue = append(b.queue, node)
 	if b.priority != nil {
-		b.queue = append(b.queue, node)
 		b.dfaSiftUp(len(b.queue)-1, node)
-	} else {
-		b.queue = append(b.queue, node)
 	}
 }
 
-func (b *DataFlowAnalysisBase[N, L]) dequeueNode() (DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], *DataFlowAnalysis_LinearFlowState[L]) {
-	var curNode DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
-	var zero DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+func (b *DataFlowAnalysisBase[N, L]) dequeueNode() (*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], *DataFlowAnalysis_LinearFlowState[L]) {
+	var curNode *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	if b.priority != nil {
 		n := len(b.queue)
 		curNode = b.queue[0]
 		last := b.queue[n-1]
-		b.queue[n-1] = zero
+		b.queue[n-1] = nil
 		b.queue = b.queue[:n-1]
 		if n > 1 {
 			b.dfaSiftDown(0, last)
 		}
 	} else {
 		curNode = b.queue[b.queueHead]
-		b.queue[b.queueHead] = zero
+		b.queue[b.queueHead] = nil
 		b.queueHead++
 		if b.queueHead == len(b.queue) {
 			b.queue = b.queue[:0]
 			b.queueHead = 0
 		}
 	}
-	curState := dataFlowAnalysis_linearFlowStateOf[L](curNode)
+	curState := curNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
 	curState.inQueue = false
 	return curNode, curState
 }
@@ -369,8 +420,10 @@ type DataFlowAnalysis_FlowBrancher[L any] func(branch ControlFlowGraph_Branch) L
 // Java: DataFlowAnalysis.analyze()
 func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 	b.Initialize()
-	isForward := b.self.IsForward()
-	implicitReturn := b.cfg.GetImplicitReturn()
+	isForward := b.isForward
+	cfgBase := b.cfg.GetControlFlowGraphBase()
+	entry, _ := cfgBase.entry.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
+	implicitReturn, _ := cfgBase.implicitReturn.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
 	for len(b.queue) > b.queueHead {
 		curNode, curState := b.dequeueNode()
 		stepCount := curState.stepCount
@@ -379,30 +432,37 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
 		}
 
-		b.joinInputsWithState(curNode, curState)
-		if b.flowWithState(curNode, curState) {
+		b.joinInputsLinked(curNode, curState, entry, implicitReturn)
+		if b.flowLinked(curNode, curState) {
 			// If there is a change in the current node, we want to grab the
 			// list of nodes that this node affects.
 			if isForward {
-				for _, edge := range curNode.GetOutEdges() {
-					nextNode := edge.GetDestination()
+				for _, edge := range curNode.outEdgeList.Slice() {
+					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).destNode
 					if nextNode != implicitReturn {
-						b.enqueueNode(nextNode, dataFlowAnalysis_linearFlowStateOf[L](nextNode))
+						nextState := nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
+						if !nextState.inQueue {
+							b.enqueueNode(nextNode, nextState)
+						}
 					}
 				}
 			} else {
-				for _, edge := range curNode.GetInEdges() {
-					nextNode := edge.GetSource()
+				for _, edge := range curNode.inEdgeList.Slice() {
+					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).sourceNode
 					if nextNode != implicitReturn {
-						b.enqueueNode(nextNode, dataFlowAnalysis_linearFlowStateOf[L](nextNode))
+						nextState := nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
+						if !nextState.inQueue {
+							b.enqueueNode(nextNode, nextState)
+						}
 					}
 				}
 			}
 		}
 	}
 	b.curDiGraphNode = nil
-	if isForward {
-		b.JoinInputs(implicitReturn)
+	b.curLinkedNode = nil
+	if isForward && implicitReturn != nil {
+		b.joinInputsLinked(implicitReturn, implicitReturn.annotation.(*DataFlowAnalysis_LinearFlowState[L]), entry, implicitReturn)
 	}
 }
 
@@ -441,11 +501,12 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 	b.queue = b.queue[:0]
 	b.queueHead = 0
 
-	implicitReturn := b.cfg.GetImplicitReturn()
-	cfgNodes := &b.cfg.GetControlFlowGraphBase().nodes
+	cfgBase := b.cfg.GetControlFlowGraphBase()
+	implicitReturn, _ := cfgBase.implicitReturn.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
+	cfgNodes := &cfgBase.nodes
 	numNodes := cfgNodes.Size()
 	if cap(b.queue) < numNodes {
-		b.queue = make([]DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], 0, max(numNodes, 16))
+		b.queue = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], 0, max(numNodes, 16))
 	}
 	if cap(b.flowStateSlab) < numNodes {
 		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, max(numNodes, 16))
@@ -460,7 +521,7 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 			b.enqueueNode(node, state)
 		}
 	}
-	if b.self.IsBranched() {
+	if b.isBranched {
 		for node := range cfgNodes.Values() {
 			for _, edge := range node.outEdgeList.Slice() {
 				edge.SetAnnotation(b.self.CreateInitialEstimateLattice())
@@ -474,18 +535,51 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 //
 // Java: DataFlowAnalysis.flow(DiGraphNode<N, Branch>)
 func (b *DataFlowAnalysisBase[N, L]) Flow(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
+	if ln, ok := node.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]); ok {
+		return b.flowLinked(ln, dataFlowAnalysis_linearFlowStateOf[L](ln))
+	}
 	return b.flowWithState(node, dataFlowAnalysis_linearFlowStateOf[L](node))
+}
+
+func (b *DataFlowAnalysisBase[N, L]) flowLinked(node *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) bool {
+	b.curLinkedNode = node
+	if b.isForward {
+		outBefore := state.out
+		outAfter := b.self.FlowThrough(node.value, state.in)
+		state.SetOut(outAfter)
+		changed := !b.self.EqualsLattice(outBefore, outAfter)
+
+		if b.isBranched {
+			brancher := b.self.CreateFlowBrancher(node.value, outAfter)
+			for _, outEdge := range node.outEdgeList.Slice() {
+				le := outEdge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch])
+				outBranchBefore := dataFlowAnalysis_latticeOf[L](le)
+				outBranchAfter := brancher(le.value)
+				le.SetAnnotation(outBranchAfter)
+				if !changed {
+					changed = !b.self.EqualsLattice(outBranchBefore, outBranchAfter)
+				}
+			}
+		}
+
+		return changed
+	} else {
+		inBefore := state.in
+		inAfter := b.self.FlowThrough(node.value, state.out)
+		state.SetIn(inAfter)
+		return !b.self.EqualsLattice(inBefore, inAfter)
+	}
 }
 
 func (b *DataFlowAnalysisBase[N, L]) flowWithState(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) bool {
 	b.curDiGraphNode = node
-	if b.self.IsForward() {
+	if b.isForward {
 		outBefore := state.GetOut()
 		outAfter := b.self.FlowThrough(node.GetValue(), state.GetIn())
 		state.SetOut(outAfter)
 		changed := !b.self.EqualsLattice(outBefore, outAfter)
 
-		if b.self.IsBranched() {
+		if b.isBranched {
 			brancher := b.self.CreateFlowBrancher(node.GetValue(), outAfter)
 			for _, outEdge := range node.GetOutEdges() {
 				outBranchBefore := dataFlowAnalysis_latticeOf[L](outEdge)
@@ -513,17 +607,80 @@ func (b *DataFlowAnalysisBase[N, L]) flowWithState(node DiGraph_DiGraphNode[N, C
 //
 // Java: DataFlowAnalysis.joinInputs(DiGraphNode<N, Branch>)
 func (b *DataFlowAnalysisBase[N, L]) JoinInputs(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+	if ln, ok := node.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]); ok {
+		cfgBase := b.cfg.GetControlFlowGraphBase()
+		entry, _ := cfgBase.entry.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
+		implicitReturn, _ := cfgBase.implicitReturn.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
+		b.joinInputsLinked(ln, dataFlowAnalysis_linearFlowStateOf[L](ln), entry, implicitReturn)
+		return
+	}
 	b.joinInputsWithState(node, dataFlowAnalysis_linearFlowStateOf[L](node))
 }
 
-func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
-	if b.self.IsForward() && b.cfg.GetEntry() == node {
+func (b *DataFlowAnalysisBase[N, L]) joinInputsLinked(
+	node *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch],
+	state *DataFlowAnalysis_LinearFlowState[L],
+	entry *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch],
+	implicitReturn *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch],
+) {
+	if b.isForward && entry == node {
 		state.SetIn(b.self.CreateEntryLattice())
 		return
 	}
 
 	var inEdges []DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]
-	if b.self.IsForward() {
+	if b.isForward {
+		inEdges = node.inEdgeList.Slice()
+	} else {
+		inEdges = node.outEdgeList.Slice()
+	}
+
+	var result L
+	switch len(inEdges) {
+	case 0:
+		return
+	case 1:
+		result = b.getInputFromLinkedEdge(inEdges[0].(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]), implicitReturn)
+	default:
+		joiner := b.self.CreateFlowJoiner()
+		for _, inEdge := range inEdges {
+			joiner.JoinFlow(b.getInputFromLinkedEdge(inEdge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]), implicitReturn))
+		}
+		result = joiner.Finish()
+	}
+
+	if b.isForward {
+		state.SetIn(result)
+	} else {
+		state.SetOut(result)
+	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) getInputFromLinkedEdge(
+	edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch],
+	implicitReturn *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch],
+) L {
+	if b.isBranched {
+		return dataFlowAnalysis_latticeOf[L](edge)
+	} else if b.isForward {
+		return edge.sourceNode.annotation.(*DataFlowAnalysis_LinearFlowState[L]).out
+	} else {
+		node := edge.destNode
+		if node == implicitReturn {
+			return b.self.CreateEntryLattice()
+		}
+		return node.annotation.(*DataFlowAnalysis_LinearFlowState[L]).in
+	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], state *DataFlowAnalysis_LinearFlowState[L]) {
+	if b.isForward && b.cfg.GetEntry() == node {
+		state.SetIn(b.self.CreateEntryLattice())
+		return
+	}
+
+	var inEdges []DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]
+	if b.isForward {
 		inEdges = node.GetInEdges()
 	} else {
 		inEdges = node.GetOutEdges()
@@ -543,7 +700,7 @@ func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNod
 		result = joiner.Finish()
 	}
 
-	if b.self.IsForward() {
+	if b.isForward {
 		state.SetIn(result)
 	} else {
 		state.SetOut(result)
@@ -552,9 +709,9 @@ func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNod
 
 // Java: DataFlowAnalysis.getInputFromEdge(DiGraphEdge<N, Branch>)
 func (b *DataFlowAnalysisBase[N, L]) GetInputFromEdge(edge DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]) L {
-	if b.self.IsBranched() {
+	if b.isBranched {
 		return dataFlowAnalysis_latticeOf[L](edge)
-	} else if b.self.IsForward() {
+	} else if b.isForward {
 		state := dataFlowAnalysis_linearFlowStateOf[L](edge.GetSource())
 		return state.GetOut()
 	} else {
@@ -813,9 +970,7 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 		return
 	}
 
-	curScope := t.GetScope()
-
-	var_ := curScope.GetVar(name)
+	var_ := t.LookupVar(name)
 	if var_ == nil {
 		return
 	}

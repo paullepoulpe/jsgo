@@ -28,8 +28,10 @@ import (
 type CheckUnreachableCode struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
-	compiler     AbstractCompiler
-	reachability GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
+	compiler            AbstractCompiler
+	reachability        GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
+	hasUnreachableStack []bool
+	hasUnreachableBuf   [8]bool
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -41,39 +43,73 @@ func NewCheckUnreachableCode(compiler AbstractCompiler) *CheckUnreachableCode {
 	c := &CheckUnreachableCode{}
 	c.InitNodeTraversal_AbstractCfgCallbackBase(c)
 	c.compiler = compiler
+	c.hasUnreachableStack = c.hasUnreachableBuf[:0]
 	return c
+}
+
+func (*CheckUnreachableCode) nodeTraversalNoVisit() {}
+
+func hasUnreachableCfgNode(cfg ControlFlowGraph[*rhino.Node]) bool {
+	if base := cfg.GetControlFlowGraphBase(); base != nil {
+		for n, gNode := range base.nodes.All() {
+			if n != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+				n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
+				return true
+			}
+		}
+		return false
+	}
+	for _, gNode := range cfg.GetNodes() {
+		n := gNode.GetValue()
+		if n != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+			n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
+			return true
+		}
+	}
+	return false
 }
 
 // Java: CheckUnreachableCode.enterScopeWithCfg(NodeTraversal)
 func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) {
-		c.InitScope(c.GetControlFlowGraph(c.compiler))
+		cfg := c.GetControlFlowGraph(c.compiler)
+		c.InitScope(cfg)
+		c.hasUnreachableStack = append(c.hasUnreachableStack, hasUnreachableCfgNode(cfg))
+	}
+}
+
+// Java: CheckUnreachableCode.exitScopeWithCfg(NodeTraversal)
+func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
+	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) && len(c.hasUnreachableStack) > 0 {
+		c.hasUnreachableStack = c.hasUnreachableStack[:len(c.hasUnreachableStack)-1]
 	}
 }
 
 // Java: CheckUnreachableCode.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	if len(c.hasUnreachableStack) > 0 && !c.hasUnreachableStack[len(c.hasUnreachableStack)-1] {
+		return true
+	}
+	// Only report error when there are some line number informations.
+	// There are synthetic nodes with no line number informations, nodes
+	// introduce by other passes (although not likely since this pass should
+	// be executed early) or some rhino bug.
+	// Allow spurious semi-colons and spurious breaks.
+	if n.GetLineno() == -1 || n.IsEmpty() || n.IsBreak() {
+		return true
+	}
 	cfg := c.GetControlFlowGraph(c.compiler)
 	gNode := cfg.GetNode(n)
 	if gNode != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE {
+		c.compiler.Report(JSError_MakeWithNode(n, CheckUnreachableCode_UNREACHABLE_CODE))
+		// From now on, we are going to assume the user fixed the error and not
+		// give more warning related to code section reachable from this node.
+		c.reachability.graph = cfg
+		c.reachability.edgePredicate = nil
+		c.reachability.Recompute(n)
 
-		// Only report error when there are some line number informations.
-		// There are synthetic nodes with no line number informations, nodes
-		// introduce by other passes (although not likely since this pass should
-		// be executed early) or some rhino bug.
-		if n.GetLineno() != -1 &&
-			// Allow spurious semi-colons and spurious breaks.
-			!n.IsEmpty() && !n.IsBreak() {
-			c.compiler.Report(JSError_MakeWithNode(n, CheckUnreachableCode_UNREACHABLE_CODE))
-			// From now on, we are going to assume the user fixed the error and not
-			// give more warning related to code section reachable from this node.
-			c.reachability.graph = cfg
-			c.reachability.edgePredicate = nil
-			c.reachability.Recompute(n)
-
-			// Saves time by not traversing children.
-			return false
-		}
+		// Saves time by not traversing children.
+		return false
 	}
 	return true
 }

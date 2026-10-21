@@ -22,6 +22,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -95,6 +97,10 @@ type CoalesceVariableNames struct {
 
 	interferenceBitSetBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]jutil.BitSet
 	graphNodesBuf         [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+
+	deferChanges     bool
+	changedScopes    []*rhino.Node
+	changedScopesBuf [8]*rhino.Node
 }
 
 // NewCoalesceVariableNames: usePseudoNames is for debug purposes, when
@@ -119,6 +125,7 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	c.colorings = c.coloringsBuf[:0]
 	c.liveAnalyses = c.liveAnalysesBuf[:0]
 	c.scopeStates = c.scopeStatesBuf[:0]
+	c.changedScopes = c.changedScopesBuf[:0]
 	c.usePseudoNames = usePseudoNames
 	c.astFactory = compiler.CreateAstFactory()
 	c.scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
@@ -126,17 +133,148 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	return c
 }
 
-// Java: CoalesceVariableNames.process(Node, Node)
-func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
-	jutil.CheckNotNull(externs)
-	jutil.CheckNotNull(root)
-	defer c.scopeCreator.ReleaseArena()
+func cvnHasLocalDecl(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH:
+		return true
+	default:
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if cvnHasLocalDecl(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func cvnCollectTopFunctions(n *rhino.Node, out *[]*rhino.Node) {
+	if n.IsFunction() {
+		if cvnHasLocalDecl(n) {
+			*out = append(*out, n)
+		}
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		cvnCollectTopFunctions(c, out)
+	}
+}
+
+func (c *CoalesceVariableNames) releaseReusableCFAs() {
+	for i, rc := range c.reusableCFAs {
+		if rc != nil {
+			releaseReusableCfg(rc)
+			c.reusableCFAs[i] = nil
+		}
+	}
+	c.reusableCFAs = c.reusableCFAs[:0]
+	for i := range c.cfgs {
+		c.cfgs[i] = nil
+	}
+	c.cfgs = c.cfgs[:0]
+}
+
+func (c *CoalesceVariableNames) processTopFunction(topFn *rhino.Node, dummyGlobal *Scope) {
+	fnScope := c.scopeCreator.CreateScope(topFn, dummyGlobal)
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
 		callback:     c,
 		scopeCreator: c.scopeCreator,
 	}
-	b.Traverse(root)
+	b.TraverseAtScope(fnScope)
+}
+
+func (c *CoalesceVariableNames) reportChange(n *rhino.Node) {
+	if c.deferChanges {
+		c.changedScopes = append(c.changedScopes, ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()))
+		return
+	}
+	c.compiler.ReportChangeToEnclosingScope(n)
+}
+
+// Java: CoalesceVariableNames.process(Node, Node)
+func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
+	jutil.CheckNotNull(externs)
+	jutil.CheckNotNull(root)
+	defer c.scopeCreator.ReleaseArena()
+
+	if c.usePseudoNames {
+		b := NodeTraversal_Builder{
+			compiler:     c.compiler,
+			callback:     c,
+			scopeCreator: c.scopeCreator,
+		}
+		b.Traverse(root)
+		c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
+		return
+	}
+
+	var topFns []*rhino.Node
+	cvnCollectTopFunctions(root, &topFns)
+	if len(topFns) == 0 {
+		c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
+		return
+	}
+
+	dummyGlobal := Scope_CreateGlobalScope(root)
+	numThreads := 1
+	if opts := c.compiler.GetOptions(); opts != nil && opts.GetNumParallelThreads() > 1 {
+		numThreads = opts.GetNumParallelThreads()
+	}
+
+	if numThreads <= 1 || len(topFns) <= 1 {
+		c.cfgs = append(c.cfgs, root)
+		defer c.releaseReusableCFAs()
+		for _, topFn := range topFns {
+			c.processTopFunction(topFn, dummyGlobal)
+		}
+		c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
+		return
+	}
+
+	workers := min(numThreads, len(topFns))
+	changesByFn := make([][]*rhino.Node, len(topFns))
+	failures := make([]jutil.Throwable, len(topFns))
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wc := NewCoalesceVariableNames(c.compiler, false)
+			wc.deferChanges = true
+			wc.cfgs = append(wc.cfgs, root)
+			defer func() {
+				wc.releaseReusableCFAs()
+				wc.scopeCreator.ReleaseArena()
+			}()
+			for {
+				idx := int(next.Add(1) - 1)
+				if idx >= len(topFns) {
+					return
+				}
+				wc.changedScopes = wc.changedScopes[:0]
+				jutil.Try(func() {
+					wc.processTopFunction(topFns[idx], dummyGlobal)
+					if len(wc.changedScopes) > 0 {
+						changesByFn[idx] = slices.Clone(wc.changedScopes)
+					}
+				}, func(t jutil.Throwable) {
+					failures[idx] = t
+				})
+			}
+		}()
+	}
+	wg.Wait()
+	for _, f := range failures {
+		if f != nil {
+			panic(f)
+		}
+	}
+	for _, scopes := range changesByFn {
+		for _, scope := range scopes {
+			c.compiler.ReportChangeToChangeScope(scope)
+		}
+	}
 	c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
 }
 
@@ -331,7 +469,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 
 		// Rename.
 		n.SetString(coalescedVar.GetName())
-		c.compiler.ReportChangeToEnclosingScope(n)
+		c.reportChange(n)
 		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
 		coalescedVar := coloringsPeek.GetPartitionSuperNode(var_)

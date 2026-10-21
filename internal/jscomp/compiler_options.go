@@ -21,6 +21,7 @@ package jscomp
 import (
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 
@@ -544,6 +545,8 @@ type CompilerOptions struct {
 	enableZonesDefineName  *string
 	zoneInputPattern       *jutil.Pattern
 	es6ModuleTranspilation CompilerOptions_Es6ModuleTranspilation
+	// Go-only: fast mode (Go-to-Go deterministic across thread counts, relaxed Java map order)
+	fastMode bool
 }
 
 // The number of characters after which we insert a line break in the code
@@ -935,6 +938,21 @@ func (o *CompilerOptions) SetNumParallelThreads(parallelism int) {
 // Java: CompilerOptions.getNumParallelThreads()
 func (o *CompilerOptions) GetNumParallelThreads() int {
 	return o.numParallelThreads
+}
+
+// SetFastMode enables or disables Go-to-Go deterministic fast mode.
+func (o *CompilerOptions) SetFastMode(fastMode bool) {
+	o.fastMode = fastMode
+}
+
+// isFastMode returns whether Go-to-Go deterministic fast mode is enabled.
+func (o *CompilerOptions) isFastMode() bool {
+	return o != nil && o.fastMode
+}
+
+// CompilerOptions_IsFastMode returns whether Go-to-Go deterministic fast mode is enabled.
+func CompilerOptions_IsFastMode(o *CompilerOptions) bool {
+	return o != nil && o.fastMode
 }
 
 // Java: CompilerOptions.UNLIMITED_FUN_SIZE_AFTER_INLINING
@@ -1409,6 +1427,7 @@ func NewCompilerOptions() *CompilerOptions {
 	o.parseJsDocDocumentation = parsing.Config_JsDocParsing_TYPES_ONLY
 	o.dependencyOptions = DependencyOptions_None()
 	o.numParallelThreads = 1
+	o.fastMode = os.Getenv("JSGO_FAST_MODE") == "1"
 	o.useSizeHeuristicToStopOptimizationLoop = true
 	o.j2clMinifierEnabled = true
 	o.removeJ2clAsserts = true

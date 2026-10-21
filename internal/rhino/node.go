@@ -2402,7 +2402,9 @@ func (n *Node) SetStaticSourceFileFrom(other *Node) {
 			tail = tail.next
 		}
 		if int(tail.propType) == Node_Prop_SOURCE_FILE.Ordinal() {
-			tail.shared = true
+			if !tail.shared {
+				tail.shared = true
+			}
 			n.propListHead = tail
 			return
 		}

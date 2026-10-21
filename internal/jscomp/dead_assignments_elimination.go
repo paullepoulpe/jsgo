@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"sync"
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -41,6 +44,9 @@ type DeadAssignmentsElimination struct {
 
 	livenessStorage LiveVariablesAnalysis
 	varsFinder      lvaAllVarsFinder
+
+	deferChanges bool
+	changeCount  int
 }
 
 // DeadAssignmentsElimination_BailoutInformation is the nested class
@@ -59,24 +65,172 @@ func NewDeadAssignmentsElimination(compiler AbstractCompiler) *DeadAssignmentsEl
 	return d
 }
 
+func daeScanNode(n *rhino.Node, compiler AbstractCompiler, candidates *[]*rhino.Node) (hasFn bool, hasAssign bool) {
+	if n.IsFunction() {
+		fnBody := n.GetLastChild()
+		if fnBody != nil && fnBody.IsBlock() {
+			for c := n.GetFirstChild(); c != nil && c != fnBody; c = c.GetNext() {
+				daeScanNode(c, compiler, candidates)
+			}
+			bodyHasFn := false
+			bodyHasAssign := false
+			for c := fnBody.GetFirstChild(); c != nil; c = c.GetNext() {
+				cFn, cAssign := daeScanNode(c, compiler, candidates)
+				if cFn {
+					bodyHasFn = true
+				}
+				if cAssign {
+					bodyHasAssign = true
+				}
+			}
+			if !bodyHasFn && bodyHasAssign && compiler.HasScopeChanged(n) {
+				*candidates = append(*candidates, n)
+			}
+			return true, false
+		}
+		hasFn = true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		cFn, cAssign := daeScanNode(c, compiler, candidates)
+		if cFn {
+			hasFn = true
+		}
+		if cAssign {
+			hasAssign = true
+		}
+	}
+	if !hasAssign && ((NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName()) || n.IsInc() || n.IsDec()) {
+		hasAssign = true
+	}
+	return hasFn, hasAssign
+}
+
+func (d *DeadAssignmentsElimination) releaseReusableCFAs() {
+	for i, rc := range d.reusableCFAs {
+		if rc != nil {
+			releaseReusableCfg(rc)
+			d.reusableCFAs[i] = nil
+		}
+	}
+	d.reusableCFAs = d.reusableCFAs[:0]
+}
+
+func (d *DeadAssignmentsElimination) eliminateFunction(fn *rhino.Node, dummyGlobal *Scope) {
+	fnBody := fn.GetLastChild()
+	scopeCreator := d.scopeCreator
+	functionScope := scopeCreator.CreateScopeOfScope(fn, dummyGlobal)
+	blockScope := scopeCreator.CreateScopeOfScope(fnBody, functionScope)
+	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <
+		blockScope.GetVarCount()+functionScope.GetVarCount() {
+		return
+	}
+
+	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
+	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
+		return
+	}
+	d.cfgs = append(d.cfgs, fn)
+	cfg := d.GetControlFlowGraph(d.compiler)
+	d.cfgs[len(d.cfgs)-1] = nil
+	d.cfgs = d.cfgs[:len(d.cfgs)-1]
+
+	d.livenessStorage.Reset(
+		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
+	d.liveness = &d.livenessStorage
+	allVarsInFn := d.liveness.GetAllVariables()
+	if allVarsEscaped(allVarsInFn, d.liveness.GetEscapedLocals()) {
+		return
+	}
+	d.liveness.Analyze()
+	d.TryRemoveDeadAssignments(nil, cfg, allVarsInFn)
+}
+
+func (d *DeadAssignmentsElimination) reportChange(n *rhino.Node) {
+	if d.deferChanges {
+		d.changeCount++
+		return
+	}
+	d.compiler.ReportChangeToEnclosingScope(n)
+}
+
 // Java: DeadAssignmentsElimination.process(Node, Node)
 func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckNotNull(externs)
 	jutil.CheckNotNull(root)
 	jutil.CheckState(d.compiler.GetLifeCycleStage().IsNormalized())
-	sc := NewSyntacticScopeCreator(d.compiler)
-	sc.EnableArenaPool()
-	d.scopeCreator = sc
-	defer func() {
-		d.scopeCreator = nil
-		sc.ReleaseArena()
-	}()
-	b := NodeTraversal_Builder{
-		compiler:     d.compiler,
-		callback:     d,
-		scopeCreator: sc,
+
+	var candidates []*rhino.Node
+	daeScanNode(root, d.compiler, &candidates)
+	if len(candidates) == 0 {
+		return
 	}
-	b.Traverse(root)
+
+	dummyGlobal := Scope_CreateGlobalScope(root)
+	numThreads := 1
+	if opts := d.compiler.GetOptions(); opts != nil && opts.GetNumParallelThreads() > 1 {
+		numThreads = opts.GetNumParallelThreads()
+	}
+
+	if numThreads <= 1 || len(candidates) <= 1 {
+		sc := NewSyntacticScopeCreator(d.compiler)
+		sc.EnableArenaPool()
+		d.scopeCreator = sc
+		defer func() {
+			d.releaseReusableCFAs()
+			d.scopeCreator = nil
+			sc.ReleaseArena()
+		}()
+		for _, fn := range candidates {
+			d.eliminateFunction(fn, dummyGlobal)
+		}
+		return
+	}
+
+	workers := min(numThreads, len(candidates))
+	changeCounts := make([]int, len(candidates))
+	failures := make([]jutil.Throwable, len(candidates))
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wd := NewDeadAssignmentsElimination(d.compiler)
+			wd.deferChanges = true
+			sc := NewSyntacticScopeCreator(d.compiler)
+			sc.EnableArenaPool()
+			wd.scopeCreator = sc
+			defer func() {
+				wd.releaseReusableCFAs()
+				wd.scopeCreator = nil
+				sc.ReleaseArena()
+			}()
+			for {
+				idx := int(next.Add(1) - 1)
+				if idx >= len(candidates) {
+					return
+				}
+				wd.changeCount = 0
+				jutil.Try(func() {
+					wd.eliminateFunction(candidates[idx], dummyGlobal)
+					changeCounts[idx] = wd.changeCount
+				}, func(t jutil.Throwable) {
+					failures[idx] = t
+				})
+			}
+		}()
+	}
+	wg.Wait()
+	for _, f := range failures {
+		if f != nil {
+			panic(f)
+		}
+	}
+	for i, count := range changeCounts {
+		for range count {
+			d.compiler.ReportChangeToChangeScope(candidates[i])
+		}
+	}
 }
 
 // functionStackPeekFirst is ArrayDeque.peekFirst() (null when empty).
@@ -300,8 +454,10 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			return // Not a local variable assignment.
 		}
 		name := lhs.GetString()
-		scope := t.GetScope()
-		jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
+		if t != nil {
+			scope := t.GetScope()
+			jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
+		}
 		var_ := allVarsInFn.Get(name)
 		if var_ == nil {
 			return
@@ -317,7 +473,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		if rhs != nil && rhs.IsName() && rhs.GetString() == var_.GetName() && n.IsAssign() {
 			rhs.Detach()
 			n.ReplaceWith(rhs)
-			d.compiler.ReportChangeToEnclosingScope(rhs)
+			d.reportChange(rhs)
 			return
 		}
 
@@ -370,7 +526,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			panic(jutil.NewIllegalStateExceptionMsg("Unknown statement"))
 		}
 
-		d.compiler.ReportChangeToEnclosingScope(parent)
+		d.reportChange(parent)
 		return
 	} else {
 		for c := n.GetFirstChild(); c != nil; {

@@ -145,6 +145,9 @@ func (c *CheckMissingReturn) ShouldTraverse(
 func (c *CheckMissingReturn) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 }
 
+func (*CheckMissingReturn) nodeTraversalNoVisit()          {}
+func (*CheckMissingReturn) nodeTraversalNoShouldTraverse() {}
+
 // GetExplicitReturnTypeIfExpected determines if the given scope should
 // explicitly return. All functions with non-void or non-unknown return types
 // must have explicit returns.

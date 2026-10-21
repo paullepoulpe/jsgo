@@ -22,10 +22,17 @@ import (
 	"cmp"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type cfaPosEntry struct {
+	node *rhino.Node
+	pos  int32
+	gen  uint32
+}
 
 // ControlFlowAnalysis computes a ControlFlowGraph for a given AST
 //
@@ -53,10 +60,10 @@ type ControlFlowAnalysis struct {
 	cfg        ControlFlowGraph[*rhino.Node]
 	cfgStorage *ControlFlowAnalysis_AstControlFlowGraph
 
-	// Go-only: performance — astPosition is never iterated, only queried via
-	// Get(node) inside priorityComparator; a native map[*rhino.Node]int32 avoids
-	// boxing every AST position as a heap *int and maintaining linked-list nodes.
-	astPosition map[*rhino.Node]int32
+	posTable []cfaPosEntry
+	posGen   uint32
+	posCount int32
+	nilPos   int32
 
 	astPositionCounter int32
 	priorityCounter    int
@@ -122,18 +129,6 @@ type ControlFlowAnalysis struct {
 }
 
 var cfaEmptyFinallyMap = jutil.NewSetMultimap[*rhino.Node, *rhino.Node]()
-
-var cfaAstPositionPool = sync.Pool{
-	New: func() any {
-		return make(map[*rhino.Node]int32, 256)
-	},
-}
-
-var cfaLargeAstPositionPool = sync.Pool{
-	New: func() any {
-		return make(map[*rhino.Node]int32, 8192)
-	},
-}
 
 var cfaRootNodesPool = sync.Pool{
 	New: func() any {
@@ -204,16 +199,14 @@ func releaseReusableCfg(rc *ReusableCfg) {
 	rc.cfa.exceptionHandler = rc.cfa.exceptionHandler[:0]
 	clear(rc.cfa.worklist)
 	rc.cfa.worklist = rc.cfa.worklist[:0]
-	if rc.cfa.astPosition != nil {
-		if len(rc.cfa.astPosition) > 1024 {
-			clear(rc.cfa.astPosition)
-			if len(rc.cfa.astPosition) <= 262144 {
-				cfaLargeAstPositionPool.Put(rc.cfa.astPosition)
-			}
-			rc.cfa.astPosition = nil
-		} else if len(rc.cfa.astPosition) > 0 {
-			clear(rc.cfa.astPosition)
-		}
+	if len(rc.cfa.posTable) > 8192 {
+		rc.cfa.posTable = nil
+		rc.cfa.posGen = 0
+		rc.cfa.posCount = 0
+	} else if len(rc.cfa.posTable) > 0 {
+		clear(rc.cfa.posTable)
+		rc.cfa.posGen = 0
+		rc.cfa.posCount = 0
 	}
 	for i := range cachedReusableCfgs {
 		if cachedReusableCfgs[i].CompareAndSwap(nil, rc) {
@@ -265,15 +258,93 @@ func (c *ControlFlowAnalysis) putFinally(jump *rhino.Node, target *rhino.Node) {
 	c.finallyMap.Put(jump, target)
 }
 
+func (c *ControlFlowAnalysis) resetPosTable() {
+	c.posGen++
+	if c.posGen == 0 {
+		clear(c.posTable)
+		c.posGen = 1
+	}
+	c.posCount = 0
+	c.nilPos = -1
+	if len(c.posTable) == 0 {
+		c.posTable = make([]cfaPosEntry, 256)
+	}
+}
+
+func (c *ControlFlowAnalysis) growPosTable() {
+	newTable := make([]cfaPosEntry, len(c.posTable)*2)
+	mask := uint32(len(newTable) - 1)
+	gen := c.posGen
+	for _, e := range c.posTable {
+		if e.gen == gen {
+			idx := (uint32(uintptr(unsafe.Pointer(e.node))>>4) * 0x9e3779b1) & mask
+			for newTable[idx].gen == gen {
+				idx = (idx + 1) & mask
+			}
+			newTable[idx] = e
+		}
+	}
+	c.posTable = newTable
+}
+
+func (c *ControlFlowAnalysis) setAstPosition(n *rhino.Node, pos int32) {
+	if n == nil {
+		c.nilPos = pos
+		return
+	}
+	if int(c.posCount+1)*4 >= len(c.posTable)*3 {
+		c.growPosTable()
+	}
+	mask := uint32(len(c.posTable) - 1)
+	idx := (uint32(uintptr(unsafe.Pointer(n))>>4) * 0x9e3779b1) & mask
+	gen := c.posGen
+	for {
+		e := c.posTable[idx]
+		if e.gen != gen {
+			c.posTable[idx] = cfaPosEntry{node: n, pos: pos, gen: gen}
+			c.posCount++
+			return
+		}
+		if e.node == n {
+			c.posTable[idx].pos = pos
+			return
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+func (c *ControlFlowAnalysis) getAstPosition(n *rhino.Node) int32 {
+	if n == nil {
+		return c.nilPos
+	}
+	mask := uint32(len(c.posTable) - 1)
+	idx := (uint32(uintptr(unsafe.Pointer(n))>>4) * 0x9e3779b1) & mask
+	gen := c.posGen
+	for {
+		e := c.posTable[idx]
+		if e.gen != gen {
+			return -1
+		}
+		if e.node == n {
+			return e.pos
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+func (c *ControlFlowAnalysis) astPositionOfNode(v *rhino.Node) int32 {
+	p := c.getAstPosition(v)
+	if p < 0 {
+		// checkNotNull(T, Object errorMessage)
+		panic(jutil.NewNullPointerExceptionMsg(jutil.ToJavaString(v)))
+	}
+	return p
+}
+
 // astPositionOf is the key extractor of priorityComparator:
 // checkNotNull(astPosition.get(digraphNode.getValue()), digraphNode.getValue()).
 func (c *ControlFlowAnalysis) astPositionOf(digraphNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) int32 {
-	p, ok := c.astPosition[digraphNode.GetValue()]
-	if !ok {
-		// checkNotNull(T, Object errorMessage)
-		panic(jutil.NewNullPointerExceptionMsg(jutil.ToJavaString(digraphNode.GetValue())))
-	}
-	return p
+	return c.astPositionOfNode(digraphNode.GetValue())
 }
 
 // ControlFlowAnalysis_Builder configures a ControlFlowAnalysis instance then
@@ -372,25 +443,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
 	isRoot := root.IsRoot()
-	prevAstPos := c.astPosition
-	var astPos map[*rhino.Node]int32
-	if isRoot {
-		astPos = cfaLargeAstPositionPool.Get().(map[*rhino.Node]int32)
-		if len(astPos) > 0 {
-			clear(astPos)
-		}
-	} else if c.astPosition != nil {
-		astPos = c.astPosition
-		if len(astPos) > 0 {
-			clear(astPos)
-		}
-	} else {
-		astPos = cfaAstPositionPool.Get().(map[*rhino.Node]int32)
-		if len(astPos) > 0 {
-			clear(astPos)
-		}
-	}
-	c.astPosition = astPos
+	c.resetPosTable()
 	c.astPositionCounter = 0
 	entryNode := ControlFlowAnalysis_ComputeFallThrough(root)
 	if c.cfgStorage != nil {
@@ -405,12 +458,12 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 
 	// Insert an implicit return last.
 	c.astPositionCounter++
-	c.astPosition[nil] = c.astPositionCounter
+	c.setAstPosition(nil, c.astPositionCounter)
 
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
 	c.priorityCounter = 0
-	entry := c.cfg.GetEntry()
+	entry := c.cfg.GetEntry().(*LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch])
 	c.prioritizeFromEntryNode(entry)
 
 	cfgNodes := &c.cfg.GetControlFlowGraphBase().nodes
@@ -418,7 +471,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 		// If we're traversing inner functions, we need to rank the
 		// priority of them too.
 		for candidate := range cfgNodes.Values() {
-			value := candidate.GetValue()
+			value := candidate.value
 			if value != nil && value.IsFunction() {
 				c.prioritizeFromEntryNode(candidate)
 			}
@@ -427,32 +480,6 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 
 	// Free our large table now that it is no longer needed
 	c.astPositionCounter = 0
-	if isRoot {
-		if len(astPos) <= 262144 {
-			clear(astPos)
-			cfaLargeAstPositionPool.Put(astPos)
-		}
-		c.astPosition = prevAstPos
-	} else if c.cfgStorage != nil {
-		if len(astPos) <= 1024 {
-			clear(astPos)
-		} else {
-			if len(astPos) <= 262144 {
-				clear(astPos)
-				cfaLargeAstPositionPool.Put(astPos)
-			}
-			c.astPosition = nil
-		}
-	} else {
-		if len(astPos) <= 1024 {
-			clear(astPos)
-			cfaAstPositionPool.Put(astPos)
-		} else if len(astPos) <= 262144 {
-			clear(astPos)
-			cfaLargeAstPositionPool.Put(astPos)
-		}
-		c.astPosition = nil
-	}
 
 	if c.cfgStorage != nil {
 		if isRoot {
@@ -468,9 +495,9 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 	// Presumably, it doesn't really matter what priority they get, since
 	// this shouldn't happen in real code.
 	for candidate := range cfgNodes.Values() {
-		if !candidate.HasPriority() {
+		if candidate.priority < 0 {
 			c.priorityCounter++
-			candidate.SetPriority(c.priorityCounter)
+			candidate.priority = int32(c.priorityCounter)
 		}
 	}
 
@@ -613,7 +640,7 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent *rhino.Node, currentNode, cur
 }
 
 type cfaWorkItem struct {
-	node DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]
+	node *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]
 	pos  int32
 }
 
@@ -665,7 +692,7 @@ func (c *ControlFlowAnalysis) cfaSiftDown(worklist []cfaWorkItem, i int, x cfaWo
 // from that node and prioritize them.
 //
 // Java: ControlFlowAnalysis.prioritizeFromEntryNode(DiGraphNode<Node, Branch>)
-func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) {
+func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]) {
 	if entry == nil {
 		panic(jutil.NewNullPointerException())
 	}
@@ -686,15 +713,15 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 		if n > 1 {
 			c.cfaSiftDown(worklist, 0, last)
 		}
-		if current.HasPriority() {
+		if current.priority >= 0 {
 			continue
 		}
 
 		c.priorityCounter++
-		current.SetPriority(c.priorityCounter)
+		current.priority = int32(c.priorityCounter)
 
-		for _, edge := range current.GetOutEdges() {
-			succ := edge.GetDestination()
+		for _, edge := range current.outEdgeList.Slice() {
+			succ := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]).destNode
 			if succ == nil {
 				panic(jutil.NewNullPointerException())
 			}
@@ -702,9 +729,9 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry DiGraph_DiGraphNode[
 				worklist = append(worklist, cfaWorkItem{node: succ, pos: -1})
 			} else {
 				if worklist[0].pos < 0 {
-					worklist[0].pos = c.astPositionOf(worklist[0].node)
+					worklist[0].pos = c.astPositionOfNode(worklist[0].node.value)
 				}
-				succPos := c.astPositionOf(succ)
+				succPos := c.astPositionOfNode(succ.value)
 				worklist = append(worklist, cfaWorkItem{})
 				c.cfaSiftUp(worklist, len(worklist)-1, cfaWorkItem{node: succ, pos: succPos})
 			}
@@ -719,7 +746,7 @@ func (c *ControlFlowAnalysis) ShouldTraverse(nodeTraversal *NodeTraversal, n *rh
 		// Any AST node that will later have a corresponding CFG node must be in astPosition.
 		// To avoid having astPosition grow too large, we exclude AST nodes that are not traversed
 		// further, as they usually are not put in the CFG.
-		c.astPosition[n] = c.astPositionCounter
+		c.setAstPosition(n, c.astPositionCounter)
 		c.astPositionCounter++
 		return true
 	}
@@ -795,7 +822,7 @@ func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n *rhino.Node, parent *
 			if !shouldTraverseForChild {
 				// The control-flow graph contains edges from a FOR node to all its children, even
 				// though only the body is actually traversed. So put the other children in astPosition.
-				c.astPosition[n] = c.astPositionCounter
+				c.setAstPosition(n, c.astPositionCounter)
 				c.astPositionCounter++
 			}
 			return shouldTraverseForChild

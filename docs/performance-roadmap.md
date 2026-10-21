@@ -1053,6 +1053,51 @@ Phase 1 (Bucket A — 100% byte-identical shared architectural upgrades) deliver
 | **`downlevel-simple`** (2.1 MB) | 1.16 s / 1.05 s | **1.11 s** / **1.02 s** | **−4.23%** / **−3.61%** | **193** / **190 MiB** (**−3.19%** / **−5.35%**) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.55 s / 0.46 s | **0.54 s** / **0.46 s** | **−2.34%** / **−1.79%** | 161 / 164 MiB | `MATCH` |
 
+## Round 20 (Phase 2 / Bucket B): Dual-Mode `compat` vs. `fast` + 4-Layer Equivalence Gate, O(1) Generation-Stamped `ControlFlowAnalysis`, Concrete `DataFlowAnalysis` Worklist, and Parallel Function-Local Middle-End Passes (`DeadAssignmentsElimination`, `CoalesceVariableNames`, `FlowSensitiveInlineVariables`, `InlineObjectLiterals`) (2026-10-21)
+
+Phase 2 (Bucket B — dual-mode `compat` vs. `fast`, 4-layer equivalence gate, and parallel function-local middle-end passes) delivered five structural improvements:
+
+1. **Dual-Mode `compat` vs. `fast` (`--fast_mode` / `JSGO_FAST_MODE=1`) & 4-Layer Equivalence Gate (`Subagent 20A`, `internal/jscomp/compiler_options.go`, `internal/jscomp/command_line_runner.go`, `tools/bench/fast_mode_gate.py`):**
+   - Added `CompilerOptions.FastMode()` / `SetFastMode(bool)`, CLI flag `--fast_mode`, and `JSGO_FAST_MODE=1` environment override. Default `compat` mode remains 100% byte-for-byte identical to Java (`t=1 == t=2 == t=4`), while `fast` mode unlocks optimizations whose output differs only in deterministic temporary/pseudo-name numbering while preserving 100% Go-to-Go multi-thread determinism (`t=1 == t=2 == t=4`).
+   - Built [`tools/bench/fast_mode_gate.py`](../tools/bench/fast_mode_gate.py), verifying 21 benchmark + CLI e2e workloads across 4 layers:
+     - **Layer 1 (Go-to-Go Multi-Thread Determinism):** Identical `(rc, stdout, stderr, js, map)` SHA-256 across `t=1`, `t=2`, and `t=4` under `-race`.
+     - **Layer 2 (Canonical Alpha-Normalized Equivalence):** Identical SHA-256 after canonicalizing compiler-generated internal temporaries (`$jscomp$inline_*`, `JSCompiler_inline_label_*`, `JSCompiler_object_inline_*`).
+     - **Layer 3 (Raw & Gzip Byte-Size Non-Regression):** `fast_raw_bytes <= compat_raw_bytes` and `fast_gzip_bytes <= compat_gzip_bytes` (`0.00%` regression across all 21 tasks).
+     - **Layer 4 (Structural AST & Diagnostic Census):** Exact match on exit code, warning/error lines, function count, call count, statement count, and identifier count.
+2. **O(1) Generation-Stamped `posTable` in `ControlFlowAnalysis` & Concrete `LinkedDiGraphNode` Worklist in `DataFlowAnalysisBase` (`Subagent 20B`, `internal/jscomp/control_flow_analysis.go`, `internal/jscomp/data_flow_analysis.go`, `internal/jscomp/live_variables_analysis.go`):**
+   - Replaced `c.astPosition *jutil.JavaHashMap[*rhino.Node, int]` (`O(N)` allocations/probing + `node.HashCode()`) in `ControlFlowAnalysis` with a pre-sized open-addressed power-of-2 `posTable []cfaPosEntry` using 32-bit `posGen uint32` generation stamps (`O(1)` reset with zero clearing) and `c.posCounter` node priority.
+   - Replaced interface-boxed `DiGraphNode` maps/sets in `DataFlowAnalysisBase` (`orderedWorkSet` and `stepCountMap`) with a concrete `[]*LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]` slice sorted by `node.GetPriority()`, a flat `inWorkSet []bool` bitmap, and a flat `stepCounts []int32` array indexed by `node.GetNodeIndex()`.
+   - Precomputed `l.varHasSameName []bool` once in `LiveVariablesAnalysis` so `MarkAllParametersEscaped` and `isRearrangeableAssign` skip `scope.Parent()` walks when a parameter/variable is unshadowed.
+3. **Pre-Filtered & Parallelized `DeadAssignmentsElimination` and `CoalesceVariableNames` (`Subagent 20C`, `internal/jscomp/dead_assignments_elimination.go`, `internal/jscomp/coalesce_variable_names.go`, `internal/rhino/node.go`):**
+   - Added a single pre-pass `daeCandidateScanner` and parallel worker pool in `DeadAssignmentsElimination.Process` (`448 ms → 168 ms` on `bundle-mega`, **2.7× faster**), skipping non-candidate functions without constructing scopes or CFGs and executing CFG + `LiveVariablesAnalysis` + dead assignment elimination in parallel across `NumParallelThreads()`, followed by deterministic pre-order `ReportCodeChange` replay.
+   - Added `cvnCandidateScanner` and parallel worker pool in `CoalesceVariableNames.Process` (`642 ms → 290 ms` on `bundle-mega`, **2.2× faster**, and `235 ms → 68 ms` on `typed-mega`, **3.5× faster**) in both `compat` and `fast` modes (`usePseudoNames == false` produces 100% byte-identical AST mutations in parallel; `usePseudoNames == true` uses deterministic per-function local sorting in `fast` mode).
+   - Fixed a redundant write (`tail.shared = true` on already-shared `SOURCE_FILE` property lists) in `rhino.Node.SetStaticSourceFileFrom` exposed under `-race`.
+4. **Parallelized `FlowSensitiveInlineVariables` (`compat` + `fast`) (`Subagent 20D`, `internal/jscomp/flow_sensitive_inline_variables.go`):**
+   - Parallelized `FlowSensitiveInlineVariables.Process` across `NumParallelThreads()` (`1,062 ms → 249 ms` in `compat` mode and `242 ms` in `fast` mode on `bundle-mega`, **4.4× faster**!):
+     - Phase 1 runs `ControlFlowAnalysis`, `SyntacticScopeCreator`, `MustBeReachingVariableDef`, `MaybeReachingVariableUse`, and ` gatherCands` in parallel for each candidate function using per-worker pooled arenas (`fsivWorkerState`).
+     - In `compat` mode, Phase 2 replays `cand.inlineVariable` sequentially in deterministic AST pre-order using the exact shared `UniqueIdSupplier`, preserving 100% byte-identical output to Java; in `fast` mode, Phase 2 inlines directly inside the parallel workers using deterministic function-seeded local ID suppliers.
+5. **Candidate-Filtered & Parallel `InlineObjectLiterals` + `CheckUnreachableCode` / `CheckMissingReturn` / `CombinedCompilerPass` Fast Paths (`Subagent 20E`, `internal/jscomp/inline_object_literals.go`, `internal/jscomp/check_unreachable_code.go`, `internal/jscomp/check_missing_return.go`, `internal/jscomp/combined_compiler_pass.go`):**
+   - Added `iolCandidateScanner` to `InlineObjectLiterals.Process` (`983 ms → 694 ms` in `fast` mode on `bundle-mega`), skipping functions with no local `OBJECTLIT` assignments/declarations and running function-local `ReferenceCollector` + object-literal splitting/inlining in parallel in `fast` mode.
+   - Added `hasUnreachableStack []bool` in `CheckUnreachableCode` to skip `CheckMissingReturn` CFG traversals (`checkControlFlow`: `298 ms → 180 ms` on `bundle-mega`, **1.7× faster**), `cmrMightHaveEmptyReturn` pre-filter in `CheckMissingReturn`, and `noVisit` / `noShouldTraverse` single-callback specializations in `CombinedCompilerPass`.
+
+### Final measured results — Round 20 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, `compat` mode, PGO enabled)
+
+All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Round 20, with `bundle-mega` (`t=4`) dropping by **−1.50 s (−6.72%)** in a single round (`22.35 s → 20.85 s` in `compat` mode, and **`20.55 s`** in `--fast_mode`, down **−2.95 s / −12.4%** since Round 17) and `typed-mega` (`t=4`) dropping by **−0.63 s (−3.57%)** (`17.64 s → 17.01 s`, down **−1.57 s / −8.5%** since Round 17):
+
+| Benchmark | Round 19 (`68cad1f2` `t=1` / `t=4`) | **Round 20 (`t=1` / `t=4`)** | Round 20 vs Round 19 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity (`compat` & `fast` L1–L4) |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 23.16 s / 22.35 s | **22.37 s** / **20.85 s** (`20.55 s` `fast`) | **−3.43%** / **−6.72%** (**−1.50 s**) | **1,700** / 1,797 MiB (**−1.77%** `t=1`) | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 18.67 s / 17.64 s | **18.50 s** / **17.01 s** | **−0.95%** / **−3.57%** (**−0.63 s**) | **1,703** / **1,707 MiB** (**−1.04%** / **−4.72%**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 10.70 s / 10.11 s | **10.58 s** / **9.80 s** | **−1.16%** / **−3.05%** | 1,042 / 1,119 MiB | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.60 s / 6.49 s | **6.40 s** / **6.16 s** | **−3.01%** / **−5.09%** | **576** / 743 MiB (**−19.67%** `t=1`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.33 s / 4.21 s | **4.14 s** / **3.87 s** | **−4.41%** / **−8.18%** | 538 / 565 MiB | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.45 s / 4.23 s | **4.35 s** / **4.03 s** | **−2.25%** / **−4.65%** | 481 / 514 MiB | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.36 s / 3.21 s | **3.26 s** / **3.01 s** | **−3.04%** / **−6.20%** | **323** / 321 MiB (**−3.26%** `t=1`) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.51 s / 2.11 s | **2.44 s** / **2.05 s** | **−2.61%** / **−2.74%** | 531 / 541 MiB | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.41 s / 1.29 s | **1.38 s** / **1.25 s** | **−2.49%** / **−3.08%** | **256** / 267 MiB (**−3.59%** `t=1`) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.10 s / 1.02 s | **1.09 s** / **0.97 s** | **−1.17%** / **−4.46%** | 198 / 204 MiB | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.53 s** / **0.45 s** | **−0.15%** / **−0.21%** | **150** / **158 MiB** (**−5.58%** / **−0.96%**) | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

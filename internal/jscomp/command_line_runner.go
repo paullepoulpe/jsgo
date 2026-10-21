@@ -163,6 +163,7 @@ type commandLineRunner_Flags struct {
 	charset                            string
 	compilationLevel                   string
 	numParallelThreads                 int
+	fastMode                           bool
 	checksOnly                         bool
 	incrementalCheckMode               CompilerOptions_IncrementalCheckMode
 	continueAfterErrors                bool
@@ -461,6 +462,8 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.StringField(c, "compilationLevel", &f.compilationLevel)},
 		{Option: &args4j.Option{Name: "--num_parallel_threads", Hidden: true, Handler: args4j.NewIntOptionHandler, Usage: "Use multiple threads to parallelize parts of the compilation."},
 			Field: args4j.IntField(c, "numParallelThreads", &f.numParallelThreads)},
+		{Option: &args4j.Option{Name: "--fast_mode", Hidden: true, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Enable Go-to-Go deterministic fast mode."},
+			Field: args4j.BooleanField(c, "fastMode", &f.fastMode)},
 		{Option: &args4j.Option{Name: "--checks_only", Aliases: []string{"--checks-only"}, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Don't generate output. Run checks, but no optimization passes."},
 			Field: args4j.BooleanField(c, "checksOnly", &f.checksOnly)},
 		{Option: &args4j.Option{Name: "--incremental_check_mode", Usage: "Generate or check externs-like .i.js files representing individual libraries."},
@@ -1622,6 +1625,9 @@ func (r *CommandLineRunner) CreateOptions() *CompilerOptions {
 	}
 
 	options.SetNumParallelThreads(flags.numParallelThreads)
+	if flags.fastMode {
+		options.SetFastMode(true)
+	}
 
 	options.SetEnvironment(flags.environment)
 

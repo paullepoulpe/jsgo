@@ -45,8 +45,10 @@ import (
 // compiler pass to give it context about what combined passes are doing.
 type CombinedCompilerPass struct {
 	// The callbacks that this pass combines.
-	callbacks []*combinedCompilerPass_CallbackWrapper
-	compiler  AbstractCompiler
+	callbacks     []*combinedCompilerPass_CallbackWrapper
+	compiler      AbstractCompiler
+	allNoVisit    bool
+	inactiveCount int
 }
 
 // NewCombinedCompilerPass creates a combined compiler pass.
@@ -64,10 +66,14 @@ func NewCombinedCompilerPass(compiler AbstractCompiler, callbacks ...NodeTravers
 
 // Java: CombinedCompilerPass(AbstractCompiler, List<NodeTraversal.Callback>)
 func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTraversal_Callback) *CombinedCompilerPass {
-	p := &CombinedCompilerPass{compiler: compiler}
+	p := &CombinedCompilerPass{compiler: compiler, allNoVisit: true}
 	p.callbacks = make([]*combinedCompilerPass_CallbackWrapper, len(callbacks))
 	for i := 0; i < len(callbacks); i++ {
-		p.callbacks[i] = newCombinedCompilerPass_CallbackWrapper(callbacks[i])
+		w := newCombinedCompilerPass_CallbackWrapper(callbacks[i])
+		if !w.noVisit {
+			p.allNoVisit = false
+		}
+		p.callbacks[i] = w
 	}
 	return p
 }
@@ -99,6 +105,9 @@ type combinedCompilerPass_CallbackWrapper struct {
 	// returned false for. The wrapped callback doesn't receive messages until
 	// after this node is revisited in the post-order traversal.
 	waiting *rhino.Node
+
+	noShouldTraverse bool
+	noVisit          bool
 }
 
 // Java: CombinedCompilerPass.CallbackWrapper(NodeTraversal.Callback)
@@ -109,6 +118,11 @@ func newCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) *c
 	} else {
 		w.scopedCallback = nil
 	}
+	_, w.noShouldTraverse = callback.(nodeTraversal_noShouldTraverse)
+	if !w.noShouldTraverse {
+		_, w.noShouldTraverse = callback.(NodeTraversal_AbstractPostOrderCallbackInterface)
+	}
+	_, w.noVisit = callback.(nodeTraversal_noVisit)
 	return w
 }
 
@@ -118,7 +132,9 @@ func newCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) *c
 // Java: CombinedCompilerPass.CallbackWrapper.visitOrMaybeActivate(NodeTraversal, Node, Node)
 func (w *combinedCompilerPass_CallbackWrapper) VisitOrMaybeActivate(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	if w.IsActive() {
-		w.callback.Visit(t, n, parent)
+		if !w.noVisit {
+			w.callback.Visit(t, n, parent)
+		}
 	} else if w.waiting == n {
 		w.waiting = nil
 	}
@@ -126,7 +142,7 @@ func (w *combinedCompilerPass_CallbackWrapper) VisitOrMaybeActivate(t *NodeTrave
 
 // Java: CombinedCompilerPass.CallbackWrapper.shouldTraverseIfActive(NodeTraversal, Node, Node)
 func (w *combinedCompilerPass_CallbackWrapper) ShouldTraverseIfActive(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if w.IsActive() && !w.callback.ShouldTraverse(t, n, parent) {
+	if w.IsActive() && !w.noShouldTraverse && !w.callback.ShouldTraverse(t, n, parent) {
 		w.waiting = n
 	}
 }
@@ -152,6 +168,7 @@ func (w *combinedCompilerPass_CallbackWrapper) IsActive() bool {
 
 // Java: CombinedCompilerPass.process(Node, Node)
 func (p *CombinedCompilerPass) Process(externs *rhino.Node, root *rhino.Node) {
+	p.inactiveCount = 0
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
@@ -162,7 +179,13 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 	}
 
 	for _, callback := range p.callbacks {
-		callback.ShouldTraverseIfActive(t, n, parent)
+		if callback.waiting == nil && !callback.noShouldTraverse && !callback.callback.ShouldTraverse(t, n, parent) {
+			callback.waiting = n
+			p.inactiveCount++
+		}
+	}
+	if p.allNoVisit && t != nil {
+		t.noVisit = p.inactiveCount == 0
 	}
 	// Note that this method could return false if all callbacks are
 	// inactive. This apparent optimization would make this method more
@@ -175,12 +198,25 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 
 // Java: CombinedCompilerPass.visit(NodeTraversal, Node, Node)
 func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if p.allNoVisit && p.inactiveCount == 0 {
+		return
+	}
 	if p.compiler.HasHaltingErrors() {
 		return
 	}
 
 	for _, callback := range p.callbacks {
-		callback.VisitOrMaybeActivate(t, n, parent)
+		if callback.waiting == nil {
+			if !callback.noVisit {
+				callback.callback.Visit(t, n, parent)
+			}
+		} else if callback.waiting == n {
+			callback.waiting = nil
+			p.inactiveCount--
+		}
+	}
+	if p.allNoVisit && t != nil {
+		t.noVisit = p.inactiveCount == 0
 	}
 }
 

@@ -228,6 +228,20 @@ type lvaAllVarsFinder struct {
 	finder nodeUtil_getAllVarsDeclaredInFunction_finder
 }
 
+func (f *lvaAllVarsFinder) EnterScope(t *NodeTraversal) {
+	f.finder.EnterScope(t)
+}
+
+func (f *lvaAllVarsFinder) ExitScope(t *NodeTraversal) {}
+
+func (f *lvaAllVarsFinder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	return f.finder.ShouldTraverse(t, n, parent)
+}
+
+func (f *lvaAllVarsFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+
+func (*lvaAllVarsFinder) nodeTraversalNoVisit() {}
+
 func (f *lvaAllVarsFinder) collect(
 	compiler AbstractCompiler, scopeCreator ScopeCreator, scope *Scope,
 ) *NodeUtil_AllVarsDeclaredInFunction {
@@ -248,10 +262,12 @@ func (f *lvaAllVarsFinder) collect(
 
 	b := NodeTraversal_Builder{
 		compiler:     compiler,
-		callback:     &f.finder,
+		callback:     f,
 		scopeCreator: scopeCreator,
 	}
-	b.TraverseAtScope(scope)
+	t := acquireNodeTraversal(&b)
+	t.TraverseAtScope(scope)
+	releaseNodeTraversal(t)
 
 	jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
 	return &f.finder.result
@@ -349,6 +365,16 @@ func (l *LiveVariablesAnalysis) CreateInitialEstimateLattice() *LiveVariablesAna
 	return &l.emptyLattice
 }
 
+func (l *LiveVariablesAnalysis) EqualsLattice(a, b *LiveVariablesAnalysis_LiveVariableLattice) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.liveSet.Equals(b.liveSet)
+}
+
 // Java: LiveVariablesAnalysis.createFlowJoiner()
 func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*LiveVariablesAnalysis_LiveVariableLattice] {
 	lat := l.allocLattice()
@@ -366,7 +392,9 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
 	var edgeList []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
-	if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
+	if l.curLinkedNode != nil && l.curLinkedNode.value == node {
+		edgeList = l.curLinkedNode.outEdgeList.Slice()
+	} else if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
 		edgeList = l.curDiGraphNode.GetOutEdges()
 	} else {
 		edgeList = l.GetCfg().GetOutEdges(node)

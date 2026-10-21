@@ -20,10 +20,26 @@ package jscomp
 
 import (
 	"iter"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type fsivCandidateDef struct {
+	varName string
+	rhs     *rhino.Node
+	hasRead bool
+	hasFunc bool
+}
+
+type fsivCandFunc struct {
+	fn         *rhino.Node
+	body       *rhino.Node
+	depth      int
+	hasFuncRhs bool
+}
 
 // FlowSensitiveInlineVariables inlines variables when possible. Using the
 // information from MaybeReachingVariableUse and MustBeReachingVariableDef,
@@ -48,7 +64,9 @@ type FlowSensitiveInlineVariables struct {
 	//
 	// The reason for the delayed evaluation of the candidates is because we
 	// need two separate dataflow result.
-	compiler AbstractCompiler
+	compiler         AbstractCompiler
+	astAnalyzer      *AstAnalyzer
+	codingConvention CodingConvention
 
 	sideEffectPredicate   FlowSensitiveInlineVariables_SideEffectPredicate
 	sideEffectPredicateFn func(*rhino.Node) bool
@@ -74,6 +92,47 @@ type FlowSensitiveInlineVariables struct {
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
 	candidateSlab       []FlowSensitiveInlineVariables_Candidate
 	candidateBuf        [8]FlowSensitiveInlineVariables_Candidate
+
+	varsFinder          lvaAllVarsFinder
+	inlinableDefs       []fsivCandidateDef
+	inlinableDefsBuf    [16]fsivCandidateDef
+	unreadDefCount      int
+	candFuncs           []fsivCandFunc
+	maxCandDepth        int
+	dummyGlobalScope    *Scope
+	globalRoot          *rhino.Node
+	scopeCreator        *SyntacticScopeCreator
+	curFn               *rhino.Node
+	curFnEnclosingScope *Scope
+	curTraversal        *NodeTraversal
+	parallelMode        bool
+	parallelChanges     []*rhino.Node
+}
+
+func (*FlowSensitiveInlineVariables) nodeTraversalNoVisit() {}
+
+func (f *FlowSensitiveInlineVariables) getAstAnalyzer() *AstAnalyzer {
+	if f.astAnalyzer == nil {
+		f.astAnalyzer = f.compiler.GetAstAnalyzer()
+	}
+	return f.astAnalyzer
+}
+
+func (f *FlowSensitiveInlineVariables) getCodingConvention() CodingConvention {
+	if f.codingConvention == nil {
+		f.codingConvention = f.compiler.GetCodingConvention()
+	}
+	return f.codingConvention
+}
+
+func (f *FlowSensitiveInlineVariables) reportChange(n *rhino.Node) {
+	if f.parallelMode {
+		if changeRoot := ChangeTracker_GetEnclosingChangeScopeRoot(n); changeRoot != nil {
+			f.parallelChanges = append(f.parallelChanges, changeRoot)
+		}
+		return
+	}
+	f.compiler.ReportChangeToEnclosingScope(n)
 }
 
 func (f *FlowSensitiveInlineVariables) allocCandidate(
@@ -153,7 +212,7 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n *rhino.Node) 
 		return !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
 	}
 
-	astAnalyzer := p.outer.compiler.GetAstAnalyzer()
+	astAnalyzer := p.outer.getAstAnalyzer()
 	// TODO(user): We only care about calls to functions that
 	// passes one of the dependent variable to a non-side-effect free
 	// function.
@@ -208,6 +267,16 @@ func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveIn
 	return f
 }
 
+func newFlowSensitiveInlineVariablesWorker(compiler AbstractCompiler, astAnalyzer *AstAnalyzer, codingConvention CodingConvention, dummyGlobalScope *Scope, globalRoot *rhino.Node) *FlowSensitiveInlineVariables {
+	f := NewFlowSensitiveInlineVariables(compiler)
+	f.astAnalyzer = astAnalyzer
+	f.codingConvention = codingConvention
+	f.dummyGlobalScope = dummyGlobalScope
+	f.globalRoot = globalRoot
+	f.parallelMode = true
+	return f
+}
+
 // Java: FlowSensitiveInlineVariables.shouldTraverse(NodeTraversal, Node, Node)
 func (f *FlowSensitiveInlineVariables) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	return !n.IsScript() || !t.GetInput().IsExtern()
@@ -251,32 +320,254 @@ func fsivHasNestedBlockScopeDecls(fnNode *rhino.Node, fnBody *rhino.Node) bool {
 	return false
 }
 
+func fsivInspectRhs(n *rhino.Node) (unsafe bool, hasFunc bool) {
+	switch n.GetToken() {
+	case rhino.Token_GETELEM,
+		rhino.Token_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_OPTCHAIN_GETELEM,
+		rhino.Token_CLASS,
+		rhino.Token_ARRAYLIT,
+		rhino.Token_OBJECTLIT,
+		rhino.Token_REGEXP,
+		rhino.Token_NEW:
+		return true, false
+	case rhino.Token_FUNCTION:
+		return false, true
+	default:
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		u, hf := fsivInspectRhs(c)
+		if u {
+			return true, false
+		}
+		if hf {
+			hasFunc = true
+		}
+	}
+	return false, hasFunc
+}
+
+func fsivIsReadName(n, parent *rhino.Node) bool {
+	if parent == nil {
+		return false
+	}
+	if (NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n) ||
+		NodeUtil_IsNameDeclaration(parent) ||
+		parent.IsInc() ||
+		parent.IsDec() ||
+		parent.IsParamList() ||
+		parent.IsCatch() ||
+		NodeUtil_IsLhsByDestructuring(n) {
+		return false
+	}
+	return true
+}
+
+func fsivRhsDependsOnOuterOrCatchVars(n, parent *rhino.Node, allVarsInFn *jutil.LinkedHashMap[string, *Var]) bool {
+	if parent != nil && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return false
+	}
+	if n.IsName() {
+		v := allVarsInFn.Get(n.GetString())
+		if v == nil || v.GetScope().(*Scope).IsCatchScope() {
+			return true
+		}
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if fsivRhsDependsOnOuterOrCatchVars(c, n, allVarsInFn) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs *rhino.Node) {
+	if varName == "" {
+		return
+	}
+	unsafe, hasFunc := fsivInspectRhs(rhs)
+	if unsafe {
+		return
+	}
+	if f.getCodingConvention().IsExportedWithLocal(varName, true) {
+		return
+	}
+	if f.getAstAnalyzer().MayHaveSideEffects(rhs) {
+		return
+	}
+	f.inlinableDefs = append(f.inlinableDefs, fsivCandidateDef{
+		varName: varName,
+		rhs:     rhs,
+		hasFunc: hasFunc,
+	})
+}
+
+func (f *FlowSensitiveInlineVariables) scanStatementsForCandidateDefs(n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			f.scanStatementsForCandidateDefs(c)
+		}
+	case rhino.Token_IF:
+		for c := n.GetSecondChild(); c != nil; c = c.GetNext() {
+			f.scanStatementsForCandidateDefs(c)
+		}
+	case rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
+		if second := n.GetSecondChild(); second != nil {
+			f.scanStatementsForCandidateDefs(second)
+		}
+	case rhino.Token_DO, rhino.Token_DEFAULT_CASE:
+		if first := n.GetFirstChild(); first != nil {
+			f.scanStatementsForCandidateDefs(first)
+		}
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		if first := n.GetFirstChild(); first != nil {
+			f.scanStatementsForCandidateDefs(first)
+			if last := n.GetLastChild(); last != nil && last != first {
+				f.scanStatementsForCandidateDefs(last)
+			}
+		}
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		for lhs := n.GetFirstChild(); lhs != nil; lhs = lhs.GetNext() {
+			if lhs.IsName() && lhs.HasChildren() {
+				f.maybeAddCandidateDef(lhs.GetString(), lhs.GetLastChild())
+			}
+		}
+	case rhino.Token_EXPR_RESULT:
+		if c := n.GetFirstChild(); c != nil && c.IsAssign() {
+			if lhs := c.GetFirstChild(); lhs.IsName() {
+				f.maybeAddCandidateDef(lhs.GetString(), c.GetLastChild())
+			}
+		}
+	case rhino.Token_FUNCTION, rhino.Token_RETURN, rhino.Token_THROW,
+		rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_DEBUGGER,
+		rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
+		// ControlFlowAnalysis does not enter expressions, functions, or classes for statements.
+	default:
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			f.scanStatementsForCandidateDefs(c)
+		}
+	}
+}
+
+func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION,
+		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
+		rhino.Token_DO, rhino.Token_WHILE,
+		rhino.Token_CLASS, rhino.Token_IMPORT:
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.IsName() && fsivIsReadName(c, n) {
+			name := c.GetString()
+			for i := range f.inlinableDefs {
+				if f.inlinableDefs[i].varName == name && !f.inlinableDefs[i].hasRead {
+					f.inlinableDefs[i].hasRead = true
+					f.unreadDefCount--
+				}
+			}
+			if f.unreadDefCount == 0 {
+				return
+			}
+		}
+		if c.HasChildren() {
+			f.markReadsOutsideLoop(c)
+			if f.unreadDefCount == 0 {
+				return
+			}
+		}
+	}
+}
+
+func (f *FlowSensitiveInlineVariables) collectInlinableDefsWithReads(fnBody *rhino.Node) (ok bool, hasFuncRhs bool) {
+	if cap(f.inlinableDefs) == 0 {
+		f.inlinableDefs = f.inlinableDefsBuf[:0]
+	} else {
+		f.inlinableDefs = f.inlinableDefs[:0]
+	}
+	f.scanStatementsForCandidateDefs(fnBody)
+	if len(f.inlinableDefs) == 0 {
+		return false, false
+	}
+	f.unreadDefCount = len(f.inlinableDefs)
+	f.markReadsOutsideLoop(fnBody)
+	nDefs := 0
+	for _, d := range f.inlinableDefs {
+		if d.hasRead {
+			if d.hasFunc {
+				hasFuncRhs = true
+			}
+			f.inlinableDefs[nDefs] = d
+			nDefs++
+		}
+	}
+	f.inlinableDefs = f.inlinableDefs[:nDefs]
+	return nDefs > 0, hasFuncRhs
+}
+
+func (f *FlowSensitiveInlineVariables) isInlinableDefVar(name string) bool {
+	if len(f.inlinableDefs) == 0 {
+		return true
+	}
+	for i := range f.inlinableDefs {
+		if f.inlinableDefs[i].varName == name {
+			return true
+		}
+	}
+	return false
+}
+
 // Java: FlowSensitiveInlineVariables.enterScope(NodeTraversal)
 func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
-
-	if t.InGlobalScope() {
-		return // Don't even brother. All global variables are likely escaped.
+	if len(t.scopes) <= 1 {
+		return // Don't even bother. All global variables are likely escaped.
+	}
+	fnBody := t.GetScopeRoot()
+	if !fnBody.IsBlock() {
+		return
+	}
+	functionScopeRoot := fnBody.GetParent()
+	if functionScopeRoot == nil || !functionScopeRoot.IsFunction() {
+		return // Only want to do the following if it's a function block scope.
 	}
 
-	if !t.InFunctionBlockScope() {
-		return // Only want to do the following if its a function block scope.
-	}
+	f.curTraversal = t
+	defer func() {
+		f.curTraversal = nil
+	}()
+	scopeCreator := t.GetScopeCreator().(*SyntacticScopeCreator)
+	f.processFunction(functionScopeRoot, fnBody, scopeCreator)
+}
 
-	functionScopeRoot := t.GetScopeRoot().GetParent()
-
-	if !f.IsCandidateFunction(functionScopeRoot) {
+func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody *rhino.Node, scopeCreator *SyntacticScopeCreator) {
+	if ok, _ := f.collectInlinableDefsWithReads(fnBody); !ok {
 		return
 	}
 
-	scope := t.GetScope()
+	var fnScope, scope *Scope
+	if f.dummyGlobalScope != nil {
+		fnScope = scopeCreator.CreateScopeOfScope(functionScopeRoot, f.dummyGlobalScope)
+		scope = scopeCreator.CreateScopeOfScope(fnBody, fnScope)
+	} else if f.curTraversal != nil {
+		scope = f.curTraversal.GetScope()
+		fnScope = scope.GetParent()
+	} else {
+		root := functionScopeRoot
+		for root.GetParent() != nil {
+			root = root.GetParent()
+		}
+		f.dummyGlobalScope = Scope_CreateGlobalScope(root)
+		fnScope = scopeCreator.CreateScopeOfScope(functionScopeRoot, f.dummyGlobalScope)
+		scope = scopeCreator.CreateScopeOfScope(fnBody, fnScope)
+	}
 	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE < scope.GetVarCount() {
 		return
 	}
 
-	scopeCreator := t.GetScopeCreator().(*SyntacticScopeCreator)
-	fnScope := scope.GetParent()
 	var allVarsInFn *jutil.LinkedHashMap[string, *Var]
-	if !fsivHasNestedBlockScopeDecls(functionScopeRoot, t.GetScopeRoot()) {
+	if !fsivHasNestedBlockScopeDecls(functionScopeRoot, fnBody) {
 		f.allVarsMap.Clear()
 		for v := range fnScope.GetVarIterable() {
 			f.allVarsMap.Put(v.GetName(), v)
@@ -286,10 +577,22 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 		}
 		allVarsInFn = &f.allVarsMap
 	} else {
-		allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(f.compiler, scopeCreator, fnScope)
+		allVarsDeclaredInFunction := f.varsFinder.collect(f.compiler, scopeCreator, fnScope)
 		allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
 	}
 	if allVarsInFn.IsEmpty() {
+		return
+	}
+
+	nDefs := 0
+	for _, d := range f.inlinableDefs {
+		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs, nil, allVarsInFn) {
+			f.inlinableDefs[nDefs] = d
+			nDefs++
+		}
+	}
+	f.inlinableDefs = f.inlinableDefs[:nDefs]
+	if nDefs == 0 {
 		return
 	}
 
@@ -297,18 +600,25 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	escaped := &f.escapedSet
 	DataFlowAnalysis_ComputeEscaped(
 		fnScope, escaped, f.compiler, scopeCreator, allVarsInFn)
-	if escaped.Size() >= allVarsInFn.Size() {
-		hasUnescaped := false
-		for v := range allVarsInFn.Values() {
-			if !escaped.Contains(v) {
-				hasUnescaped = true
-				break
-			}
-		}
-		if !hasUnescaped {
-			return
+	nDefs = 0
+	for _, d := range f.inlinableDefs {
+		if v := allVarsInFn.Get(d.varName); v != nil && !escaped.Contains(v) {
+			f.inlinableDefs[nDefs] = d
+			nDefs++
 		}
 	}
+	f.inlinableDefs = f.inlinableDefs[:nDefs]
+	if nDefs == 0 {
+		return
+	}
+
+	f.curFn = functionScopeRoot
+	f.curFnEnclosingScope = nil
+	f.scopeCreator = scopeCreator
+	defer func() {
+		f.curFn = nil
+		f.curFnEnclosingScope = nil
+	}()
 
 	// Compute the forward reaching definition.
 	rc := f.reusableCfg
@@ -337,7 +647,7 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates
-	fsivTraverseGatherCandidates(f.compiler, t.GetScopeRoot(), &f.gatherCandidates)
+	fsivTraverseGatherCandidates(f.compiler, fnBody, &f.gatherCandidates)
 
 	if f.candidates.IsEmpty() {
 		return
@@ -432,26 +742,236 @@ func FlowSensitiveInlineVariables_IsAssignmentToName(n *rhino.Node) bool {
 // Java: FlowSensitiveInlineVariables.exitScope(NodeTraversal)
 func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 
+func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n, parent *rhino.Node, depth int) {
+	if n == nil {
+		return
+	}
+	if n.IsFunction() {
+		fnBody := n.GetLastChild()
+		if fnBody != nil && fnBody.IsBlock() {
+			if ok, hasFuncRhs := f.collectInlinableDefsWithReads(fnBody); ok {
+				if depth > f.maxCandDepth {
+					f.maxCandDepth = depth
+				}
+				f.candFuncs = append(f.candFuncs, fsivCandFunc{
+					fn:         n,
+					body:       fnBody,
+					depth:      depth,
+					hasFuncRhs: hasFuncRhs,
+				})
+				depth++
+			}
+		}
+		fnName := n.GetFirstChild()
+		isFunctionDeclaration := parent != nil && NodeUtil_IsFunctionDeclaration(n)
+		if isFunctionDeclaration {
+			f.collectCandidateFuncs(fnName, n, depth)
+		}
+		if !isFunctionDeclaration {
+			f.collectCandidateFuncs(fnName, n, depth)
+		}
+		args := fnName.GetNext()
+		body := args.GetNext()
+		f.collectCandidateFuncs(args, n, depth)
+		f.collectCandidateFuncs(body, n, depth)
+		return
+	}
+	if n.IsClass() {
+		className := n.GetFirstChild()
+		extendsClause := className.GetNext()
+		body := extendsClause.GetNext()
+		isClassExpression := NodeUtil_IsClassExpression(n)
+		f.collectCandidateFuncs(extendsClause, n, depth)
+		if !isClassExpression {
+			f.collectCandidateFuncs(className, n, depth)
+		}
+		if isClassExpression {
+			f.collectCandidateFuncs(className, n, depth)
+		}
+		f.collectCandidateFuncs(body, n, depth)
+		return
+	}
+	if n.IsClassMembers() {
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				f.collectCandidateFuncs(child.GetFirstChild(), child, depth)
+			}
+		}
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				f.collectCandidateFuncs(child.GetLastChild(), child, depth)
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if child.HasTwoChildren() {
+					f.collectCandidateFuncs(child.GetLastChild(), child, depth)
+				}
+			default:
+				f.collectCandidateFuncs(child, n, depth)
+			}
+		}
+		return
+	}
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		f.collectCandidateFuncs(child, n, depth)
+	}
+}
+
 // Java: FlowSensitiveInlineVariables.process(Node, Node)
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
+	// Pre-populate cached AstAnalyzer and CodingConvention on the main goroutine
+	// so worker goroutines never race on Compiler.cachedAstAnalyzer initialization.
+	astAnalyzer := f.getAstAnalyzer()
+	codingConvention := f.getCodingConvention()
+
+	f.candFuncs = f.candFuncs[:0]
+	f.maxCandDepth = 0
+	if root != nil {
+		f.collectCandidateFuncs(root, root.GetParent(), 0)
+	}
+	if len(f.candFuncs) == 0 {
+		return
+	}
+
+	globalRoot := root
+	if externs != nil && externs.GetParent() != nil {
+		globalRoot = externs.GetParent()
+	} else {
+		for globalRoot.GetParent() != nil {
+			globalRoot = globalRoot.GetParent()
+		}
+	}
+	f.globalRoot = globalRoot
+	f.dummyGlobalScope = Scope_CreateGlobalScope(globalRoot)
+
 	sc := NewSyntacticScopeCreator(f.compiler)
 	sc.EnableArenaPool()
 	rc := acquireReusableCfg()
 	f.reusableCfg = rc
+	f.scopeCreator = sc
 	defer func() {
 		if f.reusableCfg != nil {
 			releaseReusableCfg(f.reusableCfg)
 			f.reusableCfg = nil
 		}
+		f.scopeCreator = nil
+		f.dummyGlobalScope = nil
+		f.globalRoot = nil
 		f.escapedSet.Clear()
 		sc.ReleaseArena()
 	}()
-	b := NodeTraversal_Builder{
-		compiler:     f.compiler,
-		callback:     f,
-		scopeCreator: sc,
+
+	const parallelThreshold = 8
+	numWorkers := 1
+	if opts := f.compiler.GetOptions(); opts != nil && opts.GetNumParallelThreads() > 1 {
+		numWorkers = opts.GetNumParallelThreads()
 	}
-	b.TraverseRoots(externs, root)
+
+	var levelFuncs []fsivCandFunc
+	for depth := 0; depth <= f.maxCandDepth; depth++ {
+		levelFuncs = levelFuncs[:0]
+		for _, cf := range f.candFuncs {
+			if cf.depth == depth {
+				levelFuncs = append(levelFuncs, cf)
+			}
+		}
+		if len(levelFuncs) == 0 {
+			continue
+		}
+
+		// Count how many functions at this depth can run in parallel (those without FUNCTION in RHS).
+		parallelCount := 0
+		for _, cf := range levelFuncs {
+			if !cf.hasFuncRhs {
+				parallelCount++
+			}
+		}
+
+		if parallelCount < parallelThreshold || numWorkers == 1 {
+			f.parallelMode = false
+			for _, cf := range levelFuncs {
+				f.processFunction(cf.fn, cf.body, sc)
+			}
+			continue
+		}
+
+		// Run any hasFuncRhs functions sequentially first on the main goroutine.
+		f.parallelMode = false
+		for _, cf := range levelFuncs {
+			if cf.hasFuncRhs {
+				f.processFunction(cf.fn, cf.body, sc)
+			}
+		}
+
+		// Collect parallelizable functions at this depth.
+		parFuncs := make([]fsivCandFunc, 0, parallelCount)
+		for _, cf := range levelFuncs {
+			if !cf.hasFuncRhs {
+				parFuncs = append(parFuncs, cf)
+			}
+		}
+
+		workers := numWorkers
+		if workers > len(parFuncs) {
+			workers = len(parFuncs)
+		}
+		changedByFunc := make([][]*rhino.Node, len(parFuncs))
+		var nextIdx atomic.Int64
+		var wg sync.WaitGroup
+		var panicVal any
+		var panicOnce sync.Once
+
+		wg.Add(workers)
+		for w := 0; w < workers; w++ {
+			go func() {
+				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						panicOnce.Do(func() {
+							panicVal = r
+						})
+					}
+				}()
+				worker := newFlowSensitiveInlineVariablesWorker(
+					f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
+				wsc := NewSyntacticScopeCreator(f.compiler)
+				wsc.EnableArenaPool()
+				wrc := acquireReusableCfg()
+				worker.reusableCfg = wrc
+				worker.scopeCreator = wsc
+				defer func() {
+					releaseReusableCfg(wrc)
+					worker.reusableCfg = nil
+					worker.scopeCreator = nil
+					worker.escapedSet.Clear()
+					wsc.ReleaseArena()
+				}()
+
+				for {
+					idx := int(nextIdx.Add(1) - 1)
+					if idx >= len(parFuncs) {
+						break
+					}
+					worker.parallelChanges = worker.parallelChanges[:0]
+					cf := parFuncs[idx]
+					worker.processFunction(cf.fn, cf.body, wsc)
+					if len(worker.parallelChanges) > 0 {
+						nodes := make([]*rhino.Node, len(worker.parallelChanges))
+						copy(nodes, worker.parallelChanges)
+						changedByFunc[idx] = nodes
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		if panicVal != nil {
+			panic(panicVal)
+		}
+		for _, nodes := range changedByFunc {
+			for _, n := range nodes {
+				f.compiler.ReportChangeToChangeScope(n)
+			}
+		}
+	}
 }
 
 // Java: FlowSensitiveInlineVariables.visit(NodeTraversal, Node, Node)
@@ -506,6 +1026,9 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		}
 
 		name := n.GetString()
+		if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVar(name) {
+			return
+		}
 
 		var def *MustBeReachingVariableDef_Definition
 		if cb.inState != nil {
@@ -517,7 +1040,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		// scope vars. We can inline those just fine.
 		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
 			// This pass only runs on local scopes.
-			!cb.outer.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, true) &&
+			!cb.outer.getCodingConvention().IsExportedWithLocal(name /* local= */, true) &&
 			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
 			cb.outer.candidates.Add(cb.outer.allocCandidate(name, def, n, cb.cfgNode))
 		}
@@ -624,21 +1147,18 @@ func fsivWalkGatherCandidates(n, parent *rhino.Node, cb *FlowSensitiveInlineVari
 			fsivWalkGatherCandidates(child, n, cb, currentNode)
 			child = next
 		}
-	case rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
+	case rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
 		if second := n.GetSecondChild(); second != nil {
 			fsivWalkGatherCandidates(second, n, cb, currentNode)
 		}
-	case rhino.Token_DO, rhino.Token_DEFAULT_CASE:
+	case rhino.Token_DEFAULT_CASE:
 		if first := n.GetFirstChild(); first != nil {
 			fsivWalkGatherCandidates(first, n, cb, currentNode)
 		}
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		if first := n.GetFirstChild(); first != nil {
-			fsivWalkGatherCandidates(first, n, cb, currentNode)
-			if last := n.GetLastChild(); last != nil && last != first {
-				fsivWalkGatherCandidates(last, n, cb, currentNode)
-			}
-		}
+	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		// Any use inside a loop node has NodeUtil_IsWithinLoop(use) == true,
+		// which CanInline always rejects. Skip loop subtrees entirely.
+		return
 	case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
 		rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE,
 		rhino.Token_DEBUGGER, rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
@@ -733,7 +1253,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	// TODO(user): Side-effect is OK sometimes. As long as there are no
 	// side-effect function down all paths to the use. Once we have all the
 	// side-effect analysis tool.
-	if c.outer.compiler.GetAstAnalyzer().MayHaveSideEffects(c.def.GetLastChild()) {
+	if c.outer.getAstAnalyzer().MayHaveSideEffects(c.def.GetLastChild()) {
 		return false
 	}
 
@@ -826,7 +1346,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 		for defParent.GetParent().IsLabel() {
 			defParent = defParent.GetParent()
 		}
-		c.outer.compiler.ReportChangeToEnclosingScope(defParent)
+		c.outer.reportChange(defParent)
 		defParent.Detach()
 		c.use.ReplaceWith(rhs)
 	} else if NodeUtil_IsNameDeclaration(defParent) {
@@ -842,7 +1362,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg("No other definitions can be inlined."))
 	}
-	c.outer.compiler.ReportChangeToEnclosingScope(useParent)
+	c.outer.reportChange(useParent)
 }
 
 func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent *rhino.Node) {
@@ -1049,15 +1569,49 @@ func fsivHasUnsafeRhsNode(n *rhino.Node) bool {
 	return false
 }
 
-func fsivHasOutOfScopeName(n *rhino.Node, usageScope *Scope) bool {
+func (f *FlowSensitiveInlineVariables) buildEnclosingScope() *Scope {
+	if f.curFn == nil || f.scopeCreator == nil {
+		return nil
+	}
+	var rootsBuf [16]*rhino.Node
+	roots := rootsBuf[:0]
+	prev := f.curFn
+	for p := prev.GetParent(); p != nil; prev, p = p, p.GetParent() {
+		if p.IsClass() && prev == p.GetSecondChild() {
+			continue
+		}
+		if p.IsComputedFieldDef() && prev == p.GetFirstChild() {
+			continue
+		}
+		if (p.IsRoot() && p.GetParent() == nil) || p.GetParent() == nil || p.IsFunction() || NodeUtil_CreatesBlockScope(p) {
+			roots = append(roots, p)
+		}
+	}
+	var parentScope *Scope
+	for i := len(roots) - 1; i >= 0; i-- {
+		parentScope = f.scopeCreator.CreateScopeOfScope(roots[i], parentScope)
+	}
+	return parentScope
+}
+
+func (f *FlowSensitiveInlineVariables) hasEnclosingSlot(name string) bool {
+	if f.curFnEnclosingScope == nil {
+		f.curFnEnclosingScope = f.buildEnclosingScope()
+	}
+	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.HasSlot(name)
+}
+
+func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n *rhino.Node, usageScope *Scope) bool {
 	if n.IsName() {
 		name := n.GetString()
 		if name != "" && !usageScope.HasSlot(name) {
-			return true
+			if c.outer == nil || !c.outer.hasEnclosingSlot(name) {
+				return true
+			}
 		}
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if fsivHasOutOfScopeName(c, usageScope) {
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		if c.hasOutOfScopeName(child, usageScope) {
 			return true
 		}
 	}
@@ -1075,7 +1629,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *S
 	if fsivHasUnsafeRhsNode(rhs) {
 		return false
 	}
-	if fsivHasOutOfScopeName(rhs, usageScope) {
+	if c.hasOutOfScopeName(rhs, usageScope) {
 		return false
 	}
 	return true
