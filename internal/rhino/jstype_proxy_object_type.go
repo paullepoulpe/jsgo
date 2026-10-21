@@ -240,6 +240,11 @@ func (p *ProxyObjectTypeBase) IsVoidable() bool {
 	return p.referencedType.IsVoidable()
 }
 
+// Java: JSType.isEnumType()
+func (p *ProxyObjectTypeBase) IsEnumType() bool {
+	return p.referencedType.IsEnumType()
+}
+
 // Java: ProxyObjectType.toMaybeEnumType()
 func (p *ProxyObjectTypeBase) ToMaybeEnumType() *EnumType {
 	return p.referencedType.ToMaybeEnumType()
@@ -293,9 +298,19 @@ func (p *ProxyObjectTypeBase) IsNativeObjectType() bool {
 	return p.referencedObjType.IsNativeObjectType()
 }
 
+// Java: JSType.isRecordType()
+func (p *ProxyObjectTypeBase) IsRecordType() bool {
+	return p.referencedType.IsRecordType()
+}
+
 // Java: ProxyObjectType.toMaybeRecordType()
 func (p *ProxyObjectTypeBase) ToMaybeRecordType() *RecordType {
 	return p.referencedType.ToMaybeRecordType()
+}
+
+// Java: JSType.isUnionType()
+func (p *ProxyObjectTypeBase) IsUnionType() bool {
+	return p.referencedType.IsUnionType()
 }
 
 // Java: ProxyObjectType.toMaybeUnionType()
@@ -303,9 +318,19 @@ func (p *ProxyObjectTypeBase) ToMaybeUnionType() *UnionType {
 	return p.referencedType.ToMaybeUnionType()
 }
 
+// Java: JSType.isFunctionType()
+func (p *ProxyObjectTypeBase) IsFunctionType() bool {
+	return p.referencedType.IsFunctionType()
+}
+
 // Java: ProxyObjectType.toMaybeFunctionType()
 func (p *ProxyObjectTypeBase) ToMaybeFunctionType() FunctionType {
 	return p.referencedType.ToMaybeFunctionType()
+}
+
+// Java: JSType.isEnumElementType()
+func (p *ProxyObjectTypeBase) IsEnumElementType() bool {
+	return p.referencedType.IsEnumElementType()
 }
 
 // Java: ProxyObjectType.toMaybeEnumElementType()
@@ -458,9 +483,19 @@ func (p *ProxyObjectTypeBase) MatchConstraint(constraint JSType) {
 	p.referencedType.MatchConstraint(constraint)
 }
 
+// Java: JSType.isTemplatizedType()
+func (p *ProxyObjectTypeBase) IsTemplatizedType() bool {
+	return p.referencedType.IsTemplatizedType()
+}
+
 // Java: ProxyObjectType.toMaybeTemplatizedType()
 func (p *ProxyObjectTypeBase) ToMaybeTemplatizedType() *TemplatizedType {
 	return p.referencedType.ToMaybeTemplatizedType()
+}
+
+// Java: JSType.isTemplateType()
+func (p *ProxyObjectTypeBase) IsTemplateType() bool {
+	return p.referencedType.IsTemplateType()
 }
 
 // Java: ProxyObjectType.toMaybeTemplateType()

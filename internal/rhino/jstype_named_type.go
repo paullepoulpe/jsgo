@@ -219,6 +219,11 @@ func (t *NamedType) AppendTo(sb *TypeStringBuilder) {
 	}
 }
 
+// Java: JSType.isNamedType()
+func (t *NamedType) IsNamedType() bool {
+	return true
+}
+
 // Java: NamedType.toMaybeNamedType()
 func (t *NamedType) ToMaybeNamedType() *NamedType {
 	return t
@@ -494,6 +499,11 @@ func (t *NamedType) IsObject() bool {
 		return t.ToMaybeEnumElementType().IsObject()
 	}
 	return t.ProxyObjectTypeBase.IsObject()
+}
+
+// Java: JSType.isObjectType()
+func (t *NamedType) IsObjectType() bool {
+	return t.IsObject()
 }
 
 // Java: NamedType.visit(Visitor<T>)

@@ -146,6 +146,11 @@ func (t *TemplatizedType) VisitRelationship(visitor RelationshipVisitor, that JS
 	return visitor.CaseTemplatizedType(t, that)
 }
 
+// Java: JSType.isTemplatizedType()
+func (t *TemplatizedType) IsTemplatizedType() bool {
+	return true
+}
+
 // Java: TemplatizedType.toMaybeTemplatizedType()
 func (t *TemplatizedType) ToMaybeTemplatizedType() *TemplatizedType {
 	return t

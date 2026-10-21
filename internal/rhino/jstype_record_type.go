@@ -183,6 +183,11 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 	return greatestSubtype
 }
 
+// Java: JSType.isRecordType()
+func (t *RecordType) IsRecordType() bool {
+	return true
+}
+
 // Java: RecordType.toMaybeRecordType()
 func (t *RecordType) ToMaybeRecordType() *RecordType {
 	return t

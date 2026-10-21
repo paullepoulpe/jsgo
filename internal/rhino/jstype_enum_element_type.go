@@ -99,6 +99,11 @@ func (t *EnumElementType) GetPropertyMap() *PropertyMap {
 	return t.primitiveObjectType.GetPropertyMap()
 }
 
+// Java: JSType.isEnumElementType()
+func (t *EnumElementType) IsEnumElementType() bool {
+	return true
+}
+
 // Java: EnumElementType.toMaybeEnumElementType()
 func (t *EnumElementType) ToMaybeEnumElementType() *EnumElementType {
 	return t
@@ -131,6 +136,11 @@ func (t *EnumElementType) CanBeCalled() bool {
 
 // Java: EnumElementType.isObject()
 func (t *EnumElementType) IsObject() bool {
+	return t.primitiveType.IsObject()
+}
+
+// Java: JSType.isObjectType()
+func (t *EnumElementType) IsObjectType() bool {
 	return t.primitiveType.IsObject()
 }
 

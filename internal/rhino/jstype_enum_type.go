@@ -136,6 +136,11 @@ func (t *EnumType) GetTypeClass() JSTypeClass {
 	return EnumType_TYPE_CLASS
 }
 
+// Java: JSType.isEnumType()
+func (t *EnumType) IsEnumType() bool {
+	return true
+}
+
 // Java: EnumType.toMaybeEnumType()
 func (t *EnumType) ToMaybeEnumType() *EnumType {
 	return t
