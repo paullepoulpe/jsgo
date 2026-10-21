@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"iter"
 	"math/bits"
 	"strings"
 
@@ -1500,10 +1501,32 @@ func (i *JSDocInfo) HasParameterType(parameter string) bool {
 // Java: JSDocInfo.getParameterNames()
 func (i *JSDocInfo) GetParameterNames() *jutil.LinkedHashSet[string] {
 	params := i.parameters()
-	if params != nil {
-		return jutil.NewLinkedHashSet(params.KeySlice()...)
+	if params != nil && !params.IsEmpty() {
+		set := jutil.NewLinkedHashSet[string]()
+		for name := range params.Keys() {
+			set.Add(name)
+		}
+		return set
 	}
-	return jutil.NewLinkedHashSet[string]()
+	return jsDocInfo_noSuppressions
+}
+
+// ParameterNames iterates the defined parameter names in JSDoc definition order without allocating a set.
+func (i *JSDocInfo) ParameterNames() iter.Seq[string] {
+	params := i.parameters()
+	if params == nil {
+		return func(func(string) bool) {}
+	}
+	return params.Keys()
+}
+
+// ParameterTypes iterates the defined parameter type expressions in JSDoc definition order without allocating a set.
+func (i *JSDocInfo) ParameterTypes() iter.Seq[*JSTypeExpression] {
+	params := i.parameters()
+	if params == nil {
+		return func(func(*JSTypeExpression) bool) {}
+	}
+	return params.Values()
 }
 
 // GetParameterNameAt returns the nth name in the defined parameters. The
@@ -1513,10 +1536,13 @@ func (i *JSDocInfo) GetParameterNames() *jutil.LinkedHashSet[string] {
 // Java: JSDocInfo.getParameterNameAt(int)
 func (i *JSDocInfo) GetParameterNameAt(index int) *string {
 	params := i.parameters()
-	if params == nil || index >= params.Size() {
+	if params == nil {
 		return nil
 	}
-	name := params.KeySlice()[index]
+	name, ok := params.KeyAt(index)
+	if !ok {
+		return nil
+	}
 	return &name
 }
 
@@ -1936,6 +1962,11 @@ func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 		// included).
 		return jsDocInfo_noSuppressions
 	}
+	if suppressions.Size() == 1 {
+		for nameSet := range suppressions.Keys() {
+			return nameSet
+		}
+	}
 	names := jutil.NewLinkedHashSet[string]()
 	for nameSet := range suppressions.Keys() {
 		for name := range nameSet.All() {
@@ -1972,7 +2003,7 @@ func (i *JSDocInfo) GetModifies() *jutil.LinkedHashSet[string] {
 	if modifies != nil {
 		return modifies
 	}
-	return jutil.NewLinkedHashSet[string]()
+	return jsDocInfo_noSuppressions
 }
 
 func (i *JSDocInfo) parameterDescriptions() *jutil.LinkedHashMap[string, string] {
@@ -2104,13 +2135,18 @@ func (i *JSDocInfo) GetTemplateTypeNames() []string {
 	return []string{}
 }
 
+var (
+	jsDocInfo_noTemplateTypes       = jutil.NewLinkedHashMap[string, *JSTypeExpression]()
+	jsDocInfo_noTypeTransformations = jutil.NewLinkedHashMap[string, *Node]()
+)
+
 // Java: JSDocInfo.getTemplateTypes()
 func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpression] {
 	m := i.templateTypeNames()
 	if m != nil {
-		return jutil.NewLinkedHashMapFrom(m)
+		return m
 	}
-	return jutil.NewLinkedHashMap[string, *JSTypeExpression]()
+	return jsDocInfo_noTemplateTypes
 }
 
 // GetTypeTransformations gets the type transformations.
@@ -2119,9 +2155,9 @@ func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpre
 func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, *Node] {
 	m := jsdocGet[*jutil.LinkedHashMap[string, *Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i))
 	if m != nil {
-		return jutil.NewLinkedHashMapFrom(m)
+		return m
 	}
-	return jutil.NewLinkedHashMap[string, *Node]()
+	return jsDocInfo_noTypeTransformations
 }
 
 // GetTypeExpressions returns a collection of all JSTypeExpressions that are
@@ -2219,7 +2255,8 @@ func (i *JSDocInfo) GetOriginalCommentPosition() int {
 //
 // Java: JSDocInfo.modifiesThis()
 func (i *JSDocInfo) ModifiesThis() bool {
-	return i.GetModifies().Contains("this")
+	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.Get(i))
+	return modifies != nil && modifies.Contains("this")
 }
 
 // HasSideEffectsArgumentsAnnotation returns whether the @modifies annotation
@@ -2227,10 +2264,13 @@ func (i *JSDocInfo) ModifiesThis() bool {
 //
 // Java: JSDocInfo.hasSideEffectsArgumentsAnnotation()
 func (i *JSDocInfo) HasSideEffectsArgumentsAnnotation() bool {
-	modifies := i.GetModifies()
+	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.Get(i))
+	if modifies == nil {
+		return false
+	}
 	// TODO(johnlenz): if we start tracking parameters individually this should
 	// simply be a check for "arguments".
-	return (modifies.Size() > 1 || (modifies.Size() == 1 && !modifies.Contains("this")))
+	return modifies.Size() > 1 || (modifies.Size() == 1 && !modifies.Contains("this"))
 }
 
 // GetLogTypeInCompiler returns whether we should log the type of values
@@ -2801,7 +2841,8 @@ func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *juti
 //
 // Java: JSDocInfo.Builder.recordSuppressions(Set<String>)
 func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet[string]) {
-	b.RecordSuppressionsWithDescription(jutil.NewLinkedHashSet(suppressions.ToSlice()...), "")
+	jutil.CheckNotNull(suppressions)
+	b.RecordSuppressionsWithDescription(suppressions, "")
 }
 
 // Java: JSDocInfo.Builder.recordSuppression(String)

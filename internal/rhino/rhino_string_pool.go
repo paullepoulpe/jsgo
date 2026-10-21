@@ -68,7 +68,7 @@ type RhinoStringPool struct{}
 // strings interned before.
 const (
 	rhinoStringPool_SHARDS         = 64
-	rhinoStringPool_MAX_SHARD_SIZE = 65536
+	rhinoStringPool_MAX_SHARD_SIZE = 56000
 )
 
 type rhinoStringPoolShard struct {
@@ -108,13 +108,34 @@ func (s *rhinoStringPoolShard) allocStringFromBytes(b []byte) string {
 var rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
 
 func rhinoStringPoolShardFor(s string) *rhinoStringPoolShard {
-	h := uint32(len(s)) * 2654435761
-	if n := len(s); n > 0 {
-		h ^= uint32(s[0]) * 2246822519
-		h ^= uint32(s[n>>1]) * 3266489917
-		h ^= uint32(s[n-1]) * 668265263
+	n := len(s)
+	if n == 0 {
+		return &rhinoStringPool_shards[0]
 	}
-	return &rhinoStringPool_shards[(h^(h>>16))&(rhinoStringPool_SHARDS-1)]
+	p := unsafe.Pointer(unsafe.StringData(s))
+	var h uint64
+	if n >= 8 {
+		v0 := *(*uint64)(p)
+		v1 := *(*uint64)(unsafe.Add(p, n-8))
+		if n <= 16 {
+			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
+		} else {
+			v2 := *(*uint64)(unsafe.Add(p, n-16))
+			v3 := *(*uint64)(unsafe.Add(p, n>>1))
+			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) +
+				(v2*0x94d049bb133111eb ^ v3*0x2545f4914f6cdd1d) + uint64(n)
+		}
+	} else if n >= 4 {
+		v0 := uint64(*(*uint32)(p))
+		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
+		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
+	} else {
+		u := (uint32(s[0]) | (uint32(s[n>>1]) << 8) | (uint32(s[n-1]) << 16) | (uint32(n) << 24)) * 0xcc9e2d51
+		return &rhinoStringPool_shards[(u^(u>>16))&(rhinoStringPool_SHARDS-1)]
+	}
+	h ^= h >> 33
+	h *= 0xff51afd7ed558ccd
+	return &rhinoStringPool_shards[uint32(h^(h>>32))&(rhinoStringPool_SHARDS-1)]
 }
 
 func rhinoStringPoolClearForTest() {
@@ -197,6 +218,35 @@ func rhinoStringPoolCell(s string) *string {
 	return interned
 }
 
+func rhinoStringPoolCellOwned(s string) *string {
+	shard := rhinoStringPoolShardFor(s)
+	shard.mu.RLock()
+	if shard.strings != nil {
+		if interned, ok := shard.strings[s]; ok {
+			shard.mu.RUnlock()
+			return interned
+		}
+	}
+	shard.mu.RUnlock()
+
+	shard.mu.Lock()
+	if shard.strings == nil {
+		shard.strings = make(map[string]*string, 64)
+	} else if interned, ok := shard.strings[s]; ok {
+		shard.mu.Unlock()
+		return interned
+	}
+	if len(shard.strings) >= rhinoStringPool_MAX_SHARD_SIZE {
+		clear(shard.strings)
+		shard.cellSlab = nil
+		shard.byteSlab = nil
+	}
+	interned := shard.allocCell(s)
+	shard.strings[s] = interned
+	shard.mu.Unlock()
+	return interned
+}
+
 // Java: RhinoStringPool()
 func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 
@@ -208,10 +258,10 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // This is a performance win if creating a lot of string nodes with the same
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
-	pool  *jutil.ArrayList[string]
-	cells []*string
-
-	isInterned *RhinoStringPool_WriteOnlyBitset
+	pool         *jutil.ArrayList[string]
+	cells        []*string
+	isInterned   *RhinoStringPool_WriteOnlyBitset
+	ownedStrings bool
 }
 
 // Java: RhinoStringPool.LazyInternedStringList(List<String>)
@@ -220,6 +270,17 @@ func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_L
 		pool:       jutil.NewArrayListFrom(pool),
 		cells:      make([]*string, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
+	}
+}
+
+// NewRhinoStringPool_LazyInternedStringListOwned creates a LazyInternedStringList
+// whose strings already own independent backing memory (not substrings of a larger buffer).
+func NewRhinoStringPool_LazyInternedStringListOwned(pool []string) *RhinoStringPool_LazyInternedStringList {
+	return &RhinoStringPool_LazyInternedStringList{
+		pool:         jutil.NewArrayListFrom(pool),
+		cells:        make([]*string, len(pool)),
+		isInterned:   NewRhinoStringPool_WriteOnlyBitset(len(pool)),
+		ownedStrings: true,
 	}
 }
 
@@ -233,7 +294,12 @@ func (l *RhinoStringPool_LazyInternedStringList) GetCell(offset int) *string {
 		_ = l.isInterned.Get(offset)
 	}
 	uninterned := l.pool.Get(offset)
-	cell := rhinoStringPoolCell(uninterned)
+	var cell *string
+	if l.ownedStrings {
+		cell = rhinoStringPoolCellOwned(uninterned)
+	} else {
+		cell = rhinoStringPoolCell(uninterned)
+	}
 	l.pool.Set(offset, *cell)
 	l.cells[offset] = cell
 	l.isInterned.Set(offset) // must happen after this.pool.set() to avoid a race condition

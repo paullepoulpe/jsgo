@@ -527,6 +527,28 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 	}
 }
 
+// KeyAt returns the index-th key in insertion order without allocating a slice.
+func (h *LinkedHashMap[K, V]) KeyAt(index int) (K, bool) {
+	var zero K
+	if h == nil || index < 0 || index >= int(h.size) {
+		return zero, false
+	}
+	if h.first == 0 && (h.m == nil || len(h.m.removed) == 0) {
+		return h.slots[index].key, true
+	}
+	cur := 0
+	for i := int(h.first); i < len(h.slots); i++ {
+		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			continue
+		}
+		if cur == index {
+			return h.slots[i].key, true
+		}
+		cur++
+	}
+	return zero, false
+}
+
 // Keys iterates keys in insertion order (Java: map.keySet()).
 //
 // Go-only: performance — Keys, Values and the sets' All walk the slot slice

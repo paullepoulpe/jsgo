@@ -64,8 +64,19 @@ func scopeNameHash(s string) uint32 {
 	if n >= 8 {
 		v0 := *(*uint64)(p)
 		v1 := *(*uint64)(unsafe.Add(p, n-8))
-		v2 := uint64(*(*uint32)(unsafe.Add(p, n>>1)))
-		h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9 ^ v2) + uint64(n)*0x94d049bb133111eb
+		if n <= 16 {
+			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
+		} else if n <= 32 {
+			v2 := *(*uint64)(unsafe.Add(p, 8))
+			v3 := *(*uint64)(unsafe.Add(p, n-16))
+			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) +
+				(v2*0x94d049bb133111eb ^ v3*0x2545f4914f6cdd1d) + uint64(n)
+		} else {
+			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
+			for off := 8; off+8 < n; off += 8 {
+				h = (h ^ *(*uint64)(unsafe.Add(p, off))) * 0x9e3779b97f4a7c15
+			}
+		}
 	} else if n >= 4 {
 		v0 := uint64(*(*uint32)(p))
 		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))

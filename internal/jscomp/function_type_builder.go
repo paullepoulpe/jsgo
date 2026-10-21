@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -734,7 +735,7 @@ func (f *FunctionTypeBuilder) InferThisType(info *rhino.JSDocInfo) *FunctionType
 func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *FunctionTypeBuilder {
 	// Create a fake args parent.
 	lp := rhino.IR_ParamList()
-	for name := range info.GetParameterNames().All() {
+	for name := range info.ParameterNames() {
 		lp.AddChildToBack(rhino.IR_Name(name))
 	}
 
@@ -770,10 +771,9 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 
 	builder := rhino.NewFunctionParamBuilder(f.typeRegistry)
 	warnedAboutArgList := false
-	var allJsDocParams *jutil.LinkedHashSet[string]
-	if info != nil && info.GetParameterCount() > 0 {
-		allJsDocParams = info.GetParameterNames()
-	}
+	hasJsDocParams := info != nil && info.GetParameterCount() > 0
+	var seenParamNamesBuf [8]string
+	seenParamNames := seenParamNamesBuf[:0]
 	isVarArgs := false
 	paramIndex := 0
 	for param := paramsParent.GetFirstChild(); param != nil; param = param.GetNext() {
@@ -810,16 +810,17 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 				}
 			}
 		}
-		// Go-only: language-adapter — Set.remove(null) and
-		// JSDocInfo.hasParameterType(null) are no-ops/false in Java.
-		if hasParamName && allJsDocParams != nil {
-			allJsDocParams.Remove(paramName)
+		if hasParamName && hasJsDocParams {
+			seenParamNames = append(seenParamNames, paramName)
 		}
 
 		// type from JSDocInfo
 		var parameterType rhino.JSType
-		if info != nil && hasParamName && info.HasParameterType(paramName) {
-			parameterTypeExpression := info.GetParameterType(paramName)
+		var parameterTypeExpression *rhino.JSTypeExpression
+		if info != nil && hasParamName {
+			parameterTypeExpression = info.GetParameterType(paramName)
+		}
+		if parameterTypeExpression != nil {
 			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
 			isOptionalParam = isOptionalParam || parameterTypeExpression.IsOptionalArg()
 			isVarArgs = isVarArgs || parameterTypeExpression.IsVarArgs()
@@ -858,9 +859,11 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 		}
 	}
 
-	if allJsDocParams != nil {
-		for inexistentName := range allJsDocParams.All() {
-			f.ReportWarning(FunctionTypeBuilder_INEXISTENT_PARAM, inexistentName, f.FormatFnName())
+	if hasJsDocParams {
+		for jsDocParam := range info.ParameterNames() {
+			if !slices.Contains(seenParamNames, jsDocParam) {
+				f.ReportWarning(FunctionTypeBuilder_INEXISTENT_PARAM, jsDocParam, f.FormatFnName())
+			}
 		}
 	}
 

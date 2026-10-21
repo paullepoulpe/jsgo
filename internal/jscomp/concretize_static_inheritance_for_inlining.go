@@ -266,7 +266,7 @@ type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 	inheritsCalls *jutil.ArrayList[*rhino.Node]
 	// Store the order we find class definitions and static fields.  Copied statics must occur
 	// after both the namespace and the copied property are defined.
-	nodeOrder *jutil.LinkedHashMap[*rhino.Node, int]
+	nodeOrder map[*rhino.Node]int
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers()
@@ -274,7 +274,7 @@ func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer *Concreti
 	return &ConcretizeStaticInheritanceForInlining_FindStaticMembers{
 		outer:         outer,
 		inheritsCalls: jutil.NewArrayList[*rhino.Node](),
-		nodeOrder:     jutil.NewLinkedHashMap[*rhino.Node, int](),
+		nodeOrder:     make(map[*rhino.Node]int),
 	}
 }
 
@@ -284,7 +284,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 	case rhino.Token_CALL:
 		if f.outer.inherits.Matches(n.GetFirstChild()) {
 			f.inheritsCalls.Add(n)
-			f.nodeOrder.Put(n, f.nodeOrder.Size())
+			f.nodeOrder[n] = len(f.nodeOrder)
 		}
 		if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
 			f.VisitDefinedPropertiesCall(t, n)
@@ -349,7 +349,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t
 		classNode := getProp.GetFirstChild()
 		if f.outer.IsReferenceToClass(t, classNode) && !ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES.Contains(getProp.GetString()) {
 			f.outer.classByAliasGet(classNode.GetQualifiedName()).AddStaticMember(n)
-			f.nodeOrder.Put(n, f.nodeOrder.Size())
+			f.nodeOrder[n] = len(f.nodeOrder)
 		}
 	}
 }
@@ -371,7 +371,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariable
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.isBefore(Node, Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) IsBefore(earlier *rhino.Node, later *rhino.Node) bool {
-	earlierPosition, earlierOk := f.nodeOrder.Lookup(earlier)
-	laterPosition, laterOk := f.nodeOrder.Lookup(later)
+	earlierPosition, earlierOk := f.nodeOrder[earlier]
+	laterPosition, laterOk := f.nodeOrder[later]
 	return earlierOk && laterOk && earlierPosition < laterPosition
 }

@@ -218,7 +218,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 
 	if info.GetParameterCount() > 0 {
 		multiline = true
-		for name := range info.GetParameterNames().All() {
+		for name := range info.ParameterNames() {
 			parts = append(parts, "@param "+p.BuildParamType(info, name))
 		}
 	}

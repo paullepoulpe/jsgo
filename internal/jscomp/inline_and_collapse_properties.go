@@ -1620,7 +1620,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 		if isAllowedToCollapse {
 			if inlinability.CanCollapse() {
 				c.LogDecisionForNameWithInlinability(p, inlinability, "will flatten references")
-				c.FlattenReferencesTo(p, propAlias)
+				c.flattenReferencesTo(p, propAlias, escaped)
 			} else if p.IsCollapsingExplicitlyDenied() {
 				c.LogDecisionForName(p, "@nocollapse: will not flatten references")
 			} else if p.IsSimpleStubDeclaration() {
@@ -1718,6 +1718,12 @@ func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(d
 		c.outer.compiler.GetCodingConvention().IsConstant(collapsedName)
 }
 
+func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p *GlobalNamespace_Name) bool {
+	isAllowedToCollapse :=
+		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
+	return isAllowedToCollapse && p.CanCollapseOrInline().CanCollapse()
+}
+
 // FlattenReferencesTo flattens all references to a collapsible property of a
 // global name except its initial definition.
 //
@@ -1726,6 +1732,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(d
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesTo(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *GlobalNamespace_Name, alias string) {
+	c.flattenReferencesTo(n, alias, nil)
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
+	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
 	originalName := n.GetFullName()
 	var declarationNode *rhino.Node
 	if n.GetDeclaration() != nil {
@@ -1754,9 +1765,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *
 	// example, if `n` corresponds to the name "a.b", then "a.b" will be
 	// replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
 	if n.props != nil {
+		descendantsVisited := escaped != nil && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
 		for p := range n.props.All() {
 			if flattenPrefixesHasWork(p) {
-				c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, 1, isConstantName)
+				c.flattenPrefixes(alias, originalName+p.GetBaseName(), p, 1, isConstantName, escaped, descendantsVisited)
 			}
 		}
 	}
@@ -1786,11 +1798,31 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	alias string, originalName string, n *GlobalNamespace_Name, depth int, isConstantName bool) {
+	c.flattenPrefixes(alias, originalName, n, depth, isConstantName, nil, false)
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixes(
+	alias string,
+	originalName string,
+	n *GlobalNamespace_Name,
+	depth int,
+	isConstantName bool,
+	escaped *jutil.LinkedHashSet[*GlobalNamespace_Name],
+	descendantsVisited bool) {
 	// Only flatten the prefix of a name declaration if the name being
 	// initialized is fully qualified (i.e. not an object literal key).
 	decl := n.getDeclarationRef()
 	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
 		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, originalName, isConstantName)
+	}
+
+	// If FlattenReferencesToCollapsibleDescendantNames will visit n and call
+	// flattenReferencesTo(n, ...), then every non-declaration GETPROP ref in
+	// n.GetRefs() and every prefix in n.props will be replaced with n's own
+	// collapsed alias, completely overwriting any intermediate prefix node
+	// created here for n's ancestor.
+	if descendantsVisited && c.willFlattenReferences(n) {
+		return
 	}
 
 	for _, r := range n.GetRefs() {
@@ -1803,9 +1835,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	}
 
 	if n.props != nil {
+		nextDescendantsVisited := descendantsVisited && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
 		for p := range n.props.All() {
 			if flattenPrefixesHasWork(p) {
-				c.FlattenPrefixes(alias, originalName+p.GetBaseName(), p, depth+1, isConstantName)
+				c.flattenPrefixes(alias, originalName+p.GetBaseName(), p, depth+1, isConstantName, escaped, nextDescendantsVisited)
 			}
 		}
 	}

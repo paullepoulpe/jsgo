@@ -3402,8 +3402,8 @@ func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n *rhino.Node, i
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
 	if info.GetParameterCount() > 0 {
-		for param := range info.GetParameterNames().All() {
-			tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterType(param))
+		for paramType := range info.ParameterTypes() {
+			tc.CheckTypeContainsObjectWithBadKey(n, paramType)
 		}
 	}
 }

@@ -92,6 +92,24 @@ func Wtf8_Decoder_(maxLength int) *Wtf8_Decoder {
 type Wtf8_Decoder struct {
 	codepointBuffer []int32
 	unitBuffer      []uint16
+	byteSlab        []byte
+}
+
+func (d *Wtf8_Decoder) allocASCIIString(b []byte) string {
+	n := len(b)
+	if n == 0 {
+		return ""
+	}
+	if n > 4096 {
+		return string(b)
+	}
+	if len(d.byteSlab) < n {
+		d.byteSlab = make([]byte, 65536)
+	}
+	buf := d.byteSlab[:n]
+	d.byteSlab = d.byteSlab[n:]
+	copy(buf, b)
+	return unsafe.String(&buf[0], n)
 }
 
 func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
@@ -137,7 +155,7 @@ func wtf8_byteAt(encoded []byte, i int) int32 {
 func (d *Wtf8_Decoder) Decode(encoded []byte) string {
 	encodedByteCount := len(encoded)
 	if encodedByteCount <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
-		return string(encoded)
+		return d.allocASCIIString(encoded)
 	}
 	codepointCount := 0
 

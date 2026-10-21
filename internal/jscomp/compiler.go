@@ -2979,6 +2979,9 @@ func (c *Compiler) evictPassArenaCaches() {
 	if ic := cachedInferConstsCollector.Swap(nil); ic != nil {
 		inferConstsCollectorPool.Put(ic)
 	}
+	if p := cachedIfPoolState.Swap(nil); p != nil && len(p.fnStateChunks) <= 64 {
+		ifPool.Put(p)
+	}
 }
 
 // ToSource converts the main parse tree back to JS code.

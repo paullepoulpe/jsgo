@@ -42,11 +42,14 @@ type FunctionInjector struct {
 	paramReplacementsScratch *jutil.LinkedHashMap[string, *rhino.Node]
 	decomposer               *ExpressionDecomposer
 
-	// Cache of function node to whether it deeply contains an `eval` call.
-	referencesEvalCache *jutil.LinkedHashMap[*rhino.Node, bool]
+	// Combined cache of function node to whether it deeply contains an `eval`
+	// call (evalState: 0 = unknown, 1 = false, 2 = true) and any inner function.
+	fnInfoCache map[*rhino.Node]functionInjectorFnInfo
+}
 
-	// Cache of function node to any inner function.
-	innerFunctionCache *jutil.LinkedHashMap[*rhino.Node, *rhino.Node]
+type functionInjectorFnInfo struct {
+	inner     *rhino.Node
+	evalState uint8
 }
 
 // Sentinel value indicating that the key contains no functions.
@@ -61,8 +64,6 @@ func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	f := &FunctionInjector{
 		knownConstantFunctions:   jutil.NewLinkedHashSet[string](),
 		paramReplacementsScratch: jutil.NewLinkedHashMap[string, *rhino.Node](),
-		referencesEvalCache:      jutil.NewLinkedHashMap[*rhino.Node, bool](),
-		innerFunctionCache:       jutil.NewLinkedHashMap[*rhino.Node, *rhino.Node](),
 	}
 	// The anonymous Supplier<String> throwawayNameSupplier, with its nextId
 	// field.
@@ -913,12 +914,21 @@ func functionInjector_referencesEval(n *rhino.Node, rootFn *rhino.Node) bool {
 func (f *FunctionInjector) ReferencesEval(fn *rhino.Node) bool {
 	jutil.CheckState(fn.IsFunction())
 
-	if cached, ok := f.referencesEvalCache.Lookup(fn); ok {
-		return cached
+	info := f.fnInfoCache[fn]
+	if info.evalState != 0 {
+		return info.evalState == 2
 	}
 
 	result := functionInjector_referencesEval(fn, fn)
-	f.referencesEvalCache.Put(fn, result)
+	if f.fnInfoCache == nil {
+		f.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, 64)
+	}
+	if result {
+		info.evalState = 2
+	} else {
+		info.evalState = 1
+	}
+	f.fnInfoCache[fn] = info
 	return result
 }
 
@@ -967,15 +977,16 @@ func functionInjector_findInnerFunctions(n *rhino.Node, containerFn *rhino.Node,
 func (f *FunctionInjector) InnerFunctionOf(containerFn *rhino.Node) *rhino.Node {
 	jutil.CheckState(containerFn.IsFunction())
 
-	cached := f.innerFunctionCache.Get(containerFn)
-	if cached != nil {
-		return cached
+	info := f.fnInfoCache[containerFn]
+	if info.inner != nil {
+		return info.inner
 	}
 
 	var firstInner *rhino.Node
 	count := 0
 	functionInjector_findInnerFunctions(containerFn, containerFn, &firstInner, &count)
 
+	var cached *rhino.Node
 	switch count {
 	case 0:
 		cached = FunctionInjector_NO_FUNCTIONS
@@ -985,7 +996,11 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn *rhino.Node) *rhino.Node 
 		cached = FunctionInjector_MULTIPLE_FUNCTIONS
 	}
 
-	f.innerFunctionCache.Put(containerFn, cached)
+	if f.fnInfoCache == nil {
+		f.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, 64)
+	}
+	info.inner = cached
+	f.fnInfoCache[containerFn] = info
 	return cached
 }
 

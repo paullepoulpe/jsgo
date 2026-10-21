@@ -30,79 +30,106 @@ import (
 // TODO(stalcup): save memory by unlinking events older than the oldest
 // marked time.
 type Timeline[T comparable] struct {
-	eventsByTime  *jutil.LinkedHashMap[timeline_Time, *timeline_Event]
-	eventsByValue *jutil.LinkedHashMap[T, *timeline_Event]
-
-	// In practice headEvent is Event<Time> or Event<T>
-	headEvent *timeline_Event
+	eventsByTime  map[string]*timeline_Event[T]
+	eventsByValue map[T]*timeline_Event[T]
+	headEvent     *timeline_Event[T]
+	freeEvent     *timeline_Event[T]
+	eventSlab     []timeline_Event[T]
 }
 
 // timeline_Event is Timeline.Event<T>.
-//
-// Go-only: language-adapter — Event<?> holds either a T or a Time, so the
-// value is stored as `any`.
-type timeline_Event struct {
-	nextEvent     *timeline_Event
-	previousEvent *timeline_Event
-	value         any
+type timeline_Event[T comparable] struct {
+	nextEvent     *timeline_Event[T]
+	previousEvent *timeline_Event[T]
+	value         T
+	isTime        bool
 }
 
-// Java: Timeline.Event(T)
-func newTimeline_Event(value any) *timeline_Event {
-	jutil.CheckNotNull(value)
-	return &timeline_Event{value: value}
-}
-
-// timeline_Time is Timeline.Time; its equals/hashCode compare the name, so
-// it is a Go value type keyed by that name.
-type timeline_Time struct {
-	name string
-}
-
-// Java: Timeline.Time(String)
-func newTimeline_Time(name string) timeline_Time {
-	return timeline_Time{name: name}
+func (tl *Timeline[T]) allocEvent(value T, isTime bool) *timeline_Event[T] {
+	if e := tl.freeEvent; e != nil {
+		tl.freeEvent = e.nextEvent
+		*e = timeline_Event[T]{value: value, isTime: isTime}
+		return e
+	}
+	if len(tl.eventSlab) == 0 {
+		tl.eventSlab = make([]timeline_Event[T], 256)
+	}
+	e := &tl.eventSlab[0]
+	tl.eventSlab = tl.eventSlab[1:]
+	e.value = value
+	e.isTime = isTime
+	return e
 }
 
 // NewTimeline is new Timeline<>().
 func NewTimeline[T comparable]() *Timeline[T] {
-	return &Timeline[T]{
-		eventsByTime:  jutil.NewLinkedHashMap[timeline_Time, *timeline_Event](),
-		eventsByValue: jutil.NewLinkedHashMap[T, *timeline_Event](),
-		headEvent:     newTimeline_Event(newTimeline_Time("-beginning-")),
+	tl := &Timeline[T]{
+		eventsByTime:  make(map[string]*timeline_Event[T]),
+		eventsByValue: make(map[T]*timeline_Event[T]),
 	}
+	var zero T
+	tl.headEvent = tl.allocEvent(zero, true)
+	return tl
 }
 
 // Java: Timeline.add(T)
 func (tl *Timeline[T]) Add(value T) {
-	timeline_addEvent(tl, value, tl.eventsByValue)
+	jutil.CheckNotNull(value)
+	event := tl.eventsByValue[value]
+	if tl.headEvent == event {
+		return
+	}
+	if event != nil {
+		event.previousEvent.nextEvent = event.nextEvent
+		event.nextEvent.previousEvent = event.previousEvent
+		event.nextEvent = nil
+	} else {
+		event = tl.allocEvent(value, false)
+		tl.eventsByValue[value] = event
+	}
+	event.previousEvent = tl.headEvent
+	tl.headEvent.nextEvent = event
+	tl.headEvent = event
 }
 
 // Java: Timeline.remove(T)
 func (tl *Timeline[T]) Remove(value T) {
-	event := tl.eventsByValue.Remove(value)
-
-	// If the event already exists somewhere else in the history then...
+	event := tl.eventsByValue[value]
 	if event != nil {
-		// make the rest of the list not reference it...
+		delete(tl.eventsByValue, value)
 		if event.nextEvent != nil {
 			event.nextEvent.previousEvent = event.previousEvent
 		} else {
-			// if it was the head element then back the head reference up one
-			// node.
 			tl.headEvent = event.previousEvent
 		}
 		event.previousEvent.nextEvent = event.nextEvent
 
-		// make it not reference the rest of the list.
-		event.nextEvent = nil
+		var zero T
+		event.value = zero
 		event.previousEvent = nil
+		event.nextEvent = tl.freeEvent
+		tl.freeEvent = event
 	}
 }
 
 // Java: Timeline.mark(String)
 func (tl *Timeline[T]) Mark(timeName string) {
-	timeline_addEvent(tl, newTimeline_Time(timeName), tl.eventsByTime)
+	event := tl.eventsByTime[timeName]
+	if tl.headEvent == event {
+		return
+	}
+	if event != nil {
+		event.previousEvent.nextEvent = event.nextEvent
+		event.nextEvent.previousEvent = event.previousEvent
+		event.nextEvent = nil
+	} else {
+		var zero T
+		event = tl.allocEvent(zero, true)
+		tl.eventsByTime[timeName] = event
+	}
+	event.previousEvent = tl.headEvent
+	tl.headEvent.nextEvent = event
+	tl.headEvent = event
 }
 
 // GetSince returns the values added since the named time, or nil (Java
@@ -110,46 +137,15 @@ func (tl *Timeline[T]) Mark(timeName string) {
 //
 // Java: Timeline.getSince(String)
 func (tl *Timeline[T]) GetSince(timeName string) []T {
-	values := []T{}
-	firstEvent := tl.eventsByTime.Get(newTimeline_Time(timeName))
+	firstEvent := tl.eventsByTime[timeName]
 	if firstEvent == nil {
 		return nil
 	}
-
+	values := []T{}
 	for event := firstEvent; event != nil; event = event.nextEvent {
-		// If the event contains a user provided value, accumulate it.
-		if _, isTime := event.value.(timeline_Time); !isTime {
-			values = append(values, event.value.(T))
+		if !event.isTime {
+			values = append(values, event.value)
 		}
 	}
 	return values
-}
-
-// In practice V is either T or Time.
-//
-// Java: Timeline.addEvent(V, Map<V, Event<V>>)
-func timeline_addEvent[T comparable, V comparable](tl *Timeline[T], value V, eventsByKey *jutil.LinkedHashMap[V, *timeline_Event]) {
-	event := eventsByKey.Get(value)
-
-	// If the event already exists and is already at the front, do nothing.
-	if tl.headEvent == event {
-		return
-	}
-
-	// If the event already exists somewhere else in the history then...
-	if event != nil {
-		// cut it out of the linked list...
-		event.previousEvent.nextEvent = event.nextEvent
-		event.nextEvent.previousEvent = event.previousEvent
-		event.nextEvent = nil
-	} else {
-		// Otherwise create and track an event for the given value.
-		event = newTimeline_Event(value)
-		eventsByKey.Put(value, event)
-	}
-
-	// Regardless, stick the event at the front.
-	event.previousEvent = tl.headEvent
-	tl.headEvent.nextEvent = event
-	tl.headEvent = event
 }

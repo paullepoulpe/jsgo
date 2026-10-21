@@ -22,15 +22,17 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 const (
-	ifStateChunkSize = 512
-	ifRefChunkSize   = 512
-	ifFnChunkSize    = 512
+	ifStateChunkSize   = 512
+	ifRefChunkSize     = 512
+	ifRefSlotChunkSize = 1024
+	ifFnChunkSize      = 512
 )
 
 type inlineFunctionsPoolState struct {
@@ -49,6 +51,10 @@ type inlineFunctionsPoolState struct {
 	refIdx    int
 	refUsed   int
 
+	refSlotChunks [][]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference]
+	refSlotIdx    int
+	refSlotUsed   int
+
 	namedFnChunks [][]InlineFunctions_NamedFunction
 	namedFnIdx    int
 	namedFnUsed   int
@@ -61,12 +67,19 @@ type inlineFunctionsPoolState struct {
 	fnExprIdx    int
 	fnExprUsed   int
 
-	movedArgs map[*rhino.Node]struct{}
+	movedArgs   map[*rhino.Node]struct{}
+	fnInfoCache map[*rhino.Node]functionInjectorFnInfo
 }
 
-var ifPool sync.Pool
+var (
+	cachedIfPoolState atomic.Pointer[inlineFunctionsPoolState]
+	ifPool            sync.Pool
+)
 
 func acquireIfPoolState() *inlineFunctionsPoolState {
+	if p := cachedIfPoolState.Swap(nil); p != nil {
+		return p
+	}
 	if v := ifPool.Get(); v != nil {
 		return v.(*inlineFunctionsPoolState)
 	}
@@ -79,9 +92,6 @@ func acquireIfPoolState() *inlineFunctionsPoolState {
 }
 
 func releaseIfPoolState(p *inlineFunctionsPoolState) {
-	if p.fns.Size() > 262144 {
-		return
-	}
 	p.fns.Clear()
 	p.anonFns.Clear()
 	p.fnNames.Clear()
@@ -91,6 +101,7 @@ func releaseIfPoolState(p *inlineFunctionsPoolState) {
 	clear(p.paramScratch)
 	p.paramScratch = p.paramScratch[:0]
 	clear(p.movedArgs)
+	clear(p.fnInfoCache)
 
 	for ci := 0; ci <= p.fnStateIdx && ci < len(p.fnStateChunks); ci++ {
 		chunk := p.fnStateChunks[ci]
@@ -113,6 +124,17 @@ func releaseIfPoolState(p *inlineFunctionsPoolState) {
 	}
 	p.refIdx = 0
 	p.refUsed = 0
+
+	for ci := 0; ci <= p.refSlotIdx && ci < len(p.refSlotChunks); ci++ {
+		chunk := p.refSlotChunks[ci]
+		limit := len(chunk)
+		if ci == p.refSlotIdx {
+			limit = p.refSlotUsed
+		}
+		clear(chunk[:limit])
+	}
+	p.refSlotIdx = 0
+	p.refSlotUsed = 0
 
 	for ci := 0; ci <= p.namedFnIdx && ci < len(p.namedFnChunks); ci++ {
 		chunk := p.namedFnChunks[ci]
@@ -147,7 +169,9 @@ func releaseIfPoolState(p *inlineFunctionsPoolState) {
 	p.fnExprIdx = 0
 	p.fnExprUsed = 0
 
-	ifPool.Put(p)
+	if old := cachedIfPoolState.Swap(p); old != nil && len(old.fnStateChunks) <= 64 {
+		ifPool.Put(old)
+	}
 }
 
 // InlineFunctions inlines functions that are divided into two types: "direct
@@ -247,8 +271,29 @@ func (f *InlineFunctions) ensurePoolState() *inlineFunctionsPoolState {
 		f.poolState = p
 		f.fns = p.fns
 		f.anonFns = p.anonFns
+		if p.fnInfoCache == nil {
+			p.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, 256)
+		}
+		f.injector.fnInfoCache = p.fnInfoCache
 	}
 	return f.poolState
+}
+
+func (p *inlineFunctionsPoolState) allocRefSlots(n int) []jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference] {
+	if len(p.refSlotChunks) == 0 {
+		p.refSlotChunks = append(p.refSlotChunks, make([]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference], ifRefSlotChunkSize))
+		p.refSlotIdx = 0
+		p.refSlotUsed = 0
+	} else if p.refSlotUsed+n > len(p.refSlotChunks[p.refSlotIdx]) {
+		p.refSlotIdx++
+		if p.refSlotIdx == len(p.refSlotChunks) {
+			p.refSlotChunks = append(p.refSlotChunks, make([]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference], ifRefSlotChunkSize))
+		}
+		p.refSlotUsed = 0
+	}
+	s := p.refSlotChunks[p.refSlotIdx][p.refSlotUsed : p.refSlotUsed+n : p.refSlotUsed+n]
+	p.refSlotUsed += n
+	return s
 }
 
 func (f *InlineFunctions) allocFunctionState() *InlineFunctions_FunctionState {
@@ -374,6 +419,8 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 
 	p := f.ensurePoolState()
 	defer func() {
+		p.fnInfoCache = f.injector.fnInfoCache
+		f.injector.fnInfoCache = nil
 		f.poolState = nil
 		f.fns = nil
 		f.anonFns = nil
@@ -1135,7 +1182,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		// Yeah!
 		candidate := r.outer.allocReference(callNode, scope, chunk, mode)
 		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
-		functionState.AddReference(candidate)
+		functionState.addReference(candidate, r.outer.poolState)
 		return true
 	}
 
@@ -1534,7 +1581,6 @@ type InlineFunctions_FunctionState struct {
 	hasInnerClosures bool
 	references       *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
 	refMapVal        jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
-	refMapBuf        [2]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference]
 	chunk            *JSChunk
 	namesToAlias     *jutil.LinkedHashSet[string]
 
@@ -1751,13 +1797,19 @@ func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHas
 	return s.references
 }
 
-// Java: InlineFunctions.FunctionState.addReference(Reference)
-func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Reference) {
+func (s *InlineFunctions_FunctionState) addReference(ref *InlineFunctions_Reference, p *inlineFunctionsPoolState) {
 	if s.references == nil {
-		s.refMapVal.InitWithBuffer(s.refMapBuf[:])
+		if p != nil {
+			s.refMapVal.InitWithBuffer(p.allocRefSlots(4))
+		}
 		s.references = &s.refMapVal
 	}
 	s.references.Put(ref.callNode, ref)
+}
+
+// Java: InlineFunctions.FunctionState.addReference(Reference)
+func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Reference) {
+	s.addReference(ref, nil)
 }
 
 var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()

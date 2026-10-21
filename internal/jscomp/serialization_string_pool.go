@@ -47,7 +47,12 @@ func StringPool_FromProto(proto *StringPoolProto) *StringPool {
 		pool[i+1] = decoder.Decode(stringsList[i])
 	}
 
-	return newStringPool(int(proto.GetMaxLength()), pool)
+	p := &StringPool{
+		maxLength: int(proto.GetMaxLength()),
+		pool:      rhino.NewRhinoStringPool_LazyInternedStringListOwned(pool),
+	}
+	jutil.CheckState(pool[0] == "")
+	return p
 }
 
 // Java: StringPool.empty()
