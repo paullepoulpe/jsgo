@@ -1,0 +1,13 @@
+diff --git a/src/com/google/javascript/jscomp/FunctionArgumentInjector.java b/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
+--- a/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
++++ b/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
+@@ -223,6 +223,9 @@
+    */
+   ImmutableSet<String> findModifiedParameters(Node fnNode) {
+     ImmutableSet<String> names = getFunctionParameterSet(fnNode);
++    if (names.isEmpty()) {
++      return names;
++    }
+     return ImmutableSet.copyOf(findModifiedParameters(fnNode.getLastChild(), names, false));
+   }
+ 

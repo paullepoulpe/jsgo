@@ -1,0 +1,119 @@
+FunctionArgumentInjector upstream-unit route and source-position receipt review
+
+Result
+  Exact pinned upstream Java cases cannot currently be run using the inspected
+  local files alone. The required Java test source and test libraries were not
+  found. A small JUnit harness route appears feasible without a full Bazel
+  checkout, but its exact source/dependency closure must be checked after obtaining
+  the pinned test file. No Java, build, network or archive operation ran in this
+  audit. Only this concise note was added.
+
+Local evidence
+  .cache/closure-src is the unpacked v20261015 Maven production sources, as
+  documented by /workspace/jsgo/tools/oracle/fetch.sh. It contains
+  FunctionArgumentInjector.java and SourceInfoCheck.java, but not
+  FunctionArgumentInjectorTest.java, CompilerTestCase.java or NodeSubject.java.
+  The source jar was not opened during this audit.
+
+  /workspace/jsgo/tools/licenses/main.go identifies the expected test-source
+  cache as .cache/closure-test-src/v20261015 and fetches test files from the
+  pinned GitHub tag on demand. The specific FunctionArgumentInjectorTest and
+  NodeSubject paths were absent in that cache across workspace worktrees, and
+  absent from the inspected source/cache/temp roots. No JUnit, Truth, Hamcrest
+  or Mockito jars were found in the inspected project/toolchain caches or common
+  system/Maven locations. This is a bounded local inventory, not a claim that no
+  copy exists in any uninspected archive or filesystem location.
+
+  /workspace/jsgo/internal/jscomp/function_argument_injector_test.go explicitly
+  cites the v20261015 Java test path. It has 91 zero-argument test methods:
+    inject: 8
+    findModifiedParameters: 22
+    gatherCallArgumentsNeedingTemps: 45
+    addingTempsForModifiedParams: 10
+    addingTempsForCallParams: 2
+    bodyHasConditionalCode: 1
+    nullishCoalesce: 1
+    argument-map rest-parameter cases: 2
+  TestNeededTemps has parameters and is a helper, not a 92nd test.
+  The port has its own setup, parse helpers and assertions; it does not embed
+  CompilerTestCase. This suggests the upstream class is a small standalone JUnit4
+  test. The port is useful dependency/fixture evidence, but cannot establish that
+  all pinned upstream Java methods or assertions are present unchanged.
+
+Minimal deferred route, once source/dependencies are available
+  1. Obtain and pin test/com/google/javascript/jscomp/FunctionArgumentInjectorTest.java
+     from v20261015 (prefer recording the resolved commit as well as source hash).
+     Inspect its actual imports/annotations and any superclass. Obtain only the
+     referenced test helpers and their transitive source closure. The port uses
+     node structural assertions, so src/com/google/javascript/rhino/testing/
+     NodeSubject.java is a likely helper; its exact dependencies remain unverified.
+     SourceInfoCheck is already a production class. Do not assume CompilerTestCase
+     or the entire upstream test tree is necessary without checking the real file.
+
+  2. Supply real JUnit4/Truth and their required dependency jars at pinned compatible
+     versions, preferably from that tag's build dependency declarations. Do not
+     replace assertions with no-op stubs or translate the Go port and call it the
+     unmodified upstream suite. No new malformed-AST fixture collection is needed.
+
+  3. Compile only the upstream test/helper closure against the pinned STOCK jar,
+     in its original com.google.javascript.jscomp package so package-private APIs
+     remain accessible. Reuse the same compiled tests for STOCK, matched CONTROL
+     and accumulator. Keep compiler classes out of the test output directory.
+
+     The published jar relocates compiler-facing Guava types. Existing
+     build-candidate.py/run-probes.py broadly rewrite com.google.common; that
+     would incorrectly relocate com.google.common.truth to a nonexistent shaded
+     test library. Exempt Truth, inspect compiler-facing ImmutableMap/ImmutableSet
+     signatures and test-helper interactions, and record any strictly mechanical
+     import/type relocation. Test-library Guava and compiler-shaded Guava cannot
+     be assumed assignment-compatible. Resolve actual compile errors explicitly;
+     do not silently rewrite test semantics. Exact classpath cannot be finalized
+     before the actual pinned test/helper sources are available.
+
+  4. In a later exclusive runtime slot, invoke the actual JUnit runner for each
+     variant: org.junit.runner.JUnitCore
+     com.google.javascript.jscomp.FunctionArgumentInjectorTest. Put that variant's
+     overlay before the stock jar and retain loaded FunctionArgumentInjector
+     origins/hashes. Require every discovered @Test, fresh @Before setup, zero
+     failures and no unexpected skipped tests. Reconcile the discovered method
+     list against pinned source; do not use a name-prefix-only runner (the port
+     includes an upstream method named nullishCoalesce).
+
+     JUnit stdout includes timing, so compare discovered cases, pass/fail/skip
+     outcomes and assertion results rather than requiring identical JUnit timing
+     text. Preserve all raw logs. Existing six-output compiler byte gates remain
+     separate. This validates one complete upstream test class, not the entire
+     Closure Java suite. No new source or harness was prepared under this audit.
+
+Existing accumulator validation remains valid but narrower
+  results/accumulator-probes-v1/attempt-2/manifest.json records successful
+  ModifiedParametersProbe and EmptyParametersProbe runs on all three variants.
+  These are focused probes, not the missing full upstream FunctionArgumentInjector
+  unit class. Their original source and receipt identities remain untouched.
+
+Independent source-position receipt audit: PASS
+  results/source-position-last-probes-attempt-1/manifest.json records both
+  LineNumberScannerProbe and SourcePositionDiagnosticsProbe on STOCK, CONTROL and
+  candidate: six PASS/exit-0 runs, matching stdout per probe, empty stderr,
+  execution_complete=true, valid class origins, source/overlay integrity and
+  unchanged build manifest.
+
+  results/source-position-last-reuse-probes-attempt-1/manifest.json records three
+  further PASS runs. Candidate argv includes --require-reuse. The scanner probe
+  under that option explicitly requires first == second for consecutive equal
+  queries using its own throwing assertion, independent of -ea. The candidate
+  result and class-load log identify the candidate LineNumberScanner overlay.
+  This is an activation assertion, not transcript parity alone.
+
+  The two probe receipts identify the same build manifest; its sole compiler
+  family is LineNumberScanner. Recorded original/effective source hashes agree
+  with frozen control/candidate metadata, and recorded class hashes agree with
+  the corresponding build receipts. Original probe hashes agree with frozen
+  metadata. The scanner's relocated source differs only in its Preconditions
+  import. These were metadata/log/source comparisons, not a new bulk rehash or run.
+
+  The independent reviewer found no blocker. The diagnostics probe checks
+  observable fields; the reuse probe proves a synthetic cache hit. Neither
+  establishes real-workload hit rate, universal SourcePosition object-identity
+  parity or performance. Frozen source-only/NOT_RUN documentation is a preparation
+  snapshot; completed execution status lives in these later receipts.

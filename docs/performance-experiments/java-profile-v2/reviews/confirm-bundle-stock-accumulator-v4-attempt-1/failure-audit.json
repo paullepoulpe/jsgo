@@ -1,0 +1,164 @@
+{
+  "status": "AUDIT_COMPLETED_FAILED_RUN_REMAINS_REJECTED",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/confirm-bundle-stock-accumulator-v4-attempt-1",
+  "planned_protocol": {
+    "version": "confirmation-v4",
+    "baseline": "STOCK",
+    "cohorts": 5,
+    "pairs": 20,
+    "min_warmup": 60,
+    "max_warmup": 150,
+    "warm_window": 8,
+    "max_median_drift": 0.03,
+    "max_JIT_fraction": 0.01,
+    "max_spread": 1.15,
+    "measured_JIT_annotations": [
+      0.01,
+      0.02
+    ],
+    "measured_JIT_block_size": 5
+  },
+  "confirmation_complete": false,
+  "accepted_performance_claim": false,
+  "performance_statistics": "This failure audit computes none; subsequent partial-descriptive.json was prepared only after root closed NO_RESTART before receiving partial metrics",
+  "completed_cohorts": 1,
+  "partial_cohorts": 1,
+  "unstarted_cohorts": [
+    3,
+    4,
+    5
+  ],
+  "counts": [
+    {
+      "cohort": 1,
+      "variant": "STOCK",
+      "warm_rows": 60,
+      "measured_metric_rows": 20,
+      "complete_measured_pairs": 20,
+      "protocol_directories": 80,
+      "full_recorded_six_digest_rows": 80
+    },
+    {
+      "cohort": 1,
+      "variant": "accumulator",
+      "warm_rows": 60,
+      "measured_metric_rows": 20,
+      "complete_measured_pairs": 20,
+      "protocol_directories": 80,
+      "full_recorded_six_digest_rows": 80
+    },
+    {
+      "cohort": 2,
+      "variant": "STOCK",
+      "warm_rows": 60,
+      "measured_metric_rows": 8,
+      "complete_measured_pairs": 7,
+      "protocol_directories": 68,
+      "full_recorded_six_digest_rows": 68
+    },
+    {
+      "cohort": 2,
+      "variant": "accumulator",
+      "warm_rows": 60,
+      "measured_metric_rows": 7,
+      "complete_measured_pairs": 7,
+      "protocol_directories": 68,
+      "full_recorded_six_digest_rows": 67
+    }
+  ],
+  "full_metric_digest_rows": 295,
+  "warm_rows": 240,
+  "measured_metric_rows": 55,
+  "complete_pairs": 27,
+  "extra_unpaired_STOCK_measurement": {
+    "cohort": 2,
+    "request": 68,
+    "pair": 8
+  },
+  "failed_request": {
+    "cohort": 2,
+    "variant": "accumulator",
+    "request": 68,
+    "pair": 8,
+    "protocol": "/workspace/jsgo-java-experiments/profile-v2/results/confirm-bundle-stock-accumulator-v4-attempt-1/cohort-2/accumulator/protocol/68",
+    "pressure": {
+      "before": {
+        "memory.current": "7709859840",
+        "memory.max": "8589934592",
+        "memory.events": "low 0\nhigh 0\nmax 361038\noom 6\noom_kill 2\noom_group_kill 0",
+        "memory.events.local": "low 0\nhigh 0\nmax 361000\noom 5\noom_kill 0\noom_group_kill 0",
+        "memory.stat": "anon 1506897920\nfile 2939494400\nkernel 3261931520\nkernel_stack 1900544\npagetables 6369280\nsec_pagetables 0\npercpu 690420\nsock 0\nvmalloc 36864\nshmem 34267136\nfile_mapped 9682944\nfile_dirty 20541440\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 2097152\nshmem_thp 0\ninactive_anon 1510547456\nactive_anon 30601216\ninactive_file 1343520768\nactive_file 1561718784\nunevictable 0\nslab_reclaimable 3242646080\nslab_unreclaimable 9342368\nslab 3251988448\nworkingset_refault_anon 0\nworkingset_refault_file 9757176\nworkingset_activate_anon 0\nworkingset_activate_file 2688805\nworkingset_restore_anon 0\nworkingset_restore_file 626793\nworkingset_nodereclaim 15996\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgscan 20389530\npgsteal 16083191\npswpin 0\npswpout 0\npgscan_kswapd 3859067\npgscan_direct 16526150\npgscan_khugepaged 4313\npgscan_proactive 0\npgsteal_kswapd 3824253\npgsteal_direct 12254625\npgsteal_khugepaged 4313\npgsteal_proactive 0\npgfault 820642867\npgmajfault 23496\npgrefill 7083566\npgactivate 9038117\npgdeactivate 6806139\npglazyfree 2\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nthp_fault_alloc 0\nthp_collapse_alloc 94\nthp_swpout 0\nthp_swpout_fallback 0",
+        "memory.pressure": null
+      },
+      "after": {
+        "memory.current": "8051613696",
+        "memory.max": "8589934592",
+        "memory.events": "low 0\nhigh 0\nmax 361425\noom 6\noom_kill 2\noom_group_kill 0",
+        "memory.events.local": "low 0\nhigh 0\nmax 361387\noom 5\noom_kill 0\noom_group_kill 0",
+        "memory.stat": "anon 1906745344\nfile 2886316032\nkernel 3256684544\nkernel_stack 1900544\npagetables 6819840\nsec_pagetables 0\npercpu 536740\nsock 0\nvmalloc 36864\nshmem 34267136\nfile_mapped 9555968\nfile_dirty 28192768\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 2097152\nshmem_thp 0\ninactive_anon 1910394880\nactive_anon 30601216\ninactive_file 1295728640\nactive_file 1556316160\nunevictable 0\nslab_reclaimable 3237292888\nslab_unreclaimable 9181720\nslab 3246474608\nworkingset_refault_anon 0\nworkingset_refault_file 9757208\nworkingset_activate_anon 0\nworkingset_activate_file 2688836\nworkingset_restore_anon 0\nworkingset_restore_file 626824\nworkingset_nodereclaim 15996\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgscan 20404409\npgsteal 16098070\npswpin 0\npswpout 0\npgscan_kswapd 3859067\npgscan_direct 16541029\npgscan_khugepaged 4313\npgscan_proactive 0\npgsteal_kswapd 3824253\npgsteal_direct 12269504\npgsteal_khugepaged 4313\npgsteal_proactive 0\npgfault 820911090\npgmajfault 23496\npgrefill 7084917\npgactivate 9038120\npgdeactivate 6807490\npglazyfree 2\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nthp_fault_alloc 0\nthp_collapse_alloc 94\nthp_swpout 0\nthp_swpout_fallback 0",
+        "memory.pressure": null
+      },
+      "changes": {
+        "local_high": 0,
+        "local_max": 387,
+        "pgscan_direct": 14879,
+        "pgsteal_direct": 14879,
+        "pgmajfault": 0,
+        "PSI_some_total_us": null,
+        "PSI_full_total_us": null
+      },
+      "envelope": "beforeunpause toRESULT; artifacthashingexcluded",
+      "zero_required": true
+    },
+    "three_protocol_streams_match_oracle": true,
+    "stream_sha256": {
+      "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "e7c668c0a2df7ef77c8014d44ff2aedcde65cfad1436fd35e46e3720a214033a",
+      "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "six_digest_check": "NOT_PERFORMED_BEFORE_ABORT",
+    "metrics_JIT_row": "NOT_SAVED; no raw RESULT transcript retained",
+    "final_artifacts_present_unhashed": {
+      "out.js": true,
+      "out.js.map": true,
+      "inputs.manifest": true
+    }
+  },
+  "manifest_runner_grant_spec_driver_class_origin_resource_checks": "PASS_WITHIN_AUDIT_SCOPE",
+  "recorded_six_digest_checks": "ALL_295_FULL_ROWS_EQUAL_PINNED_ORACLE",
+  "telemetry_anomalies": [],
+  "cleanup": {
+    "owned_JVMs": 4,
+    "all_driver_exit_codes_zero": true,
+    "all_owned_containers_removed": true,
+    "fallback_cleanup": false,
+    "cleanup_errors": [],
+    "remaining_owned_processes_containers": [],
+    "outer_OOM_delta": {
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    }
+  },
+  "PSI": "UNAVAILABLE_not_zero",
+  "frozen_reviewer": {
+    "status": "FAIL independent Java-factor review",
+    "reason": "failure evidence present: no accepted result",
+    "exit": 1
+  },
+  "small_identity_hashes": {
+    "metadata": "ab05377fdded16e311f0a7e4169bd76adf93154e15d8cc3d3ba1a49aad8601b9",
+    "failure": "2349b7d7d89b7a222c22b2787513de574c346751f2fc701739309bf13c6a0347",
+    "stopped_proof": "219a91c11aa7b68446b52dd6d32197021c0aa503ff99652c35c3264489a94d2a",
+    "runner": "9adb1c481ea19998d45a7e75a87e7670c1d5efafb381f2138c4d8f64bc18730d",
+    "reviewer": "5eae13886c251040b3d90762b69a4334891c30c3b6c7ece2aeb368b2f308c3d2",
+    "manifest": "3fbf89820fd45f89ea6a1a49da48829189c88083fe95027e940020d387212ce1"
+  },
+  "limitations": [
+    "Recorded six-digest equality checked for every full row; bulk historical stream/artifact rehashing deferred to avoid interfering with root cache accounting. Only the failed request stdout/stderr/exit were rehashed.",
+    "Failed request completed compiler exit0 and retained streams, but pressure rejection preceded six-digest computation and metric/JIT row persistence; no full-parity or timing reconstruction is claimed.",
+    "The 8GiB parent counters cover the shared ancestor, including resident paused JVMs and filesystem/kernel state; they do not identify an exclusive causal process or establish a candidate slowdown.",
+    "Before/after memory samples do not identify transient peak or reclaimed objects. memory.events.local max counts limit encounters, not bytes; zero new OOM does not satisfy the zero-pressure gate.",
+    "No accepted five-cohort inference, restart, weakening, deletion, smoothing or row replacement. Separate partial descriptive observations are not an accepted benchmark summary. Root README/config/prespec and original results are unchanged."
+  ]
+}

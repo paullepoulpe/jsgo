@@ -1,0 +1,329 @@
+{
+  "status": "PASS_ALL_FIVE_EXACT_SOURCE_PATCHES",
+  "promotion_status": "NONE_PROMOTED",
+  "scope": "Source normalization and exact patch application only; no new runtime validation.",
+  "prepare_source_sha256": "2fbbc28595576567a78d6b17098c996b7f9f8de254564f60f2746cb142397e79",
+  "readme_sha256": "96ba7e94bb81fb03df29652939bcdb2f398a862b6c75639540eabcb3a4fd4c79",
+  "candidates": [
+    {
+      "name": "accumulator",
+      "status": "PASS_EXACT_SOURCE_PATCH",
+      "repository_path": "src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/control-src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "original_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/accumulator-only/src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "candidate_sha256": "9c3a8b18973b614f31237bce9028887f1820b4ac8d8b02e56da9fe819d38b7e8",
+      "applied_sha256": "9c3a8b18973b614f31237bce9028887f1820b4ac8d8b02e56da9fe819d38b7e8",
+      "applied_bytes_equal_candidate": true,
+      "original_bytes_equal_pinned_source": true,
+      "source_hashes_match_existing_build_receipts": true,
+      "patch": "accumulator.patch",
+      "patch_sha256": "87269ad4fbea0ac6fa72d9cb69d4c478c9d77da8ff575b615f1acddded0d823f",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/manifest.json",
+      "build_manifest_sha256": "3fbf89820fd45f89ea6a1a49da48829189c88083fe95027e940020d387212ce1",
+      "candidate_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/accumulator/build.json",
+      "candidate_build_proof_sha256": "e9d3b5dae702dc302e70ff11d202f00bf3954be0d2c564797734740760fea14d",
+      "control_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/CONTROL/build.json",
+      "control_build_proof_sha256": "f8348223ca4c8d2fd4bbb41dd0a932c66eb8bd56bfc1a01f417f3f1b1fa089a2",
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/accumulator.patch"
+        ],
+        "cwd": "/tmp/closure-patch-accumulator-vr9wa06t",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/accumulator.patch"
+        ],
+        "cwd": "/tmp/closure-patch-accumulator-vr9wa06t",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/accumulator.patch"
+        ],
+        "cwd": "/tmp/closure-patch-accumulator-vr9wa06t",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files": [
+        "src/com/google/javascript/jscomp/FunctionArgumentInjector.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "identity-differs",
+      "status": "PASS_EXACT_SOURCE_PATCH",
+      "repository_path": "src/com/google/javascript/rhino/jstype/JSType.java",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/identity-differs/control-src/com/google/javascript/rhino/jstype/JSType.java",
+      "original_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/identity-differs/src/com/google/javascript/rhino/jstype/JSType.java",
+      "candidate_sha256": "6fec2d359db049cfb0a420b8a7da5a3ccad94d1132cb341395f698a3c1695d8b",
+      "applied_sha256": "6fec2d359db049cfb0a420b8a7da5a3ccad94d1132cb341395f698a3c1695d8b",
+      "applied_bytes_equal_candidate": true,
+      "original_bytes_equal_pinned_source": true,
+      "source_hashes_match_existing_build_receipts": true,
+      "patch": "identity-differs.patch",
+      "patch_sha256": "31a60e9129a522ae6d1c466420b4070c161afec0e3b96ea6c0268500f2fb4706",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/identity-differs/manifest.json",
+      "build_manifest_sha256": "695cef8bcdff296d0cb0964645d1759dbeceb82e678442dd237e1041ca46798e",
+      "candidate_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/identity-differs/identity-differs/build.json",
+      "candidate_build_proof_sha256": "517192e8cdd974e7ca482377fc6fca3fdda9e352b774428eae4bf1b1e4ba7b41",
+      "control_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/identity-differs/CONTROL/build.json",
+      "control_build_proof_sha256": "ea0850202b6ce6c64ab840a789b0e45f63fbfa2c8f62c9b37fd95c4f31350a62",
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/identity-differs.patch"
+        ],
+        "cwd": "/tmp/closure-patch-identity-differs-v39r_ng3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/identity-differs.patch"
+        ],
+        "cwd": "/tmp/closure-patch-identity-differs-v39r_ng3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/identity-differs.patch"
+        ],
+        "cwd": "/tmp/closure-patch-identity-differs-v39r_ng3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files": [
+        "src/com/google/javascript/rhino/jstype/JSType.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "traversal-noop",
+      "status": "PASS_EXACT_SOURCE_PATCH",
+      "repository_path": "src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-noop/control-src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-noop/src/com/google/javascript/jscomp/NodeTraversal.java",
+      "candidate_sha256": "efd7e796951a805d6843b7773864b8c7f8b3c46d76d7523deff60f2edae7edae",
+      "applied_sha256": "efd7e796951a805d6843b7773864b8c7f8b3c46d76d7523deff60f2edae7edae",
+      "applied_bytes_equal_candidate": true,
+      "original_bytes_equal_pinned_source": true,
+      "source_hashes_match_existing_build_receipts": true,
+      "patch": "traversal-noop.patch",
+      "patch_sha256": "3daf4f21a8c00b1ea5b7c156c31a06a75e13ce65211cbccccd913531e6293ae8",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-noop/manifest.json",
+      "build_manifest_sha256": "53baaccab7490642a68a89b22d9b0d840a82a6bd14ff5c06a71e78fb62437bb5",
+      "candidate_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-noop/traversal-noop/build.json",
+      "candidate_build_proof_sha256": "4b2a806230cbe99286d0ceb23b1311a1b0c714921d4a8a32770919d924798324",
+      "control_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-noop/CONTROL/build.json",
+      "control_build_proof_sha256": "1669c0ab069c0cdf310d997e5413d30d6da60ac16525cfb217e6630980f0517d",
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-noop.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-noop-xq6tq68p",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-noop.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-noop-xq6tq68p",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-noop.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-noop-xq6tq68p",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files": [
+        "src/com/google/javascript/jscomp/NodeTraversal.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "traversal-name-switch",
+      "status": "PASS_EXACT_SOURCE_PATCH",
+      "repository_path": "src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-name-switch/control-src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-name-switch/src/com/google/javascript/jscomp/NodeTraversal.java",
+      "candidate_sha256": "deed0eb501d625a37497b77cf8d44acbd7d93858707275074e2c265527721bb0",
+      "applied_sha256": "deed0eb501d625a37497b77cf8d44acbd7d93858707275074e2c265527721bb0",
+      "applied_bytes_equal_candidate": true,
+      "original_bytes_equal_pinned_source": true,
+      "source_hashes_match_existing_build_receipts": true,
+      "patch": "traversal-name-switch.patch",
+      "patch_sha256": "5b90aecdcd712eb152759ca5c61838cae69aec415ae67496356a4dc9459e7940",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-name-switch/manifest.json",
+      "build_manifest_sha256": "467c6c5232e63625dfa9db2f5610b698354462f61ce054362513cccde5ca479f",
+      "candidate_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-name-switch/traversal-name-switch/build.json",
+      "candidate_build_proof_sha256": "b42d48aa089480c6630c89908a9bfec770acf9873fdf44281ee8ad2fe9b387c0",
+      "control_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-name-switch/CONTROL/build.json",
+      "control_build_proof_sha256": "a48ab9a02594a54f16c6bdd59d7f03b46ab5e4f4d3ca230b5f641b9284c6e054",
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-name-switch.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-name-switch-7rtoj18h",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-name-switch.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-name-switch-7rtoj18h",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/traversal-name-switch.patch"
+        ],
+        "cwd": "/tmp/closure-patch-traversal-name-switch-7rtoj18h",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files": [
+        "src/com/google/javascript/jscomp/NodeTraversal.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "leaf-children-return",
+      "status": "PASS_EXACT_SOURCE_PATCH",
+      "repository_path": "src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/leaf-children-return/control-src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java",
+      "original_sha256": "47e18d21527dfe4332b5ec75848130a80bb2f626b9c11f699c5852a8888897ff",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/leaf-children-return/src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java",
+      "candidate_sha256": "ac3b90f9479536feb0bc18a547a2e923c17a5b67f8a159474958e45491f88e3d",
+      "applied_sha256": "ac3b90f9479536feb0bc18a547a2e923c17a5b67f8a159474958e45491f88e3d",
+      "applied_bytes_equal_candidate": true,
+      "original_bytes_equal_pinned_source": true,
+      "source_hashes_match_existing_build_receipts": true,
+      "patch": "leaf-children-return.patch",
+      "patch_sha256": "7e4710c6fe29e6c4b45995e1ec9c4d9b53dfa985e87e4c4fcdf58389c4bbaaca",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/leaf-children-return/manifest.json",
+      "build_manifest_sha256": "0aac7683529985504099a86ffb9a1f28689d9e42204cb860c0c8de5c76ed0ab8",
+      "candidate_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/leaf-children-return/leaf-children-return/build.json",
+      "candidate_build_proof_sha256": "0991649942d89ba537158c82eaa071ae0419122aca52ea2b9fdf721823bfb1ce",
+      "control_build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/leaf-children-return/CONTROL/build.json",
+      "control_build_proof_sha256": "65aad80271ca0780b735380fe2d9f178a81151fe8ada1d1ce169eeceacbc58a5",
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/leaf-children-return.patch"
+        ],
+        "cwd": "/tmp/closure-patch-leaf-children-return-z3jcaawv",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/leaf-children-return.patch"
+        ],
+        "cwd": "/tmp/closure-patch-leaf-children-return-z3jcaawv",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches/leaf-children-return.patch"
+        ],
+        "cwd": "/tmp/closure-patch-leaf-children-return-z3jcaawv",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files": [
+        "src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java"
+      ],
+      "temporary_fixture_removed": true
+    }
+  ]
+}

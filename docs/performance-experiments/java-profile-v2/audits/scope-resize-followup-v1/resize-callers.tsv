@@ -1,0 +1,21 @@
+rank	samples	pct_all_cpu	caller_prefix
+1	12	0.5403	java.util.HashMap.computeIfAbsent <- jscomp.ReferenceCollector.addReference <- jscomp.ReferenceCollector$CollectorCallback.visit <- jscomp.NodeTraversal.traverseBranch <- <deeper frames omitted>
+2	8	0.3602	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.AbstractScope.declareInternal <- jscomp.Scope.declare <- <deeper frames omitted>
+3	3	0.1351	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.TypedScopeCreator.createScope <- jscomp.TypedScopeCreator.createScope <- <deeper frames omitted>
+4	2	0.0900	java.util.HashMap.computeIfAbsent <- jscomp.serialization.JSTypeReconserializer.getOrCreateRecord <- jscomp.serialization.JSTypeReconserializer.recordUnionType <- jscomp.serialization.JSTypeReconserializer.recordType <- <deeper frames omitted>
+5	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- java.util.HashSet.add <- jscomp.TypeCheck.findObjectWithNonStringifiableKey <- <deeper frames omitted>
+6	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.InlineFunctions$FunctionState.addReference <- jscomp.InlineFunctions$FindCandidatesReferences.maybeAddReferenceUsingMode <- <deeper frames omitted>
+7	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.MemoizedScopeCreator.createScope <- jscomp.NodeTraversal.getAbstractScope <- <deeper frames omitted>
+8	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.GlobalNamespace$Name.putRef <- jscomp.GlobalNamespace$Name.addRef <- <deeper frames omitted>
+9	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.RemoveUnusedCode.getVarInfo <- jscomp.RemoveUnusedCode.traverseVar <- <deeper frames omitted>
+10	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.put <- java.util.HashSet.add <- java.util.AbstractCollection.addAll <- <deeper frames omitted>
+11	2	0.0900	java.util.HashMap.putVal <- java.util.HashMap.putIfAbsent <- jscomp.disambiguate.ClusterPropagator.traverseEdge <- jscomp.disambiguate.ClusterPropagator.traverseEdge <- <deeper frames omitted>
+12	1	0.0450	java.util.HashMap.computeIfAbsent <- jscomp.InlineFunctions.getOrCreateFunctionState <- jscomp.InlineFunctions.maybeAddFunction <- jscomp.InlineFunctions$FindCandidateFunctions.findNamedFunctions <- <deeper frames omitted>
+13	1	0.0450	java.util.HashMap.computeIfAbsent <- jscomp.graph.LinkedDirectedGraph.createNode <- jscomp.ControlFlowAnalysis.createEdge <- jscomp.ControlFlowAnalysis.handleStmtList <- <deeper frames omitted>
+14	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.AbstractScope.declareInternal <- jscomp.Scope.declare <- <deeper frames omitted>
+15	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- java.util.HashSet.add <- java.util.AbstractCollection.addAll <- <deeper frames omitted>
+16	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.AnalyzePrototypeProperties.getNameInfoForName <- jscomp.AnalyzePrototypeProperties$ProcessExternProperties.visit <- <deeper frames omitted>
+17	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.Compiler.findModulesFromEntryPoints <- jscomp.Compiler.parseInputs <- <deeper frames omitted>
+18	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.InlineProperties.invalidateExternProperties <- jscomp.InlineProperties.<init> <- <deeper frames omitted>
+19	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.InlineVariables$InliningBehavior.doInlinesForScope <- jscomp.InlineVariables$InliningBehavior.afterExitScope <- <deeper frames omitted>
+20	1	0.0450	java.util.HashMap.putVal <- java.util.HashMap.put <- jscomp.RenameVars$ProcessVars.visit <- jscomp.NodeTraversal.traverseBranch <- <deeper frames omitted>

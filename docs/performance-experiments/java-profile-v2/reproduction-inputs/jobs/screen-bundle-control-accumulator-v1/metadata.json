@@ -1,0 +1,437 @@
+{
+  "manifest": {
+    "status": "PASS_BUILD_VALIDATION",
+    "semantic_parity_status": "Not inferred from successful compilation; probes and strict byte gates required",
+    "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+    "source_jar_sha256": "4d38166975b61466aa3b02b0d2d38160b855dd7f7e1f6171069fc84974bac45a",
+    "unmodified_compiler_classes_outside_overlays": true,
+    "java_version": "21.0.12.1",
+    "java_home": "/usr/lib/jvm/java-21-openjdk-amd64",
+    "compiler_source_families": [
+      "com/google/javascript/jscomp/FunctionArgumentInjector"
+    ],
+    "family_naming": "Full relative class stems from archive root, excluding .java/.class",
+    "javac_flags": [
+      "-source",
+      "21",
+      "-target",
+      "21",
+      "-g",
+      "-proc:none",
+      "-implicit:none",
+      "-encoding",
+      "UTF-8"
+    ],
+    "driver_javac_flags": [
+      "-source",
+      "21",
+      "-target",
+      "21",
+      "-g",
+      "-proc:none",
+      "-implicit:none",
+      "-encoding",
+      "UTF-8"
+    ],
+    "driver": {
+      "directory": "/workspace/jsgo-java-experiments/transfer-v1/bench/driver",
+      "source_sha256": "1195afce140d50af49ba270147357564de8ec6a58a5c890162092397ae8d8458",
+      "javac_flags": [
+        "-source",
+        "21",
+        "-target",
+        "21",
+        "-g",
+        "-proc:none",
+        "-implicit:none",
+        "-encoding",
+        "UTF-8"
+      ],
+      "classes": {
+        "CliFactors.class": "bcfb35f2f65f747a9508ff2f642a6bd4b8040f80a72fb27f9a535fbe2a7c27db"
+      },
+      "build_proof": "/workspace/jsgo-java-experiments/transfer-v1/bench/driver-build.json",
+      "build_proof_sha256": "abb0498a73edc00a7b341613895d26aeface732851e91108667af80be7f27688"
+    },
+    "variants": {
+      "STOCK": {
+        "overlay": null,
+        "classes": {}
+      },
+      "CONTROL": {
+        "overlay": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/CONTROL/classes",
+        "javac_flags": [
+          "-source",
+          "21",
+          "-target",
+          "21",
+          "-g",
+          "-proc:none",
+          "-implicit:none",
+          "-encoding",
+          "UTF-8"
+        ],
+        "compiled_source_families": [
+          "com/google/javascript/jscomp/FunctionArgumentInjector"
+        ],
+        "classes": {
+          "com/google/javascript/jscomp/FunctionArgumentInjector$1.class": "59e55d60a1e9b780f394a1a69ccf675b12a4f6c4036986c54f06e3f57bda2895",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$ParamArgPair.class": "4fd0cc87ebb6f7536b4f2dbe66154f23387093a40a31e50d53c8e5a3a3cd06c0",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$ReferencedAfterSideEffect.class": "6fb664dcb8c7502aa7c0e3695020fdd3b372303c7f78820e4fe0850ff9ca8f16",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$SetContainer.class": "bf70ff4db4eb9ae09ec75b41e8d2274b5fd5007b84af04dcf535b8bb4ec64faa",
+          "com/google/javascript/jscomp/FunctionArgumentInjector.class": "dfcde91db832d620090ef4fd128318fb56d52d4a276e04d3a7d09745810ee9d3"
+        },
+        "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/CONTROL/build.json",
+        "build_proof_sha256": "f8348223ca4c8d2fd4bbb41dd0a932c66eb8bd56bfc1a01f417f3f1b1fa089a2"
+      },
+      "accumulator": {
+        "overlay": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/accumulator/classes",
+        "javac_flags": [
+          "-source",
+          "21",
+          "-target",
+          "21",
+          "-g",
+          "-proc:none",
+          "-implicit:none",
+          "-encoding",
+          "UTF-8"
+        ],
+        "compiled_source_families": [
+          "com/google/javascript/jscomp/FunctionArgumentInjector"
+        ],
+        "classes": {
+          "com/google/javascript/jscomp/FunctionArgumentInjector$1.class": "59e55d60a1e9b780f394a1a69ccf675b12a4f6c4036986c54f06e3f57bda2895",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$ParamArgPair.class": "4fd0cc87ebb6f7536b4f2dbe66154f23387093a40a31e50d53c8e5a3a3cd06c0",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$ReferencedAfterSideEffect.class": "6fb664dcb8c7502aa7c0e3695020fdd3b372303c7f78820e4fe0850ff9ca8f16",
+          "com/google/javascript/jscomp/FunctionArgumentInjector$SetContainer.class": "bf70ff4db4eb9ae09ec75b41e8d2274b5fd5007b84af04dcf535b8bb4ec64faa",
+          "com/google/javascript/jscomp/FunctionArgumentInjector.class": "9932c15344df6e7de959658fbbee56f2318e4ae988c351b7ce328148e169c521"
+        },
+        "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/accumulator/build.json",
+        "build_proof_sha256": "e9d3b5dae702dc302e70ff11d202f00bf3954be0d2c564797734740760fea14d"
+      }
+    },
+    "compiler_build_receipt_sha256": {
+      "CONTROL": "f8348223ca4c8d2fd4bbb41dd0a932c66eb8bd56bfc1a01f417f3f1b1fa089a2",
+      "accumulator": "e9d3b5dae702dc302e70ff11d202f00bf3954be0d2c564797734740760fea14d"
+    }
+  },
+  "baseline": "CONTROL",
+  "candidate": "accumulator",
+  "spec": "/workspace/jsgo-results/round4/main-9c895b43-sync-v1/benchmark-preparation-v2/go-screen-v2/specs/bundle-n1.json",
+  "oracle": "/workspace/jsgo-results/round4/paired-main5de-bundle-advanced-t1-v1/stock-java-oracle-digests.json",
+  "oracle_metadata": "/workspace/jsgo-results/round4/paired-main5de-bundle-advanced-t1-v1/metadata.json",
+  "jar": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "java_home": "/usr/lib/jvm/java-21-openjdk-amd64",
+  "image": "python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+  "out": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bundle-control-accumulator-v1",
+  "runtime_grant": "/workspace/jsgo-java-experiments/profile-v2/launches/screen-bundle-control-accumulator-v1.grant.json",
+  "cohorts": 1,
+  "pairs": 5,
+  "min_warmup": 12,
+  "max_warmup": 90,
+  "request_timeout": 300,
+  "total_timeout": 14400,
+  "seed": 20261020,
+  "readonly_bind": [
+    "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/CONTROL/classes",
+    "/workspace/jsgo-java-experiments/profile-v2/build/accumulator/accumulator/classes",
+    "/workspace/jsgo-round4-bench/tools/bench/app",
+    "/workspace/jsgo/.cache/bench-inputs",
+    "/workspace/jsgo/.cache/corpus"
+  ],
+  "minimum_outer_headroom": 1073741824,
+  "minimum_disk_free": 1073741824,
+  "driver": "/workspace/jsgo-java-experiments/transfer-v1/bench/driver",
+  "binary": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+  "manifest_sha256": "3fbf89820fd45f89ea6a1a49da48829189c88083fe95027e940020d387212ce1",
+  "runner_sha256": "74ed5966d78afe3621f382e893488e400701ace393f04514274326a107ebab7f",
+  "runtime_grant_sha256": "2d36f18712295d8ceea527f31e6c7bea2c06dd85d94f1daca3ceb3774ebb6960",
+  "spec_sha256": "17323a4fe63c01fb32d947d08375160e8ed26e9f185f8334c933195937407e6b",
+  "oracle_sha256": "a6880b756f1544c9d9d58d71aa0a86fcf7451891ba76e652bdc3a6afe1fff3a7",
+  "oracle_metadata_sha256": "6768d6e917583efdcdcf2ce2e59154ea8a1bc092c968f342e9d9c78c9d592b52",
+  "input_manifest": [
+    {
+      "link": "inputs",
+      "relative": "three@0.159.0/build/three.js",
+      "bytes": 1313070,
+      "sha256": "36f30d7bfab89572dc6a1c002db8144b49ff1858d1239a9b8c6f985f39b5b5a3"
+    },
+    {
+      "link": "inputs",
+      "relative": "lodash@4.17.21/lodash.js",
+      "bytes": 544098,
+      "sha256": "4c04561befdf653aef017a42ac5addf68ea943cdfca6bdee5ce04e04e8139f54"
+    },
+    {
+      "link": "inputs",
+      "relative": "react-dom@18.3.1/umd/react-dom.development.js",
+      "bytes": 1080227,
+      "sha256": "f9044a5e9c39db8bb1a204dff924e526ec0a621e695bb69de1035811be8709e4"
+    },
+    {
+      "link": "inputs",
+      "relative": "rxjs@7.8.2/dist/bundles/rxjs.umd.js",
+      "bytes": 284476,
+      "sha256": "1e41ea39143e34c256fbf9056b56afdd6c0438d84ed772e4e3f6230ccfeee81b"
+    },
+    {
+      "link": "corpus",
+      "relative": "d3@7.9.0/package/dist/d3.js",
+      "bytes": 587043,
+      "sha256": "0c0d58be2106c14e242fc75bc09a17467800630751580665f6e9552a0c064ea2"
+    },
+    {
+      "link": "corpus",
+      "relative": "moment@2.31.0/package/min/moment-with-locales.js",
+      "bytes": 653144,
+      "sha256": "6b4445e1ee801bdcc1d42196163ae745f71d3b52a12a50246999fd7067250496"
+    },
+    {
+      "link": "corpus",
+      "relative": "vue@2.7.16/package/dist/vue.js",
+      "bytes": 434871,
+      "sha256": "36b10d3b4920592a4ec26c064c429e9a3dfb4689235fdfc91e1736b681c76786"
+    },
+    {
+      "link": "corpus",
+      "relative": "jquery@3.7.1/package/dist/jquery.js",
+      "bytes": 285314,
+      "sha256": "78a85aca2f0b110c29e0d2b137e09f0a1fb7a8e554b499f740d6744dc8962cfe"
+    },
+    {
+      "link": "corpus",
+      "relative": "handlebars@4.7.10/package/dist/handlebars.js",
+      "bytes": 215867,
+      "sha256": "5e25e8190da08af70e4ef544849e51c37a95125cacc86d4dbfca46cde9979af4"
+    },
+    {
+      "link": "corpus",
+      "relative": "immutable@5.1.9/package/dist/immutable.js",
+      "bytes": 210785,
+      "sha256": "357518ba2cab55c9990e60550dadddb8c39108bfe44ace61809af254a34d5d54"
+    },
+    {
+      "link": "corpus",
+      "relative": "underscore@1.13.8/package/underscore-umd.js",
+      "bytes": 68916,
+      "sha256": "68613bd4f104eb2316b2c78b5705932bd1eaaaa5e00b49a796cb4d95c492d4fb"
+    }
+  ],
+  "helpers": {
+    "paired_cli.py": "914a9c97eb5cb66fa786d01a2f43599b781327c89b51fe0e4fef3ab207fd0854",
+    "cgroup_exec.py": "3b19b27b04a146b3793b917ab1eef30573ca92bcff06360acfb964ac7b6d025e"
+  },
+  "jar_sha256": "d6864ebf70bca5ba6e237898de6611a389aaf8b933c2549036ced4a684b664b6",
+  "driver_source_sha256": "1195afce140d50af49ba270147357564de8ec6a58a5c890162092397ae8d8458",
+  "java_executable_sha256": "6698f6f10143ed8463b06062281c727152d2e0ae2a3569b1716fbb2c6cedf0ba",
+  "java_runtime_dependencies": [
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/accessibility.properties",
+      "mount_target": "/etc/java-21-openjdk/accessibility.properties",
+      "source": "/etc/java-21-openjdk/accessibility.properties",
+      "bytes": 391,
+      "sha256": "e8a107880e6ec598c99a4865bc2d24678e8370142bfdb5ca27fdbe266b4c6cb7"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/jaxp.properties",
+      "mount_target": "/etc/java-21-openjdk/jaxp.properties",
+      "source": "/etc/java-21-openjdk/jaxp.properties",
+      "bytes": 7302,
+      "sha256": "7d95c49465d0c836d608d02856d3b097934dfb5dc4bd2279affaf337d045b708"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/logging.properties",
+      "mount_target": "/etc/java-21-openjdk/logging.properties",
+      "source": "/etc/java-21-openjdk/logging.properties",
+      "bytes": 2732,
+      "sha256": "b62d2733ab99556b108a1951d894c5a8d76b1ac7a00c02c388f9eb9be046c56f"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/management/jmxremote.access",
+      "mount_target": "/etc/java-21-openjdk/management/jmxremote.access",
+      "source": "/etc/java-21-openjdk/management/jmxremote.access",
+      "bytes": 3997,
+      "sha256": "0c25d26ee212ca1e8c33f67c3c460d43fe849c3a1d23dbe341148517602b280c"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/management/management.properties",
+      "mount_target": "/etc/java-21-openjdk/management/management.properties",
+      "source": "/etc/java-21-openjdk/management/management.properties",
+      "bytes": 14988,
+      "sha256": "07dffdd85b01c19bf46ca320a699aba48dd6b01043eb0bd6a9528c7993312bad"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/net.properties",
+      "mount_target": "/etc/java-21-openjdk/net.properties",
+      "source": "/etc/java-21-openjdk/net.properties",
+      "bytes": 7441,
+      "sha256": "2e070ed1d97052f0ce8771ed2ef74a38d7c260a45fde7a3682c8844e5fdf58a4"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/java.policy",
+      "mount_target": "/etc/java-21-openjdk/security/java.policy",
+      "source": "/etc/java-21-openjdk/security/java.policy",
+      "bytes": 2294,
+      "sha256": "d51bcab7ed301caeff3779a5e777e6019864cecee5e2abc102ef991b0de77af2"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/java.security",
+      "mount_target": "/etc/java-21-openjdk/security/java.security",
+      "source": "/etc/java-21-openjdk/security/java.security",
+      "bytes": 71428,
+      "sha256": "9108fb3a906e07d6692985cdda551fc1c6a6957c8241060b48f07de88e83f8bb"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/nss.cfg",
+      "mount_target": "/etc/java-21-openjdk/security/nss.cfg",
+      "source": "/etc/java-21-openjdk/security/nss.cfg",
+      "bytes": 106,
+      "sha256": "84b778712c4b3f09798681f9d8ff3a298bcad76bb65ae8925ed8bd80a14621f4"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/README.txt",
+      "mount_target": "/etc/java-21-openjdk/security/policy/README.txt",
+      "source": "/etc/java-21-openjdk/security/policy/README.txt",
+      "bytes": 2390,
+      "sha256": "6da0747334b0fea7592fd92614b2bbc8b126535e129b1fee483774d914e98eb5"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/limited/default_US_export.policy",
+      "mount_target": "/etc/java-21-openjdk/security/policy/limited/default_US_export.policy",
+      "source": "/etc/java-21-openjdk/security/policy/limited/default_US_export.policy",
+      "bytes": 146,
+      "sha256": "758b930a526fc670ab7537f8c26321527050a31f5f42149a2dda623c56a0a1a9"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/limited/default_local.policy",
+      "mount_target": "/etc/java-21-openjdk/security/policy/limited/default_local.policy",
+      "source": "/etc/java-21-openjdk/security/policy/limited/default_local.policy",
+      "bytes": 647,
+      "sha256": "2b2627548e61316150d47ffc3e6cad465ca05b3cccd4785eb7d21aa7baa0f441"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/limited/exempt_local.policy",
+      "mount_target": "/etc/java-21-openjdk/security/policy/limited/exempt_local.policy",
+      "source": "/etc/java-21-openjdk/security/policy/limited/exempt_local.policy",
+      "bytes": 566,
+      "sha256": "8c3d7648abcd95a272ce12db870082937f4d7f6878d730d83cb7fbb31eb8b2c9"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/unlimited/default_US_export.policy",
+      "mount_target": "/etc/java-21-openjdk/security/policy/unlimited/default_US_export.policy",
+      "source": "/etc/java-21-openjdk/security/policy/unlimited/default_US_export.policy",
+      "bytes": 146,
+      "sha256": "758b930a526fc670ab7537f8c26321527050a31f5f42149a2dda623c56a0a1a9"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/security/policy/unlimited/default_local.policy",
+      "mount_target": "/etc/java-21-openjdk/security/policy/unlimited/default_local.policy",
+      "source": "/etc/java-21-openjdk/security/policy/unlimited/default_local.policy",
+      "bytes": 193,
+      "sha256": "8d8a318e6d90dfd7e26612d2b6385aa704f686ca6134c551f8928418d92b851a"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/sound.properties",
+      "mount_target": "/etc/java-21-openjdk/sound.properties",
+      "source": "/etc/java-21-openjdk/sound.properties",
+      "bytes": 1210,
+      "sha256": "299c2360b6155eb28990ec49cd21753f97e43442fe8fab03e04f3e213df43a66"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/conf/swing.properties",
+      "mount_target": "/etc/java-21-openjdk/swing.properties",
+      "source": "/etc/java-21-openjdk/swing.properties",
+      "bytes": 113,
+      "sha256": "a5ba486e49d565f1b0eb6a08e7518f2f79d23bed2a1a527f454f81b7eae8fb9d"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/jfr/default.jfc",
+      "mount_target": "/etc/java-21-openjdk/jfr/default.jfc",
+      "source": "/etc/java-21-openjdk/jfr/default.jfc",
+      "bytes": 37449,
+      "sha256": "4fed4b508c5f1b69578293df84f94a63752f86b4259d97e12884e3b2ec56ef50"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/jfr/profile.jfc",
+      "mount_target": "/etc/java-21-openjdk/jfr/profile.jfc",
+      "source": "/etc/java-21-openjdk/jfr/profile.jfc",
+      "bytes": 37401,
+      "sha256": "485fb90dbecee9a950c45247464351162b1eb0c35387fbb929f002c600807251"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/jvm.cfg",
+      "mount_target": "/etc/java-21-openjdk/jvm-amd64.cfg",
+      "source": "/etc/java-21-openjdk/jvm-amd64.cfg",
+      "bytes": 54,
+      "sha256": "d5ad5a3e0c1cd2236d5f983f48f9a4b3612662dc7c89a6bb21994ed8327be25e"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/psfont.properties.ja",
+      "mount_target": "/etc/java-21-openjdk/psfont.properties.ja",
+      "source": "/etc/java-21-openjdk/psfont.properties.ja",
+      "bytes": 3793,
+      "sha256": "5a4bd51b969bf187ff86d94f4a71fdfbfa602762975fa3c73d264b4575f7c78f"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/psfontj2d.properties",
+      "mount_target": "/etc/java-21-openjdk/psfontj2d.properties",
+      "source": "/etc/java-21-openjdk/psfontj2d.properties",
+      "bytes": 11390,
+      "sha256": "780c565d5af3ee6f68b887b75c041cdf46a0592f67012f12eeb691283e92630a"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/security/blocked.certs",
+      "mount_target": "/etc/java-21-openjdk/security/blocked.certs",
+      "source": "/etc/java-21-openjdk/security/blocked.certs",
+      "bytes": 2488,
+      "sha256": "96572f243f31c2ef81a6e627542e596f6a9295cff3c7ae095c1b595cb1457ded"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts",
+      "mount_target": "/etc/ssl/certs/java/cacerts",
+      "source": "/etc/ssl/certs/java/cacerts",
+      "bytes": 173333,
+      "sha256": "45565e3caf177d654ce980953652b0c53b5676b9411cf21f01d97151b52b70d0"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/security/default.policy",
+      "mount_target": "/etc/java-21-openjdk/security/default.policy",
+      "source": "/etc/java-21-openjdk/security/default.policy",
+      "bytes": 10657,
+      "sha256": "2bd418aab30b091b136962f80be7ddf39dcba85f082a558a6993848ae65366ae"
+    },
+    {
+      "link": "/usr/lib/jvm/java-21-openjdk-amd64/lib/security/public_suffix_list.dat",
+      "mount_target": "/etc/java-21-openjdk/security/public_suffix_list.dat",
+      "source": "/etc/java-21-openjdk/security/public_suffix_list.dat",
+      "bytes": 227396,
+      "sha256": "16b42002aa6f83a7763c4cdbd399ecf738460377d447e362884495545afd60a3"
+    }
+  ],
+  "java_flags": [
+    "-Xmx3g"
+  ],
+  "collector": "JDK21 default collector; no collector flag",
+  "allocation_metric": "VM-wide ThreadMXBean total allocated bytes if supported; counter-boundary management overhead included; not live heap or RSS",
+  "memory_window": "Per-variant JVM lifetime HWM including warmup/JIT/measurement, one final HWM per cohort; per-request current RSS separately",
+  "runner_policy_version": "cache-aware-v3-PSIoptional",
+  "runner_path": "/workspace/jsgo-java-experiments/profile-v2/bench/run-v3.py",
+  "pressure_telemetry": {
+    "required_zero_when_measuring": [
+      "local_high",
+      "local_max",
+      "pgscan_direct",
+      "pgsteal_direct"
+    ],
+    "optional_zero_if_available": [
+      "pgmajfault",
+      "PSI_some_total_us",
+      "PSI_full_total_us"
+    ],
+    "unavailable_PSI": "null; no zeroPSI claim; directreclaim counters are proxies, not PSI"
+  },
+  "resident_policy": "twoJVMonly; inactivecontainer paused; pagesremaincharged; cache-awareheadroom=max-current+inactive_file+slab_reclaimable cappedmax;1GiBguard every250ms;zeroOOMalways; measuredlocalhigh/max/directscan/directsteal/availablemajfaultZERO;PSIZEROonlyifavailable;warmreclamationrecordedallowed",
+  "same_work": "freshCommandLineRunner/Compiler and externparse EVERYrequest; no source/extern/result cache; samefixedargv/input/artifacts",
+  "statistics": "screen1cohort has noCI; confirm3independentbaseline+candidateJVMpairs; wholecohortresamplingonly"
+}

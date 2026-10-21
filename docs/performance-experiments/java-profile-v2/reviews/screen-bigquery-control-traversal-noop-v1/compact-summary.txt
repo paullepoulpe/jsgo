@@ -1,0 +1,20 @@
+PASS independent Java-factor review
+One cohort, five measured pairs; CONTROL baseline; no confidence interval.
+All six digests matched on every request; all driver exits zero; no telemetry anomalies; PSI unavailable.
+
+Absolute medians / lifetime HWM:
+CONTROL: wall 4.287058841s; CPU 4.93s; allocation 2082314704 bytes; current RSS 643.367 MiB; lifetime HWM 1196.848 MiB.
+  Readiness: 45 warm requests; stable=True; drift=0.516781%; last4 JIT/wall=1.555958%; max/min=1.098910.
+  Measured JIT ms [239, 171, 116, 43, 175]; sum 744ms / 21.179191385s wall = 3.512882%; MEASURED_JIT_ABOVE_2_PERCENT.
+traversal-noop: wall 4.227315823s; CPU 5.04s; allocation 2085062832 bytes; current RSS 629.957 MiB; lifetime HWM 1514.188 MiB.
+  Readiness: 45 warm requests; stable=True; drift=-0.187138%; last4 JIT/wall=1.647282%; max/min=1.091180.
+  Measured JIT ms [293, 221, 83, 206, 128]; sum 931ms / 21.027666077s wall = 4.427500%; MEASURED_JIT_ABOVE_2_PERCENT.
+
+Candidate/CONTROL ratios:
+elapsed: 0.986064334 (-1.3936%); inverse 1.014132613
+CPU: 1.022312373 (+2.2312%); inverse 0.978174603
+RSS_lifetimeHWM: 1.265146397 (+26.5146%); inverse 0.790422359
+allocated_bytes: 1.001319747 (+0.1320%); inverse 0.998681993
+Current-RSS median ratio (descriptive): 0.979156294
+
+Preliminary one-cohort CONTROL screen only; elapsed median is 1.3936% lower while CPU median is 2.2312% higher, allocated bytes 0.1320% higher, and lifetime HWM 26.5146% higher. Warmup readiness passed for both; measured JIT is 3.5129% for CONTROL and 4.4275% for the candidate, both above the declared 2% flag; no rows were removed. No independent-cohort confidence interval or settled speed gain is established.

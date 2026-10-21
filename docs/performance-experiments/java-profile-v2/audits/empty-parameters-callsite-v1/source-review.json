@@ -1,0 +1,32 @@
+{
+  "status": "SOURCE_REVIEW_COMPLETE_RUNTIME_OWNED_BY_ROOT",
+  "exact_candidate_change": "Only the three-line names.isEmpty() return after existing parameter extraction",
+  "runtime_performed_for_this_audit": false,
+  "files": [
+    {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/control-src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+      "bytes": 27889
+    },
+    {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "sha256": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+      "bytes": 27942
+    },
+    {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/candidate.patch",
+      "sha256": "a953a2825985d014f452822d081a6507143279a5508501f32c6c3cb4ee468634",
+      "bytes": 451
+    },
+    {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/probe/com/google/javascript/jscomp/ModifiedParametersProbe.java",
+      "sha256": "6f31ac94ff31768822640aef8208caeddf5355f632998a6ac31416ace04449be",
+      "bytes": 5820
+    },
+    {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/probe/com/google/javascript/jscomp/EmptyParametersProbe.java",
+      "sha256": "3191072c69eabc85d1f9ad4a110412644cae47d7cb901dc911e375e229f2336d",
+      "bytes": 4094
+    }
+  ]
+}

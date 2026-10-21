@@ -1,0 +1,71 @@
+Open idea: stop modified-parameter analysis when its shared result is complete
+
+Status: source audit only. No implementation, probe/test changes, build, runtime,
+or performance measurement. Existing accumulator sources remain untouched.
+
+Proof
+The accumulator begins empty and only adds a string after names.contains(string)
+succeeds. Nothing removes an entry. Thus unsafe is always a subset of names, and
+unsafe.size() == names.size() means every possible output name has been found.
+The sizes are distinct-name counts, so duplicate formal names do not weaken the
+proof. Later nodes can only add already-present strings.
+
+The shared LinkedHashSet must remain the returned result, via the existing
+ImmutableSet.copyOf(unsafe). Returning names on saturation would be wrong for
+iteration order: function f(a,b) { b=1; a=1; } produces [b,a], not [a,b]. The
+unchanged traversal prefix already establishes each name's first insertion;
+subsequent duplicate additions cannot change that insertion order.
+
+Legal stopping points
+- After the current node has been processed, test saturation before descending
+  into its first child or before visiting the next sibling. Every ancestor must
+  also stop its remaining child loop once a recursive call completes the shared
+  set. A saturation condition on the recursive helper's child loop can express
+  this without a new cache or changing its void return type.
+- An entry guard is also semantically legal, including the initially empty names
+  case. By itself it still makes calls for remaining siblings; callers must stop
+  their loops to avoid that residual work. Conversely, a child-loop guard alone
+  need not bypass processing the initial body node for empty names.
+- A return only at the NAME insertion site is insufficient to end the whole
+  traversal: ancestors would continue into siblings unless completion propagates
+  through their loop conditions or an explicit return value.
+
+Rest parameters
+getFunctionParameterSet inserts REST_MARKER, the string "rest param", instead of
+the real rest variable name. Well-formed JavaScript cannot have that string as a
+NAME identifier. Therefore a function with a rest parameter cannot saturate the
+set during this analysis, even if all its ordinary formal names were found.
+Keep the existing marker and size relation unchanged; subtracting the marker or
+replacing it with the rest variable name would require a different proof and is
+outside this proposal. An artificial direct AST can contain the marker string;
+the subset/order proof still holds, but skipped malformed-node failures remain
+outside the compiler-owned, well-formed AST contract.
+
+Observable-work boundary
+After saturation, the skipped walk only reads AST predicates/strings/linkage and
+read-only NodeUtil L-value helpers, updates a local closure flag, and attempts
+duplicate set additions. It performs no AST writes, diagnostics, compiler hooks,
+scope mutation, or argument evaluation. Nested closures and field initializers
+do not add a new category of result; they still require membership in names.
+Parameter extraction remains first, and all later call-argument side-effect,
+receiver, closure and inlining checks remain unchanged. As with the separately
+audited empty-formals guard, failures from malformed raw NAME nodes or corrupt
+links in an unvisited suffix may disappear. This analysis is not an AST validator.
+
+Evidence and expected limits
+Corrected stock targets.tsv reports 18/2,221 inclusive CPU samples (0.8104%) for
+FunctionArgumentInjector.findModifiedParameters and 3.7519% inclusive sampled
+allocation weight. The CPU share is an opportunity bound for the entire original
+helper in this one profile, not a rigorous elapsed-time bound or predicted saving.
+Saturation can remove only a suffix, and the accumulator already removes most
+recursive set allocation. No post-accumulator saturation frequency, eligible
+suffix size or measured incremental benefit is known. Rest functions and
+functions with even one never-unsafe formal do not saturate, but would pay the
+extra size checks. The larger library bundle may differ; that is unmeasured.
+
+Suggested concise PR follow-up wording
+The shared accumulator also makes a future early-stop possible: once it contains
+every parameter name, the remaining read-only walk cannot change the result or
+its insertion order. We have not implemented or measured that follow-up. Rest
+parameters prevent this condition under the existing sentinel convention, and
+the added checks may outweigh savings when the set never becomes complete.

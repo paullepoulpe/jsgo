@@ -1,0 +1,77 @@
+diff --git a/src/com/google/javascript/jscomp/NodeTraversal.java b/src/com/google/javascript/jscomp/NodeTraversal.java
+--- a/src/com/google/javascript/jscomp/NodeTraversal.java
++++ b/src/com/google/javascript/jscomp/NodeTraversal.java
+@@ -26,6 +26,7 @@
+ import com.google.javascript.rhino.InputId;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.QualifiedName;
++import com.google.javascript.rhino.Token;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
+ import java.util.Deque;
+@@ -897,35 +898,38 @@
+ 
+   /** Traverses a branch. */
+   private void traverseBranch(Node n, @Nullable Node parent) {
+-    switch (n.getToken()) {
+-      case SCRIPT -> {
+-        handleScript(n, parent);
+-        return;
+-      }
+-      case FUNCTION -> {
+-        handleFunction(n, parent);
+-        return;
+-      }
+-      case MODULE_BODY -> {
+-        handleModule(n, parent);
+-        return;
+-      }
+-      case CLASS -> {
+-        handleClass(n, parent);
+-        return;
+-      }
+-      case CLASS_MEMBERS -> {
+-        handleClassMembers(n, parent);
+-        return;
+-      }
+-      case DEFAULT_VALUE, DESTRUCTURING_LHS -> {
+-        // TODO(nickreid): Handle ASSIGN with destructuring target.
+-        if (this.obeyDestructuringAndDefaultValueExecutionOrder) {
+-          handleDestructuringOrDefaultValue(n, parent);
++    Token token = n.getToken();
++    if (token != Token.NAME) {
++      switch (token) {
++        case SCRIPT -> {
++          handleScript(n, parent);
+           return;
+         }
+-      }
+-      default -> {}
++        case FUNCTION -> {
++          handleFunction(n, parent);
++          return;
++        }
++        case MODULE_BODY -> {
++          handleModule(n, parent);
++          return;
++        }
++        case CLASS -> {
++          handleClass(n, parent);
++          return;
++        }
++        case CLASS_MEMBERS -> {
++          handleClassMembers(n, parent);
++          return;
++        }
++        case DEFAULT_VALUE, DESTRUCTURING_LHS -> {
++          // TODO(nickreid): Handle ASSIGN with destructuring target.
++          if (this.obeyDestructuringAndDefaultValueExecutionOrder) {
++            handleDestructuringOrDefaultValue(n, parent);
++            return;
++          }
++        }
++        default -> {}
++      }
+     }
+ 
+     currentNode = n;

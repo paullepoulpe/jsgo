@@ -1,0 +1,13 @@
+diff --git a/src/com/google/javascript/rhino/jstype/JSType.java b/src/com/google/javascript/rhino/jstype/JSType.java
+--- a/src/com/google/javascript/rhino/jstype/JSType.java
++++ b/src/com/google/javascript/rhino/jstype/JSType.java
+@@ -742,6 +742,9 @@
+    * types. See {@code EqMethod} for more info.
+    */
+   public final boolean differsFrom(JSType that) {
++    if (this == that) {
++      return false;
++    }
+     return !new EqualityChecker()
+         .setEqMethod(EqMethod.DATA_FLOW)
+         .check(this, that);

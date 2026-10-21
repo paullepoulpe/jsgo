@@ -1,0 +1,82 @@
+Bounded argument-analysis reuse audit, pinned Closure v20261015
+
+Conclusion: one plausible local short-circuit exists, but this audit found no
+strong profile-backed duplicate worth preparing as another candidate now. No
+candidate/source patch, Java/build/benchmark, archive read, bulk hash, active-v4
+result read, root README edit or configuration change was performed.
+
+Inspected sources
+  FunctionArgumentInjector.java:64-129, 307-446; FunctionInjector.java:253-299,
+  361-395, 692-717, 784-911; FunctionToBlockMutator.java:132-173;
+  AstAnalyzer.java:119-132, 285-504; NodeUtil.java:1232-1282;
+  Compiler.java:1458-1467. Paths are below the pinned closure-src/com/google/
+  javascript/jscomp directory. A separate source reviewer checked the analyzer
+  predicate distinction, proposed short-circuit and extension-hook boundary.
+
+Small conditional reuse, retained as low-priority source observation
+  gatherCallArgumentsNeedingTemps already saves mayHaveSideEffects(cArg) in
+  argSideEffects at line 359. After the trivial-body exemption, line 380 tests
+  mayEffectMutableState(cArg) && references > 0, then line 390 tests argSideEffects.
+  Both branches assign requiresTemporary=true. They could logically be combined:
+
+    else if (argSideEffects
+        || (compiler.getAstAnalyzer().mayEffectMutableState(cArg) && references > 0)) {
+      requiresTemporary = true;
+    }
+
+  This reuses the existing boolean and skips the second analysis only when it
+  cannot change the selected result. It must remain AFTER the existing trivial-
+  body exemption; moving side effects ahead of that exemption is incorrect.
+  The two predicates are not interchangeable: fresh arrays/objects/functions/
+  classes and pure constructors can create mutable state without side effects.
+  The combination works from adjacent branch outcomes, not from assuming equality
+  of the two predicates. Keep the second predicate's existing internal operand
+  order if this is ever prepared as its own experiment.
+
+  The ordinary implementation performs no AST writes between the two analyses:
+  only static NodeUtil.canBeSideEffected and immutable-set membership checks may
+  intervene. No coding-convention hook has been reached. Validity is local to
+  this argument iteration and stable stock compiler analysis settings. In stock
+  Compiler, getAstAnalyzer constructs a fresh options object/analyzer each time,
+  so the skipped call can also avoid that construction. This audit does not
+  promote using the injector's long-lived analyzer field instead: its settings
+  snapshot may have a different lifetime.
+
+  Extension-hook parity is not proved. AbstractCompiler.getAstAnalyzer is
+  overridable; AstAnalyzer and the analysis entry points are nonfinal, and type
+  queries can reach custom JSType behavior. Skipping a call changes invocation
+  counts and can suppress hook exceptions. Malformed AST exception behavior is
+  also outside the stock normalized-AST argument. These are explicit boundaries,
+  not evidence that the ordinary compiler output changes.
+
+Other apparent duplicates do not provide a better tiny change
+  NodeUtil.canBeSideEffected(cArg) appears at lines 366 and 394. A failed trivial-
+  body test can reach the later call, so a duplicate exists on some paths. A
+  deferred local result could reuse it within that iteration, but unconditional
+  precomputation adds traversal on currently short-circuited paths. Lazy state
+  adds branches/locals, and an intervening overridable mutable-state analyzer
+  prevents a universal purity proof. No profile attribution justifies it here.
+
+  FunctionInjector DIRECT and BLOCK checks are mutually exclusive within
+  canInlineReferenceToFunction. Sharing checks across later eligibility/inlining
+  invocations exceeds this audit's local boundary. FunctionToBlockMutator clones
+  and may rename/rewrite the function before its later argument analysis; these
+  are different nodes and state. inject() replaces/clones nodes during traversal,
+  so repeated THIS-template queries are not before-any-mutation reuse. Parameter
+  reference counts use different parameter names and are not duplicate queries.
+
+Existing diagnostic evidence, not a new measurement
+  results/profile-stock-bigquery-steady-v2/targets.tsv attributes 6/2221 CPU
+  samples (0.2701% inclusive) to all of gatherCallArgumentsNeedingTemps, including
+  5/2221 in its findParametersReferencedAfterSideEffect traversal. Its total
+  inclusive sampled allocation is 0.4950%, largely traversal/collection work;
+  this is not attribution to the proposed shortcut. The same recording's
+  summary.tsv reports five AstAnalyzer allocation samples, 11,942,064 estimated
+  bytes / 0.0742% globally, not specifically this caller. Existing attribution
+  supplies neither duplicate-call frequency nor avoided cost for this branch.
+  The corrected recording was diagnostic and narrowly missed its JIT settling
+  threshold; none of these counts establishes a wall-time or memory improvement.
+
+Decision: document the conditional reuse; do not manufacture a candidate or
+extend this into cross-call AST caching. Existing accumulator validation and the
+root's running confirmation remain the useful work in progress.

@@ -1,0 +1,47 @@
+{
+  "status": "PASS_SOURCE_BUILD_AND_PROBE_RECEIPT_REVIEW",
+  "promotion_status": "NONE_PROMOTED",
+  "reviewed_at_utc": "2026-10-21T09:40:08.579746+00:00",
+  "scope": "Existing small receipts/source/classes only; no new Java/build/benchmark/archive inspection.",
+  "frozen_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/frozen-source-manifest.json",
+  "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/manifest.json",
+  "build_manifest_sha256": "ade14caaf6e95127b1c91183cc158cda83e05d56a1b2d181938cec35ae5344e7",
+  "probe_manifest": "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/manifest.json",
+  "probe_manifest_sha256": "2675e5f30b7b020f37b8ef2f363897470e7e0f631c8ae25f55da40fedc684026",
+  "runs": 3,
+  "all_stdout_exactly_equal": true,
+  "stdout_sha256": "8efb89810b511e3df249478135bb0bad432e8941a97f44b5461bb8d20c473c6b",
+  "all_stderr_empty": true,
+  "class_origins_and_log_hashes_verified": true,
+  "full_overlay_classes_verified": true,
+  "original_source_sha256": "2c11a1f752e70fbae4c30c6fe3c62e5c47ca1e1516a77108107dea0db9ce981f",
+  "candidate_source_sha256": "7b7bf5ab98868b2d11055a63ebb3be42252a510abac389112233cb47da50455e",
+  "existing_build_receipts": {
+    "CONTROL": {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/CONTROL/build.json",
+      "sha256": "186497ecc35a8959373fa42940e47e44ce636c6021cf602cb3d601409a1acaf5",
+      "effective_source_sha256": "2c11a1f752e70fbae4c30c6fe3c62e5c47ca1e1516a77108107dea0db9ce981f"
+    },
+    "reference-list-two": {
+      "path": "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/reference-list-two/build.json",
+      "sha256": "dd5abba05dbc2aa806b658cd517e61ede93375410ba2543430c3905c33466a50",
+      "effective_source_sha256": "7b7bf5ab98868b2d11055a63ebb3be42252a510abac389112233cb47da50455e"
+    }
+  },
+  "performance_status": "NEGATIVE_SINGLE_COHORT_SCREEN_NONE_PROMOTED",
+  "performance_source": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-reference-list-two-v1/summary.json",
+  "performance_summary_sha256": "3f37a294fc6506a991600edaa512740d84259ea116afcd41017832353a3e146c",
+  "performance_review_scope": "Summary transcription only; no independent full screen reanalysis.",
+  "candidate_over_CONTROL": {
+    "elapsed": 1.0371920707550673,
+    "CPU": 1.0122448979591836,
+    "RSS_lifetimeHWM": 1.1290292547999676,
+    "allocated_bytes": 1.0013376973270993
+  },
+  "limits": [
+    "Focused probes are not the full upstream Java suite.",
+    "Current stock jar bytes were not bulk rehashed.",
+    "No combination with other patches validated.",
+    "Capacity reflection and arbitrary capacity-changing same-package callers are outside logical compiler equivalence."
+  ]
+}

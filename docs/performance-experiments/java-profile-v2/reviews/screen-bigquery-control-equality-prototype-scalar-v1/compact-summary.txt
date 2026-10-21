@@ -1,0 +1,16 @@
+PASS independent review; one cohort, five pairs; NONE_PROMOTED. No confidence interval or established speed gain.
+All 90 requests match all six stock-oracle digests; both owned JVM drivers exited 0 and containers were removed; no OOM, measured reclaim/pressure-proxy violations, or telemetry anomalies. PSI unavailable; no zero-PSI claim. Build receipt and exact frozen/effective/relocated source hashes match.
+Ratios are candidate/CONTROL (<1 lower); wall/CPU/allocation use medians; HWM includes warmup and JIT.
+elapsed: 1.013348675 (+1.3349%)
+CPU: 0.966535433 (-3.3465%)
+RSS_lifetimeHWM: 0.997544935 (-0.2455%)
+allocated_bytes: 0.993685628 (-0.6314%)
+current RSS median (descriptive): 1.132016383 (+13.2016%)
+CONTROL: warmup 40; wall median 4.327338877s, mean 4.302602286s, SD 0.122319588s; CPU median 5.080s, mean 4.992s; allocation median 2074036912 bytes; current RSS median 652.351562 MiB; HWM 1179.003906 MiB.
+  readiness: drift -3.3791%, JIT 1.6018%, spread 1.049747.
+  measured JIT deltas [114, 75, 117, 21, 59] ms; sum 386 ms / 21.513011428s = 1.7943%: MEASURED_JIT_AT_OR_BELOW_2_PERCENT.
+equality-prototype-scalar: warmup 40; wall median 4.385103117s, mean 4.348807359s, SD 0.099667813s; CPU median 4.910s, mean 4.982s; allocation median 2060940672 bytes; current RSS median 738.472656 MiB; HWM 1176.109375 MiB.
+  readiness: drift -3.7839%, JIT 1.9065%, spread 1.053148.
+  measured JIT deltas [102, 107, 65, 26, 43] ms; sum 343 ms / 21.744036794s = 1.5774%: MEASURED_JIT_AT_OR_BELOW_2_PERCENT.
+CPU mean ratio: 0.9979967948717949
+One-cohort CONTROL screen only. Candidate elapsed median is 1.3349% higher, CPU median 3.3465% lower, allocated bytes 0.6314% lower and lifetime HWM 0.2455% lower. CPU means are nearly equal (candidate 0.2003% lower); median differences are descriptive within this single cohort. Current RSS median is 13.2016% higher and is a postrequest snapshot. Both warmup readiness gates passed; both measured JIT batches are at or below 2%. All rows are retained. No independent-cohort confidence interval or settled speed gain is established.

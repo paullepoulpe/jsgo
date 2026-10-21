@@ -1,0 +1,116 @@
+{
+  "status": "PASS independent diagnostic receipt/count review",
+  "request_count": 1,
+  "all_six_artifacts_rehashed": {
+    "stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "stderr": {
+      "sha256": "58ba5197a98c9beb87204fba96e10acea25c38ebdf20e2c12cfd84f543b5f101",
+      "bytes": 498
+    },
+    "exit": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "out.js": {
+      "sha256": "2c57a4400b19a8cad877ec9c75b1384f9d58bda9998d28f24649b4cb5aa82880",
+      "bytes": 161467
+    },
+    "out.js.map": {
+      "sha256": "b5ce8f8aca5564991df805eaf87d1b47874b3d8876ec0b7dc8db675df9b5a3e8",
+      "bytes": 650921
+    },
+    "inputs.manifest": {
+      "sha256": "a6239fb5f12e102c7b817fd89f9bcedce22117e2693767561c6ad7aa329bc1f9",
+      "bytes": 11235
+    }
+  },
+  "all_loaded_overlay_classes_rehashed": {
+    "com.google.javascript.rhino.jstype.EqualityChecker": "af755363ca99daf81ff8335d242011f48e7a3d94aebb66450d027edf29f4404d",
+    "com.google.javascript.rhino.jstype.EqualityChecker$1": "f9de9b03aa3ae6ff37252c95635eb265df4956946a0fd75b8830cf8601e13d3e",
+    "com.google.javascript.rhino.jstype.EqualityChecker$CacheKey": "a5469592cf263245e0eaa228f8b834f911d88e151d90fdb9f735e45bff126f7f",
+    "com.google.javascript.rhino.jstype.EqualityChecker$EntryDiagnostic": "4fd3690e2652353588b739284852cc2000edf011aea9b72922b8692eae9d0ed7",
+    "com.google.javascript.rhino.jstype.EqualityChecker$EntryDiagnostic$EntryKey": "557592373b43a0e0a546b5e049d0158932015436eabeeece6eab46b5119f2113",
+    "com.google.javascript.rhino.jstype.EqualityChecker$EqMethod": "3b3df91be713d3b06f9cc43c1128a0e40c92a676127aca33430925e198b39e8d"
+  },
+  "small_pins_rehashed": {
+    "/workspace/jsgo-java-experiments/profile-v2/run-equality-diagnostic.py": "9b2ca24a426b85414ae279199038317225c7657354b9edfe5764490105043f9d",
+    "/workspace/jsgo-java-experiments/profile-v2/bench/run-v3.py": "74ed5966d78afe3621f382e893488e400701ace393f04514274326a107ebab7f",
+    "/workspace/jsgo-java-experiments/profile-v2/build/equality-pairs/manifest.json": "617b34bc5f8eee337b90c91d60d5b7d660640acbf146401b4726cd69e1bea705",
+    "/workspace/jsgo-results/round4/bigquery-stock-oracle-v1/spec.json": "7e3fa4b9cba502b18423640c8ad6a4a757185c3f6be1b898019a83f4a23504bf",
+    "/workspace/jsgo-results/round4/bigquery-stock-oracle-v1/stock-java-oracle-digests.json": "7d84ce4a128793091f09afce79d18e39e3f7371d40d61c08d2a76288636e5c2e",
+    "/workspace/jsgo-results/round4/bigquery-stock-oracle-v1/metadata.json": "522084f005f216868e5517f91c209b3ba2b769cc7a639c3f1bdd5a90c01789a3",
+    "/workspace/jsgo-java-experiments/profile-v2/build/equality-pairs/CONTROL/build.json": "f774aeb9d62d671bd1c1d3424144fe15f3b1dacc89b1ed05b1487fcc46918209",
+    "/workspace/jsgo-java-experiments/profile-v2/diagnostics/equality-pairs/control-src/com/google/javascript/rhino/jstype/EqualityChecker.java": "5c9ce8b056c37bf9c0972a9052a76e87b9f9236b3e1d8ee7be64d99f10311ab1",
+    "/workspace/jsgo-java-experiments/profile-v2/build/equality-pairs/CONTROL/src/com/google/javascript/rhino/jstype/EqualityChecker.java": "25cd44ea38c980a57e009274ea012a6401a5103a230a52bc172e09bd0e540846",
+    "/workspace/jsgo-java-experiments/profile-v2/build/equality-pairs/equality-pairs/build.json": "0d3e5fa54fc634d4e3dc10e9c102da73a83b4df9acaf2f13e65013f8aeb75c56",
+    "/workspace/jsgo-java-experiments/profile-v2/diagnostics/equality-pairs/src/com/google/javascript/rhino/jstype/EqualityChecker.java": "1db8c3f5089ec5b9bcf690665f49775cbfde69fccfe60a6d51d65de669c1156b",
+    "/workspace/jsgo-java-experiments/profile-v2/build/equality-pairs/equality-pairs/src/com/google/javascript/rhino/jstype/EqualityChecker.java": "1b5ce6eba1d52dfd9933a8bb9ab3a5bcf5f91c3979eb5fc62e4afbddc6f0a6cb"
+  },
+  "jar_full_rehash": "not repeated during concurrent benchmark; retained original runner pre/post verification receipt",
+  "probe_receipt": "3 variants PASS with identical stdout; no active postflight runtimes",
+  "counter_totals": {
+    "total": 1863747,
+    "tracked_keys": 324,
+    "printed_keys": 128,
+    "omitted_keys": 196,
+    "omitted_calls": 8374,
+    "overflow_calls": 0
+  },
+  "printed_entry_fraction": 0.9955069008830061,
+  "top_pairs": [
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.InstanceObjectType",
+      "right_class": "com.google.javascript.rhino.jstype.InstanceObjectType",
+      "identical": false,
+      "calls": 403478,
+      "fraction_of_check_entries": 0.21648753827638623
+    },
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.PrototypeObjectType",
+      "right_class": "com.google.javascript.rhino.jstype.NullType",
+      "identical": false,
+      "calls": 152263,
+      "fraction_of_check_entries": 0.0816972475341342
+    },
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.PrototypeObjectType",
+      "right_class": "com.google.javascript.rhino.jstype.VoidType",
+      "identical": false,
+      "calls": 152251,
+      "fraction_of_check_entries": 0.08169080889197944
+    },
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.PrototypeObjectType",
+      "right_class": "com.google.javascript.rhino.jstype.UnknownType",
+      "identical": false,
+      "calls": 134828,
+      "fraction_of_check_entries": 0.07234243703678664
+    },
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.FunctionType",
+      "right_class": "com.google.javascript.rhino.jstype.UnknownType",
+      "identical": false,
+      "calls": 120439,
+      "fraction_of_check_entries": 0.06462196853972133
+    },
+    {
+      "method": "IDENTITY",
+      "left_class": "com.google.javascript.rhino.jstype.PrototypeObjectType",
+      "right_class": "com.google.javascript.rhino.jstype.UnionType",
+      "identical": false,
+      "calls": 119193,
+      "fraction_of_check_entries": 0.0639534228626525
+    }
+  ],
+  "cleanup_and_caps": "PASS 4GiB/no swap/two CPUs, normal exit, owned container removed, no OOM delta",
+  "performance_claim": false,
+  "limits": "one instrumented compilation; class pairs omit template-map/cached-unknown state; no timing or allocation inference"
+}

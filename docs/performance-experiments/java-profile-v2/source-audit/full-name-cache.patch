@@ -1,0 +1,31 @@
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -1159,6 +1159,8 @@
+             nameMapByModule.put(metadata, name, node);
+           }
+         }
++        // Reuse the complete name already retained as the namespace index key.
++        node.cachedFullName = name;
+       }
+       return node;
+     }
+@@ -1230,6 +1232,7 @@
+ 
+     private final String baseName;
+     private final Name parent;
++    private @Nullable String cachedFullName;
+ 
+     // The children of this name. Must be null if there are no children.
+     @Nullable List<Name> props;
+@@ -1320,7 +1323,10 @@
+     }
+ 
+     String getFullName() {
+-      return parent == null ? baseName : parent.getFullName() + '.' + baseName;
++      if (cachedFullName == null) {
++        cachedFullName = parent == null ? baseName : parent.getFullName() + '.' + baseName;
++      }
++      return cachedFullName;
+     }
+ 
+     boolean usesHasOwnProperty() {

@@ -1,0 +1,5 @@
+metric,geomean_candidate_over_baseline,geomean_baseline_over_candidate,bootstrap95_low,bootstrap95_high,log_t95_df2_low,log_t95_df2_high
+elapsed,1.0133486749343852,0.9868271649585475,,,,
+CPU,0.9665354330708662,1.034623217922607,,,,
+RSS_lifetimeHWM,0.9975449349788785,1.0024611071993197,,,,
+allocated_bytes,0.9936856282912674,1.0063544963607765,,,,

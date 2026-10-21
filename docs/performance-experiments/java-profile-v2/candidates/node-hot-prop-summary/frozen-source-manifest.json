@@ -1,0 +1,49 @@
+{
+  "status": "SOURCE_ONLY_CLOSED_PENDING_RUNTIME",
+  "candidate": "node-hot-prop-summary",
+  "pinned_version": "v20261015",
+  "prepared_at_utc": "2026-10-21T10:20:03.135971+00:00",
+  "original_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/rhino/Node.java",
+  "source_patch_check": "patch-check.json",
+  "independent_reviewer": "/root/java_hash_candidate_v2/review_color_hash",
+  "independent_source_review": "PASS; immutable nearest-item suffix summary preserves token gates, generic reads, original malformed-value exceptions, construction validation and all head replacement paths",
+  "independent_probe_review": "PASS source/API/reflection/fixture review; deterministic intended stdout including candidate-only summary verification; Java compilation and runtime remain pending",
+  "compile_status": "NOT_RUN",
+  "runtime_status": "NOT_RUN",
+  "layout_status": "NOT_MEASURED",
+  "performance_status": "NOT_MEASURED",
+  "promotion_status": "NOT_PROMOTED",
+  "new_fields": {
+    "Node": [],
+    "Node$PropListItem": [
+      "final byte hotBooleanSummary"
+    ]
+  },
+  "changed_public_or_package_method_signatures": false,
+  "overlay_requirement": "Compile and overlay the complete Node source family, including Node$PropListItem, Node$IntPropListItem, Node$ObjectPropListItem",
+  "probe_classes": [
+    "com.google.javascript.rhino.NodeHotPropSummaryProbe"
+  ],
+  "candidate_optional_args": {
+    "com.google.javascript.rhino.NodeHotPropSummaryProbe": [
+      "--require-summary"
+    ]
+  },
+  "remaining_validation": [
+    "Compile matched unmodified-source CONTROL and candidate against the pinned jar",
+    "Run the probe on STOCK, CONTROL and candidate with exact stdout and class-origin/source-hash checks",
+    "Measure both property-item subclass layouts under actual JVM flags",
+    "Verify compiler output and diagnostics byte equality",
+    "Measure end-to-end performance with added per-item construction work included"
+  ],
+  "files_sha256": {
+    "README.md": "c626fac742f7584a608d7c1cd78727ee582781aa420de0360bb894750b98f1a4",
+    "control-src/com/google/javascript/rhino/Node.java": "890e39a87eba151f7cbfcf62653c443d95d10d40b8c2b23bfa4bf045ae026fa5",
+    "src/com/google/javascript/rhino/Node.java": "bd788386acf75ba62c5d6ac2d8a6acfbf041069f84d1335e09d66328ddaac590",
+    "probe/com/google/javascript/rhino/NodeHotPropSummaryProbe.java": "80b2dfb798a4ece227432ccae06706f118351727f912ef564f0904d8df09b02a",
+    "prepare-source.py": "2f673c0770d557bdcbe15bcd2eadc4d5691cc77a902ec7c7203337c75950be93",
+    "node-hot-prop-summary.patch": "d0a7948ebcf793b5c07b2664342e15fefe6971e2f9a3d0fbbd5c6ddd4ec0df1d",
+    "patch-check.json": "bb5a6e8ad1cd78f094d7f7a8d8eaaf108e28e8d0bff7c533b214bf8fec923569",
+    "profile-evidence.tsv": "143eb8c6e274320d66b767b876bb9c2bae867587a41155e650ecb27641893309"
+  }
+}

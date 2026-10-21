@@ -1,0 +1,83 @@
+Source-only equality allocation audit, pinned Closure v20261015
+No candidate edit, build, JVM, probe, benchmark, or runtime instrumentation.
+
+Decision: do not prepare another equality patch from current evidence.
+
+Profile evidence read from
+results/profile-stock-bigquery-steady-v2/hot-callers.tsv:
+- EqualityChecker accounts for 3.5167% of all sampled weighted allocation.
+- The two leading five-frame prefixes through JSType.equals -> Objects.equals ->
+  SubtypeChecker.isSubtypeHelper -> generic subtype dispatch account for 1.3840%
+  and 1.3143%, or 2.6983% combined.
+- These stacks do not report the compared runtime type pair. They establish an
+  allocating caller, not that primitive mismatches dominate it.
+- Listed differsFrom prefixes total 0.0782% of all allocation. These percentages
+  are allocation weights, not wall time or guaranteed removable allocation.
+
+Existing behavior and possible shortcuts:
+JSType.equals already handles reference identity and non-JSType arguments before
+allocating EqualityChecker. SubtypeChecker.isSubtypeHelper also handles identical
+objects, unknown/all/no types and mode-specific null/void cases before equals.
+The cheap universal cases therefore already avoid allocation on this caller.
+
+EqualityChecker.areEqualInternal checks, in order: identity/null; unresolved names;
+unknown-type rules; union decomposition; function/arrow comparison; template-map
+comparison; records; nominal types; proxy unwrapping; terminal false. Different
+Java classes or JSTypeClass tags alone cannot establish inequality: unions and
+proxies can compare equal to their represented types.
+
+The final scalar built-ins BooleanType, NumberType, StringType, BigIntType,
+NullType and VoidType all eventually compare false when their references differ.
+KnownSymbolType is also final. SymbolType and the ValueType base are not final;
+a broad ValueType guard admits package-level custom subclasses and their hooks.
+Both operands must be restricted to known final built-ins if their predicate and
+getter calls are to be omitted without suppressing custom code.
+
+Final primitive classes do not imply immutable empty template maps. The public
+JSType.mergeSupertypeTemplateTypes(ObjectType) mutates their templateTypeMap too.
+Two primitives can consequently carry common template keys with arbitrary type
+values. EqualityChecker.areTypeMapEqual recursively compares those values before
+the primitive comparison ultimately returns false. Skipping this step can omit
+custom predicates, exceptions, or lazy work even though the boolean result agrees.
+
+For an exact pair of final primitive classes, requiring the LEFT map to be empty
+is sufficient: areTypeMapEqual iterates left keys and otherwise returns true;
+its final TemplateTypeMap getters have no callbacks. Requiring both maps empty is
+more conservative but unnecessary. The asymmetry is existing code behavior.
+
+For example, after the existing identity branch, this narrow guard is sound for
+valid constructed types:
+
+    if (this instanceof NumberType && other instanceof StringType
+        && templateTypeMap.isEmpty()) {
+      return false;
+    }
+
+It covers only an unmeasured ordered type pair. A complete final-class whitelist
+on both operands plus the template-map condition adds many branches/checks to all
+nonidentical equals calls. Neither option has sufficient type-pair evidence to
+justify advancing it as the next tiny optimization. Independent source review
+confirmed the same template-map obstacle and recommendation.
+
+A generic lazy-checker refactor is not comparably small. It must carry the
+already-executed prefix into recursive/structural comparison without replaying
+type getters or changing their order. Merely moving a prefix into equals then
+falling back to the current checker repeats custom predicates. Reusing a checker
+would require an explicit reset/lifetime design because it is documented and
+implemented as single-use, with recursion depth and an optional cycle cache.
+Neither was implemented or claimed equivalent here.
+
+Identity-differs screen disposition (retained evidence):
+Parent intentionally interrupted the identity-differs screen during warmup after
+the corrected allocation attribution showed differsFrom's small share. This is
+not a completed timing result or a performance rejection of the three-line guard.
+The frozen candidate and probe remain untouched by this audit.
+
+Existing result files retained, without modification:
+results/screen-bigquery-control-identity-differs-v1/failure.json records
+KeyboardInterrupt during warmup and no accepted performance claim.
+results/screen-bigquery-control-identity-differs-v1/stopped-proof.json records both
+owned containers removed, driver exit 0 for both, empty cleanup_errors,
+remaining_owned_containers, active_compilers and remaining_owned_driver_processes,
+plus zero OOM/oom_kill/oom_group_kill deltas. This is the saved cleanup proof for
+that stopped run, not a statement about current system processes.

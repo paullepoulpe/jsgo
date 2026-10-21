@@ -1,0 +1,12 @@
+diff --git a/src/com/google/javascript/jscomp/ReferenceCollection.java b/src/com/google/javascript/jscomp/ReferenceCollection.java
+--- a/src/com/google/javascript/jscomp/ReferenceCollection.java
++++ b/src/com/google/javascript/jscomp/ReferenceCollection.java
+@@ -32,7 +32,7 @@
+  */
+ public final class ReferenceCollection implements Iterable<Reference>, Serializable {
+ 
+-  List<Reference> references = new ArrayList<>();
++  List<Reference> references = new ArrayList<>(2);
+ 
+   @Override
+   public Iterator<Reference> iterator() {

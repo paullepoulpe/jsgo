@@ -1,0 +1,60 @@
+Source-only follow-up audit: SourcePosition and Node.lookupProperty
+Pinned Closure v20261015; no builds, JVMs, benchmarks, or candidate edits.
+
+SourcePosition: do not advance a general memo or allocation rewrite.
+
+The corrected diagnostic summary assigns SourcePosition 5.3498% of sampled
+weighted allocation. That is allocation weight, not wall time or a removable
+fraction. Five listed allocation stacks total 4.4242% of all weighted allocation
+and come from LineNumberScanner.getSourceRange(int,int), reached through ordinary
+identifier or punctuation token ranges. These ranges need both endpoint objects
+under the current representation.
+
+Parser.getTreeStartLocation already returns peekToken().location.start;
+getTreeEndLocation returns lastSourcePosition, itself set from token.location.end.
+Tree range creation therefore already reuses token endpoints. Scanner.getPosition
+also reuses peekToken().location.start when lookahead is present.
+
+SourcePosition has final fields and points to final immutable parser.SourceFile,
+but is public/nonfinal, inherits Object.equals/hashCode, and is exposed through
+public Scanner, Token, SourceRange, ParseTree, TemplateLiteralToken and reporter
+APIs. Reusing a repeated offset would change identity and identity-based equality
+of endpoints of adjacent tokens, repeated Scanner.getPosition calls, and EOF
+ranges. SourcePosition subclasses may override methods, though positions created
+by LineNumberScanner are always its concrete base class. A blanket memo therefore
+does not preserve all observable public behavior.
+
+One concrete redundant temporary exists: Scanner.scanStringLiteral and
+nextTemplateLiteralTokenShared save a private startingPosition, then the private
+getTokenRange(SourcePosition) rewinds and reconstructs it via getSourceRange.
+Reusing that private start can save one position per string/template token.
+However, unterminated-literal reporting exposes startingPosition to ErrorReporter;
+stock then returns a distinct position in token.location.start. Unconditional
+reuse changes this alias relationship. A narrowly designed successful-literal
+path could reuse the start while retaining fresh objects on the exposed-error
+path, but needs more bookkeeping than the one-line reuse, and these paths do not
+appear among the five dominant allocation stacks above. Do not pursue now.
+Keep rewindTo even in any future reuse design: it restores line-scanner state
+after diagnostics inside a multiline token may have advanced it.
+
+Useful profile symbols: LineNumberScanner.getSourcePosition/getSourceRange;
+Scanner.getTokenRange(int) versus getTokenRange(SourcePosition),
+scanIdentifierOrKeyword, createToken, scanStringLiteral,
+nextTemplateLiteralTokenShared, and Parser.getTreeStartLocation.
+
+Node.lookupProperty: do not advance a core cache or layout rewrite.
+
+The reported 5.3129% execution-sample leaf share covers all callers. The method
+already performs a minimal byte-key linked-list search. Property tails are
+immutable and shared; setters, clone/deserialization, source-reference handling,
+and copyBaseNodeFields can replace the list head. A cache or field-layout redesign
+would need broader ownership/invalidation analysis and is not a tiny change.
+
+Helper source audit found a local possible reduction: AstAnalyzer's function-call
+side-effect analysis reads SIDE_EFFECT_FLAGS up to three times, and constructor
+analysis up to twice, through Node's convenience predicates. A single local flags
+read with unchanged masks could remove repeat list searches in those callers.
+The intervening built-in checks do not mutate AST properties; zero-flags semantics
+must remain unchanged. Need the actual caller-stack contribution and a full
+override/API check before proposing a candidate. Aggregate lookupProperty samples
+do not justify it. Parent explicitly deferred this lead; no patch prepared.

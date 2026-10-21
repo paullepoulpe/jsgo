@@ -1,0 +1,903 @@
+{
+  "status": "INCOMPLETE_REJECTED_DESCRIPTIVE_ONLY",
+  "restart_decision": "Root closed NO_RESTART before receiving partial performance statistics",
+  "accepted_performance_claim": false,
+  "confidence_intervals": null,
+  "pooled_estimate": null,
+  "complete_pairs": 27,
+  "available_measured_rows": 55,
+  "missing_measured_rows": [
+    {
+      "cohort": 2,
+      "variant": "accumulator",
+      "kind": "measure",
+      "request": 68,
+      "pair": 8,
+      "retention": "FAILED_PRESSURE_NO_METRIC_ROW",
+      "wall_ns": "",
+      "wall_s": "",
+      "cpu_ns": "",
+      "cpu_s": "",
+      "allocation_before": "",
+      "allocation_after": "",
+      "allocated_bytes": "",
+      "rss_kib": "",
+      "rss_mib": "",
+      "hwm_kib": "",
+      "peak_rss_mib": "",
+      "cgroup_current_bytes": "",
+      "cgroup_peak_bytes": "",
+      "gc_count": "",
+      "gc_ms": "",
+      "jit_before_ms": "",
+      "jit_after_ms": "",
+      "exit": "",
+      "JIT_delta_ms": "",
+      "JIT_counter_valid": "",
+      "strict_recorded_digests": "NOT_COMPUTED",
+      "raw_row": "NOT_SAVED"
+    }
+  ],
+  "per_cohort": [
+    {
+      "cohort": 1,
+      "status": "COMPLETE_COHORT_OF_FAILED_RUN",
+      "complete_pairs": 20,
+      "variants": {
+        "STOCK": {
+          "complete_pair_count": 20,
+          "available_measured_rows": 20,
+          "complete_pairs_descriptive": {
+            "wall_s": {
+              "median": 10.7247703935,
+              "mean": 10.7855414936,
+              "min": 10.547653802,
+              "max": 11.215011699,
+              "sample_SD": 0.1760168073300479
+            },
+            "CPU_s": {
+              "median": 12.38,
+              "mean": 12.42,
+              "min": 12.02,
+              "max": 13.1,
+              "sample_SD": 0.24880768307649728
+            },
+            "allocated_bytes": {
+              "median": 4756135828.0,
+              "mean": 4756151076.8,
+              "min": 4754952600,
+              "max": 4756688928,
+              "sample_SD": 409560.77963871695
+            },
+            "current_RSS_MiB": {
+              "median": 672.072265625,
+              "mean": 681.5671875,
+              "min": 625.90625,
+              "max": 786.84765625,
+              "sample_SD": 41.72257885405741
+            }
+          },
+          "maximum_retained_lifetime_HWM_MiB": 1597.875,
+          "warm_gate": {
+            "requests": 60,
+            "median_drift": 0.008337625584573072,
+            "JIT_fraction": 0.008990545532778841,
+            "spread": 1.084540692043358
+          },
+          "all_available_measured_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              71,
+              72,
+              73,
+              74,
+              75,
+              76,
+              77,
+              78,
+              79,
+              80
+            ],
+            "deltas_ms": [
+              47,
+              97,
+              86,
+              81,
+              42,
+              148,
+              12,
+              16,
+              7,
+              202,
+              101,
+              2,
+              42,
+              13,
+              36,
+              35,
+              13,
+              69,
+              25,
+              36
+            ],
+            "sum_ms": 1110,
+            "wall_sum_s": 215.710829872,
+            "fraction": 0.005145777801970627,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "complete_pairs_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              71,
+              72,
+              73,
+              74,
+              75,
+              76,
+              77,
+              78,
+              79,
+              80
+            ],
+            "deltas_ms": [
+              47,
+              97,
+              86,
+              81,
+              42,
+              148,
+              12,
+              16,
+              7,
+              202,
+              101,
+              2,
+              42,
+              13,
+              36,
+              35,
+              13,
+              69,
+              25,
+              36
+            ],
+            "sum_ms": 1110,
+            "wall_sum_s": 215.710829872,
+            "fraction": 0.005145777801970627,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "fixed5_JIT_blocks": [
+            {
+              "requests": [
+                61,
+                62,
+                63,
+                64,
+                65
+              ],
+              "deltas_ms": [
+                47,
+                97,
+                86,
+                81,
+                42
+              ],
+              "sum_ms": 353,
+              "wall_sum_s": 53.829549572999994,
+              "fraction": 0.0065577364625963525,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                66,
+                67,
+                68,
+                69,
+                70
+              ],
+              "deltas_ms": [
+                148,
+                12,
+                16,
+                7,
+                202
+              ],
+              "sum_ms": 385,
+              "wall_sum_s": 53.357092519,
+              "fraction": 0.00721553558906728,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                71,
+                72,
+                73,
+                74,
+                75
+              ],
+              "deltas_ms": [
+                101,
+                2,
+                42,
+                13,
+                36
+              ],
+              "sum_ms": 194,
+              "wall_sum_s": 54.835822854999996,
+              "fraction": 0.0035378332976416862,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                76,
+                77,
+                78,
+                79,
+                80
+              ],
+              "deltas_ms": [
+                35,
+                13,
+                69,
+                25,
+                36
+              ],
+              "sum_ms": 178,
+              "wall_sum_s": 53.688364925,
+              "fraction": 0.0033154297071377983,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            }
+          ],
+          "last10_vs_first10_median_wall_drift": 0.010190751578091684
+        },
+        "accumulator": {
+          "complete_pair_count": 20,
+          "available_measured_rows": 20,
+          "complete_pairs_descriptive": {
+            "wall_s": {
+              "median": 10.8739635065,
+              "mean": 10.9380529988,
+              "min": 10.549021065,
+              "max": 11.807289988,
+              "sample_SD": 0.32406470139530724
+            },
+            "CPU_s": {
+              "median": 12.36,
+              "mean": 12.444,
+              "min": 11.75,
+              "max": 13.31,
+              "sample_SD": 0.38581970155146733
+            },
+            "allocated_bytes": {
+              "median": 4389663624.0,
+              "mean": 4389709812,
+              "min": 4389245328,
+              "max": 4390377216,
+              "sample_SD": 331079.51236809377
+            },
+            "current_RSS_MiB": {
+              "median": 650.662109375,
+              "mean": 660.065234375,
+              "min": 614.88671875,
+              "max": 745.078125,
+              "sample_SD": 32.13480965301964
+            }
+          },
+          "maximum_retained_lifetime_HWM_MiB": 1526.82421875,
+          "warm_gate": {
+            "requests": 60,
+            "median_drift": -0.004526517063323521,
+            "JIT_fraction": 0.006231189442441175,
+            "spread": 1.0634797212321478
+          },
+          "all_available_measured_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              71,
+              72,
+              73,
+              74,
+              75,
+              76,
+              77,
+              78,
+              79,
+              80
+            ],
+            "deltas_ms": [
+              46,
+              67,
+              214,
+              78,
+              4,
+              165,
+              11,
+              1,
+              6,
+              118,
+              318,
+              17,
+              11,
+              1,
+              21,
+              40,
+              18,
+              21,
+              16,
+              30
+            ],
+            "sum_ms": 1203,
+            "wall_sum_s": 218.761059976,
+            "fraction": 0.005499150534980858,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "complete_pairs_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              71,
+              72,
+              73,
+              74,
+              75,
+              76,
+              77,
+              78,
+              79,
+              80
+            ],
+            "deltas_ms": [
+              46,
+              67,
+              214,
+              78,
+              4,
+              165,
+              11,
+              1,
+              6,
+              118,
+              318,
+              17,
+              11,
+              1,
+              21,
+              40,
+              18,
+              21,
+              16,
+              30
+            ],
+            "sum_ms": 1203,
+            "wall_sum_s": 218.761059976,
+            "fraction": 0.005499150534980858,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "fixed5_JIT_blocks": [
+            {
+              "requests": [
+                61,
+                62,
+                63,
+                64,
+                65
+              ],
+              "deltas_ms": [
+                46,
+                67,
+                214,
+                78,
+                4
+              ],
+              "sum_ms": 409,
+              "wall_sum_s": 55.301107606,
+              "fraction": 0.007395873567559878,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                66,
+                67,
+                68,
+                69,
+                70
+              ],
+              "deltas_ms": [
+                165,
+                11,
+                1,
+                6,
+                118
+              ],
+              "sum_ms": 301,
+              "wall_sum_s": 54.146431041,
+              "fraction": 0.005558999812417573,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                71,
+                72,
+                73,
+                74,
+                75
+              ],
+              "deltas_ms": [
+                318,
+                17,
+                11,
+                1,
+                21
+              ],
+              "sum_ms": 368,
+              "wall_sum_s": 55.506776454000004,
+              "fraction": 0.00662982114093712,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                76,
+                77,
+                78,
+                79,
+                80
+              ],
+              "deltas_ms": [
+                40,
+                18,
+                21,
+                16,
+                30
+              ],
+              "sum_ms": 125,
+              "wall_sum_s": 53.806744875,
+              "fraction": 0.0023231288250272547,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            }
+          ],
+          "last10_vs_first10_median_wall_drift": -0.0013620023856322216
+        }
+      },
+      "descriptive_candidate_over_STOCK": {
+        "wall_s_median": 1.013911077582642,
+        "wall_s_mean": 1.0141403660901493,
+        "CPU_s_median": 0.9983844911147011,
+        "CPU_s_mean": 1.0019323671497584,
+        "allocated_bytes_median": 0.9229474898840084,
+        "allocated_bytes_mean": 0.9229542420156791,
+        "current_RSS_MiB_median": 0.9681430742717981,
+        "current_RSS_MiB_mean": 0.9684521885452415,
+        "maximum_retained_lifetime_HWM_MiB": 0.9555342055855433
+      }
+    },
+    {
+      "cohort": 2,
+      "status": "PARTIAL_COHORT_OF_FAILED_RUN",
+      "complete_pairs": 7,
+      "variants": {
+        "STOCK": {
+          "complete_pair_count": 7,
+          "available_measured_rows": 8,
+          "complete_pairs_descriptive": {
+            "wall_s": {
+              "median": 10.866691977,
+              "mean": 10.865314758428571,
+              "min": 10.498672458,
+              "max": 11.329454825,
+              "sample_SD": 0.2529360434214613
+            },
+            "CPU_s": {
+              "median": 12.5,
+              "mean": 12.485714285714286,
+              "min": 12.12,
+              "max": 12.75,
+              "sample_SD": 0.25072276474605365
+            },
+            "allocated_bytes": {
+              "median": 4671851856,
+              "mean": 4671910114.285714,
+              "min": 4671514960,
+              "max": 4672276424,
+              "sample_SD": 334516.04381141136
+            },
+            "current_RSS_MiB": {
+              "median": 660.29296875,
+              "mean": 668.703125,
+              "min": 613.38671875,
+              "max": 734.0390625,
+              "sample_SD": 36.92985428859276
+            }
+          },
+          "maximum_retained_lifetime_HWM_MiB": 1491.1328125,
+          "warm_gate": {
+            "requests": 60,
+            "median_drift": -0.002106469089361074,
+            "JIT_fraction": 0.007129923197236267,
+            "spread": 1.065354609346426
+          },
+          "all_available_measured_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68
+            ],
+            "deltas_ms": [
+              46,
+              63,
+              94,
+              56,
+              65,
+              157,
+              17,
+              5
+            ],
+            "sum_ms": 503,
+            "wall_sum_s": 86.795314804,
+            "fraction": 0.0057952436849370015,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "complete_pairs_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67
+            ],
+            "deltas_ms": [
+              46,
+              63,
+              94,
+              56,
+              65,
+              157,
+              17
+            ],
+            "sum_ms": 498,
+            "wall_sum_s": 76.057203309,
+            "fraction": 0.006547703285601492,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "fixed5_JIT_blocks": [
+            {
+              "requests": [
+                61,
+                62,
+                63,
+                64,
+                65
+              ],
+              "deltas_ms": [
+                46,
+                63,
+                94,
+                56,
+                65
+              ],
+              "sum_ms": 324,
+              "wall_sum_s": 54.691838874,
+              "fraction": 0.00592410141385878,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                66,
+                67,
+                68
+              ],
+              "deltas_ms": [
+                157,
+                17,
+                5
+              ],
+              "sum_ms": 179,
+              "wall_sum_s": 32.10347593,
+              "fraction": 0.005575720223887918,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": true
+            }
+          ],
+          "unpaired_metric_row": {
+            "wall_ns": 10738111495,
+            "cpu_ns": 12240000000,
+            "gc_count": 27,
+            "gc_ms": 595,
+            "jit_before_ms": 104306,
+            "jit_after_ms": 104311,
+            "rss_kib": 682572,
+            "hwm_kib": 1526920,
+            "exit": 0,
+            "cgroup_peak_bytes": 1581613056,
+            "kind": "measure",
+            "request": 68,
+            "variant": "STOCK",
+            "wall_s": 10.738111495,
+            "cpu_s": 12.24,
+            "rss_mib": 666.57421875,
+            "peak_rss_mib": 1491.1328125,
+            "cgroup_events": "low 0;high 0;max 0;oom 0;oom_kill 0;oom_group_kill 0",
+            "allocation_before": 313415902320,
+            "allocation_after": 318087786896,
+            "cgroup_current_bytes": 785108992,
+            "allocated_bytes": 4671884576,
+            "parent_pressure": {
+              "before": {
+                "memory.current": "7700217856",
+                "memory.max": "8589934592",
+                "memory.events": "low 0\nhigh 0\nmax 361038\noom 6\noom_kill 2\noom_group_kill 0",
+                "memory.events.local": "low 0\nhigh 0\nmax 361000\noom 5\noom_kill 0\noom_group_kill 0",
+                "memory.stat": "anon 1498955776\nfile 2938081280\nkernel 3261526016\nkernel_stack 1900544\npagetables 6041600\nsec_pagetables 0\npercpu 690420\nsock 0\nvmalloc 36864\nshmem 34267136\nfile_mapped 9682944\nfile_dirty 20520960\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 2097152\nshmem_thp 0\ninactive_anon 1502601216\nactive_anon 30601216\ninactive_file 1342115840\nactive_file 1561710592\nunevictable 0\nslab_reclaimable 3242576504\nslab_unreclaimable 9329408\nslab 3251905912\nworkingset_refault_anon 0\nworkingset_refault_file 9757174\nworkingset_activate_anon 0\nworkingset_activate_file 2688805\nworkingset_restore_anon 0\nworkingset_restore_file 626793\nworkingset_nodereclaim 15996\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgscan 20389530\npgsteal 16083191\npswpin 0\npswpout 0\npgscan_kswapd 3859067\npgscan_direct 16526150\npgscan_khugepaged 4313\npgscan_proactive 0\npgsteal_kswapd 3824253\npgsteal_direct 12254625\npgsteal_khugepaged 4313\npgsteal_proactive 0\npgfault 820331462\npgmajfault 23496\npgrefill 7083566\npgactivate 9038117\npgdeactivate 6806139\npglazyfree 2\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nthp_fault_alloc 0\nthp_collapse_alloc 94\nthp_swpout 0\nthp_swpout_fallback 0",
+                "memory.pressure": null
+              },
+              "after": {
+                "memory.current": "7715926016",
+                "memory.max": "8589934592",
+                "memory.events": "low 0\nhigh 0\nmax 361038\noom 6\noom_kill 2\noom_group_kill 0",
+                "memory.events.local": "low 0\nhigh 0\nmax 361000\noom 5\noom_kill 0\noom_group_kill 0",
+                "memory.stat": "anon 1506856960\nfile 2945724416\nkernel 3261648896\nkernel_stack 1900544\npagetables 6037504\nsec_pagetables 0\npercpu 690340\nsock 0\nvmalloc 36864\nshmem 34267136\nfile_mapped 9682944\nfile_dirty 26771456\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 2097152\nshmem_thp 0\ninactive_anon 1510387712\nactive_anon 30601216\ninactive_file 1349734400\nactive_file 1561718784\nunevictable 0\nslab_reclaimable 3242786512\nslab_unreclaimable 9244352\nslab 3252030864\nworkingset_refault_anon 0\nworkingset_refault_file 9757176\nworkingset_activate_anon 0\nworkingset_activate_file 2688805\nworkingset_restore_anon 0\nworkingset_restore_file 626793\nworkingset_nodereclaim 15996\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgscan 20389530\npgsteal 16083191\npswpin 0\npswpout 0\npgscan_kswapd 3859067\npgscan_direct 16526150\npgscan_khugepaged 4313\npgscan_proactive 0\npgsteal_kswapd 3824253\npgsteal_direct 12254625\npgsteal_khugepaged 4313\npgsteal_proactive 0\npgfault 820636004\npgmajfault 23496\npgrefill 7083566\npgactivate 9038117\npgdeactivate 6806139\npglazyfree 2\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nthp_fault_alloc 0\nthp_collapse_alloc 94\nthp_swpout 0\nthp_swpout_fallback 0",
+                "memory.pressure": null
+              },
+              "changes": {
+                "local_high": 0,
+                "local_max": 0,
+                "pgscan_direct": 0,
+                "pgsteal_direct": 0,
+                "pgmajfault": 0,
+                "PSI_some_total_us": null,
+                "PSI_full_total_us": null
+              },
+              "envelope": "beforeunpause toRESULT; artifacthashingexcluded",
+              "zero_required": true
+            },
+            "digests": {
+              "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stderr": "e7c668c0a2df7ef77c8014d44ff2aedcde65cfad1436fd35e46e3720a214033a",
+              "exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+              "out.js": "89a7a090694fa8b3164a7a231a7e741ffd10ab226258b1ca5f99eaacbd460e40",
+              "out.js.map": "18ca2f9344461ec2dcff2a9ea117eba7c3b68b4b201f16ee0ad1795fdf4661b2",
+              "inputs.manifest": "788dbd1763ce0796f41a7b8a8b49c8170ec7a4db71ed73333a7fb36861fe6ae8"
+            }
+          }
+        },
+        "accumulator": {
+          "complete_pair_count": 7,
+          "available_measured_rows": 7,
+          "complete_pairs_descriptive": {
+            "wall_s": {
+              "median": 10.835871869,
+              "mean": 10.889190525285715,
+              "min": 10.537699052,
+              "max": 11.363997796,
+              "sample_SD": 0.3094429637948098
+            },
+            "CPU_s": {
+              "median": 12.62,
+              "mean": 12.49,
+              "min": 12.01,
+              "max": 12.92,
+              "sample_SD": 0.33126021996812915
+            },
+            "allocated_bytes": {
+              "median": 4378997456,
+              "mean": 4378745294.857142,
+              "min": 4377920664,
+              "max": 4379078864,
+              "sample_SD": 433960.7686459797
+            },
+            "current_RSS_MiB": {
+              "median": 654.02734375,
+              "mean": 673.3102678571429,
+              "min": 595.5078125,
+              "max": 786.9140625,
+              "sample_SD": 64.25325266627299
+            }
+          },
+          "maximum_retained_lifetime_HWM_MiB": 1426.421875,
+          "warm_gate": {
+            "requests": 60,
+            "median_drift": 0.0046120879428093176,
+            "JIT_fraction": 0.004593974757763018,
+            "spread": 1.079830179227299
+          },
+          "all_available_measured_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67
+            ],
+            "deltas_ms": [
+              24,
+              60,
+              114,
+              76,
+              27,
+              132,
+              17
+            ],
+            "sum_ms": 450,
+            "wall_sum_s": 76.224333677,
+            "fraction": 0.005903626549323099,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "complete_pairs_JIT": {
+            "requests": [
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67
+            ],
+            "deltas_ms": [
+              24,
+              60,
+              114,
+              76,
+              27,
+              132,
+              17
+            ],
+            "sum_ms": 450,
+            "wall_sum_s": 76.224333677,
+            "fraction": 0.005903626549323099,
+            "above_1_percent": false,
+            "above_2_percent": false,
+            "invalid_intervals": 0
+          },
+          "fixed5_JIT_blocks": [
+            {
+              "requests": [
+                61,
+                62,
+                63,
+                64,
+                65
+              ],
+              "deltas_ms": [
+                24,
+                60,
+                114,
+                76,
+                27
+              ],
+              "sum_ms": 301,
+              "wall_sum_s": 54.529895554999996,
+              "fraction": 0.005519907876889386,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": false
+            },
+            {
+              "requests": [
+                66,
+                67
+              ],
+              "deltas_ms": [
+                132,
+                17
+              ],
+              "sum_ms": 149,
+              "wall_sum_s": 21.694438122,
+              "fraction": 0.006868119799281705,
+              "above_1_percent": false,
+              "above_2_percent": false,
+              "invalid_intervals": 0,
+              "partial": true
+            }
+          ]
+        }
+      },
+      "descriptive_candidate_over_STOCK": {
+        "wall_s_median": 0.9971638003483274,
+        "wall_s_mean": 1.0021974298387097,
+        "CPU_s_median": 1.0095999999999998,
+        "CPU_s_mean": 1.0003432494279176,
+        "allocated_bytes_median": 0.9373151356193175,
+        "allocated_bytes_mean": 0.937249473500756,
+        "current_RSS_MiB_median": 0.9905108409500991,
+        "current_RSS_MiB_mean": 1.0068896685014637,
+        "maximum_retained_lifetime_HWM_MiB": 0.9566028344641501
+      }
+    }
+  ],
+  "limitations": [
+    "No five-cohort confirmation, confidence interval, pooling with screens, or speed promotion.",
+    "Cohort2 comparisons use only its seven completed pairs, with STOCK request68 separately retained; no missing candidate values are imputed.",
+    "Lifetime HWM is maximum retained process high-water mark including warmup/JIT, not incremental request RSS. Cohort2 coverage is unequal and incomplete.",
+    "Current RSS is a postrequest snapshot; allocation is VM-wide allocated-byte delta, not retained heap.",
+    "CompilationMXBean is approximate accumulated compiler elapsed time, may sum threads and include pause-spanning counter effects; JIT/wall is not CPU%.",
+    "Measured >1% and >2% annotations are diagnostics, never selective row exclusions. Partial fixed5 blocks are explicitly marked.",
+    "The frozen reviewer rejected failure evidence as required. Failure/resource/provenance checks and their scoped hashing limitation are in failure-audit.json."
+  ]
+}

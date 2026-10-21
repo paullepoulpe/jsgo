@@ -1,0 +1,115 @@
+Prepared small candidates: source-only ranking after equality screen
+
+Status
+  NONE_PROMOTED. Existing matched builds and focused probe manifests for all
+  three candidates report PASS. None has a completed end-to-end timing result.
+  This audit reads source, retained profiles and receipts only; it runs no JVM,
+  compiler, benchmark or archive operation. Frozen candidate files are unchanged.
+
+Recommendation
+  Prioritize leaf-children-return, then reference-function-first-child, then
+  graph-edge-copy for the next small-change screens. This ranks simplicity and
+  evidence sufficient to try a change, not predicted speedup. There is no basis
+  for assigning an expected percentage or claiming any candidate is worthwhile
+  before a completed comparison. The active empty-parameters experiment is
+  separate and takes precedence over this fallback ordering.
+
+1. leaf-children-return: simplest proof and smallest removed-work path
+  Three added lines test the private final concrete child set and return when
+  it is empty. The old copied LinkedHashSet, ArrayDeque, self insertion and empty
+  queue test have no compiler-visible effect in that case. No state is cached;
+  later added children still use the unchanged traversal. Nonempty behavior is
+  unchanged except for the new emptiness test. The probe covers mutation after
+  an empty call, write flags, ordering, diamonds and direct/indirect cycles.
+
+  Coverage is broader than property writes: visitNode's NAME/THIS path calls
+  markChildrenRead whenever the parent is not GETPROP (stock source line 385).
+  getOrCreateProperty creates entries for ordinary names too; only observed
+  GETPROP chains add child links. Names without such links take the empty path.
+  This is a structural opportunity, not a measured eligibility count.
+
+  Corrected BigQuery targets.tsv has one sampled HashMap table allocation,
+  67,070,688 estimated bytes / 0.4169% of weighted allocation, at the subsequent
+  propertiesSet.add(this), specifically through the NAME/THIS caller. Allocation
+  at self insertion is particularly consistent with empty children: a nonempty
+  copy already inserted children and would require later growth to allocate
+  there. This runtime's JDK constructor source was not inspected; the sample is
+  not proof of the empty fraction. summary.tsv also shows one 0.0912% allocation
+  stack in the copy constructor's iterator; do not assume all of it is removable.
+
+  The pass runs in the main optimization loop but skips empty function bodies,
+  functions containing inner functions, and nonstatic class field initializers.
+  This makes flat generated methods a plausible fit. Library wrappers can reduce
+  coverage for their own bodies, while their eligible inner functions may still
+  be processed. The existence of nested functions does not disable the whole file.
+
+2. reference-function-first-child: smallest direct CPU-site proposal
+  The change returns firstChild || !arrow for FUNCTION parents, equivalent to
+  the original !arrow || firstChild result. Final pure getters are the only
+  reordered operations; no traversal, cache, scope construction or callback is
+  omitted. It avoids ARROW_FN property lookup for a function's first child.
+  The semantic caveat remains deliberately corrupted private property storage,
+  not normal ASTs or ordinary compiler callbacks.
+
+  Corrected BigQuery hot-callers.tsv attributes 14/2,221 CPU leaf samples
+  (0.6303%) to lookupProperty through isArrowFunction and isDeclarationHelper.
+  These identify a real CPU site, but do not measure the removable fraction.
+  ReferenceCollector collects NAME/IMPORT_STAR references; normal named function
+  first children qualify. Concise arrow-body NAMEs are nonfirst children and
+  still read the flag. Empty anonymous names ordinarily have no collected Var.
+  The probe deliberately also covers other synthetic positions and tokens.
+
+  This has no dead-property pass exclusion and applies to reference analyses in
+  either ADVANCED workload. That gives broader structural reach, not evidence
+  of a larger absolute or relative benefit on the eleven-library bundle.
+
+3. graph-edge-copy: strongest directly identified allocation removal, more tradeoff
+  Eight Object[] allocation samples carry 102,468,352 estimated bytes / 0.6369%
+  of total weighted BigQuery allocation in allocation-callers.stdout, through
+  ArrayList.toArray -> addAll -> LinkedDirectedGraph.getEdges -> dataflow init.
+  This specific temporary input-array operation is removed without an eligibility
+  branch. The result snapshot and its backing-array growth remain necessary.
+
+  The candidate reserves bulk capacity and copies edge references by index.
+  Node getters, node/edge order, duplicate/null entries, fresh snapshot identity
+  and unmodifiable wrapper are preserved for normal single-threaded use.
+  However, arraycopy is replaced with per-edge work, including add bookkeeping;
+  lower allocation need not imply lower CPU or wall time. This is more code than
+  the two guards. Unsynchronized concurrent mutation, overflowing aggregate sizes
+  and allocation-failure timing retain the documented semantic boundaries.
+
+  DataFlowAnalysis.initialize requests the snapshot only for branched analyses;
+  TypeInference is branched, while the base default is false. Do not describe this
+  as saving a snapshot in every liveness/dataflow pass. The captured full stack
+  explicitly identifies TypeInferencePass. Both workloads use ADVANCED, whose
+  CompilationLevel enables checkTypes; the bundle's lack of an explicit
+  --jscomp_warning=checkTypes does not mean type inference is disabled.
+
+Bundle versus BigQuery
+  The bundle is eleven library files (5,677,811 supplied bytes); BigQuery supplies
+  1,270 files (22,180,254 bytes), with normal pruning to the retained program.
+  Input byte totals do not rank runtime opportunity after parsing and pruning.
+  The bundle v1 Java profile was interrupted during warmup. There is no completed
+  bundle Java profile or candidate timing evidence supporting a workload-specific
+  ordering. Retain the same simplicity-first order unless new measurements show
+  a reason to change it. Graph copying and reference checks have fewer structural
+  exclusions; leaf's NAME/THIS path supplies a concrete reason it can also matter
+  beyond generated property-assignment code.
+
+Evidence locations (relative to profile-v2 unless noted)
+  results/profile-stock-bigquery-steady-v2/{targets,hot-callers,summary}.tsv
+  analysis-driver-v1/allocation-callers.stdout
+  PROFILE-NOTES.md (diagnostic JIT miss; interrupted bundle profile)
+  candidates/{leaf-children-return,reference-function-first-child,graph-edge-copy}/
+  build/<candidate>/manifest.json
+  results/<candidate>-probes-attempt-1/manifest.json
+  Pinned sources: /workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/
+    DeadPropertyAssignmentElimination.java:163,241,382
+    Reference.java:109; ReferenceCollector.java:250
+    DataFlowAnalysis.java:256; TypeInference.java:461
+    CompilationLevel.java:167; DefaultPassConfig.java:1099
+
+Independent source review
+  review_property_identity separately reviewed the two guard candidates and
+  their probes; no source defect found. It independently ranked leaf before
+  reference and retained the unknown eligibility/bundle-coverage limitations.

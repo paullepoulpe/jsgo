@@ -1,0 +1,350 @@
+{
+  "status": "PASS_ALL_THREE_INDEPENDENT_RECEIPT_REVIEWS",
+  "reviewed_at_utc": "2026-10-21T09:18:26.610353+00:00",
+  "scope": "Source/build/probe receipt integrity, exact argv, recorded success, byte-identical stdout and independently parsed class origins; no new runtime or performance review.",
+  "jar_hash_scope": "Recorded hashes cross-checked only; no archive opened or rehashed.",
+  "performance_status": "UNMEASURED_AT_TASK_ASSIGNMENT_NO_ACTIVE_SCREEN_READ",
+  "builds": [
+    {
+      "manifest": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/manifest.json",
+      "sha256": "04a1e0123c1b8cb27f4bbb345041cab717b3a7bdf605cd41e5e3e6d036436fa2",
+      "status": "PASS",
+      "variants": {
+        "CONTROL": {
+          "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/build.json",
+          "build_proof_sha256": "c00f5fe5f2a23e08e8bc46c5f195c292416dda214086a05ec1106f00959a5001",
+          "effective_source_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+          "classes_verified": 5
+        },
+        "empty-parameters": {
+          "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/build.json",
+          "build_proof_sha256": "c297d23f2642230dd0d08ee7bf1cd13698a4f82fe680df4cfdb0023619564d60",
+          "effective_source_sha256": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+          "classes_verified": 5
+        }
+      }
+    },
+    {
+      "manifest": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/manifest.json",
+      "sha256": "53eb314ee0bbc474274fb9924f88ca826d3aa44ea90724ed0b1f3eabc427d236",
+      "status": "PASS",
+      "variants": {
+        "CONTROL": {
+          "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/build.json",
+          "build_proof_sha256": "5e2c285e5e3bd6360c913919e00c3c65ada45c765c8d85f142a79562f3317fc6",
+          "effective_source_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+          "classes_verified": 2
+        },
+        "scope-declare-once": {
+          "build_proof": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/build.json",
+          "build_proof_sha256": "1c64ac78a2bc351810e8b77ca13744b5cf0597b154655471ff59311eb3006daf",
+          "effective_source_sha256": "3f85791586519663f0c7905c37644ba35b82605e977f9c13bf6a9e9679c3d7c1",
+          "classes_verified": 2
+        }
+      }
+    }
+  ],
+  "probe_reviews": [
+    {
+      "results": "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1",
+      "receipt_sha256": "5e75abcdb8a1cbdb610d212e945d864ceeb1d624742824a252bb5e9d47b21f38",
+      "status": "PASS_INDEPENDENT_RECEIPT_REVIEW",
+      "source_sha256": "6f31ac94ff31768822640aef8208caeddf5355f632998a6ac31416ace04449be",
+      "probe": "com.google.javascript.jscomp.ModifiedParametersProbe",
+      "candidate_args": [],
+      "stdout_byte_identical": true,
+      "runs": [
+        {
+          "variant": "STOCK",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ModifiedParametersProbe"
+          ],
+          "stdout_sha256": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+          "stdout_bytes": 27,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "CONTROL",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ModifiedParametersProbe"
+          ],
+          "stdout_sha256": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+          "stdout_bytes": 27,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "empty-parameters",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ModifiedParametersProbe"
+          ],
+          "stdout_sha256": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+          "stdout_bytes": 27,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes",
+          "class_origin_log_independently_checked": true
+        }
+      ]
+    },
+    {
+      "results": "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1",
+      "receipt_sha256": "fcc78f91a403676cc820994cb5e3be6b3a9ce4b2b87ada87022bd1ca040b8c2d",
+      "status": "PASS_INDEPENDENT_RECEIPT_REVIEW",
+      "source_sha256": "3191072c69eabc85d1f9ad4a110412644cae47d7cb901dc911e375e229f2336d",
+      "probe": "com.google.javascript.jscomp.EmptyParametersProbe",
+      "candidate_args": [
+        "--expect-shortcut"
+      ],
+      "stdout_byte_identical": true,
+      "runs": [
+        {
+          "variant": "STOCK",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.EmptyParametersProbe"
+          ],
+          "stdout_sha256": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+          "stdout_bytes": 24,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "CONTROL",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.EmptyParametersProbe"
+          ],
+          "stdout_sha256": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+          "stdout_bytes": 24,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "empty-parameters",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.EmptyParametersProbe",
+            "--expect-shortcut"
+          ],
+          "stdout_sha256": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+          "stdout_bytes": 24,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes",
+          "class_origin_log_independently_checked": true
+        }
+      ]
+    },
+    {
+      "results": "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1",
+      "receipt_sha256": "0030961d863d29d1e3a66dd647fcb3138783409669602bfbb933d6415d153c4c",
+      "status": "PASS_INDEPENDENT_RECEIPT_REVIEW",
+      "source_sha256": "bee58bf6a8aed31d822b3c107e757d7d11760d95671439e788d09d86643eb345",
+      "probe": "com.google.javascript.jscomp.ScopeDeclareOnceProbe",
+      "candidate_args": [],
+      "stdout_byte_identical": true,
+      "runs": [
+        {
+          "variant": "STOCK",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ScopeDeclareOnceProbe"
+          ],
+          "stdout_sha256": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+          "stdout_bytes": 11787,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "CONTROL",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ScopeDeclareOnceProbe"
+          ],
+          "stdout_sha256": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+          "stdout_bytes": 11787,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/classes",
+          "class_origin_log_independently_checked": true
+        },
+        {
+          "variant": "scope-declare-once",
+          "exit_status": 0,
+          "argv": [
+            "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            "-Xmx1g",
+            "-Xlog:class+load=info:file=/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/class-load.log",
+            "-cp",
+            "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/classes:/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/classes:/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+            "com.google.javascript.jscomp.ScopeDeclareOnceProbe"
+          ],
+          "stdout_sha256": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+          "stdout_bytes": 11787,
+          "stderr_empty": true,
+          "production_origin": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/classes",
+          "class_origin_log_independently_checked": true
+        }
+      ]
+    }
+  ],
+  "input_sha256": {
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/frozen-source-manifest.json": "6677a5e14220de370c00d12c882331ee21c08a1280c893e7ab337683393ff39f",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/src/com/google/javascript/jscomp/AbstractScope.java": "3f85791586519663f0c7905c37644ba35b82605e977f9c13bf6a9e9679c3d7c1",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/control-src/com/google/javascript/jscomp/AbstractScope.java": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/probe/com/google/javascript/jscomp/ScopeDeclareOnceProbe.java": "bee58bf6a8aed31d822b3c107e757d7d11760d95671439e788d09d86643eb345",
+    "/workspace/jsgo-java-experiments/profile-v2/audits/empty-parameters-callsite-v1/source-review.json": "56c42013a7113a25c3fd18780bee1ebf745119db1262e3a6949741072c9f23f7",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/control-src/com/google/javascript/jscomp/FunctionArgumentInjector.java": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/src/com/google/javascript/jscomp/FunctionArgumentInjector.java": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/candidate.patch": "a953a2825985d014f452822d081a6507143279a5508501f32c6c3cb4ee468634",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/probe/com/google/javascript/jscomp/ModifiedParametersProbe.java": "6f31ac94ff31768822640aef8208caeddf5355f632998a6ac31416ace04449be",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/probe/com/google/javascript/jscomp/EmptyParametersProbe.java": "3191072c69eabc85d1f9ad4a110412644cae47d7cb901dc911e375e229f2336d",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/manifest.json": "04a1e0123c1b8cb27f4bbb345041cab717b3a7bdf605cd41e5e3e6d036436fa2",
+    "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/FunctionArgumentInjector.java": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/build.json": "c00f5fe5f2a23e08e8bc46c5f195c292416dda214086a05ec1106f00959a5001",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/src/com/google/javascript/jscomp/FunctionArgumentInjector.java": "572e4b64deaab4de9bbc32ec80a2bedbd441eaa71601acd9dcd8178842546c9e",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes/com/google/javascript/jscomp/FunctionArgumentInjector$1.class": "59e55d60a1e9b780f394a1a69ccf675b12a4f6c4036986c54f06e3f57bda2895",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes/com/google/javascript/jscomp/FunctionArgumentInjector$ParamArgPair.class": "4fd0cc87ebb6f7536b4f2dbe66154f23387093a40a31e50d53c8e5a3a3cd06c0",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes/com/google/javascript/jscomp/FunctionArgumentInjector$ReferencedAfterSideEffect.class": "6fb664dcb8c7502aa7c0e3695020fdd3b372303c7f78820e4fe0850ff9ca8f16",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes/com/google/javascript/jscomp/FunctionArgumentInjector$SetContainer.class": "bf70ff4db4eb9ae09ec75b41e8d2274b5fd5007b84af04dcf535b8bb4ec64faa",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/classes/com/google/javascript/jscomp/FunctionArgumentInjector.class": "dfcde91db832d620090ef4fd128318fb56d52d4a276e04d3a7d09745810ee9d3",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/build.json": "c297d23f2642230dd0d08ee7bf1cd13698a4f82fe680df4cfdb0023619564d60",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/src/com/google/javascript/jscomp/FunctionArgumentInjector.java": "beffb19717b8d093a94eb96e2ef5786176b92593cfb964ef738829b1e4f83231",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes/com/google/javascript/jscomp/FunctionArgumentInjector$1.class": "4884c946f2caf2503f28e0a307a61b32602fb3631a0d07c0ad7207f9dcc3c0a3",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes/com/google/javascript/jscomp/FunctionArgumentInjector$ParamArgPair.class": "1187aae8dff63b5f39c98038a813a17a0e810f2204ae411a267615fe273b38c9",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes/com/google/javascript/jscomp/FunctionArgumentInjector$ReferencedAfterSideEffect.class": "3022f4c62a2910623bc8d2684fa1835f828e43ea5c1a9228f980e517944fb3b5",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes/com/google/javascript/jscomp/FunctionArgumentInjector$SetContainer.class": "19ff09e90027645cd59efc2d6220e90b6a5c6beba8708d5ba181a3dc02807c38",
+    "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/classes/com/google/javascript/jscomp/FunctionArgumentInjector.class": "8b2ae14f311ba074d5ba9c32c9d320bfe6f5bb7deff950d651285b400f0a0510",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/manifest.json": "53eb314ee0bbc474274fb9924f88ca826d3aa44ea90724ed0b1f3eabc427d236",
+    "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/AbstractScope.java": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/build.json": "5e2c285e5e3bd6360c913919e00c3c65ada45c765c8d85f142a79562f3317fc6",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/src/com/google/javascript/jscomp/AbstractScope.java": "58fff5369a509d256f6413f5f2f1059564f98f23f444fd7ddded63e176f3a975",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/classes/com/google/javascript/jscomp/AbstractScope$ImplicitVar.class": "947081a1c6d4771de9b9c89083c8ec4db9b42db5c1d3add9e0fd265889fe774b",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/classes/com/google/javascript/jscomp/AbstractScope.class": "73f617175ae021b48788b9e8b8e821a8b4d26f8a890a6666b606671ce76b00b0",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/build.json": "1c64ac78a2bc351810e8b77ca13744b5cf0597b154655471ff59311eb3006daf",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/src/com/google/javascript/jscomp/AbstractScope.java": "fe00dff4778cba6a2efff9840107328cad7933af4fdc7a0503de49e2f09e0886",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/classes/com/google/javascript/jscomp/AbstractScope$ImplicitVar.class": "334ecb1a2502e68929a14d8933562d2f3afa623347a3b51b39cbb416239c78a9",
+    "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/classes/com/google/javascript/jscomp/AbstractScope.class": "e1d4ce90e5106ffc1ac0e44d6d75692ff787666163101c68a14ea5bbb19562eb",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/manifest.json": "5e75abcdb8a1cbdb610d212e945d864ceeb1d624742824a252bb5e9d47b21f38",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/build-manifest.json": "04a1e0123c1b8cb27f4bbb345041cab717b3a7bdf605cd41e5e3e6d036436fa2",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/runner.py": "f006cc2021ee6f4c00d7cd171269a10cd15acad1b9165b3f4882edf3355688d9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/original-sources/com/google/javascript/jscomp/ModifiedParametersProbe.java": "6f31ac94ff31768822640aef8208caeddf5355f632998a6ac31416ace04449be",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/relocated-sources/com/google/javascript/jscomp/ModifiedParametersProbe.java": "02d9f1ec204e4b0c931c338990a2fb20d06e0be10f707ad53609f2c1ba7df4b1",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/classes/com/google/javascript/jscomp/ModifiedParametersProbe.class": "7676cdebf4284d643e3565996698a3298ae7ac5150120db7ad07e19de71de3df",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/compile/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/compile/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/compile/command.json": "ca58073818f75ded260637a1261a33c03310389370146abbf01bea0a3c50b34d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/result.json": "23fbcb48b2fbb5756ddb6a8a2ecdaf32e6bdf8ddb8677171568cd882595c6a75",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/command.json": "19c05c93f754d801948f47df33c06a9558ecbcff6a99cfe7ea6ecbb5c87bf8b3",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/stdout": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/STOCK-1-ModifiedParametersProbe/class-load.log": "852e65cb96f2752c04c7f4c1335f984ff25f3c0e840f27f28026406a52caca94",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/result.json": "a9706038c1616a8fbfd7387ed70bf5a63271190912d78961f321a3531d8f905d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/command.json": "ab69c1134bbe865bd1bad9a2c63f49bc487f4c69b4f17dadc5ce0a9ebc12e48b",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/stdout": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/CONTROL-1-ModifiedParametersProbe/class-load.log": "54e5934da44b59eb569c27727f61819cb88db3ac024a526bcae3e83910b13526",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/result.json": "d1cc0ab004136d6e17c834a86956e7ee3225ecb5440879938b48dc4c41560a1e",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/command.json": "d831c3979708c39b830048dc7946b3e52af89be7653a43a60d39c09934cefab2",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/stdout": "05ab2ec297e612c3710a9c4cb92a3856cbcb4db620879350b2db2aab333fe137",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-modified-probes-attempt-1/empty-parameters-1-ModifiedParametersProbe/class-load.log": "6d694e976faf63497450ac1d020fd03e0a26cbf12cf43ea3ae9cb91221fe1b78",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/manifest.json": "fcc78f91a403676cc820994cb5e3be6b3a9ce4b2b87ada87022bd1ca040b8c2d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/build-manifest.json": "04a1e0123c1b8cb27f4bbb345041cab717b3a7bdf605cd41e5e3e6d036436fa2",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/runner.py": "f006cc2021ee6f4c00d7cd171269a10cd15acad1b9165b3f4882edf3355688d9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/original-sources/com/google/javascript/jscomp/EmptyParametersProbe.java": "3191072c69eabc85d1f9ad4a110412644cae47d7cb901dc911e375e229f2336d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/relocated-sources/com/google/javascript/jscomp/EmptyParametersProbe.java": "8d192e3e3b430ec003111c8fa8ce7c610b2ad4c18f27c16ba2e9d810de8a5af7",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/classes/com/google/javascript/jscomp/EmptyParametersProbe.class": "8c061fd77da8472569b4c192e5d4fb6239415c2da69957d518ab7cc3b8efbfcc",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/compile/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/compile/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/compile/command.json": "8d667df1ba5b689f1d259392c0a5fce60ce57e2b0ec6b5145950fc484827a3b6",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/result.json": "9c6ee3750b26a014edb8644fb6a57283ee3b509b82308c1eb0754dbdeaa470f8",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/command.json": "9aaaf283c5b17759292c558e54c110f1c7e6b2b1168e0c3b167242da5d5d4019",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/stdout": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/STOCK-1-EmptyParametersProbe/class-load.log": "84985ea39c3237a81a9161a656b4f7febae678626f57eaf76da2fbd5bf12a24a",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/result.json": "7e89c17fa060cc2b22375c984fbdf7b4d853cbe748e7a20aeae47af29ab34270",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/command.json": "ec61c6e7f9f5c6fd0f5c660f992cb83dd04e94fbbab2a70a69554a3b80cea1f9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/stdout": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/CONTROL-1-EmptyParametersProbe/class-load.log": "92d1b8bf940d1783355a2b3ac5b5196ccc1011149ed9b72676d574a09401691e",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/result.json": "c3e53b872d625db094e832c0a2dbbfe023f35d0c9a0689fb78c7ca7358d58ce4",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/command.json": "22a33a11d87d03a479be3775fcdcd0a8eb993256c4c7702fb6239bce32c80d08",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/stdout": "87c9f29990d88625a5ddfa395ee168abf4492ea4a594ec40094c65a52d5304c9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/empty-parameters-boundary-probes-attempt-1/empty-parameters-1-EmptyParametersProbe/class-load.log": "32895a287452e57d5987ff5a811b4d4bb9c3a1978d147a53d709fc862b082f1d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/manifest.json": "0030961d863d29d1e3a66dd647fcb3138783409669602bfbb933d6415d153c4c",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/build-manifest.json": "53eb314ee0bbc474274fb9924f88ca826d3aa44ea90724ed0b1f3eabc427d236",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/runner.py": "f006cc2021ee6f4c00d7cd171269a10cd15acad1b9165b3f4882edf3355688d9",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/original-sources/com/google/javascript/jscomp/ScopeDeclareOnceProbe.java": "bee58bf6a8aed31d822b3c107e757d7d11760d95671439e788d09d86643eb345",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/relocated-sources/com/google/javascript/jscomp/ScopeDeclareOnceProbe.java": "bee58bf6a8aed31d822b3c107e757d7d11760d95671439e788d09d86643eb345",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/classes/com/google/javascript/jscomp/ScopeDeclareOnceProbe$Fixture.class": "88936f092ea4d85cac05515979e5fa7e37011eb681e74ecd51bb4a64dff1b217",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/classes/com/google/javascript/jscomp/ScopeDeclareOnceProbe.class": "fa0061a009a61ee8485f93c7b9871c38e9c7267c34d1f039e29eac15e90a26ec",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/compile/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/compile/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/compile/command.json": "bb75eed0cb5bca2cc9b609c9386bc36e6efd070cdf1f639d93cd0632cc0c136d",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/result.json": "fa42f6074e26f3bb67d67af18e9d1e42a310cd87bcf3904e8e335191cd97c7c1",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/command.json": "d4485a27e1d58b47088ca5ec82b6a7d0f489f6ff6b71d8d7ae8733dfa9ccf84a",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/stdout": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/STOCK-1-ScopeDeclareOnceProbe/class-load.log": "9ef0f1249b24471d406578278bff71c2ffeeb2ebf9c85fab5b37fcfcfaafe4ef",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/result.json": "15c2fc2888427dc5d1b9c85c991aa665a12ac423c566797563620c19309e4f54",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/command.json": "466720978fb036c55f5122598c3dbbce0feb8720f0340f87abd40eb24e2c5823",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/stdout": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/CONTROL-1-ScopeDeclareOnceProbe/class-load.log": "f69f0ff557ce2d107f6bf5165ff4aab9cad64ce2e1a07ce0186129346ff2b065",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/result.json": "cf5f6879298290ae1250fc40d9b6122e5812bc17d2950ee823964c7254448ec8",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/command.json": "866301c9f0600593b71590f2868e4c37d0ec0f17bba0488b245d26320449b431",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/stdout": "d41c484bf1bcc418a156da8dd8002d193b75d71e2c8f193daa152865b5a323e5",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/scope-declare-once-probes-attempt-1/scope-declare-once-1-ScopeDeclareOnceProbe/class-load.log": "e74cab49b9aaae01eb0ed621418fe26d7bbcfde27d4389cb5e15ec7f62c9e8bf"
+  },
+  "review_script_sha256": "06e057e6910a1a583a68eafde393c731715b32c4befd45c1f0900813d1ddd68e"
+}

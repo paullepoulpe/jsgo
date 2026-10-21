@@ -1,0 +1,317 @@
+{
+  "scope": "Nine explicitly named completed reviewed v3 BigQuery jobs; warmups only, no measured or active rows.",
+  "protocol_unchanged": true,
+  "v4_runtime_started": false,
+  "cohort_pairs": 11,
+  "JVM_series": 22,
+  "maximum_observed_warmups": 62,
+  "pairs_reaching_minimum60": 1,
+  "eligible_observed_paired_prefixes": 3,
+  "pairs_with_an_observed_v4_gate_pass": 0,
+  "pairs_ever_meeting_window_thresholds_ignoring_minimum60": 0,
+  "final_individual_windows_JIT_at_most1pct": 0,
+  "cohorts": [
+    {
+      "job": "screen-bigquery-control-accumulator-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 54,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.02056612209203897,
+          "median_drift": -0.027489232544699926,
+          "spread": 1.0929898886521028,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "accumulator": {
+          "JIT_fraction": 0.02416629885261651,
+          "median_drift": -0.04836604775487263,
+          "spread": 1.0821198587913976,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.022222329668059766,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "accumulator": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-traversal-name-switch-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 45,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.018251586622433494,
+          "median_drift": 0.010139556391826288,
+          "spread": 1.1083000108684136,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-name-switch": {
+          "JIT_fraction": 0.017521278368903295,
+          "median_drift": -0.03453676881260459,
+          "spread": 1.0598189907923259,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.018251586622433494,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "traversal-name-switch": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "confirm-bigquery-stock-traversal-name-switch-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 41,
+      "final_window": {
+        "STOCK": {
+          "JIT_fraction": 0.025174583447811667,
+          "median_drift": 0.010500700806320928,
+          "spread": 1.1359276222759145,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-name-switch": {
+          "JIT_fraction": 0.02952079752473759,
+          "median_drift": 0.005685912564185491,
+          "spread": 1.0940749674443713,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.02952079752473759,
+      "first_individual_JIT_at_most1pct": {
+        "STOCK": null,
+        "traversal-name-switch": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "confirm-bigquery-stock-traversal-name-switch-v1",
+      "cohort": 2,
+      "observed_warmups_per_variant": 41,
+      "final_window": {
+        "STOCK": {
+          "JIT_fraction": 0.025189454014468118,
+          "median_drift": -0.03593336146107817,
+          "spread": 1.0685049787135124,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-name-switch": {
+          "JIT_fraction": 0.02514346597828721,
+          "median_drift": -0.022514728035174625,
+          "spread": 1.0955948019544954,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.025189454014468118,
+      "first_individual_JIT_at_most1pct": {
+        "STOCK": null,
+        "traversal-name-switch": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "confirm-bigquery-stock-traversal-name-switch-v1",
+      "cohort": 3,
+      "observed_warmups_per_variant": 40,
+      "final_window": {
+        "STOCK": {
+          "JIT_fraction": 0.0322644204748734,
+          "median_drift": 0.007986819055151528,
+          "spread": 1.1408982453508323,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-name-switch": {
+          "JIT_fraction": 0.028342389108944065,
+          "median_drift": -0.013817635217472035,
+          "spread": 1.1220642794136437,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.0322644204748734,
+      "first_individual_JIT_at_most1pct": {
+        "STOCK": null,
+        "traversal-name-switch": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-traversal-noop-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 45,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.014524364178952457,
+          "median_drift": -0.015324860760306369,
+          "spread": 1.2274098896944658,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-noop": {
+          "JIT_fraction": 0.019348697068018887,
+          "median_drift": 0.013035637448033377,
+          "spread": 1.1293863578865306,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.019348697068018887,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "traversal-noop": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-traversal-leaf-name-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 53,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.03844186854483765,
+          "median_drift": 0.03979937065926653,
+          "spread": 1.1014594692764408,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "traversal-leaf-name": {
+          "JIT_fraction": 0.02905144708525697,
+          "median_drift": -0.006862861917232732,
+          "spread": 1.0584964772309642,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.02110023121447539,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "traversal-leaf-name": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-equality-prototype-scalar-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 40,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.02912896773763337,
+          "median_drift": 0.046963564587118256,
+          "spread": 1.1623715931729177,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "equality-prototype-scalar": {
+          "JIT_fraction": 0.03385690177143931,
+          "median_drift": 0.005546125096173471,
+          "spread": 1.1878925933705382,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.03385690177143931,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "equality-prototype-scalar": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-empty-parameters-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 41,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.029623930916118063,
+          "median_drift": -0.004430838270016557,
+          "spread": 1.14251169244259,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "empty-parameters": {
+          "JIT_fraction": 0.030399507785962763,
+          "median_drift": -0.004703700314654169,
+          "spread": 1.109372163072905,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.030399507785962763,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "empty-parameters": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-source-position-last-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 41,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.028313769761366382,
+          "median_drift": 0.004891534168030454,
+          "spread": 1.0533743565720968,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "source-position-last": {
+          "JIT_fraction": 0.03020010236005999,
+          "median_drift": -0.04798495553281723,
+          "spread": 1.1517593463184868,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.03020010236005999,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "source-position-last": null
+      },
+      "eligible_observed_prefix_count": 0
+    },
+    {
+      "job": "screen-bigquery-control-reference-list-two-v1",
+      "cohort": 1,
+      "observed_warmups_per_variant": 62,
+      "final_window": {
+        "CONTROL": {
+          "JIT_fraction": 0.018110391403003512,
+          "median_drift": -0.022258250592498974,
+          "spread": 1.0879181184245081,
+          "window_thresholds_pass_ignoring_minimum60": false
+        },
+        "reference-list-two": {
+          "JIT_fraction": 0.01594232808172524,
+          "median_drift": -0.02004893813173725,
+          "spread": 1.0897415675847593,
+          "window_thresholds_pass_ignoring_minimum60": false
+        }
+      },
+      "first_observed_paired_v4_pass": null,
+      "first_paired_window_thresholds_pass_ignoring_minimum60": null,
+      "minimum_observed_paired_max_JIT_fraction_after16": 0.018110391403003512,
+      "first_individual_JIT_at_most1pct": {
+        "CONTROL": null,
+        "reference-list-two": null
+      },
+      "eligible_observed_prefix_count": 3
+    }
+  ],
+  "limits": [
+    "Historical v3 stopping censors later warmups; no data beyond the observed maximum, so >90 need or pass probability cannot be estimated reliably.",
+    "CompilationMXBean is approximate accumulated compilation elapsed time, potentially contaminated by pause-spanning timers and delayed updates; not CPU%.",
+    "Descriptive feasibility only; no altered thresholds, v3 rejection, favorable subset or v4 runtime."
+  ]
+}

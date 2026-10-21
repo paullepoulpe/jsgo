@@ -1,0 +1,32 @@
+{
+  "after_idle": {
+    "active_compilers_controllers": [],
+    "docker_ps_exit": 0,
+    "running_containers": []
+  },
+  "archive_sha256": "7b7bac52fd30df412d1320d29f07442049dc37764ee8d436c8a229f224299c94",
+  "before_idle": {
+    "active_compilers_controllers": [],
+    "docker_ps_exit": 0,
+    "running_containers": []
+  },
+  "compiler_benchmark_build_git_network_actions": false,
+  "config_sha256": "fd22263f037e8c05908919225fb17e175a4ecc72486c430ad6101e973067de2a",
+  "excluded_records": 77,
+  "experiment_and_frozen_v1_modified": false,
+  "external_logs": {
+    "stderr": {
+      "dev": 33,
+      "ino": 149960,
+      "path": "/tmp/jsgo-java-profile-v2-publication.stderr"
+    },
+    "stdout": {
+      "dev": 33,
+      "ino": 149959,
+      "path": "/tmp/jsgo-java-profile-v2-publication.stdout"
+    }
+  },
+  "included_files": 9899,
+  "publisher_sha256": "f3368f80c7861c6f98dda2d19ceb86949647706d66d0ae8ba66f1b416a6151e8",
+  "status": "LOCAL_SNAPSHOT_VERIFIED"
+}

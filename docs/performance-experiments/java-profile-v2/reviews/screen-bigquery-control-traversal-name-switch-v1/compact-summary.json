@@ -1,0 +1,95 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-traversal-name-switch-v1",
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-traversal-name-switch-v1/review.json",
+  "cohorts": 1,
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "baseline": "CONTROL",
+  "candidate": "traversal-name-switch",
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 45,
+      "measured_requests": 5,
+      "wall_median_s": 4.261608284,
+      "CPU_median_s": 4.91,
+      "allocated_median_bytes": 2087058360,
+      "current_RSS_median_MiB": 666.953125,
+      "lifetime_HWM_MiB": 1303.44140625,
+      "measured_request_numbers": [
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "measured_wall_s": [
+        4.454332844,
+        4.261608284,
+        4.302141688,
+        4.092445283,
+        4.176941997
+      ],
+      "measured_JIT_deltas_ms": [
+        318,
+        170,
+        20,
+        124,
+        65
+      ],
+      "measured_JIT_sum_ms": 697,
+      "measured_wall_sum_s": 21.287470096,
+      "measured_batch_JIT_fraction": 0.032742265607737436,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT"
+    },
+    "traversal-name-switch": {
+      "warmup_requests": 45,
+      "measured_requests": 5,
+      "wall_median_s": 4.17462077,
+      "CPU_median_s": 4.82,
+      "allocated_median_bytes": 2071695408,
+      "current_RSS_median_MiB": 613.46875,
+      "lifetime_HWM_MiB": 1243.77734375,
+      "measured_request_numbers": [
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "measured_wall_s": [
+        4.263096475,
+        4.03078606,
+        4.17462077,
+        4.084420929,
+        4.275127991
+      ],
+      "measured_JIT_deltas_ms": [
+        270,
+        146,
+        11,
+        88,
+        185
+      ],
+      "measured_JIT_sum_ms": 700,
+      "measured_wall_sum_s": 20.828052225,
+      "measured_batch_JIT_fraction": 0.03360851953116322,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT"
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 0.9795881019082419,
+    "CPU": 0.9816700610997964,
+    "RSS_lifetimeHWM": 0.9542257425505198,
+    "allocated_bytes": 0.9926389447010959
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 0.9198078950450979
+  },
+  "all_six_digests_every_request": true,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "interpretation": "Preliminary one-cohort screen only. Both measured batches exceed the predeclared 2% JIT flag threshold, so the lower observed elapsed median does not establish a settled speed gain. Original PASS and every outcome are retained; no request/cohort was discarded or retried.",
+  "JIT_policy": "/workspace/jsgo-java-experiments/profile-v2/MEASURED-JIT-REVIEW-NOTE.md"
+}

@@ -1,0 +1,22 @@
+{
+  "disposition": "Omit raw JFR files from public snapshot; retain originals locally",
+  "reason": "Bounded standard-consumer audits completed but did not clear all environment/property and ancillary string values against reviewed expectations. No evidence of a specific secret is claimed. Aggregate CPU/allocation reports and all experiment sources/results remain publishable.",
+  "recordings": [
+    {
+      "recording": "results/profile-stock-bigquery-v1/work/profile.jfr",
+      "audit_receipt": "analysis-driver-v1/publication-audit-profile-stock-bigquery-v1.stdout",
+      "status": "UNRESOLVED",
+      "scan_outcome": "COMPLETE",
+      "publication": "EXCLUDE_RAW_RETAIN_LOCAL"
+    },
+    {
+      "recording": "results/profile-stock-bigquery-steady-v2/work/profile.jfr",
+      "audit_receipt": "analysis-driver-v1/publication-audit-profile-stock-bigquery-steady-v2.stdout",
+      "status": "UNRESOLVED",
+      "scan_outcome": "COMPLETE",
+      "publication": "EXCLUDE_RAW_RETAIN_LOCAL"
+    }
+  ],
+  "no_observed_values_or_hashes_exported": true,
+  "no_changes_to_original_recordings": true
+}

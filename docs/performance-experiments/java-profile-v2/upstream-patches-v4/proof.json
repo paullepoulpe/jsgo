@@ -1,0 +1,98 @@
+{
+  "status": "PASS_EXACT_FORWARD_REVERSE_SOURCE_BUILD_LINKAGE",
+  "promotion_status": "NONE_PROMOTED",
+  "combined_patches_validated": false,
+  "patch": "reference-list-two.patch",
+  "patch_sha256": "a5f07ca9cfb750b472724ab20ad8975aa34d957c801474496e4d718db3f5ec00",
+  "original_sha256": "2c11a1f752e70fbae4c30c6fe3c62e5c47ca1e1516a77108107dea0db9ce981f",
+  "candidate_sha256": "7b7bf5ab98868b2d11055a63ebb3be42252a510abac389112233cb47da50455e",
+  "steps": [
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--whitespace=error",
+        "--check",
+        "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/reference-list-two.patch"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "exact_expected_bytes": true
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--whitespace=error",
+        "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/reference-list-two.patch"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "exact_expected_bytes": true
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--whitespace=error",
+        "--reverse",
+        "--check",
+        "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/reference-list-two.patch"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "exact_expected_bytes": true
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--whitespace=error",
+        "--reverse",
+        "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/reference-list-two.patch"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "exact_expected_bytes": true
+    }
+  ],
+  "temporary_fixture_removed": true,
+  "probe_review": "/workspace/jsgo-java-experiments/profile-v2/reviews/reference-list-two-probes-attempt-1/review.json",
+  "probe_review_sha256": "37927ed0685bbe0be202ba7e3b3f300ccd0628223132d76b5aa055e2dcf8efb2",
+  "performance_status": "NEGATIVE_SINGLE_COHORT_SCREEN_NONE_PROMOTED",
+  "inputs_unchanged": true,
+  "inputs_sha256": {
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/frozen-source-manifest.json": "4b4edd19c4fb38e6f74b0be40f8275deb467679b4a0281209762ad487f9e998a",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/README.txt": "e1f20f010b753e5b2dd3ce7516dbd1bcb344e27ac45da34f95739fd419ac3f81",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/control-src/com/google/javascript/jscomp/ReferenceCollection.java": "2c11a1f752e70fbae4c30c6fe3c62e5c47ca1e1516a77108107dea0db9ce981f",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/probe/com/google/javascript/jscomp/ReferenceListTwoProbe.java": "8ebf9291b8e855efa6352145153eef345dca1d2ba61ccabacfd35a21ea21d04f",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/profile-evidence.tsv": "392d8b729f971b7e21f962c16a65ce47e02cdcbf9e9b180baa265d067e2ae6ab",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/reference-list-two.patch": "3c4947fc75aa36803893953d6f4837c3de886e0c0780689bbd898c3ec813318a",
+    "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-list-two/src/com/google/javascript/jscomp/ReferenceCollection.java": "7b7bf5ab98868b2d11055a63ebb3be42252a510abac389112233cb47da50455e",
+    "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/ReferenceCollection.java": "2c11a1f752e70fbae4c30c6fe3c62e5c47ca1e1516a77108107dea0db9ce981f",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/manifest.json": "ade14caaf6e95127b1c91183cc158cda83e05d56a1b2d181938cec35ae5344e7",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/CONTROL/build.json": "186497ecc35a8959373fa42940e47e44ce636c6021cf602cb3d601409a1acaf5",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/CONTROL/src/com/google/javascript/jscomp/ReferenceCollection.java": "deb9ea75b98be9a6bf27b1a7053232325755e92ac1c77d701197b57f2bfae283",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/CONTROL/classes/com/google/javascript/jscomp/ReferenceCollection.class": "dbe8cb3188f80bafee9b6998790606cdf27ba583bb04d4179bc7f22e37665279",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/reference-list-two/build.json": "dd5abba05dbc2aa806b658cd517e61ede93375410ba2543430c3905c33466a50",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/reference-list-two/src/com/google/javascript/jscomp/ReferenceCollection.java": "8562872c57f6089bb4d926b150674a02f703ebe20b90224102d6071e587e59f9",
+    "/workspace/jsgo-java-experiments/profile-v2/build/reference-list-two/reference-list-two/classes/com/google/javascript/jscomp/ReferenceCollection.class": "bc3a51d507424d44afeffad080f3d126a923c519b26229bc6434ede436ad1a44",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/manifest.json": "2675e5f30b7b020f37b8ef2f363897470e7e0f631c8ae25f55da40fedc684026",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/STOCK-1-ReferenceListTwoProbe/stdout": "8efb89810b511e3df249478135bb0bad432e8941a97f44b5461bb8d20c473c6b",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/STOCK-1-ReferenceListTwoProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/STOCK-1-ReferenceListTwoProbe/class-load.log": "6f83561b11d928edd6bd0d1d27ff0837191e5fa0e5cf71ac2cbb09080c680ba8",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/CONTROL-1-ReferenceListTwoProbe/stdout": "8efb89810b511e3df249478135bb0bad432e8941a97f44b5461bb8d20c473c6b",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/CONTROL-1-ReferenceListTwoProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/CONTROL-1-ReferenceListTwoProbe/class-load.log": "adc7d649aa089eba8094f1ba0b4d604154d528536dde9a74934813b2c42b1050",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/reference-list-two-1-ReferenceListTwoProbe/stdout": "8efb89810b511e3df249478135bb0bad432e8941a97f44b5461bb8d20c473c6b",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/reference-list-two-1-ReferenceListTwoProbe/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/jsgo-java-experiments/profile-v2/results/reference-list-two-probes-attempt-1/reference-list-two-1-ReferenceListTwoProbe/class-load.log": "802c0edea52162e3653d90a53db5e09d17d45722be7defbcbb99c9b73815045c",
+    "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-reference-list-two-v1/summary.json": "3f37a294fc6506a991600edaa512740d84259ea116afcd41017832353a3e146c",
+    "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/prepare.py": "7f12fade5bba25cf8936dd1f0187a90a4354a0579e889260a81967739219ec69",
+    "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v4/README.txt": "dff7020e13d686924721c510afd045c9647edf28fa767e1149de78dc77eac285"
+  }
+}

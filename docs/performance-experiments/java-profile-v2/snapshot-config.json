@@ -1,0 +1,93 @@
+{
+  "completed_benchmark_jobs": [
+    {
+      "manifest": "build/accumulator/manifest.json",
+      "result": "results/screen-bigquery-control-accumulator-v1",
+      "review": "reviews/screen-bigquery-control-accumulator-v1/review.json"
+    },
+    {
+      "manifest": "build/traversal-name-switch/manifest.json",
+      "result": "results/screen-bigquery-control-traversal-name-switch-v1",
+      "review": "reviews/screen-bigquery-control-traversal-name-switch-v1/review.json"
+    },
+    {
+      "manifest": "build/traversal-name-switch/manifest.json",
+      "result": "results/confirm-bigquery-stock-traversal-name-switch-v1",
+      "review": "reviews/confirm-bigquery-stock-traversal-name-switch-v1/review.json"
+    },
+    {
+      "manifest": "build/traversal-noop/manifest.json",
+      "result": "results/screen-bigquery-control-traversal-noop-v1",
+      "review": "reviews/screen-bigquery-control-traversal-noop-v1/review.json"
+    },
+    {
+      "manifest": "build/traversal-leaf-name/manifest.json",
+      "result": "results/screen-bigquery-control-traversal-leaf-name-v1",
+      "review": "reviews/screen-bigquery-control-traversal-leaf-name-v1/review.json"
+    },
+    {
+      "manifest": "build/equality-prototype-scalar/manifest.json",
+      "result": "results/screen-bigquery-control-equality-prototype-scalar-v1",
+      "review": "reviews/screen-bigquery-control-equality-prototype-scalar-v1/review.json"
+    },
+    {
+      "manifest": "build/empty-parameters/manifest.json",
+      "result": "results/screen-bigquery-control-empty-parameters-v1",
+      "review": "reviews/screen-bigquery-control-empty-parameters-v1/review.json"
+    },
+    {
+      "manifest": "build/source-position-last/manifest.json",
+      "result": "results/screen-bigquery-control-source-position-last-v1",
+      "review": "reviews/screen-bigquery-control-source-position-last-v1/review.json"
+    },
+    {
+      "manifest": "build/reference-list-two/manifest.json",
+      "result": "results/screen-bigquery-control-reference-list-two-v1",
+      "review": "reviews/screen-bigquery-control-reference-list-two-v1/review.json"
+    },
+    {
+      "manifest": "build/accumulator/manifest.json",
+      "result": "results/screen-bundle-control-accumulator-v1",
+      "review": "reviews/screen-bundle-control-accumulator-v1/review.json"
+    }
+  ],
+  "extra_reproduction_metadata": [
+    {
+      "metadata": "/workspace/jsgo-java-experiments/transfer-v1/results/confirm-bundle-stock-all-v1/metadata.json",
+      "name": "bundle-reference-inputs"
+    },
+    {
+      "metadata": "/workspace/jsgo-java-experiments/profile-v2/results/confirm-bundle-stock-accumulator-v4-attempt-1/metadata.json",
+      "name": "failed-v4-accumulator-bundle"
+    }
+  ],
+  "raw_jfr_clearances": [],
+  "report_paths": [
+    "README.md",
+    "OPEN-IDEAS.md",
+    "environment-preflight/README.md",
+    "PROFILE-NOTES.md",
+    "MEASURED-JIT-REVIEW-NOTE.md",
+    "JIT-COUNTER-INTERPRETATION.md",
+    "CONFIRMATION-V4-PRESPECIFIED.md",
+    "SELECTED-V4-CONFIRMATION.md",
+    "bench/V4-README.md",
+    "reviews",
+    "source-audit",
+    "candidates/scope-declare-once/node-flag-alternative.txt",
+    "candidates/node-hot-prop-summary",
+    "upstream-patches",
+    "upstream-patches-v2",
+    "upstream-patches-v3",
+    "upstream-patches-v4",
+    "validation/function-argument-injector-upstream-v1/COMPLETED-VALIDATION.txt",
+    "validation/function-argument-injector-upstream-v1/completed-review.json",
+    "audits",
+    "analysis-driver-v1/publication-audit-profile-stock-bigquery-v1.stdout",
+    "analysis-driver-v1/publication-audit-profile-stock-bigquery-v1.stderr",
+    "analysis-driver-v1/publication-audit-profile-stock-bigquery-steady-v2.stdout",
+    "analysis-driver-v1/publication-audit-profile-stock-bigquery-steady-v2.stderr",
+    "publication-preparation"
+  ],
+  "snapshot_state": "CLOSED"
+}

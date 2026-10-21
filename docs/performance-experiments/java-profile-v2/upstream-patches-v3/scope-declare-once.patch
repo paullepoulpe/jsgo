@@ -1,0 +1,31 @@
+diff --git a/src/com/google/javascript/jscomp/AbstractScope.java b/src/com/google/javascript/jscomp/AbstractScope.java
+--- a/src/com/google/javascript/jscomp/AbstractScope.java
++++ b/src/com/google/javascript/jscomp/AbstractScope.java
+@@ -146,7 +146,8 @@
+   }
+ 
+   final void declareInternal(String name, V var) {
+-    checkState(hasOwnSlot(name) || canDeclare(name), "Illegal shadow: %s", var.getNode());
++    checkState(
++        hasOwnSlot(name) || canShadowParentName(name), "Illegal shadow: %s", var.getNode());
+ 
+     // For memory savings, only initialize the map once it needs to add its first element
+     ImmutableMap<String, V> emptySentinel = ImmutableMap.of();
+@@ -248,10 +249,13 @@
+    * block scopes and returns false for redeclaring parameters on the block scope.
+    */
+   final boolean canDeclare(String name) {
+-    return !hasOwnSlot(name)
+-        && (!isFunctionBlockScope()
+-            || !getParent().hasOwnSlot(name)
+-            || isBleedingFunctionName(name));
++    return !hasOwnSlot(name) && canShadowParentName(name);
++  }
++
++  private boolean canShadowParentName(String name) {
++    return !isFunctionBlockScope()
++        || !getParent().hasOwnSlot(name)
++        || isBleedingFunctionName(name);
+   }
+ 
+   /**

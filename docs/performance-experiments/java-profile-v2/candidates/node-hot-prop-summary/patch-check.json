@@ -1,0 +1,191 @@
+{
+  "status": "PASS_EXACT_SOURCE_FORWARD_REVERSE",
+  "prepared_at_utc": "2026-10-21T10:17:31.028014+00:00",
+  "pinned_version": "v20261015",
+  "compile_status": "NOT_RUN",
+  "runtime_status": "NOT_RUN",
+  "performance_status": "NOT_MEASURED",
+  "source_only_check": true,
+  "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/rhino/Node.java",
+  "control_sha256": "890e39a87eba151f7cbfcf62653c443d95d10d40b8c2b23bfa4bf045ae026fa5",
+  "candidate_sha256": "bd788386acf75ba62c5d6ac2d8a6acfbf041069f84d1335e09d66328ddaac590",
+  "prepare_script_sha256": "2f673c0770d557bdcbe15bcd2eadc4d5691cc77a902ec7c7203337c75950be93",
+  "patch_sha256": "d0a7948ebcf793b5c07b2664342e15fefe6971e2f9a3d0fbbd5c6ddd4ec0df1d",
+  "control_equals_pinned": true,
+  "applied_bytes_equal_candidate": true,
+  "reversed_bytes_equal_control": true,
+  "original_head_stores": [
+    {
+      "line": 1030,
+      "statement": "this.propListHead = other.propListHead;"
+    },
+    {
+      "line": 1186,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1188,
+      "statement": "this.propListHead = new ObjectPropListItem((byte) prop.ordinal(), value, this.propListHead);"
+    },
+    {
+      "line": 1198,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1200,
+      "statement": "this.propListHead = new IntPropListItem((byte) prop.ordinal(), value, this.propListHead);"
+    },
+    {
+      "line": 1205,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1345,
+      "statement": "this.propListHead = new IntPropListItem((byte) prop.ordinal(), 1, this.propListHead);"
+    },
+    {
+      "line": 1352,
+      "statement": "this.propListHead =\n          new IntPropListItem(\n              (byte) Prop.CONSTANT_VAR_FLAGS.ordinal(), constantVarFlags, this.propListHead);"
+    },
+    {
+      "line": 1358,
+      "statement": "this.propListHead =\n          new IntPropListItem(\n              (byte) Prop.SIDE_EFFECT_FLAGS.ordinal(), sideEffectFlags, this.propListHead);"
+    },
+    {
+      "line": 1726,
+      "statement": "propListHead = tail;"
+    },
+    {
+      "line": 1991,
+      "statement": "this.propListHead = propListHead;"
+    },
+    {
+      "line": 2762,
+      "statement": "dest.propListHead = source.propListHead;"
+    }
+  ],
+  "candidate_head_stores": [
+    {
+      "line": 1041,
+      "statement": "this.propListHead = other.propListHead;"
+    },
+    {
+      "line": 1207,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1209,
+      "statement": "this.propListHead = new ObjectPropListItem((byte) prop.ordinal(), value, this.propListHead);"
+    },
+    {
+      "line": 1219,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1221,
+      "statement": "this.propListHead = new IntPropListItem((byte) prop.ordinal(), value, this.propListHead);"
+    },
+    {
+      "line": 1226,
+      "statement": "this.propListHead = rebuildListWithoutProp(this.propListHead, prop);"
+    },
+    {
+      "line": 1366,
+      "statement": "this.propListHead = new IntPropListItem((byte) prop.ordinal(), 1, this.propListHead);"
+    },
+    {
+      "line": 1373,
+      "statement": "this.propListHead =\n          new IntPropListItem(\n              (byte) Prop.CONSTANT_VAR_FLAGS.ordinal(), constantVarFlags, this.propListHead);"
+    },
+    {
+      "line": 1379,
+      "statement": "this.propListHead =\n          new IntPropListItem(\n              (byte) Prop.SIDE_EFFECT_FLAGS.ordinal(), sideEffectFlags, this.propListHead);"
+    },
+    {
+      "line": 1747,
+      "statement": "propListHead = tail;"
+    },
+    {
+      "line": 2012,
+      "statement": "this.propListHead = propListHead;"
+    },
+    {
+      "line": 2783,
+      "statement": "dest.propListHead = source.propListHead;"
+    }
+  ],
+  "all_head_stores_unchanged": true,
+  "prop_count": 57,
+  "hot_prop_ordinals": {
+    "ARROW_FN": 20,
+    "SYNTHETIC": 6
+  },
+  "profile_observations": {
+    "isArrowFunction": {
+      "samples": 26,
+      "all_cpu_samples": 2221,
+      "pct_all_cpu": 1.170643854119766
+    },
+    "isSyntheticBlock": {
+      "samples": 21,
+      "all_cpu_samples": 2221,
+      "pct_all_cpu": 0.9455200360198109
+    }
+  },
+  "fixture_files": [
+    "src/com/google/javascript/rhino/Node.java"
+  ],
+  "check": {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "--whitespace=error",
+      "/workspace/jsgo-java-experiments/profile-v2/candidates/node-hot-prop-summary/node-hot-prop-summary.patch"
+    ],
+    "cwd": "/tmp/node-hot-prop-summary-patch-nebgpiyv",
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "apply": {
+    "argv": [
+      "git",
+      "apply",
+      "--whitespace=error",
+      "/workspace/jsgo-java-experiments/profile-v2/candidates/node-hot-prop-summary/node-hot-prop-summary.patch"
+    ],
+    "cwd": "/tmp/node-hot-prop-summary-patch-nebgpiyv",
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "reverse_check": {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "--whitespace=error",
+      "/workspace/jsgo-java-experiments/profile-v2/candidates/node-hot-prop-summary/node-hot-prop-summary.patch"
+    ],
+    "cwd": "/tmp/node-hot-prop-summary-patch-nebgpiyv",
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "reverse": {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--whitespace=error",
+      "/workspace/jsgo-java-experiments/profile-v2/candidates/node-hot-prop-summary/node-hot-prop-summary.patch"
+    ],
+    "cwd": "/tmp/node-hot-prop-summary-patch-nebgpiyv",
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "temporary_fixture_removed": true
+}

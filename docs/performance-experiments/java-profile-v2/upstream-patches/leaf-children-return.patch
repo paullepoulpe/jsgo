@@ -1,0 +1,13 @@
+diff --git a/src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java b/src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
+--- a/src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
++++ b/src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
+@@ -161,6 +161,9 @@
+ 
+     /** Marks all children of this property as read. */
+     void markChildrenRead() {
++      if (children.isEmpty()) {
++        return;
++      }
+       // If a property is in propertiesSet, it has been added to the queue and processed,
+       // it will not be added to the queue again.
+       Set<Property> propertiesSet = new LinkedHashSet<>(children);

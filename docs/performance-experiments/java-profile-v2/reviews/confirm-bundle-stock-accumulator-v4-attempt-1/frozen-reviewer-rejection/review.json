@@ -1,0 +1,8 @@
+{
+  "status": "FAIL independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/confirm-bundle-stock-accumulator-v4-attempt-1",
+  "error": "failure evidence present: no accepted result",
+  "traceback": "Traceback (most recent call last):\n  File \"/workspace/jsgo-java-experiments/profile-v2/bench/review-results-v4.py\", line 253, in main\n    report,rows,cohorts=review(root,a.manifest,telemetry_anomalies);csv_write(out/'rows.csv',rows);csv_write(out/'cohorts.csv',cohorts);csv_write(out/'measured-jit.csv',measured_jit_csv(report))\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/jsgo-java-experiments/profile-v2/bench/review-results-v4.py\", line 111, in review\n    require(not (root/'failure.json').exists(),'failure evidence present: no accepted result')\n  File \"/workspace/jsgo-java-experiments/profile-v2/bench/review-results-v4.py\", line 17, in require\n    if not ok:raise ValueError(message)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: failure evidence present: no accepted result\n",
+  "reviewer_version": "v4-five-cohort-twenty-pair-prespecified-confirmation",
+  "telemetry_anomalies": []
+}

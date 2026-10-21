@@ -1,0 +1,80 @@
+diff --git a/src/com/google/javascript/rhino/Node.java b/src/com/google/javascript/rhino/Node.java
+--- a/src/com/google/javascript/rhino/Node.java
++++ b/src/com/google/javascript/rhino/Node.java
+@@ -456,10 +456,21 @@
+   private abstract static class PropListItem {
+     final @Nullable PropListItem next;
+     final byte propType;
+-
+-    PropListItem(byte propType, @Nullable PropListItem next) {
++    // Two bits each for ARROW_FN and SYNTHETIC in this suffix:
++    // 0 absent, 1 nonzero integer, 2 object (which must retain the integer getter's error).
++    final byte hotBooleanSummary;
++
++    @SuppressWarnings("EnumOrdinal") // performance tuning
++    PropListItem(byte propType, @Nullable PropListItem next, boolean isInt) {
+       this.propType = propType;
+       this.next = next;
++      int summary = next == null ? 0 : next.hotBooleanSummary;
++      if (propType == Prop.ARROW_FN.ordinal()) {
++        summary = (summary & ~3) | (isInt ? 1 : 2);
++      } else if (propType == Prop.SYNTHETIC.ordinal()) {
++        summary = (summary & ~(3 << 2)) | ((isInt ? 1 : 2) << 2);
++      }
++      this.hotBooleanSummary = (byte) summary;
+     }
+ 
+     abstract int getIntValue();
+@@ -474,7 +485,7 @@
+     private final Object objectValue;
+ 
+     ObjectPropListItem(byte propType, Object objectValue, @Nullable PropListItem next) {
+-      super(propType, next);
++      super(propType, next, /* isInt= */ false);
+       this.objectValue = checkNotNull(objectValue);
+     }
+ 
+@@ -504,7 +515,7 @@
+     final int intValue;
+ 
+     IntPropListItem(byte propType, int intValue, @Nullable PropListItem next) {
+-      super(propType, next);
++      super(propType, next, /* isInt= */ true);
+       this.intValue = intValue;
+       checkState(this.intValue != 0);
+     }
+@@ -1172,6 +1183,16 @@
+     return getIntProp(propType) != 0;
+   }
+ 
++  /** Reads the immutable suffix summary for ARROW_FN or SYNTHETIC only. */
++  private boolean getSummarizedBooleanProp(Prop prop, int shift) {
++    PropListItem head = propListHead;
++    int state = head == null ? 0 : (head.hotBooleanSummary >> shift) & 3;
++    if (state == 2) {
++      return getBooleanProp(prop);
++    }
++    return state == 1;
++  }
++
+   /** Returns the integer value for the property, or 0 if the property is not defined. */
+   private int getIntProp(Prop propType) {
+     PropListItem item = lookupProperty(propType);
+@@ -2987,7 +3008,7 @@
+    * Returns whether this is a synthetic block that should not be considered a real source block.
+    */
+   public final boolean isSyntheticBlock() {
+-    return getBooleanProp(Prop.SYNTHETIC);
++    return getSummarizedBooleanProp(Prop.SYNTHETIC, 2);
+   }
+ 
+   public final void setIsSynthesizedUnfulfilledNameDeclaration(boolean val) {
+@@ -3116,7 +3137,7 @@
+ 
+   /** Returns whether this node is a arrow function node. */
+   public final boolean isArrowFunction() {
+-    return isFunction() && getBooleanProp(Prop.ARROW_FN);
++    return isFunction() && getSummarizedBooleanProp(Prop.ARROW_FN, 0);
+   }
+ 
+   /**

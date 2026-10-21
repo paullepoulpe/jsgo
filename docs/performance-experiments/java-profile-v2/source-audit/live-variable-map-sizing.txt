@@ -1,0 +1,48 @@
+Source-only proposal: size LiveVariablesAnalysis.scopeVariables in advance
+Pinned Closure v20261015. No source candidate, probe, build, or runtime prepared.
+
+Minimal proposal in LiveVariablesAnalysis.java:
+
+Replace import java.util.LinkedHashMap with import com.google.common.collect.Maps
+(in the normal import order), and replace the assignment at line 162 with:
+
+    this.scopeVariables =
+        Maps.newLinkedHashMapWithExpectedSize(allVarsDeclaredInFunction.getAllVariables().size());
+
+Keep orderedVars/allVarsInFn assignments, computeEscaped and addScopeVariables
+unchanged. This adds no collection, traversal, field, or cache. Guava's factory
+already appears in pinned AbstractScope.java:154 and DefaultNameGenerator.java:150,
+160, so the proposal does not require a new JDK API or dependency. Keep the same
+LinkedHashMap implementation to isolate initial sizing.
+
+Ownership and count:
+NodeUtil.AllVarsDeclaredInFunction is a static final class, not a record. Its
+constructor is private; its sole construction site is NodeUtil's collection
+factory. Its getters merely return the stored ArrayList and LinkedHashMap, with
+no override hooks. The returned collections themselves are mutable, not immutable.
+The factory appends each encountered Var to the list and puts that Var under its
+name in the map. The list length is an upper bound on inserted names; shadowing
+can repeat names. For the ordinary unmodified factory result, map.size() is the
+exact distinct-name count that addScopeVariables will insert. This avoids
+overestimating capacity from duplicate names in the ordered list.
+
+Both in-tree LiveVariablesAnalysis callers use the factory result without
+modifying either collection before construction. computeEscaped reads the map
+and populates only escaped. A later count mismatch from nonstandard mutation
+would affect sizing only; ordinary map insertion would still resize as needed.
+
+Semantics:
+addScopeVariables still iterates orderedVars exactly once in the same order,
+assigns the same incrementing index, and overwrites repeated names identically.
+The map remains private and is used only through put/get. Reading the ordinary
+map size is constant-time and introduces no user callback. Expected-size
+construction targets backing-table resizes for large scopes and oversized
+default tables for small nonempty scopes; it does not avoid per-entry allocation.
+
+Priority:
+Parent reports one weighted allocation-stack sample at approximately 0.5667%.
+That is weak evidence, and a table-resize allocation sample does not establish
+that constructor sizing explains all of it. No timing gain is established, and
+the existing candidate pipeline takes priority. Independent source review found
+no additional semantic concern and also identified orderedVars.size() as a safe
+but potentially larger capacity bound. No runtime activity was performed.

@@ -1,0 +1,37 @@
+Completed upstream FunctionArgumentInjectorTest validation
+
+PASS: the actual pinned v20261015 FunctionArgumentInjectorTest completed all
+91 tests on each of STOCK, same-source CONTROL, and the shared parameter
+accumulator candidate. Every variant exited 0 with zero failed, ignored or
+assumption-failed tests. This is 273 successful test executions. The full upstream
+Java test suite has not been run; this result covers this complete specific class.
+
+results-attempt-1/result.json is the runtime receipt. commands.json retains the
+one compilation of six sources and three sequential Java commands. The three
+variant stdout files record all exact passing method names (including
+nullishCoalesce), JUnit counters, compiler class origins/digests, and separate
+Truth, ordinary Guava and shaded compiler Guava origins. All run stderr files are
+empty. Compilation succeeded with only an upstream NodeSubject deprecation note.
+
+completed-review.json records an independent source and completed-receipt audit.
+The tag/commit-pinned test retains all original bodies; its only changes are four
+Guava import substitutions. NodeSubject, TypeSubject, ColorSubject and
+TextDiffFactsBuilder remain byte-identical upstream sources. The captured build
+manifest and preparation digests match current frozen inputs. Each variant's 91
+unique names matches direct discovery from the exact upstream source. CONTROL and
+candidate class origins/digests and every nested overlay class match the recorded
+before/after inventories. review-completed.py reproduces these narrow source and
+receipt checks without starting Java or reading archives.
+
+A separate reviewer independently checked the retained run counts/names, stdout
+and stderr hashes, preparation/build manifest identities, all recorded overlay
+inventories and compiler/library origins; no defect was found. Neither review
+started Java, a compiler or a benchmark.
+
+The whole stock jar was not rehashed by this run or review; the earlier pinned
+manifest identity and actual class origins are retained, and the observed stock
+outer-class digest is recorded. Download hashes and runner preflight verified the
+small dependency files; the independent review did not inspect their archives.
+Test success is semantic validation, not performance evidence or a claim that
+the entire upstream Java suite passed. All prior prepared inputs remain frozen;
+README.txt and prepared-manifest.json retain their historical preparation status.

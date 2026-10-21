@@ -1,0 +1,16 @@
+diff --git a/src/com/google/javascript/jscomp/Reference.java b/src/com/google/javascript/jscomp/Reference.java
+--- a/src/com/google/javascript/jscomp/Reference.java
++++ b/src/com/google/javascript/jscomp/Reference.java
+@@ -141,9 +141,9 @@
+       return true;
+     }
+ 
+-    // Special case for arrow function
+-    if (parent.isArrowFunction()) {
+-      return node == parent.getFirstChild();
++    // A function's first child is a declaration regardless of whether it is an arrow function.
++    if (parent.isFunction()) {
++      return node == parent.getFirstChild() || !parent.isArrowFunction();
+     }
+ 
+     return DECLARATION_PARENTS.contains(parent.getToken());

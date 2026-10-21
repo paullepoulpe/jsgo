@@ -1,0 +1,250 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-reference-list-two-v1",
+  "baseline": "CONTROL",
+  "candidate": "reference-list-two",
+  "cohorts": 1,
+  "pairs_per_cohort": 5,
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-reference-list-two-v1/review.json",
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "promotion_status": "NONE_PROMOTED",
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 62,
+      "measured_requests": 5,
+      "wall_median_s": 4.114438774,
+      "wall_mean_s": 4.1963526012,
+      "wall_sample_SD_s": 0.1953680387832326,
+      "wall_CV": 0.04655663080537242,
+      "CPU_median_s": 4.9,
+      "CPU_mean_s": 4.974,
+      "allocated_median_bytes": 2079609448,
+      "allocated_mean_bytes": 2079678219.2,
+      "current_RSS_median_MiB": 608.640625,
+      "current_RSS_mean_MiB": 628.696875,
+      "lifetime_HWM_MiB": 1300.66796875,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.02686385325366758,
+        "last4_JIT_time_over_wall": 0.019981212534761338,
+        "last4_max_over_min": 1.022550965214152,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "measured_wall_s": [
+        4.523057252,
+        4.220549051,
+        4.096975439,
+        4.114438774,
+        4.02674249
+      ],
+      "measured_JIT_deltas_ms": [
+        181,
+        93,
+        18,
+        72,
+        65
+      ],
+      "measured_JIT_sum_ms": 429,
+      "measured_wall_sum_s": 20.981763006,
+      "measured_batch_JIT_fraction": 0.020446327597796334,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        16,
+        15,
+        15,
+        16,
+        15
+      ],
+      "measured_GC_ms": [
+        327,
+        287,
+        280,
+        299,
+        287
+      ]
+    },
+    "reference-list-two": {
+      "warmup_requests": 62,
+      "measured_requests": 5,
+      "wall_median_s": 4.267463272,
+      "wall_mean_s": 4.3200512664,
+      "wall_sample_SD_s": 0.2549364498408195,
+      "wall_CV": 0.05901236677991185,
+      "CPU_median_s": 4.96,
+      "CPU_mean_s": 5.02,
+      "allocated_median_bytes": 2082391336,
+      "allocated_mean_bytes": 2082417401.6,
+      "current_RSS_median_MiB": 605.65234375,
+      "current_RSS_mean_MiB": 725.62578125,
+      "lifetime_HWM_MiB": 1468.4921875,
+      "readiness": {
+        "last4_vs_prior4_median_drift": 0.04446247245649082,
+        "last4_JIT_time_over_wall": 0.017764806496311698,
+        "last4_max_over_min": 1.0897415675847593,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "measured_wall_s": [
+        4.708384039,
+        4.053782673,
+        4.413940738,
+        4.267463272,
+        4.15668561
+      ],
+      "measured_JIT_deltas_ms": [
+        163,
+        54,
+        23,
+        46,
+        24
+      ],
+      "measured_JIT_sum_ms": 310,
+      "measured_wall_sum_s": 21.600256332,
+      "measured_batch_JIT_fraction": 0.014351681537257787,
+      "measured_JIT_flag": "MEASURED_JIT_AT_OR_BELOW_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        13,
+        16,
+        12,
+        14,
+        11
+      ],
+      "measured_GC_ms": [
+        324,
+        312,
+        268,
+        297,
+        306
+      ]
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 1.0371920707550673,
+    "CPU": 1.0122448979591836,
+    "RSS_lifetimeHWM": 1.1290292547999676,
+    "allocated_bytes": 1.0013376973270993
+  },
+  "baseline_over_candidate": {
+    "elapsed": 0.9641415782054796,
+    "CPU": 0.9879032258064517,
+    "RSS_lifetimeHWM": 0.8857166417509456,
+    "allocated_bytes": 0.9986640897165161
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 0.9950902369522244,
+    "wall_mean": 1.0294776623786634,
+    "CPU_mean": 1.0092480900683554
+  },
+  "same_pair_ratios_descriptive_only": {
+    "elapsed": {
+      "raw": [
+        1.0409737875677016,
+        0.9604870418552565,
+        1.0773656820059838,
+        1.0371920707550673,
+        1.032270034729735
+      ],
+      "count": 5,
+      "mean": 1.0296577233827489,
+      "median": 1.0371920707550673,
+      "min": 0.9604870418552565,
+      "max": 1.0773656820059838,
+      "sample_SD": 0.04258014903835002,
+      "sample_variance": 0.0018130690921281006,
+      "CV": 0.041353692660567695
+    },
+    "CPU": {
+      "raw": [
+        1.0163934426229508,
+        0.9601593625498009,
+        1.0354906054279749,
+        1.0142857142857142,
+        1.0214132762312633
+      ],
+      "count": 5,
+      "mean": 1.0095484802235408,
+      "median": 1.0163934426229508,
+      "min": 0.9601593625498009,
+      "max": 1.0354906054279749,
+      "sample_SD": 0.028819902349882617,
+      "sample_variance": 0.0008305867714567697,
+      "CV": 0.028547318840499
+    },
+    "current_RSS": {
+      "raw": [
+        0.9947308294611454,
+        0.8881092444194958,
+        1.5688744270669326,
+        1.005104716386206,
+        1.3028815830968148
+      ],
+      "count": 5,
+      "mean": 1.151940160086119,
+      "median": 1.005104716386206,
+      "min": 0.8881092444194958,
+      "max": 1.5688744270669326,
+      "sample_SD": 0.2795083493327675,
+      "sample_variance": 0.0781249173467284,
+      "CV": 0.2426413793159807
+    }
+  },
+  "all_six_digests_every_request": true,
+  "requests_with_all_six_digests": 134,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [
+    {
+      "metric": "proc_VmHWM_kib",
+      "cohort": 1,
+      "variant": "reference-list-two",
+      "prior_request": 8,
+      "request": 9,
+      "kind": "warmup",
+      "before": 1209936,
+      "after": 1209912,
+      "delta_kib": -24,
+      "allowed": true,
+      "later_strictly_larger_sample": {
+        "request": 29,
+        "kind": "warmup",
+        "hwm_kib": 1282072,
+        "retained_protocol": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-reference-list-two-v1/cohort-1/reference-list-two/protocol/29/row.json"
+      },
+      "retained_protocol_rows_exact": true
+    }
+  ],
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "manifest_sha256": "ade14caaf6e95127b1c91183cc158cda83e05d56a1b2d181938cec35ae5344e7",
+  "runner_sha256": "74ed5966d78afe3621f382e893488e400701ace393f04514274326a107ebab7f",
+  "stopped_proof_sha256": "2e55ec8ea83162ed176bf119168c9ea65ba266c6dcfb6740b50310d632c3c821",
+  "limitations": [
+    "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+    "JAR and compiler executables not bulk-rehashed; declared stock target-class entries and shared driver classes checked.",
+    "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+    "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+    "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+    "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+    "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+    "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI.",
+    "VmHWM is documented inaccurate; every admitted warmup-only decrease and later strictly larger retained sample is disclosed. This post-observation reviewer amendment does not alter recorded values or max-sample ratios."
+  ],
+  "Java_vs_Go_claim": false,
+  "finding": "One-cohort CONTROL screen only. Elapsed, CPU and allocated-byte medians and approximate lifetime HWM increased. CompilationMXBean reports approximate accumulated compilation elapsed time, potentially summed across threads, not CPU%. Container pauses and later counter updates may affect that proxy; no causal attribution is inferred. No independent-cohort interval or speed gain is established; none promoted. All rows and measured JIT diagnostics are retained, with no postmeasurement rejection."
+}

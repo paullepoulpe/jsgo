@@ -1,0 +1,214 @@
+{
+  "status": "PASS_BOTH_EXACT_SOURCE_PATCHES",
+  "pinned_version": "v20261015",
+  "prepared_at_utc": "2026-10-21T09:20:04.750521+00:00",
+  "promotion_status": "NONE_PROMOTED",
+  "combined_patches_validated": false,
+  "performance_status": "UNMEASURED_AT_TASK_ASSIGNMENT_NO_ACTIVE_SCREEN_READ",
+  "scope": "Source-only exact patches and existing build/probe receipt links; no new runtime.",
+  "prepare_sha256": "6b2ec21e299790e7daa79e392d885653f340b6f250bedc1ee77cfbf1f5ebc2f7",
+  "readme_sha256": "b2e8b9ffeb41ddbfd039944eba6272dd1435eb4f53a5343568ba3f630228c9fd",
+  "independent_probe_review": "/workspace/jsgo-java-experiments/profile-v2/reviews/empty-scope-probes-v1/review.json",
+  "independent_probe_review_sha256": "3a414909afc4b2ff47c76061e5d8f703343665d2ed98ddb83549be8ea676b4ce",
+  "candidates": [
+    {
+      "name": "empty-parameters",
+      "status": "PASS_EXACT_FORWARD_AND_REVERSE",
+      "performance_status": "UNMEASURED_AT_TASK_ASSIGNMENT",
+      "promotion_status": "NOT_PROMOTED",
+      "repository_path": "src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "patch": "empty-parameters.patch",
+      "patch_sha256": "add43a484299207d1d0269813688ee82f8cf7b8896377959c19c220be2f6e998",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/control-src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "original_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-maps/empty-parameters-only/src/com/google/javascript/jscomp/FunctionArgumentInjector.java",
+      "candidate_sha256": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+      "closed_source_record": "/workspace/jsgo-java-experiments/profile-v2/audits/empty-parameters-callsite-v1/source-review.json",
+      "closed_source_record_sha256": "56c42013a7113a25c3fd18780bee1ebf745119db1262e3a6949741072c9f23f7",
+      "original_bytes_equal_pinned": true,
+      "applied_bytes_equal_candidate": true,
+      "restored_bytes_equal_original": true,
+      "applied_sha256": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+      "restored_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/manifest.json",
+      "build_manifest_sha256": "04a1e0123c1b8cb27f4bbb345041cab717b3a7bdf605cd41e5e3e6d036436fa2",
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/CONTROL/build.json",
+          "sha256": "c00f5fe5f2a23e08e8bc46c5f195c292416dda214086a05ec1106f00959a5001",
+          "original_source_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+          "effective_source_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+          "status": "PASS",
+          "exit_status": 0
+        },
+        "empty-parameters": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/empty-parameters/empty-parameters/build.json",
+          "sha256": "c297d23f2642230dd0d08ee7bf1cd13698a4f82fe680df4cfdb0023619564d60",
+          "original_source_sha256": "c34dabc4283dc8dd17f45d6ca51a12c98edb14bc8f88a3fd31452f8b4c56d5c4",
+          "effective_source_sha256": "b5593707fc3df6e54312bd02203cbd95faa3de00ac1b7bedc3093b3ad23409d3",
+          "status": "PASS",
+          "exit_status": 0
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/empty-parameters.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-empty-parameters-qwjw4t3k",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/empty-parameters.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-empty-parameters-qwjw4t3k",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/empty-parameters.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-empty-parameters-qwjw4t3k",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/empty-parameters.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-empty-parameters-qwjw4t3k",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/FunctionArgumentInjector.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/FunctionArgumentInjector.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "scope-declare-once",
+      "status": "PASS_EXACT_FORWARD_AND_REVERSE",
+      "performance_status": "UNMEASURED_AT_TASK_ASSIGNMENT",
+      "promotion_status": "NOT_PROMOTED",
+      "repository_path": "src/com/google/javascript/jscomp/AbstractScope.java",
+      "patch": "scope-declare-once.patch",
+      "patch_sha256": "267a154775a697783d193f2725f19387d057b96d735ae63f008a534871e5c435",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/control-src/com/google/javascript/jscomp/AbstractScope.java",
+      "original_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/src/com/google/javascript/jscomp/AbstractScope.java",
+      "candidate_sha256": "3f85791586519663f0c7905c37644ba35b82605e977f9c13bf6a9e9679c3d7c1",
+      "closed_source_record": "/workspace/jsgo-java-experiments/profile-v2/candidates/scope-declare-once/frozen-source-manifest.json",
+      "closed_source_record_sha256": "6677a5e14220de370c00d12c882331ee21c08a1280c893e7ab337683393ff39f",
+      "original_bytes_equal_pinned": true,
+      "applied_bytes_equal_candidate": true,
+      "restored_bytes_equal_original": true,
+      "applied_sha256": "3f85791586519663f0c7905c37644ba35b82605e977f9c13bf6a9e9679c3d7c1",
+      "restored_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/manifest.json",
+      "build_manifest_sha256": "53eb314ee0bbc474274fb9924f88ca826d3aa44ea90724ed0b1f3eabc427d236",
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/CONTROL/build.json",
+          "sha256": "5e2c285e5e3bd6360c913919e00c3c65ada45c765c8d85f142a79562f3317fc6",
+          "original_source_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+          "effective_source_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+          "status": "PASS",
+          "exit_status": 0
+        },
+        "scope-declare-once": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/scope-declare-once/scope-declare-once/build.json",
+          "sha256": "1c64ac78a2bc351810e8b77ca13744b5cf0597b154655471ff59311eb3006daf",
+          "original_source_sha256": "1809947e2f0992b0a9bb49aad46d9af954456f079ae143dee0ae41162b61913e",
+          "effective_source_sha256": "3f85791586519663f0c7905c37644ba35b82605e977f9c13bf6a9e9679c3d7c1",
+          "status": "PASS",
+          "exit_status": 0
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/scope-declare-once.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-scope-declare-once-2ihy9u_c",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/scope-declare-once.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-scope-declare-once-2ihy9u_c",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/scope-declare-once.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-scope-declare-once-2ihy9u_c",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v3/scope-declare-once.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v3-scope-declare-once-2ihy9u_c",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/AbstractScope.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/AbstractScope.java"
+      ],
+      "temporary_fixture_removed": true
+    }
+  ],
+  "inputs_unchanged_after_generation": true
+}

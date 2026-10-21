@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "argv": [
+    "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+    "-Xmx1g",
+    "-m",
+    "jdk.compiler/com.sun.tools.javac.Main",
+    "-source",
+    "21",
+    "-target",
+    "21",
+    "-g",
+    "-proc:none",
+    "-implicit:none",
+    "-encoding",
+    "UTF-8",
+    "-cp",
+    "/workspace/jsgo/.cache/closure-compiler-v20261015-maven.jar",
+    "-d",
+    "/workspace/jsgo-java-experiments/transfer-v1/bench/driver",
+    "/workspace/jsgo-java-experiments/transfer-v1/bench/CliFactors.java"
+  ],
+  "exit": 0,
+  "source_sha256": "1195afce140d50af49ba270147357564de8ec6a58a5c890162092397ae8d8458",
+  "classes": {
+    "CliFactors.class": "bcfb35f2f65f747a9508ff2f642a6bd4b8040f80a72fb27f9a535fbe2a7c27db"
+  }
+}

@@ -1,0 +1,238 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-equality-prototype-scalar-v1",
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-equality-prototype-scalar-v1/review.json",
+  "baseline": "CONTROL",
+  "candidate": "equality-prototype-scalar",
+  "cohorts": 1,
+  "pairs_per_cohort": 5,
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "promotion_status": "NONE_PROMOTED",
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 40,
+      "measured_requests": 5,
+      "wall_median_s": 4.327338877,
+      "wall_mean_s": 4.3026022856,
+      "wall_sample_SD_s": 0.12231958796538345,
+      "wall_CV": 0.028429210939334107,
+      "CPU_median_s": 5.08,
+      "CPU_mean_s": 4.992,
+      "allocated_median_bytes": 2074036912,
+      "allocated_mean_bytes": 2074000331.2,
+      "current_RSS_median_MiB": 652.3515625,
+      "current_RSS_mean_MiB": 753.20390625,
+      "lifetime_HWM_MiB": 1179.00390625,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.03379141217371728,
+        "last4_JIT_time_over_wall": 0.01601806380579719,
+        "last4_max_over_min": 1.0497467303113346,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        41,
+        42,
+        43,
+        44,
+        45
+      ],
+      "measured_wall_s": [
+        4.21573462,
+        4.460276452,
+        4.327338877,
+        4.149319953,
+        4.360341526
+      ],
+      "measured_JIT_deltas_ms": [
+        114,
+        75,
+        117,
+        21,
+        59
+      ],
+      "measured_JIT_sum_ms": 386,
+      "measured_wall_sum_s": 21.513011428,
+      "measured_batch_JIT_fraction": 0.017942629802985482,
+      "measured_JIT_flag": "MEASURED_JIT_AT_OR_BELOW_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        10,
+        12,
+        16,
+        12,
+        12
+      ],
+      "measured_GC_ms": [
+        249,
+        304,
+        308,
+        290,
+        307
+      ]
+    },
+    "equality-prototype-scalar": {
+      "warmup_requests": 40,
+      "measured_requests": 5,
+      "wall_median_s": 4.385103117,
+      "wall_mean_s": 4.3488073588,
+      "wall_sample_SD_s": 0.09966781320303121,
+      "wall_CV": 0.02291842451962124,
+      "CPU_median_s": 4.91,
+      "CPU_mean_s": 4.982,
+      "allocated_median_bytes": 2060940672,
+      "allocated_mean_bytes": 2060748137.6,
+      "current_RSS_median_MiB": 738.47265625,
+      "current_RSS_mean_MiB": 824.14765625,
+      "lifetime_HWM_MiB": 1176.109375,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.03783905629895601,
+        "last4_JIT_time_over_wall": 0.019064862123133852,
+        "last4_max_over_min": 1.0531481496988226,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        41,
+        42,
+        43,
+        44,
+        45
+      ],
+      "measured_wall_s": [
+        4.201387325,
+        4.431544349,
+        4.431689847,
+        4.385103117,
+        4.294312156
+      ],
+      "measured_JIT_deltas_ms": [
+        102,
+        107,
+        65,
+        26,
+        43
+      ],
+      "measured_JIT_sum_ms": 343,
+      "measured_wall_sum_s": 21.744036794,
+      "measured_batch_JIT_fraction": 0.01577443982686079,
+      "measured_JIT_flag": "MEASURED_JIT_AT_OR_BELOW_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        11,
+        6,
+        15,
+        12,
+        15
+      ],
+      "measured_GC_ms": [
+        294,
+        234,
+        305,
+        242,
+        302
+      ]
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 1.0133486749343852,
+    "CPU": 0.9665354330708662,
+    "RSS_lifetimeHWM": 0.9975449349788785,
+    "allocated_bytes": 0.9936856282912674
+  },
+  "baseline_over_candidate": {
+    "elapsed": 0.9868271649585475,
+    "CPU": 1.034623217922607,
+    "RSS_lifetimeHWM": 1.0024611071993197,
+    "allocated_bytes": 1.0063544963607765
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 1.1320163830373289,
+    "wall_mean": 1.0107388668840342,
+    "CPU_mean": 0.9979967948717949
+  },
+  "same_pair_ratios_descriptive_only": {
+    "elapsed": {
+      "raw": [
+        0.9965967271915231,
+        0.9935582237313753,
+        1.0241143513290882,
+        1.056824531892154,
+        0.9848568352716691
+      ],
+      "count": 5,
+      "mean": 1.011190133883162,
+      "median": 0.9965967271915231,
+      "min": 0.9848568352716691,
+      "max": 1.056824531892154,
+      "sample_SD": 0.029439888198085042,
+      "sample_variance": 0.000866707017115747,
+      "CV": 0.029114097548628454
+    },
+    "CPU": {
+      "raw": [
+        1.0105042016806722,
+        0.9665354330708662,
+        1.0058027079303675,
+        1.0294117647058825,
+        0.9807321772639691
+      ],
+      "count": 5,
+      "mean": 0.9985972569303515,
+      "median": 1.0058027079303675,
+      "min": 0.9665354330708662,
+      "max": 1.0294117647058825,
+      "sample_SD": 0.024951700180207818,
+      "sample_variance": 0.0006225873418829828,
+      "CV": 0.024986750170843005
+    },
+    "current_RSS": {
+      "raw": [
+        1.0171510717640695,
+        1.223839919208659,
+        0.9013899785005479,
+        1.432430349306833,
+        0.902516137531287
+      ],
+      "count": 5,
+      "mean": 1.0954654912622792,
+      "median": 1.0171510717640695,
+      "min": 0.9013899785005479,
+      "max": 1.432430349306833,
+      "sample_SD": 0.22970264221805584,
+      "sample_variance": 0.05276330384195617,
+      "CV": 0.2096849641090701
+    }
+  },
+  "all_six_digests_every_request": true,
+  "requests_with_all_six_digests": 90,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "build_source_receipt_checks": {
+    "CONTROL": {
+      "build_receipt": "/workspace/jsgo-java-experiments/profile-v2/build/equality-prototype-scalar/CONTROL/build.json",
+      "build_receipt_sha256": "b691496c5840d037a429c1c356fc11e554401a1953d07c9671b8260b0e448c92",
+      "status": "PASS",
+      "exit": 0,
+      "frozen_source_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+      "effective_source_matches_frozen": true,
+      "relocated_source_sha256": "bcac9191fcd20fcbf8ce4e1188cd33f03d6e91b9974ab1b25439ecf41028e194",
+      "relocated_source_matches_receipt": true
+    },
+    "equality-prototype-scalar": {
+      "build_receipt": "/workspace/jsgo-java-experiments/profile-v2/build/equality-prototype-scalar/equality-prototype-scalar/build.json",
+      "build_receipt_sha256": "71ed6fab45d07ee4d1a97a9bf4da09b7841e2b0fb36277737c2b66edba663706",
+      "status": "PASS",
+      "exit": 0,
+      "frozen_source_sha256": "15a1db20505aafd355b278dd65c17cf1f168ee4fd5f56f696291c2309f3769d6",
+      "effective_source_matches_frozen": true,
+      "relocated_source_sha256": "4dcd80c30568ab29a2580f01ddd29c861b2aab16d1cd42957b98705b2fd8f550",
+      "relocated_source_matches_receipt": true
+    }
+  },
+  "JIT_policy": "/workspace/jsgo-java-experiments/profile-v2/MEASURED-JIT-REVIEW-NOTE.md",
+  "interpretation": "One-cohort CONTROL screen only. Candidate elapsed median is 1.3349% higher, CPU median 3.3465% lower, allocated bytes 0.6314% lower and lifetime HWM 0.2455% lower. CPU means are nearly equal (candidate 0.2003% lower); median differences are descriptive within this single cohort. Current RSS median is 13.2016% higher and is a postrequest snapshot. Both warmup readiness gates passed; both measured JIT batches are at or below 2%. All rows are retained. No independent-cohort confidence interval or settled speed gain is established."
+}

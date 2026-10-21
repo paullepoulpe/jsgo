@@ -1,0 +1,540 @@
+{
+  "status": "PASS_ALL_FIVE_EXACT_SOURCE_PATCHES",
+  "pinned_version": "v20261015",
+  "prepared_at_utc": "2026-10-21T08:57:40.976339+00:00",
+  "promotion_status": "NONE_PROMOTED",
+  "combined_patches_validated": false,
+  "scope": "Exact individual source patches and existing build-source receipts only; no new build/runtime/performance validation.",
+  "status_snapshot_authority": "Parent task instructions at preparation; not inferred from build success.",
+  "prepare_source_sha256": "48cfec34330833921e8928a9586ce9697af153b7bbcd297aeee8def3cce45c1a",
+  "readme_sha256": "fe9616acd6c96163471e8e73af63a70cd5ae3fdb867cc493a8f29a0af34f12c4",
+  "candidates": [
+    {
+      "name": "traversal-leaf-name",
+      "status": "PASS_EXACT_SOURCE_PATCH_AND_EXISTING_BUILD_SOURCE_RECEIPTS",
+      "promotion_status": "NOT_PROMOTED",
+      "performance_status": "MEASURED_SCREEN_NEGATIVE_NO_PROMOTION",
+      "repository_path": "src/com/google/javascript/jscomp/NodeTraversal.java",
+      "frozen_source_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-leaf-name/frozen-source-manifest.json",
+      "frozen_source_manifest_sha256": "3003edf91648aa060706c007f8f0f1ed92d74313665fdb004248dfba97005560",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-leaf-name/control-src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/traversal-leaf-name/src/com/google/javascript/jscomp/NodeTraversal.java",
+      "candidate_sha256": "c30186955ed3316f8295ce8bc02ba2f8ae96af11106d2b5a81ba2ee6d0f67be1",
+      "source_hashes_match_frozen_manifest": true,
+      "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/NodeTraversal.java",
+      "original_bytes_equal_pinned_source": true,
+      "applied_sha256": "c30186955ed3316f8295ce8bc02ba2f8ae96af11106d2b5a81ba2ee6d0f67be1",
+      "applied_bytes_equal_frozen_candidate": true,
+      "restored_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+      "restored_bytes_equal_original": true,
+      "patch": "traversal-leaf-name.patch",
+      "patch_sha256": "f02e743255fc486cb2975db10d2ae2504a0731beacc137d060d47c81f9666c3c",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-leaf-name/manifest.json",
+      "build_manifest_sha256": "28d052d8a8553e904ed157155410977a0771036733073feffb8e2ef67af0d342",
+      "source_hashes_match_existing_build_receipts": true,
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-leaf-name/CONTROL/build.json",
+          "sha256": "21983b15cbb6f160b8c3ae085e90ef1d3ad5e94b80601fadb6739fcdb07c0e5a",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+          "effective_unshaded_source_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d"
+        },
+        "traversal-leaf-name": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/traversal-leaf-name/traversal-leaf-name/build.json",
+          "sha256": "72932948aa0951ee243de1f1faba5856c9b83ed63c7065b9884c5c433e059afe",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "eecba739b089c26bc5659accebaf70c6f99dfb58de9857bad5ac22e9fe4ee89d",
+          "effective_unshaded_source_sha256": "c30186955ed3316f8295ce8bc02ba2f8ae96af11106d2b5a81ba2ee6d0f67be1"
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/traversal-leaf-name.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-traversal-leaf-name-a54maqz3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/traversal-leaf-name.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-traversal-leaf-name-a54maqz3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/traversal-leaf-name.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-traversal-leaf-name-a54maqz3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/traversal-leaf-name.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-traversal-leaf-name-a54maqz3",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/NodeTraversal.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/NodeTraversal.java"
+      ],
+      "temporary_fixture_removed": true,
+      "existing_timing_evidence": {
+        "summary": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-traversal-leaf-name-v1/summary.json",
+        "sha256": "78063fb7138b8472b542768fd6a6dcb1f52e01aa92784da2636ba73ba8bcb269",
+        "status": "PASS settled byteidentical Java-vs-Java",
+        "baseline": "CONTROL",
+        "cohort_count": 1,
+        "candidate_over_baseline_by_cohort": [
+          {
+            "elapsed": 0.9944527268665901,
+            "CPU": 0.9979338842975207,
+            "RSS_lifetimeHWM": 1.0577535521803039,
+            "allocated_bytes": 1.010159248759609
+          }
+        ],
+        "interpretation": "Measured screen negative for promotion; no useful gain established."
+      }
+    },
+    {
+      "name": "reference-function-first-child",
+      "status": "PASS_EXACT_SOURCE_PATCH_AND_EXISTING_BUILD_SOURCE_RECEIPTS",
+      "promotion_status": "NOT_PROMOTED",
+      "performance_status": "NOT_MEASURED",
+      "repository_path": "src/com/google/javascript/jscomp/Reference.java",
+      "frozen_source_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-function-first-child/frozen-source-manifest.json",
+      "frozen_source_manifest_sha256": "d8cf4b00bef418b78f64c7390fef886ac3869fe81bd42fb6b5a5948f9f562f67",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-function-first-child/control-src/com/google/javascript/jscomp/Reference.java",
+      "original_sha256": "927d751d5cc1577d3caacac7e2a4d3975ffd85a7a1b22590f7ef9411208c5dcc",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/reference-function-first-child/src/com/google/javascript/jscomp/Reference.java",
+      "candidate_sha256": "fdfe6397b8921f3f8b815898e8b13fff576b9f56d19f374d318df23d48e8cad5",
+      "source_hashes_match_frozen_manifest": true,
+      "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/Reference.java",
+      "original_bytes_equal_pinned_source": true,
+      "applied_sha256": "fdfe6397b8921f3f8b815898e8b13fff576b9f56d19f374d318df23d48e8cad5",
+      "applied_bytes_equal_frozen_candidate": true,
+      "restored_sha256": "927d751d5cc1577d3caacac7e2a4d3975ffd85a7a1b22590f7ef9411208c5dcc",
+      "restored_bytes_equal_original": true,
+      "patch": "reference-function-first-child.patch",
+      "patch_sha256": "5c503b664c9aeeeb14070273f336df6e0e7256f9cc4389db970b284f10f7ab2d",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/reference-function-first-child/manifest.json",
+      "build_manifest_sha256": "57b541313ea7a2671ea41d3db664236ff6581e179db3eacfb814973ab2648db2",
+      "source_hashes_match_existing_build_receipts": true,
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/reference-function-first-child/CONTROL/build.json",
+          "sha256": "55f084a3e1eea1c2692543e9eac5f822e9ade6a96d247afcbba344d2fb7c5af6",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "927d751d5cc1577d3caacac7e2a4d3975ffd85a7a1b22590f7ef9411208c5dcc",
+          "effective_unshaded_source_sha256": "927d751d5cc1577d3caacac7e2a4d3975ffd85a7a1b22590f7ef9411208c5dcc"
+        },
+        "reference-function-first-child": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/reference-function-first-child/reference-function-first-child/build.json",
+          "sha256": "518d2eb3fb5d8e6486e96926fbd92a3db3245956a15d55c02444f177dcfdebe5",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "927d751d5cc1577d3caacac7e2a4d3975ffd85a7a1b22590f7ef9411208c5dcc",
+          "effective_unshaded_source_sha256": "fdfe6397b8921f3f8b815898e8b13fff576b9f56d19f374d318df23d48e8cad5"
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/reference-function-first-child.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-reference-function-first-child-fyjeowgc",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/reference-function-first-child.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-reference-function-first-child-fyjeowgc",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/reference-function-first-child.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-reference-function-first-child-fyjeowgc",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/reference-function-first-child.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-reference-function-first-child-fyjeowgc",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/Reference.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/Reference.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "graph-edge-copy",
+      "status": "PASS_EXACT_SOURCE_PATCH_AND_EXISTING_BUILD_SOURCE_RECEIPTS",
+      "promotion_status": "NOT_PROMOTED",
+      "performance_status": "NOT_MEASURED",
+      "repository_path": "src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java",
+      "frozen_source_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/graph-edge-copy/frozen-source-manifest.json",
+      "frozen_source_manifest_sha256": "22c85dafa0625f8f582235128f60af8f90223c3af2b69445c84403a1ba0768ef",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/graph-edge-copy/control-src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java",
+      "original_sha256": "85f839d7ac2a14f1750c9aacc489e1306bdf0608a16197c849324b28180e3dba",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/graph-edge-copy/src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java",
+      "candidate_sha256": "ead9867c60073505d5b2b07d115c6bdea440da4d178501e91b8984646ca486ed",
+      "source_hashes_match_frozen_manifest": true,
+      "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java",
+      "original_bytes_equal_pinned_source": true,
+      "applied_sha256": "ead9867c60073505d5b2b07d115c6bdea440da4d178501e91b8984646ca486ed",
+      "applied_bytes_equal_frozen_candidate": true,
+      "restored_sha256": "85f839d7ac2a14f1750c9aacc489e1306bdf0608a16197c849324b28180e3dba",
+      "restored_bytes_equal_original": true,
+      "patch": "graph-edge-copy.patch",
+      "patch_sha256": "c353a98857001ef7214b642ceed1edc3153f948ddd55da55406b2e2a4b76d846",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/graph-edge-copy/manifest.json",
+      "build_manifest_sha256": "e3b21729dea7ed923ea722fb85ff89f5054e51eb29a51042cea1542ade429989",
+      "source_hashes_match_existing_build_receipts": true,
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/graph-edge-copy/CONTROL/build.json",
+          "sha256": "73934680b170e3998947695d7aa8fb363486cf7114a867a6b5873ed74117fd8a",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "85f839d7ac2a14f1750c9aacc489e1306bdf0608a16197c849324b28180e3dba",
+          "effective_unshaded_source_sha256": "85f839d7ac2a14f1750c9aacc489e1306bdf0608a16197c849324b28180e3dba"
+        },
+        "graph-edge-copy": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/graph-edge-copy/graph-edge-copy/build.json",
+          "sha256": "f0ee8f00bc86a698f113e0f26ed3ecf70d266b99e405b5e7f6b0c83a90444e76",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "85f839d7ac2a14f1750c9aacc489e1306bdf0608a16197c849324b28180e3dba",
+          "effective_unshaded_source_sha256": "ead9867c60073505d5b2b07d115c6bdea440da4d178501e91b8984646ca486ed"
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/graph-edge-copy.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-graph-edge-copy-7w1zgf4z",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/graph-edge-copy.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-graph-edge-copy-7w1zgf4z",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/graph-edge-copy.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-graph-edge-copy-7w1zgf4z",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/graph-edge-copy.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-graph-edge-copy-7w1zgf4z",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "source-position-last",
+      "status": "PASS_EXACT_SOURCE_PATCH_AND_EXISTING_BUILD_SOURCE_RECEIPTS",
+      "promotion_status": "NOT_PROMOTED",
+      "performance_status": "NOT_MEASURED",
+      "repository_path": "src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java",
+      "frozen_source_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/source-position-last/frozen-source-manifest.json",
+      "frozen_source_manifest_sha256": "d6a9c82885925405febb49d3d2db2113c9111799d5d1074b2e00baed8b62d127",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/source-position-last/control-src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java",
+      "original_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/source-position-last/src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java",
+      "candidate_sha256": "b88bbd45a5e8ad51625efbfac70ac697dd38da584f9d663e8e1d23e713e727b5",
+      "source_hashes_match_frozen_manifest": true,
+      "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java",
+      "original_bytes_equal_pinned_source": true,
+      "applied_sha256": "b88bbd45a5e8ad51625efbfac70ac697dd38da584f9d663e8e1d23e713e727b5",
+      "applied_bytes_equal_frozen_candidate": true,
+      "restored_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+      "restored_bytes_equal_original": true,
+      "patch": "source-position-last.patch",
+      "patch_sha256": "cd57d7a5c844ef4c91190b3b8ddb3a83e5ac849850988e7d3079f928b7733c1a",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/source-position-last/manifest.json",
+      "build_manifest_sha256": "feb66937188cc277a8aa5fc5662b6e4c8ebbd7113048ae9c013a33f68ab4890c",
+      "source_hashes_match_existing_build_receipts": true,
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/source-position-last/CONTROL/build.json",
+          "sha256": "8bae91cf037e6a4fb512f7bf0ef7fc5cbdc7ef92191ce6ccdcf04399bdb94bc9",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+          "effective_unshaded_source_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0"
+        },
+        "source-position-last": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/source-position-last/source-position-last/build.json",
+          "sha256": "7097b15eec9017ad88375abaae435c5f58666dc17e0359f94d4711972167b8af",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+          "effective_unshaded_source_sha256": "b88bbd45a5e8ad51625efbfac70ac697dd38da584f9d663e8e1d23e713e727b5"
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/source-position-last.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-source-position-last-sakdjk0r",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/source-position-last.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-source-position-last-sakdjk0r",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/source-position-last.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-source-position-last-sakdjk0r",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/source-position-last.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-source-position-last-sakdjk0r",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java"
+      ],
+      "temporary_fixture_removed": true
+    },
+    {
+      "name": "equality-prototype-scalar",
+      "status": "PASS_EXACT_SOURCE_PATCH_AND_EXISTING_BUILD_SOURCE_RECEIPTS",
+      "promotion_status": "NOT_PROMOTED",
+      "performance_status": "TIMING_PENDING",
+      "repository_path": "src/com/google/javascript/rhino/jstype/JSType.java",
+      "frozen_source_manifest": "/workspace/jsgo-java-experiments/profile-v2/candidates/equality-prototype-scalar/frozen-source-manifest.json",
+      "frozen_source_manifest_sha256": "9b5a491211b3f3960755b8d2c4242639e2af0426fb53f225798f9e2c059dc22e",
+      "original_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/equality-prototype-scalar/control-src/com/google/javascript/rhino/jstype/JSType.java",
+      "original_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+      "candidate_source": "/workspace/jsgo-java-experiments/profile-v2/candidates/equality-prototype-scalar/src/com/google/javascript/rhino/jstype/JSType.java",
+      "candidate_sha256": "15a1db20505aafd355b278dd65c17cf1f168ee4fd5f56f696291c2309f3769d6",
+      "source_hashes_match_frozen_manifest": true,
+      "pinned_source": "/workspace/jsgo/.cache/closure-src/com/google/javascript/rhino/jstype/JSType.java",
+      "original_bytes_equal_pinned_source": true,
+      "applied_sha256": "15a1db20505aafd355b278dd65c17cf1f168ee4fd5f56f696291c2309f3769d6",
+      "applied_bytes_equal_frozen_candidate": true,
+      "restored_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+      "restored_bytes_equal_original": true,
+      "patch": "equality-prototype-scalar.patch",
+      "patch_sha256": "5eec4e74596c5b49fcc8ab7f2bc568ecf6bbf2697b420758110bb4403cf35ca7",
+      "build_manifest": "/workspace/jsgo-java-experiments/profile-v2/build/equality-prototype-scalar/manifest.json",
+      "build_manifest_sha256": "4cc6ba8e359ddb68b32b181a8634a5e728cc843569064d50183d53a94bf17c70",
+      "source_hashes_match_existing_build_receipts": true,
+      "existing_build_proofs": {
+        "CONTROL": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/equality-prototype-scalar/CONTROL/build.json",
+          "sha256": "b691496c5840d037a429c1c356fc11e554401a1953d07c9671b8260b0e448c92",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+          "effective_unshaded_source_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969"
+        },
+        "equality-prototype-scalar": {
+          "path": "/workspace/jsgo-java-experiments/profile-v2/build/equality-prototype-scalar/equality-prototype-scalar/build.json",
+          "sha256": "71ed6fab45d07ee4d1a97a9bf4da09b7841e2b0fb36277737c2b66edba663706",
+          "status": "PASS",
+          "exit_status": 0,
+          "original_source_sha256": "b571258a21f5ad503c7a8177c8a10be0d3eb32d3649e63bf7c41c86901c3c969",
+          "effective_unshaded_source_sha256": "15a1db20505aafd355b278dd65c17cf1f168ee4fd5f56f696291c2309f3769d6"
+        }
+      },
+      "check": {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/equality-prototype-scalar.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-equality-prototype-scalar-qjk1nfmt",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/equality-prototype-scalar.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-equality-prototype-scalar-qjk1nfmt",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_check": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--check",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/equality-prototype-scalar.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-equality-prototype-scalar-qjk1nfmt",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "reverse_apply": {
+        "argv": [
+          "git",
+          "apply",
+          "--reverse",
+          "--whitespace=error",
+          "/workspace/jsgo-java-experiments/profile-v2/upstream-patches-v2/equality-prototype-scalar.patch"
+        ],
+        "cwd": "/tmp/closure-patch-v2-equality-prototype-scalar-qjk1nfmt",
+        "exit_status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "fixture_files_after_apply": [
+        "src/com/google/javascript/rhino/jstype/JSType.java"
+      ],
+      "fixture_files_after_reverse": [
+        "src/com/google/javascript/rhino/jstype/JSType.java"
+      ],
+      "temporary_fixture_removed": true
+    }
+  ],
+  "inputs_unchanged_after_generation": true
+}

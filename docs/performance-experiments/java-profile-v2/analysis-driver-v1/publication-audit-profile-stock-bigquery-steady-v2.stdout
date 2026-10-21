@@ -1,0 +1,782 @@
+STATUS	UNRESOLVED
+SCAN_OUTCOME	COMPLETE
+TOTALS	events	29166	nodes	4524536	unresolved_strings	401146	unknown_initial_keys	6	redacted_schema_names	0
+SCOPE	Initial environment/property values and other reachable strings; standard nested JDK/compiler diagnostic metadata is classified separately; no observed values or value hashes emitted.
+POLICY	Only LC_ALL=C.UTF-8 is built in; private exact allowlist values remain in memory. Unknown strings prevent PASS. Source classes and raw recordings are unchanged.
+EVENT	jdk.ActiveRecording	2
+EVENT	jdk.ActiveSetting	360
+EVENT	jdk.AllocationRequiringGC	0
+EVENT	jdk.BooleanFlag	505
+EVENT	jdk.BooleanFlagChanged	0
+EVENT	jdk.CPUInformation	1
+EVENT	jdk.CPULoad	35
+EVENT	jdk.CPUTimeStampCounter	1
+EVENT	jdk.ClassDefine	0
+EVENT	jdk.ClassLoad	0
+EVENT	jdk.ClassLoaderStatistics	6
+EVENT	jdk.ClassLoadingStatistics	35
+EVENT	jdk.ClassRedefinition	0
+EVENT	jdk.ClassUnload	0
+EVENT	jdk.CodeCacheConfiguration	1
+EVENT	jdk.CodeCacheFull	0
+EVENT	jdk.CodeCacheStatistics	6
+EVENT	jdk.Compilation	0
+EVENT	jdk.CompilationFailure	1
+EVENT	jdk.CompilerConfiguration	1
+EVENT	jdk.CompilerInlining	0
+EVENT	jdk.CompilerPhase	0
+EVENT	jdk.CompilerStatistics	35
+EVENT	jdk.ConcurrentModeFailure	0
+EVENT	jdk.ContainerCPUThrottling	1
+EVENT	jdk.ContainerCPUUsage	1
+EVENT	jdk.ContainerConfiguration	1
+EVENT	jdk.ContainerIOUsage	1
+EVENT	jdk.ContainerMemoryUsage	1
+EVENT	jdk.ContinuationFreeze	0
+EVENT	jdk.ContinuationFreezeFast	0
+EVENT	jdk.ContinuationFreezeSlow	0
+EVENT	jdk.ContinuationThaw	0
+EVENT	jdk.ContinuationThawFast	0
+EVENT	jdk.ContinuationThawSlow	0
+EVENT	jdk.DataLoss	0
+EVENT	jdk.Deoptimization	11
+EVENT	jdk.Deserialization	0
+EVENT	jdk.DirectBufferStatistics	7
+EVENT	jdk.DoubleFlag	15
+EVENT	jdk.DoubleFlagChanged	0
+EVENT	jdk.DumpReason	0
+EVENT	jdk.EvacuationFailed	0
+EVENT	jdk.EvacuationInformation	61
+EVENT	jdk.ExceptionStatistics	35
+EVENT	jdk.ExecuteVMOperation	106
+EVENT	jdk.ExecutionSample	2221
+EVENT	jdk.FileForce	0
+EVENT	jdk.FileRead	9
+EVENT	jdk.FileWrite	0
+EVENT	jdk.FinalizerStatistics	0
+EVENT	jdk.Flush	0
+EVENT	jdk.G1AdaptiveIHOP	61
+EVENT	jdk.G1BasicIHOP	61
+EVENT	jdk.G1EvacuationOldStatistics	61
+EVENT	jdk.G1EvacuationYoungStatistics	61
+EVENT	jdk.G1GarbageCollection	61
+EVENT	jdk.G1HeapRegionInformation	0
+EVENT	jdk.G1HeapRegionTypeChange	0
+EVENT	jdk.G1HeapSummary	166
+EVENT	jdk.G1MMU	101
+EVENT	jdk.GCCPUTime	101
+EVENT	jdk.GCConfiguration	2
+EVENT	jdk.GCHeapConfiguration	1
+EVENT	jdk.GCHeapMemoryPoolUsage	6
+EVENT	jdk.GCHeapMemoryUsage	2
+EVENT	jdk.GCHeapSummary	166
+EVENT	jdk.GCLocker	0
+EVENT	jdk.GCPhaseConcurrent	124
+EVENT	jdk.GCPhaseConcurrentLevel1	80
+EVENT	jdk.GCPhaseConcurrentLevel2	0
+EVENT	jdk.GCPhaseParallel	12428
+EVENT	jdk.GCPhasePause	101
+EVENT	jdk.GCPhasePauseLevel1	383
+EVENT	jdk.GCPhasePauseLevel2	230
+EVENT	jdk.GCPhasePauseLevel3	0
+EVENT	jdk.GCPhasePauseLevel4	0
+EVENT	jdk.GCReferenceStatistics	324
+EVENT	jdk.GCSurvivorConfiguration	1
+EVENT	jdk.GCTLABConfiguration	1
+EVENT	jdk.GarbageCollection	83
+EVENT	jdk.HeapDump	0
+EVENT	jdk.InitialEnvironmentVariable	13
+EVENT	jdk.InitialSecurityProperty	49
+EVENT	jdk.InitialSystemProperty	15
+EVENT	jdk.IntFlag	25
+EVENT	jdk.IntFlagChanged	0
+EVENT	jdk.JITRestart	0
+EVENT	jdk.JVMInformation	1
+EVENT	jdk.JavaAgent	0
+EVENT	jdk.JavaErrorThrow	0
+EVENT	jdk.JavaExceptionThrow	0
+EVENT	jdk.JavaMonitorEnter	0
+EVENT	jdk.JavaMonitorInflate	0
+EVENT	jdk.JavaMonitorWait	0
+EVENT	jdk.JavaThreadStatistics	35
+EVENT	jdk.LongFlag	161
+EVENT	jdk.LongFlagChanged	0
+EVENT	jdk.MetaspaceAllocationFailure	0
+EVENT	jdk.MetaspaceChunkFreeListSummary	332
+EVENT	jdk.MetaspaceGCThreshold	0
+EVENT	jdk.MetaspaceOOM	0
+EVENT	jdk.MetaspaceSummary	166
+EVENT	jdk.ModuleExport	549
+EVENT	jdk.ModuleRequire	155
+EVENT	jdk.NativeAgent	0
+EVENT	jdk.NativeLibrary	36
+EVENT	jdk.NativeMemoryUsage	0
+EVENT	jdk.NativeMemoryUsageTotal	0
+EVENT	jdk.NativeMethodSample	26
+EVENT	jdk.NetworkUtilization	0
+EVENT	jdk.OSInformation	1
+EVENT	jdk.ObjectAllocationInNewTLAB	0
+EVENT	jdk.ObjectAllocationOutsideTLAB	0
+EVENT	jdk.ObjectAllocationSample	4951
+EVENT	jdk.ObjectCount	0
+EVENT	jdk.ObjectCountAfterGC	0
+EVENT	jdk.OldGarbageCollection	22
+EVENT	jdk.OldObjectSample	137
+EVENT	jdk.PSHeapSummary	0
+EVENT	jdk.ParallelOldGarbageCollection	0
+EVENT	jdk.PhysicalMemory	2
+EVENT	jdk.ProcessStart	0
+EVENT	jdk.PromoteObjectInNewPLAB	2589
+EVENT	jdk.PromoteObjectOutsidePLAB	229
+EVENT	jdk.PromotionFailed	0
+EVENT	jdk.RedefineClasses	0
+EVENT	jdk.ReservedStackActivation	0
+EVENT	jdk.ResidentSetSize	35
+EVENT	jdk.RetransformClasses	0
+EVENT	jdk.SafepointBegin	106
+EVENT	jdk.SafepointCleanup	0
+EVENT	jdk.SafepointCleanupTask	0
+EVENT	jdk.SafepointEnd	0
+EVENT	jdk.SafepointStateSynchronization	0
+EVENT	jdk.SecurityPropertyModification	0
+EVENT	jdk.SecurityProviderService	0
+EVENT	jdk.ShenandoahHeapRegionInformation	0
+EVENT	jdk.ShenandoahHeapRegionStateChange	0
+EVENT	jdk.Shutdown	0
+EVENT	jdk.SocketRead	0
+EVENT	jdk.SocketWrite	0
+EVENT	jdk.StringFlag	28
+EVENT	jdk.StringFlagChanged	0
+EVENT	jdk.StringTableStatistics	3
+EVENT	jdk.SymbolTableStatistics	3
+EVENT	jdk.SyncOnValueBasedClass	0
+EVENT	jdk.SystemGC	0
+EVENT	jdk.SystemProcess	0
+EVENT	jdk.TLSHandshake	0
+EVENT	jdk.TenuringDistribution	915
+EVENT	jdk.ThreadAllocationStatistics	24
+EVENT	jdk.ThreadCPULoad	62
+EVENT	jdk.ThreadContextSwitchRate	3
+EVENT	jdk.ThreadDump	0
+EVENT	jdk.ThreadEnd	96
+EVENT	jdk.ThreadPark	76
+EVENT	jdk.ThreadSleep	0
+EVENT	jdk.ThreadStart	48
+EVENT	jdk.UnsignedIntFlag	14
+EVENT	jdk.UnsignedIntFlagChanged	0
+EVENT	jdk.UnsignedLongFlag	132
+EVENT	jdk.UnsignedLongFlagChanged	0
+EVENT	jdk.VirtualThreadEnd	0
+EVENT	jdk.VirtualThreadPinned	0
+EVENT	jdk.VirtualThreadStart	0
+EVENT	jdk.VirtualThreadSubmitFailed	0
+EVENT	jdk.VirtualizationInformation	1
+EVENT	jdk.X509Certificate	0
+EVENT	jdk.X509Validation	0
+EVENT	jdk.YoungGarbageCollection	61
+EVENT	jdk.YoungGenerationConfiguration	1
+EVENT	jdk.ZAllocationStall	0
+EVENT	jdk.ZOldGarbageCollection	0
+EVENT	jdk.ZPageAllocation	0
+EVENT	jdk.ZRelocationSet	0
+EVENT	jdk.ZRelocationSetGroup	0
+EVENT	jdk.ZStatisticsCounter	0
+EVENT	jdk.ZStatisticsSampler	0
+EVENT	jdk.ZThreadPhase	0
+EVENT	jdk.ZUncommit	0
+EVENT	jdk.ZUnmap	0
+EVENT	jdk.ZYoungGarbageCollection	0
+SCHEMA	java.lang.Class.classLoader	jdk.types.ClassLoader
+SCHEMA	java.lang.Class.name	java.lang.String
+SCHEMA	java.lang.Class.package	jdk.types.Package
+SCHEMA	java.lang.Thread.group	jdk.types.ThreadGroup
+SCHEMA	java.lang.Thread.javaName	java.lang.String
+SCHEMA	java.lang.Thread.osName	java.lang.String
+SCHEMA	jdk.ActiveRecording.destination	java.lang.String
+SCHEMA	jdk.ActiveRecording.eventThread	java.lang.Thread
+SCHEMA	jdk.ActiveRecording.name	java.lang.String
+SCHEMA	jdk.ActiveRecording.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ActiveSetting.eventThread	java.lang.Thread
+SCHEMA	jdk.ActiveSetting.name	java.lang.String
+SCHEMA	jdk.ActiveSetting.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ActiveSetting.value	java.lang.String
+SCHEMA	jdk.AllocationRequiringGC.eventThread	java.lang.Thread
+SCHEMA	jdk.AllocationRequiringGC.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.BooleanFlag.name	java.lang.String
+SCHEMA	jdk.BooleanFlag.origin	java.lang.String
+SCHEMA	jdk.BooleanFlagChanged.name	java.lang.String
+SCHEMA	jdk.BooleanFlagChanged.origin	java.lang.String
+SCHEMA	jdk.CPUInformation.cpu	java.lang.String
+SCHEMA	jdk.CPUInformation.description	java.lang.String
+SCHEMA	jdk.ClassDefine.definedClass	java.lang.Class
+SCHEMA	jdk.ClassDefine.definingClassLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassDefine.eventThread	java.lang.Thread
+SCHEMA	jdk.ClassDefine.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ClassLoad.definingClassLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassLoad.eventThread	java.lang.Thread
+SCHEMA	jdk.ClassLoad.initiatingClassLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassLoad.loadedClass	java.lang.Class
+SCHEMA	jdk.ClassLoad.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ClassLoaderStatistics.classLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassLoaderStatistics.parentClassLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassRedefinition.redefinedClass	java.lang.Class
+SCHEMA	jdk.ClassUnload.definingClassLoader	jdk.types.ClassLoader
+SCHEMA	jdk.ClassUnload.eventThread	java.lang.Thread
+SCHEMA	jdk.ClassUnload.unloadedClass	java.lang.Class
+SCHEMA	jdk.CodeCacheFull.codeBlobType	java.lang.String
+SCHEMA	jdk.CodeCacheFull.eventThread	java.lang.Thread
+SCHEMA	jdk.CodeCacheStatistics.codeBlobType	java.lang.String
+SCHEMA	jdk.Compilation.compiler	java.lang.String
+SCHEMA	jdk.Compilation.eventThread	java.lang.Thread
+SCHEMA	jdk.Compilation.method	jdk.types.Method
+SCHEMA	jdk.CompilationFailure.eventThread	java.lang.Thread
+SCHEMA	jdk.CompilationFailure.failureMessage	java.lang.String
+SCHEMA	jdk.CompilerInlining.callee	jdk.types.CalleeMethod
+SCHEMA	jdk.CompilerInlining.caller	jdk.types.Method
+SCHEMA	jdk.CompilerInlining.eventThread	java.lang.Thread
+SCHEMA	jdk.CompilerInlining.message	java.lang.String
+SCHEMA	jdk.CompilerPhase.eventThread	java.lang.Thread
+SCHEMA	jdk.CompilerPhase.phase	java.lang.String
+SCHEMA	jdk.ContainerCPUThrottling.eventThread	java.lang.Thread
+SCHEMA	jdk.ContainerCPUThrottling.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContainerCPUUsage.eventThread	java.lang.Thread
+SCHEMA	jdk.ContainerCPUUsage.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContainerConfiguration.containerType	java.lang.String
+SCHEMA	jdk.ContainerConfiguration.eventThread	java.lang.Thread
+SCHEMA	jdk.ContainerConfiguration.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContainerIOUsage.eventThread	java.lang.Thread
+SCHEMA	jdk.ContainerIOUsage.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContainerMemoryUsage.eventThread	java.lang.Thread
+SCHEMA	jdk.ContainerMemoryUsage.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContinuationFreeze.carrierThread	java.lang.Thread
+SCHEMA	jdk.ContinuationFreeze.continuationClass	java.lang.Class
+SCHEMA	jdk.ContinuationFreeze.eventThread	java.lang.Thread
+SCHEMA	jdk.ContinuationFreeze.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContinuationFreezeFast.eventThread	java.lang.Thread
+SCHEMA	jdk.ContinuationFreezeSlow.eventThread	java.lang.Thread
+SCHEMA	jdk.ContinuationThaw.carrierThread	java.lang.Thread
+SCHEMA	jdk.ContinuationThaw.continuationClass	java.lang.Class
+SCHEMA	jdk.ContinuationThaw.eventThread	java.lang.Thread
+SCHEMA	jdk.ContinuationThaw.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ContinuationThawFast.eventThread	java.lang.Thread
+SCHEMA	jdk.ContinuationThawSlow.eventThread	java.lang.Thread
+SCHEMA	jdk.Deoptimization.action	java.lang.String
+SCHEMA	jdk.Deoptimization.compiler	java.lang.String
+SCHEMA	jdk.Deoptimization.eventThread	java.lang.Thread
+SCHEMA	jdk.Deoptimization.instruction	java.lang.String
+SCHEMA	jdk.Deoptimization.method	jdk.types.Method
+SCHEMA	jdk.Deoptimization.reason	java.lang.String
+SCHEMA	jdk.Deoptimization.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.Deserialization.eventThread	java.lang.Thread
+SCHEMA	jdk.Deserialization.exceptionMessage	java.lang.String
+SCHEMA	jdk.Deserialization.exceptionType	java.lang.Class
+SCHEMA	jdk.Deserialization.filterStatus	java.lang.String
+SCHEMA	jdk.Deserialization.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.Deserialization.type	java.lang.Class
+SCHEMA	jdk.DirectBufferStatistics.eventThread	java.lang.Thread
+SCHEMA	jdk.DirectBufferStatistics.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.DoubleFlag.name	java.lang.String
+SCHEMA	jdk.DoubleFlag.origin	java.lang.String
+SCHEMA	jdk.DoubleFlagChanged.name	java.lang.String
+SCHEMA	jdk.DoubleFlagChanged.origin	java.lang.String
+SCHEMA	jdk.DumpReason.reason	java.lang.String
+SCHEMA	jdk.EvacuationFailed.evacuationFailed	jdk.types.CopyFailed
+SCHEMA	jdk.ExceptionStatistics.eventThread	java.lang.Thread
+SCHEMA	jdk.ExceptionStatistics.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ExecuteVMOperation.caller	java.lang.Thread
+SCHEMA	jdk.ExecuteVMOperation.eventThread	java.lang.Thread
+SCHEMA	jdk.ExecuteVMOperation.operation	java.lang.String
+SCHEMA	jdk.ExecutionSample.sampledThread	java.lang.Thread
+SCHEMA	jdk.ExecutionSample.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ExecutionSample.state	java.lang.String
+SCHEMA	jdk.FileForce.eventThread	java.lang.Thread
+SCHEMA	jdk.FileForce.path	java.lang.String
+SCHEMA	jdk.FileForce.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.FileRead.eventThread	java.lang.Thread
+SCHEMA	jdk.FileRead.path	java.lang.String
+SCHEMA	jdk.FileRead.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.FileWrite.eventThread	java.lang.Thread
+SCHEMA	jdk.FileWrite.path	java.lang.String
+SCHEMA	jdk.FileWrite.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.FinalizerStatistics.codeSource	java.lang.String
+SCHEMA	jdk.FinalizerStatistics.finalizableClass	java.lang.Class
+SCHEMA	jdk.G1EvacuationOldStatistics.statistics	jdk.types.G1EvacuationStatistics
+SCHEMA	jdk.G1EvacuationYoungStatistics.statistics	jdk.types.G1EvacuationStatistics
+SCHEMA	jdk.G1GarbageCollection.type	java.lang.String
+SCHEMA	jdk.G1HeapRegionInformation.type	java.lang.String
+SCHEMA	jdk.G1HeapRegionTypeChange.from	java.lang.String
+SCHEMA	jdk.G1HeapRegionTypeChange.to	java.lang.String
+SCHEMA	jdk.G1HeapSummary.when	java.lang.String
+SCHEMA	jdk.GCConfiguration.oldCollector	java.lang.String
+SCHEMA	jdk.GCConfiguration.youngCollector	java.lang.String
+SCHEMA	jdk.GCHeapConfiguration.compressedOopsMode	java.lang.String
+SCHEMA	jdk.GCHeapMemoryPoolUsage.name	java.lang.String
+SCHEMA	jdk.GCHeapSummary.heapSpace	jdk.types.VirtualSpace
+SCHEMA	jdk.GCHeapSummary.when	java.lang.String
+SCHEMA	jdk.GCLocker.eventThread	java.lang.Thread
+SCHEMA	jdk.GCLocker.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.GCPhaseConcurrent.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhaseConcurrent.name	java.lang.String
+SCHEMA	jdk.GCPhaseConcurrentLevel1.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhaseConcurrentLevel1.name	java.lang.String
+SCHEMA	jdk.GCPhaseConcurrentLevel2.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhaseConcurrentLevel2.name	java.lang.String
+SCHEMA	jdk.GCPhaseParallel.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhaseParallel.name	java.lang.String
+SCHEMA	jdk.GCPhasePause.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhasePause.name	java.lang.String
+SCHEMA	jdk.GCPhasePauseLevel1.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhasePauseLevel1.name	java.lang.String
+SCHEMA	jdk.GCPhasePauseLevel2.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhasePauseLevel2.name	java.lang.String
+SCHEMA	jdk.GCPhasePauseLevel3.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhasePauseLevel3.name	java.lang.String
+SCHEMA	jdk.GCPhasePauseLevel4.eventThread	java.lang.Thread
+SCHEMA	jdk.GCPhasePauseLevel4.name	java.lang.String
+SCHEMA	jdk.GCReferenceStatistics.type	java.lang.String
+SCHEMA	jdk.GarbageCollection.cause	java.lang.String
+SCHEMA	jdk.GarbageCollection.eventThread	java.lang.Thread
+SCHEMA	jdk.GarbageCollection.name	java.lang.String
+SCHEMA	jdk.HeapDump.destination	java.lang.String
+SCHEMA	jdk.HeapDump.eventThread	java.lang.Thread
+SCHEMA	jdk.HeapDump.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.InitialEnvironmentVariable.key	java.lang.String
+SCHEMA	jdk.InitialEnvironmentVariable.value	java.lang.String
+SCHEMA	jdk.InitialSecurityProperty.eventThread	java.lang.Thread
+SCHEMA	jdk.InitialSecurityProperty.key	java.lang.String
+SCHEMA	jdk.InitialSecurityProperty.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.InitialSecurityProperty.value	java.lang.String
+SCHEMA	jdk.InitialSystemProperty.key	java.lang.String
+SCHEMA	jdk.InitialSystemProperty.value	java.lang.String
+SCHEMA	jdk.IntFlag.name	java.lang.String
+SCHEMA	jdk.IntFlag.origin	java.lang.String
+SCHEMA	jdk.IntFlagChanged.name	java.lang.String
+SCHEMA	jdk.IntFlagChanged.origin	java.lang.String
+SCHEMA	jdk.JITRestart.eventThread	java.lang.Thread
+SCHEMA	jdk.JVMInformation.javaArguments	java.lang.String
+SCHEMA	jdk.JVMInformation.jvmArguments	java.lang.String
+SCHEMA	jdk.JVMInformation.jvmFlags	java.lang.String
+SCHEMA	jdk.JVMInformation.jvmName	java.lang.String
+SCHEMA	jdk.JVMInformation.jvmVersion	java.lang.String
+SCHEMA	jdk.JavaAgent.name	java.lang.String
+SCHEMA	jdk.JavaAgent.options	java.lang.String
+SCHEMA	jdk.JavaErrorThrow.eventThread	java.lang.Thread
+SCHEMA	jdk.JavaErrorThrow.message	java.lang.String
+SCHEMA	jdk.JavaErrorThrow.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.JavaErrorThrow.thrownClass	java.lang.Class
+SCHEMA	jdk.JavaExceptionThrow.eventThread	java.lang.Thread
+SCHEMA	jdk.JavaExceptionThrow.message	java.lang.String
+SCHEMA	jdk.JavaExceptionThrow.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.JavaExceptionThrow.thrownClass	java.lang.Class
+SCHEMA	jdk.JavaMonitorEnter.eventThread	java.lang.Thread
+SCHEMA	jdk.JavaMonitorEnter.monitorClass	java.lang.Class
+SCHEMA	jdk.JavaMonitorEnter.previousOwner	java.lang.Thread
+SCHEMA	jdk.JavaMonitorEnter.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.JavaMonitorInflate.cause	java.lang.String
+SCHEMA	jdk.JavaMonitorInflate.eventThread	java.lang.Thread
+SCHEMA	jdk.JavaMonitorInflate.monitorClass	java.lang.Class
+SCHEMA	jdk.JavaMonitorInflate.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.JavaMonitorWait.eventThread	java.lang.Thread
+SCHEMA	jdk.JavaMonitorWait.monitorClass	java.lang.Class
+SCHEMA	jdk.JavaMonitorWait.notifier	java.lang.Thread
+SCHEMA	jdk.JavaMonitorWait.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.LongFlag.name	java.lang.String
+SCHEMA	jdk.LongFlag.origin	java.lang.String
+SCHEMA	jdk.LongFlagChanged.name	java.lang.String
+SCHEMA	jdk.LongFlagChanged.origin	java.lang.String
+SCHEMA	jdk.MetaspaceAllocationFailure.classLoader	jdk.types.ClassLoader
+SCHEMA	jdk.MetaspaceAllocationFailure.metadataType	java.lang.String
+SCHEMA	jdk.MetaspaceAllocationFailure.metaspaceObjectType	java.lang.String
+SCHEMA	jdk.MetaspaceAllocationFailure.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.MetaspaceChunkFreeListSummary.metadataType	java.lang.String
+SCHEMA	jdk.MetaspaceChunkFreeListSummary.when	java.lang.String
+SCHEMA	jdk.MetaspaceGCThreshold.updater	java.lang.String
+SCHEMA	jdk.MetaspaceOOM.classLoader	jdk.types.ClassLoader
+SCHEMA	jdk.MetaspaceOOM.metadataType	java.lang.String
+SCHEMA	jdk.MetaspaceOOM.metaspaceObjectType	java.lang.String
+SCHEMA	jdk.MetaspaceOOM.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.MetaspaceSummary.classSpace	jdk.types.MetaspaceSizes
+SCHEMA	jdk.MetaspaceSummary.dataSpace	jdk.types.MetaspaceSizes
+SCHEMA	jdk.MetaspaceSummary.metaspace	jdk.types.MetaspaceSizes
+SCHEMA	jdk.MetaspaceSummary.when	java.lang.String
+SCHEMA	jdk.ModuleExport.exportedPackage	jdk.types.Package
+SCHEMA	jdk.ModuleExport.targetModule	jdk.types.Module
+SCHEMA	jdk.ModuleRequire.requiredModule	jdk.types.Module
+SCHEMA	jdk.ModuleRequire.source	jdk.types.Module
+SCHEMA	jdk.NativeAgent.name	java.lang.String
+SCHEMA	jdk.NativeAgent.options	java.lang.String
+SCHEMA	jdk.NativeAgent.path	java.lang.String
+SCHEMA	jdk.NativeLibrary.name	java.lang.String
+SCHEMA	jdk.NativeMemoryUsage.type	java.lang.String
+SCHEMA	jdk.NativeMethodSample.sampledThread	java.lang.Thread
+SCHEMA	jdk.NativeMethodSample.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.NativeMethodSample.state	java.lang.String
+SCHEMA	jdk.NetworkUtilization.networkInterface	java.lang.String
+SCHEMA	jdk.OSInformation.osVersion	java.lang.String
+SCHEMA	jdk.ObjectAllocationInNewTLAB.eventThread	java.lang.Thread
+SCHEMA	jdk.ObjectAllocationInNewTLAB.objectClass	java.lang.Class
+SCHEMA	jdk.ObjectAllocationInNewTLAB.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ObjectAllocationOutsideTLAB.eventThread	java.lang.Thread
+SCHEMA	jdk.ObjectAllocationOutsideTLAB.objectClass	java.lang.Class
+SCHEMA	jdk.ObjectAllocationOutsideTLAB.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ObjectAllocationSample.eventThread	java.lang.Thread
+SCHEMA	jdk.ObjectAllocationSample.objectClass	java.lang.Class
+SCHEMA	jdk.ObjectAllocationSample.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ObjectCount.objectClass	java.lang.Class
+SCHEMA	jdk.ObjectCountAfterGC.objectClass	java.lang.Class
+SCHEMA	jdk.OldObjectSample.eventThread	java.lang.Thread
+SCHEMA	jdk.OldObjectSample.object	jdk.types.OldObject
+SCHEMA	jdk.OldObjectSample.root	jdk.types.OldObjectGcRoot
+SCHEMA	jdk.OldObjectSample.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.PSHeapSummary.edenSpace	jdk.types.ObjectSpace
+SCHEMA	jdk.PSHeapSummary.fromSpace	jdk.types.ObjectSpace
+SCHEMA	jdk.PSHeapSummary.oldObjectSpace	jdk.types.ObjectSpace
+SCHEMA	jdk.PSHeapSummary.oldSpace	jdk.types.VirtualSpace
+SCHEMA	jdk.PSHeapSummary.toSpace	jdk.types.ObjectSpace
+SCHEMA	jdk.PSHeapSummary.when	java.lang.String
+SCHEMA	jdk.PSHeapSummary.youngSpace	jdk.types.VirtualSpace
+SCHEMA	jdk.ProcessStart.command	java.lang.String
+SCHEMA	jdk.ProcessStart.directory	java.lang.String
+SCHEMA	jdk.ProcessStart.eventThread	java.lang.Thread
+SCHEMA	jdk.ProcessStart.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.PromoteObjectInNewPLAB.eventThread	java.lang.Thread
+SCHEMA	jdk.PromoteObjectInNewPLAB.objectClass	java.lang.Class
+SCHEMA	jdk.PromoteObjectOutsidePLAB.eventThread	java.lang.Thread
+SCHEMA	jdk.PromoteObjectOutsidePLAB.objectClass	java.lang.Class
+SCHEMA	jdk.PromotionFailed.promotionFailed	jdk.types.CopyFailed
+SCHEMA	jdk.PromotionFailed.thread	java.lang.Thread
+SCHEMA	jdk.RedefineClasses.eventThread	java.lang.Thread
+SCHEMA	jdk.RedefineClasses.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ReservedStackActivation.eventThread	java.lang.Thread
+SCHEMA	jdk.ReservedStackActivation.method	jdk.types.Method
+SCHEMA	jdk.ReservedStackActivation.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.RetransformClasses.eventThread	java.lang.Thread
+SCHEMA	jdk.RetransformClasses.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SafepointBegin.eventThread	java.lang.Thread
+SCHEMA	jdk.SafepointCleanup.eventThread	java.lang.Thread
+SCHEMA	jdk.SafepointCleanupTask.eventThread	java.lang.Thread
+SCHEMA	jdk.SafepointCleanupTask.name	java.lang.String
+SCHEMA	jdk.SafepointEnd.eventThread	java.lang.Thread
+SCHEMA	jdk.SafepointStateSynchronization.eventThread	java.lang.Thread
+SCHEMA	jdk.SecurityPropertyModification.eventThread	java.lang.Thread
+SCHEMA	jdk.SecurityPropertyModification.key	java.lang.String
+SCHEMA	jdk.SecurityPropertyModification.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SecurityPropertyModification.value	java.lang.String
+SCHEMA	jdk.SecurityProviderService.algorithm	java.lang.String
+SCHEMA	jdk.SecurityProviderService.eventThread	java.lang.Thread
+SCHEMA	jdk.SecurityProviderService.provider	java.lang.String
+SCHEMA	jdk.SecurityProviderService.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SecurityProviderService.type	java.lang.String
+SCHEMA	jdk.ShenandoahHeapRegionInformation.state	java.lang.String
+SCHEMA	jdk.ShenandoahHeapRegionStateChange.from	java.lang.String
+SCHEMA	jdk.ShenandoahHeapRegionStateChange.to	java.lang.String
+SCHEMA	jdk.Shutdown.eventThread	java.lang.Thread
+SCHEMA	jdk.Shutdown.reason	java.lang.String
+SCHEMA	jdk.Shutdown.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SocketRead.address	java.lang.String
+SCHEMA	jdk.SocketRead.eventThread	java.lang.Thread
+SCHEMA	jdk.SocketRead.host	java.lang.String
+SCHEMA	jdk.SocketRead.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SocketWrite.address	java.lang.String
+SCHEMA	jdk.SocketWrite.eventThread	java.lang.Thread
+SCHEMA	jdk.SocketWrite.host	java.lang.String
+SCHEMA	jdk.SocketWrite.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.StringFlag.name	java.lang.String
+SCHEMA	jdk.StringFlag.origin	java.lang.String
+SCHEMA	jdk.StringFlag.value	java.lang.String
+SCHEMA	jdk.StringFlagChanged.name	java.lang.String
+SCHEMA	jdk.StringFlagChanged.newValue	java.lang.String
+SCHEMA	jdk.StringFlagChanged.oldValue	java.lang.String
+SCHEMA	jdk.StringFlagChanged.origin	java.lang.String
+SCHEMA	jdk.SyncOnValueBasedClass.eventThread	java.lang.Thread
+SCHEMA	jdk.SyncOnValueBasedClass.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SyncOnValueBasedClass.valueBasedClass	java.lang.Class
+SCHEMA	jdk.SystemGC.eventThread	java.lang.Thread
+SCHEMA	jdk.SystemGC.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.SystemProcess.commandLine	java.lang.String
+SCHEMA	jdk.SystemProcess.pid	java.lang.String
+SCHEMA	jdk.TLSHandshake.cipherSuite	java.lang.String
+SCHEMA	jdk.TLSHandshake.eventThread	java.lang.Thread
+SCHEMA	jdk.TLSHandshake.peerHost	java.lang.String
+SCHEMA	jdk.TLSHandshake.protocolVersion	java.lang.String
+SCHEMA	jdk.TLSHandshake.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ThreadAllocationStatistics.thread	java.lang.Thread
+SCHEMA	jdk.ThreadCPULoad.eventThread	java.lang.Thread
+SCHEMA	jdk.ThreadDump.result	java.lang.String
+SCHEMA	jdk.ThreadEnd.eventThread	java.lang.Thread
+SCHEMA	jdk.ThreadEnd.thread	java.lang.Thread
+SCHEMA	jdk.ThreadPark.eventThread	java.lang.Thread
+SCHEMA	jdk.ThreadPark.parkedClass	java.lang.Class
+SCHEMA	jdk.ThreadPark.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ThreadSleep.eventThread	java.lang.Thread
+SCHEMA	jdk.ThreadSleep.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ThreadStart.eventThread	java.lang.Thread
+SCHEMA	jdk.ThreadStart.parentThread	java.lang.Thread
+SCHEMA	jdk.ThreadStart.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ThreadStart.thread	java.lang.Thread
+SCHEMA	jdk.UnsignedIntFlag.name	java.lang.String
+SCHEMA	jdk.UnsignedIntFlag.origin	java.lang.String
+SCHEMA	jdk.UnsignedIntFlagChanged.name	java.lang.String
+SCHEMA	jdk.UnsignedIntFlagChanged.origin	java.lang.String
+SCHEMA	jdk.UnsignedLongFlag.name	java.lang.String
+SCHEMA	jdk.UnsignedLongFlag.origin	java.lang.String
+SCHEMA	jdk.UnsignedLongFlagChanged.name	java.lang.String
+SCHEMA	jdk.UnsignedLongFlagChanged.origin	java.lang.String
+SCHEMA	jdk.VirtualThreadEnd.eventThread	java.lang.Thread
+SCHEMA	jdk.VirtualThreadEnd.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.VirtualThreadPinned.eventThread	java.lang.Thread
+SCHEMA	jdk.VirtualThreadPinned.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.VirtualThreadStart.eventThread	java.lang.Thread
+SCHEMA	jdk.VirtualThreadStart.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.VirtualThreadSubmitFailed.eventThread	java.lang.Thread
+SCHEMA	jdk.VirtualThreadSubmitFailed.exceptionMessage	java.lang.String
+SCHEMA	jdk.VirtualThreadSubmitFailed.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.VirtualizationInformation.name	java.lang.String
+SCHEMA	jdk.X509Certificate.algorithm	java.lang.String
+SCHEMA	jdk.X509Certificate.eventThread	java.lang.Thread
+SCHEMA	jdk.X509Certificate.issuer	java.lang.String
+SCHEMA	jdk.X509Certificate.keyType	java.lang.String
+SCHEMA	jdk.X509Certificate.serialNumber	java.lang.String
+SCHEMA	jdk.X509Certificate.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.X509Certificate.subject	java.lang.String
+SCHEMA	jdk.X509Validation.eventThread	java.lang.Thread
+SCHEMA	jdk.X509Validation.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ZAllocationStall.eventThread	java.lang.Thread
+SCHEMA	jdk.ZAllocationStall.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ZAllocationStall.type	java.lang.String
+SCHEMA	jdk.ZOldGarbageCollection.eventThread	java.lang.Thread
+SCHEMA	jdk.ZPageAllocation.eventThread	java.lang.Thread
+SCHEMA	jdk.ZPageAllocation.stackTrace	jdk.types.StackTrace
+SCHEMA	jdk.ZPageAllocation.type	java.lang.String
+SCHEMA	jdk.ZRelocationSet.eventThread	java.lang.Thread
+SCHEMA	jdk.ZRelocationSetGroup.eventThread	java.lang.Thread
+SCHEMA	jdk.ZRelocationSetGroup.type	java.lang.String
+SCHEMA	jdk.ZStatisticsCounter.eventThread	java.lang.Thread
+SCHEMA	jdk.ZStatisticsCounter.id	java.lang.String
+SCHEMA	jdk.ZStatisticsSampler.eventThread	java.lang.Thread
+SCHEMA	jdk.ZStatisticsSampler.id	java.lang.String
+SCHEMA	jdk.ZThreadPhase.eventThread	java.lang.Thread
+SCHEMA	jdk.ZThreadPhase.name	java.lang.String
+SCHEMA	jdk.ZUncommit.eventThread	java.lang.Thread
+SCHEMA	jdk.ZUnmap.eventThread	java.lang.Thread
+SCHEMA	jdk.ZYoungGarbageCollection.eventThread	java.lang.Thread
+SCHEMA	jdk.types.CalleeMethod.descriptor	java.lang.String
+SCHEMA	jdk.types.CalleeMethod.name	java.lang.String
+SCHEMA	jdk.types.CalleeMethod.type	java.lang.String
+SCHEMA	jdk.types.ClassLoader.name	java.lang.String
+SCHEMA	jdk.types.ClassLoader.type	java.lang.Class
+SCHEMA	jdk.types.Method.descriptor	java.lang.String
+SCHEMA	jdk.types.Method.name	java.lang.String
+SCHEMA	jdk.types.Method.type	java.lang.Class
+SCHEMA	jdk.types.Module.classLoader	jdk.types.ClassLoader
+SCHEMA	jdk.types.Module.location	java.lang.String
+SCHEMA	jdk.types.Module.name	java.lang.String
+SCHEMA	jdk.types.Module.version	java.lang.String
+SCHEMA	jdk.types.OldObject.description	java.lang.String
+SCHEMA	jdk.types.OldObject.referrer	jdk.types.Reference
+SCHEMA	jdk.types.OldObject.type	java.lang.Class
+SCHEMA	jdk.types.OldObjectField.name	java.lang.String
+SCHEMA	jdk.types.OldObjectGcRoot.description	java.lang.String
+SCHEMA	jdk.types.OldObjectGcRoot.system	java.lang.String
+SCHEMA	jdk.types.OldObjectGcRoot.type	java.lang.String
+SCHEMA	jdk.types.Package.module	jdk.types.Module
+SCHEMA	jdk.types.Package.name	java.lang.String
+SCHEMA	jdk.types.Reference.array	jdk.types.OldObjectArray
+SCHEMA	jdk.types.Reference.field	jdk.types.OldObjectField
+SCHEMA	jdk.types.Reference.object	jdk.types.OldObject
+SCHEMA	jdk.types.StackFrame.method	jdk.types.Method
+SCHEMA	jdk.types.StackFrame.type	java.lang.String
+SCHEMA	jdk.types.StackTrace.frames	jdk.types.StackFrame[]
+SCHEMA	jdk.types.ThreadGroup.name	java.lang.String
+SCHEMA	jdk.types.ThreadGroup.parent	jdk.types.ThreadGroup
+BENIGN_KEY	ENV:GPG_KEY	1
+BENIGN_KEY	ENV:HOME	1
+BENIGN_KEY	ENV:HOSTNAME	1
+BENIGN_KEY	ENV:LC_ALL	1
+BENIGN_KEY	ENV:PATH	1
+BENIGN_KEY	ENV:PYTHON_SHA256	1
+BENIGN_KEY	ENV:PYTHON_VERSION	1
+BENIGN_KEY	PROP:java.class.path	1
+BENIGN_KEY	PROP:java.home	1
+BENIGN_KEY	PROP:java.library.path	1
+BENIGN_KEY	PROP:java.vm.compressedOopsMode	1
+BENIGN_KEY	PROP:java.vm.info	1
+BENIGN_KEY	PROP:java.vm.name	1
+BENIGN_KEY	PROP:java.vm.specification.name	1
+BENIGN_KEY	PROP:java.vm.specification.vendor	1
+BENIGN_KEY	PROP:java.vm.specification.version	1
+BENIGN_KEY	PROP:java.vm.vendor	1
+BENIGN_KEY	PROP:java.vm.version	1
+BENIGN_KEY	PROP:jdk.debug	1
+BENIGN_KEY	PROP:sun.boot.library.path	1
+BENIGN_KEY	PROP:sun.java.command	1
+BENIGN_KEY	PROP:sun.java.launcher	1
+STRING_FIELDS	field	occurrences	exact_allowed_or_empty	diagnostic_metadata	unresolved
+STRING	java.lang.Class.name	144544	0	144544	0
+STRING	java.lang.Thread.javaName	8232	0	0	8232
+STRING	java.lang.Thread.osName	24731	0	0	24731
+STRING	jdk.ActiveRecording.destination	0	0	0	0
+STRING	jdk.ActiveRecording.name	2	0	0	2
+STRING	jdk.ActiveSetting.name	360	0	0	360
+STRING	jdk.ActiveSetting.value	360	0	0	360
+STRING	jdk.BooleanFlag.name	505	0	0	505
+STRING	jdk.BooleanFlag.origin	505	0	0	505
+STRING	jdk.BooleanFlagChanged.name	0	0	0	0
+STRING	jdk.BooleanFlagChanged.origin	0	0	0	0
+STRING	jdk.CPUInformation.cpu	1	0	0	1
+STRING	jdk.CPUInformation.description	1	0	0	1
+STRING	jdk.CodeCacheFull.codeBlobType	0	0	0	0
+STRING	jdk.CodeCacheStatistics.codeBlobType	6	0	0	6
+STRING	jdk.Compilation.compiler	0	0	0	0
+STRING	jdk.CompilationFailure.failureMessage	1	0	0	1
+STRING	jdk.CompilerInlining.message	0	0	0	0
+STRING	jdk.CompilerPhase.phase	0	0	0	0
+STRING	jdk.ContainerConfiguration.containerType	1	0	0	1
+STRING	jdk.Deoptimization.action	11	0	0	11
+STRING	jdk.Deoptimization.compiler	11	0	0	11
+STRING	jdk.Deoptimization.instruction	11	0	0	11
+STRING	jdk.Deoptimization.reason	11	0	0	11
+STRING	jdk.Deserialization.exceptionMessage	0	0	0	0
+STRING	jdk.Deserialization.filterStatus	0	0	0	0
+STRING	jdk.DoubleFlag.name	15	0	0	15
+STRING	jdk.DoubleFlag.origin	15	0	0	15
+STRING	jdk.DoubleFlagChanged.name	0	0	0	0
+STRING	jdk.DoubleFlagChanged.origin	0	0	0	0
+STRING	jdk.DumpReason.reason	0	0	0	0
+STRING	jdk.ExecuteVMOperation.operation	106	0	0	106
+STRING	jdk.ExecutionSample.state	2221	0	0	2221
+STRING	jdk.FileForce.path	0	0	0	0
+STRING	jdk.FileRead.path	0	0	0	0
+STRING	jdk.FileWrite.path	0	0	0	0
+STRING	jdk.FinalizerStatistics.codeSource	0	0	0	0
+STRING	jdk.G1GarbageCollection.type	61	0	0	61
+STRING	jdk.G1HeapRegionInformation.type	0	0	0	0
+STRING	jdk.G1HeapRegionTypeChange.from	0	0	0	0
+STRING	jdk.G1HeapRegionTypeChange.to	0	0	0	0
+STRING	jdk.G1HeapSummary.when	166	0	0	166
+STRING	jdk.GCConfiguration.oldCollector	2	0	0	2
+STRING	jdk.GCConfiguration.youngCollector	2	0	0	2
+STRING	jdk.GCHeapConfiguration.compressedOopsMode	1	0	0	1
+STRING	jdk.GCHeapMemoryPoolUsage.name	6	0	0	6
+STRING	jdk.GCHeapSummary.when	166	0	0	166
+STRING	jdk.GCPhaseConcurrent.name	124	0	0	124
+STRING	jdk.GCPhaseConcurrentLevel1.name	80	0	0	80
+STRING	jdk.GCPhaseConcurrentLevel2.name	0	0	0	0
+STRING	jdk.GCPhaseParallel.name	12428	0	0	12428
+STRING	jdk.GCPhasePause.name	101	0	0	101
+STRING	jdk.GCPhasePauseLevel1.name	383	0	0	383
+STRING	jdk.GCPhasePauseLevel2.name	230	0	0	230
+STRING	jdk.GCPhasePauseLevel3.name	0	0	0	0
+STRING	jdk.GCPhasePauseLevel4.name	0	0	0	0
+STRING	jdk.GCReferenceStatistics.type	324	0	0	324
+STRING	jdk.GarbageCollection.cause	83	0	0	83
+STRING	jdk.GarbageCollection.name	83	0	0	83
+STRING	jdk.HeapDump.destination	0	0	0	0
+STRING	jdk.InitialEnvironmentVariable.key	13	7	0	6
+STRING	jdk.InitialEnvironmentVariable.value	13	1	0	12
+STRING	jdk.InitialSecurityProperty.key	49	0	0	49
+STRING	jdk.InitialSecurityProperty.value	49	3	0	46
+STRING	jdk.InitialSystemProperty.key	15	15	0	0
+STRING	jdk.InitialSystemProperty.value	15	0	0	15
+STRING	jdk.IntFlag.name	25	0	0	25
+STRING	jdk.IntFlag.origin	25	0	0	25
+STRING	jdk.IntFlagChanged.name	0	0	0	0
+STRING	jdk.IntFlagChanged.origin	0	0	0	0
+STRING	jdk.JVMInformation.javaArguments	1	0	0	1
+STRING	jdk.JVMInformation.jvmArguments	1	0	0	1
+STRING	jdk.JVMInformation.jvmFlags	0	0	0	0
+STRING	jdk.JVMInformation.jvmName	1	0	0	1
+STRING	jdk.JVMInformation.jvmVersion	1	0	0	1
+STRING	jdk.JavaAgent.name	0	0	0	0
+STRING	jdk.JavaAgent.options	0	0	0	0
+STRING	jdk.JavaErrorThrow.message	0	0	0	0
+STRING	jdk.JavaExceptionThrow.message	0	0	0	0
+STRING	jdk.JavaMonitorInflate.cause	0	0	0	0
+STRING	jdk.LongFlag.name	161	0	0	161
+STRING	jdk.LongFlag.origin	161	0	0	161
+STRING	jdk.LongFlagChanged.name	0	0	0	0
+STRING	jdk.LongFlagChanged.origin	0	0	0	0
+STRING	jdk.MetaspaceAllocationFailure.metadataType	0	0	0	0
+STRING	jdk.MetaspaceAllocationFailure.metaspaceObjectType	0	0	0	0
+STRING	jdk.MetaspaceChunkFreeListSummary.metadataType	332	0	0	332
+STRING	jdk.MetaspaceChunkFreeListSummary.when	332	0	0	332
+STRING	jdk.MetaspaceGCThreshold.updater	0	0	0	0
+STRING	jdk.MetaspaceOOM.metadataType	0	0	0	0
+STRING	jdk.MetaspaceOOM.metaspaceObjectType	0	0	0	0
+STRING	jdk.MetaspaceSummary.when	166	0	0	166
+STRING	jdk.NativeAgent.name	0	0	0	0
+STRING	jdk.NativeAgent.options	0	0	0	0
+STRING	jdk.NativeAgent.path	0	0	0	0
+STRING	jdk.NativeLibrary.name	36	0	0	36
+STRING	jdk.NativeMemoryUsage.type	0	0	0	0
+STRING	jdk.NativeMethodSample.state	26	0	0	26
+STRING	jdk.NetworkUtilization.networkInterface	0	0	0	0
+STRING	jdk.OSInformation.osVersion	1	0	0	1
+STRING	jdk.PSHeapSummary.when	0	0	0	0
+STRING	jdk.ProcessStart.command	0	0	0	0
+STRING	jdk.ProcessStart.directory	0	0	0	0
+STRING	jdk.SafepointCleanupTask.name	0	0	0	0
+STRING	jdk.SecurityPropertyModification.key	0	0	0	0
+STRING	jdk.SecurityPropertyModification.value	0	0	0	0
+STRING	jdk.SecurityProviderService.algorithm	0	0	0	0
+STRING	jdk.SecurityProviderService.provider	0	0	0	0
+STRING	jdk.SecurityProviderService.type	0	0	0	0
+STRING	jdk.ShenandoahHeapRegionInformation.state	0	0	0	0
+STRING	jdk.ShenandoahHeapRegionStateChange.from	0	0	0	0
+STRING	jdk.ShenandoahHeapRegionStateChange.to	0	0	0	0
+STRING	jdk.Shutdown.reason	0	0	0	0
+STRING	jdk.SocketRead.address	0	0	0	0
+STRING	jdk.SocketRead.host	0	0	0	0
+STRING	jdk.SocketWrite.address	0	0	0	0
+STRING	jdk.SocketWrite.host	0	0	0	0
+STRING	jdk.StringFlag.name	28	0	0	28
+STRING	jdk.StringFlag.origin	28	0	0	28
+STRING	jdk.StringFlag.value	11	5	0	6
+STRING	jdk.StringFlagChanged.name	0	0	0	0
+STRING	jdk.StringFlagChanged.newValue	0	0	0	0
+STRING	jdk.StringFlagChanged.oldValue	0	0	0	0
+STRING	jdk.StringFlagChanged.origin	0	0	0	0
+STRING	jdk.SystemProcess.commandLine	0	0	0	0
+STRING	jdk.SystemProcess.pid	0	0	0	0
+STRING	jdk.TLSHandshake.cipherSuite	0	0	0	0
+STRING	jdk.TLSHandshake.peerHost	0	0	0	0
+STRING	jdk.TLSHandshake.protocolVersion	0	0	0	0
+STRING	jdk.ThreadDump.result	0	0	0	0
+STRING	jdk.UnsignedIntFlag.name	14	0	0	14
+STRING	jdk.UnsignedIntFlag.origin	14	0	0	14
+STRING	jdk.UnsignedIntFlagChanged.name	0	0	0	0
+STRING	jdk.UnsignedIntFlagChanged.origin	0	0	0	0
+STRING	jdk.UnsignedLongFlag.name	132	0	0	132
+STRING	jdk.UnsignedLongFlag.origin	132	0	0	132
+STRING	jdk.UnsignedLongFlagChanged.name	0	0	0	0
+STRING	jdk.UnsignedLongFlagChanged.origin	0	0	0	0
+STRING	jdk.VirtualThreadSubmitFailed.exceptionMessage	0	0	0	0
+STRING	jdk.VirtualizationInformation.name	1	0	0	1
+STRING	jdk.X509Certificate.algorithm	0	0	0	0
+STRING	jdk.X509Certificate.issuer	0	0	0	0
+STRING	jdk.X509Certificate.keyType	0	0	0	0
+STRING	jdk.X509Certificate.serialNumber	0	0	0	0
+STRING	jdk.X509Certificate.subject	0	0	0	0
+STRING	jdk.ZAllocationStall.type	0	0	0	0
+STRING	jdk.ZPageAllocation.type	0	0	0	0
+STRING	jdk.ZRelocationSetGroup.type	0	0	0	0
+STRING	jdk.ZStatisticsCounter.id	0	0	0	0
+STRING	jdk.ZStatisticsSampler.id	0	0	0	0
+STRING	jdk.ZThreadPhase.name	0	0	0	0
+STRING	jdk.types.CalleeMethod.descriptor	0	0	0	0
+STRING	jdk.types.CalleeMethod.name	0	0	0	0
+STRING	jdk.types.CalleeMethod.type	0	0	0	0
+STRING	jdk.types.ClassLoader.name	20292	0	0	20292
+STRING	jdk.types.Method.descriptor	216602	0	216602	0
+STRING	jdk.types.Method.name	216602	0	216602	0
+STRING	jdk.types.Module.location	49955	0	0	49955
+STRING	jdk.types.Module.name	49967	0	49967	0
+STRING	jdk.types.Module.version	49955	0	49955	0
+STRING	jdk.types.OldObject.description	3	0	0	3
+STRING	jdk.types.OldObjectField.name	0	0	0	0
+STRING	jdk.types.OldObjectGcRoot.description	0	0	0	0
+STRING	jdk.types.OldObjectGcRoot.system	0	0	0	0
+STRING	jdk.types.OldObjectGcRoot.type	0	0	0	0
+STRING	jdk.types.Package.name	143081	0	143081	0
+STRING	jdk.types.StackFrame.type	261464	0	0	261464
+STRING	jdk.types.ThreadGroup.name	16334	0	0	16334

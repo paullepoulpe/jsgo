@@ -1,0 +1,27 @@
+{
+  "status": "SOURCE_ONLY_NO_NEW_PATCH_RECOMMENDED",
+  "profile": "/workspace/jsgo-java-experiments/profile-v2/results/profile-stock-bigquery-steady-v2",
+  "cpu_samples": 2221,
+  "resize_leaf_samples": 57,
+  "shown_caller_prefix_samples": 48,
+  "unshown_caller_prefix_samples": 9,
+  "largest_identified_callers": [
+    {
+      "name": "ReferenceCollector.addReference",
+      "samples": 12,
+      "percent_all_cpu": 0.540297163439892
+    },
+    {
+      "name": "AbstractScope.declareInternal via Scope.declare",
+      "samples": 9,
+      "percent_all_cpu": 0.40522287257991896
+    },
+    {
+      "name": "TypedScopeCreator.createScope",
+      "samples": 3,
+      "percent_all_cpu": 0.135074290859973
+    }
+  ],
+  "runtime_performed": false,
+  "production_sources_modified": false
+}

@@ -1,0 +1,30 @@
+Post-diagnostic equality shortcut audit
+
+The entry diagnostic is independently reviewed and is not a timing baseline.
+1,863,747 top-level check entries; 128 printed keys cover99.550690%,196 omitted
+keys carry8,374calls; no overflow. It does not count checkParameters or recursive
+checker calls, and does not establish map/cache state.
+
+Preferred isolated candidate: candidates/equality-prototype-scalar. Exact
+PrototypeObjectType against final NullType/VoidType/UnknownType has23.573049% of
+all observed entries before cache/map gates. Known-cache plus empty-left-map guards
+are enough to preserve pure false behavior; see candidate README proof and probe.
+
+InstanceObjectType / InstanceObjectType alternative remains UNIMPLEMENTED.
+It accounts for403,478entries(21.648754%). Final InstanceObjectType means cached
+unknown state and template getter behavior are fixed. Both resolved and distinct,
+with empty left map and both known caches, gives false for normal constructors.
+But the original isNominalType() path calls constructor.getReferenceName();
+FunctionType is nonfinal, so a custom constructor subclass can observe or throw.
+Even exact constructor FunctionType.class alone is insufficient: its inherited
+PrototypeObjectType.getReferenceName() can follow mutable ownerFunction when its
+className is null. FunctionType.setPrototype() can establish that owner chain.
+A strict guard additionally requiring both constructors exactly FunctionType.class
+AND both getOwnerFunction()==null would ensure the skipped name queries are pure.
+That is more checks/maintenance than the preferred prototype/scalar guard for a
+slightly smaller raw pair share, so do not combine it speculatively. It remains an
+open separate experiment if the smaller candidate proves useful or insufficient.
+
+Broad instanceof ValueType or ObjectType shortcuts remain rejected: custom
+subclasses, proxies, nominal comparisons, unknown cache effects, and mutable template
+maps require preserving fallback behavior. No result/cross-request cache is proposed.

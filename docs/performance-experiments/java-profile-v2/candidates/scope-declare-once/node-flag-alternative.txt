@@ -1,0 +1,48 @@
+Deferred Node flag cache alternative: source audit only
+
+Target: isArrowFunction lookup callers total about 1.17% of corrected CPU
+samples; isSyntheticBlock through createsBlockScope adds about 0.9455%.
+These are inclusive target shares, not predicted savings.
+
+The authoritative property list cannot be replaced by a setter-only boolean:
+  clonePropsFrom: Node.java:1030
+  putProp: 1186, 1188
+  putIntProp: 1198, 1200
+  removeProp: 1205
+  deserializeProperties: 1345, 1352, 1358
+  setStaticSourceFileFrom: 1726
+  package-private setPropListHead: 1991
+  copyBaseNodeFields: 2762
+These are all 12 assignments in the pinned source. PropListItem links, type,
+and value fields are immutable. Some assignments add unrelated properties,
+but blindly caching until an explicit arrow setter runs would still be wrong.
+
+getIntProp is private, but generic putIntProp/putProp/removeProp/getBooleanProp
+remain available with the package-private Prop type. ARROW_FN and SYNTHETIC
+have no public aliases; same-package APIs/tests can still manipulate them.
+Every nonzero integer is true, including negative values. Zero removes the
+entry. An object-valued entry throws from the integer getter. Partial mutations
+before a deserialization exception must also be reflected in later reads.
+isArrowFunction must retain its FUNCTION token guard; setToken can change it.
+isSyntheticBlock intentionally has no BLOCK token guard.
+
+Two exact approaches are possible but neither is recommended as the next tiny
+patch without footprint/performance evidence:
+  A tri-state byte (unknown/false/true) can cache only successful original
+  lookups, invalidated at every authoritative property-list assignment. This
+  requires coordinated changes across mutation, copy, and deserialization paths.
+  A head-identity-keyed result automatically handles all replacements, but adds
+  a reference plus result state on every Node and may retain an obsolete list
+  and its referenced objects until the next relevant query or node collection.
+
+Base Node has eight reference fields and two ints. Common 12-byte-header,
+4-byte-reference, 8-byte-alignment arithmetic suggests base padding might absorb
+a byte, but this is not a layout guarantee. StringNode adds a reference,
+NumberNode a double, and other subclasses add fields. Consuming apparent base
+padding can enlarge important subclasses; no zero-cost claim is justified by
+source inspection. No runtime layout measurement or cache patch was made.
+
+Any future candidate needs generic int/object values, removal, token changes,
+clonePropsFrom/cloneNode/cloneTree, deserialization success and partial failure,
+raw head replacement, serialization bits, property validation/debug listing,
+equality, representative subclass footprint, and retention checks.

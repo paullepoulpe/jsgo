@@ -1,0 +1,42 @@
+diff --git a/src/com/google/javascript/jscomp/FunctionArgumentInjector.java b/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
+--- a/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
++++ b/src/com/google/javascript/jscomp/FunctionArgumentInjector.java
+@@ -223,7 +223,9 @@
+    */
+   ImmutableSet<String> findModifiedParameters(Node fnNode) {
+     ImmutableSet<String> names = getFunctionParameterSet(fnNode);
+-    return ImmutableSet.copyOf(findModifiedParameters(fnNode.getLastChild(), names, false));
++    Set<String> unsafe = new LinkedHashSet<>();
++    findModifiedParameters(fnNode.getLastChild(), names, false, unsafe);
++    return ImmutableSet.copyOf(unsafe);
+   }
+ 
+   /**
+@@ -238,10 +240,10 @@
+    * @param names The set of names to check.
+    * @param inInnerClosure Whether the inspection is occurring inside an inner function or
+    *     non-static class field initializer.
+-   */
+-  private static Set<String> findModifiedParameters(
+-      Node n, ImmutableSet<String> names, boolean inInnerClosure) {
+-    LinkedHashSet<String> unsafe = new LinkedHashSet<>();
++   * @param unsafe Receives unsafe parameter names in traversal order.
++   */
++  private static void findModifiedParameters(
++      Node n, ImmutableSet<String> names, boolean inInnerClosure, Set<String> unsafe) {
+     if (NodeUtil.isFunctionOrNonStaticClassFieldInitializer(n)) {
+       // A function parameter can not be replaced with a direct inlined value
+       // if it is referred to by an inner function or a non-static class field
+@@ -258,10 +260,8 @@
+     }
+ 
+     for (Node c = n.getFirstChild(); c != null; c = c.getNext()) {
+-      unsafe.addAll(findModifiedParameters(c, names, inInnerClosure));
+-    }
+-
+-    return unsafe;
++      findModifiedParameters(c, names, inInnerClosure, unsafe);
++    }
+   }
+ 
+   /**

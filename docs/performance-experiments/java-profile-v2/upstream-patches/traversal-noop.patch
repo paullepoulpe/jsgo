@@ -1,0 +1,44 @@
+diff --git a/src/com/google/javascript/jscomp/NodeTraversal.java b/src/com/google/javascript/jscomp/NodeTraversal.java
+--- a/src/com/google/javascript/jscomp/NodeTraversal.java
++++ b/src/com/google/javascript/jscomp/NodeTraversal.java
+@@ -39,6 +39,8 @@
+ public class NodeTraversal {
+   private final AbstractCompiler compiler;
+   private final Callback callback;
++  private final boolean alwaysTraverse;
++  private final boolean needsVisit;
+   private final @Nullable ScopedCallback scopeCallback;
+   private final ScopeCreator scopeCreator;
+   private final boolean obeyDestructuringAndDefaultValueExecutionOrder;
+@@ -484,6 +486,11 @@
+   private NodeTraversal(Builder builder) {
+     this.compiler = checkNotNull(builder.compiler);
+     this.callback = checkNotNull(builder.callback);
++    // Only these base classes guarantee final, behavior-free callback methods.
++    this.alwaysTraverse =
++        this.callback instanceof AbstractPostOrderCallback
++            || this.callback instanceof AbstractScopedCallback;
++    this.needsVisit = !(this.callback instanceof AbstractPreOrderCallback);
+     this.scopeCallback =
+         (this.callback instanceof ScopedCallback scopedCallback) ? scopedCallback : null;
+     this.scopeCreator =
+@@ -929,7 +936,7 @@
+     }
+ 
+     currentNode = n;
+-    if (!callback.shouldTraverse(this, n, parent)) {
++    if (!alwaysTraverse && !callback.shouldTraverse(this, n, parent)) {
+       return;
+     }
+ 
+@@ -963,7 +970,9 @@
+     }
+ 
+     currentNode = n;
+-    callback.visit(this, n, parent);
++    if (needsVisit) {
++      callback.visit(this, n, parent);
++    }
+   }
+ 
+   /** Traverses a function. */

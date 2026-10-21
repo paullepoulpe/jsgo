@@ -1,0 +1,151 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-traversal-leaf-name-v1",
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-traversal-leaf-name-v1/review.json",
+  "baseline": "CONTROL",
+  "candidate": "traversal-leaf-name",
+  "cohorts": 1,
+  "pairs_per_cohort": 5,
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 53,
+      "measured_requests": 5,
+      "wall_median_s": 4.163622999,
+      "wall_mean_s": 4.144432715,
+      "wall_sample_SD_s": 0.04635173686804163,
+      "wall_CV": 0.01118409684883535,
+      "CPU_median_s": 4.84,
+      "allocated_median_bytes": 2075729072,
+      "current_RSS_median_MiB": 664.55859375,
+      "lifetime_HWM_MiB": 1211.84375,
+      "readiness": {
+        "last4_vs_prior4_median_drift": 0.03770791480927804,
+        "last4_JIT_time_over_wall": 0.016785830706216653,
+        "last4_max_over_min": 1.056318189771145,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        54,
+        55,
+        56,
+        57,
+        58
+      ],
+      "measured_wall_s": [
+        4.092105728,
+        4.195304472,
+        4.163622999,
+        4.098535796,
+        4.17259458
+      ],
+      "measured_JIT_deltas_ms": [
+        56,
+        46,
+        100,
+        44,
+        72
+      ],
+      "measured_JIT_sum_ms": 318,
+      "measured_wall_sum_s": 20.722163575,
+      "measured_batch_JIT_fraction": 0.015345887935352813,
+      "measured_JIT_flag": "MEASURED_JIT_AT_OR_BELOW_2_PERCENT",
+      "measured_GC_counts": [
+        15,
+        15,
+        12,
+        11,
+        13
+      ],
+      "measured_GC_ms": [
+        322,
+        309,
+        245,
+        284,
+        263
+      ]
+    },
+    "traversal-leaf-name": {
+      "warmup_requests": 53,
+      "measured_requests": 5,
+      "wall_median_s": 4.140526245,
+      "wall_mean_s": 4.1698795494,
+      "wall_sample_SD_s": 0.17580309659056656,
+      "wall_CV": 0.042160233768829776,
+      "CPU_median_s": 4.83,
+      "allocated_median_bytes": 2096816920,
+      "current_RSS_median_MiB": 637.36328125,
+      "lifetime_HWM_MiB": 1281.83203125,
+      "readiness": {
+        "last4_vs_prior4_median_drift": 0.006463100468118155,
+        "last4_JIT_time_over_wall": 0.015662059940541193,
+        "last4_max_over_min": 1.0421842535500783,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        54,
+        55,
+        56,
+        57,
+        58
+      ],
+      "measured_wall_s": [
+        4.140526245,
+        4.191667804,
+        4.452053963,
+        4.082389622,
+        3.982760113
+      ],
+      "measured_JIT_deltas_ms": [
+        78,
+        64,
+        118,
+        62,
+        106
+      ],
+      "measured_JIT_sum_ms": 428,
+      "measured_wall_sum_s": 20.849397747,
+      "measured_batch_JIT_fraction": 0.02052817089460459,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT",
+      "measured_GC_counts": [
+        15,
+        15,
+        12,
+        15,
+        17
+      ],
+      "measured_GC_ms": [
+        287,
+        312,
+        253,
+        312,
+        301
+      ]
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 0.9944527268665901,
+    "CPU": 0.9979338842975207,
+    "RSS_lifetimeHWM": 1.0577535521803039,
+    "allocated_bytes": 1.010159248759609
+  },
+  "baseline_over_candidate": {
+    "elapsed": 1.0055782170268552,
+    "CPU": 1.0020703933747412,
+    "RSS_lifetimeHWM": 0.9453998031382085,
+    "allocated_bytes": 0.9899429235815208
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 0.9590776302409376
+  },
+  "all_six_digests_every_request": true,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "JIT_policy": "/workspace/jsgo-java-experiments/profile-v2/MEASURED-JIT-REVIEW-NOTE.md",
+  "interpretation": "One-cohort CONTROL screen only. Elapsed median is 0.5547% lower and CPU median 0.2066% lower, while allocated bytes are 1.0159% higher and lifetime HWM 5.7754% higher. Both warmup readiness gates passed. Measured JIT flags are reported separately and no requests/cohorts were removed or retried. No independent-cohort confidence interval or settled speed gain is established."
+}

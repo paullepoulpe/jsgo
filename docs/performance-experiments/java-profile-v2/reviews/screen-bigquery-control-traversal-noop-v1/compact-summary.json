@@ -1,0 +1,122 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-traversal-noop-v1",
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-traversal-noop-v1/review.json",
+  "baseline": "CONTROL",
+  "candidate": "traversal-noop",
+  "cohorts": 1,
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 45,
+      "measured_requests": 5,
+      "wall_median_s": 4.287058841,
+      "wall_mean_s": 4.235838277,
+      "wall_sample_SD_s": 0.12809597633303604,
+      "wall_CV": 0.030240997874866705,
+      "CPU_median_s": 4.93,
+      "allocated_median_bytes": 2082314704,
+      "current_RSS_median_MiB": 643.3671875,
+      "lifetime_HWM_MiB": 1196.84765625,
+      "readiness": {
+        "last4_vs_prior4_median_drift": 0.00516780891911961,
+        "last4_JIT_time_over_wall": 0.015559576053788422,
+        "last4_max_over_min": 1.0989099566499765,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "measured_wall_s": [
+        4.287058841,
+        4.117779457,
+        4.359798984,
+        4.333916582,
+        4.080637521
+      ],
+      "measured_JIT_deltas_ms": [
+        239,
+        171,
+        116,
+        43,
+        175
+      ],
+      "measured_JIT_sum_ms": 744,
+      "measured_wall_sum_s": 21.179191385,
+      "measured_batch_JIT_fraction": 0.03512881990985418,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT"
+    },
+    "traversal-noop": {
+      "warmup_requests": 45,
+      "measured_requests": 5,
+      "wall_median_s": 4.227315823,
+      "wall_mean_s": 4.2055332154,
+      "wall_sample_SD_s": 0.18216117913100466,
+      "wall_CV": 0.043314645206928605,
+      "CPU_median_s": 5.04,
+      "allocated_median_bytes": 2085062832,
+      "current_RSS_median_MiB": 629.95703125,
+      "lifetime_HWM_MiB": 1514.1875,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.001871381507102532,
+        "last4_JIT_time_over_wall": 0.016472816576506663,
+        "last4_max_over_min": 1.0911799028806834,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "measured_wall_s": [
+        4.398896928,
+        4.227315823,
+        4.305286251,
+        4.181003256,
+        3.915163819
+      ],
+      "measured_JIT_deltas_ms": [
+        293,
+        221,
+        83,
+        206,
+        128
+      ],
+      "measured_JIT_sum_ms": 931,
+      "measured_wall_sum_s": 21.027666077,
+      "measured_batch_JIT_fraction": 0.04427500401570126,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT"
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 0.986064334496966,
+    "CPU": 1.0223123732251522,
+    "RSS_lifetimeHWM": 1.265146396947711,
+    "allocated_bytes": 1.0013197467197061
+  },
+  "baseline_over_candidate": {
+    "elapsed": 1.0141326128686554,
+    "CPU": 0.978174603174603,
+    "RSS_lifetimeHWM": 0.7904223593511371,
+    "allocated_bytes": 0.9986819927160834
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 0.9791562943983679
+  },
+  "all_six_digests_every_request": true,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "JIT_policy": "/workspace/jsgo-java-experiments/profile-v2/MEASURED-JIT-REVIEW-NOTE.md",
+  "interpretation": "Preliminary one-cohort CONTROL screen only; elapsed median is 1.3936% lower while CPU median is 2.2312% higher, allocated bytes 0.1320% higher, and lifetime HWM 26.5146% higher. Warmup readiness passed for both; measured JIT is 3.5129% for CONTROL and 4.4275% for the candidate, both above the declared 2% flag; no rows were removed. No independent-cohort confidence interval or settled speed gain is established."
+}

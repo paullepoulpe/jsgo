@@ -1,0 +1,22 @@
+PASS independent Java-factor review
+One cohort, five measured pairs; CONTROL baseline; no confidence interval.
+All six digests matched every request: True; all driver exits zero: True; telemetry anomalies: []; PSI: ['UNAVAILABLE_no_zeroPSI_claim'].
+
+Absolute medians / lifetime HWM:
+CONTROL: wall 4.163622999s; CPU 4.84s; allocation 2075729072 bytes; current RSS 664.559 MiB; lifetime HWM 1211.844 MiB.
+  Readiness: 53 warm requests; stable=True; drift=3.770791%; last4 JIT/wall=1.678583%; max/min=1.056318.
+  Measured JIT ms [56, 46, 100, 44, 72]; sum 318ms / 20.722163575s wall = 1.534589%; MEASURED_JIT_AT_OR_BELOW_2_PERCENT.
+  Measured GC counts [15, 15, 12, 11, 13]; GC ms [322, 309, 245, 284, 263].
+traversal-leaf-name: wall 4.140526245s; CPU 4.83s; allocation 2096816920 bytes; current RSS 637.363 MiB; lifetime HWM 1281.832 MiB.
+  Readiness: 53 warm requests; stable=True; drift=0.646310%; last4 JIT/wall=1.566206%; max/min=1.042184.
+  Measured JIT ms [78, 64, 118, 62, 106]; sum 428ms / 20.849397747s wall = 2.052817%; MEASURED_JIT_ABOVE_2_PERCENT.
+  Measured GC counts [15, 15, 12, 15, 17]; GC ms [287, 312, 253, 312, 301].
+
+Candidate/CONTROL ratios:
+elapsed: 0.994452727 (-0.5547%); inverse 1.005578217
+CPU: 0.997933884 (-0.2066%); inverse 1.002070393
+RSS_lifetimeHWM: 1.057753552 (+5.7754%); inverse 0.945399803
+allocated_bytes: 1.010159249 (+1.0159%); inverse 0.989942924
+Current-RSS median ratio (descriptive): 0.959077630
+
+One-cohort CONTROL screen only. Elapsed median is 0.5547% lower and CPU median 0.2066% lower, while allocated bytes are 1.0159% higher and lifetime HWM 5.7754% higher. Both warmup readiness gates passed. Measured JIT flags are reported separately and no requests/cohorts were removed or retried. No independent-cohort confidence interval or settled speed gain is established.

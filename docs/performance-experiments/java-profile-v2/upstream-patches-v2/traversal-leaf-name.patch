@@ -1,0 +1,35 @@
+diff --git a/src/com/google/javascript/jscomp/NodeTraversal.java b/src/com/google/javascript/jscomp/NodeTraversal.java
+--- a/src/com/google/javascript/jscomp/NodeTraversal.java
++++ b/src/com/google/javascript/jscomp/NodeTraversal.java
+@@ -39,6 +39,7 @@
+ public class NodeTraversal {
+   private final AbstractCompiler compiler;
+   private final Callback callback;
++  private final boolean alwaysTraverse;
+   private final @Nullable ScopedCallback scopeCallback;
+   private final ScopeCreator scopeCreator;
+   private final boolean obeyDestructuringAndDefaultValueExecutionOrder;
+@@ -484,6 +485,9 @@
+   private NodeTraversal(Builder builder) {
+     this.compiler = checkNotNull(builder.compiler);
+     this.callback = checkNotNull(builder.callback);
++    this.alwaysTraverse =
++        this.callback instanceof AbstractPostOrderCallback
++            || this.callback instanceof AbstractScopedCallback;
+     this.scopeCallback =
+         (this.callback instanceof ScopedCallback scopedCallback) ? scopedCallback : null;
+     this.scopeCreator =
+@@ -953,7 +957,12 @@
+       // child could be replaced, in which case our child node
+       // would no longer point to the true next
+       Node next = child.getNext();
+-      traverseBranch(child, n);
++      if (alwaysTraverse && child.isName() && !child.hasChildren()) {
++        currentNode = child;
++        callback.visit(this, child, n);
++      } else {
++        traverseBranch(child, n);
++      }
+       child = next;
+     }
+ 

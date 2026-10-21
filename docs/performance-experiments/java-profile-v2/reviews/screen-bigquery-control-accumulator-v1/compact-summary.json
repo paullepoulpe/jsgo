@@ -1,0 +1,95 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-accumulator-v1",
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-accumulator-v1/review.json",
+  "cohorts": 1,
+  "screen_only": true,
+  "confidence_intervals": null,
+  "selected_as_speed_winner": false,
+  "baseline": "CONTROL",
+  "candidate": "accumulator",
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 54,
+      "measured_requests": 5,
+      "wall_median_s": 4.163091146,
+      "CPU_median_s": 4.88,
+      "allocated_median_bytes": 2079177752,
+      "current_RSS_median_MiB": 702.00390625,
+      "lifetime_HWM_MiB": 1334.3359375,
+      "measured_request_numbers": [
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "measured_wall_s": [
+        3.938600525,
+        4.664012049,
+        4.163091146,
+        4.136875814,
+        4.163542276
+      ],
+      "measured_JIT_deltas_ms": [
+        33,
+        122,
+        80,
+        115,
+        60
+      ],
+      "measured_JIT_sum_ms": 410,
+      "measured_wall_sum_s": 21.06612181,
+      "measured_batch_JIT_fraction": 0.01946252868458089,
+      "measured_JIT_flag": "BELOW_OR_EQUAL_2_PERCENT"
+    },
+    "accumulator": {
+      "warmup_requests": 54,
+      "measured_requests": 5,
+      "wall_median_s": 4.23715712,
+      "CPU_median_s": 4.88,
+      "allocated_median_bytes": 2021800312,
+      "current_RSS_median_MiB": 776.71484375,
+      "lifetime_HWM_MiB": 1318.39453125,
+      "measured_request_numbers": [
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "measured_wall_s": [
+        4.23715712,
+        4.181872777,
+        4.320860757,
+        4.245954145,
+        4.219568062
+      ],
+      "measured_JIT_deltas_ms": [
+        36,
+        69,
+        58,
+        108,
+        107
+      ],
+      "measured_JIT_sum_ms": 378,
+      "measured_wall_sum_s": 21.205412861,
+      "measured_batch_JIT_fraction": 0.017825637372767208,
+      "measured_JIT_flag": "BELOW_OR_EQUAL_2_PERCENT"
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 1.0177911007476173,
+    "CPU": 1.0,
+    "RSS_lifetimeHWM": 0.9880529289499107,
+    "allocated_bytes": 0.9724037832047753
+  },
+  "all_six_digests_every_request": true,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "interpretation": "One-cohort screen only: allocation decreased but elapsed median increased; no demonstrated speedup or significance claim. No request or cohort was dropped or retried.",
+  "JIT_policy": "/workspace/jsgo-java-experiments/profile-v2/MEASURED-JIT-REVIEW-NOTE.md",
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 1.1064252446957092
+  }
+}

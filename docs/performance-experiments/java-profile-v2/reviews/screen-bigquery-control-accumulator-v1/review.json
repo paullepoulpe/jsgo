@@ -1,0 +1,573 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-accumulator-v1",
+  "baseline": "CONTROL",
+  "candidate": "accumulator",
+  "cohorts": 1,
+  "pairs_per_cohort": 5,
+  "warmup_requests": 108,
+  "measured_requests": 10,
+  "strict_digests_every_request": 6,
+  "all_graceful_driver_exit_codes_zero": true,
+  "per_cohort": [
+    {
+      "cohort": 1,
+      "variants": {
+        "CONTROL": {
+          "wall_seconds": {
+            "raw": [
+              3.938600525,
+              4.664012049,
+              4.163091146,
+              4.136875814,
+              4.163542276
+            ],
+            "count": 5,
+            "mean": 4.213224362,
+            "median": 4.163091146,
+            "min": 3.938600525,
+            "max": 4.664012049,
+            "sample_SD": 0.2689974629977646,
+            "sample_variance": 0.07235963509923374,
+            "CV": 0.06384598584967657
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.66,
+              5.41,
+              4.98,
+              4.88,
+              4.74
+            ],
+            "count": 5,
+            "mean": 4.934,
+            "median": 4.88,
+            "min": 4.66,
+            "max": 5.41,
+            "sample_SD": 0.293393933134276,
+            "sample_variance": 0.08608,
+            "CV": 0.05946370756673611
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              614.46875,
+              628.73828125,
+              702.00390625,
+              811.8984375,
+              1041.2109375
+            ],
+            "count": 5,
+            "mean": 759.6640625,
+            "median": 702.00390625,
+            "min": 614.46875,
+            "max": 1041.2109375,
+            "sample_SD": 175.7448472506208,
+            "sample_variance": 30886.251335144043,
+            "CV": 0.23134548009584277
+          },
+          "final_lifetime_HWM_MiB": 1334.3359375,
+          "allocated_bytes": {
+            "raw": [
+              2079284280,
+              2079394512,
+              2079177752,
+              2079041960,
+              2079078976
+            ],
+            "count": 5,
+            "mean": 2079195496,
+            "median": 2079177752,
+            "min": 2079041960,
+            "max": 2079394512,
+            "sample_SD": 145735.2309361055,
+            "sample_variance": 21238757536,
+            "CV": 7.009212515921376e-05
+          },
+          "warm_requests": 54,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.008328424603052387,
+            "last4_JIT_time_over_wall": 0.01759345262282789,
+            "last4_max_over_min": 1.0929898886521028,
+            "stable": true
+          }
+        },
+        "accumulator": {
+          "wall_seconds": {
+            "raw": [
+              4.23715712,
+              4.181872777,
+              4.320860757,
+              4.245954145,
+              4.219568062
+            ],
+            "count": 5,
+            "mean": 4.2410825722,
+            "median": 4.23715712,
+            "min": 4.181872777,
+            "max": 4.320860757,
+            "sample_SD": 0.05092242669805481,
+            "sample_variance": 0.002593093540818765,
+            "CV": 0.012006940641016461
+          },
+          "CPU_seconds": {
+            "raw": [
+              4.81,
+              4.76,
+              4.94,
+              5.05,
+              4.88
+            ],
+            "count": 5,
+            "mean": 4.888,
+            "median": 4.88,
+            "min": 4.76,
+            "max": 5.05,
+            "sample_SD": 0.11344602240713433,
+            "sample_variance": 0.012870000000000026,
+            "CV": 0.02320908805383272
+          },
+          "current_RSS_MiB": {
+            "raw": [
+              871.80859375,
+              1099.24609375,
+              668.8828125,
+              587.5546875,
+              776.71484375
+            ],
+            "count": 5,
+            "mean": 800.84140625,
+            "median": 776.71484375,
+            "min": 587.5546875,
+            "max": 1099.24609375,
+            "sample_SD": 198.47423327809983,
+            "sample_variance": 39392.02127532959,
+            "CV": 0.24783213221637768
+          },
+          "final_lifetime_HWM_MiB": 1318.39453125,
+          "allocated_bytes": {
+            "raw": [
+              2021992208,
+              2021741144,
+              2021800312,
+              2021812704,
+              2021488008
+            ],
+            "count": 5,
+            "mean": 2021766875.2,
+            "median": 2021800312,
+            "min": 2021488008,
+            "max": 2021992208,
+            "sample_SD": 181949.2918018644,
+            "sample_variance": 33105544787.2,
+            "CV": 8.999518887847312e-05
+          },
+          "warm_requests": 54,
+          "settling": {
+            "last4_vs_prior4_median_drift": 0.01406691015662509,
+            "last4_JIT_time_over_wall": 0.01653333985190235,
+            "last4_max_over_min": 1.0821198587913976,
+            "stable": true
+          }
+        }
+      },
+      "candidate_over_baseline": {
+        "elapsed": 1.0177911007476173,
+        "CPU": 1.0,
+        "RSS_lifetimeHWM": 0.9880529289499107,
+        "allocated_bytes": 0.9724037832047753
+      },
+      "same_pair_ratios": {
+        "elapsed": {
+          "raw": [
+            1.0758027104056205,
+            0.8966256375552515,
+            1.037897227196572,
+            1.0263673206313948,
+            1.0134562788813146
+          ],
+          "count": 5,
+          "mean": 1.0100298349340306,
+          "median": 1.0263673206313948,
+          "min": 0.8966256375552515,
+          "max": 1.0758027104056205,
+          "sample_SD": 0.06753115695639342,
+          "sample_variance": 0.004560457159869044,
+          "CV": 0.06686055660999773
+        },
+        "CPU": {
+          "raw": [
+            1.0321888412017166,
+            0.8798521256931607,
+            0.9919678714859438,
+            1.0348360655737705,
+            1.0295358649789028
+          ],
+          "count": 5,
+          "mean": 0.9936761537866989,
+          "median": 1.0295358649789028,
+          "min": 0.8798521256931607,
+          "max": 1.0348360655737705,
+          "sample_SD": 0.06599642398814555,
+          "sample_variance": 0.004355527979223073,
+          "CV": 0.06641643128563217
+        },
+        "current_RSS": {
+          "raw": [
+            1.4188005390835579,
+            1.7483365122361874,
+            0.952819217307596,
+            0.7236800323316301,
+            0.7459726130181955
+          ],
+          "count": 5,
+          "mean": 1.1179217827954333,
+          "median": 0.952819217307596,
+          "min": 0.7236800323316301,
+          "max": 1.7483365122361874,
+          "sample_SD": 0.4497172325247148,
+          "sample_variance": 0.20224558922968838,
+          "CV": 0.40227969384420503
+        }
+      }
+    }
+  ],
+  "pooled_descriptive_statistics": {
+    "CONTROL": {
+      "elapsed_seconds_DESCRIPTIVE_ONLY": {
+        "raw": [
+          3.938600525,
+          4.664012049,
+          4.163091146,
+          4.136875814,
+          4.163542276
+        ],
+        "count": 5,
+        "mean": 4.213224362,
+        "median": 4.163091146,
+        "min": 3.938600525,
+        "max": 4.664012049,
+        "sample_SD": 0.2689974629977646,
+        "sample_variance": 0.07235963509923374,
+        "CV": 0.06384598584967657
+      },
+      "CPU_seconds_DESCRIPTIVE_ONLY": {
+        "raw": [
+          4.66,
+          5.41,
+          4.98,
+          4.88,
+          4.74
+        ],
+        "count": 5,
+        "mean": 4.934,
+        "median": 4.88,
+        "min": 4.66,
+        "max": 5.41,
+        "sample_SD": 0.293393933134276,
+        "sample_variance": 0.08608,
+        "CV": 0.05946370756673611
+      },
+      "current_RSS_MiB_DESCRIPTIVE_ONLY": {
+        "raw": [
+          614.46875,
+          628.73828125,
+          702.00390625,
+          811.8984375,
+          1041.2109375
+        ],
+        "count": 5,
+        "mean": 759.6640625,
+        "median": 702.00390625,
+        "min": 614.46875,
+        "max": 1041.2109375,
+        "sample_SD": 175.7448472506208,
+        "sample_variance": 30886.251335144043,
+        "CV": 0.23134548009584277
+      },
+      "lifetime_HWM_MiB_one_per_cohort": {
+        "raw": [
+          1334.3359375
+        ],
+        "count": 1,
+        "mean": 1334.3359375,
+        "median": 1334.3359375,
+        "min": 1334.3359375,
+        "max": 1334.3359375,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "allocated_bytes_DESCRIPTIVE_ONLY": {
+        "raw": [
+          2079284280,
+          2079394512,
+          2079177752,
+          2079041960,
+          2079078976
+        ],
+        "count": 5,
+        "mean": 2079195496,
+        "median": 2079177752,
+        "min": 2079041960,
+        "max": 2079394512,
+        "sample_SD": 145735.2309361055,
+        "sample_variance": 21238757536,
+        "CV": 7.009212515921376e-05
+      }
+    },
+    "accumulator": {
+      "elapsed_seconds_DESCRIPTIVE_ONLY": {
+        "raw": [
+          4.23715712,
+          4.181872777,
+          4.320860757,
+          4.245954145,
+          4.219568062
+        ],
+        "count": 5,
+        "mean": 4.2410825722,
+        "median": 4.23715712,
+        "min": 4.181872777,
+        "max": 4.320860757,
+        "sample_SD": 0.05092242669805481,
+        "sample_variance": 0.002593093540818765,
+        "CV": 0.012006940641016461
+      },
+      "CPU_seconds_DESCRIPTIVE_ONLY": {
+        "raw": [
+          4.81,
+          4.76,
+          4.94,
+          5.05,
+          4.88
+        ],
+        "count": 5,
+        "mean": 4.888,
+        "median": 4.88,
+        "min": 4.76,
+        "max": 5.05,
+        "sample_SD": 0.11344602240713433,
+        "sample_variance": 0.012870000000000026,
+        "CV": 0.02320908805383272
+      },
+      "current_RSS_MiB_DESCRIPTIVE_ONLY": {
+        "raw": [
+          871.80859375,
+          1099.24609375,
+          668.8828125,
+          587.5546875,
+          776.71484375
+        ],
+        "count": 5,
+        "mean": 800.84140625,
+        "median": 776.71484375,
+        "min": 587.5546875,
+        "max": 1099.24609375,
+        "sample_SD": 198.47423327809983,
+        "sample_variance": 39392.02127532959,
+        "CV": 0.24783213221637768
+      },
+      "lifetime_HWM_MiB_one_per_cohort": {
+        "raw": [
+          1318.39453125
+        ],
+        "count": 1,
+        "mean": 1318.39453125,
+        "median": 1318.39453125,
+        "min": 1318.39453125,
+        "max": 1318.39453125,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "allocated_bytes_DESCRIPTIVE_ONLY": {
+        "raw": [
+          2021992208,
+          2021741144,
+          2021800312,
+          2021812704,
+          2021488008
+        ],
+        "count": 5,
+        "mean": 2021766875.2,
+        "median": 2021800312,
+        "min": 2021488008,
+        "max": 2021992208,
+        "sample_SD": 181949.2918018644,
+        "sample_variance": 33105544787.2,
+        "CV": 8.999518887847312e-05
+      }
+    }
+  },
+  "ratios": {
+    "elapsed": {
+      "candidate_over_baseline": {
+        "raw": [
+          1.0177911007476173
+        ],
+        "count": 1,
+        "mean": 1.0177911007476173,
+        "median": 1.0177911007476173,
+        "min": 1.0177911007476173,
+        "max": 1.0177911007476173,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_candidate_over_baseline": 1.0177911007476173,
+      "baseline_over_candidate": {
+        "raw": [
+          0.982519889656582
+        ],
+        "count": 1,
+        "mean": 0.982519889656582,
+        "median": 0.982519889656582,
+        "min": 0.982519889656582,
+        "max": 0.982519889656582,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_baseline_over_candidate": 0.982519889656582,
+      "bootstrap95_candidate_over_baseline": null,
+      "bootstrap95_baseline_over_candidate": null,
+      "log_t95_df2_candidate_over_baseline": null,
+      "log_t95_df2_baseline_over_candidate": null
+    },
+    "CPU": {
+      "candidate_over_baseline": {
+        "raw": [
+          1.0
+        ],
+        "count": 1,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_candidate_over_baseline": 1.0,
+      "baseline_over_candidate": {
+        "raw": [
+          1.0
+        ],
+        "count": 1,
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_baseline_over_candidate": 1.0,
+      "bootstrap95_candidate_over_baseline": null,
+      "bootstrap95_baseline_over_candidate": null,
+      "log_t95_df2_candidate_over_baseline": null,
+      "log_t95_df2_baseline_over_candidate": null
+    },
+    "RSS_lifetimeHWM": {
+      "candidate_over_baseline": {
+        "raw": [
+          0.9880529289499107
+        ],
+        "count": 1,
+        "mean": 0.9880529289499107,
+        "median": 0.9880529289499107,
+        "min": 0.9880529289499107,
+        "max": 0.9880529289499107,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_candidate_over_baseline": 0.9880529289499107,
+      "baseline_over_candidate": {
+        "raw": [
+          1.0120915294110675
+        ],
+        "count": 1,
+        "mean": 1.0120915294110675,
+        "median": 1.0120915294110675,
+        "min": 1.0120915294110675,
+        "max": 1.0120915294110675,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_baseline_over_candidate": 1.0120915294110675,
+      "bootstrap95_candidate_over_baseline": null,
+      "bootstrap95_baseline_over_candidate": null,
+      "log_t95_df2_candidate_over_baseline": null,
+      "log_t95_df2_baseline_over_candidate": null
+    },
+    "allocated_bytes": {
+      "candidate_over_baseline": {
+        "raw": [
+          0.9724037832047753
+        ],
+        "count": 1,
+        "mean": 0.9724037832047753,
+        "median": 0.9724037832047753,
+        "min": 0.9724037832047753,
+        "max": 0.9724037832047753,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_candidate_over_baseline": 0.9724037832047753,
+      "baseline_over_candidate": {
+        "raw": [
+          1.0283793803272496
+        ],
+        "count": 1,
+        "mean": 1.0283793803272496,
+        "median": 1.0283793803272496,
+        "min": 1.0283793803272496,
+        "max": 1.0283793803272496,
+        "sample_SD": null,
+        "sample_variance": null,
+        "CV": null
+      },
+      "geomean_baseline_over_candidate": 1.0283793803272496,
+      "bootstrap95_candidate_over_baseline": null,
+      "bootstrap95_baseline_over_candidate": null,
+      "log_t95_df2_candidate_over_baseline": null,
+      "log_t95_df2_baseline_over_candidate": null
+    }
+  },
+  "VM": {
+    "runtime_version": "21.0.12.1+1-1-deb13u1-Debian",
+    "collectors": "G1 Young Generation,G1 Concurrent GC,G1 Old Generation",
+    "max_heap_bytes": 3221225472
+  },
+  "stopped_proof_sha256": "9f1e54684d760acc512f6035ddc2db69ba1990a478e547ff0995043453c6efea",
+  "runner_sha256": "74ed5966d78afe3621f382e893488e400701ace393f04514274326a107ebab7f",
+  "runner_policy_version": "cache-aware-v3-PSIoptional",
+  "manifest_sha256": "3fbf89820fd45f89ea6a1a49da48829189c88083fe95027e940020d387212ce1",
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "limits": [
+    "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+    "JAR and compiler executables not bulk-rehashed; declared stock target-class entries and shared driver classes checked.",
+    "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+    "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+    "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+    "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+    "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+    "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI.",
+    "VmHWM is documented inaccurate; every admitted warmup-only decrease and later strictly larger retained sample is disclosed. This post-observation reviewer amendment does not alter recorded values or max-sample ratios."
+  ],
+  "Java_vs_Go_claim": false,
+  "reviewer_version": "v2-full-stem-families-with-warmup-VmHWM-amendment",
+  "telemetry_anomalies": [],
+  "reviewer_amendment": {
+    "timing": "Adopted after observing STOCK cohort3 warmup7-to8 VmHWM decrease of60KiB in color-cache holdout; not prespecified",
+    "original_reviewer": "review-results.py unchanged; its failure retained",
+    "policy": "Only warmup VmHWM decreases with an exact retained later strictly larger sample can pass; measured VmHWM and any cgroup-peak decrease remain fatal; no size tolerance, smoothing, request/cohort exclusion or metric recomputation",
+    "uniform_application": "All variants and cohorts; all original byte/protocol/settling/provenance/caps/pressure/cleanup/statistics checks remain required"
+  },
+  "RSS_definition": "Maximum observed /proc/self/status VmHWM sample over warmup and measurement, documented inaccurate; not an exact continuously observed lifetime maximum. No numerical accuracy bound is inferred. Current RSS and cgroup peak retain their separate windows."
+}

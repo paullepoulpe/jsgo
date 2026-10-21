@@ -1,0 +1,262 @@
+{
+  "status": "PASS independent Java-factor review",
+  "results": "/workspace/jsgo-java-experiments/profile-v2/results/screen-bigquery-control-source-position-last-v1",
+  "baseline": "CONTROL",
+  "candidate": "source-position-last",
+  "cohorts": 1,
+  "pairs_per_cohort": 5,
+  "review": "/workspace/jsgo-java-experiments/profile-v2/reviews/screen-bigquery-control-source-position-last-v1/review.json",
+  "screen_only": true,
+  "confidence_intervals": null,
+  "settled_speed_gain_established": false,
+  "promotion_status": "NONE_PROMOTED",
+  "variants": {
+    "CONTROL": {
+      "warmup_requests": 41,
+      "measured_requests": 5,
+      "wall_median_s": 4.192934694,
+      "wall_mean_s": 4.133574304,
+      "wall_sample_SD_s": 0.12252771264058582,
+      "wall_CV": 0.02964207333155171,
+      "CPU_median_s": 4.8,
+      "CPU_mean_s": 4.79,
+      "allocated_median_bytes": 2097608688,
+      "allocated_mean_bytes": 2097616262.4,
+      "current_RSS_median_MiB": 957.703125,
+      "current_RSS_mean_MiB": 842.79140625,
+      "lifetime_HWM_MiB": 1454.60546875,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.012957263789558526,
+        "last4_JIT_time_over_wall": 0.016799982178246468,
+        "last4_max_over_min": 1.0495308157762184,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "measured_wall_s": [
+        4.192934694,
+        4.23916062,
+        3.99425283,
+        4.00753352,
+        4.233989856
+      ],
+      "measured_JIT_deltas_ms": [
+        172,
+        64,
+        20,
+        30,
+        8554
+      ],
+      "measured_JIT_sum_ms": 8840,
+      "measured_wall_sum_s": 20.66787152,
+      "measured_batch_JIT_fraction": 0.42771699985872574,
+      "measured_JIT_flag": "MEASURED_JIT_ABOVE_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        13,
+        11,
+        11,
+        14,
+        15
+      ],
+      "measured_GC_ms": [
+        271,
+        276,
+        286,
+        267,
+        279
+      ]
+    },
+    "source-position-last": {
+      "warmup_requests": 41,
+      "measured_requests": 5,
+      "wall_median_s": 4.228053542,
+      "wall_mean_s": 4.2035157066,
+      "wall_sample_SD_s": 0.10441368079053488,
+      "wall_CV": 0.02483960762335049,
+      "CPU_median_s": 4.84,
+      "CPU_mean_s": 4.91,
+      "allocated_median_bytes": 2067180904,
+      "allocated_mean_bytes": 2067215672,
+      "current_RSS_median_MiB": 626.09765625,
+      "current_RSS_mean_MiB": 792.8765625,
+      "lifetime_HWM_MiB": 1186.2578125,
+      "readiness": {
+        "last4_vs_prior4_median_drift": -0.0031595475490493463,
+        "last4_JIT_time_over_wall": 0.014226689596088334,
+        "last4_max_over_min": 1.0703508592437545,
+        "stable": true
+      },
+      "measured_request_numbers": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "measured_wall_s": [
+        4.228053542,
+        4.259840847,
+        4.283998565,
+        4.021995106,
+        4.223690473
+      ],
+      "measured_JIT_deltas_ms": [
+        132,
+        81,
+        23,
+        54,
+        100
+      ],
+      "measured_JIT_sum_ms": 390,
+      "measured_wall_sum_s": 21.017578533,
+      "measured_batch_JIT_fraction": 0.018555895931953125,
+      "measured_JIT_flag": "MEASURED_JIT_AT_OR_BELOW_2_PERCENT",
+      "measured_JIT_invalid_interval_count": 0,
+      "measured_GC_counts": [
+        15,
+        11,
+        11,
+        14,
+        19
+      ],
+      "measured_GC_ms": [
+        332,
+        268,
+        268,
+        331,
+        335
+      ]
+    }
+  },
+  "candidate_over_baseline": {
+    "elapsed": 1.008375720244404,
+    "CPU": 1.0083333333333333,
+    "RSS_lifetimeHWM": 0.8155185979875342,
+    "allocated_bytes": 0.985494060844584
+  },
+  "baseline_over_candidate": {
+    "elapsed": 0.9916938497464279,
+    "CPU": 0.9917355371900827,
+    "RSS_lifetimeHWM": 1.2262136050210417,
+    "allocated_bytes": 1.0147194587281267
+  },
+  "descriptive_candidate_over_baseline": {
+    "current_RSS_median": 0.6537492046400079,
+    "wall_mean": 1.0169203206368684,
+    "CPU_mean": 1.0250521920668059
+  },
+  "same_pair_ratios_descriptive_only": {
+    "elapsed": {
+      "raw": [
+        1.008375720244404,
+        1.004878377786025,
+        1.0725406596256952,
+        1.0036086001346785,
+        0.9975674521313732
+      ],
+      "count": 5,
+      "mean": 1.017394161984435,
+      "median": 1.004878377786025,
+      "min": 0.9975674521313732,
+      "max": 1.0725406596256952,
+      "sample_SD": 0.031073515599011253,
+      "sample_variance": 0.0009655633716819957,
+      "CV": 0.03054225860545742
+    },
+    "CPU": {
+      "raw": [
+        1.0569620253164556,
+        1.0083333333333333,
+        1.0597345132743363,
+        0.9854469854469856,
+        1.0177165354330708
+      ],
+      "count": 5,
+      "mean": 1.0256386785608362,
+      "median": 1.0177165354330708,
+      "min": 0.9854469854469856,
+      "max": 1.0597345132743363,
+      "sample_SD": 0.03209861958605421,
+      "sample_variance": 0.0010303213793302229,
+      "CV": 0.03129622571478544
+    },
+    "current_RSS": {
+      "raw": [
+        0.6537492046400079,
+        0.9829910849824736,
+        1.0875617650738054,
+        1.006090695750078,
+        1.0187392798935284
+      ],
+      "count": 5,
+      "mean": 0.9498264060679786,
+      "median": 1.006090695750078,
+      "min": 0.6537492046400079,
+      "max": 1.0875617650738054,
+      "sample_SD": 0.17003476756660096,
+      "sample_variance": 0.02891182218142801,
+      "CV": 0.179016677658498
+    }
+  },
+  "all_six_digests_every_request": true,
+  "requests_with_all_six_digests": 92,
+  "all_graceful_driver_exit_codes_zero": true,
+  "telemetry_anomalies": [],
+  "PSI_telemetry": [
+    "UNAVAILABLE_no_zeroPSI_claim"
+  ],
+  "manifest_sha256": "feb66937188cc277a8aa5fc5662b6e4c8ebbd7113048ae9c013a33f68ab4890c",
+  "runner_sha256": "74ed5966d78afe3621f382e893488e400701ace393f04514274326a107ebab7f",
+  "stopped_proof_sha256": "030a9bbe5b10129e1dfe05873b34eb7cec07eb731b051c2ff80477cbcf5f3da9",
+  "limitations": [
+    "Large overwritten historical artifacts are unavailable for rehash; every recorded six-digest row equals pinned stock oracle; retained stdout/stderr/exit rehashed.",
+    "JAR and compiler executables not bulk-rehashed; declared stock target-class entries and shared driver classes checked.",
+    "Elapsed and CPU/allocated ratios use within-cohort medians. RSS ratio uses one full lifetime HWM per JVM/cohort including warmup and JIT.",
+    "CurrentRSS is a postrequest snapshot; cgroup peak includes cache and is not process RSS.",
+    "No CI from individual persistent-JVM requests; pooled request SD/CV is descriptive.",
+    "Three-cohort bootstrap is discrete; log Student t(df2) assumes approximately normal independent log-cohort effects.",
+    "Sequential/pause chronology follows the pinned runner source; no independent absolute request-timestamp overlap instrumentation.",
+    "MissingPSI is explicitly unavailable, never zero. v3 measuredlocalhigh/max/directscan/directsteal/availablemajfault checks are proxies, not proof of zeroPSI.",
+    "VmHWM is documented inaccurate; every admitted warmup-only decrease and later strictly larger retained sample is disclosed. This post-observation reviewer amendment does not alter recorded values or max-sample ratios."
+  ],
+  "Java_vs_Go_claim": false,
+  "finding": "One-cohort CONTROL screen only. Elapsed and CPU medians increased while allocated bytes fell 1.4506%. CONTROL recorded an 8554 ms cumulative compilation-time counter delta on its fifth measured request, putting its batch JIT fraction at 42.7717%, versus 1.8556% for the candidate. CompilationMXBean measures approximate accumulated compilation elapsed time, potentially summed across threads, not CPU%. A compilation spanning a paused container may contribute paused duration when a later counter update occurs; that mechanism was not diagnosed for this jump. Treat the large ratio as a potentially contaminated elapsed-time proxy, not proof of JIT CPU share or slowdown causality. This single cohort does not establish a settled benefit; lower allocation and approximate RSS remain descriptive. No independent-cohort interval or speed gain is established; none promoted. All rows and measured JIT diagnostics are retained, with no postmeasurement rejection.",
+  "source_identity_checks": {
+    "CONTROL": {
+      "status": "PASS small source/receipt identity checks",
+      "build_receipt": "/workspace/jsgo-java-experiments/profile-v2/build/source-position-last/CONTROL/build.json",
+      "build_receipt_sha256": "8bae91cf037e6a4fb512f7bf0ef7fc5cbdc7ef92191ce6ccdcf04399bdb94bc9",
+      "sources": {
+        "com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java": {
+          "original_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+          "effective_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+          "relocated_sha256": "69e158c0f08962220b95394439fb8e77d4e66a0462a43e5615b95f04516ce865"
+        }
+      },
+      "classes": {
+        "com/google/javascript/jscomp/parsing/parser/LineNumberScanner.class": "9f59962ad196efb7f7863e7203e3dd5ceb85cf9a14debfc1b8df5cca819ef0aa"
+      }
+    },
+    "source-position-last": {
+      "status": "PASS small source/receipt identity checks",
+      "build_receipt": "/workspace/jsgo-java-experiments/profile-v2/build/source-position-last/source-position-last/build.json",
+      "build_receipt_sha256": "7097b15eec9017ad88375abaae435c5f58666dc17e0359f94d4711972167b8af",
+      "sources": {
+        "com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java": {
+          "original_sha256": "3dfbc67cea91c7f39700865cac659622089f22297f2af2616e79d5fac82f30c0",
+          "effective_sha256": "b88bbd45a5e8ad51625efbfac70ac697dd38da584f9d663e8e1d23e713e727b5",
+          "relocated_sha256": "ca325c90edbaec2fa7ced875754763da4061c560819ea23409f78d5aeb2eda6d"
+        }
+      },
+      "classes": {
+        "com/google/javascript/jscomp/parsing/parser/LineNumberScanner.class": "897b017df83d538f749a1b354eea51ed3db65da11edb9b36b3f7c6bfb41d3033"
+      }
+    }
+  }
+}
