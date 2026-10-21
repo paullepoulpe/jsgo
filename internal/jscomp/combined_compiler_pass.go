@@ -225,6 +225,7 @@ func (p *CombinedCompilerPass) EnterScope(t *NodeTraversal) {
 	for _, callback := range p.callbacks {
 		callback.EnterScopeIfActive(t)
 	}
+	p.updateNoShouldTraverse(t)
 }
 
 // Java: CombinedCompilerPass.exitScope(NodeTraversal)
@@ -232,4 +233,26 @@ func (p *CombinedCompilerPass) ExitScope(t *NodeTraversal) {
 	for _, callback := range p.callbacks {
 		callback.ExitScopeIfActive(t)
 	}
+	p.updateNoShouldTraverse(t)
+}
+
+func (p *CombinedCompilerPass) updateNoShouldTraverse(t *NodeTraversal) {
+	if t == nil || p.compiler.HasHaltingErrors() {
+		return
+	}
+	if p.inactiveCount > 0 {
+		t.noShouldTraverse = false
+		return
+	}
+	for _, callback := range p.callbacks {
+		if callback.noShouldTraverse {
+			continue
+		}
+		if uc, ok := callback.callback.(*CheckUnreachableCode); ok && uc.CurrentScopeHasNoUnreachable() {
+			continue
+		}
+		t.noShouldTraverse = false
+		return
+	}
+	t.noShouldTraverse = true
 }

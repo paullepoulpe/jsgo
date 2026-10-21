@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"runtime"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -758,6 +760,14 @@ func (c *DefaultPassConfig) initFields() {
 						for _, compilerInput := range compiler.GetInputsInOrder() {
 							compilerInput.SetTypedScope(nil)
 						}
+						if comp, ok := compiler.(*Compiler); ok {
+							comp.evictPassArenaCaches()
+						}
+						var ms runtime.MemStats
+						runtime.ReadMemStats(&ms)
+						if ms.HeapAlloc > 2<<30 {
+							runtime.GC()
+						}
 					})
 				}).
 			Build()
@@ -781,6 +791,15 @@ func (c *DefaultPassConfig) initFields() {
 								compiler.GetTypedScopeCreator().(*TypedScopeCreator))
 						compiler.SetTypeCheckingHasRun(true)
 						compiler.SetTopScope(inferencePass.InferAllScopes(globalRoot))
+						inferencePass = nil
+						if comp, ok := compiler.(*Compiler); ok {
+							comp.evictPassArenaCaches()
+						}
+						var ms runtime.MemStats
+						runtime.ReadMemStats(&ms)
+						if ms.HeapAlloc > 2<<30 {
+							runtime.GC()
+						}
 					})
 				}).
 			Build()
@@ -827,11 +846,15 @@ func (c *DefaultPassConfig) initFields() {
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
 					var callbacks []NodeTraversal_Callback
+					var unreachable *CheckUnreachableCode
 					if !options.Disables(DiagnosticGroups_CHECK_USELESS_CODE) {
-						callbacks = append(callbacks, NewCheckUnreachableCode(compiler))
+						unreachable = NewCheckUnreachableCode(compiler)
+						callbacks = append(callbacks, unreachable)
 					}
 					if !options.Disables(DiagnosticGroups_MISSING_RETURN) {
-						callbacks = append(callbacks, NewCheckMissingReturn(compiler))
+						mr := NewCheckMissingReturn(compiler)
+						mr.sharedCfgSource = unreachable
+						callbacks = append(callbacks, mr)
 					}
 					return defaultPassConfig_combineChecks(compiler, callbacks)
 				}).

@@ -110,6 +110,25 @@ func (a *linkedFlowScopeArena) reset() {
 	}
 }
 
+func (a *linkedFlowScopeArena) trimLargeChunks() {
+	a.reset()
+	const maxRetained = 8
+	if len(a.scopeChunks) > maxRetained {
+		clear(a.scopeChunks[maxRetained:])
+		a.scopeChunks = a.scopeChunks[:maxRetained]
+	}
+	if len(a.overlayChunks) > maxRetained {
+		clear(a.overlayChunks[maxRetained:])
+		a.overlayChunks = a.overlayChunks[:maxRetained]
+	}
+	if len(a.slotChunks) > maxRetained {
+		clear(a.slotChunks[maxRetained:])
+		a.slotChunks = a.slotChunks[:maxRetained]
+	}
+	a.scopeMapArena.TrimLargeChunks()
+	a.slotMapArena.TrimLargeChunks()
+}
+
 func (a *linkedFlowScopeArena) allocScope() *LinkedFlowScope {
 	if a.scopeInlineLen < len(a.scopeBuf) {
 		s := &a.scopeBuf[a.scopeInlineLen]

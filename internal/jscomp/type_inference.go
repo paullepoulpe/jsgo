@@ -109,6 +109,30 @@ func NewTypeInference(
 	return ti
 }
 
+func (ti *TypeInference) ReleaseLargeBuffers() {
+	ti.flowScopeArena.trimLargeChunks()
+	if cap(ti.flowStateSlab) > 4096 {
+		ti.flowStateSlab = nil
+	} else if len(ti.flowStateSlab) > 0 {
+		clear(ti.flowStateSlab)
+		ti.flowStateSlab = ti.flowStateSlab[:0]
+	}
+	if cap(ti.queue) > 4096 {
+		ti.queue = nil
+		ti.queueHead = 0
+	} else if len(ti.queue) > 0 {
+		clear(ti.queue)
+		ti.queue = ti.queue[:0]
+		ti.queueHead = 0
+	}
+	if cap(ti.outcomePairSlab) > 1024 {
+		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
+	}
+	if cap(ti.optChainInfoSlab) > 1024 {
+		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
+	}
+}
+
 func (ti *TypeInference) initTypeInference(
 	compiler AbstractCompiler,
 	cfg ControlFlowGraph[*rhino.Node],

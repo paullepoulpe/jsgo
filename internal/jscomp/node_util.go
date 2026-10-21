@@ -6021,17 +6021,13 @@ var NodeUtil_NUMBER_NAN = rhino.IR_Getprop(rhino.IR_Name("Number"), "NaN")
 
 // Java: NodeUtil.countAstSizeUpToLimit(Node, int)
 func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
-	return nodeUtil_countAstSizeUpToLimit(n, limit, 0)
-}
-
-func nodeUtil_countAstSizeUpToLimit(n *rhino.Node, limit int, count int) int {
-	count++
-	if count < limit {
-		for c := n.GetFirstChild(); c != nil && count < limit; c = c.GetNext() {
-			if c.GetFirstChild() == nil {
+	count := 1
+	if limit > 1 {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.GetFirstChild() == nil || limit-count <= 1 {
 				count++
 			} else {
-				count = nodeUtil_countAstSizeUpToLimit(c, limit, count)
+				count += NodeUtil_CountAstSizeUpToLimit(c, limit-count)
 			}
 		}
 	}

@@ -181,6 +181,35 @@ func acquireReusableCfg() *ReusableCfg {
 	return &ReusableCfg{}
 }
 
+func (rc *ReusableCfg) TrimAfterLargeScope() {
+	if rc == nil {
+		return
+	}
+	rc.cfg.wasRootCfg = false
+	rc.cfg.nodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
+	rc.cfg.pendingRootNodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
+	rc.cfg.ClearSlabsForPool()
+	if len(rc.cfg.nodeChunks) > 8 {
+		clear(rc.cfg.nodeChunks[8:])
+		rc.cfg.nodeChunks = rc.cfg.nodeChunks[:8]
+	}
+	if len(rc.cfg.edgeChunks) > 8 {
+		clear(rc.cfg.edgeChunks[8:])
+		rc.cfg.edgeChunks = rc.cfg.edgeChunks[:8]
+	}
+	if len(rc.cfa.posTable) > 8192 {
+		rc.cfa.posTable = nil
+		rc.cfa.posGen = 0
+		rc.cfa.posCount = 0
+	}
+	if cap(rc.cfa.worklist) > 4096 {
+		rc.cfa.worklist = nil
+	} else if len(rc.cfa.worklist) > 0 {
+		clear(rc.cfa.worklist)
+		rc.cfa.worklist = rc.cfa.worklist[:0]
+	}
+}
+
 func releaseReusableCfg(rc *ReusableCfg) {
 	if rc == nil {
 		return
@@ -485,7 +514,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 		if isRoot {
 			c.cfgStorage.wasRootCfg = true
 			c.cfgStorage.pendingRootNodes = *cfgNodes
-		} else if cfgNodes.Size() <= 256 {
+		} else if cfgNodes.Size() <= 1024 {
 			c.cfgStorage.savedNodes = *cfgNodes
 		}
 	}

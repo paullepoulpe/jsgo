@@ -142,8 +142,8 @@ func (g *LinkedDirectedGraph[N, E]) ResetLinkedDirectedGraph(self DiGraph[N, E],
 		} else {
 			g.nodes.InitWithBuffer(g.nodeSlots[:])
 		}
-	} else if g.nodes.Size() > 256 {
-		if g.savedNodes.HasBacking() && g.savedNodes.Size() <= 256 {
+	} else if g.nodes.Size() > 1024 {
+		if g.savedNodes.HasBacking() && g.savedNodes.Size() <= 1024 {
 			g.nodes = g.savedNodes
 			g.nodes.Clear()
 			g.savedNodes = g.nodes

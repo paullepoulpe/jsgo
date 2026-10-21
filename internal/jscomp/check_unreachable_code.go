@@ -32,6 +32,7 @@ type CheckUnreachableCode struct {
 	reachability        GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
 	hasUnreachableStack []bool
 	hasUnreachableBuf   [8]bool
+	scriptCheckCfg      *ReusableCfg
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -69,12 +70,146 @@ func hasUnreachableCfgNode(cfg ControlFlowGraph[*rhino.Node]) bool {
 	return false
 }
 
+// CurrentScopeHasNoUnreachable reports whether the current CFG scope is known
+// to have no unreachable CFG nodes.
+func (c *CheckUnreachableCode) CurrentScopeHasNoUnreachable() bool {
+	return len(c.hasUnreachableStack) > 0 && !c.hasUnreachableStack[len(c.hasUnreachableStack)-1]
+}
+
+// isStraightLineFunction reports whether fn's parameter list and block body
+// contain only straight-line statements that cannot create unreachable code,
+// and whether the body ends with an explicit return statement.
+func isStraightLineFunction(fn *rhino.Node) (straightLine bool, endsWithReturn bool) {
+	if fn == nil || !fn.IsFunction() {
+		return false, false
+	}
+	paramList := fn.GetSecondChild()
+	if paramList == nil {
+		return false, false
+	}
+	for p := paramList.GetFirstChild(); p != nil; p = p.GetNext() {
+		if !p.IsName() {
+			return false, false
+		}
+	}
+	body := paramList.GetNext()
+	if body == nil || !body.IsBlock() || body.IsSyntheticBlock() {
+		return false, false
+	}
+	terminated := false
+	for child := body.GetFirstChild(); child != nil; child = child.GetNext() {
+		tok := child.GetToken()
+		if tok == rhino.Token_FUNCTION {
+			continue
+		}
+		if terminated {
+			return false, false
+		}
+		switch tok {
+		case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_CLASS, rhino.Token_EMPTY:
+		case rhino.Token_RETURN:
+			terminated = true
+			endsWithReturn = true
+		case rhino.Token_THROW:
+			terminated = true
+		default:
+			return false, false
+		}
+	}
+	return true, endsWithReturn
+}
+
+func isStraightLineScript(script *rhino.Node) bool {
+	container := script
+	if script.HasOneChild() && script.GetFirstChild().IsModuleBody() {
+		container = script.GetFirstChild()
+	}
+	for child := container.GetFirstChild(); child != nil; child = child.GetNext() {
+		switch child.GetToken() {
+		case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
+			rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_EMPTY,
+			rhino.Token_IMPORT, rhino.Token_EXPORT:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func hasTopLevelReturn(n *rhino.Node) bool {
+	if n.IsFunction() {
+		return false
+	}
+	if n.IsReturn() {
+		return true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if hasTopLevelReturn(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot *rhino.Node) bool {
+	switch scopeRoot.GetToken() {
+	case rhino.Token_FUNCTION:
+		straightLine, _ := isStraightLineFunction(scopeRoot)
+		return straightLine
+	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
+		return isStraightLineScript(scopeRoot)
+	case rhino.Token_ROOT:
+		for s := scopeRoot.GetFirstChild(); s != nil; s = s.GetNext() {
+			if !s.IsScript() {
+				return false
+			}
+			if isStraightLineScript(s) {
+				continue
+			}
+			if hasTopLevelReturn(s) {
+				return false
+			}
+			if c.scriptCheckCfg == nil {
+				c.scriptCheckCfg = acquireReusableCfg()
+			}
+			cfg := c.scriptCheckCfg.cfa.ComputeReusableCfg(
+				c.compiler,
+				s,
+				/* shouldTraverseFunctions= */ false,
+				/* edgeAnnotations= */ true,
+				&c.scriptCheckCfg.cfg)
+			c.InitScope(cfg)
+			if hasUnreachableCfgNode(cfg) || cfg.GetImplicitReturn().GetAnnotation() != GraphReachability_REACHABLE {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 // Java: CheckUnreachableCode.enterScopeWithCfg(NodeTraversal)
 func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
-	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) {
+	scopeRoot := t.GetScopeRoot()
+	if NodeUtil_IsValidCfgRoot(scopeRoot) {
+		if c.hasNoUnreachableCodeFast(scopeRoot) {
+			c.hasUnreachableStack = append(c.hasUnreachableStack, false)
+			if t != nil && t.callback == c {
+				t.noShouldTraverse = true
+			}
+			return
+		}
 		cfg := c.GetControlFlowGraph(c.compiler)
 		c.InitScope(cfg)
-		c.hasUnreachableStack = append(c.hasUnreachableStack, hasUnreachableCfgNode(cfg))
+		hasUnreachable := hasUnreachableCfgNode(cfg)
+		c.hasUnreachableStack = append(c.hasUnreachableStack, hasUnreachable)
+		if !hasUnreachable {
+			c.ReleaseCurrentScopeCfg()
+		}
+		if t != nil && t.callback == c {
+			t.noShouldTraverse = !hasUnreachable
+		}
 	}
 }
 
@@ -82,6 +217,13 @@ func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
 	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) && len(c.hasUnreachableStack) > 0 {
 		c.hasUnreachableStack = c.hasUnreachableStack[:len(c.hasUnreachableStack)-1]
+		if len(c.hasUnreachableStack) == 0 && c.scriptCheckCfg != nil {
+			releaseReusableCfg(c.scriptCheckCfg)
+			c.scriptCheckCfg = nil
+		}
+		if t != nil && t.callback == c {
+			t.noShouldTraverse = c.CurrentScopeHasNoUnreachable()
+		}
 	}
 }
 

@@ -408,6 +408,7 @@ type NodeTraversal_AbstractCfgCallbackBase struct {
 
 	reusableCFAs    []*ReusableCfg
 	reusableCFAsBuf [4]*ReusableCfg
+	freeRC          *ReusableCfg
 }
 
 // InitNodeTraversal_AbstractCfgCallbackBase is the implicit
@@ -428,6 +429,42 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCall
 	return b
 }
 
+// PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
+// current scope if one has been materialized, or nil otherwise.
+func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlowGraph[*rhino.Node] {
+	idx := len(b.cfgs) - 1
+	if idx < 0 {
+		return nil
+	}
+	if cfg, ok := b.cfgs[idx].(ControlFlowGraph[*rhino.Node]); ok {
+		return cfg
+	}
+	return nil
+}
+
+// ReleaseCurrentScopeCfg recycles the current scope's ReusableCfg into freeRC
+// when the callback knows it will not query GetControlFlowGraph again in the
+// current scope.
+func (b *NodeTraversal_AbstractCfgCallbackBase) ReleaseCurrentScopeCfg() {
+	idx := len(b.cfgs) - 1
+	if idx < 0 || idx >= len(b.reusableCFAs) {
+		return
+	}
+	rc := b.reusableCFAs[idx]
+	if rc == nil {
+		return
+	}
+	b.reusableCFAs[idx] = nil
+	if rc.cfg.wasRootCfg {
+		rc.TrimAfterLargeScope()
+	}
+	if b.freeRC == nil {
+		b.freeRC = rc
+	} else {
+		releaseReusableCfg(rc)
+	}
+}
+
 // GetControlFlowGraph gets the control flow graph for the current JS scope.
 //
 // Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
@@ -445,7 +482,12 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler Abs
 		}
 		rc := b.reusableCFAs[idx]
 		if rc == nil {
-			rc = acquireReusableCfg()
+			if b.freeRC != nil {
+				rc = b.freeRC
+				b.freeRC = nil
+			} else {
+				rc = acquireReusableCfg()
+			}
 			b.reusableCFAs[idx] = rc
 		}
 		result = rc.cfa.ComputeReusableCfg(
@@ -482,16 +524,35 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
 		if len(b.cfgs) == 0 {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 		}
-		b.cfgs[len(b.cfgs)-1] = nil
-		b.cfgs = b.cfgs[:len(b.cfgs)-1]
-		if len(b.cfgs) == 0 && len(b.reusableCFAs) > 0 {
-			for i, rc := range b.reusableCFAs {
-				if rc != nil {
-					releaseReusableCfg(rc)
-					b.reusableCFAs[i] = nil
-				}
+		idx := len(b.cfgs) - 1
+		b.cfgs[idx] = nil
+		b.cfgs = b.cfgs[:idx]
+		if idx < len(b.reusableCFAs) && b.reusableCFAs[idx] != nil {
+			rc := b.reusableCFAs[idx]
+			b.reusableCFAs[idx] = nil
+			if rc.cfg.wasRootCfg {
+				rc.TrimAfterLargeScope()
 			}
-			b.reusableCFAs = b.reusableCFAs[:0]
+			if b.freeRC == nil {
+				b.freeRC = rc
+			} else {
+				releaseReusableCfg(rc)
+			}
+		}
+		if len(b.cfgs) == 0 {
+			if b.freeRC != nil {
+				releaseReusableCfg(b.freeRC)
+				b.freeRC = nil
+			}
+			if len(b.reusableCFAs) > 0 {
+				for i, rc := range b.reusableCFAs {
+					if rc != nil {
+						releaseReusableCfg(rc)
+						b.reusableCFAs[i] = nil
+					}
+				}
+				b.reusableCFAs = b.reusableCFAs[:0]
+			}
 		}
 	}
 }
@@ -922,6 +983,11 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
 		if !t.noShouldTraverse {
 			_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverseAlt)
+			if !t.noShouldTraverse {
+				if tc, ok := cb.(*TypeCheck); ok && (tc.debugTypeLogger == nil || tc.debugTypeLogger.typeLogFile == nil) {
+					t.noShouldTraverse = true
+				}
+			}
 		}
 	}
 	_, t.noVisit = cb.(nodeTraversal_noVisit)

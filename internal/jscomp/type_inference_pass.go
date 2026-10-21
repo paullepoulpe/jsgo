@@ -197,6 +197,12 @@ func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
 			counts.Put(node.GetValue().GetToken(), counts.GetOrDefault(node.GetValue().GetToken(), 0)+1)
 		}
 	}
+	if n.IsRoot() {
+		typeInference.ReleaseLargeBuffers()
+		if p.reusableCfg != nil {
+			p.reusableCfg.TrimAfterLargeScope()
+		}
+	}
 }
 
 // TypeInferencePass_FirstScopeBuildingCallback creates every typed scope, in

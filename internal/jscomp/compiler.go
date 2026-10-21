@@ -983,7 +983,9 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	func() {
 		chunkGraphLog := c.CreateOrReopenLog(reflect.TypeOf(c).Elem(), "chunk_graph.dot")
 		defer chunkGraphLog.Close()
-		chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(c.chunkGraph.ToGraphvizGraph()))
+		if chunkGraphLog.IsLogging() {
+			chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(c.chunkGraph.ToGraphvizGraph()))
+		}
 	}()
 
 	var nodeForCodeInsertion func() *rhino.Node
@@ -3217,6 +3219,9 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 // Java: Compiler.toSource(Node)
 func (c *Compiler) ToSourceOfNode(n *rhino.Node) string {
 	c.InitCompilerOptionsIfTesting()
+	if n != nil && !n.IsRoot() && !n.IsScript() {
+		return c.toSourceWithoutMappings(n, false, nil)
+	}
 	sb := jutil.NewStringBuilder()
 	// We don't know whether this node is part of a single JS binary, or part of a module, or
 	// something else. Use the legacy license tracking implementation to match existing expectations

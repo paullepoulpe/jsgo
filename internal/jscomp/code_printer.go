@@ -1388,9 +1388,7 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	var sm CodePrinter_SourceAndMappings
-	b.buildSourceAndMappingsInto(&sm, false)
-	return sm.source
+	return b.buildSourceAndMappingsInto(nil, false)
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
@@ -1403,7 +1401,7 @@ func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMa
 
 func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
 
-func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) {
+func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) string {
 	if b.root == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
@@ -1436,12 +1434,14 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceA
 	}
 
 	var cg CodeGenerator
+	var localCG CodeGeneratorBase
 	if b.codeGeneratorFactory != nil {
 		cg = b.codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
 	} else if outputFormat == CodePrinter_Format_TYPED {
 		cg = NewTypedCodeGenerator(mcp, options, b.registry)
 	} else {
-		cg = NewCodeGeneratorWithOptions(mcp, options)
+		localCG.InitCodeGeneratorBaseWithOptions(&localCG, mcp, options)
+		cg = &localCG
 	}
 
 	if b.tagAsTypeSummary {
@@ -1454,16 +1454,20 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceA
 	cg.AddNode(b.root)
 	mcp.EndFile()
 
-	sm.source = mcp.GetCode()
-	if gatherSourceMap {
-		base := mcp.GetCodePrinter_MappedCodePrinterBase()
-		base.adjustSourceMappings(sm.source)
-		sm.takeMappingsFrom(base)
-	} else {
-		sm.mappingChunks = nil
-		sm.mappingSlab = nil
+	source := mcp.GetCode()
+	if sm != nil {
+		sm.source = source
+		if gatherSourceMap {
+			base := mcp.GetCodePrinter_MappedCodePrinterBase()
+			base.adjustSourceMappings(source)
+			sm.takeMappingsFrom(base)
+		} else {
+			sm.mappingChunks = nil
+			sm.mappingSlab = nil
+		}
 	}
 	returnPooledPrinter(pooledCompact, pooledPretty)
+	return source
 }
 
 // CodePrinter_Format specifies a format for code generation.

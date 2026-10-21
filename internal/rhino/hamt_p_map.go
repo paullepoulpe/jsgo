@@ -166,6 +166,21 @@ func (a *HamtPMapArena[K, V]) Reset() {
 	}
 }
 
+// TrimLargeChunks releases excess arena chunks after a large global pass while
+// retaining a small working set for function-level analyses.
+func (a *HamtPMapArena[K, V]) TrimLargeChunks() {
+	a.Reset()
+	const maxRetained = 8
+	if len(a.nodeChunks) > maxRetained {
+		clear(a.nodeChunks[maxRetained:])
+		a.nodeChunks = a.nodeChunks[:maxRetained]
+	}
+	if len(a.childChunks) > maxRetained {
+		clear(a.childChunks[maxRetained:])
+		a.childChunks = a.childChunks[:maxRetained]
+	}
+}
+
 func (a *HamtPMapArena[K, V]) allocNode() *HamtPMap[K, V] {
 	if a.nodeInlineLen < len(a.nodeBuf) {
 		m := &a.nodeBuf[a.nodeInlineLen]

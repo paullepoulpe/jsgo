@@ -29,8 +29,9 @@ import (
 type CheckMissingReturn struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
-	compiler   AbstractCompiler
-	convention CodingConvention
+	compiler        AbstractCompiler
+	convention      CodingConvention
+	sharedCfgSource *CheckUnreachableCode
 }
 
 // Java: CheckMissingReturn.MISSING_RETURN_STATEMENT
@@ -95,8 +96,27 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		}
 	}
 
-	cfg := c.GetControlFlowGraph(c.compiler)
+	if straightLine, endsWithReturn := isStraightLineFunction(n); straightLine && endsWithReturn {
+		return
+	}
+
+	var cfg ControlFlowGraph[*rhino.Node]
+	ownCfg := false
+	if c.sharedCfgSource != nil {
+		if shared := c.sharedCfgSource.PeekCurrentScopeCfg(); shared != nil &&
+			shared.GetEntry() != nil &&
+			shared.GetEntry().GetValue() == ControlFlowAnalysis_ComputeFallThrough(n) {
+			cfg = shared
+		}
+	}
+	if cfg == nil {
+		cfg = c.GetControlFlowGraph(c.compiler)
+		ownCfg = true
+	}
 	if c.FastAllPathsReturnCheck(cfg) {
+		if ownCfg {
+			c.ReleaseCurrentScopeCfg()
+		}
 		return
 	}
 
@@ -112,6 +132,9 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	if !test.AllPathsSatisfyPredicate() {
 		c.compiler.Report(
 			JSError_MakeWithNode(t.GetScopeRoot(), CheckMissingReturn_MISSING_RETURN_STATEMENT, returnType.String()))
+	}
+	if ownCfg {
+		c.ReleaseCurrentScopeCfg()
 	}
 }
 

@@ -453,11 +453,12 @@ func (tc *TypeCheck) ProcessForTesting(externsRoot *rhino.Node, jsRoot *rhino.No
 func (tc *TypeCheck) Check(node *rhino.Node, externs bool) {
 	jutil.CheckNotNull(node)
 	tc.inExterns = externs
-	NodeTraversal_Builder_().
-		SetCompiler(tc.compiler).
-		SetCallback(tc).
-		SetScopeCreator(tc.scopeCreator).
-		TraverseWithScope(node, tc.topScope)
+	b := NodeTraversal_Builder{
+		compiler:     tc.compiler,
+		callback:     tc,
+		scopeCreator: tc.scopeCreator,
+	}
+	b.TraverseWithScope(node, tc.topScope)
 	if externs {
 		tc.inferJSDocInfo.Process(node, nil)
 	} else {
