@@ -22,14 +22,20 @@ func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if cs == StandardCharsets_UTF_8 {
 		return NewOutputStreamWriter(out)
 	}
-	return &charsetOutputStreamWriter{out: out, enc: cs.impl().newEncoder()}
+	return &charsetOutputStreamWriter{
+		out:     out,
+		enc:     cs.impl().newEncoder(),
+		isASCII: cs == StandardCharsets_US_ASCII || cs == StandardCharsets_ISO_8859_1,
+	}
 }
 
 type charsetOutputStreamWriter struct {
 	out                     io.WriteCloser
 	enc                     charsetEncoder
+	byteBuf                 []byte
 	pendingHighSurrogate    uint16
 	hasPendingHighSurrogate bool
+	isASCII                 bool
 	closed                  bool
 }
 
@@ -42,32 +48,98 @@ func (w *charsetOutputStreamWriter) checkOpen() {
 // Write is OutputStreamWriter.write(String).
 func (w *charsetOutputStreamWriter) Write(s string) {
 	w.checkOpen()
-	units := StringToUTF16(s)
-	if w.hasPendingHighSurrogate {
-		units = append([]uint16{w.pendingHighSurrogate}, units...)
-		w.hasPendingHighSurrogate = false
+	b := w.byteBuf[:0]
+	if cap(b) < len(s) {
+		b = make([]byte, 0, max(len(s), 8192))
 	}
-	var b []byte
-	for i := 0; i < len(units); i++ {
-		c := units[i]
-		switch {
-		case isHighSurrogateUnit(c):
-			if i+1 == len(units) {
-				w.pendingHighSurrogate, w.hasPendingHighSurrogate = c, true
-				continue
+	if w.isASCII && !w.hasPendingHighSurrogate {
+		asciiEnd := 0
+		for asciiEnd < len(s) && s[asciiEnd] < 0x80 {
+			asciiEnd++
+		}
+		if asciiEnd > 0 {
+			b = append(b, s[:asciiEnd]...)
+			if asciiEnd == len(s) {
+				w.byteBuf = b[:0]
+				w.emit(b)
+				return
 			}
-			if lo := units[i+1]; isLowSurrogateUnit(lo) {
-				b = w.enc.encodeRune(b, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
-				i++
-				continue
-			}
-			b = w.enc.encodeMalformed(b)
-		case isLowSurrogateUnit(c):
-			b = w.enc.encodeMalformed(b)
-		default:
-			b = w.enc.encodeRune(b, rune(c))
+			s = s[asciiEnd:]
 		}
 	}
+	units := StringToUTF16(s)
+	w.encodeUnits(b, units)
+}
+
+func (w *charsetOutputStreamWriter) writeUTF16(units []uint16) {
+	w.checkOpen()
+	b := w.byteBuf[:0]
+	if cap(b) < len(units) {
+		b = make([]byte, 0, max(len(units), 8192))
+	}
+	w.encodeUnits(b, units)
+}
+
+func (w *charsetOutputStreamWriter) encodeUnits(b []byte, units []uint16) {
+	i := 0
+	if w.hasPendingHighSurrogate && len(units) > 0 {
+		hi := w.pendingHighSurrogate
+		w.hasPendingHighSurrogate = false
+		if lo := units[0]; isLowSurrogateUnit(lo) {
+			b = w.enc.encodeRune(b, 0x10000+(rune(hi)-0xD800)<<10+(rune(lo)-0xDC00))
+			i = 1
+		} else {
+			b = w.enc.encodeMalformed(b)
+		}
+	}
+	if w.isASCII {
+		for ; i < len(units); i++ {
+			c := units[i]
+			if c < 0x80 {
+				b = append(b, byte(c))
+				continue
+			}
+			switch {
+			case isHighSurrogateUnit(c):
+				if i+1 == len(units) {
+					w.pendingHighSurrogate, w.hasPendingHighSurrogate = c, true
+					continue
+				}
+				if lo := units[i+1]; isLowSurrogateUnit(lo) {
+					b = w.enc.encodeRune(b, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
+					i++
+					continue
+				}
+				b = w.enc.encodeMalformed(b)
+			case isLowSurrogateUnit(c):
+				b = w.enc.encodeMalformed(b)
+			default:
+				b = w.enc.encodeRune(b, rune(c))
+			}
+		}
+	} else {
+		for ; i < len(units); i++ {
+			c := units[i]
+			switch {
+			case isHighSurrogateUnit(c):
+				if i+1 == len(units) {
+					w.pendingHighSurrogate, w.hasPendingHighSurrogate = c, true
+					continue
+				}
+				if lo := units[i+1]; isLowSurrogateUnit(lo) {
+					b = w.enc.encodeRune(b, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
+					i++
+					continue
+				}
+				b = w.enc.encodeMalformed(b)
+			case isLowSurrogateUnit(c):
+				b = w.enc.encodeMalformed(b)
+			default:
+				b = w.enc.encodeRune(b, rune(c))
+			}
+		}
+	}
+	w.byteBuf = b[:0]
 	w.emit(b)
 }
 
@@ -94,12 +166,14 @@ func (w *charsetOutputStreamWriter) Close() {
 		return
 	}
 	w.closed = true
-	var b []byte
+	b := w.byteBuf[:0]
 	if w.hasPendingHighSurrogate {
 		w.hasPendingHighSurrogate = false
 		b = w.enc.encodeMalformed(b)
 	}
-	w.emit(w.enc.finish(b))
+	b = w.enc.finish(b)
+	w.byteBuf = nil
+	w.emit(b)
 	if err := w.out.Close(); err != nil {
 		panic(NewIOException(err.Error()))
 	}

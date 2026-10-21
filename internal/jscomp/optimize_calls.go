@@ -135,7 +135,15 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	defer releaseOptimizeCallsRefMap(references)
 	sc := NewSyntacticScopeCreator(o.compiler)
 	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
+	releaseEarly := len(o.passes) == 1
+	if releaseEarly {
+		if _, isPFI := o.passes[0].(*PureFunctionIdentifier); !isPFI {
+			releaseEarly = false
+		}
+	}
+	if !releaseEarly {
+		defer sc.ReleaseArena()
+	}
 	cb := acquireOptimizeCallsCallback(o, references)
 	b := NodeTraversal_Builder{
 		compiler:     o.compiler,
@@ -144,6 +152,10 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 	b.TraverseRoots(externs, root)
 	releaseOptimizeCallsCallback(cb)
+	if releaseEarly {
+		references.globalScope = nil
+		sc.ReleaseArena()
+	}
 	o.EliminateAccessorsFrom(references)
 
 	for _, pass := range o.passes {

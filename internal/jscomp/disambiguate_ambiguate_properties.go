@@ -21,11 +21,16 @@ package jscomp
 import (
 	"reflect"
 	"strconv"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func newLinkedHashSetWithCapacity[T comparable](cap int) *jutil.LinkedHashSet[T] {
+	return (*jutil.LinkedHashSet[T])(unsafe.Pointer(jutil.NewLinkedHashMapWithCapacity[T, struct{}](cap)))
+}
 
 // AmbiguateProperties renames unrelated properties to the same name, using
 // Colors provided by the typechecker. This allows better compression as more
@@ -72,6 +77,8 @@ type AmbiguateProperties struct {
 	renamingMap *jutil.LinkedHashMap[string, string] // may be nil
 
 	graphNodeFactory *ColorGraphNodeFactory // may be nil
+
+	propertySlab []AmbiguateProperties_Property
 }
 
 var ambiguateProperties_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.disambiguate.AmbiguateProperties")
@@ -95,23 +102,24 @@ func NewAmbiguateProperties(
 	reservedNonFirstCharacters jutil.Set[uint16],
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
-	a := &AmbiguateProperties{
-		stringNodesToRename: jutil.NewArrayList[*rhino.Node](),
-		propertyMap:         jutil.NewLinkedHashMap[string, *AmbiguateProperties_Property](),
-		quotedNames:         jutil.NewLinkedHashSet[string](),
-		renamingMap:         nil,
-		graphNodeFactory:    nil,
-	}
-	a.compiler = compiler
-	a.reservedFirstCharacters = reservedFirstCharacters
-	a.reservedNonFirstCharacters = reservedNonFirstCharacters
-
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
-	a.externedNames = jutil.NewLinkedHashSet[string]("prototype")
+	externedNames := newLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
+	externedNames.Add("prototype")
 	for name := range externProperties.All() {
-		a.externedNames.Add(name)
+		externedNames.Add(name)
 	}
-	a.colorRegistry = compiler.GetColorRegistry()
+	a := &AmbiguateProperties{
+		compiler:                   compiler,
+		stringNodesToRename:        jutil.NewArrayListWithCapacity[*rhino.Node](1024),
+		reservedFirstCharacters:    reservedFirstCharacters,
+		reservedNonFirstCharacters: reservedNonFirstCharacters,
+		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
+		externedNames:              externedNames,
+		quotedNames:                newLinkedHashSetWithCapacity[string](256),
+		colorRegistry:              compiler.GetColorRegistry(),
+		renamingMap:                nil,
+		graphNodeFactory:           nil,
+	}
 	return a
 }
 
@@ -195,7 +203,8 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	numProperties := a.propertyMap.Size()
+	reservedNames := newLinkedHashSetWithCapacity[string](a.externedNames.Size() + a.quotedNames.Size() + numProperties + 256)
 	for name := range a.externedNames.All() {
 		reservedNames.Add(name)
 	}
@@ -204,14 +213,17 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 	numRenamedPropertyNames := 0
 	numSkippedPropertyNames := 0
-	nodes := make([]*AmbiguateProperties_PropertyGraphNode, 0, a.propertyMap.Size())
+	nodeSlab := make([]AmbiguateProperties_PropertyGraphNode, numProperties)
+	nodes := make([]*AmbiguateProperties_PropertyGraphNode, 0, numProperties)
 	for prop := range a.propertyMap.Values() {
 		if prop.skipAmbiguating {
 			numSkippedPropertyNames++
 			reservedNames.Add(prop.oldName)
 		} else {
+			node := &nodeSlab[numRenamedPropertyNames]
+			node.property = prop
 			numRenamedPropertyNames++
-			nodes = append(nodes, NewAmbiguateProperties_PropertyGraphNode(prop))
+			nodes = append(nodes, node)
 		}
 	}
 	finalNumRenamedPropertyNames := numRenamedPropertyNames
@@ -235,10 +247,10 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 
 	// Translate the color of each Property instance to a name.
 	for _, node := range propertyGraph.nodes {
-		newName := colorMap[jutil.ObjectHashCode(node.GetAnnotation())]
-		node.GetValue().newName = &newName
+		prop := node.GetValue()
+		prop.newName = &colorMap[jutil.ObjectHashCode(node.GetAnnotation())]
 		if a.renamingMap != nil {
-			a.renamingMap.Put(node.GetValue().oldName, *node.GetValue().newName)
+			a.renamingMap.Put(prop.oldName, *prop.newName)
 		}
 	}
 
@@ -612,9 +624,29 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) RecordProperty(na
 
 // Java: AmbiguateProperties.getProperty(String)
 func (a *AmbiguateProperties) GetProperty(name string) *AmbiguateProperties_Property {
-	return a.propertyMap.ComputeIfAbsent(name, func(name string) *AmbiguateProperties_Property {
-		return NewAmbiguateProperties_Property(a, name)
-	})
+	if prop := a.propertyMap.Get(name); prop != nil {
+		return prop
+	}
+	prop := a.allocProperty(name)
+	a.propertyMap.PutNew(name, prop)
+	return prop
+}
+
+func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Property {
+	if len(a.propertySlab) == cap(a.propertySlab) {
+		newCap := 256
+		if cap(a.propertySlab) >= 256 {
+			newCap = min(cap(a.propertySlab)*2, 2048)
+		}
+		a.propertySlab = make([]AmbiguateProperties_Property, 0, newCap)
+	}
+	idx := len(a.propertySlab)
+	a.propertySlab = a.propertySlab[:idx+1]
+	prop := &a.propertySlab[idx]
+	prop.outer = a
+	prop.oldName = name
+	prop.relatedColors = jutil.NewBitSet()
+	return prop
 }
 
 // GetColor gets the Color from the Node argument or UNKNOWN if not present.

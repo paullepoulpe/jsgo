@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -80,6 +81,8 @@ type RenameProperties struct {
 	// Property names that should not be renamed, based on the propertyNameFilter. Unlike
 	// externedNames, this set is dynamically constructed during the pass.
 	filteredOutNames *jutil.LinkedHashSet[string]
+
+	propertySlab []RenameProperties_Property
 }
 
 // renameProperties_DOT_SPLITTER is Splitter.on('.').split: every piece,
@@ -158,28 +161,30 @@ func NewRenamePropertiesWithFilter(
 	reservedNonFirstCharacters jutil.Set[uint16],
 	nameGenerator NameGenerator,
 	propertyRenameEligibilityFilter func(*rhino.Node) bool) *RenameProperties {
-	r := &RenameProperties{
-		toRemove:            jutil.NewArrayList[*rhino.Node](),
-		stringNodesToRename: jutil.NewArrayList[*rhino.Node](),
-		callNodeToParentMap: jutil.NewLinkedHashMap[*rhino.Node, *rhino.Node](),
-		propertyMap:         jutil.NewLinkedHashMap[string, *RenameProperties_Property](),
-		externedNames:       jutil.NewLinkedHashSet[string]("prototype"),
-		quotedNames:         jutil.NewLinkedHashSet[string](),
-		filteredOutNames:    jutil.NewLinkedHashSet[string](),
-	}
-	r.compiler = compiler
-	r.generatePseudoNames = generatePseudoNames
-	r.prevUsedPropertyMap = prevUsedPropertyMap
-	r.reservedFirstCharacters = reservedFirstCharacters
-	r.reservedNonFirstCharacters = reservedNonFirstCharacters
-	r.nameGenerator = nameGenerator
-	r.propertyRenameEligibilityFilter = propertyRenameEligibilityFilter
 	externProperties := compiler.GetExternProperties()
 	if externProperties == nil {
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
 	}
+	externedNames := newLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
+	externedNames.Add("prototype")
 	for name := range externProperties.All() {
-		r.externedNames.Add(name)
+		externedNames.Add(name)
+	}
+	r := &RenameProperties{
+		compiler:                        compiler,
+		generatePseudoNames:             generatePseudoNames,
+		prevUsedPropertyMap:             prevUsedPropertyMap,
+		toRemove:                        jutil.NewArrayList[*rhino.Node](),
+		stringNodesToRename:             jutil.NewArrayListWithCapacity[*rhino.Node](4096),
+		callNodeToParentMap:             jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *rhino.Node](256),
+		reservedFirstCharacters:         reservedFirstCharacters,
+		reservedNonFirstCharacters:      reservedNonFirstCharacters,
+		propertyMap:                     jutil.NewLinkedHashMapWithCapacity[string, *RenameProperties_Property](4096),
+		externedNames:                   externedNames,
+		quotedNames:                     newLinkedHashSetWithCapacity[string](512),
+		nameGenerator:                   nameGenerator,
+		propertyRenameEligibilityFilter: propertyRenameEligibilityFilter,
+		filteredOutNames:                jutil.NewLinkedHashSet[string](),
 	}
 	return r
 }
@@ -191,7 +196,8 @@ func (r *RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, &RenameProperties_ProcessProperties{outer: r})
 
 	// Sets.newLinkedHashSetWithExpectedSize(externedNames.size() + quotedNames.size())
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	numProperties := r.propertyMap.Size()
+	reservedNames := newLinkedHashSetWithCapacity[string](r.externedNames.Size() + r.quotedNames.Size() + numProperties + 256)
 	for name := range r.externedNames.All() {
 		reservedNames.Add(name)
 	}
@@ -200,16 +206,19 @@ func (r *RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 
 	// Assign names, sorted by descending frequency to minimize code size.
-	propsByFreq := jutil.NewTreeSet[*RenameProperties_Property](renameProperties_FREQUENCY_COMPARATOR)
-	propsByFreq.AddAll(r.propertyMap.Values())
+	propsByFreq := make([]*RenameProperties_Property, 0, numProperties)
+	for prop := range r.propertyMap.Values() {
+		propsByFreq = append(propsByFreq, prop)
+	}
+	slices.SortFunc(propsByFreq, renameProperties_FREQUENCY_COMPARATOR)
 
 	// First, try and reuse as many property names from the previous compilation
 	// as possible.
 	if r.prevUsedPropertyMap != nil {
-		r.ReusePropertyNames(reservedNames, propsByFreq)
+		r.reusePropertyNamesSlice(reservedNames, propsByFreq)
 	}
 
-	r.GenerateNames(propsByFreq, reservedNames)
+	r.generateNamesSlice(propsByFreq, reservedNames)
 
 	// Update the string nodes.
 	for n := range r.stringNodesToRename.All() {
@@ -285,7 +294,23 @@ func (r *RenameProperties) ReusePropertyNames(reservedNames *jutil.LinkedHashSet
 				continue
 			}
 
-			prop.newName = prevName
+			prop.newNameVal = *prevName
+			prop.newName = &prop.newNameVal
+			reservedNames.Add(*prevName)
+		}
+	}
+}
+
+func (r *RenameProperties) reusePropertyNamesSlice(reservedNames *jutil.LinkedHashSet[string], allProps []*RenameProperties_Property) {
+	for _, prop := range allProps {
+		prevName := r.prevUsedPropertyMap.LookupNewName(prop.oldName)
+		if !r.generatePseudoNames && prevName != nil {
+			if reservedNames.Contains(*prevName) {
+				continue
+			}
+
+			prop.newNameVal = *prevName
+			prop.newName = &prop.newNameVal
 			reservedNames.Add(*prevName)
 		}
 	}
@@ -302,14 +327,29 @@ func (r *RenameProperties) GenerateNames(props *jutil.TreeSet[*RenameProperties_
 		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
 	for p := range props.All() {
 		if r.generatePseudoNames {
-			newName := "$" + p.oldName + "$"
-			p.newName = &newName
+			p.newNameVal = "$" + p.oldName + "$"
+			p.newName = &p.newNameVal
 		} else {
 			// If we haven't already given this property a reusable name.
 			if p.newName == nil {
-				newName := r.nameGenerator.GenerateNextName()
-				p.newName = &newName
+				p.newNameVal = r.nameGenerator.GenerateNextName()
+				p.newName = &p.newNameVal
 			}
+		}
+		reservedNames.Add(*p.newName)
+	}
+}
+
+func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property, reservedNames *jutil.LinkedHashSet[string]) {
+	r.nameGenerator.ResetWithFirstAndNonFirstChars(
+		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
+	for _, p := range props {
+		if r.generatePseudoNames {
+			p.newNameVal = "$" + p.oldName + "$"
+			p.newName = &p.newNameVal
+		} else if p.newName == nil {
+			p.newNameVal = r.nameGenerator.GenerateNextName()
+			p.newName = &p.newNameVal
 		}
 		reservedNames.Add(*p.newName)
 	}
@@ -320,13 +360,13 @@ func (r *RenameProperties) GenerateNames(props *jutil.TreeSet[*RenameProperties_
 //
 // Java: RenameProperties.getPropertyMap()
 func (r *RenameProperties) GetPropertyMap() *VariableMap {
-	map_ := jutil.NewImmutableMapBuilder[string, string]()
+	m := jutil.NewLinkedHashMapWithCapacity[string, string](r.propertyMap.Size())
 	for p := range r.propertyMap.Values() {
 		if p.newName != nil {
-			map_.Put(p.oldName, *p.newName)
+			m.PutNew(p.oldName, *p.newName)
 		}
 	}
-	return NewVariableMap(map_.BuildOrThrow())
+	return NewVariableMap(m)
 }
 
 // -------------------------------------------------------------------------
@@ -464,8 +504,28 @@ func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversa
 //
 // Java: RenameProperties.ProcessProperties.countPropertyOccurrence(String)
 func (p *RenameProperties_ProcessProperties) CountPropertyOccurrence(name string) {
-	prop := p.outer.propertyMap.ComputeIfAbsent(name, NewRenameProperties_Property)
+	r := p.outer
+	prop := r.propertyMap.Get(name)
+	if prop == nil {
+		prop = r.allocProperty(name)
+		r.propertyMap.PutNew(name, prop)
+	}
 	prop.numOccurrences++
+}
+
+func (r *RenameProperties) allocProperty(name string) *RenameProperties_Property {
+	if len(r.propertySlab) == cap(r.propertySlab) {
+		newCap := 256
+		if cap(r.propertySlab) >= 256 {
+			newCap = min(cap(r.propertySlab)*2, 4096)
+		}
+		r.propertySlab = make([]RenameProperties_Property, 0, newCap)
+	}
+	idx := len(r.propertySlab)
+	r.propertySlab = r.propertySlab[:idx+1]
+	prop := &r.propertySlab[idx]
+	prop.oldName = name
+	return prop
 }
 
 // -------------------------------------------------------------------------
@@ -477,6 +537,7 @@ func (p *RenameProperties_ProcessProperties) CountPropertyOccurrence(name string
 type RenameProperties_Property struct {
 	oldName        string
 	newName        *string // may be nil
+	newNameVal     string
 	numOccurrences int
 }
 

@@ -224,7 +224,6 @@ type JSTypeRegistry struct {
 	jsTypeSliceSlab     []JSType
 	unionBuilderStack   [8]UnionType_Builder
 	unionBuilderDepth   int
-	unionTypeSlab       []UnionType
 }
 
 func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
@@ -245,16 +244,7 @@ func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
 }
 
 func (r *JSTypeRegistry) allocUnionType() *UnionType {
-	if r == nil {
-		return &UnionType{}
-	}
-	if len(r.unionTypeSlab) == cap(r.unionTypeSlab) {
-		nextCap := min(max(cap(r.unionTypeSlab)*2, 64), 2048)
-		r.unionTypeSlab = make([]UnionType, 0, nextCap)
-	}
-	i := len(r.unionTypeSlab)
-	r.unionTypeSlab = r.unionTypeSlab[:i+1]
-	return &r.unionTypeSlab[i]
+	return &UnionType{}
 }
 
 func (r *JSTypeRegistry) allocTemplateTypeMap() *TemplateTypeMap {

@@ -957,6 +957,29 @@ Total `alloc_space` dropped by **−417.52 MB (−10.20%)** on `bundle-mega` (`4
 | **`downlevel-simple`** (2.1 MB) | 1.18 s / 1.09 s | **1.15 s** / **1.06 s** | **−2.66%** / **−2.59%** | **199** / **197 MiB** (**−7.34%** / **−3.19%**) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.57 s / 0.48 s | **0.56 s** / **0.47 s** | **−2.07%** / **−1.75%** | **157** / **152 MiB** (**−6.47%** / **−9.78%**) | `MATCH` |
 
+## Round 17: `OptimizeCalls_ReferenceMap` Arena Pooling (`−78 MB`), `ControlFlowAnalysis` Contiguous `DiGraph` Slices (`−55 MB`), `DisambiguateProperties` / `AmbiguateProperties` / `RenameProperties` Pooling & Flat Arrays (`−35 MB`), `JSTypeRegistry.namedToType` Pre-Sizing (`−17 MB`), and Zero-Copy `BufferedWriter.WriteString` (`−11 MB`) (2026-10-21)
+
+Profiling Round 16 (`080e9677`) on `typed-mega` (`3,191.65 MB` `alloc_space`) and `bundle-mega` (`3,676.57 MB` `alloc_space`) targeted Stage 2 peak-heap allocations and property renaming passes:
+
+1. **`OptimizeCalls_ReferenceMap` Arena Pooling (`internal/jscomp/optimize_calls.go`):**
+   - Retained `nameSlots`, `propSlots`, `refSlots`, and `nodeSlices` backing slices (capped at 64 chunks) in `releaseOptimizeCallsRefMap` so all 4–5 iterations of `OptimizeCalls` in the Stage 2 optimization loop reuse pre-warmed slab chunks (`−78 MB` `alloc_space` on `typed-mega` and `bundle-mega`).
+2. **Contiguous Slice Backing for `ControlFlowAnalysis` `DiGraphNode` & `DiGraphEdge` (`internal/jscomp/control_flow_analysis.go`, `internal/jscomp/node_traversal.go`):**
+   - Added `cfaInitialNodesCap` / `cfaInitialEdgesCap` and retained `nodeChunk` / `edgeChunk` buffers in `cfaArena.reset` (up to `32,768` nodes and `65,536` edges), plus stack-buffered `[16]*rhino.Node` roots in `NodeTraversal.TraverseRoots` (`−55 MB` `alloc_space`).
+3. **`DisambiguateProperties`, `AmbiguateProperties`, and `RenameProperties` Pooling & Contiguous Arrays (`internal/jscomp/disambiguate_ambiguate_properties.go`, `internal/jscomp/rename_properties.go`):**
+   - Pooled `disambiguateProperties_Property` slabs and `nodeListPool` across pass invocations (`−20 MB`), replaced per-node `fixedBitSet` slice headers in `AmbiguateProperties` with a flat contiguous `bitsArena []uint64`, and replaced `string` keys in `RenameProperties` `Node` maps with `*RenameProperties_Property` pointer keys and a contiguous `RenameProperties_Property` slab (`−15 MB`).
+4. **`JSTypeRegistry.namedToType` Pre-Sizing and Zero-Copy `BufferedWriter.WriteString` / `OutputStreamWriterCharset.WriteString` (`internal/rhino/jstype_js_type_registry.go`, `internal/jutil/buffered_writer.go`, `internal/jutil/output_stream_writer_charset.go`):**
+   - Pre-sized `JSTypeRegistry.namedToType` (`NewLinkedHashMapWithCapacity(256)`) to avoid early map rehashing (`−17.02 MB` `inuse_space`, `−8.51 MB` `alloc_space`), and added zero-copy `WriteString(string)` fast paths to `BufferedWriter` and `OutputStreamWriterCharset` (`−11 MB` `alloc_space`).
+
+### Final measured results — Round 17 (`t=4`, interleaved runs, PGO enabled)
+
+| Benchmark | Round 16 (`t=4`) | **Round 17 (`t=4`)** | Wall Time Delta | Round 16 Peak RSS | **Round 17 Peak RSS** | Peak RSS Delta | Parity |
+|---|---:|---:|---:|---:|---:|---:|:---:|
+| **`typed-mega`** (44.6 MB, 4,385 files) | 18.05 s | **17.98 s** | **−0.39%** | 1,842 MiB | **1,660 MiB** | **−9.85%** (**−181 MiB**) | `MATCH` |
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 23.24 s | **23.16 s** | **−0.34%** | 1,744 MiB | **1,750 MiB** | +0.31% | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.36 s | **4.35 s** | **−0.26%** | 520 MiB | **453 MiB** | **−12.91%** (**−67 MiB**) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.16 s | **2.16 s** | +0.07% | 535 MiB | **564 MiB** | +5.49% | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.07 s | **1.06 s** | **−0.72%** | 205 MiB | **190 MiB** | **−7.29%** (**−15 MiB**) | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

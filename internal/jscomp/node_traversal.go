@@ -436,6 +436,9 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
 		}
 		b.cfgs[len(b.cfgs)-1] = nil
 		b.cfgs = b.cfgs[:len(b.cfgs)-1]
+		if len(b.cfgs) == 0 && len(b.reusableCFAs) > 0 {
+			b.reusableCFAs[0].cfg.ReleaseRootNodes()
+		}
 	}
 }
 

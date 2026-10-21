@@ -66,6 +66,12 @@ func (w *BufferedWriter) FlushBuffer() {
 		osw.writeUTF16(units)
 		return
 	}
+	if cosw, ok := w.out.(*charsetOutputStreamWriter); ok {
+		units := w.buf
+		w.buf = w.buf[:0]
+		cosw.writeUTF16(units)
+		return
+	}
 	chunk := StringFromUTF16(w.buf)
 	w.buf = w.buf[:0]
 	w.out.Write(chunk)
