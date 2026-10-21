@@ -114,12 +114,17 @@ type PolyfillUsageFinder_Polyfills struct {
 	// which they are defined)
 	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]
 
-	staticsMap   map[string]*PolyfillUsageFinder_Polyfill
-	suffixesMap  map[string]struct{}
-	methodsMap   map[string][]*PolyfillUsageFinder_Polyfill
-	staticsMask  [256]uint64
-	suffixesMask [256]uint64
-	methodsMask  [256]uint64
+	staticsMap      map[string]*PolyfillUsageFinder_Polyfill
+	suffixesMap     map[string]struct{}
+	methodsMap      map[string][]*PolyfillUsageFinder_Polyfill
+	staticsMask     [256]uint64
+	staticsEndMask  [256]uint64
+	suffixesMask    [256]uint64
+	suffixesEndMask [256]uint64
+	methodsMask     [256]uint64
+	methodsEndMask  [256]uint64
+	anyPropMask     [256]uint64
+	anyPropEndMask  [256]uint64
 }
 
 // Java: PolyfillUsageFinder.Polyfills(ImmutableMultimap<String, Polyfill>, ImmutableMap<String, Polyfill>, ImmutableMultimap<String, Polyfill>)
@@ -137,13 +142,19 @@ func newPolyfillUsageFinder_Polyfills(
 	for arg := range statics.Keys() {
 		p.staticsMap[arg] = statics.Get(arg)
 		if n := len(arg); n > 0 && n < 64 {
-			p.staticsMask[arg[0]] |= uint64(1) << n
+			mask := uint64(1) << n
+			p.staticsMask[arg[0]] |= mask
+			p.staticsEndMask[arg[n-1]] |= mask
 		}
 		suffix := jutil.StringSubstringFrom(arg, jutil.StringLastIndexOf(arg, ".")+1)
 		suffixes.Add(suffix)
 		p.suffixesMap[suffix] = struct{}{}
 		if n := len(suffix); n > 0 && n < 64 {
-			p.suffixesMask[suffix[0]] |= uint64(1) << n
+			mask := uint64(1) << n
+			p.suffixesMask[suffix[0]] |= mask
+			p.suffixesEndMask[suffix[n-1]] |= mask
+			p.anyPropMask[suffix[0]] |= mask
+			p.anyPropEndMask[suffix[n-1]] |= mask
 		}
 	}
 	p.suffixes = suffixes
@@ -151,7 +162,11 @@ func newPolyfillUsageFinder_Polyfills(
 	for methodName := range methods.KeySet() {
 		p.methodsMap[methodName] = methods.Get(methodName)
 		if n := len(methodName); n > 0 && n < 64 {
-			p.methodsMask[methodName[0]] |= uint64(1) << n
+			mask := uint64(1) << n
+			p.methodsMask[methodName[0]] |= mask
+			p.methodsEndMask[methodName[n-1]] |= mask
+			p.anyPropMask[methodName[0]] |= mask
+			p.anyPropEndMask[methodName[n-1]] |= mask
 		}
 	}
 	return p
@@ -162,8 +177,11 @@ func (p *PolyfillUsageFinder_Polyfills) getStatic(name string) *PolyfillUsageFin
 	if n == 0 {
 		return nil
 	}
-	if n < 64 && p.staticsMask[name[0]]&(uint64(1)<<n) == 0 {
-		return nil
+	if n < 64 {
+		mask := uint64(1) << n
+		if p.staticsMask[name[0]]&mask == 0 || p.staticsEndMask[name[n-1]]&mask == 0 {
+			return nil
+		}
 	}
 	return p.staticsMap[name]
 }
@@ -173,8 +191,11 @@ func (p *PolyfillUsageFinder_Polyfills) hasSuffix(s string) bool {
 	if n == 0 {
 		return false
 	}
-	if n < 64 && p.suffixesMask[s[0]]&(uint64(1)<<n) == 0 {
-		return false
+	if n < 64 {
+		mask := uint64(1) << n
+		if p.suffixesMask[s[0]]&mask == 0 || p.suffixesEndMask[s[n-1]]&mask == 0 {
+			return false
+		}
 	}
 	_, ok := p.suffixesMap[s]
 	return ok
@@ -185,10 +206,25 @@ func (p *PolyfillUsageFinder_Polyfills) getMethods(name string) []*PolyfillUsage
 	if n == 0 {
 		return nil
 	}
-	if n < 64 && p.methodsMask[name[0]]&(uint64(1)<<n) == 0 {
-		return nil
+	if n < 64 {
+		mask := uint64(1) << n
+		if p.methodsMask[name[0]]&mask == 0 || p.methodsEndMask[name[n-1]]&mask == 0 {
+			return nil
+		}
 	}
 	return p.methodsMap[name]
+}
+
+func (p *PolyfillUsageFinder_Polyfills) mightHavePropPolyfill(name string) bool {
+	n := len(name)
+	if n == 0 {
+		return false
+	}
+	if n < 64 {
+		mask := uint64(1) << n
+		return p.anyPropMask[name[0]]&mask != 0 && p.anyPropEndMask[name[n-1]]&mask != 0
+	}
+	return true
 }
 
 // PolyfillUsageFinder_Polyfills_FromTable builds a Polyfills instance from a
@@ -445,6 +481,8 @@ func newPolyfillUsageFinder_Traverser(
 	includeGuardedUsages polyfillUsageFinder_Guard) *polyfillUsageFinder_Traverser {
 	tr := &polyfillUsageFinder_Traverser{outer: outer}
 	tr.InitGuardedCallbackBase(tr, compiler)
+	tr.onlyNameLeaves = true
+	tr.polyfills = outer.polyfills
 	tr.polyfillConsumer = polyfillConsumer
 	tr.includeGuardedUsages = includeGuardedUsages
 	return tr
@@ -482,6 +520,10 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 
 // Java: PolyfillUsageFinder.Traverser.visitGetPropChain(NodeTraversal, Node)
 func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraversal, getPropNode *rhino.Node) {
+	propertyName := getPropNode.GetString()
+	if !tr.outer.polyfills.mightHavePropPolyfill(propertyName) {
+		return
+	}
 	// First see if we have a usage that matches a full static polyfill name.
 	// e.g. `Array.from` or `globalThis.Promise.allSettled`
 	staticPolyfillUsage :=
@@ -495,7 +537,6 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 		// several possible method polyfills.
 		// e.g. `obj.includes(x)` could be a usage of `Array.prototype.includes` or
 		// `String.prototype.includes`.
-		propertyName := getPropNode.GetString()
 		methodPolyfills := tr.outer.polyfills.getMethods(propertyName)
 		// Note that we use ".foo" as the guard check for methods to keep them distinct in case
 		// there is also a static "foo" polyfill.

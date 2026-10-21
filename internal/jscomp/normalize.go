@@ -20,6 +20,9 @@ package jscomp
 
 import (
 	"strconv"
+	"sync"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -136,6 +139,7 @@ func Normalize_IsFunctionExpressionNameNode(n *rhino.Node) bool {
 func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	normStmts := NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange, nil)
 	normStmts.initFastContextualRenamer()
+	defer normStmts.releaseFastContextualRenamer()
 	sc1 := NewSyntacticScopeCreator(n.compiler)
 	sc1.EnableArenaPool()
 	b1 := NodeTraversal_Builder{
@@ -160,6 +164,12 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 		n.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	}
 }
+
+func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
+func (*Normalize_PropagateConstantPropertyOverVars) noShouldTraverse()              {}
+func (*Normalize_PropagateConstantPropertyOverVars) nodeTraversalNoShouldTraverse() {}
+func (*ValidityCheck_VerifyConstants) onlyNameLeaves()                              {}
+func (*ValidityCheck_VerifyConstants) noShouldTraverse()                            {}
 
 // Normalize_PropagateConstantPropertyOverVars propagates constant
 // annotations and IS_CONSTANT_NAME property over the Var graph.
@@ -187,7 +197,9 @@ func NewNormalize_PropagateConstantPropertyOverVars(
 func (p *Normalize_PropagateConstantPropertyOverVars) EnterScope(t *NodeTraversal) {
 	// Cause the scope to be created, which will cause duplicate
 	// to be found.
-	t.GetScope()
+	if normalizeScopeMayHaveDeclarations(t.GetScopeRoot()) {
+		t.GetScope()
+	}
 }
 
 // Java: Normalize.PropagateConstantPropertyOverVars.exitScope(NodeTraversal)
@@ -258,6 +270,62 @@ type normalizeRenameUndo struct {
 	hadOld  bool
 }
 
+type normalizeFastRenamerPoolState struct {
+	nameUsage          map[string]int
+	activeReplacements map[string]string
+	undoStack          []normalizeRenameUndo
+	scopeUndoOffsets   []int
+}
+
+var cachedNormalizeRenamerState atomic.Pointer[normalizeFastRenamerPoolState]
+var normalizeRenamerStatePool sync.Pool
+
+func acquireNormalizeRenamerState() *normalizeFastRenamerPoolState {
+	if p := cachedNormalizeRenamerState.Swap(nil); p != nil {
+		return p
+	}
+	if v := normalizeRenamerStatePool.Get(); v != nil {
+		return v.(*normalizeFastRenamerPoolState)
+	}
+	return &normalizeFastRenamerPoolState{
+		nameUsage:          make(map[string]int, 4096),
+		activeReplacements: make(map[string]string, 256),
+		undoStack:          make([]normalizeRenameUndo, 0, 256),
+		scopeUndoOffsets:   make([]int, 0, 64),
+	}
+}
+
+func releaseNormalizeRenamerState(p *normalizeFastRenamerPoolState) {
+	if p == nil {
+		return
+	}
+	if len(p.nameUsage) <= 262144 {
+		clear(p.nameUsage)
+	} else {
+		p.nameUsage = make(map[string]int, 4096)
+	}
+	if len(p.activeReplacements) <= 65536 {
+		clear(p.activeReplacements)
+	} else {
+		p.activeReplacements = make(map[string]string, 256)
+	}
+	if cap(p.undoStack) <= 65536 {
+		clear(p.undoStack)
+		p.undoStack = p.undoStack[:0]
+	} else {
+		p.undoStack = make([]normalizeRenameUndo, 0, 256)
+	}
+	if cap(p.scopeUndoOffsets) <= 65536 {
+		p.scopeUndoOffsets = p.scopeUndoOffsets[:0]
+	} else {
+		p.scopeUndoOffsets = make([]int, 0, 64)
+	}
+	if cachedNormalizeRenamerState.CompareAndSwap(nil, p) {
+		return
+	}
+	normalizeRenamerStatePool.Put(p)
+}
+
 // Normalize_NormalizeStatements simplifies the AST:
 //   - VAR declarations split, so they represent exactly one child
 //     declaration.
@@ -277,12 +345,12 @@ type Normalize_NormalizeStatements struct {
 
 	useFastContextualRenamer bool
 	hasJscompVar             bool
+	renamerPoolState         *normalizeFastRenamerPoolState
 	nameUsage                map[string]int
 	activeReplacements       map[string]string
 	undoStack                []normalizeRenameUndo
 	scopeUndoOffsets         []int
-	undoBuf                  [16]normalizeRenameUndo
-	scopeUndoBuf             [16]int
+	strSlab                  []byte
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -310,28 +378,61 @@ func NewNormalize_NormalizeStatements(
 
 func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
 	s.useFastContextualRenamer = true
-	s.undoStack = s.undoBuf[:0]
-	s.scopeUndoOffsets = s.scopeUndoBuf[:0]
+	p := acquireNormalizeRenamerState()
+	s.renamerPoolState = p
+	s.nameUsage = p.nameUsage
+	s.activeReplacements = p.activeReplacements
+	s.undoStack = p.undoStack
+	s.scopeUndoOffsets = p.scopeUndoOffsets
+}
+
+func (s *Normalize_NormalizeStatements) releaseFastContextualRenamer() {
+	if p := s.renamerPoolState; p != nil {
+		p.nameUsage = s.nameUsage
+		p.activeReplacements = s.activeReplacements
+		p.undoStack = s.undoStack
+		p.scopeUndoOffsets = s.scopeUndoOffsets
+		s.renamerPoolState = nil
+		s.nameUsage = nil
+		s.activeReplacements = nil
+		s.undoStack = nil
+		s.scopeUndoOffsets = nil
+		releaseNormalizeRenamerState(p)
+	}
 }
 
 func normalizeHasJscompSeparator(s string) bool {
-	if len(s) < len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) {
+	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+	if len(s) < len(sep)+2 {
 		return false
 	}
-	for i := 0; i <= len(s)-len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR); i++ {
-		if s[i] == '$' && s[i:i+len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR)] == MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR {
-			return true
-		}
+	last := s[len(s)-1]
+	if last < '0' || last > '9' {
+		return false
 	}
-	return false
+	i := len(s) - 1
+	for i > 0 && s[i-1] >= '0' && s[i-1] <= '9' {
+		i--
+	}
+	if s[i] == '0' || i < len(sep)+1 {
+		return false
+	}
+	return s[i-len(sep):i] == sep
 }
 
-func normalizeFormatUniqueName(name string, id int) string {
-	var buf [64]byte
-	b := append(buf[:0], name...)
-	b = append(b, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR...)
-	b = strconv.AppendInt(b, int64(id), 10)
-	return string(b)
+func (s *Normalize_NormalizeStatements) formatUniqueName(name string, id int) string {
+	var numBuf [20]byte
+	numBytes := strconv.AppendInt(numBuf[:0], int64(id), 10)
+	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+	totalLen := len(name) + len(sep) + len(numBytes)
+	if len(s.strSlab)+totalLen > cap(s.strSlab) {
+		s.strSlab = make([]byte, 0, max(32768, totalLen))
+	}
+	start := len(s.strSlab)
+	s.strSlab = append(s.strSlab, name...)
+	s.strSlab = append(s.strSlab, sep...)
+	s.strSlab = append(s.strSlab, numBytes...)
+	return unsafe.String(&s.strSlab[start], totalLen)
 }
 
 func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
@@ -354,7 +455,7 @@ func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
 	}
 	for _, p := range toBackfill {
 		for i := 1; i < p.count; i++ {
-			u := normalizeFormatUniqueName(p.name, i)
+			u := s.formatUniqueName(p.name, i)
 			if _, exists := s.nameUsage[u]; !exists {
 				s.nameUsage[u] = 1
 			}
@@ -447,7 +548,7 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 		}
 		s.nameUsage[name] = id + 1
 		if id != 0 {
-			unique := normalizeFormatUniqueName(name, id)
+			unique := s.formatUniqueName(name, id)
 			if s.hasJscompVar {
 				for {
 					uid, exists := s.nameUsage[unique]
@@ -455,14 +556,11 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 						break
 					}
 					s.nameUsage[unique] = uid + 1
-					unique = normalizeFormatUniqueName(name, uid)
+					unique = s.formatUniqueName(name, uid)
 				}
 				if _, exists := s.nameUsage[unique]; !exists {
 					s.nameUsage[unique] = 1
 				}
-			}
-			if s.activeReplacements == nil {
-				s.activeReplacements = make(map[string]string, 16)
 			}
 			oldRepl, hadOld := s.activeReplacements[name]
 			s.undoStack = append(s.undoStack, normalizeRenameUndo{
@@ -543,6 +641,9 @@ func (s *Normalize_NormalizeStatements) ExitScope(t *NodeTraversal) {
 func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	if !s.useFastContextualRenamer && s.makeDeclaredNamesUnique != nil {
 		_ = s.makeDeclaredNamesUnique.ShouldTraverse(t, n, parent)
+	}
+	if n.GetFirstChild() == nil {
+		return true
 	}
 
 	oldParent := n.GetParent()

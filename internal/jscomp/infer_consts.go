@@ -44,6 +44,8 @@ func NewInferConsts(compiler AbstractCompiler) *InferConsts {
 	return &InferConsts{compiler: compiler}
 }
 
+func (*InferConsts) onlyNameLeaves() {}
+
 // Java: InferConsts.process(Node, Node)
 func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
@@ -170,15 +172,18 @@ type inferConstsCollector struct {
 	scopeCreator        ScopeCreator
 	localStates         []inferConstVarState
 	globalStates        []inferConstVarState
-	blockStack          []*BasicBlock
-	blockStackPool      [][]*BasicBlock
+	blockStack          []basicBlockEntry
+	blockStackPool      [][]basicBlockEntry
 	blockChunks         [][]BasicBlock
 	blockChunkIdx       int
 	blockUsed           int
 	collectedHoistedMap map[*rhino.Node]struct{}
+	lastHoisted         *rhino.Node
+	hoistedBuf          [16]*rhino.Node
+	hoistedCount        uint8
 	funcDepth           int
 	jumpDepth           int
-	blockStackBuf       [16]*BasicBlock
+	blockStackBuf       [64]basicBlockEntry
 	blockBuf            [32]BasicBlock
 }
 
@@ -247,6 +252,9 @@ func releaseInferConstsCollector(c *inferConstsCollector) {
 	clear(c.blockStack)
 	clear(c.blockStackBuf[:])
 	c.blockStack = c.blockStackBuf[:0]
+	clear(c.hoistedBuf[:c.hoistedCount])
+	c.hoistedCount = 0
+	c.lastHoisted = nil
 	if c.collectedHoistedMap != nil {
 		if len(c.collectedHoistedMap) <= 65536 {
 			clear(c.collectedHoistedMap)
@@ -283,16 +291,18 @@ func isInferConstsFuncLocal(v *Var) bool {
 	return hs.IsFunctionBlockScope() || hs.IsFunctionScope()
 }
 
-func (c *inferConstsCollector) processRoot(root *rhino.Node) {
-	c.createTraversalBuilder().Traverse(root)
+func (c *inferConstsCollector) builderVal() NodeTraversal_Builder {
+	return NodeTraversal_Builder{
+		compiler:                                       c.compiler,
+		callback:                                       c,
+		scopeCreator:                                   c.scopeCreator,
+		obeyDestructuringAndDefaultValueExecutionOrder: true,
+	}
 }
 
-func (c *inferConstsCollector) createTraversalBuilder() *NodeTraversal_Builder {
-	return NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(c).
-		SetScopeCreator(c.scopeCreator).
-		SetObeyDestructuringAndDefaultValueExecutionOrder(true)
+func (c *inferConstsCollector) processRoot(root *rhino.Node) {
+	b := c.builderVal()
+	b.Traverse(root)
 }
 
 func (c *inferConstsCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
@@ -322,41 +332,105 @@ func (c *inferConstsCollector) allocBasicBlock(parent *BasicBlock, root *rhino.N
 }
 
 func (c *inferConstsCollector) pushNewBlock(root *rhino.Node) {
-	var peekLast *BasicBlock
-	if len(c.blockStack) > 0 {
-		peekLast = c.blockStack[len(c.blockStack)-1]
-	}
-	c.blockStack = append(c.blockStack, c.allocBasicBlock(peekLast, root))
+	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
 }
 
 func (c *inferConstsCollector) popLastBlock(root *rhino.Node) {
-	last := c.blockStack[len(c.blockStack)-1]
-	c.blockStack[len(c.blockStack)-1] = nil
-	c.blockStack = c.blockStack[:len(c.blockStack)-1]
-	jutil.CheckStateMsg1(root == last.GetRoot(), "%s", root)
+	idx := len(c.blockStack) - 1
+	lastRoot := c.blockStack[idx].root
+	c.blockStack[idx] = basicBlockEntry{}
+	c.blockStack = c.blockStack[:idx]
+	jutil.CheckStateMsg1(root == lastRoot, "%s", root)
+}
+
+func (c *inferConstsCollector) getCurrentBlock() *BasicBlock {
+	idx := len(c.blockStack) - 1
+	if b := c.blockStack[idx].block; b != nil {
+		return b
+	}
+	return c.materializeBlock(idx)
+}
+
+func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
+	i := idx
+	for i > 0 && c.blockStack[i-1].block == nil {
+		i--
+	}
+	var parent *BasicBlock
+	if i > 0 {
+		parent = c.blockStack[i-1].block
+	}
+	for ; i <= idx; i++ {
+		parent = c.allocBasicBlock(parent, c.blockStack[i].root)
+		c.blockStack[i].block = parent
+	}
+	return parent
 }
 
 func (c *inferConstsCollector) addCollectedHoistedFunction(n *rhino.Node) bool {
+	if n == c.lastHoisted && n != nil {
+		return false
+	}
 	if c.collectedHoistedMap == nil {
+		for i := uint8(0); i < c.hoistedCount; i++ {
+			if c.hoistedBuf[i] == n {
+				c.lastHoisted = n
+				return false
+			}
+		}
+		if c.hoistedCount < uint8(len(c.hoistedBuf)) {
+			c.hoistedBuf[c.hoistedCount] = n
+			c.hoistedCount++
+			c.lastHoisted = n
+			return true
+		}
 		c.collectedHoistedMap = make(map[*rhino.Node]struct{}, 64)
+		for i := uint8(0); i < c.hoistedCount; i++ {
+			c.collectedHoistedMap[c.hoistedBuf[i]] = struct{}{}
+		}
 	}
 	if _, exists := c.collectedHoistedMap[n]; exists {
+		c.lastHoisted = n
 		return false
 	}
 	c.collectedHoistedMap[n] = struct{}{}
+	c.lastHoisted = n
 	return true
 }
 
 func (c *inferConstsCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
+	if n == c.lastHoisted {
+		return n != nil
+	}
 	if c.collectedHoistedMap == nil {
+		for i := uint8(0); i < c.hoistedCount; i++ {
+			if c.hoistedBuf[i] == n {
+				c.lastHoisted = n
+				return true
+			}
+		}
 		return false
 	}
 	_, exists := c.collectedHoistedMap[n]
+	if exists {
+		c.lastHoisted = n
+	}
 	return exists
 }
 
 func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if n.IsFunction() && NodeUtil_IsHoistedFunctionDeclaration(n) {
+	if n.GetFirstChild() == nil {
+		switch n.GetToken() {
+		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
+			if referenceCollector_isBlockBoundary(n, parent) {
+				c.pushNewBlock(n)
+			}
+			return true
+		default:
+			return false
+		}
+	}
+	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
 		if !c.addCollectedHoistedFunction(n) {
 			return false
 		}
@@ -372,14 +446,14 @@ func (c *inferConstsCollector) EnterScope(t *NodeTraversal) {
 	if scopeRoot.IsFunction() {
 		c.funcDepth++
 	}
-	if t.IsHoistScope() {
+	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
 		c.pushNewBlock(scopeRoot)
 	}
 }
 
 func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
-	if t.IsHoistScope() {
+	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
 		c.popLastBlock(scopeRoot)
 	}
 	if scopeRoot.IsFunction() {
@@ -402,7 +476,9 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 			v := t.LookupVar(name)
 			if v != nil {
 				c.addReference(v, n, parent, t)
-				c.maybeJumpToHoistedFunction(v, t)
+				if v.nameNode != n {
+					c.maybeJumpToHoistedFunction(v, t)
+				}
 			}
 		}
 	}
@@ -413,39 +489,56 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 }
 
 func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
-	fnNode := var_.GetParentNode()
-	if fnNode == nil || !fnNode.IsFunction() || !NodeUtil_IsHoistedFunctionDeclaration(fnNode) {
+	nameNode := var_.nameNode
+	if nameNode == nil {
 		return
 	}
-	if c.hasCollectedHoistedFunction(fnNode) {
+	fnNode := nameNode.GetParent()
+	if fnNode == nil || !fnNode.IsFunction() || fnNode == c.lastHoisted {
+		return
+	}
+	if c.hasCollectedHoistedFunction(fnNode) || !rcIsHoistedFunctionDeclaration(fnNode) {
 		return
 	}
 	varScope := var_.scope
 	oldBlockStack := c.blockStack
-	var newStack []*BasicBlock
+	var newStack []basicBlockEntry
 	if n := len(c.blockStackPool); n > 0 {
 		newStack = c.blockStackPool[n-1][:0]
 		c.blockStackPool = c.blockStackPool[:n-1]
 	} else {
-		newStack = make([]*BasicBlock, 0, 16)
+		newStack = make([]basicBlockEntry, 0, 16)
 	}
 
 	if varScope.IsGlobal() {
-		newStack = append(newStack, referenceCollector_getFirst(oldBlockStack))
+		if len(oldBlockStack) == 0 {
+			panic(jutil.NewNoSuchElementException())
+		}
+		if oldBlockStack[0].block == nil {
+			c.materializeBlock(0)
+		}
+		newStack = append(newStack, oldBlockStack[0])
 	} else {
-		for _, b := range oldBlockStack {
-			newStack = append(newStack, b)
-			if b.GetRoot() == varScope.GetRootNode() {
+		rootNode := varScope.GetRootNode()
+		end := len(oldBlockStack)
+		for i := range oldBlockStack {
+			if oldBlockStack[i].root == rootNode {
+				end = i + 1
 				break
 			}
 		}
+		if end > 0 && oldBlockStack[end-1].block == nil {
+			c.materializeBlock(end - 1)
+		}
+		newStack = append(newStack, oldBlockStack[:end]...)
 	}
 	c.blockStack = newStack
 
 	firstChild := fnNode.GetFirstChild()
 	c.addReference(var_, firstChild, fnNode, t)
 	c.jumpDepth++
-	c.createTraversalBuilder().TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
+	b := c.builderVal()
+	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 	c.jumpDepth--
 	if c.funcDepth == 0 && c.jumpDepth == 0 {
 		c.flushLocalStates()
@@ -476,19 +569,24 @@ func inferConsts_isLvalue(n *rhino.Node, parent *rhino.Node) bool {
 }
 
 func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino.Node, t *NodeTraversal) {
-	currentBlock := c.blockStack[len(c.blockStack)-1]
 	idx := v.nameHash
 	if idx == 0 {
 		isDecl := reference_isDeclarationHelper(n)
 		parentTok := parent.GetToken()
 		isInitDecl := (isDecl && parentTok != rhino.Token_VAR && parentTok != rhino.Token_LET) || n.HasChildren()
 		isAssign := isInitDecl || inferConsts_isLvalue(n, parent)
+		declType := v.DeclarationType()
+		needOrderCheck := isInitDecl && declType != nil && *declType == rhino.Token_VAR
+		var currentBlock *BasicBlock
+		if isAssign || needOrderCheck {
+			currentBlock = c.getCurrentBlock()
+		}
 		st := inferConstVarState{
 			v:               v,
 			firstBlock:      currentBlock,
 			firstIsInitDecl: isInitDecl,
 			firstIsDecl:     isDecl,
-			allAfterFirst:   true,
+			allAfterFirst:   needOrderCheck,
 		}
 		if isAssign {
 			st.assignCount = 1
@@ -526,14 +624,19 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 	}
 	parentTok := parent.GetToken()
 	isInitDecl := n.HasChildren() || (parentTok != rhino.Token_VAR && parentTok != rhino.Token_LET && reference_isDeclarationHelper(n))
-	if isInitDecl || inferConsts_isLvalue(n, parent) {
+	isAssign := isInitDecl || inferConsts_isLvalue(n, parent)
+	if !isAssign && !st.allAfterFirst {
+		return
+	}
+	currentBlock := c.getCurrentBlock()
+	if isAssign {
 		st.assignCount++
 		if st.assignCount == 1 {
 			st.assignBlock = currentBlock
 			st.assignScope = t.GetScope()
 		}
 	}
-	if st.assignCount <= 1 && st.firstIsInitDecl && st.allAfterFirst {
+	if st.assignCount <= 1 && st.allAfterFirst {
 		if st.firstBlock != currentBlock && !st.firstBlock.ProvablyExecutesBefore(currentBlock) {
 			st.allAfterFirst = false
 		}

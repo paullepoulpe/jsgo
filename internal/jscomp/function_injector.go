@@ -258,10 +258,10 @@ func functionInjector_blocksMinimumRequirements(n *rhino.Node, fnName, fnRecursi
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		s := n.GetString()
-		if (checkArguments && s == "arguments") ||
-			s == "eval" ||
-			(fnName != "" && s == fnName) ||
-			(fnRecursionName != "" && s == fnRecursionName) {
+		if (checkArguments && scopeNameEq(s, "arguments")) ||
+			scopeNameEq(s, "eval") ||
+			(fnName != "" && scopeNameEq(s, fnName)) ||
+			(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
 			return true
 		}
 	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -272,6 +272,21 @@ func functionInjector_blocksMinimumRequirements(n *rhino.Node, fnName, fnRecursi
 		}
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			switch c.GetToken() {
+			case rhino.Token_NAME:
+				s := c.GetString()
+				if (checkArguments && scopeNameEq(s, "arguments")) ||
+					scopeNameEq(s, "eval") ||
+					(fnName != "" && scopeNameEq(s, fnName)) ||
+					(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
+					return true
+				}
+			case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
+				return true
+			}
+			continue
+		}
 		if functionInjector_blocksMinimumRequirements(c, fnName, fnRecursionName, checkArguments) {
 			return true
 		}
@@ -298,6 +313,9 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 
 	fnRecursionName := fnNode.GetFirstChild().GetString()
 	// Java checkState(fnRecursionName != null): a Go string is never null.
+	if scopeNameEq(fnRecursionName, fnName) {
+		fnRecursionName = ""
+	}
 
 	return !functionInjector_blocksMinimumRequirements(block, fnName, fnRecursionName, true)
 }
@@ -866,13 +884,19 @@ func functionInjector_countShallowReturns(n *rhino.Node) int {
 }
 
 func functionInjector_referencesEval(n *rhino.Node, rootFn *rhino.Node) bool {
-	if n.IsName() && n.GetString() == "eval" {
+	if n.IsName() && scopeNameEq(n.GetString(), "eval") {
 		return true
 	}
 	if n.IsFunction() && n != rootFn {
 		return false
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			if c.IsName() && scopeNameEq(c.GetString(), "eval") {
+				return true
+			}
+			continue
+		}
 		if functionInjector_referencesEval(c, rootFn) {
 			return true
 		}
@@ -909,6 +933,18 @@ func functionInjector_findInnerFunctions(n *rhino.Node, containerFn *rhino.Node,
 		}
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			if c.IsMemberFieldDef() && !c.IsStaticMember() {
+				if *count == 0 {
+					*first = c
+				}
+				*count++
+				if *count > 1 {
+					return
+				}
+			}
+			continue
+		}
 		functionInjector_findInnerFunctions(c, containerFn, first, count)
 		if *count > 1 {
 			return

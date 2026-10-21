@@ -223,6 +223,12 @@ func (s *iolCandidateScanner) scan(n *rhino.Node) {
 		s.checkObjectLit(n)
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			if c.GetToken() == rhino.Token_OBJECTLIT {
+				s.checkObjectLit(c)
+			}
+			continue
+		}
 		s.scan(c)
 	}
 }

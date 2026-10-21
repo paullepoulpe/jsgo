@@ -121,12 +121,12 @@ type rucScopeVarCacheEntry struct {
 func rucScopeVarCacheIdx(scope *Scope, name string) uint32 {
 	n := len(name)
 	sh := uint32(n)*31 + uint32(name[0])*131 + uint32(name[n-1])*17 + uint32(name[n>>1])*65
-	return ((uint32(uintptr(unsafe.Pointer(scope))>>4) * 0x9e3779b1) ^ (sh * 0x85ebca6b)) & 511
+	return ((uint32(uintptr(unsafe.Pointer(scope))>>4) * 0x9e3779b1) ^ (sh * 0x85ebca6b)) & 2047
 }
 
 func rucPropCacheIdx(s string) uint32 {
 	n := len(s)
-	return (uint32(n)*31 + uint32(s[0])*131 + uint32(s[n-1])*17 + uint32(s[n>>1])*65) & 255
+	return (uint32(n)*31 + uint32(s[0])*131 + uint32(s[n-1])*17 + uint32(s[n>>1])*65) & 1023
 }
 
 type removeUnusedCodeArena struct {
@@ -142,11 +142,11 @@ type removeUnusedCodeArena struct {
 	lastScopeName string
 	lastScopeInfo *RemoveUnusedCode_RealVarInfo
 	varPtrCache   *[4096]rucVarCacheEntry
-	scopeVarCache *[512]rucScopeVarCacheEntry
+	scopeVarCache *[2048]rucScopeVarCacheEntry
 
 	pinnedPropertyNames map[string]struct{}
 	lastPinnedProp      string
-	pinnedPropCache     *[256]string
+	pinnedPropCache     *[1024]string
 	propRemovables      map[string]propRemovableList
 	propRemovableKeys   []string
 
@@ -235,9 +235,9 @@ var removeUnusedCodeArenaPool = sync.Pool{
 			varBuckets:             make([]*RemoveUnusedCode_RealVarInfo, 16384),
 			varInfos:               make([]*RemoveUnusedCode_RealVarInfo, 0, 2048),
 			varPtrCache:            new([4096]rucVarCacheEntry),
-			scopeVarCache:          new([512]rucScopeVarCacheEntry),
+			scopeVarCache:          new([2048]rucScopeVarCacheEntry),
 			pinnedPropertyNames:    make(map[string]struct{}, 256),
-			pinnedPropCache:        new([256]string),
+			pinnedPropCache:        new([1024]string),
 			propRemovables:         make(map[string]propRemovableList, 256),
 			propRemovableKeys:      make([]string, 0, 256),
 			allFunctionParamScopes: make([]*Scope, 0, 512),
@@ -670,10 +670,10 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root *rhino.Node) {
 		r.varPtrCache = new([4096]rucVarCacheEntry)
 	}
 	if r.scopeVarCache == nil {
-		r.scopeVarCache = new([512]rucScopeVarCacheEntry)
+		r.scopeVarCache = new([2048]rucScopeVarCacheEntry)
 	}
 	if r.pinnedPropCache == nil {
-		r.pinnedPropCache = new([256]string)
+		r.pinnedPropCache = new([1024]string)
 	}
 	// Create scope from parent of root node, which also has externs as a child, so we'll
 	// have extern definitions in scope.
@@ -762,6 +762,34 @@ func hasBlockScopedDeclarationsChild(n *rhino.Node) bool {
 	}
 }
 
+func (r *RemoveUnusedCode) traverseNameReference(n *rhino.Node, scope *Scope) {
+	// The only cases that should reach this point are parameter declarations and references
+	// to names. The name node does not have children in these cases.
+	if n.HasChildren() {
+		jutil.CheckState(false)
+	}
+	parent := n.GetParent()
+	// the parameter declaration is not a read of the name
+	if pt := parent.GetToken(); pt != rhino.Token_PARAM_LIST {
+		// var|let|const name;
+		// function name() {}
+		// class name() {}
+		// are handled at a higher level.
+		if pt == rhino.Token_VAR || pt == rhino.Token_LET || pt == rhino.Token_CONST ||
+			((pt == rhino.Token_FUNCTION || pt == rhino.Token_CLASS) && parent.GetFirstChild() == n) {
+			jutil.CheckState(false)
+		}
+		varInfo := r.TraverseNameNode(n, scope)
+		if varInfo.IsRemovable() {
+			var reason func() string
+			if r.unremovableLog.IsLogging() {
+				reason = func() string { return "reference found: " + n.GetLocation() }
+			}
+			varInfo.SetIsExplicitlyNotRemovable(reason)
+		}
+	}
+}
+
 // TraverseNode traverses everything in the current scope and marks
 // variables that are referenced.
 //
@@ -771,6 +799,12 @@ func hasBlockScopedDeclarationsChild(n *rhino.Node) bool {
 //
 // Java: RemoveUnusedCode.traverseNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
+	if n.GetFirstChild() == nil {
+		if n.GetToken() == rhino.Token_NAME {
+			r.traverseNameReference(n, scope)
+		}
+		return
+	}
 	type_ := n.GetToken()
 	switch type_ {
 	case rhino.Token_CATCH:
@@ -853,31 +887,7 @@ func (r *RemoveUnusedCode) TraverseNode(n *rhino.Node, scope *Scope) {
 	case rhino.Token_INSTANCEOF:
 		r.TraverseInstanceof(n, scope)
 	case rhino.Token_NAME:
-		// The only cases that should reach this point are parameter declarations and references
-		// to names. The name node does not have children in these cases.
-		if n.HasChildren() {
-			jutil.CheckState(false)
-		}
-		parent := n.GetParent()
-		// the parameter declaration is not a read of the name
-		if pt := parent.GetToken(); pt != rhino.Token_PARAM_LIST {
-			// var|let|const name;
-			// function name() {}
-			// class name() {}
-			// are handled at a higher level.
-			if pt == rhino.Token_VAR || pt == rhino.Token_LET || pt == rhino.Token_CONST ||
-				((pt == rhino.Token_FUNCTION || pt == rhino.Token_CLASS) && parent.GetFirstChild() == n) {
-				jutil.CheckState(false)
-			}
-			varInfo := r.TraverseNameNode(n, scope)
-			if varInfo.IsRemovable() {
-				var reason func() string
-				if r.unremovableLog.IsLogging() {
-					reason = func() string { return "reference found: " + n.GetLocation() }
-				}
-				varInfo.SetIsExplicitlyNotRemovable(reason)
-			}
-		}
+		r.traverseNameReference(n, scope)
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		r.TraverseNormalOrOptChainGetProp(n, scope)
 	default:
@@ -1091,12 +1101,12 @@ func (r *RemoveUnusedCode) TraverseNameNode(n *rhino.Node, scope *Scope) *Remove
 		}
 	}
 	if len(name) > 0 && scope != nil {
-		if scope == r.lastScope && name == r.lastScopeName && r.lastScopeInfo != nil {
+		if scope == r.lastScope && scopeNameEq(name, r.lastScopeName) && r.lastScopeInfo != nil {
 			return r.lastScopeInfo
 		}
 		if r.scopeVarCache != nil {
 			idx := rucScopeVarCacheIdx(scope, name)
-			if slot := &r.scopeVarCache[idx]; slot.scope == scope && slot.name == name && slot.info != nil {
+			if slot := &r.scopeVarCache[idx]; slot.scope == scope && slot.info != nil && scopeNameEq(slot.name, name) {
 				r.lastScope = scope
 				r.lastScopeName = name
 				r.lastScopeInfo = slot.info
@@ -1789,6 +1799,12 @@ func (r *RemoveUnusedCode) TraverseIndirectAssignment(root *rhino.Node, target *
 // Java: RemoveUnusedCode.traverseChildren(Node, Scope)
 func (r *RemoveUnusedCode) TraverseChildren(n *rhino.Node, scope *Scope) {
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			if c.GetToken() == rhino.Token_NAME {
+				r.traverseNameReference(c, scope)
+			}
+			continue
+		}
 		r.TraverseNode(c, scope)
 	}
 }
@@ -2011,12 +2027,12 @@ func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
 
 func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
 	if len(propertyName) > 0 {
-		if propertyName == r.lastPinnedProp {
+		if scopeNameEq(propertyName, r.lastPinnedProp) {
 			return true
 		}
 		if r.pinnedPropCache != nil {
 			idx := rucPropCacheIdx(propertyName)
-			if r.pinnedPropCache[idx] == propertyName {
+			if scopeNameEq(r.pinnedPropCache[idx], propertyName) {
 				r.lastPinnedProp = propertyName
 				return true
 			}
@@ -2058,10 +2074,10 @@ func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
 // Java: RemoveUnusedCode.markPropertyNameAsPinned(String)
 func (r *RemoveUnusedCode) MarkPropertyNameAsPinned(propertyName string) {
 	if len(propertyName) > 0 {
-		if propertyName == r.lastPinnedProp {
+		if scopeNameEq(propertyName, r.lastPinnedProp) {
 			return
 		}
-		if r.pinnedPropCache != nil && r.pinnedPropCache[rucPropCacheIdx(propertyName)] == propertyName {
+		if r.pinnedPropCache != nil && scopeNameEq(r.pinnedPropCache[rucPropCacheIdx(propertyName)], propertyName) {
 			r.lastPinnedProp = propertyName
 			return
 		}
@@ -2475,7 +2491,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	if idx := int(var_.nameHash); idx != 0 {
 		if idx > 0 && idx <= len(r.varInfos) {
 			info := r.varInfos[idx-1]
-			if info.var_ == var_ || (info.scopeRoot == var_.GetScopeRoot() && info.varName == var_.GetName()) {
+			if info.var_ == var_ || (info.scopeRoot == var_.GetScopeRoot() && scopeNameEq(info.varName, var_.GetName())) {
 				r.lastVar = var_
 				r.lastVarInfo = info
 				return info
@@ -2521,7 +2537,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	}
 	mask := uint32(len(r.varBuckets) - 1)
 	for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
-		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && cur.varName == name) {
+		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && scopeNameEq(cur.varName, name)) {
 			var_.nameHash = cur.var_.nameHash
 			r.lastVar = var_
 			r.lastVarInfo = cur

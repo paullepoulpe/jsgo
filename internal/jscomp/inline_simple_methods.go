@@ -126,8 +126,9 @@ type InlineSimpleMethods struct {
 	hasLastNonInline  bool
 	hasDefs           bool
 
-	compiler    AbstractCompiler
-	astAnalyzer *AstAnalyzer
+	compiler         AbstractCompiler
+	astAnalyzer      *AstAnalyzer
+	codingConvention CodingConvention
 }
 
 // Java: InlineSimpleMethods(AbstractCompiler)
@@ -137,6 +138,7 @@ func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	}
 	m.compiler = compiler
 	m.astAnalyzer = compiler.GetAstAnalyzer()
+	m.codingConvention = compiler.GetCodingConvention()
 	return m
 }
 
@@ -192,6 +194,20 @@ func NewInlineSimpleMethods_InlineTrivialAccessors(outer *InlineSimpleMethods) *
 	a := &InlineSimpleMethods_InlineTrivialAccessors{outer: outer}
 	a.InitInvocationsCallbackBase(a)
 	return a
+}
+
+func (*InlineSimpleMethods_InlineTrivialAccessors) noVisitLeaves()    {}
+func (*InlineSimpleMethods_InlineTrivialAccessors) noShouldTraverse() {}
+
+func (a *InlineSimpleMethods_InlineTrivialAccessors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if !n.IsCall() {
+		return
+	}
+	callee := n.GetFirstChild()
+	if !callee.IsGetProp() {
+		return
+	}
+	a.VisitWithCallName(t, n, parent, callee.GetString())
 }
 
 // Java: InlineSimpleMethods.InlineTrivialAccessors.visit(NodeTraversal, Node, Node, String)
@@ -495,11 +511,18 @@ func NewInlineSimpleMethods_GatherSignatures(outer *InlineSimpleMethods) *Inline
 	return &InlineSimpleMethods_GatherSignatures{outer: outer}
 }
 
+func (*InlineSimpleMethods_GatherSignatures) noVisitLeaves()    {}
+func (*InlineSimpleMethods_GatherSignatures) noShouldTraverse() {}
+
 // Java: InlineSimpleMethods.GatherSignatures.visit(NodeTraversal, Node, Node)
 func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	m := g.outer
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
+		pt := parent.GetToken()
+		if pt != rhino.Token_ASSIGN && pt != rhino.Token_GETPROP && pt != rhino.Token_GETELEM {
+			return
+		}
 		// TODO(b/251573710): Handle ES2015+ language features that can reference properties
 		name, ok := inlineSimpleMethods_getPropName(n)
 		if !ok {
@@ -517,7 +540,7 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 			//          name Foo
 			//          string bar
 			//      function or name  <- n.getNext()
-			if parent.IsAssign() && n.IsFirstChildOf(parent) {
+			if pt == rhino.Token_ASSIGN && n.IsFirstChildOf(parent) {
 				m.AddPossibleSignature(name, n.GetNext())
 			}
 		}
@@ -539,9 +562,10 @@ func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.
 	case rhino.Token_CALL:
 		// If a goog.reflect.objectProperty is used for a method's name, we can't assume that the
 		// method can be safely inlined.
-		if m.compiler.GetCodingConvention().IsPropertyRenameFunction(n.GetFirstChild()) {
+		first := n.GetFirstChild()
+		if first.GetNext() != nil && m.codingConvention.IsPropertyRenameFunction(first) {
 			// Other code guarantees that getSecondChild() is a STRINGLIT
-			m.markNonInlineable(n.GetSecondChild().GetString())
+			m.markNonInlineable(first.GetNext().GetString())
 		}
 	default:
 	}

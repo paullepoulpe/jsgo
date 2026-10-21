@@ -479,6 +479,8 @@ func NewInlineFunctions_FindCandidateFunctions(outer *InlineFunctions) *InlineFu
 	return &InlineFunctions_FindCandidateFunctions{outer: outer, callsSeen: 0}
 }
 
+func (*InlineFunctions_FindCandidateFunctions) noVisitLeaves() {}
+
 // Java: InlineFunctions.FindCandidateFunctions.visit(NodeTraversal, Node, Node)
 func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
@@ -699,60 +701,103 @@ func (f *InlineFunctions) analyzeFunctionBody(fnNode *rhino.Node) (*jutil.Linked
 	p := f.ensurePoolState()
 	params := NodeUtil_GetFunctionParameters(fnNode)
 	p.paramScratch = p.paramScratch[:0]
+	var paramBloom uint64
 	for n := params.GetFirstChild(); n != nil; n = n.GetNext() {
 		if n.IsRest() {
 			p.paramScratch = append(p.paramScratch, FunctionArgumentInjector_REST_MARKER)
+			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
 		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
 			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
 		} else {
-			p.paramScratch = append(p.paramScratch, n.GetString())
+			s := n.GetString()
+			p.paramScratch = append(p.paramScratch, s)
+			paramBloom |= scopeBloomMask(s)
 		}
 	}
 	var res inlineFunctions_bodyAnalysis
-	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), p.paramScratch, false, true, &res)
+	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), p.paramScratch, paramBloom, false, true, &res)
 	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
 }
 
 func inlineFunctions_analyzeBodyNode(
 	n *rhino.Node,
 	paramNames []string,
+	paramBloom uint64,
 	inInnerClosure bool,
 	inReceiverScope bool,
 	res *inlineFunctions_bodyAnalysis,
 ) {
-	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
 		inInnerClosure = true
 		res.hasInnerClosures = true
-		if NodeUtil_IsNonArrowFunction(n) {
+		if !n.IsArrowFunction() {
 			inReceiverScope = false
 		}
-	}
-
-	if inReceiverScope && !res.referencesThis && (n.IsThis() || n.IsSuper()) {
-		res.referencesThis = true
-	}
-
-	if len(paramNames) > 0 && n.IsName() {
-		name := n.GetString()
-		for _, p := range paramNames {
-			if p == name {
-				if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n) {
-					if res.namesToAlias == nil {
-						res.namesToAlias = jutil.NewLinkedHashSet[string]()
+	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+		if !n.IsStaticMember() {
+			inInnerClosure = true
+			res.hasInnerClosures = true
+		}
+	case rhino.Token_THIS, rhino.Token_SUPER:
+		if inReceiverScope {
+			res.referencesThis = true
+		}
+	case rhino.Token_NAME:
+		if paramBloom != 0 {
+			name := n.GetString()
+			if m := scopeBloomMask(name); paramBloom&m == m {
+				for _, p := range paramNames {
+					if scopeNameEq(p, name) {
+						if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n) {
+							if res.namesToAlias == nil {
+								res.namesToAlias = jutil.NewLinkedHashSet[string]()
+							}
+							res.namesToAlias.Add(name)
+						}
+						break
 					}
-					res.namesToAlias.Add(name)
 				}
-				break
 			}
 		}
 	}
 
-	if (!inReceiverScope || res.referencesThis) && res.hasInnerClosures && len(paramNames) == 0 {
+	if (!inReceiverScope || res.referencesThis) && res.hasInnerClosures && paramBloom == 0 {
 		return
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		inlineFunctions_analyzeBodyNode(c, paramNames, inInnerClosure, inReceiverScope, res)
+		if c.GetFirstChild() == nil {
+			switch c.GetToken() {
+			case rhino.Token_NAME:
+				if paramBloom != 0 {
+					name := c.GetString()
+					if m := scopeBloomMask(name); paramBloom&m == m {
+						for _, p := range paramNames {
+							if scopeNameEq(p, name) {
+								if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(c) {
+									if res.namesToAlias == nil {
+										res.namesToAlias = jutil.NewLinkedHashSet[string]()
+									}
+									res.namesToAlias.Add(name)
+								}
+								break
+							}
+						}
+					}
+				}
+			case rhino.Token_THIS, rhino.Token_SUPER:
+				if inReceiverScope {
+					res.referencesThis = true
+				}
+			case rhino.Token_MEMBER_FIELD_DEF:
+				if !c.IsStaticMember() {
+					res.hasInnerClosures = true
+				}
+			}
+			continue
+		}
+		inlineFunctions_analyzeBodyNode(c, paramNames, paramBloom, inInnerClosure, inReceiverScope, res)
 	}
 }
 
@@ -779,7 +824,7 @@ func inlineFunctions_hasLetOrConst(n *rhino.Node) bool {
 		return true
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if inlineFunctions_hasLetOrConst(c) {
+		if c.GetFirstChild() != nil && inlineFunctions_hasLetOrConst(c) {
 			return true
 		}
 	}
@@ -912,6 +957,8 @@ func (v *InlineFunctions_CallVisitorBase) GetInlineFunctions_CallVisitorBase() *
 	return v
 }
 
+func (*InlineFunctions_CallVisitorBase) noVisitLeaves() {}
+
 // Java: InlineFunctions.CallVisitor.visit(NodeTraversal, Node, Node)
 func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
@@ -1006,12 +1053,15 @@ func NewInlineFunctions_FindCandidatesReferences(
 	return r
 }
 
+func (*InlineFunctions_FindCandidatesReferences) onlyNameLeaves() {}
+
 // Java: InlineFunctions.FindCandidatesReferences.visit(NodeTraversal, Node, Node)
 func (r *InlineFunctions_FindCandidatesReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	r.InlineFunctions_CallVisitorBase.Visit(t, n, parent)
 	if n.IsName() {
 		r.CheckNameUsage(n, parent)
+		return
 	}
+	r.InlineFunctions_CallVisitorBase.Visit(t, n, parent)
 }
 
 // Java: InlineFunctions.FindCandidatesReferences.visitCallSite(NodeTraversal, Node, FunctionState)
@@ -1156,6 +1206,8 @@ type InlineFunctions_Inline struct {
 func NewInlineFunctions_Inline(injector *FunctionInjector) *InlineFunctions_Inline {
 	return &InlineFunctions_Inline{injector: injector}
 }
+
+func (*InlineFunctions_Inline) noVisitLeaves() {}
 
 // Java: InlineFunctions.Inline.visitCallSite(NodeTraversal, Node, FunctionState)
 func (i *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState) {
@@ -1385,9 +1437,13 @@ func inlineFunctions_findCalledFunctions(node *rhino.Node, changed *jutil.Linked
 	}
 
 	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.HasChildren() || c.IsName() {
-			inlineFunctions_findCalledFunctions(c, changed)
+		if c.GetFirstChild() == nil {
+			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
+				changed.Add(c.GetString())
+			}
+			continue
 		}
+		inlineFunctions_findCalledFunctions(c, changed)
 	}
 }
 

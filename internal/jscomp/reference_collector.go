@@ -38,6 +38,11 @@ func rcHashNodePtr(n *rhino.Node) uint32 {
 	return uint32(x)
 }
 
+type basicBlockEntry struct {
+	root  *rhino.Node
+	block *BasicBlock
+}
+
 type scopedVarKey struct {
 	scopeRoot *rhino.Node
 	name      string
@@ -125,8 +130,8 @@ type ReferenceCollector struct {
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
 	// Go-only: language-adapter — the ArrayDeque, first element first.
-	blockStack    []*BasicBlock
-	blockStackBuf [64]*BasicBlock
+	blockStack    []basicBlockEntry
+	blockStackBuf [64]basicBlockEntry
 
 	// Source of behavior at various points in the traversal.
 	behavior ReferenceCollector_Behavior
@@ -964,18 +969,27 @@ func (c *ReferenceCollector) maybeJumpToHoistedFunctionSlow(var_ *Var, fnNode *r
 	 * AggressiveInlineAliases.
 	 */
 	oldBlockStack := c.blockStack
-	c.blockStack = oldBlockStack[len(oldBlockStack):len(oldBlockStack)]
-
 	if varScope.IsGlobal() {
-		c.blockStack = append(c.blockStack, referenceCollector_getFirst(oldBlockStack))
+		if len(oldBlockStack) == 0 {
+			panic(jutil.NewNoSuchElementException())
+		}
+		if oldBlockStack[0].block == nil {
+			c.materializeBlock(0)
+		}
+		c.blockStack = append(oldBlockStack[len(oldBlockStack):len(oldBlockStack)], oldBlockStack[0])
 	} else {
 		rootNode := varScope.GetRootNode()
-		for _, b := range oldBlockStack {
-			c.blockStack = append(c.blockStack, b)
-			if b.GetRoot() == rootNode {
+		end := len(oldBlockStack)
+		for i := range oldBlockStack {
+			if oldBlockStack[i].root == rootNode {
+				end = i + 1
 				break
 			}
 		}
+		if end > 0 && oldBlockStack[end-1].block == nil {
+			c.materializeBlock(end - 1)
+		}
+		c.blockStack = append(oldBlockStack[len(oldBlockStack):len(oldBlockStack)], oldBlockStack[:end]...)
 	}
 
 	/*
@@ -1001,6 +1015,30 @@ func referenceCollector_getFirst(stack []*BasicBlock) *BasicBlock {
 	return stack[0]
 }
 
+func (c *ReferenceCollector) getCurrentBlock() *BasicBlock {
+	idx := len(c.blockStack) - 1
+	if b := c.blockStack[idx].block; b != nil {
+		return b
+	}
+	return c.materializeBlock(idx)
+}
+
+func (c *ReferenceCollector) materializeBlock(idx int) *BasicBlock {
+	i := idx
+	for i > 0 && c.blockStack[i-1].block == nil {
+		i--
+	}
+	var parent *BasicBlock
+	if i > 0 {
+		parent = c.blockStack[i-1].block
+	}
+	for ; i <= idx; i++ {
+		parent = c.allocBasicBlock(parent, c.blockStack[i].root)
+		c.blockStack[i].block = parent
+	}
+	return parent
+}
+
 // ReferenceCollector_CollectorCallback is the traversal callback.
 type ReferenceCollector_CollectorCallback struct {
 	c *ReferenceCollector
@@ -1010,6 +1048,18 @@ type ReferenceCollector_CollectorCallback struct {
 //
 // Java: ReferenceCollector.CollectorCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	if n.GetFirstChild() == nil {
+		switch n.GetToken() {
+		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
+			if referenceCollector_isBlockBoundary(n, parent) {
+				cb.c.PushNewBlock(n)
+			}
+			return true
+		default:
+			return false
+		}
+	}
+
 	// We automatically traverse a hoisted function body when that function
 	// is first referenced, so that the reference lists are in the right order.
 	//
@@ -1093,11 +1143,7 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino
 
 // Java: ReferenceCollector.pushNewBlock(Node)
 func (c *ReferenceCollector) PushNewBlock(root *rhino.Node) {
-	var peekLast *BasicBlock
-	if len(c.blockStack) > 0 {
-		peekLast = c.blockStack[len(c.blockStack)-1]
-	}
-	c.blockStack = append(c.blockStack, c.allocBasicBlock(peekLast, root))
+	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
 }
 
 // Java: ReferenceCollector.popLastBlock(Node)
@@ -1105,11 +1151,14 @@ func (c *ReferenceCollector) PopLastBlock(root *rhino.Node) {
 	if len(c.blockStack) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeLast()
 	}
-	last := c.blockStack[len(c.blockStack)-1]
-	c.blockStack[len(c.blockStack)-1] = nil
-	c.blockStack = c.blockStack[:len(c.blockStack)-1]
+	idx := len(c.blockStack) - 1
+	lastRoot := c.blockStack[idx].root
+	c.blockStack[idx] = basicBlockEntry{}
+	c.blockStack = c.blockStack[:idx]
 	// Verfiy that the stack is unwound correctly.
-	jutil.CheckStateMsg1(base.JSCompObjects_Identical(root, last.GetRoot()), "%s", root)
+	if lastRoot != root {
+		jutil.CheckStateMsg1(base.JSCompObjects_Identical(root, lastRoot), "%s", root)
+	}
 }
 
 var refCollectorParentBoundaryKind = [256]uint8{
@@ -1179,7 +1228,7 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *Nod
 	if t.compilerInput == nil {
 		inputId = t.GetInput().GetInputId()
 	}
-	ref := c.allocReference(n, scope, c.blockStack[len(c.blockStack)-1], inputId)
+	ref := c.allocReference(n, scope, c.getCurrentBlock(), inputId)
 	s := collection.refsList.Slice()
 	if len(s) == cap(s) {
 		c.growReferenceCollection(collection, s)

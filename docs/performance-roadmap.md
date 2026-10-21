@@ -1098,6 +1098,44 @@ All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Roun
 | **`downlevel-simple`** (2.1 MB) | 1.10 s / 1.02 s | **1.09 s** / **0.97 s** | **−1.17%** / **−4.46%** | 198 / 204 MiB | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.53 s** / **0.45 s** | **−0.15%** / **−0.21%** | **150** / **158 MiB** (**−5.58%** / **−0.96%**) | `MATCH` |
 
+## Round 21 (Phase 3 / Post-Architecture Turn 1): `NodeTraversal` Leaf-Bypass Markers (`noVisitLeaves` / `onlyNameLeaves`, `−0.78 s` CPU), `RemoveUnusedCode` & `GuardedCallback` Leaf Fast-Exits, Lazy `ReferenceCollector` & `InferConsts` `BasicBlock`s, Direct `OptimizeCalls` Walk, `Normalize` String Slabs (`−12.9 MB`), and 2-Way `TypeInference.concatQName` Cache (`−20 MB`) (2026-10-21)
+
+Profiling Round 20 (`5c782211`) across `bundle-mega` (`3.59 GB` `alloc_space`) and `typed-mega` (`2.95 GB` `alloc_space`) revealed newly exposed traversal and per-pass bottlenecks after the Phase 1–2 architectural upgrades:
+
+1. **`NodeTraversal` Leaf-Node Dispatch Bypass (`noVisitLeaves` & `onlyNameLeaves`) + `InlineFunctions` / `FunctionInjector` Leaf Unrolling (`internal/jscomp/node_traversal.go`, `internal/jscomp/inline_functions.go`, `internal/jscomp/function_injector.go`):**
+   - Added internal marker interfaces `nodeTraversal_noVisitLeaves` (`noVisitLeaves()`) and `nodeTraversal_onlyNameLeaves` (`onlyNameLeaves()`) to `NodeTraversal`, skipping `Visit` interface dispatch (and `t.currentNode = child` when `noShouldTraverse` is also set) on normal leaf AST nodes across `TraverseBranch` and `TraverseChildren` (`−0.78 s` cumulative CPU in `TraverseBranch` on `bundle-mega`).
+   - Wired `noVisitLeaves()` on `InlineFunctions_FindCandidateFunctions`, `InlineFunctions_CallVisitorBase`, and `InlineFunctions_Inline`, and `onlyNameLeaves()` on `InlineFunctions_FindCandidatesReferences`. Precomputed a 64-bit `paramBloom` mask in `inlineFunctions_analyzeBodyNode`, and unrolled leaf children (`c.GetFirstChild() == nil`) inline without recursion in `inlineFunctions_analyzeBodyNode`, `inlineFunctions_hasLetOrConst`, `inlineFunctions_findCalledFunctions`, `functionInjector_blocksMinimumRequirements`, `functionInjector_referencesEval`, and `functionInjector_findInnerFunctions`.
+2. **`RemoveUnusedCode` Leaf Fast-Path (`traverseNameReference`) & `GuardedCallback` / `PolyfillUsageFinder` Leaf Bypass (`internal/jscomp/remove_unused_code.go`, `internal/jscomp/guarded_callback.go`, `internal/jscomp/polyfill_usage_finder.go`):**
+   - Extracted `traverseNameReference(n, scope)` and added leaf-node (`GetFirstChild() == nil`) fast-exits at the top of `RemoveUnusedCode.TraverseNode` and inside `TraverseChildren`, skipping `TraverseNode` switch dispatch on all non-`NAME` leaf AST nodes, and enlarged `scopeVarCache` (`[512] → [2048]`) and `pinnedPropCache` (`[256] → [1024]`) with `scopeNameEq` (`−0.19 s` cumulative CPU in `TraverseNameNode`, `−0.11 s` flat in `TraverseNode`).
+   - Added leaf-node bypass in `GuardedCallbackBase.ShouldTraverse` for `polyfillUsageFinder_Traverser` (skipping context stack push/pop and `VisitGuarded` on non-`NAME` leaves and non-static-polyfill `NAME` leaves) plus end-byte bitmasks (`staticsEndMask`, `suffixesEndMask`, `methodsEndMask`, `anyPropMask`, `anyPropEndMask`) in `PolyfillUsageFinder_Polyfills`.
+3. **Lazy `BasicBlock` Materialization & Leaf Skipping in `ReferenceCollector` and `InlineObjectLiterals` (`internal/jscomp/reference_collector.go`, `internal/jscomp/inline_object_literals.go`):**
+   - Replaced eager `allocBlock` allocations on every control-flow boundary in `ReferenceCollector_CollectorCallback.ShouldTraverse` with lazy `[]basicBlockEntry` stack entries (`getCurrentBlock()` / `materializeBlock(idx)`), allocating `BasicBlock` structs only when a tracked variable reference is actually recorded inside that block, and skipped leaf nodes other than `NAME`, `IMPORT_STAR`, `BLOCK`, and `SWITCH_BODY`.
+   - Unrolled leaf children in `iolCandidateScanner.scan`.
+4. **Direct `OptimizeCalls` AST Walk, `InlineSimpleMethods` / `InferConsts` Leaf Bypass, and Pooled `Normalize` String Slabs (`internal/jscomp/optimize_calls.go`, `internal/jscomp/inline_simple_methods.go`, `internal/jscomp/infer_consts.go`, `internal/jscomp/normalize.go`):**
+   - Replaced `NodeTraversal_TraverseRoots` in `OptimizeCalls.Process` with a direct `cb.traverseNode` recursive AST walk with leaf unrolling (`−70 ms` in `OptimizeCalls`).
+   - Added `noVisitLeaves()` / `noShouldTraverse()` on `InlineSimpleMethods_GatherSignatures` and `InlineSimpleMethods_InlineTrivialAccessors`, leaf fast-exit and lazy `BasicBlock`s in `InferConsts`, `onlyNameLeaves()` / `noShouldTraverse()` on `Normalize_PropagateConstantPropertyOverVars` and `ValidityCheck_VerifyConstants`, stricter `normalizeHasJscompSeparator`, and pooled `normalizeFastRenamerPoolState` + 32 KB `strSlab` in `Normalize` (`−12.9 MB` `alloc_space` on `typed-mega`, `−8.9 MB` on `bundle-mega`).
+5. **2-Way `TypeInference.concatQName` Cache (`−20 MB`), `CheckAccessControls` Token Table & `Var` Cache, and `PeepholeOptimizationsPass` Token Pre-Filters (`internal/jscomp/type_inference.go`, `internal/jscomp/check_access_controls.go`, `internal/jscomp/peephole_optimizations_pass.go`):**
+   - Upgraded `TypeInference.concatQName` to a 2-way set-associative `[2048][2]` cache backed by `nodeUtilConcatDot` (`−20 MB` `alloc_space` on `typed-mega`), cached `(lastScopeRoot, lastModule, lastSyntacticBlockScope)` in `FlowThrough`, and fast-pathed `TightenTypeAfterDereference`.
+   - Added a `[256]bool` `checkAccessControlsActiveToken` table, a 2-way `[512][2]cacVarCacheEntry` `(scope, name) -> *Var` cache, and deferred `NodeUtil_GetBestJSDocInfo` in `CheckAccessControls`; added token pre-filters in `PeepholeOptimizationsPass_PeepCallback.Visit`.
+
+Total `alloc_space` on `typed-mega` dropped another **−80 MB** down to **`2.87 GB`** (**−75.3% vs Round 5's `11.61 GB`**) and `inuse_space` dropped **−207.8 MB**.
+
+### Final measured results — Round 21 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, `compat` mode, PGO enabled)
+
+| Benchmark | Round 20 (`5c782211` `t=1` / `t=4`) | **Round 21 (`t=1` / `t=4`)** | Round 21 vs Round 20 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity (`JAVA_MATCH`) |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 22.29 s / 20.95 s | **22.26 s** / **20.85 s** | **−0.11%** / **−0.46%** | 1,741 / **1,701 MiB** (**−4.82%** / **−86 MiB** `t=4`) | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 18.44 s / 17.09 s | **18.37 s** / **17.02 s** | **−0.41%** / **−0.43%** | 1,746 / 1,843 MiB | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 10.55 s / 9.80 s | **10.54 s** / **9.77 s** | **−0.07%** / **−0.28%** | 1,046 / 1,072 MiB | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.40 s / 6.14 s | **6.38 s** / **6.10 s** | **−0.30%** / **−0.56%** | 671 / **563 MiB** (**−1.91%** `t=4`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.13 s / 3.85 s | **4.15 s** / **3.86 s** | +0.55% / +0.25% | **536** / 545 MiB (**−0.63%** `t=1`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.34 s / 4.01 s | **4.33 s** / **4.00 s** | **−0.37%** / **−0.28%** | **491** / **509 MiB** (**−1.35%** / **−1.38%**) | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.26 s / 3.00 s | **3.24 s** / **2.99 s** | **−0.69%** / **−0.20%** | **324** / 326 MiB (**−0.46%** `t=1`) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.45 s / 2.05 s | **2.43 s** / **2.04 s** | **−0.81%** / **−0.48%** | 538 / **522 MiB** (**−2.00%** `t=4`) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.38 s / 1.26 s | **1.39 s** / **1.26 s** | +0.48% / **−0.19%** | 265 / 271 MiB | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.09 s / 0.97 s | **1.09 s** / **0.97 s** | +0.12% / +0.37% | **197** / **204 MiB** (**−0.96%** / **−0.37%**) | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.54 s** / **0.45 s** | **−0.09%** / +1.20% | **149** / **159 MiB** (**−0.35%** / **−2.71%**) | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

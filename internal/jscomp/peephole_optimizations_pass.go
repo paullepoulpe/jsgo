@@ -39,6 +39,8 @@ type PeepholeOptimizationsPass struct {
 	activeMaskByToken         [256]uint16
 	useActiveMask             bool
 	standardOptimizationsOnly bool
+	hasJ2clCallPass           bool
+	hasOptimizeLetAndConst    bool
 	retraverseOnChange        bool
 }
 
@@ -83,6 +85,8 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 	}
 	p.useActiveMask = true
 	p.standardOptimizationsOnly = true
+	p.hasJ2clCallPass = false
+	p.hasOptimizeLetAndConst = false
 	clear(p.activeMaskByToken[:])
 
 	for idx, optim := range p.peepholeOptimizations {
@@ -169,14 +173,17 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 			)
 		case *J2clEqualitySameRewriterPass:
 			if opt.shouldRunJ2clPasses {
+				p.hasJ2clCallPass = true
 				p.addTokensToMask(bit, rhino.Token_CALL)
 			}
 		case *J2clStringValueOfRewriterPass:
 			if opt.shouldRunJ2clPasses {
+				p.hasJ2clCallPass = true
 				p.addTokensToMask(bit, rhino.Token_CALL)
 			}
 		case *J2clUndefinedChecksRewriterPass:
 			if opt.shouldRunJ2clPasses {
+				p.hasJ2clCallPass = true
 				p.addTokensToMask(bit, rhino.Token_CALL)
 			}
 		case *PeepholeFoldConstants:
@@ -252,6 +259,7 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 		case *StatementFusion:
 			p.addTokensToMask(bit, rhino.Token_BLOCK)
 		case *OptimizeLetAndConstPeephole:
+			p.hasOptimizeLetAndConst = true
 			p.featureOptimBases = append(p.featureOptimBases, &opt.AbstractPeepholeOptimizationBase)
 			p.addTokensToMask(bit,
 				rhino.Token_LET,
@@ -328,11 +336,12 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 		return
 	}
 	if p.standardOptimizationsOnly {
-		if tok == rhino.Token_NAME {
+		switch tok {
+		case rhino.Token_NAME:
 			if currentNode.GetString() != "undefined" {
 				return
 			}
-		} else if tok == rhino.Token_GETPROP {
+		case rhino.Token_GETPROP:
 			switch first := currentNode.GetFirstChild(); first.GetToken() {
 			case rhino.Token_NAME:
 				if first.GetString() != "window" {
@@ -340,6 +349,121 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 				}
 			case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
 			default:
+				return
+			}
+		case rhino.Token_GETELEM:
+			switch currentNode.GetFirstChild().GetToken() {
+			case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
+			default:
+				return
+			}
+		case rhino.Token_CALL:
+			if !p.hasJ2clCallPass {
+				first := currentNode.GetFirstChild()
+				switch first.GetToken() {
+				case rhino.Token_NAME:
+					switch first.GetString() {
+					case "Object", "Array", "Boolean", "String", "parseInt", "parseFloat":
+					default:
+						return
+					}
+				case rhino.Token_GETPROP:
+					recv := first.GetFirstChild()
+					switch recv.GetToken() {
+					case rhino.Token_STRINGLIT, rhino.Token_ARRAYLIT:
+					case rhino.Token_NAME:
+						switch recv.GetString() {
+						case "Object", "Array", "Math", "Number", "goog":
+						default:
+							switch first.GetString() {
+							case "concat", "substr", "substring", "slice":
+							default:
+								return
+							}
+						}
+					default:
+						switch first.GetString() {
+						case "concat", "substr", "substring", "slice", "defineProperties", "bind", "call", "apply":
+						default:
+							return
+						}
+					}
+				case rhino.Token_CALL:
+				default:
+					return
+				}
+			}
+		case rhino.Token_EXPR_RESULT:
+			switch currentNode.GetFirstChild().GetToken() {
+			case rhino.Token_ASSIGN,
+				rhino.Token_ASSIGN_BITOR,
+				rhino.Token_ASSIGN_BITXOR,
+				rhino.Token_ASSIGN_BITAND,
+				rhino.Token_ASSIGN_LSH,
+				rhino.Token_ASSIGN_RSH,
+				rhino.Token_ASSIGN_URSH,
+				rhino.Token_ASSIGN_ADD,
+				rhino.Token_ASSIGN_SUB,
+				rhino.Token_ASSIGN_MUL,
+				rhino.Token_ASSIGN_DIV,
+				rhino.Token_ASSIGN_MOD,
+				rhino.Token_ASSIGN_EXPONENT,
+				rhino.Token_ASSIGN_OR,
+				rhino.Token_ASSIGN_AND,
+				rhino.Token_ASSIGN_COALESCE,
+				rhino.Token_INC,
+				rhino.Token_DEC,
+				rhino.Token_DELPROP,
+				rhino.Token_YIELD,
+				rhino.Token_AWAIT,
+				rhino.Token_DYNAMIC_IMPORT:
+				return
+			}
+		case rhino.Token_ASSIGN:
+			left := currentNode.GetFirstChild()
+			right := currentNode.GetLastChild()
+			if !(left.IsName() && right.IsName()) && !(left.IsDestructuringPattern() && !left.HasChildren()) {
+				switch right.GetToken() {
+				case rhino.Token_ADD,
+					rhino.Token_BITAND,
+					rhino.Token_BITOR,
+					rhino.Token_BITXOR,
+					rhino.Token_DIV,
+					rhino.Token_EXPONENT,
+					rhino.Token_LSH,
+					rhino.Token_MOD,
+					rhino.Token_MUL,
+					rhino.Token_RSH,
+					rhino.Token_SUB,
+					rhino.Token_URSH:
+				default:
+					return
+				}
+			}
+		case rhino.Token_VAR:
+			if first := currentNode.GetFirstChild(); first == nil || !first.IsDestructuringLhs() {
+				return
+			}
+		case rhino.Token_LET, rhino.Token_CONST:
+			if !p.hasOptimizeLetAndConst {
+				if first := currentNode.GetFirstChild(); first == nil || !first.IsDestructuringLhs() {
+					return
+				}
+			}
+		case rhino.Token_NEW:
+			if !currentNode.GetFirstChild().IsName() {
+				return
+			}
+		case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT:
+			if currentNode.GetFirstChild() == nil {
+				return
+			}
+		case rhino.Token_VOID:
+			if first := currentNode.GetFirstChild(); first != nil && first.IsNumber() && first.GetDouble() == 0 {
+				return
+			}
+		case rhino.Token_NEG:
+			if first := currentNode.GetFirstChild(); first != nil && first.IsNumber() {
 				return
 			}
 		}

@@ -59,7 +59,28 @@ type CheckAccessControls struct {
 	lastHoistScopeDeprecated bool
 	lastVarNode              *rhino.Node
 	lastVar                  *Var
+	varCache                 [256][2]cacVarCacheEntry
 }
+
+type cacVarCacheEntry struct {
+	scope *Scope
+	name  string
+	v     *Var
+}
+
+var checkAccessControlsActiveToken = func() [256]bool {
+	var t [256]bool
+	t[rhino.Token_NAME] = true
+	t[rhino.Token_GETPROP] = true
+	t[rhino.Token_STRING_KEY] = true
+	t[rhino.Token_GETTER_DEF] = true
+	t[rhino.Token_SETTER_DEF] = true
+	t[rhino.Token_MEMBER_FUNCTION_DEF] = true
+	t[rhino.Token_MEMBER_FIELD_DEF] = true
+	t[rhino.Token_FUNCTION] = true
+	t[rhino.Token_CLASS] = true
+	return t
+}()
 
 // Java: CheckAccessControls.DEPRECATED_NAME
 var CheckAccessControls_DEPRECATED_NAME = DiagnosticType_Disabled("JSC_DEPRECATED_VAR", "Variable {0} has been deprecated.")
@@ -199,6 +220,7 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	defer func() {
 		c.lastVarNode = nil
 		c.lastVar = nil
+		clear(c.varCache[:])
 		sc.ReleaseArena()
 	}()
 	b := NodeTraversal_Builder{
@@ -210,12 +232,41 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
 	c.lastVar = nil
+	clear(c.varCache[:])
 	b.Traverse(externs)
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
 	c.lastVar = nil
+	clear(c.varCache[:])
 	sc.ReleaseArena()
 	b.Traverse(root)
+}
+
+func (c *CheckAccessControls) lookupVar(scope *Scope, name string) *Var {
+	if name == "" {
+		return nil
+	}
+	h := uint32(len(name))
+	h = h*31 + uint32(name[0])
+	h = h*31 + uint32(name[len(name)-1])
+	if len(name) > 2 {
+		h = h*31 + uint32(name[len(name)/2])
+	}
+	idx := (h ^ (h >> 8)) & uint32(len(c.varCache)-1)
+	bucket := &c.varCache[idx]
+	if e := &bucket[0]; e.scope == scope && scopeNameEq(e.name, name) {
+		return e.v
+	}
+	if e := &bucket[1]; e.scope == scope && scopeNameEq(e.name, name) {
+		v := e.v
+		*e = bucket[0]
+		bucket[0] = cacVarCacheEntry{scope: scope, name: name, v: v}
+		return v
+	}
+	v := scope.GetVar(name)
+	bucket[1] = bucket[0]
+	bucket[0] = cacVarCacheEntry{scope: scope, name: name, v: v}
+	return v
 }
 
 // Java: CheckAccessControls.enterAccessControlScope(Node)
@@ -385,13 +436,45 @@ func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node *rhi
 
 // Java: CheckAccessControls.visit(NodeTraversal, Node, Node)
 func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+	tok := node.GetToken()
+	if !checkAccessControlsActiveToken[tok] {
+		if t := node.GetJSType(); t == nil || !t.IsFunctionType() {
+			if parent != nil && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
+				c.ExitAccessControlScope(parent)
+			}
+			return
+		}
+	} else if tok == rhino.Token_NAME {
+		if t := node.GetJSType(); t == nil || !t.IsFunctionType() || !t.ToMaybeFunctionType().IsConstructor() {
+			if name := node.GetString(); name != "" {
+				scope := traversal.GetScope()
+				if var_ := c.lookupVar(scope, name); var_ != nil {
+					if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {
+						if c.ShouldEmitDeprecationWarning(traversal, node) {
+							if docInfo.GetDeprecationReason() != nil {
+								c.compiler.Report(
+									JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, *docInfo.GetDeprecationReason()))
+							} else {
+								c.compiler.Report(JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME, name))
+							}
+						}
+					}
+					c.checkNameVisibilityWithVar(var_, node)
+				}
+			}
+			if parent != nil && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
+				c.ExitAccessControlScope(parent)
+			}
+			return
+		}
+	}
 
 	identifierBehaviour := CheckAccessControls_IdentifierBehaviour_Select(node)
 	propRef := c.CreatePropertyReference(node)
 
 	c.CheckDeprecation(node, propRef, identifierBehaviour, traversal)
 	var scope *Scope
-	if node.IsName() && identifierBehaviour != CheckAccessControls_IdentifierBehaviour_ES5_CLASS_NAMESPACE {
+	if tok == rhino.Token_NAME && identifierBehaviour != CheckAccessControls_IdentifierBehaviour_ES5_CLASS_NAMESPACE {
 		scope = traversal.GetScope()
 	}
 	c.CheckVisibility(node, propRef, identifierBehaviour, scope)
@@ -484,7 +567,7 @@ func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n *rhino.No
 		return
 	}
 
-	var_ := t.GetScope().GetVar(n.GetString())
+	var_ := c.lookupVar(t.GetScope(), n.GetString())
 	c.lastVarNode = n
 	c.lastVar = var_
 	if var_ == nil {
@@ -562,12 +645,15 @@ func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name *rhino.Node
 	if c.lastVarNode == name {
 		var_ = c.lastVar
 	} else {
-		var_ = scope.GetVar(name.GetString())
+		var_ = c.lookupVar(scope, name.GetString())
 	}
 	if var_ == nil {
 		return
 	}
+	c.checkNameVisibilityWithVar(var_, name)
+}
 
+func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name *rhino.Node) {
 	var v rhino.JSDocInfo_Visibility
 	if c.defaultVisibilityForFiles.IsEmpty() {
 		if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
@@ -893,15 +979,28 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 
 	propertyName := propRef.Name()
 
-	definingSource := AccessControlUtils_GetDefiningSource(propRef.SourceNode(), referenceType, propertyName)
-
 	// Is this a normal property access, or are we trying to override
 	// an existing property?
 	isOverride := propRef.IsDocumentedDeclaration() || propRef.Override()
 
 	objectType := AccessControlUtils_GetObjectType(referenceType, isOverride, propertyName)
 
-	fileOverviewVisibility := checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource)
+	var definingSource rhino.StaticSourceFile
+	var fileOverviewVisibility *rhino.JSDocInfo_Visibility
+	if !c.defaultVisibilityForFiles.IsEmpty() {
+		definingSource = AccessControlUtils_GetDefiningSource(propRef.SourceNode(), referenceType, propertyName)
+		fileOverviewVisibility = checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource)
+	}
+
+	var defSite *rhino.Node
+	if objectType != nil {
+		defSite = objectType.GetOwnPropertyDefSite(propertyName)
+		if defSite == nil && fileOverviewVisibility == nil {
+			return
+		}
+	} else if fileOverviewVisibility == nil {
+		return
+	}
 
 	var visibility rhino.JSDocInfo_Visibility
 	if propRef.Override() {
@@ -931,13 +1030,12 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 
 	reportType := rawReferenceType
 	if objectType != nil {
-		node := objectType.GetOwnPropertyDefSite(propertyName)
-		if node == nil {
+		if defSite == nil {
 			// Assume the property is public.
 			return
 		}
 		reportType = objectType
-		definingSource = node.GetStaticSourceFile()
+		definingSource = defSite.GetStaticSourceFile()
 	} else if fileOverviewVisibility == nil {
 		// We can only check visibility references if we know what file
 		// it was defined in.
@@ -1197,9 +1295,11 @@ func (c *CheckAccessControls) ShouldEmitDeprecationWarningForPropRef(t *NodeTrav
 	}
 
 	// Don't warn if the node is just declaring the property, not reading it.
-	jsdoc := propRef.GetJSDocInfo()
-	if propRef.Declaration() && (jsdoc != nil) && jsdoc.IsDeprecated() {
-		return false
+	if propRef.Declaration() {
+		jsdoc := propRef.GetJSDocInfo()
+		if jsdoc != nil && jsdoc.IsDeprecated() {
+			return false
+		}
 	}
 
 	return !c.CanAccessDeprecatedTypes(t)
@@ -1303,14 +1403,12 @@ func (c *CheckAccessControls) IsPropertyDeclaredConstant(objectType rhino.Object
 //
 // Java: CheckAccessControls.getPropertyDeprecationInfo(ObjectType, String)
 func CheckAccessControls_GetPropertyDeprecationInfo(type_ rhino.ObjectType, prop string) *string {
-	depReason := CheckAccessControls_GetDeprecationReason(type_.GetOwnPropertyJSDocInfo(prop))
-	if depReason != nil {
-		return depReason
-	}
-
-	implicitProto := type_.GetImplicitPrototype()
-	if implicitProto != nil {
-		return CheckAccessControls_GetPropertyDeprecationInfo(implicitProto, prop)
+	for ; type_ != nil; type_ = type_.GetImplicitPrototype() {
+		if info := type_.GetOwnPropertyJSDocInfo(prop); info != nil {
+			if depReason := CheckAccessControls_GetDeprecationReason(info); depReason != nil {
+				return depReason
+			}
+		}
 	}
 	return nil
 }
@@ -1744,7 +1842,6 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode *rhino.Node) *C
 	switch sourceNode.GetToken() {
 	case rhino.Token_GETPROP:
 		parent := sourceNode.GetParent()
-		jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
 		isLValue := NodeUtil_IsLValue(sourceNode)
 		firstChild := sourceNode.GetFirstChild()
 		ref := &c.scratchPropRef
@@ -1753,15 +1850,23 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode *rhino.Node) *C
 		ref.receiverType = c.BoxedOrUnknown(firstChild.GetJSType())
 		// Props are always mutated as L-values, even when assigned `undefined`.
 		ref.mutation = isLValue || parent.IsDelProp()
-		ref.declaration = parent.IsExprResult() || (jsdoc != nil && jsdoc.IsConstant() && isLValue)
-		// TODO(b/113704668): This definition is way too loose. It was used to prevent
-		// breakages during refactoring and should be tightened.
-		ref.override = (jsdoc != nil) && isLValue
+		if isLValue {
+			jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
+			ref.declaration = parent.IsExprResult() || (jsdoc != nil && jsdoc.IsConstant())
+			// TODO(b/113704668): This definition is way too loose. It was used to prevent
+			// breakages during refactoring and should be tightened.
+			ref.override = jsdoc != nil
+			ref.jsdoc = jsdoc
+			ref.hasJSDoc = true
+		} else {
+			ref.declaration = parent.IsExprResult()
+			ref.override = false
+			ref.jsdoc = nil
+			ref.hasJSDoc = false
+		}
 		ref.readableTypeName = nil
 		ref.typeRegistry = c.typeRegistry
 		ref.readableTypeNode = firstChild
-		ref.jsdoc = jsdoc
-		ref.hasJSDoc = true
 		return ref
 
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:

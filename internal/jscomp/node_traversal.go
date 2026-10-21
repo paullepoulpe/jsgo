@@ -121,6 +121,8 @@ type NodeTraversal struct {
 	mayContainSyntheticBlocks                      bool
 	noShouldTraverse                               bool
 	noVisit                                        bool
+	noVisitLeaves                                  bool
+	onlyNameLeaves                                 bool
 
 	// Contains the current node
 	currentNode *rhino.Node
@@ -168,8 +170,38 @@ type nodeTraversal_noShouldTraverse interface {
 	nodeTraversalNoShouldTraverse()
 }
 
+type nodeTraversal_noShouldTraverseAlt interface {
+	noShouldTraverse()
+}
+
 type nodeTraversal_noVisit interface {
 	nodeTraversalNoVisit()
+}
+
+type nodeTraversal_noVisitAlt interface {
+	noVisit()
+}
+
+// nodeTraversal_noVisitLeaves is an internal marker interface for callbacks
+// whose Visit method never performs any work on normal leaf nodes
+// (n.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(n.GetToken())] == 0).
+type nodeTraversal_noVisitLeaves interface {
+	noVisitLeaves()
+}
+
+type nodeTraversal_noVisitLeavesAlt interface {
+	nodeTraversalNoVisitLeaves()
+}
+
+// nodeTraversal_onlyNameLeaves is an internal marker interface for callbacks
+// whose Visit method on normal leaf nodes (n.GetFirstChild() == nil &&
+// nodeTraversalTokenKind[uint8(n.GetToken())] == 0) only acts on Token_NAME.
+type nodeTraversal_onlyNameLeaves interface {
+	onlyNameLeaves()
+}
+
+type nodeTraversal_onlyNameLeavesAlt interface {
+	nodeTraversalOnlyNameLeaves()
 }
 
 // NodeTraversal_Callback is the callback for tree-based traversals.
@@ -888,8 +920,26 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverse)
 	if !t.noShouldTraverse {
 		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
+		if !t.noShouldTraverse {
+			_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverseAlt)
+		}
 	}
 	_, t.noVisit = cb.(nodeTraversal_noVisit)
+	if !t.noVisit {
+		_, t.noVisit = cb.(nodeTraversal_noVisitAlt)
+	}
+	_, t.onlyNameLeaves = cb.(nodeTraversal_onlyNameLeaves)
+	if !t.onlyNameLeaves {
+		_, t.onlyNameLeaves = cb.(nodeTraversal_onlyNameLeavesAlt)
+	}
+	if !t.onlyNameLeaves {
+		_, t.noVisitLeaves = cb.(nodeTraversal_noVisitLeaves)
+		if !t.noVisitLeaves {
+			_, t.noVisitLeaves = cb.(nodeTraversal_noVisitLeavesAlt)
+		}
+	} else {
+		t.noVisitLeaves = false
+	}
 	if scopedCallback, ok := cb.(NodeTraversal_ScopedCallback); ok {
 		t.scopeCallback = scopedCallback
 	} else {
@@ -1474,6 +1524,23 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 			}
 			for child := n.GetFirstChild(); child != nil; {
 				next := child.GetNext()
+				if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
+					if t.noShouldTraverse {
+						if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+							t.currentNode = child
+							t.callback.Visit(t, child, n)
+						}
+					} else {
+						t.currentNode = child
+						if t.callback.ShouldTraverse(t, child, n) {
+							if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+								t.callback.Visit(t, child, n)
+							}
+						}
+					}
+					child = next
+					continue
+				}
 				t.TraverseBranch(child, n)
 				child = next
 			}
@@ -1494,6 +1561,23 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		t.PushScope(n)
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
+			if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
+				if t.noShouldTraverse {
+					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+						t.currentNode = child
+						t.callback.Visit(t, child, n)
+					}
+				} else {
+					t.currentNode = child
+					if t.callback.ShouldTraverse(t, child, n) {
+						if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+							t.callback.Visit(t, child, n)
+						}
+					}
+				}
+				child = next
+				continue
+			}
 			t.TraverseBranch(child, n)
 			child = next
 		}
@@ -1523,10 +1607,17 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		// would no longer point to the true next
 		next := child.GetNext()
 		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
-			t.currentNode = child
-			if t.noShouldTraverse || t.callback.ShouldTraverse(t, child, n) {
-				if !t.noVisit {
+			if t.noShouldTraverse {
+				if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+					t.currentNode = child
 					t.callback.Visit(t, child, n)
+				}
+			} else {
+				t.currentNode = child
+				if t.callback.ShouldTraverse(t, child, n) {
+					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+						t.callback.Visit(t, child, n)
+					}
 				}
 			}
 			child = next
@@ -1537,8 +1628,10 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 	}
 
 	if !t.noVisit {
-		t.currentNode = n
-		t.callback.Visit(t, n, parent)
+		if n.GetFirstChild() != nil || (!t.noVisitLeaves && (!t.onlyNameLeaves || n.GetToken() == rhino.Token_NAME)) || n.GetToken() == rhino.Token_BLOCK {
+			t.currentNode = n
+			t.callback.Visit(t, n, parent)
+		}
 	}
 }
 
@@ -1719,10 +1812,17 @@ func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 		// would no longer point to the true next
 		next := child.GetNext()
 		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(child.GetToken())] == 0 {
-			t.currentNode = child
-			if t.noShouldTraverse || t.callback.ShouldTraverse(t, child, n) {
-				if !t.noVisit {
+			if t.noShouldTraverse {
+				if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+					t.currentNode = child
 					t.callback.Visit(t, child, n)
+				}
+			} else {
+				t.currentNode = child
+				if t.callback.ShouldTraverse(t, child, n) {
+					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || child.GetToken() == rhino.Token_NAME) {
+						t.callback.Visit(t, child, n)
+					}
 				}
 			}
 			child = next

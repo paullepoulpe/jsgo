@@ -150,6 +150,8 @@ type GuardedCallbackBase[T comparable] struct {
 	// at the bottom of the stack when contextStack is empty.
 	contextStack    []*guardedCallback_Context
 	emptyDepth      int
+	onlyNameLeaves  bool
+	polyfills       *PolyfillUsageFinder_Polyfills
 	contextStackBuf [128]*guardedCallback_Context
 	contextNodes    [128]guardedCallback_Context
 }
@@ -273,6 +275,16 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 			b.contextStack = append(b.contextStack, guardedCallback_Context_EMPTY)
 		}
 		return true
+	}
+	if b.onlyNameLeaves && n.GetFirstChild() == nil && len(b.registeredGuards) == 0 {
+		nt := n.GetToken()
+		if nt != rhino.Token_NAME {
+			if len(b.installedGuards) == 0 || (nt != rhino.Token_RETURN && nt != rhino.Token_THROW) {
+				return false
+			}
+		} else if b.polyfills != nil && b.polyfills.getStatic(n.GetString()) == nil {
+			return false
+		}
 	}
 
 	// Before traversing any children, we update the stack

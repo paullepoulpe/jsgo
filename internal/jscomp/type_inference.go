@@ -80,9 +80,15 @@ type TypeInference struct {
 	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
 	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
 
-	qnameCache [512]struct {
-		a, b, res string
-	}
+	lastScopeRoot           *rhino.Node
+	lastModule              *Module
+	lastSyntacticBlockScope *TypedScope
+
+	qnameCache [2048][2]tiQNameCacheEntry
+}
+
+type tiQNameCacheEntry struct {
+	a, b, res string
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -125,6 +131,9 @@ func (ti *TypeInference) initTypeInference(
 		ti.optChainInfoSlab = ti.optChainInfoSlab[:0]
 	}
 	// Field initializers.
+	ti.lastScopeRoot = nil
+	ti.lastModule = nil
+	ti.lastSyntacticBlockScope = nil
 	ti.inferredUnboundVarScope = nil
 	ti.inferredUnboundVarList = ti.inferredUnboundVarBuf[:0]
 	if n := len(ti.inferredUnboundVars); n > 0 {
@@ -455,6 +464,15 @@ func (ti *TypeInference) CreateEntryLattice() FlowScope {
 	return ti.InferParameters(entryScope)
 }
 
+func typeInference_getEnclosingScopeRoot(n *rhino.Node) *rhino.Node {
+	for ; n != nil; n = n.GetParent() {
+		if NodeUtil_CreatesScope(n) {
+			return n
+		}
+	}
+	return nil
+}
+
 // Java: TypeInference.flowThrough(Node, FlowScope)
 func (ti *TypeInference) FlowThrough(n *rhino.Node, input FlowScope) FlowScope {
 	// If we have not walked a path from <entry> to <n>, then we don't
@@ -467,13 +485,22 @@ func (ti *TypeInference) FlowThrough(n *rhino.Node, input FlowScope) FlowScope {
 	// scope rooted at the module. The reasoning for separating out this logic is that we can just
 	// ignore the actual AST nodes for IMPORT/EXPORT, in most cases, because we have already
 	// created an abstraction of imports and exports.
-	root := NodeUtil_GetEnclosingScopeRoot(n)
+	root := typeInference_getEnclosingScopeRoot(n)
 	// Inferred types of ES module imports/exports aren't knowable until after TypeInference runs.
 	// First update the type of all imports in the scope, then do flow-sensitive inference, then
 	// update the implicit '*exports*' object.
-	module :=
-		ModuleImportResolver_GetModuleFromScopeRoot(ti.compiler.GetModuleMap(), ti.compiler, root)
-	syntacticBlockScope := ti.scopeCreator.CreateScopeOfNode(root)
+	var module *Module
+	var syntacticBlockScope *TypedScope
+	if root == ti.lastScopeRoot && root != nil {
+		module = ti.lastModule
+		syntacticBlockScope = ti.lastSyntacticBlockScope
+	} else {
+		module = ModuleImportResolver_GetModuleFromScopeRoot(ti.compiler.GetModuleMap(), ti.compiler, root)
+		syntacticBlockScope = ti.scopeCreator.CreateScopeOfNode(root)
+		ti.lastScopeRoot = root
+		ti.lastModule = module
+		ti.lastSyntacticBlockScope = syntacticBlockScope
+	}
 	if module != nil && module.Metadata().IsEs6Module() {
 		ti.moduleImportResolver.DeclareEsModuleImports(
 			module, syntacticBlockScope, ti.compiler.GetInput(NodeUtil_GetInputId(n)))
@@ -1917,7 +1944,7 @@ func (ti *TypeInference) TraverseObjectLiteral(n *rhino.Node, scope FlowScope) F
 	var qObjName string
 	var hasQObjName bool
 	if n.GetFirstChild() != nil {
-		qObjName, hasQObjName = nodeUtil_getBestLValueNameString(NodeUtil_GetBestLValue(n))
+		qObjName, hasQObjName = ti.getBestLValueNameString(NodeUtil_GetBestLValue(n))
 	}
 	for key := n.GetFirstChild(); key != nil; key = key.GetNext() {
 		if key.IsComputedProp() {
@@ -3111,39 +3138,69 @@ func TypeInference_InferPropertyTypesToMatchConstraint(type_ rhino.JSType, const
 //
 // Java: TypeInference.tightenTypeAfterDereference(Node, FlowScope)
 func (ti *TypeInference) TightenTypeAfterDereference(n *rhino.Node, scope FlowScope) FlowScope {
-	if n.IsQualifiedName() {
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		if n.GetString() == "" {
+			return scope
+		}
 		type_ := ti.GetJSType(n)
 		narrowed := type_.RestrictByNotNullOrUndefined()
-		if !type_.Equals(narrowed) {
-			scope = ti.NarrowScope(scope, n, narrowed)
+		if type_ != narrowed && !type_.Equals(narrowed) {
+			scope = ti.RedeclareSimpleVar(scope, n, narrowed)
+		}
+	case rhino.Token_GETPROP:
+		type_ := ti.GetJSType(n)
+		narrowed := type_.RestrictByNotNullOrUndefined()
+		if type_ != narrowed && !type_.Equals(narrowed) {
+			if qName, ok := ti.getQualifiedNameString(n); ok {
+				scope = scope.InferQualifiedSlot(n, qName, type_, narrowed, false)
+			}
+		}
+	case rhino.Token_SUPER:
+		type_ := ti.GetJSType(n)
+		narrowed := type_.RestrictByNotNullOrUndefined()
+		if type_ != narrowed && !type_.Equals(narrowed) {
+			scope = ti.RedeclareSimpleVar(scope, n, narrowed)
 		}
 	}
 	return scope
 }
 
 func (ti *TypeInference) concatQName(a, b string) string {
-	var h uint32 = uint32(len(a))*31 + uint32(len(b))
-	if len(a) > 0 {
-		h = h*31 + uint32(a[0])
-		h = h*31 + uint32(a[len(a)-1])
+	h := gnConcatHash(a, b)
+	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
+	bucket := &ti.qnameCache[idx]
+	if e := &bucket[0]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
+		return e.res
 	}
-	if len(b) > 0 {
-		h = h*31 + uint32(b[0])
-		h = h*31 + uint32(b[len(b)-1])
-		if len(b) > 2 {
-			h = h*31 + uint32(b[len(b)/2])
-		}
+	if e := &bucket[1]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
+		res := e.res
+		*e = bucket[0]
+		bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
+		return res
 	}
-	idx := (h ^ (h >> 9)) & uint32(len(ti.qnameCache)-1)
-	entry := &ti.qnameCache[idx]
-	if entry.a == a && entry.b == b && entry.res != "" {
-		return entry.res
-	}
-	res := a + "." + b
-	entry.a = a
-	entry.b = b
-	entry.res = res
+	res := nodeUtilConcatDot(a, b)
+	bucket[1] = bucket[0]
+	bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
 	return res
+}
+
+func (ti *TypeInference) getBestLValueNameString(lValue *rhino.Node) (string, bool) {
+	if lValue == nil || lValue.GetParent().IsObjectLit() {
+		return "", false
+	}
+	if NodeUtil_IsGetOrSetKey(lValue) || lValue.IsComputedProp() {
+		return "", false
+	}
+	if lValue.IsStringKey() || lValue.IsMemberFunctionDef() || lValue.IsMemberFieldDef() {
+		objectLit := lValue.GetParent()
+		owner, ok := ti.getBestLValueNameString(NodeUtil_GetBestLValue(objectLit))
+		if ok {
+			return ti.concatQName(owner, NodeUtil_GetObjectOrClassLitKeyName(lValue)), true
+		}
+		return "", false
+	}
+	return ti.getQualifiedNameString(lValue)
 }
 
 func (ti *TypeInference) getQualifiedNameString(n *rhino.Node) (string, bool) {

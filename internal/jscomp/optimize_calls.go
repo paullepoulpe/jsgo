@@ -146,12 +146,14 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 		defer sc.ReleaseArena()
 	}
 	cb := acquireOptimizeCallsCallback(o, references)
-	b := NodeTraversal_Builder{
-		compiler:     o.compiler,
-		callback:     cb,
-		scopeCreator: sc,
+	scopeRoot := externs.GetParent()
+	if scopeRoot == nil {
+		failNodeTraversalNull()
 	}
-	b.TraverseRoots(externs, root)
+	jutil.CheckState(root.GetParent() == scopeRoot)
+	cb.initGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
+	cb.traverseNode(externs)
+	cb.traverseNode(root)
 	releaseOptimizeCallsCallback(cb)
 	if releaseEarly {
 		references.globalScope = nil
@@ -910,6 +912,99 @@ func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, referen
 	return c
 }
 
+func (*OptimizeCalls_ReferenceMapBuildingCallback) onlyNameLeaves()                  {}
+func (*OptimizeCalls_ReferenceMapBuildingCallback) noShouldTraverse()                {}
+func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse()   {}
+
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
+	c.globalScope = s
+	c.references.globalScope = s
+	if !c.references.pooled {
+		varCount := s.GetVarCount()
+		if varCount > 4096 && c.references.names.IsEmpty() {
+			c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
+		}
+		if varCount > 1024 && c.references.props.IsEmpty() {
+			c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount*4, 16384))
+		}
+	}
+}
+
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		if !c.outer.considerExterns && n.IsFromExterns() {
+			return
+		}
+	case rhino.Token_CLASS:
+		className := n.GetFirstChild()
+		extendsClause := className.GetNext()
+		body := extendsClause.GetNext()
+		c.traverseNode(extendsClause)
+		c.traverseNode(className)
+		c.traverseNode(body)
+		return
+	case rhino.Token_CLASS_MEMBERS:
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			if child.IsComputedProp() || child.IsComputedFieldDef() {
+				c.traverseNode(child.GetFirstChild())
+			}
+		}
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			switch child.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				c.traverseNode(child.GetLastChild())
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if child.HasTwoChildren() {
+					c.traverseNode(child.GetLastChild())
+				}
+			default:
+				c.traverseNode(child)
+			}
+		}
+		return
+	}
+
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		if child.GetFirstChild() == nil {
+			switch child.GetToken() {
+			case rhino.Token_NAME:
+				c.MaybeAddNameReference(child.GetString(), child)
+			case rhino.Token_SUPER:
+				c.VisitSuper(child)
+			case rhino.Token_MEMBER_FIELD_DEF:
+				if !child.IsQuotedStringKey() {
+					c.MaybeAddPropReference(child.GetString(), child)
+				}
+			}
+			continue
+		}
+		c.traverseNode(child)
+	}
+
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		c.MaybeAddNameReference(n.GetString(), n)
+	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
+		c.MaybeAddPropReference(n.GetString(), n)
+	case rhino.Token_CALL:
+		fnName := n.GetFirstChild()
+		if fnName.GetNext() != nil && c.codingConvention.IsPropertyRenameFunction(fnName) {
+			propName := NodeUtil_GetArgumentForCallOrNew(n, 0)
+			if propName != nil {
+				c.MaybeAddPropReference(propName.GetString(), n)
+			}
+		}
+	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF:
+		if !n.IsQuotedStringKey() {
+			c.MaybeAddPropReference(n.GetString(), n)
+		}
+	case rhino.Token_SUPER:
+		c.VisitSuper(n)
+	}
+}
+
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.visit(NodeTraversal, Node, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.Node) {
 	switch n.GetToken() {
@@ -921,7 +1016,9 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *
 		// If we are using goog.reflect.objectProperty on this symbol, we will assume that it
 		// gets referenced.
 		fnName := n.GetFirstChild()
-		if c.codingConvention.IsPropertyRenameFunction(fnName) {
+		if fnName.IsSuper() {
+			c.VisitSuper(fnName)
+		} else if fnName.GetNext() != nil && c.codingConvention.IsPropertyRenameFunction(fnName) {
 			propName := NodeUtil_GetArgumentForCallOrNew(n, 0)
 			if propName != nil {
 				c.MaybeAddPropReference(propName.GetString(), n)
@@ -935,8 +1032,6 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *
 			c.MaybeAddPropReference(n.GetString(), n)
 		}
 
-	case rhino.Token_SUPER:
-		c.VisitSuper(n)
 	case
 		// Ignore quoted and computed keys.
 		// TODO(johnlenz): support symbols.
