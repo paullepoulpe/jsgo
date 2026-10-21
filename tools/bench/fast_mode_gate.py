@@ -5,10 +5,12 @@ Validates that `jsgo --fast_mode` (and `JSGO_FAST_MODE=1`) satisfies:
   - Layer 1 (Go-to-Go Multi-Thread Determinism & Race Freedom):
       Exit code == compat exit code, no data race / panic in stderr, and
       SHA256(fast_out[t=1]) == SHA256(fast_out[t=k]) across all thread counts.
-  - Layer 2 (Canonical Alpha-Normalized Token/Structure Equivalence):
-      Pure-Python JS lexer + scope-aware first-appearance alpha-normalization
-      of renamed identifiers/properties and synthetic `$jscomp$*`/`JSCompiler_*`
-      symbols, verifying canonical token stream equivalence (<= 0.1% delta).
+  - Layer 2 (Lockstep AST & Lexical-Scope Alpha-Isomorphism):
+      Parses compat and fast outputs with jsgo's own ECMAScript parser, builds
+      exact lexical scopes via SyntacticScopeCreator, and walks both ASTs in
+      lockstep to verify 100% identical AST tokens, child counts, flags,
+      literals, property accesses, extern identifiers, and a strict 1-to-1
+      lexical-scope variable bijection (varA <-> varB).
   - Layer 3 (Raw & Gzipped Output Size Non-Regression):
       Verifies raw_bytes(fast_out) <= raw_bytes(compat_out) * 1.001 and
       gzip_bytes(fast_out) <= gzip_bytes(compat_out) * 1.001.
@@ -534,12 +536,43 @@ def run_jsgo_once(jsgo_bin: Path, base_args: list, cwd: Path, out_dir: Path, env
     }
 
 
-def evaluate_task(name: str, jsgo_bin: Path, base_args: list, cwd: Path, task_out_dir: Path,
+def build_ast_isomorphism_bin(out_bin: Path, env: dict) -> Path:
+    """Builds the Go lockstep AST alpha-isomorphism verifier binary."""
+    subprocess.run(
+        ["go", "build", "-o", str(out_bin), "./tools/bench/ast_isomorphism"],
+        cwd=str(HERE.parent.parent),
+        env=env,
+        check=True,
+    )
+    return out_bin
+
+
+def verify_ast_isomorphism(ast_iso_bin: Path, compat_js: Path, fast_js: Path, env: dict):
+    """Runs the Go lockstep AST + SyntacticScopeCreator alpha-isomorphism verifier."""
+    if not compat_js.exists() and not fast_js.exists():
+        return True, None, {"renamed_vars_diff": 0, "total_nodes": 0}
+    if not compat_js.exists() or not fast_js.exists():
+        return False, "one of compat/fast out.js is missing", {}
+    proc = subprocess.run(
+        [str(ast_iso_bin), str(compat_js), str(fast_js)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    try:
+        payload = json.loads(proc.stdout)
+    except Exception:
+        return False, f"ast_isomorphism failed: {proc.stderr or proc.stdout}", {}
+    return bool(payload.get("isomorphic")), payload.get("error"), payload.get("stats") or {}
+
+
+def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list, cwd: Path, task_out_dir: Path,
                   env: dict, threads: list, has_fast_flag: bool, timeout: int):
     """Runs Step 0 (compat) and Layers 1-4 for a single task or fixture."""
     # Step 0: compat baseline (t=1, without --fast_mode)
+    compat_dir = task_out_dir / "compat-t1"
     compat = run_jsgo_once(
-        jsgo_bin, base_args, cwd, task_out_dir / "compat-t1",
+        jsgo_bin, base_args, cwd, compat_dir,
         env, threads=1, fast_mode=False, has_fast_flag=has_fast_flag, timeout=timeout,
     )
 
@@ -553,6 +586,7 @@ def evaluate_task(name: str, jsgo_bin: Path, base_args: list, cwd: Path, task_ou
 
     ref_t = threads[0]
     fast_ref = fast_runs[ref_t]
+    fast_ref_dir = task_out_dir / f"fast-t{ref_t}"
 
     exits_ok = all(r["exit"] == compat["exit"] for r in fast_runs.values())
     no_race = not compat["race_or_crash"] and all(not r["race_or_crash"] for r in fast_runs.values())
@@ -563,7 +597,7 @@ def evaluate_task(name: str, jsgo_bin: Path, base_args: list, cwd: Path, task_ou
     l1_deterministic = len(js_hashes) == 1 and len(map_hashes) == 1 and len(stderr_hashes) == 1
     l1_pass = exits_ok and no_race and l1_deterministic
 
-    # Layer 2: Canonical Alpha-Normalized Token/Structure Equivalence
+    # Layer 2: Lockstep AST & Lexical-Scope Alpha-Isomorphism + Token Census
     compat_code = compat["js_bytes"].decode("utf-8", "replace")
     fast_code = fast_ref["js_bytes"].decode("utf-8", "replace")
 
@@ -573,8 +607,12 @@ def evaluate_task(name: str, jsgo_bin: Path, base_args: list, cwd: Path, task_ou
     compat_canon, compat_census = alpha_normalize_and_census(compat_tokens)
     fast_canon, fast_census = alpha_normalize_and_census(fast_tokens)
 
-    l2_exact, l2_delta = token_stream_delta(compat_canon, fast_canon)
-    l2_pass = l2_exact or (l2_delta <= 0.001)
+    _, l2_delta = token_stream_delta(compat_canon, fast_canon)
+    ast_iso_ok, ast_iso_err, ast_iso_stats = verify_ast_isomorphism(
+        ast_iso_bin, compat_dir / "out.js", fast_ref_dir / "out.js", env
+    )
+    l2_exact = ast_iso_ok
+    l2_pass = ast_iso_ok
 
     # Layer 3: Raw & Gzipped Output Size Non-Regression (<= +0.1%)
     compat_raw = len(compat["js_bytes"])
@@ -622,6 +660,9 @@ def evaluate_task(name: str, jsgo_bin: Path, base_args: list, cwd: Path, task_ou
         },
         "layer2": {
             "pass": l2_pass,
+            "ast_isomorphic": ast_iso_ok,
+            "ast_isomorphism_error": ast_iso_err,
+            "ast_isomorphism_stats": ast_iso_stats,
             "exact_alpha_match": l2_exact,
             "token_delta_pct": round(l2_delta * 100.0, 4),
         },
@@ -649,10 +690,11 @@ def format_row(res: dict) -> str:
     l4 = res["layer4"]
 
     l1_str = "PASS (det)" if l1["pass"] else "FAIL"
-    if l2["exact_alpha_match"]:
-        l2_str = "PASS (0.000%)"
+    if l2.get("ast_isomorphic"):
+        renamed_diff = (l2.get("ast_isomorphism_stats") or {}).get("renamed_vars_diff", 0)
+        l2_str = f"PASS (iso Δv={renamed_diff})"
     else:
-        l2_str = f"{'PASS' if l2['pass'] else 'FAIL'} ({l2['token_delta_pct']:.3f}%)"
+        l2_str = f"FAIL ({l2.get('ast_isomorphism_error') or 'mismatch'})"
 
     l3_str = (
         f"{'PASS' if l3['pass'] else 'FAIL'} "
@@ -727,6 +769,7 @@ def main():
     try:
         root_dir = a.out.resolve() if a.out is not None else Path(temp_ctx.name)
         root_dir.mkdir(parents=True, exist_ok=True)
+        ast_iso_bin = build_ast_isomorphism_bin(root_dir / "ast_isomorphism", env)
         bench_ws = root_dir / "ws-bench"
         fixture_ws = root_dir / "ws-fixtures"
         bench.make_workspace(str(bench_ws), a.cache)
@@ -768,6 +811,7 @@ def main():
             res = evaluate_task(
                 name=name,
                 jsgo_bin=jsgo_bin,
+                ast_iso_bin=ast_iso_bin,
                 base_args=base_args,
                 cwd=ws,
                 task_out_dir=root_dir / "runs" / name,
