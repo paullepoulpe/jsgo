@@ -88,7 +88,6 @@ type CrossChunkReferenceCollector struct {
 	cols           []*ReferenceCollection
 	varsBuf        [16]*Var
 	colsBuf        [16]*ReferenceCollection
-	table          []rcTableEntry
 	lastVar        *Var
 	lastCollection *ReferenceCollection
 	maxVarIndex    int
@@ -173,28 +172,11 @@ func (c *CrossChunkReferenceCollector) getCCArena() *crossChunkArena {
 }
 
 func (c *CrossChunkReferenceCollector) release() {
+	for _, kv := range c.vars {
+		kv.nameHash = 0
+	}
 	if a := c.arena; a != nil {
 		c.arena = nil
-		if len(c.table) > 0 && len(c.vars) > 0 {
-			if len(c.table) <= 2097152 {
-				if len(c.vars)*16 < len(c.table) {
-					mask := uint32(len(c.table) - 1)
-					for _, kv := range c.vars {
-						slot := rcHashVarPtr(kv) & mask
-						for c.table[slot].v != nil {
-							c.table[slot] = rcTableEntry{}
-							slot = (slot + 1) & mask
-						}
-					}
-				} else {
-					clear(c.table)
-				}
-				a.table = c.table
-			} else {
-				a.table = nil
-			}
-		}
-		c.table = nil
 		if cap(c.vars) > len(c.varsBuf) {
 			if cap(c.vars) <= 1048576 {
 				clear(c.vars)
@@ -635,79 +617,31 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 	return s
 }
 
-func (c *CrossChunkReferenceCollector) initTable() {
-	if c.poolable {
+func (c *CrossChunkReferenceCollector) growVarsCols() {
+	if c.poolable && cap(c.vars) == len(c.varsBuf) {
 		a := c.getArena()
-		if len(a.table) == 0 {
-			a.table = make([]rcTableEntry, 8192)
-		}
-		c.table = a.table
 		if cap(a.vars) > len(c.vars) {
 			c.vars = append(a.vars[:0], c.vars...)
 			c.cols = append(a.cols[:0], c.cols...)
-		} else {
-			newVars := make([]*Var, len(c.vars), 4096)
-			copy(newVars, c.vars)
-			c.vars = newVars
-			newCols := make([]*ReferenceCollection, len(c.cols), 4096)
-			copy(newCols, c.cols)
-			c.cols = newCols
+			return
 		}
-	} else {
-		c.table = make([]rcTableEntry, 64)
-		newVars := make([]*Var, len(c.vars), 64)
-		copy(newVars, c.vars)
-		c.vars = newVars
-		newCols := make([]*ReferenceCollection, len(c.cols), 64)
-		copy(newCols, c.cols)
-		c.cols = newCols
 	}
-	table := c.table
-	mask := uint32(len(table) - 1)
-	for i, kv := range c.vars {
-		slot := rcHashVarPtr(kv) & mask
-		for table[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		table[slot] = rcTableEntry{v: kv, col: c.cols[i]}
-	}
-}
-
-func (c *CrossChunkReferenceCollector) growTable() {
-	newCap := len(c.table) * 2
-	newTable := make([]rcTableEntry, newCap)
-	mask := uint32(newCap - 1)
-	for i, kv := range c.vars {
-		slot := rcHashVarPtr(kv) & mask
-		for newTable[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		newTable[slot] = rcTableEntry{v: kv, col: c.cols[i]}
-	}
-	c.table = newTable
+	newCap := max(cap(c.vars)*2, 4096)
+	newVars := make([]*Var, len(c.vars), newCap)
+	copy(newVars, c.vars)
+	c.vars = newVars
+	newCols := make([]*ReferenceCollection, len(c.cols), newCap)
+	copy(newCols, c.cols)
+	c.cols = newCols
 	if c.arena != nil {
-		c.arena.table = newTable
+		c.arena.vars = newVars[:0]
+		c.arena.cols = newCols[:0]
 	}
 }
 
 func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceCollection {
-	if c.table != nil {
-		table := c.table
-		mask := uint32(len(table) - 1)
-		for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
-			e := table[slot]
-			if e.v == v {
-				return e.col
-			}
-			if e.v == nil {
-				return nil
-			}
-		}
-	}
-	for i, kv := range c.vars {
-		if kv == v {
-			return c.cols[i]
-		}
+	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
+		return c.cols[idx]
 	}
 	return nil
 }
@@ -724,32 +658,15 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 		}
 	}
 	col := c.allocReferenceCollection()
-	if c.table != nil {
-		if (len(c.vars)+1)*2 > len(c.table) {
-			c.growTable()
-		}
-		table := c.table
-		mask := uint32(len(table) - 1)
-		slot := rcHashVarPtr(v) & mask
-		for table[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		table[slot] = rcTableEntry{v: v, col: col}
-	} else if len(c.vars) == len(c.varsBuf) {
-		c.initTable()
-		table := c.table
-		mask := uint32(len(table) - 1)
-		slot := rcHashVarPtr(v) & mask
-		for table[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		table[slot] = rcTableEntry{v: v, col: col}
+	if len(c.vars) == cap(c.vars) {
+		c.growVarsCols()
 	}
 	c.vars = append(c.vars, v)
 	c.cols = append(c.cols, col)
 	if c.referenceMap != nil {
 		c.referenceMap.Put(v, col)
 	}
+	v.nameHash = int32(len(c.vars))
 	c.lastVar = v
 	c.lastCollection = col
 	return col

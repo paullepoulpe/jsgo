@@ -80,12 +80,14 @@ type SourceMapGeneratorV3 struct {
 	addedSourceFiles       []string
 	addedSourceFileIndex   map[string]int32
 	sourceIdxToFileId      []int32
+	orderedSourceFiles     []string
 	lastAddedSourceFile    string
 	hasLastAddedSourceFile bool
 	lastAddedSourceFileIdx int32
 	addedSymbolNames       []string
 	addedSymbolIndex       map[string]int32
 	symbolIdxToNameId      []int32
+	orderedSymbolNames     []string
 	lastAddedSymbolName    string
 	hasLastAddedSymbolName bool
 	lastAddedSymbolNameIdx int32
@@ -132,9 +134,7 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.lastAddedSourceFileIdx = -1
 	g.addedSymbolNames = g.addedSymbolNamesBuf[:0:len(g.addedSymbolNamesBuf)]
 	g.lastAddedSymbolNameIdx = -1
-	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
 	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
-	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
 	g.lastSourceFile = ""
 	g.hasLastSourceFile = false
 	g.lastSourceFileIndex = -1
@@ -166,6 +166,8 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.addedSourceFiles = g.addedSourceFiles[:0]
 	clear(g.addedSourceFileIndex)
 	g.sourceIdxToFileId = g.sourceIdxToFileId[:0]
+	clear(g.orderedSourceFiles)
+	g.orderedSourceFiles = g.orderedSourceFiles[:0]
 	g.lastAddedSourceFile = ""
 	g.hasLastAddedSourceFile = false
 	g.lastAddedSourceFileIdx = -1
@@ -173,12 +175,18 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.addedSymbolNames = g.addedSymbolNames[:0]
 	clear(g.addedSymbolIndex)
 	g.symbolIdxToNameId = g.symbolIdxToNameId[:0]
+	clear(g.orderedSymbolNames)
+	g.orderedSymbolNames = g.orderedSymbolNames[:0]
 	g.lastAddedSymbolName = ""
 	g.hasLastAddedSymbolName = false
 	g.lastAddedSymbolNameIdx = -1
 	g.lastMapping = nil
-	g.sourceFileMap.Clear()
-	g.originalNameMap.Clear()
+	if g.sourceFileMap != nil {
+		g.sourceFileMap.Clear()
+	}
+	if g.originalNameMap != nil {
+		g.originalNameMap.Clear()
+	}
 	g.lastSourceFile = ""
 	g.hasLastSourceFile = false
 	g.lastSourceFileIndex = -1
@@ -631,16 +639,19 @@ func (g *SourceMapGeneratorV3) GetExtension(name string) any {
 //
 // Java: SourceMapGeneratorV3.addSourceNameMap(Appendable)
 func (g *SourceMapGeneratorV3) AddSourceNameMap(out io.StringWriter) {
-	SourceMapGeneratorV3_AddNameMap(out, g.sourceFileMap)
+	SourceMapGeneratorV3_AddNameSlice(out, g.orderedSourceFiles)
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContentMap(Appendable)
 func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
+	if g.sourceFileContentMap.IsEmpty() {
+		return
+	}
 	found := false
-	size := g.sourceFileMap.Size()
+	size := len(g.orderedSourceFiles)
 	contents := make([]string, size)
 
-	for key, index := range g.sourceFileMap.All() {
+	for index, key := range g.orderedSourceFiles {
 		jutil.CheckState(index < size)
 		content := g.sourceFileContentMap.Get(key)
 		if content != nil {
@@ -669,7 +680,42 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 //
 // Java: SourceMapGeneratorV3.addSymbolNameMap(Appendable)
 func (g *SourceMapGeneratorV3) AddSymbolNameMap(out io.StringWriter) {
-	SourceMapGeneratorV3_AddNameMap(out, g.originalNameMap)
+	SourceMapGeneratorV3_AddNameSlice(out, g.orderedSymbolNames)
+}
+
+func SourceMapGeneratorV3_AddNameSlice(out io.StringWriter, names []string) {
+	var buf [4096]byte
+	bufLen := 0
+	for i, key := range names {
+		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
+			if bufLen+len(key)+3 > len(buf) {
+				appendString(out, unsafe.String(&buf[0], bufLen))
+				bufLen = 0
+			}
+			if i != 0 {
+				buf[bufLen] = ','
+				bufLen++
+			}
+			buf[bufLen] = '"'
+			bufLen++
+			copy(buf[bufLen:], key)
+			bufLen += len(key)
+			buf[bufLen] = '"'
+			bufLen++
+		} else {
+			if bufLen > 0 {
+				appendString(out, unsafe.String(&buf[0], bufLen))
+				bufLen = 0
+			}
+			if i != 0 {
+				appendString(out, ",")
+			}
+			appendString(out, SourceMapGeneratorV3_EscapeString(key))
+		}
+	}
+	if bufLen > 0 {
+		appendString(out, unsafe.String(&buf[0], bufLen))
+	}
 }
 
 // Java: SourceMapGeneratorV3.addNameMap(Appendable, Map)
@@ -1039,6 +1085,9 @@ func SourceMapGeneratorV3_AppendOffsetValue(out io.StringWriter, line, column in
 // Java: SourceMapGeneratorV3.getSourceId(String)
 func (g *SourceMapGeneratorV3) GetSourceId(sourceName string) int {
 	if !g.hasLastSourceFile || sourceName != g.lastSourceFile {
+		if g.sourceFileMap == nil {
+			g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
+		}
 		g.lastSourceFile = sourceName
 		g.hasLastSourceFile = true
 		index, ok := g.sourceFileMap.Lookup(sourceName)
@@ -1055,6 +1104,9 @@ func (g *SourceMapGeneratorV3) GetSourceId(sourceName string) int {
 // Java: SourceMapGeneratorV3.getNameId(String)
 func (g *SourceMapGeneratorV3) GetNameId(symbolName string) int {
 	if !g.hasLastSymbolName || symbolName != g.lastSymbolName {
+		if g.originalNameMap == nil {
+			g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
+		}
 		g.lastSymbolName = symbolName
 		g.hasLastSymbolName = true
 		index, ok := g.originalNameMap.Lookup(symbolName)
@@ -1190,7 +1242,8 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 		// The relative source file id
 		sourceId := l.outer.sourceIdxToFileId[m.sourceFileIdx]
 		if sourceId < 0 {
-			sourceId = int32(l.outer.GetSourceId(l.outer.addedSourceFiles[m.sourceFileIdx]))
+			sourceId = int32(len(l.outer.orderedSourceFiles))
+			l.outer.orderedSourceFiles = append(l.outer.orderedSourceFiles, l.outer.addedSourceFiles[m.sourceFileIdx])
 			l.outer.sourceIdxToFileId[m.sourceFileIdx] = sourceId
 		}
 		l.writeVLQ(sourceId - int32(l.previousSourceFileId))
@@ -1209,7 +1262,8 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 			// The relative id for the associated symbol name
 			nameId := l.outer.symbolIdxToNameId[m.originalNameIdx]
 			if nameId < 0 {
-				nameId = int32(l.outer.GetNameId(l.outer.addedSymbolNames[m.originalNameIdx]))
+				nameId = int32(len(l.outer.orderedSymbolNames))
+				l.outer.orderedSymbolNames = append(l.outer.orderedSymbolNames, l.outer.addedSymbolNames[m.originalNameIdx])
 				l.outer.symbolIdxToNameId[m.originalNameIdx] = nameId
 			}
 			l.writeVLQ(nameId - int32(l.previousNameId))
@@ -1231,6 +1285,12 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 	for i := range l.outer.sourceIdxToFileId {
 		l.outer.sourceIdxToFileId[i] = -1
 	}
+	if cap(l.outer.orderedSourceFiles) < nSources {
+		l.outer.orderedSourceFiles = make([]string, 0, nSources)
+	} else {
+		clear(l.outer.orderedSourceFiles)
+		l.outer.orderedSourceFiles = l.outer.orderedSourceFiles[:0]
+	}
 	nSymbols := len(l.outer.addedSymbolNames)
 	if cap(l.outer.symbolIdxToNameId) < nSymbols {
 		l.outer.symbolIdxToNameId = make([]int32, nSymbols)
@@ -1239,6 +1299,12 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 	}
 	for i := range l.outer.symbolIdxToNameId {
 		l.outer.symbolIdxToNameId[i] = -1
+	}
+	if cap(l.outer.orderedSymbolNames) == 0 && nSymbols > 0 {
+		l.outer.orderedSymbolNames = make([]string, 0, min(nSymbols, 1024))
+	} else {
+		clear(l.outer.orderedSymbolNames)
+		l.outer.orderedSymbolNames = l.outer.orderedSymbolNames[:0]
 	}
 
 	l.buffering = true

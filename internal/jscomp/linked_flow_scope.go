@@ -42,9 +42,28 @@ type linkedFlowScopeArena struct {
 	slotChunks    []*[256]LinkedFlowScope_OverlaySlot
 	slotChunkIdx  int
 	slotOffset    int
+
+	scopeMapArena rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope]
+	slotMapArena  rhino.HamtPMapArena[string, *LinkedFlowScope_OverlaySlot]
+}
+
+func (a *linkedFlowScopeArena) scopeMaps() *rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	if a == nil {
+		return nil
+	}
+	return &a.scopeMapArena
+}
+
+func (a *linkedFlowScopeArena) slotMaps() *rhino.HamtPMapArena[string, *LinkedFlowScope_OverlaySlot] {
+	if a == nil {
+		return nil
+	}
+	return &a.slotMapArena
 }
 
 func (a *linkedFlowScopeArena) reset() {
+	a.scopeMapArena.Reset()
+	a.slotMapArena.Reset()
 	if a.scopeInlineLen > 0 {
 		clear(a.scopeBuf[:a.scopeInlineLen])
 		a.scopeInlineLen = 0
@@ -246,8 +265,9 @@ func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) *rhino.HamtPMap[*Type
 		thatScope = thatScope.GetParent()
 		thatDepth--
 	}
+	scopeMaps := l.arena.scopeMaps()
 	for thisDepth > thatDepth {
-		result = result.MinusMap(thisScope)
+		result = result.MinusMapWithArena(scopeMaps, thisScope)
 		if result.IsEmpty() {
 			return result
 		}
@@ -255,7 +275,7 @@ func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) *rhino.HamtPMap[*Type
 		thisDepth--
 	}
 	for thisScope != thatScope && thisScope != nil && thatScope != nil {
-		result = result.MinusMap(thisScope)
+		result = result.MinusMapWithArena(scopeMaps, thisScope)
 		if result.IsEmpty() {
 			return result
 		}
@@ -288,9 +308,9 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowS
 	// Aggressively remove empty scopes to maintain a reasonable equivalence.
 	var newScopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
 	if !newScope.slots.IsEmpty() {
-		newScopes = l.scopes.PlusMap(scope.scope, newScope)
+		newScopes = l.scopes.PlusMapWithArena(l.arena.scopeMaps(), scope.scope, newScope)
 	} else {
-		newScopes = l.scopes.MinusMap(scope.scope)
+		newScopes = l.scopes.MinusMapWithArena(l.arena.scopeMaps(), scope.scope)
 	}
 	if newScopes != l.scopes {
 		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, newScopes, l.syntacticScope, l.functionScope)
@@ -650,7 +670,8 @@ func linkedFlowScope_JoinMap(
 		arena = linkedB.arena
 	}
 	return scopesA.
-		ReconcileMap(
+		ReconcileMapWithArena(
+			arena.scopeMaps(),
 			scopesB,
 			func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
 				if scopeA == scopeB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
@@ -701,7 +722,8 @@ func linkedFlowScope_JoinMap(
 				if slotsA == slotsB && typedScopeA == typedScopeB {
 					reconciledSlots = slotsA
 				} else {
-					reconciledSlots = slotsA.ReconcileMap(
+					reconciledSlots = slotsA.ReconcileMapWithArena(
+						arena.slotMaps(),
 						slotsB,
 						func(slotKey string, slotA *LinkedFlowScope_OverlaySlot, slotB *LinkedFlowScope_OverlaySlot) *LinkedFlowScope_OverlaySlot {
 							// There are 5 different join cases:
@@ -837,7 +859,7 @@ func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *L
 	if slot != nil && base.JSCompObjects_Identical(type_, slot.type_) {
 		return o
 	}
-	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, o.slots.PlusMap(name, newLinkedFlowScope_OverlaySlotWithArena(o.arena, name, type_)))
+	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, o.slots.PlusMapWithArena(o.arena.slotMaps(), name, newLinkedFlowScope_OverlaySlotWithArena(o.arena, name, type_)))
 }
 
 // GetSlot returns the overlay's slot for name, else the scope's (nil if

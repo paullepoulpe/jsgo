@@ -280,23 +280,23 @@ func (c *ClosureCheckModule) VisitWithModule(
 				// but it would require a cleanup to land.
 				t.Report(n, ClosureCheckModule_REFERENCE_TO_MODULE_GLOBAL_NAME)
 			}
-		} else {
-			if !parent.IsGetProp() && n.IsQualifiedName() {
+		} else if !parent.IsGetProp() && !c.currentModuleInfo.importsByLongRequiredName.IsEmpty() {
+			if qname, ok := n.GetQualifiedNameString(); ok {
 				node := n
+				var nextPart string
+				var nextQnamePart *string
 
 				for {
-					var nextQnamePart *string
-					if node.GetParent().IsGetProp() {
-						s := node.GetParent().GetString()
-						nextQnamePart = &s
-					}
-					if !c.CheckImproperReferenceToImport(t, node, node.GetQualifiedName(), nextQnamePart) {
+					if !c.CheckImproperReferenceToImport(t, node, &qname, nextQnamePart) {
 						break
 					}
 					if node.IsName() || !node.HasChildren() {
 						// Don't get the value of a declaration (i.e. `var name = 2`)
 						return
 					}
+					nextPart = node.GetString()
+					nextQnamePart = &nextPart
+					qname = qname[:len(qname)-1-len(nextPart)]
 					node = node.GetOnlyChild()
 					if node == nil {
 						return

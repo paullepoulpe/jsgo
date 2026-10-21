@@ -76,11 +76,13 @@ func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
 //
 // Go-only: performance — see getTokenSourcePosition.
 func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *SourcePosition {
-	jutil.CheckArgumentMsg2(
-		offset >= l.lastLineStart,
-		"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
-		offset,
-		l.lastLineStart)
+	if offset < l.lastLineStart {
+		jutil.CheckArgumentMsg2(
+			false,
+			"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
+			offset,
+			l.lastLineStart)
+	}
 	for offset >= l.nextLineStart {
 		l.AdvanceLine()
 	}
@@ -120,6 +122,29 @@ func (l *LineNumberScanner) getTokenSourcePosition(offset int) *SourcePosition {
 //
 // Go-only: performance — see getTokenSourcePosition.
 func (l *LineNumberScanner) getTokenSourceRange(startOffset, endOffset int) *SourceRange {
+	if startOffset >= l.lastLineStart && endOffset >= startOffset && endOffset < l.nextLineStart {
+		arena := l.arena
+		line := l.lastLine
+		lineStart := l.lastLineStart
+		var start *SourcePosition
+		if p := l.lastTokenPosition; p != nil && p.Offset == startOffset {
+			start = p
+		} else {
+			start = arena.positions.New()
+			start.Source, start.Offset, start.Line, start.Column = l.sourceFile, startOffset, line, startOffset-lineStart
+		}
+		var end *SourcePosition
+		if endOffset == startOffset {
+			end = start
+		} else {
+			end = arena.positions.New()
+			end.Source, end.Offset, end.Line, end.Column = l.sourceFile, endOffset, line, endOffset-lineStart
+		}
+		l.lastTokenPosition = end
+		r := arena.ranges.New()
+		r.Start, r.End = start, end
+		return r
+	}
 	start := l.getTokenSourcePosition(startOffset)
 	end := l.getTokenSourcePosition(endOffset)
 	r := l.arena.ranges.New()

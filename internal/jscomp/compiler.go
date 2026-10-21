@@ -28,6 +28,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -3557,28 +3558,51 @@ func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chun
 //
 // Java: Compiler.CodeBuilder
 type Compiler_CodeBuilder struct {
-	sb        *jutil.StringBuilder
-	lineCount int
-	colCount  int
+	buf         []byte
+	utf16Len    int
+	lineCount   int
+	colCount    int
+	stringTaken bool
 }
 
 // Java: Compiler.CodeBuilder()
 func NewCompiler_CodeBuilder() *Compiler_CodeBuilder {
-	return &Compiler_CodeBuilder{sb: jutil.NewStringBuilder()}
+	return &Compiler_CodeBuilder{}
 }
 
 // Reset removes all text, but leaves the line count unchanged.
 //
 // Java: Compiler.CodeBuilder.reset()
 func (b *Compiler_CodeBuilder) Reset() {
-	b.sb.SetLength(0)
+	if b.stringTaken {
+		b.buf = nil
+		b.stringTaken = false
+	} else {
+		b.buf = b.buf[:0]
+	}
+	b.utf16Len = 0
 }
 
 // Append appends the given string to the text buffer.
 //
 // Java: Compiler.CodeBuilder.append(String)
 func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
-	b.sb.Append(str)
+	if len(str) == 0 {
+		return b
+	}
+	if b.stringTaken {
+		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
+		newBuf := make([]byte, len(b.buf), newCap)
+		copy(newBuf, b.buf)
+		b.buf = newBuf
+		b.stringTaken = false
+	} else if len(b.buf)+len(str) > cap(b.buf) {
+		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
+		newBuf := make([]byte, len(b.buf), newCap)
+		copy(newBuf, b.buf)
+		b.buf = newBuf
+	}
+	b.buf = append(b.buf, str...)
 
 	// Adjust the line and column information for the new text.
 	//
@@ -3591,10 +3615,14 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	lastIndex := strings.LastIndexByte(str, '\n')
 	if lastIndex == -1 {
 		// No new lines, append the new characters added.
-		b.colCount += jutil.StringLength(str)
+		n := jutil.StringLength(str)
+		b.utf16Len += n
+		b.colCount += n
 	} else {
-		b.lineCount += strings.Count(str, "\n")
-		b.colCount = jutil.StringLength(str[lastIndex+1:])
+		tailLen := jutil.StringLength(str[lastIndex+1:])
+		b.utf16Len += jutil.StringLength(str[:lastIndex]) + 1 + tailLen
+		b.lineCount += 1 + strings.Count(str[:lastIndex], "\n")
+		b.colCount = tailLen
 	}
 
 	return b
@@ -3604,14 +3632,18 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 //
 // Java: Compiler.CodeBuilder.toString()
 func (b *Compiler_CodeBuilder) String() string {
-	return b.sb.String()
+	if len(b.buf) == 0 {
+		return ""
+	}
+	b.stringTaken = true
+	return unsafe.String(unsafe.SliceData(b.buf), len(b.buf))
 }
 
 // GetLength returns the length of the text buffer.
 //
 // Java: Compiler.CodeBuilder.getLength()
 func (b *Compiler_CodeBuilder) GetLength() int {
-	return b.sb.Length()
+	return b.utf16Len
 }
 
 // GetLineIndex returns the (zero-based) index of the last line in the text
@@ -3634,18 +3666,9 @@ func (b *Compiler_CodeBuilder) GetColumnIndex() int {
 //
 // Java: Compiler.CodeBuilder.endsWith(String)
 func (b *Compiler_CodeBuilder) EndsWith(suffix string) bool {
-	if !(b.sb.Length() > jutil.StringLength(suffix)) {
-		return false
-	}
-	// Go-only: performance — sb.substring(start) copies only the tail;
-	// going through sb.toString() would convert the whole buffer, once per
-	// input when printing input delimiters (quadratic in the output size).
-	start := b.sb.Length() - jutil.StringLength(suffix)
-	tail := make([]uint16, b.sb.Length()-start)
-	for i := range tail {
-		tail[i] = b.sb.CharAt(start + i)
-	}
-	return suffix == jutil.StringFromUTF16(tail)
+	return b.utf16Len > jutil.StringLength(suffix) &&
+		len(b.buf) >= len(suffix) &&
+		unsafe.String(unsafe.SliceData(b.buf[len(b.buf)-len(suffix):]), len(suffix)) == suffix
 }
 
 // ------------------------------------------------------------------------

@@ -30,14 +30,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func rcHashVarPtr(v *Var) uint32 {
-	x := uint64(uintptr(unsafe.Pointer(v)) >> 4)
-	x ^= x >> 33
-	x *= 0xff51afd7ed558ccd
-	x ^= x >> 33
-	return uint32(x)
-}
-
 func rcHashNodePtr(n *rhino.Node) uint32 {
 	x := uint64(uintptr(unsafe.Pointer(n)) >> 4)
 	x ^= x >> 33
@@ -51,15 +43,9 @@ type scopedVarKey struct {
 	name      string
 }
 
-type rcTableEntry struct {
-	v   *Var
-	col *ReferenceCollection
-}
-
 type referenceCollectorArena struct {
 	vars           []*Var
 	cols           []*ReferenceCollection
-	table          []rcTableEntry
 	refChunks      [][]Reference
 	refChunkIdx    int
 	refPtrChunks   [][]*Reference
@@ -127,7 +113,6 @@ type ReferenceCollector struct {
 	cols            []*ReferenceCollection
 	varsBuf         [16]*Var
 	colsBuf         [16]*ReferenceCollection
-	table           []rcTableEntry
 	refByKey        map[scopedVarKey]*ReferenceCollection
 	argumentsRefs   map[*rhino.Node]*ReferenceCollection
 	lastVar         *Var
@@ -233,31 +218,14 @@ func (c *ReferenceCollector) release() {
 	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
 		defer sc.ReleaseArena()
 	}
+	for _, kv := range c.vars {
+		kv.nameHash = 0
+	}
 	a := c.arena
 	if a == nil {
 		return
 	}
 	c.arena = nil
-	if len(c.table) > 0 && len(c.vars) > 0 {
-		if len(c.table) <= 2097152 {
-			if len(c.vars)*16 < len(c.table) {
-				mask := uint32(len(c.table) - 1)
-				for _, kv := range c.vars {
-					slot := rcHashVarPtr(kv) & mask
-					for c.table[slot].v != nil {
-						c.table[slot] = rcTableEntry{}
-						slot = (slot + 1) & mask
-					}
-				}
-			} else {
-				clear(c.table)
-			}
-			a.table = c.table
-		} else {
-			a.table = nil
-		}
-	}
-	c.table = nil
 	if cap(c.vars) > len(c.varsBuf) {
 		if cap(c.vars) <= 1048576 {
 			clear(c.vars)
@@ -653,72 +621,25 @@ func (c *ReferenceCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
 	}
 }
 
-func (c *ReferenceCollector) initTable() {
-	if c.poolable {
+func (c *ReferenceCollector) growVarsCols() {
+	if c.poolable && cap(c.vars) == len(c.varsBuf) {
 		a := c.getArena()
-		if len(a.table) == 0 {
-			a.table = make([]rcTableEntry, 8192)
-		}
-		c.table = a.table
 		if cap(a.vars) > len(c.vars) {
 			c.vars = append(a.vars[:0], c.vars...)
 			c.cols = append(a.cols[:0], c.cols...)
-		} else {
-			newVars := make([]*Var, len(c.vars), 4096)
-			copy(newVars, c.vars)
-			c.vars = newVars
-			newCols := make([]*ReferenceCollection, len(c.cols), 4096)
-			copy(newCols, c.cols)
-			c.cols = newCols
+			return
 		}
-	} else {
-		c.table = make([]rcTableEntry, 64)
-		newVars := make([]*Var, len(c.vars), 64)
-		copy(newVars, c.vars)
-		c.vars = newVars
-		newCols := make([]*ReferenceCollection, len(c.cols), 64)
-		copy(newCols, c.cols)
-		c.cols = newCols
 	}
-	table := c.table
-	mask := uint32(len(table) - 1)
-	for i, kv := range c.vars {
-		slot := rcHashVarPtr(kv) & mask
-		for table[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		table[slot] = rcTableEntry{v: kv, col: c.cols[i]}
-	}
-}
-
-func (c *ReferenceCollector) growTable() {
-	newCap := len(c.table) * 2
-	newTable := make([]rcTableEntry, newCap)
-	mask := uint32(newCap - 1)
-	for i, kv := range c.vars {
-		slot := rcHashVarPtr(kv) & mask
-		for newTable[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		newTable[slot] = rcTableEntry{v: kv, col: c.cols[i]}
-	}
-	c.table = newTable
+	newCap := max(cap(c.vars)*2, 4096)
+	newVars := make([]*Var, len(c.vars), newCap)
+	copy(newVars, c.vars)
+	c.vars = newVars
+	newCols := make([]*ReferenceCollection, len(c.cols), newCap)
+	copy(newCols, c.cols)
+	c.cols = newCols
 	if c.arena != nil {
-		c.arena.table = newTable
-	}
-}
-
-func (c *ReferenceCollector) tableGet(v *Var) *ReferenceCollection {
-	table := c.table
-	mask := uint32(len(table) - 1)
-	for slot := rcHashVarPtr(v) & mask; ; slot = (slot + 1) & mask {
-		e := table[slot]
-		if e.v == v {
-			return e.col
-		}
-		if e.v == nil {
-			return nil
-		}
+		c.arena.vars = newVars[:0]
+		c.arena.cols = newCols[:0]
 	}
 }
 
@@ -749,67 +670,31 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	if v == c.lastVar && v != nil {
 		return c.lastCollection
 	}
-	if c.table != nil {
-		table := c.table
-		mask := uint32(len(table) - 1)
-		h := rcHashVarPtr(v)
-		for slot := h & mask; ; slot = (slot + 1) & mask {
-			e := table[slot]
-			if e.v == v {
-				c.lastVar = v
-				c.lastCollection = e.col
-				return e.col
-			}
-			if e.v == nil {
-				if (len(c.vars)+1)*2 > len(table) {
-					c.growTable()
-					table = c.table
-					mask = uint32(len(table) - 1)
-					slot = h & mask
-					for table[slot].v != nil {
-						slot = (slot + 1) & mask
-					}
-				}
-				col := c.allocReferenceCollection()
-				table[slot] = rcTableEntry{v: v, col: col}
-				c.vars = append(c.vars, v)
-				c.cols = append(c.cols, col)
-				c.recordNewVarCol(v, col)
+	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
+		col := c.cols[idx]
+		c.lastVar = v
+		c.lastCollection = col
+		return col
+	}
+	if len(c.vars) <= len(c.varsBuf) {
+		for i, kv := range c.vars {
+			if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
+				col := c.cols[i]
+				v.nameHash = int32(i + 1)
 				c.lastVar = v
 				c.lastCollection = col
 				return col
 			}
 		}
 	}
-	for i, kv := range c.vars {
-		if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
-			col := c.cols[i]
-			c.lastVar = v
-			c.lastCollection = col
-			return col
-		}
-	}
-	if len(c.vars) == len(c.varsBuf) {
-		c.initTable()
-		table := c.table
-		mask := uint32(len(table) - 1)
-		slot := rcHashVarPtr(v) & mask
-		for table[slot].v != nil {
-			slot = (slot + 1) & mask
-		}
-		col := c.allocReferenceCollection()
-		table[slot] = rcTableEntry{v: v, col: col}
-		c.vars = append(c.vars, v)
-		c.cols = append(c.cols, col)
-		c.recordNewVarCol(v, col)
-		c.lastVar = v
-		c.lastCollection = col
-		return col
-	}
 	col := c.allocReferenceCollection()
+	if len(c.vars) == cap(c.vars) {
+		c.growVarsCols()
+	}
 	c.vars = append(c.vars, v)
 	c.cols = append(c.cols, col)
 	c.recordNewVarCol(v, col)
+	v.nameHash = int32(len(c.vars))
 	c.lastVar = v
 	c.lastCollection = col
 	return col
@@ -820,21 +705,12 @@ func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
 		if s.implicitVars != nil {
 			if imp := AbstractScope_ImplicitVar_Of(v.name); imp != nil {
 				if canon := s.implicitVars[*imp]; canon != nil && canon != v {
-					if c.table != nil {
-						if col := c.tableGet(canon); col != nil {
-							c.lastVar = v
-							c.lastCollection = col
-							return col
-						}
-					} else {
-						for i, kv := range c.vars {
-							if kv == canon {
-								col := c.cols[i]
-								c.lastVar = v
-								c.lastCollection = col
-								return col
-							}
-						}
+					if idx := int(canon.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == canon {
+						col := c.cols[idx]
+						v.nameHash = canon.nameHash
+						c.lastVar = v
+						c.lastCollection = col
+						return col
 					}
 				}
 			}
@@ -891,6 +767,7 @@ func (c *ReferenceCollector) ensureRawReferenceMap() *jutil.ObjectLinkedHashMap[
 	if c.referenceMap == nil {
 		c.referenceMap = jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
 		for i, v := range c.vars {
+			v.nameHash = 0
 			c.referenceMap.Put(v, c.cols[i])
 		}
 	}
@@ -986,21 +863,11 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
-	if c.table != nil {
-		if col := c.tableGet(v); col != nil {
-			c.lastVar = v
-			c.lastCollection = col
-			return col
-		}
-	} else {
-		for i, kv := range c.vars {
-			if kv == v {
-				col := c.cols[i]
-				c.lastVar = v
-				c.lastCollection = col
-				return col
-			}
-		}
+	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
+		col := c.cols[idx]
+		c.lastVar = v
+		c.lastCollection = col
+		return col
 	}
 	return c.getReferencesSlow(v)
 }

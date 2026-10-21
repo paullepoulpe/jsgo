@@ -227,7 +227,7 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 		name := var_.GetName()
 		slot := slots.Get(name)
 		if slot == nil || slot.type_ != voidType {
-			slots = slots.PlusMap(name, newLinkedFlowScope_OverlaySlotWithArena(l.arena, name, voidType))
+			slots = slots.PlusMapWithArena(l.arena.slotMaps(), name, newLinkedFlowScope_OverlaySlotWithArena(l.arena, name, voidType))
 		}
 	}
 	if voidType == nil {
@@ -242,9 +242,9 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	newScope := newLinkedFlowScope_OverlayScopeWithArena(l.arena, scope, slots)
 	var newScopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
 	if !newScope.slots.IsEmpty() {
-		newScopes = l.scopes.PlusMap(scope, newScope)
+		newScopes = l.scopes.PlusMapWithArena(l.arena.scopeMaps(), scope, newScope)
 	} else {
-		newScopes = l.scopes.MinusMap(scope)
+		newScopes = l.scopes.MinusMapWithArena(l.arena.scopeMaps(), scope)
 	}
 	if newScopes != l.scopes {
 		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, newScopes, l.syntacticScope, l.functionScope)

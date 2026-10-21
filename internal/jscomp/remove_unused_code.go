@@ -194,6 +194,9 @@ func (a *removeUnusedCodeArena) reset() {
 			clear(a.varBuckets)
 		}
 	}
+	for _, info := range a.varInfos {
+		info.var_.nameHash = 0
+	}
 	clear(a.varInfos)
 	a.varInfos = a.varInfos[:0]
 
@@ -2361,6 +2364,21 @@ func (r *RemoveUnusedCode) TraverseVar(var_ *Var) *RemoveUnusedCode_RealVarInfo 
 	if var_ == r.lastVar {
 		return r.lastVarInfo
 	}
+	if idx := int(var_.nameHash); idx != 0 {
+		if idx > 0 && idx <= len(r.varInfos) {
+			info := r.varInfos[idx-1]
+			if info.var_ == var_ || (info.scopeRoot == var_.GetScopeRoot() && info.varName == var_.GetName()) {
+				r.lastVar = var_
+				r.lastVarInfo = info
+				return info
+			}
+		} else if idx == -1 && !r.unremovableLog.IsLogging() {
+			info := r.canonicalUnremovableVarInfo
+			r.lastVar = var_
+			r.lastVarInfo = info
+			return info
+		}
+	}
 	if r.varPtrCache != nil {
 		if slot := &r.varPtrCache[rucVarCacheIdx(var_)]; slot.v == var_ {
 			r.lastVar = var_
@@ -2412,7 +2430,7 @@ func RemoveUnusedCode_NameOfParam(param *rhino.Node) *rhino.Node {
 }
 
 func hashVar(v *Var) uint32 {
-	h := uint32(v.HashCode())
+	h := uint32(31*(31+jutil.StringHashCode(v.name)) + jutil.IdentityHashCodeOfPointer(v.scope.GetRootNode()))
 	h ^= h >> 16
 	h *= 0x85ebca6b
 	h ^= h >> 13
@@ -2421,6 +2439,7 @@ func hashVar(v *Var) uint32 {
 
 func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
 	r.varInfos = append(r.varInfos, v)
+	v.var_.nameHash = int32(len(r.varInfos))
 	if len(r.varInfos)*4 > len(r.varBuckets)*3 && len(r.varBuckets) < 524288 {
 		newCap := len(r.varBuckets) * 2
 		newBuckets := make([]*RemoveUnusedCode_RealVarInfo, newCap)
@@ -2453,6 +2472,21 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	if var_ == r.lastVar {
 		return r.lastVarInfo
 	}
+	if idx := int(var_.nameHash); idx != 0 {
+		if idx > 0 && idx <= len(r.varInfos) {
+			info := r.varInfos[idx-1]
+			if info.var_ == var_ || (info.scopeRoot == var_.GetScopeRoot() && info.varName == var_.GetName()) {
+				r.lastVar = var_
+				r.lastVarInfo = info
+				return info
+			}
+		} else if idx == -1 && !r.unremovableLog.IsLogging() {
+			info := r.canonicalUnremovableVarInfo
+			r.lastVar = var_
+			r.lastVarInfo = info
+			return info
+		}
+	}
 	cacheIdx := rucVarCacheIdx(var_)
 	if r.varPtrCache != nil {
 		if slot := &r.varPtrCache[cacheIdx]; slot.v == var_ {
@@ -2468,6 +2502,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 			return r.canonicalUnremovableVarInfo
 		}
 		info := r.canonicalUnremovableVarInfo
+		var_.nameHash = -1
 		r.lastVar = var_
 		r.lastVarInfo = info
 		if r.varPtrCache != nil {
@@ -2487,6 +2522,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	mask := uint32(len(r.varBuckets) - 1)
 	for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
 		if cur.var_ == var_ || (cur.hash == h && cur.scopeRoot == scopeRoot && cur.varName == name) {
+			var_.nameHash = cur.var_.nameHash
 			r.lastVar = var_
 			r.lastVarInfo = cur
 			if r.varPtrCache != nil {
@@ -2503,6 +2539,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 			return r.canonicalUnremovableVarInfo
 		}
 		info := r.canonicalUnremovableVarInfo
+		var_.nameHash = -1
 		r.lastVar = var_
 		r.lastVarInfo = info
 		if r.varPtrCache != nil {

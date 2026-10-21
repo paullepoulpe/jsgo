@@ -11,8 +11,8 @@ import (
 
 const (
 	arenaSlabMinChunk  = 128
-	arenaSlabMaxChunk  = 4096
-	arenaSlabMaxChunks = 64
+	arenaSlabMaxChunk  = 8192
+	arenaSlabMaxChunks = 256
 	arenaMaxUTF16Cap   = 8 * 1024 * 1024
 )
 
@@ -235,7 +235,13 @@ func (a *ParseArena) decodeUTF16(s string) ([]uint16, int) {
 	n := len(s)
 	buf := a.utf16Buf
 	if cap(buf) < n {
-		buf = make([]uint16, n)
+		if n <= arenaMaxUTF16Cap {
+			newCap := min(max(n, max(cap(buf)*2, 4096)), arenaMaxUTF16Cap)
+			buf = make([]uint16, n, newCap)
+			a.utf16Buf = buf
+		} else {
+			buf = make([]uint16, n)
+		}
 	} else {
 		buf = buf[:n]
 	}
@@ -243,7 +249,9 @@ func (a *ParseArena) decodeUTF16(s string) ([]uint16, int) {
 		buf[i] = uint16(s[i])
 	}
 	if prefix == n {
-		a.utf16Buf = buf
+		if cap(buf) <= arenaMaxUTF16Cap {
+			a.utf16Buf = buf
+		}
 		return buf, prefix
 	}
 	out := buf[:prefix]
@@ -257,7 +265,9 @@ func (a *ParseArena) decodeUTF16(s string) ([]uint16, int) {
 			out = append(out, uint16(r))
 		}
 	}
-	a.utf16Buf = out
+	if cap(out) <= arenaMaxUTF16Cap {
+		a.utf16Buf = out
+	}
 	return out, prefix
 }
 

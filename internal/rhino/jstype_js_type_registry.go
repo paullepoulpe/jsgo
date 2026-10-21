@@ -222,6 +222,39 @@ type JSTypeRegistry struct {
 	templateTypeMapSlab []TemplateTypeMap
 	templatizedTypeSlab []TemplatizedType
 	jsTypeSliceSlab     []JSType
+	unionBuilderStack   [8]UnionType_Builder
+	unionBuilderDepth   int
+	unionTypeSlab       []UnionType
+}
+
+func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
+	if r.unionBuilderDepth < len(r.unionBuilderStack) {
+		b := &r.unionBuilderStack[r.unionBuilderDepth]
+		r.unionBuilderDepth++
+		initUnionType_Builder(b, r)
+		return b
+	}
+	return NewUnionType_Builder(r)
+}
+
+func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
+	if r.unionBuilderDepth > 0 && b == &r.unionBuilderStack[r.unionBuilderDepth-1] {
+		*b = UnionType_Builder{}
+		r.unionBuilderDepth--
+	}
+}
+
+func (r *JSTypeRegistry) allocUnionType() *UnionType {
+	if r == nil {
+		return &UnionType{}
+	}
+	if len(r.unionTypeSlab) == cap(r.unionTypeSlab) {
+		nextCap := min(max(cap(r.unionTypeSlab)*2, 64), 2048)
+		r.unionTypeSlab = make([]UnionType, 0, nextCap)
+	}
+	i := len(r.unionTypeSlab)
+	r.unionTypeSlab = r.unionTypeSlab[:i+1]
+	return &r.unionTypeSlab[i]
 }
 
 func (r *JSTypeRegistry) allocTemplateTypeMap() *TemplateTypeMap {
@@ -2001,11 +2034,12 @@ func (r *JSTypeRegistry) CreateOptionalType(type_ JSType) JSType {
 		if type_ == nil {
 			panic(jutil.NewNullPointerExceptionMsg("at index 0"))
 		}
-		var b UnionType_Builder
-		initUnionType_Builder(&b, r)
+		b := r.acquireUnionBuilder()
 		b.AddAlternate(type_)
 		b.AddAlternate(r.GetNativeType(JSTypeNative_VOID_TYPE))
-		return b.Build()
+		res := b.Build()
+		r.releaseUnionBuilder(b)
+		return res
 	}
 }
 
@@ -2017,11 +2051,12 @@ func (r *JSTypeRegistry) CreateNullableType(type_ JSType) JSType {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("at index 0"))
 	}
-	var b UnionType_Builder
-	initUnionType_Builder(&b, r)
+	b := r.acquireUnionBuilder()
 	b.AddAlternate(type_)
 	b.AddAlternate(r.GetNativeType(JSTypeNative_NULL_TYPE))
-	return b.Build()
+	res := b.Build()
+	r.releaseUnionBuilder(b)
+	return res
 }
 
 // CreateOptionalNullableType creates a nullable and undefine-able value of
@@ -2032,12 +2067,13 @@ func (r *JSTypeRegistry) CreateOptionalNullableType(type_ JSType) JSType {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("at index 0"))
 	}
-	var b UnionType_Builder
-	initUnionType_Builder(&b, r)
+	b := r.acquireUnionBuilder()
 	b.AddAlternate(type_)
 	b.AddAlternate(r.GetNativeType(JSTypeNative_VOID_TYPE))
 	b.AddAlternate(r.GetNativeType(JSTypeNative_NULL_TYPE))
-	return b.Build()
+	res := b.Build()
+	r.releaseUnionBuilder(b)
+	return res
 }
 
 // CreateUnionType creates a union type whose variants are the arguments.
@@ -2054,9 +2090,10 @@ func (r *JSTypeRegistry) CreateUnionType(variants ...JSType) JSType {
 
 // Java: JSTypeRegistry.createUnionType(List<? extends JSType>)
 func (r *JSTypeRegistry) CreateUnionTypeOfList(variants []JSType) JSType {
-	var builder UnionType_Builder
-	initUnionType_Builder(&builder, r)
-	return builder.AddAlternates(variants).Build()
+	b := r.acquireUnionBuilder()
+	res := b.AddAlternates(variants).Build()
+	r.releaseUnionBuilder(b)
+	return res
 }
 
 // CreateUnionTypeOfNatives creates a union type whose variants are the
@@ -2064,12 +2101,13 @@ func (r *JSTypeRegistry) CreateUnionTypeOfList(variants []JSType) JSType {
 //
 // Java: JSTypeRegistry.createUnionType(JSTypeNative...)
 func (r *JSTypeRegistry) CreateUnionTypeOfNatives(variants ...JSTypeNative) JSType {
-	var builder UnionType_Builder
-	initUnionType_Builder(&builder, r)
+	b := r.acquireUnionBuilder()
 	for _, type_ := range variants {
-		builder.AddAlternate(r.GetNativeType(type_))
+		b.AddAlternate(r.GetNativeType(type_))
 	}
-	return builder.Build()
+	res := b.Build()
+	r.releaseUnionBuilder(b)
+	return res
 }
 
 // CreateFunctionType creates a function type.

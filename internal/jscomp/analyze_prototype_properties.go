@@ -411,8 +411,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 		// Make sure that we're not handling object literals being
 		// assigned to a prototype, as in:
 		// Foo.prototype = {bar: 3, baz: 5};
-		lValueName := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
-		if lValueName != nil && jutil.StringEndsWith(*lValueName, ".prototype") {
+		if bestLValueEndsWithPrototype(NodeUtil_GetBestLValue(n)) {
 			return
 		}
 
@@ -551,6 +550,34 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) IsAssignRValue(n *rhino.N
 	return parent != nil && parent.IsAssign() && parent.GetFirstChild() != n
 }
 
+func bestLValueEndsWithPrototype(lv *rhino.Node) bool {
+	if lv == nil || lv.GetParent() == nil {
+		return false
+	}
+	if lv.GetParent().IsClassMembers() && !lv.IsComputedProp() {
+		if lv.GetString() != "prototype" {
+			return false
+		}
+		nameNode := NodeUtil_GetNameNode(lv.GetGrandparent())
+		return nameNode != nil && nameNode.IsQualifiedName()
+	}
+	if NodeUtil_MayBeObjectLitKey(lv) {
+		if NodeUtil_GetObjectOrClassLitKeyName(lv) != "prototype" {
+			return false
+		}
+		owner := NodeUtil_GetBestLValue(lv.GetParent())
+		if owner == nil {
+			return false
+		}
+		_, ok := nodeUtil_getBestLValueNameString(owner)
+		return ok
+	}
+	if lv.IsGetProp() {
+		return lv.GetString() == "prototype" && lv.IsQualifiedName()
+	}
+	return false
+}
+
 // GetPrototypePropertyNameFromRValue returns the name of a prototype
 // property being assigned to this r-value.
 //
@@ -562,28 +589,48 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) IsAssignRValue(n *rhino.N
 func (p *AnalyzePrototypeProperties_ProcessProperties) GetPrototypePropertyNameFromRValue(rValue *rhino.Node) *string {
 	lValue := NodeUtil_GetBestLValue(rValue)
 	if lValue == nil ||
+		lValue.GetParent() == nil ||
 		!((NodeUtil_MayBeObjectLitKey(lValue) && !lValue.IsQuotedStringKey()) ||
 			NodeUtil_IsExprAssign(lValue.GetGrandparent())) {
 		return nil
 	}
 
-	lValueName := NodeUtil_GetBestLValueName(lValue)
-
-	if lValueName == nil {
-		return nil
+	if lValue.GetParent().IsClassMembers() && !lValue.IsComputedProp() {
+		nameNode := NodeUtil_GetNameNode(lValue.GetGrandparent())
+		if nameNode == nil {
+			return nil
+		}
+		if !lValue.IsStaticMember() {
+			if !nameNode.IsQualifiedName() {
+				return nil
+			}
+		} else {
+			if !bestLValueEndsWithPrototype(nameNode) {
+				return nil
+			}
+		}
+		result := lValue.GetString()
+		return &result
 	}
-	lastDot := jutil.StringLastIndexOf(*lValueName, ".")
-	if lastDot == -1 {
-		return nil
+	if NodeUtil_MayBeObjectLitKey(lValue) {
+		owner := NodeUtil_GetBestLValue(lValue.GetParent())
+		if !bestLValueEndsWithPrototype(owner) {
+			return nil
+		}
+		key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
+		if !rhino.TokenStream_IsJSIdentifier(key) {
+			return nil
+		}
+		return &key
 	}
-
-	firstPart := jutil.StringSubstring(*lValueName, 0, lastDot)
-	if !jutil.StringEndsWith(firstPart, ".prototype") {
-		return nil
+	if lValue.IsGetProp() {
+		if !bestLValueEndsWithPrototype(lValue.GetFirstChild()) {
+			return nil
+		}
+		result := lValue.GetString()
+		return &result
 	}
-
-	result := jutil.StringSubstringFrom(*lValueName, lastDot+1)
-	return &result
+	return nil
 }
 
 // ProcessGlobalFunctionDeclaration processes a NAME node to see if it's a

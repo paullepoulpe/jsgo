@@ -22,6 +22,7 @@ package jscomp
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -723,7 +724,10 @@ type CodingConvention_AssertionFunctionLookup struct {
 	//
 	// Go-only: language-adapter — keys are string or rhino.ClosurePrimitive
 	// values, whose Go == is Java equals.
-	internal *jutil.LinkedHashMap[any, *CodingConvention_AssertionFunctionSpec]
+	internal    *jutil.LinkedHashMap[any, *CodingConvention_AssertionFunctionSpec]
+	byPrimitive map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
+	byName      map[string]*CodingConvention_AssertionFunctionSpec
+	byLastProp  map[string][]*CodingConvention_AssertionFunctionSpec
 }
 
 // Java: CodingConvention.AssertionFunctionLookup(ImmutableMap<Object, AssertionFunctionSpec>)
@@ -731,6 +735,30 @@ func newCodingConvention_AssertionFunctionLookup(
 	internal *jutil.LinkedHashMap[any, *CodingConvention_AssertionFunctionSpec]) *CodingConvention_AssertionFunctionLookup {
 	l := &CodingConvention_AssertionFunctionLookup{}
 	l.internal = internal
+	if internal != nil && !internal.IsEmpty() {
+		for k, spec := range internal.All() {
+			switch key := k.(type) {
+			case rhino.ClosurePrimitive:
+				if l.byPrimitive == nil {
+					l.byPrimitive = make(map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec)
+				}
+				l.byPrimitive[key] = spec
+			case string:
+				if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
+					if l.byLastProp == nil {
+						l.byLastProp = make(map[string][]*CodingConvention_AssertionFunctionSpec)
+					}
+					lastProp := key[lastDot+1:]
+					l.byLastProp[lastProp] = append(l.byLastProp[lastProp], spec)
+				} else {
+					if l.byName == nil {
+						l.byName = make(map[string]*CodingConvention_AssertionFunctionSpec)
+					}
+					l.byName[key] = spec
+				}
+			}
+		}
+	}
 	return l
 }
 
@@ -762,15 +790,24 @@ func CodingConvention_AssertionFunctionLookup_Of(
 func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee *rhino.Node) *CodingConvention_AssertionFunctionSpec {
 	fnType := rhino.JSType_ToMaybeFunctionType(callee.GetJSType())
 	if fnType != nil && fnType.GetClosurePrimitive() != nil {
-		spec := l.internal.Get(*fnType.GetClosurePrimitive())
+		spec := l.byPrimitive[*fnType.GetClosurePrimitive()]
 		if spec != nil {
 			return spec
 		}
 	}
 
 	// TODO(b/126254920): remove this
-	if callee.IsQualifiedName() {
-		return l.internal.Get(*callee.GetQualifiedName())
+	if callee.IsName() {
+		return l.byName[callee.GetString()]
+	}
+	if callee.IsGetProp() && len(l.byLastProp) > 0 {
+		if specs := l.byLastProp[callee.GetString()]; len(specs) > 0 {
+			for _, spec := range specs {
+				if spec.functionName != nil && callee.MatchesQualifiedName(*spec.functionName) {
+					return spec
+				}
+			}
+		}
 	}
 
 	return nil

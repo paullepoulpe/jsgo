@@ -387,8 +387,13 @@ func (b *JsMessageVisitorBase) isDeclareIcuTemplateCallee(calleeNode *rhino.Node
 	// to this program.
 	// TODO(bradfordcsmith): Make this check more robust, possibly building on ModuleMetadata or
 	// ProcessClosurePrimitives.
-	qualifiedName := calleeNode.GetQualifiedName()
-	return qualifiedName != nil && jutil.StringEndsWith(*qualifiedName, jsMessageVisitor_ICU_MSG_FUNCTION_NAME)
+	if calleeNode.IsName() {
+		return jutil.StringEndsWith(calleeNode.GetString(), jsMessageVisitor_ICU_MSG_FUNCTION_NAME)
+	}
+	if calleeNode.IsGetProp() {
+		return jutil.StringEndsWith(calleeNode.GetString(), jsMessageVisitor_ICU_MSG_FUNCTION_NAME) && calleeNode.IsQualifiedName()
+	}
+	return false
 }
 
 // JsMessageVisitor_InputForBuildJsMsg is the input of buildJsMessage.

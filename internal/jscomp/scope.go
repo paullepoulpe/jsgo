@@ -128,6 +128,22 @@ var scopeArenaPool = sync.Pool{
 }
 
 func acquireScopeArena() *scopeArena {
+	bestIdx := -1
+	bestLen := -1
+	for i := range cachedScopeArenas {
+		if a := cachedScopeArenas[i].Load(); a != nil {
+			if n := len(a.scopeChunks); n > bestLen {
+				bestLen = n
+				bestIdx = i
+			}
+		}
+	}
+	if bestIdx >= 0 {
+		if a := cachedScopeArenas[bestIdx].Swap(nil); a != nil {
+			a.pooled = true
+			return a
+		}
+	}
 	for i := range cachedScopeArenas {
 		if a := cachedScopeArenas[i].Swap(nil); a != nil {
 			a.pooled = true
@@ -237,6 +253,14 @@ func (a *scopeArena) release() {
 	for i := range cachedScopeArenas {
 		if cachedScopeArenas[i].CompareAndSwap(nil, a) {
 			return
+		}
+	}
+	for i := range cachedScopeArenas {
+		if old := cachedScopeArenas[i].Load(); old != nil && len(a.scopeChunks) > len(old.scopeChunks) {
+			if cachedScopeArenas[i].CompareAndSwap(old, a) {
+				scopeArenaPool.Put(old)
+				return
+			}
 		}
 	}
 	scopeArenaPool.Put(a)

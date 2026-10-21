@@ -163,30 +163,37 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 			if !NodeUtil_IsStatement(n) {
 				c.problemNodes = append(c.problemNodes, n)
 			}
-		} else if n.IsCall() &&
-			(n.GetFirstChild().IsGetProp() ||
-				n.GetFirstChild().IsName() ||
-				n.GetFirstChild().IsStringLit()) {
-			qname := n.GetFirstChild().GetQualifiedName()
-
-			// The name should not be defined in src scopes - only externs
-			isDefinedInSrc := false
-			if qname != nil {
-				if n.GetFirstChild().IsGetProp() {
-					rootNameNode := NodeUtil_GetRootOfQualifiedName(n.GetFirstChild())
-					isDefinedInSrc = rootNameNode != nil &&
-						rootNameNode.IsName() &&
-						t.GetScope().GetVar(rootNameNode.GetString()) != nil
+		} else if !c.noSideEffectExterns.IsEmpty() && n.IsCall() {
+			first := n.GetFirstChild()
+			if first.IsGetProp() || first.IsName() || first.IsStringLit() {
+				var qnameStr string
+				var ok bool
+				if first.IsName() {
+					qnameStr = first.GetString()
+					ok = qnameStr != ""
 				} else {
-					isDefinedInSrc = t.GetScope().GetVar(*qname) != nil
+					qnameStr, ok = first.GetQualifiedNameString()
 				}
-			}
 
-			if qname != nil && c.noSideEffectExterns.Contains(*qname) && !isDefinedInSrc {
-				c.problemNodes = append(c.problemNodes, n)
-				if c.report {
-					msg := "The result of the extern function call '" + *qname + "' is not being used."
-					t.Report(n, CheckSideEffects_USELESS_CODE_ERROR, msg)
+				if ok && c.noSideEffectExterns.Contains(qnameStr) {
+					// The name should not be defined in src scopes - only externs
+					isDefinedInSrc := false
+					if first.IsGetProp() {
+						rootNameNode := NodeUtil_GetRootOfQualifiedName(first)
+						isDefinedInSrc = rootNameNode != nil &&
+							rootNameNode.IsName() &&
+							t.GetScope().GetVar(rootNameNode.GetString()) != nil
+					} else {
+						isDefinedInSrc = t.GetScope().GetVar(qnameStr) != nil
+					}
+
+					if !isDefinedInSrc {
+						c.problemNodes = append(c.problemNodes, n)
+						if c.report {
+							msg := "The result of the extern function call '" + qnameStr + "' is not being used."
+							t.Report(n, CheckSideEffects_USELESS_CODE_ERROR, msg)
+						}
+					}
 				}
 			}
 		}

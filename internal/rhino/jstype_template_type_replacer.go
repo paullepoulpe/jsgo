@@ -689,7 +689,7 @@ func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
 	alternates := type_.GetAlternates()
 	alternateCount := len(alternates)
 	var results []JSType
-	var resultsBuf [8]JSType
+	var resultsBuf [32]JSType
 	for i := 0; i < alternateCount; i++ {
 		alternative := alternates[i]
 		replacement := r.visitJSType(alternative)
@@ -707,7 +707,10 @@ func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
 	}
 
 	if results != nil {
-		return r.registry.CreateUnionTypeOfList(results) // maybe not a union
+		b := r.registry.acquireUnionBuilder()
+		res := b.AddAlternates(results).Build() // maybe not a union
+		r.registry.releaseUnionBuilder(b)
+		return res
 	}
 
 	return type_

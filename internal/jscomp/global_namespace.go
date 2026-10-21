@@ -42,12 +42,8 @@ const (
 	gnMaxPropsChunks    = 1024
 	gnMaxRefSliceChunks = 1024
 
-	gnConcatCacheSize = 4096
+	gnConcatCacheSize = 65536
 )
-
-type globalNamespaceConcatCacheEntry struct {
-	a, b, res string
-}
 
 type globalNamespaceArena struct {
 	nameChunks   []*[gnNameChunkSize]GlobalNamespace_Name
@@ -72,7 +68,7 @@ type globalNamespaceArena struct {
 	spreadSiblingCache map[*rhino.Node]bool
 	unpooled           bool
 
-	concatCache [gnConcatCacheSize]globalNamespaceConcatCacheEntry
+	concatCache [gnConcatCacheSize]string
 }
 
 var cachedGNArenas [2]atomic.Pointer[globalNamespaceArena]
@@ -297,19 +293,20 @@ func gnConcatDot4(a, b, c, d string) string {
 	return unsafe.String(unsafe.SliceData(buf), n)
 }
 
+func gnConcatMatch(res, a, b string) bool {
+	return len(res) == len(a)+1+len(b) && res[len(a)] == '.' && res[:len(a)] == a && res[len(a)+1:] == b
+}
+
 func (g *GlobalNamespace) concatDotCached(a, b string) string {
 	if g == nil || g.arena == nil || len(a) == 0 || len(b) == 0 {
 		return nodeUtilConcatDot(a, b)
 	}
 	idx := gnConcatHash(a, b) & (gnConcatCacheSize - 1)
-	entry := &g.arena.concatCache[idx]
-	if entry.a == a && entry.b == b {
-		return entry.res
+	if res := g.arena.concatCache[idx]; gnConcatMatch(res, a, b) {
+		return res
 	}
 	res := nodeUtilConcatDot(a, b)
-	entry.a = a
-	entry.b = b
-	entry.res = res
+	g.arena.concatCache[idx] = res
 	return res
 }
 
@@ -318,30 +315,20 @@ func (g *GlobalNamespace) concatDot3Cached(a, b, c string) string {
 		return gnConcatDot3(a, b, c)
 	}
 	idxAB := gnConcatHash(a, b) & (gnConcatCacheSize - 1)
-	entryAB := &g.arena.concatCache[idxAB]
-	if entryAB.a == a && entryAB.b == b {
-		ab := entryAB.res
+	if ab := g.arena.concatCache[idxAB]; gnConcatMatch(ab, a, b) {
 		idxABC := gnConcatHash(ab, c) & (gnConcatCacheSize - 1)
-		entryABC := &g.arena.concatCache[idxABC]
-		if entryABC.a == ab && entryABC.b == c {
-			return entryABC.res
+		if res := g.arena.concatCache[idxABC]; gnConcatMatch(res, ab, c) {
+			return res
 		}
 		res := nodeUtilConcatDot(ab, c)
-		entryABC.a = ab
-		entryABC.b = c
-		entryABC.res = res
+		g.arena.concatCache[idxABC] = res
 		return res
 	}
 	res := gnConcatDot3(a, b, c)
 	ab := res[:len(a)+1+len(b)]
-	entryAB.a = a
-	entryAB.b = b
-	entryAB.res = ab
+	g.arena.concatCache[idxAB] = ab
 	idxABC := gnConcatHash(ab, c) & (gnConcatCacheSize - 1)
-	entryABC := &g.arena.concatCache[idxABC]
-	entryABC.a = ab
-	entryABC.b = c
-	entryABC.res = res
+	g.arena.concatCache[idxABC] = res
 	return res
 }
 
@@ -350,22 +337,15 @@ func (g *GlobalNamespace) concatDot4Cached(a, b, c, d string) string {
 		return gnConcatDot4(a, b, c, d)
 	}
 	idxAB := gnConcatHash(a, b) & (gnConcatCacheSize - 1)
-	entryAB := &g.arena.concatCache[idxAB]
-	if entryAB.a == a && entryAB.b == b {
-		ab := entryAB.res
+	if ab := g.arena.concatCache[idxAB]; gnConcatMatch(ab, a, b) {
 		idxABC := gnConcatHash(ab, c) & (gnConcatCacheSize - 1)
-		entryABC := &g.arena.concatCache[idxABC]
-		if entryABC.a == ab && entryABC.b == c {
-			abc := entryABC.res
+		if abc := g.arena.concatCache[idxABC]; gnConcatMatch(abc, ab, c) {
 			idxABCD := gnConcatHash(abc, d) & (gnConcatCacheSize - 1)
-			entryABCD := &g.arena.concatCache[idxABCD]
-			if entryABCD.a == abc && entryABCD.b == d {
-				return entryABCD.res
+			if res := g.arena.concatCache[idxABCD]; gnConcatMatch(res, abc, d) {
+				return res
 			}
 			res := nodeUtilConcatDot(abc, d)
-			entryABCD.a = abc
-			entryABCD.b = d
-			entryABCD.res = res
+			g.arena.concatCache[idxABCD] = res
 			return res
 		}
 	}
@@ -374,19 +354,11 @@ func (g *GlobalNamespace) concatDot4Cached(a, b, c, d string) string {
 	abcLen := abLen + 1 + len(c)
 	ab := res[:abLen]
 	abc := res[:abcLen]
-	entryAB.a = a
-	entryAB.b = b
-	entryAB.res = ab
+	g.arena.concatCache[idxAB] = ab
 	idxABC := gnConcatHash(ab, c) & (gnConcatCacheSize - 1)
-	entryABC := &g.arena.concatCache[idxABC]
-	entryABC.a = ab
-	entryABC.b = c
-	entryABC.res = abc
+	g.arena.concatCache[idxABC] = abc
 	idxABCD := gnConcatHash(abc, d) & (gnConcatCacheSize - 1)
-	entryABCD := &g.arena.concatCache[idxABCD]
-	entryABCD.a = abc
-	entryABCD.b = d
-	entryABCD.res = res
+	g.arena.concatCache[idxABCD] = res
 	return res
 }
 
@@ -441,10 +413,16 @@ func (g *GlobalNamespace) qnameStringCached(n *rhino.Node) (string, bool) {
 					return g.concatDot4Cached("this", c2.GetString(), c1.GetString(), n.GetString()), true
 				case rhino.Token_SUPER:
 					return g.concatDot4Cached("super", c2.GetString(), c1.GetString(), n.GetString()), true
+				case rhino.Token_GETPROP:
+					prefix, ok := g.qnameStringCached(c3)
+					if !ok {
+						return "", false
+					}
+					return g.concatDot4Cached(prefix, c2.GetString(), c1.GetString(), n.GetString()), true
 				}
 			}
 		}
-		return n.GetQualifiedNameString()
+		return "", false
 	default:
 		return "", false
 	}
@@ -1536,10 +1514,12 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 						if !b.IsTopLevelScopeRoot(root) {
 							return
 						}
-						nameStr, hasName = n.GetQualifiedNameString()
-						if !hasName {
+						prefix, ok := g.qnameStringCached(c3)
+						if !ok {
 							return
 						}
+						nameStr = g.concatDot4Cached(prefix, c2.GetString(), c1.GetString(), n.GetString())
+						hasName = true
 					}
 				} else {
 					return

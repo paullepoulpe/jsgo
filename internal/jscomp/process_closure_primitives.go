@@ -155,11 +155,19 @@ func (p *ProcessClosurePrimitives) Visit(t *NodeTraversal, n *rhino.Node, parent
 					pn.String()))
 		}
 	case rhino.Token_EXPR_RESULT:
-		if !n.GetFirstChild().IsAssign() || !n.GetFirstFirstChild().IsQualifiedName() {
+		assign := n.GetFirstChild()
+		if !assign.IsAssign() || n.IsFromExterns() {
 			break
 		}
-		lhs := n.GetFirstFirstChild().GetQualifiedName()
-		p.CheckPossibleGoogProvideInit(*lhs, n.GetFirstChild().GetJSDocInfo(), n)
+		info := assign.GetJSDocInfo()
+		if info == nil || info.GetType() == nil {
+			break
+		}
+		lhs, ok := assign.GetFirstChild().GetQualifiedNameString()
+		if !ok {
+			break
+		}
+		p.CheckPossibleGoogProvideInit(lhs, info, n)
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		if !n.GetFirstChild().IsName() {
 			break

@@ -115,18 +115,143 @@ var hamtPMap_EMPTY = map[reflect.Type]any{}
 
 const debugHamtPMap = false
 
-// Java: HamtPMap(K, int, V, int, HamtPMap<K, V>[])
-func newHamtPMap[K any, V any](key K, keyIsNull bool, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
-	m := &HamtPMap[K, V]{key: key, keyIsNull: keyIsNull, hash: hash, value: value, mask: mask, children: children}
+// HamtPMapArena provides bump-allocated storage for HamtPMap nodes and small
+// child slices within a reusable analysis pass (e.g. TypeInference or
+// MaybeReachingVariableUse).
+type HamtPMapArena[K any, V any] struct {
+	nodeBuf       [64]HamtPMap[K, V]
+	nodeInlineLen int
+	nodeChunks    []*[256]HamtPMap[K, V]
+	nodeChunkIdx  int
+	nodeOffset    int
+
+	childBuf       [128]*HamtPMap[K, V]
+	childInlineLen int
+	childChunks    []*[1024]*HamtPMap[K, V]
+	childChunkIdx  int
+	childOffset    int
+}
+
+// Reset clears used arena storage and resets indices for reuse while retaining
+// allocated chunk capacity.
+func (a *HamtPMapArena[K, V]) Reset() {
+	if a.nodeInlineLen > 0 {
+		clear(a.nodeBuf[:a.nodeInlineLen])
+		a.nodeInlineLen = 0
+	}
+	if a.nodeChunkIdx > 0 || a.nodeOffset > 0 {
+		for i := 0; i < a.nodeChunkIdx; i++ {
+			clear(a.nodeChunks[i][:])
+		}
+		if a.nodeOffset > 0 && a.nodeChunkIdx < len(a.nodeChunks) {
+			clear(a.nodeChunks[a.nodeChunkIdx][:a.nodeOffset])
+		}
+		a.nodeChunkIdx = 0
+		a.nodeOffset = 0
+	}
+
+	if a.childInlineLen > 0 {
+		clear(a.childBuf[:a.childInlineLen])
+		a.childInlineLen = 0
+	}
+	if a.childChunkIdx > 0 || a.childOffset > 0 {
+		for i := 0; i < a.childChunkIdx; i++ {
+			clear(a.childChunks[i][:])
+		}
+		if a.childOffset > 0 && a.childChunkIdx < len(a.childChunks) {
+			clear(a.childChunks[a.childChunkIdx][:a.childOffset])
+		}
+		a.childChunkIdx = 0
+		a.childOffset = 0
+	}
+}
+
+func (a *HamtPMapArena[K, V]) allocNode() *HamtPMap[K, V] {
+	if a.nodeInlineLen < len(a.nodeBuf) {
+		m := &a.nodeBuf[a.nodeInlineLen]
+		a.nodeInlineLen++
+		return m
+	}
+	return a.allocNodeChunk()
+}
+
+//go:noinline
+func (a *HamtPMapArena[K, V]) allocNodeChunk() *HamtPMap[K, V] {
+	if a.nodeOffset == 256 {
+		a.nodeChunkIdx++
+		a.nodeOffset = 0
+	}
+	if a.nodeChunkIdx == len(a.nodeChunks) {
+		a.nodeChunks = append(a.nodeChunks, new([256]HamtPMap[K, V]))
+	}
+	m := &a.nodeChunks[a.nodeChunkIdx][a.nodeOffset]
+	a.nodeOffset++
+	return m
+}
+
+func allocHamtChildren[K any, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
+	if n == 0 {
+		return HamtPMap_EmptyChildren[K, V]()
+	}
+	if a == nil || n > 16 {
+		return make([]*HamtPMap[K, V], n)
+	}
+	if a.childInlineLen+n <= len(a.childBuf) {
+		off := a.childInlineLen
+		a.childInlineLen = off + n
+		return a.childBuf[off : off+n : off+n]
+	}
+	return a.allocChildrenChunk(n)
+}
+
+//go:noinline
+func (a *HamtPMapArena[K, V]) allocChildrenChunk(n int) []*HamtPMap[K, V] {
+	if a.childOffset+n > 1024 {
+		if a.childOffset > 0 {
+			a.childChunkIdx++
+			a.childOffset = 0
+		}
+	}
+	if a.childChunkIdx == len(a.childChunks) {
+		a.childChunks = append(a.childChunks, new([1024]*HamtPMap[K, V]))
+	}
+	ch := a.childChunks[a.childChunkIdx]
+	off := a.childOffset
+	a.childOffset = off + n
+	return ch[off : off+n : off+n]
+}
+
+func allocHamtPMap[K any, V any](a *HamtPMapArena[K, V], key K, keyIsNull bool, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+	var m *HamtPMap[K, V]
+	if a != nil {
+		m = a.allocNode()
+	} else {
+		m = &HamtPMap[K, V]{}
+	}
+	m.key = key
+	m.keyIsNull = keyIsNull
+	m.hash = hash
+	m.value = value
+	m.mask = mask
+	m.children = children
 	if debugHamtPMap {
 		m.CheckInvariants()
 	}
 	return m
 }
 
-func newHamtPMapNullKey[K any, V any](value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func allocHamtPMapNullKey[K any, V any](a *HamtPMapArena[K, V], value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	var key K
-	return newHamtPMap(key, true, 0, value, mask, children)
+	return allocHamtPMap(a, key, true, 0, value, mask, children)
+}
+
+// Java: HamtPMap(K, int, V, int, HamtPMap<K, V>[])
+func newHamtPMap[K any, V any](key K, keyIsNull bool, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+	return allocHamtPMap(nil, key, keyIsNull, hash, value, mask, children)
+}
+
+func newHamtPMapNullKey[K any, V any](value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+	return allocHamtPMapNullKey(nil, value, mask, children)
 }
 
 // Java: HamtPMap.checkInvariants()
@@ -280,26 +405,35 @@ func (m *HamtPMap[K, V]) Plus(key K, value V) PMap[K, V] {
 // Go-only: language-adapter — Java's override narrows the return type to
 // HamtPMap; a Go method satisfying PMap must return PMap.
 func (m *HamtPMap[K, V]) PlusMap(key K, value V) *HamtPMap[K, V] {
+	return m.PlusMapWithArena(nil, key, value)
+}
+
+// PlusMapWithArena is PlusMap using arena for node and child-slice allocations.
+func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, value V) *HamtPMap[K, V] {
 	jutil.CheckNotNull(any(value))
 
 	if !m.IsEmpty() {
-		return m.PlusWithHash(key, HamtPMap_Hash(key), value)
+		return m.plusWithHash(arena, key, HamtPMap_Hash(key), value)
 	}
-	return newHamtPMap(key, false, HamtPMap_Hash(key), value, 0, HamtPMap_EmptyChildren[K, V]())
+	return allocHamtPMap(arena, key, false, HamtPMap_Hash(key), value, 0, HamtPMap_EmptyChildren[K, V]())
 }
 
 // PlusWithHash is the internal recursive implementation of plus(K, V).
 //
 // Java: HamtPMap.plus(K, int, V)
 func (m *HamtPMap[K, V]) PlusWithHash(key K, hash int32, value V) *HamtPMap[K, V] {
+	return m.plusWithHash(nil, key, hash, value)
+}
+
+func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
-		if jutil.ObjectsEquals(value, m.value) {
+		if jutil.ObjectsEqualsOf(value, m.value) {
 			return m
 		}
-		return newHamtPMap(key, false, hash, value, m.mask, m.children)
+		return allocHamtPMap(arena, key, false, hash, value, m.mask, m.children)
 	}
 	if HamtPMap_CompareUnsigned(hash, m.hash) < 0 {
-		return m.ReplaceRoot(key, hash, value)
+		return m.replaceRoot(arena, key, hash, value)
 	}
 	bucket := HamtPMap_Bucket(hash)
 	hash = HamtPMap_Shift(hash)
@@ -308,32 +442,36 @@ func (m *HamtPMap[K, V]) PlusWithHash(key K, hash int32, value V) *HamtPMap[K, V
 	if (m.mask & bucketMask) != 0 {
 		// already a child, so overwrite
 		child := m.children[index]
-		newChild := child.PlusWithHash(key, hash, value)
+		newChild := child.plusWithHash(arena, key, hash, value)
 		if child == newChild {
 			return m
 		}
-		return m.WithChildren(m.mask, HamtPMap_ReplaceChild(m.children, index, newChild))
+		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild))
 	} else {
 		// insert at index
-		newChild := newHamtPMap(key, false, hash, value, 0, HamtPMap_EmptyChildren[K, V]())
-		return m.WithChildren(m.mask|bucketMask, HamtPMap_InsertChild(m.children, index, newChild))
+		newChild := allocHamtPMap(arena, key, false, hash, value, 0, HamtPMap_EmptyChildren[K, V]())
+		return m.withChildren(arena, m.mask|bucketMask, insertChild(arena, m.children, index, newChild))
 	}
 }
 
 // Java: HamtPMap.replaceRoot(K, int, V)
 func (m *HamtPMap[K, V]) ReplaceRoot(key K, hash int32, value V) *HamtPMap[K, V] {
+	return m.replaceRoot(nil, key, hash, value)
+}
+
+func (m *HamtPMap[K, V]) replaceRoot(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
 	bucket := HamtPMap_Bucket(m.hash)
 	leafHash := HamtPMap_Shift(m.hash)
 	bucketMask := jutil.Shl32(1, int64(bucket))
 	index := m.Index(bucketMask)
 	var newChildren []*HamtPMap[K, V]
 	if (m.mask & bucketMask) != 0 {
-		newChildren = HamtPMap_ReplaceChild(m.children, index, m.children[index].PlusWithHash(m.key, leafHash, m.value))
+		newChildren = replaceChild(arena, m.children, index, m.children[index].plusWithHash(arena, m.key, leafHash, m.value))
 	} else {
-		newChild := newHamtPMap(m.key, m.keyIsNull, leafHash, m.value, 0, HamtPMap_EmptyChildren[K, V]())
-		newChildren = HamtPMap_InsertChild(m.children, index, newChild)
+		newChild := allocHamtPMap(arena, m.key, m.keyIsNull, leafHash, m.value, 0, HamtPMap_EmptyChildren[K, V]())
+		newChildren = insertChild(arena, m.children, index, newChild)
 	}
-	return newHamtPMap(key, false, hash, value, m.mask|bucketMask, newChildren)
+	return allocHamtPMap(arena, key, false, hash, value, m.mask|bucketMask, newChildren)
 }
 
 // Minus returns a new map with the given key removed. If the key was not
@@ -348,8 +486,13 @@ func (m *HamtPMap[K, V]) Minus(key K) PMap[K, V] {
 //
 // Go-only: language-adapter — see PlusMap.
 func (m *HamtPMap[K, V]) MinusMap(key K) *HamtPMap[K, V] {
+	return m.MinusMapWithArena(nil, key)
+}
+
+// MinusMapWithArena is MinusMap using arena for node and child-slice allocations.
+func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *HamtPMap[K, V] {
 	if !m.IsEmpty() {
-		res := m.minusWithHash(key, HamtPMap_Hash(key), nil)
+		res := m.minusWithHash(arena, key, HamtPMap_Hash(key), nil)
 		if res != nil {
 			return res
 		}
@@ -364,16 +507,16 @@ func (m *HamtPMap[K, V]) MinusMap(key K) *HamtPMap[K, V] {
 //
 // Java: HamtPMap.minus(K, int, V[])
 func (m *HamtPMap[K, V]) MinusWithHash(key K, hash int32, value []V) *HamtPMap[K, V] {
-	res := m.minusWithHash(key, hash, value)
+	res := m.minusWithHash(nil, key, hash, value)
 	if res != nil {
 		return res
 	}
 	return HamtPMap_Empty[K, V]()
 }
 
-func (m *HamtPMap[K, V]) minusWithHash(key K, hash int32, value []V) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value []V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
-		result := HamtPMap_DeleteRoot(m.mask, m.children)
+		result := deleteRoot(arena, m.mask, m.children)
 		if value != nil {
 			value[0] = m.value
 		}
@@ -388,13 +531,13 @@ func (m *HamtPMap[K, V]) minusWithHash(key K, hash int32, value []V) *HamtPMap[K
 	hash = HamtPMap_Shift(hash)
 	index := m.Index(bucketMask)
 	child := m.children[index]
-	newChild := child.minusWithHash(key, hash, value)
+	newChild := child.minusWithHash(arena, key, hash, value)
 	if newChild == child {
 		return m
 	} else if newChild == nil {
-		return m.WithChildren(m.mask&^bucketMask, HamtPMap_DeleteChild(m.children, index))
+		return m.withChildren(arena, m.mask&^bucketMask, deleteChild(arena, m.children, index))
 	} else {
-		return m.WithChildren(m.mask, HamtPMap_ReplaceChild(m.children, index, newChild))
+		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild))
 	}
 }
 
@@ -406,6 +549,11 @@ func (m *HamtPMap[K, V]) Reconcile(that PMap[K, V], joiner PMap_Reconciler[K, V]
 // ReconcileMap is reconcile(PMap<K, V>, Reconciler<K, V>) with its concrete
 // *HamtPMap parameter and return type.
 func (m *HamtPMap[K, V]) ReconcileMap(that *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
+	return m.ReconcileMapWithArena(nil, that, joiner)
+}
+
+// ReconcileMapWithArena is ReconcileMap using arena for node and child-slice allocations.
+func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
 	if m == that {
 		return m
 	}
@@ -416,7 +564,7 @@ func (m *HamtPMap[K, V]) ReconcileMap(that *HamtPMap[K, V], joiner PMap_Reconcil
 	if !that.IsEmpty() {
 		t2 = that
 	}
-	result := hamtPMap_ReconcileTrees(t1, t2, joiner, true)
+	result := hamtPMap_ReconcileTrees(arena, t1, t2, joiner, true)
 	if result != nil {
 		return result
 	}
@@ -434,10 +582,10 @@ func (m *HamtPMap[K, V]) ReconcileMap(that *HamtPMap[K, V], joiner PMap_Reconcil
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
 func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
-	return hamtPMap_ReconcileTrees(t1, t2, joiner, false)
+	return hamtPMap_ReconcileTrees(nil, t1, t2, joiner, false)
 }
 
-func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null V
 	if t1 == t2 {
 		return t1
@@ -450,26 +598,26 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 		n := len(t2.children)
 		sameChildren := true
 		for i := 0; i < n; i++ {
-			c := hamtPMap_ReconcileTrees(nil, t2.children[i], joiner, checkNotNull)
+			c := hamtPMap_ReconcileTrees(arena, nil, t2.children[i], joiner, checkNotNull)
 			newChildrenBuf[i] = c
 			if c != t2.children[i] {
 				sameChildren = false
 			}
 		}
-		if sameChildren && jutil.ObjectsEquals(t2.value, newValue) {
+		if sameChildren && jutil.ObjectsEqualsOf(t2.value, newValue) {
 			return t2
 		}
 		var newChildren []*HamtPMap[K, V]
 		if sameChildren {
 			newChildren = t2.children
 		} else {
-			newChildren = make([]*HamtPMap[K, V], n)
+			newChildren = allocHamtChildren(arena, n)
 			copy(newChildren, newChildrenBuf[:n])
 		}
 		if checkNotNull || !hamtIsNull(newValue) {
-			return newHamtPMap(t2.key, t2.keyIsNull, t2.hash, newValue, t2.mask, newChildren)
+			return allocHamtPMap(arena, t2.key, t2.keyIsNull, t2.hash, newValue, t2.mask, newChildren)
 		}
-		return HamtPMap_DeleteRoot(t2.mask, newChildren)
+		return deleteRoot(arena, t2.mask, newChildren)
 	} else if t2 == nil {
 		newValue := joiner(t1.key, t1.value, null)
 		if checkNotNull {
@@ -479,26 +627,26 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 		n := len(t1.children)
 		sameChildren := true
 		for i := 0; i < n; i++ {
-			c := hamtPMap_ReconcileTrees(t1.children[i], nil, joiner, checkNotNull)
+			c := hamtPMap_ReconcileTrees(arena, t1.children[i], nil, joiner, checkNotNull)
 			newChildrenBuf[i] = c
 			if c != t1.children[i] {
 				sameChildren = false
 			}
 		}
-		if sameChildren && jutil.ObjectsEquals(t1.value, newValue) {
+		if sameChildren && jutil.ObjectsEqualsOf(t1.value, newValue) {
 			return t1
 		}
 		var newChildren []*HamtPMap[K, V]
 		if sameChildren {
 			newChildren = t1.children
 		} else {
-			newChildren = make([]*HamtPMap[K, V], n)
+			newChildren = allocHamtChildren(arena, n)
 			copy(newChildren, newChildrenBuf[:n])
 		}
 		if checkNotNull || !hamtIsNull(newValue) {
-			return newHamtPMap(t1.key, t1.keyIsNull, t1.hash, newValue, t1.mask, newChildren)
+			return allocHamtPMap(arena, t1.key, t1.keyIsNull, t1.hash, newValue, t1.mask, newChildren)
 		}
-		return HamtPMap_DeleteRoot(t1.mask, newChildren)
+		return deleteRoot(arena, t1.mask, newChildren)
 	}
 
 	// Try as hard as possible to return input trees exactly.
@@ -528,7 +676,7 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 	} else {
 		if !t2.keyEquals(t1.key) {
 			// Hash collision: try to rearrange t2 to have the same root as t1
-			t2 = t2.Pivot(t1.key, t1.hash)
+			t2 = t2.pivot(arena, t1.key, t1.hash)
 			sameChildrenAs2 = false
 		}
 		t1Val = t1.value
@@ -537,7 +685,7 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 	// Note: one or the other (but not both) tree may have a null key at root.
 
 	var newValue V
-	if vacatedBit1 == 0 && vacatedBit2 == 0 && jutil.ObjectsEquals(t1Val, t2Val) {
+	if vacatedBit1 == 0 && vacatedBit2 == 0 && jutil.ObjectsEqualsOf(t1Val, t2Val) {
 		newValue = t1Val
 	} else {
 		newValue = joiner(key, t1Val, t2Val)
@@ -562,38 +710,38 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 		var reconciled *HamtPMap[K, V]
 		if childBit == vacatedBit2 {
 			if (t2.mask & vacatedBit2) != 0 {
-				vacatedChild2 := child2.PlusWithHash(t2.key, HamtPMap_Shift(t2.hash), t2.value)
-				reconciled = hamtPMap_ReconcileTrees(child1, vacatedChild2, joiner, checkNotNull)
+				vacatedChild2 := child2.plusWithHash(arena, t2.key, HamtPMap_Shift(t2.hash), t2.value)
+				reconciled = hamtPMap_ReconcileTrees(arena, child1, vacatedChild2, joiner, checkNotNull)
 			} else if child1 == nil {
 				v := joiner(t2.key, null, t2.value)
 				if checkNotNull {
 					jutil.CheckNotNull(v)
 				}
 				if checkNotNull || !hamtIsNull(v) {
-					reconciled = newHamtPMap(t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
+					reconciled = allocHamtPMap(arena, t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
 				}
 			} else {
-				vacatedChild2 := newHamtPMap(t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), t2.value, 0, HamtPMap_EmptyChildren[K, V]())
-				reconciled = hamtPMap_ReconcileTrees(child1, vacatedChild2, joiner, checkNotNull)
+				vacatedChild2 := allocHamtPMap(arena, t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), t2.value, 0, HamtPMap_EmptyChildren[K, V]())
+				reconciled = hamtPMap_ReconcileTrees(arena, child1, vacatedChild2, joiner, checkNotNull)
 			}
 		} else if childBit == vacatedBit1 {
 			if (t1.mask & vacatedBit1) != 0 {
-				vacatedChild1 := child1.PlusWithHash(t1.key, HamtPMap_Shift(t1.hash), t1.value)
-				reconciled = hamtPMap_ReconcileTrees(vacatedChild1, child2, joiner, checkNotNull)
+				vacatedChild1 := child1.plusWithHash(arena, t1.key, HamtPMap_Shift(t1.hash), t1.value)
+				reconciled = hamtPMap_ReconcileTrees(arena, vacatedChild1, child2, joiner, checkNotNull)
 			} else if child2 == nil {
 				v := joiner(t1.key, t1.value, null)
 				if checkNotNull {
 					jutil.CheckNotNull(v)
 				}
 				if checkNotNull || !hamtIsNull(v) {
-					reconciled = newHamtPMap(t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
+					reconciled = allocHamtPMap(arena, t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
 				}
 			} else {
-				vacatedChild1 := newHamtPMap(t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), t1.value, 0, HamtPMap_EmptyChildren[K, V]())
-				reconciled = hamtPMap_ReconcileTrees(vacatedChild1, child2, joiner, checkNotNull)
+				vacatedChild1 := allocHamtPMap(arena, t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), t1.value, 0, HamtPMap_EmptyChildren[K, V]())
+				reconciled = hamtPMap_ReconcileTrees(arena, vacatedChild1, child2, joiner, checkNotNull)
 			}
 		} else {
-			reconciled = hamtPMap_ReconcileTrees(child1, child2, joiner, checkNotNull)
+			reconciled = hamtPMap_ReconcileTrees(arena, child1, child2, joiner, checkNotNull)
 		}
 		newChildrenBuf[index] = reconciled
 		sameChildrenAs1 = sameChildrenAs1 && (reconciled == child1)
@@ -604,9 +752,9 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 			newMask &^= childBit
 		}
 	}
-	if sameChildrenAs1 && jutil.ObjectsEquals(t1Val, newValue) {
+	if sameChildrenAs1 && jutil.ObjectsEqualsOf(t1Val, newValue) {
 		return t1
-	} else if sameChildrenAs2 && jutil.ObjectsEquals(t2Val, newValue) {
+	} else if sameChildrenAs2 && jutil.ObjectsEqualsOf(t2Val, newValue) {
 		return t2
 	}
 	var newChildren []*HamtPMap[K, V]
@@ -617,13 +765,13 @@ func hamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V
 	} else if index == 0 {
 		newChildren = HamtPMap_EmptyChildren[K, V]()
 	} else {
-		newChildren = make([]*HamtPMap[K, V], index)
+		newChildren = allocHamtChildren(arena, index)
 		copy(newChildren, newChildrenBuf[:index])
 	}
 	if !checkNotNull && hamtIsNull(newValue) {
-		return HamtPMap_DeleteRoot(newMask, newChildren)
+		return deleteRoot(arena, newMask, newChildren)
 	}
-	return newHamtPMap(key, keyIsNull, hash, newValue, newMask, newChildren)
+	return allocHamtPMap(arena, key, keyIsNull, hash, newValue, newMask, newChildren)
 }
 
 // Equivalent checks equality recursively based on the given equivalence.
@@ -769,8 +917,12 @@ func HamtPMap_CompareUnsigned(left int32, right int32) int32 {
 //
 // Java: HamtPMap.pivot(K, int)
 func (m *HamtPMap[K, V]) Pivot(key K, hash int32) *HamtPMap[K, V] {
+	return m.pivot(nil, key, hash)
+}
+
+func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *HamtPMap[K, V] {
 	var result [1]V
-	return m.PivotWithParent(key, hash, nil, result[:])
+	return m.pivotWithParent(arena, key, hash, nil, result[:])
 }
 
 // PivotWithParent is the internal recursive version of pivot.
@@ -783,6 +935,10 @@ func (m *HamtPMap[K, V]) Pivot(key K, hash int32) *HamtPMap[K, V] {
 //
 // Java: HamtPMap.pivot(K, int, HamtPMap<K, V>, V[])
 func (m *HamtPMap[K, V]) PivotWithParent(key K, hash int32, parent *HamtPMap[K, V], result []V) *HamtPMap[K, V] {
+	return m.pivotWithParent(nil, key, hash, parent, result)
+}
+
+func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash int32, parent *HamtPMap[K, V], result []V) *HamtPMap[K, V] {
 	newMask := m.mask
 	newChildren := m.children
 	if hash == m.hash && m.keyEquals(key) {
@@ -800,19 +956,19 @@ func (m *HamtPMap[K, V]) PivotWithParent(key K, hash int32, parent *HamtPMap[K, 
 				// Found a child, call pivot recursively.
 				index := m.Index(bucketMask)
 				child := newChildren[index]
-				newChild := child.PivotWithParent(key, HamtPMap_Shift(hash), m, result)
-				newChildren = HamtPMap_ReplaceChild(newChildren, index, newChild)
+				newChild := child.pivotWithParent(arena, key, HamtPMap_Shift(hash), m, result)
+				newChildren = replaceChild(arena, newChildren, index, newChild)
 			}
 		} else {
 			searchMask := jutil.Shl32(1, int64(searchBucket))
 			if (m.mask & searchMask) != 0 {
 				index := m.Index(searchMask)
 				child := newChildren[index]
-				newChild := child.minusWithHash(key, HamtPMap_Shift(hash), result)
+				newChild := child.minusWithHash(arena, key, HamtPMap_Shift(hash), result)
 				if newChild != nil {
-					newChildren = HamtPMap_ReplaceChild(newChildren, index, newChild)
+					newChildren = replaceChild(arena, newChildren, index, newChild)
 				} else {
-					newChildren = HamtPMap_DeleteChild(newChildren, index)
+					newChildren = deleteChild(arena, newChildren, index)
 					newMask &^= searchMask
 				}
 			}
@@ -820,37 +976,42 @@ func (m *HamtPMap[K, V]) PivotWithParent(key K, hash int32, parent *HamtPMap[K, 
 			index := bits.OnesCount32(uint32(newMask & (replacementMask - 1)))
 			if (m.mask & replacementMask) != 0 {
 				child := newChildren[index]
-				newChild := child.PlusWithHash(m.key, HamtPMap_Shift(m.hash), m.value)
-				newChildren = HamtPMap_ReplaceChild(newChildren, index, newChild)
+				newChild := child.plusWithHash(arena, m.key, HamtPMap_Shift(m.hash), m.value)
+				newChildren = replaceChild(arena, newChildren, index, newChild)
 			} else {
-				newChildren = HamtPMap_InsertChild(
+				newChildren = insertChild(
+					arena,
 					newChildren,
 					index,
-					newHamtPMap(m.key, m.keyIsNull, HamtPMap_Shift(m.hash), m.value, 0, HamtPMap_EmptyChildren[K, V]()))
+					allocHamtPMap(arena, m.key, m.keyIsNull, HamtPMap_Shift(m.hash), m.value, 0, HamtPMap_EmptyChildren[K, V]()))
 				newMask |= replacementMask
 			}
 		}
 	}
 	if parent != nil {
-		return newHamtPMap(parent.key, parent.keyIsNull, HamtPMap_Shift(parent.hash), parent.value, newMask, newChildren)
+		return allocHamtPMap(arena, parent.key, parent.keyIsNull, HamtPMap_Shift(parent.hash), parent.value, newMask, newChildren)
 	}
-	return newHamtPMap(key, false, hash, result[0], newMask, newChildren)
+	return allocHamtPMap(arena, key, false, hash, result[0], newMask, newChildren)
 }
 
 // VacateRoot moves the root into the appropriate child.
 //
 // Java: HamtPMap.vacateRoot()
 func (m *HamtPMap[K, V]) VacateRoot() *HamtPMap[K, V] {
+	return m.vacateRoot(nil)
+}
+
+func (m *HamtPMap[K, V]) vacateRoot(arena *HamtPMapArena[K, V]) *HamtPMap[K, V] {
 	var null V
 	bucket := HamtPMap_Bucket(m.hash)
 	bucketMask := jutil.Shl32(1, int64(bucket))
 	index := m.Index(bucketMask)
 	if (m.mask & bucketMask) != 0 {
-		newChild := m.children[index].PlusWithHash(m.key, HamtPMap_Shift(m.hash), m.value)
-		return newHamtPMapNullKey(null, m.mask, HamtPMap_ReplaceChild(m.children, index, newChild))
+		newChild := m.children[index].plusWithHash(arena, m.key, HamtPMap_Shift(m.hash), m.value)
+		return allocHamtPMapNullKey(arena, null, m.mask, replaceChild(arena, m.children, index, newChild))
 	}
-	newChild := newHamtPMap(m.key, m.keyIsNull, HamtPMap_Shift(m.hash), m.value, 0, HamtPMap_EmptyChildren[K, V]())
-	return newHamtPMapNullKey(null, m.mask|bucketMask, HamtPMap_InsertChild(m.children, index, newChild))
+	newChild := allocHamtPMap(arena, m.key, m.keyIsNull, HamtPMap_Shift(m.hash), m.value, 0, HamtPMap_EmptyChildren[K, V]())
+	return allocHamtPMapNullKey(arena, null, m.mask|bucketMask, insertChild(arena, m.children, index, newChild))
 }
 
 // WithChildren returns a copy of this node with a different array of
@@ -858,10 +1019,14 @@ func (m *HamtPMap[K, V]) VacateRoot() *HamtPMap[K, V] {
 //
 // Java: HamtPMap.withChildren(int, HamtPMap<K, V>[])
 func (m *HamtPMap[K, V]) WithChildren(mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+	return m.withChildren(nil, mask, children)
+}
+
+func (m *HamtPMap[K, V]) withChildren(arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == m.mask && hamtSameArray(children, m.children) {
 		return m
 	}
-	return newHamtPMap(m.key, m.keyIsNull, m.hash, m.value, mask, children)
+	return allocHamtPMap(arena, m.key, m.keyIsNull, m.hash, m.value, mask, children)
 }
 
 // hamtSameArray is Java array identity (`a == b`) on Go slices.
@@ -875,18 +1040,22 @@ func hamtSameArray[T any](a, b []T) bool {
 //
 // Java: HamtPMap.deleteRoot(int, HamtPMap<K, V>[])
 func HamtPMap_DeleteRoot[K any, V any](mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+	return deleteRoot(nil, mask, children)
+}
+
+func deleteRoot[K any, V any](arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == 0 {
 		return nil
 	}
 	child := children[0]
 	hashBits := int32(bits.TrailingZeros32(uint32(mask)))
 	newHash := HamtPMap_Unshift(child.hash, hashBits)
-	newChild := HamtPMap_DeleteRoot(child.mask, child.children)
+	newChild := deleteRoot(arena, child.mask, child.children)
 	if newChild == nil {
 		newMask := mask &^ (mask & -mask) // Integer.lowestOneBit(mask)
-		return newHamtPMap(child.key, child.keyIsNull, newHash, child.value, newMask, HamtPMap_DeleteChild(children, 0))
+		return allocHamtPMap(arena, child.key, child.keyIsNull, newHash, child.value, newMask, deleteChild(arena, children, 0))
 	}
-	return newHamtPMap(child.key, child.keyIsNull, newHash, child.value, mask, HamtPMap_ReplaceChild(children, 0, newChild))
+	return allocHamtPMap(arena, child.key, child.keyIsNull, newHash, child.value, mask, replaceChild(arena, children, 0, newChild))
 }
 
 // HamtPMap_InsertChild returns a new array of children with an additional
@@ -894,7 +1063,11 @@ func HamtPMap_DeleteRoot[K any, V any](mask int32, children []*HamtPMap[K, V]) *
 //
 // Java: HamtPMap.insertChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
 func HamtPMap_InsertChild[K any, V any](children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
-	newChildren := make([]*HamtPMap[K, V], len(children)+1)
+	return insertChild(nil, children, index, child)
+}
+
+func insertChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+	newChildren := allocHamtChildren(arena, len(children)+1)
 	newChildren[index] = child
 	copy(newChildren[0:index], children[0:index])
 	copy(newChildren[index+1:], children[index:])
@@ -906,7 +1079,12 @@ func HamtPMap_InsertChild[K any, V any](children []*HamtPMap[K, V], index int, c
 //
 // Java: HamtPMap.replaceChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
 func HamtPMap_ReplaceChild[K any, V any](children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
-	newChildren := append([]*HamtPMap[K, V](nil), children...)
+	return replaceChild(nil, children, index, child)
+}
+
+func replaceChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+	newChildren := allocHamtChildren(arena, len(children))
+	copy(newChildren, children)
 	newChildren[index] = child
 	return newChildren
 }
@@ -916,11 +1094,15 @@ func HamtPMap_ReplaceChild[K any, V any](children []*HamtPMap[K, V], index int, 
 //
 // Java: HamtPMap.deleteChild(HamtPMap<K, V>[], int)
 func HamtPMap_DeleteChild[K any, V any](children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
+	return deleteChild(nil, children, index)
+}
+
+func deleteChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
 	if len(children) == 1 {
 		// Note: index should always be zero.
 		return HamtPMap_EmptyChildren[K, V]()
 	}
-	newChildren := make([]*HamtPMap[K, V], len(children)-1)
+	newChildren := allocHamtChildren(arena, len(children)-1)
 	copy(newChildren[0:index], children[0:index])
 	copy(newChildren[index:], children[index+1:])
 	return newChildren

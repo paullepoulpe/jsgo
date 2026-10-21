@@ -918,6 +918,45 @@ Total `alloc_space` dropped by **−827.3 MB (−16.8%)** on `bundle-mega` (`4.8
 | **`downlevel-simple`** (2.1 MB) | 1.17 s / 1.08 s | **1.18 s** / **1.09 s** | **207** / **205 MiB** | **−5.03%** / **−5.62%** | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.56 s / 0.48 s | **0.57 s** / **0.48 s** | **165** / **169 MiB** | **−3.59%** / **−1.01%** | `MATCH` |
 
+## Round 16: `HamtPMapArena` & `UnionType_Builder` Stack (`−187 MB`), `ReferenceCollector` / `RemoveUnusedCode` Direct `Var.nameHash` Indexing & Largest-First `scopeArena` (`−110 MB`), Byte-Backed `Compiler_CodeBuilder` & `SourceMapGeneratorV3` Ordered Slices (`−105 MB`), `ParseArena` Chunk Retention & `LineNumberScanner` Fast Path (`−55 MB`), and `GlobalNamespace` 64K Single-String Concat Cache (`−60 MB`) (2026-10-21)
+
+Profiling Round 15 (`80199f92`) on `typed-mega` (`3,459.97 MB` `alloc_space`) and `bundle-mega` (`4,094.09 MB` `alloc_space`) identified five disjoint optimization targets across all 11 benchmarks:
+
+1. **`ParseArena` Chunk Retention, Doubling UTF-16 Buffer Growth, and `LineNumberScanner` Same-Line Fast Path (`Subagent 16A`, `internal/parser/parse_arena.go`, `internal/parser/line_number_scanner.go`):**
+   - Increased `arenaSlabMaxChunk` from `4096` to `8192` and `arenaSlabMaxChunks` from `64` to `256` so 2–3 MB scripts with 400K–800K `SourcePosition`s, `SourceRange`s, and `Token`s in `PrebuildAst` no longer truncate and reallocate chunks `64..195` after every script (`−53.78 MB` on `bundle-mega`), and grew `ParseArena.decodeUTF16`'s backing buffer by doubling capacity.
+   - Guarded `jutil.CheckArgumentMsg2` in `LineNumberScanner.getSourcePosition` to avoid boxing `offset` and `l.lastLineStart` to `any` on every token, and added a same-line inline fast path in `getTokenSourceRange`.
+2. **Direct `Var.nameHash` Pass Indexing in `ReferenceCollector`, `CrossChunkReferenceCollector`, & `RemoveUnusedCode`, and Largest-First `cachedScopeArenas` Selection (`Subagent 16B`, `reference_collector.go`, `cross_chunk_reference_collector.go`, `remove_unused_code.go`, `scope.go`, `node_util.go`):**
+   - Replaced hash table probing (`c.table []rcTableEntry`, `growTable()`) in `ReferenceCollector` and `CrossChunkReferenceCollector` with O(1) direct 1-based indexing via `v.nameHash` (preserving `sizeof(Var) == 48 B`), explicit `2x` `growVarsCols()` growth, and arena pooling in `NodeUtil_CollectExternVariableNames` (`−61.25 MB` and `−290 ms` CPU on `bundle-mega`).
+   - Added a `var_.nameHash` O(1) fast path at the top of `RemoveUnusedCode.GetVarInfo` and `TraverseVar`.
+   - Updated `acquireScopeArena()` and `scopeArena.release()` to select and retain the largest pre-warmed `scopeArena` across the 4-slot `cachedScopeArenas` cache (`−17.94 MB` on `bundle-mega`, `−14.39 MB` on `typed-mega`).
+3. **`HamtPMapArena[K, V]` in `linkedFlowScopeArena` & `MaybeReachingVariableUse`, and `UnionType_Builder` Stack (`Subagent 16C`, `internal/rhino/hamt_p_map.go`, `internal/rhino/jstype_union_type.go`, `internal/rhino/jstype_js_type_registry.go`, `internal/rhino/jstype_template_type_replacer.go`, `linked_flow_scope.go`, `type_inference.go`, `maybe_reaching_variable_use.go`):**
+   - Added `HamtPMapArena[K, V]` (`PlusMapWithArena`, `MinusMapWithArena`, `ReconcileMapWithArena`) and unboxed `jutil.ObjectsEqualsOf` value comparisons in `hamt_p_map.go`, wiring `scopeMapArena` and `slotMapArena` into `linkedFlowScopeArena` (`TypeInference`) and concrete `*HamtPMap` + `varMapArena`/`nodeMapArena` into `MaybeReachingVariableUse` (`−158.50 MB` on `bundle-mega`, `−55.50 MB` on `typed-mega`).
+   - Added `unionBuilderStack [8]UnionType_Builder` (with `inlineAlternates [32]JSType`) and `unionTypeSlab` on `JSTypeRegistry`, eliminating `UnionType_Builder` heap escapes caused by the mutual recursion SCC between `CreateUnionTypeOfList`, `AddAlternate`, `GetAlternates`, and `IsSubtypeWithoutStructuralTyping` (`−53.01 MB` on `bundle-mega`, `−15.50 MB` on `typed-mega`).
+4. **Byte-Backed `Compiler_CodeBuilder` and Ordered-Slice `SourceMapGeneratorV3` (`Subagent 16D`, `compiler.go`, `internal/sourcemap/source_map_generator_v3.go`):**
+   - Replaced `sb *jutil.StringBuilder` (`[]uint16` UTF-16 backing slice) in `Compiler_CodeBuilder` with a UTF-8 `buf []byte`, single-pass `utf16Len`/`lineCount`/`colCount` tracking, and zero-copy `String()` (`−62.33 MB` on `bundle-mega`, `−89.25 MB` on `typed-mega`).
+   - Replaced `sourceFileMap` and `originalNameMap` (`*jutil.LinkedHashMap[string, int]`) in `SourceMapGeneratorV3` with flat `orderedSourceFiles` and `orderedSymbolNames` slices populated directly in `WriteEntry` (`−22.90 MB` on `typed-mega`, `−15.88 MB` on `bundle-mega`).
+5. **`GlobalNamespace` 64K Single-String Concat Cache and Zero-Allocation Qualified-Name Checks (`Subagent 16E`, `global_namespace.go`, `coding_convention.go`, `js_message_visitor.go`, `check_side_effects.go`, `replace_id_generators.go`, `process_closure_primitives.go`, `closure_check_module.go`, `analyze_prototype_properties.go`):**
+   - Shrunk `GlobalNamespace` `concatCache` entries from `struct{a, b, res string}` (48 B, 3 pointers) to `string` (16 B, 1 pointer) verified via `gnConcatMatch(res, a, b)`, expanded `gnConcatCacheSize` from `4,096` to `65,536`, and added recursive caching for 5+ segment `GETPROP` chains (`−30.15 MB` on `typed-mega`).
+   - Eliminated `GetQualifiedName()` / `NodeUtil_GetBestLValueName()` allocations in `CodingConvention_AssertionFunctionLookup.LookupByCallee`, `JsMessageVisitorBase.isDeclareIcuTemplateCallee`, `CheckSideEffects.Visit`, `ReplaceIdGenerators_ReplaceGenerators.Visit`, `ProcessClosurePrimitives.Visit`, `ClosureCheckModule.VisitWithModule`, and `AnalyzePrototypeProperties` (`−30+ MB` across `typed-mega` and `bundle-mega`).
+
+Total `alloc_space` dropped by **−417.52 MB (−10.20%)** on `bundle-mega` (`4,094.09 MB → 3,676.57 MB`, **−78.6% vs Round 5's `17.16 GB`**) and **−268.32 MB (−7.75%)** on `typed-mega` (`3,459.97 MB → 3,191.65 MB`, **−72.5% vs Round 5's `11.61 GB`**), while end-of-compilation `inuse_space` dropped to **`985.48 MB` (−57.70 MB, breaking below 1 GB)** on `typed-mega` and **`1,194.87 MB` (−23.36 MB)** on `bundle-mega`, and wall time improved across **all 22/22 (`t=1` and `t=4`) benchmark configurations** (`−4.51%` / `−1.10 s` on `bundle-mega`, `−3.48%` / `−0.69 s` on `typed-mega`)!
+
+### Final measured results — Round 16 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 15 (`80199f92` `t=1` / `t=4`) | **Round 16 (`t=1` / `t=4`)** | Round 16 vs Round 15 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 25.07 s / 24.32 s | **23.96 s** / **23.22 s** | **−4.44%** / **−4.51%** | **1,784** / **1,771 MiB** (**−2.97%** / **−3.48%**, **−417.5 MB `alloc_space`**) | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 19.83 s / 18.58 s | **19.14 s** / **18.02 s** | **−3.48%** / **−3.06%** | 1,899 / 1,861 MiB (**−268.3 MB `alloc_space`**, **985.5 MB `inuse_space`**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.37 s / 10.71 s | **11.05 s** / **10.46 s** | **−2.77%** / **−2.40%** | 1,113 / 1,156 MiB | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 7.07 s / 6.96 s | **6.82 s** / **6.70 s** | **−3.58%** / **−3.81%** | **554** / 616 MiB (**−1.58%** `t=1`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.66 s / 4.53 s | **4.48 s** / **4.37 s** | **−3.79%** / **−3.66%** | 545 / **593 MiB** (**−1.88%** `t=4`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.70 s / 4.48 s | **4.57 s** / **4.35 s** | **−2.71%** / **−3.06%** | **516** / 519 MiB | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.61 s / 3.46 s | **3.49 s** / **3.33 s** | **−3.33%** / **−3.72%** | **317** / **306 MiB** (**−4.21%** / **−6.77%**) | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.63 s / 2.21 s | **2.55 s** / **2.14 s** | **−2.97%** / **−2.82%** | 579 / 557 MiB | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.48 s / 1.36 s | **1.44 s** / **1.32 s** | **−2.55%** / **−3.01%** | 262 / **259 MiB** (**−4.86%** `t=4`) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.18 s / 1.09 s | **1.15 s** / **1.06 s** | **−2.66%** / **−2.59%** | **199** / **197 MiB** (**−7.34%** / **−3.19%**) | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.57 s / 0.48 s | **0.56 s** / **0.47 s** | **−2.07%** / **−1.75%** | **157** / **152 MiB** (**−6.47%** / **−9.78%**) | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

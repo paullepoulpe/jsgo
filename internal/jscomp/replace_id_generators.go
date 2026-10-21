@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -423,12 +424,28 @@ func (r *ReplaceIdGenerators) Process(externs *rhino.Node, root *rhino.Node) {
 // ReplaceGenerators.
 type ReplaceIdGenerators_ReplaceGenerators struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	this_ *ReplaceIdGenerators // the enclosing instance
+	this_            *ReplaceIdGenerators // the enclosing instance
+	hasNullGenerator bool
+	lastPropSet      map[string]struct{}
 }
 
 // Java: ReplaceGenerators()
 func NewReplaceIdGenerators_ReplaceGenerators(outer *ReplaceIdGenerators) *ReplaceIdGenerators_ReplaceGenerators {
-	return &ReplaceIdGenerators_ReplaceGenerators{this_: outer}
+	g := &ReplaceIdGenerators_ReplaceGenerators{this_: outer}
+	if outer != nil && outer.nameGenerators != nil && !outer.nameGenerators.IsEmpty() {
+		g.lastPropSet = make(map[string]struct{}, outer.nameGenerators.Size())
+		for key := range outer.nameGenerators.Keys() {
+			if key == "null" {
+				g.hasNullGenerator = true
+			}
+			if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
+				g.lastPropSet[key[lastDot+1:]] = struct{}{}
+			} else {
+				g.lastPropSet[key] = struct{}{}
+			}
+		}
+	}
+	return g
 }
 
 // Java: ReplaceGenerators.visit(NodeTraversal, Node, Node)
@@ -439,7 +456,28 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) Visit(t *NodeTraversal, n *rhino
 	}
 
 	qname := NodeUtil_GetCallTargetResolvingIndirectCalls(n)
-	callName := replaceIdGenerators_nullableName(qname.GetQualifiedName())
+	var callName string
+	if qname.IsName() {
+		callName = qname.GetString()
+		if callName == "" {
+			callName = "null"
+		}
+	} else if qname.IsGetProp() {
+		if _, ok := g.lastPropSet[qname.GetString()]; !ok && !g.hasNullGenerator {
+			return
+		}
+		if s, ok := qname.GetQualifiedNameString(); ok {
+			callName = s
+		} else {
+			callName = "null"
+		}
+	} else {
+		if s, ok := qname.GetQualifiedNameString(); ok {
+			callName = s
+		} else {
+			callName = "null"
+		}
+	}
 	nameGenerator := r.nameGenerators.Get(callName)
 	if nameGenerator == nil {
 		return

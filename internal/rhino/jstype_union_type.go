@@ -101,7 +101,7 @@ const UnionType_MAX_UNION_SIZE = 30
 //
 // Java: UnionType(Builder)
 func NewUnionType(builder *UnionType_Builder) *UnionType {
-	t := &UnionType{}
+	t := builder.registry.allocUnionType()
 	t.InitJSTypeBase(t, builder.registry)
 	t.resolvedAlternatesAtLastBuild = -1
 	t.FillFromBuilder(builder)
@@ -147,8 +147,7 @@ func (t *UnionType) GetAlternates() []JSType {
 		if resolvedAlternates != t.resolvedAlternatesAtLastBuild {
 			t.resolvedAlternatesAtLastBuild = resolvedAlternates
 
-			var b UnionType_Builder
-			initUnionType_Builder(&b, t.registry)
+			b := t.registry.acquireUnionBuilder()
 			b.rebuildTarget = t
 			b.AddAlternates(t.alternates)
 			// Double checked rebuilds, in case the union is involved in a cycle.
@@ -163,6 +162,7 @@ func (t *UnionType) GetAlternates() []JSType {
 				// actually have now, so the next read compares like with like.
 				t.resolvedAlternatesAtLastBuild = t.CountResolvedAlternates()
 			}
+			t.registry.releaseUnionBuilder(b)
 		}
 	}
 	return t.alternates
@@ -195,8 +195,15 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 		}
 	} else {
 		jutil.CheckState(builder.inlineLen != 0)
-		t.inlineAlternates = builder.inlineAlternates
-		t.alternates = t.inlineAlternates[:builder.inlineLen]
+		if builder.inlineLen <= len(t.inlineAlternates) {
+			copy(t.inlineAlternates[:], builder.inlineAlternates[:builder.inlineLen])
+			clear(t.inlineAlternates[builder.inlineLen:])
+			t.alternates = t.inlineAlternates[:builder.inlineLen]
+		} else {
+			s := t.registry.allocJSTypeSlice(builder.inlineLen)
+			copy(s, builder.inlineAlternates[:builder.inlineLen])
+			t.alternates = s
+		}
 	}
 	t.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild
 }
@@ -778,7 +785,7 @@ type UnionType_Builder struct {
 	rebuildTarget *UnionType
 	registry      *JSTypeRegistry
 
-	inlineAlternates [4]JSType
+	inlineAlternates [32]JSType
 	inlineLen        int
 	alternates       []JSType
 	finalAlternates  []JSType
@@ -865,7 +872,7 @@ func (b *UnionType_Builder) add(t JSType) {
 		b.inlineLen++
 		return
 	}
-	b.alternates = make([]JSType, len(b.inlineAlternates)+1, 8)
+	b.alternates = make([]JSType, len(b.inlineAlternates)+1, 64)
 	copy(b.alternates, b.inlineAlternates[:])
 	b.alternates[len(b.inlineAlternates)] = t
 	clear(b.inlineAlternates[:])
@@ -1126,8 +1133,11 @@ func (b *UnionType_Builder) Build() JSType {
 			if !b.containsVoidType {
 				return wildcard
 			}
-			b.inlineAlternates = [4]JSType{wildcard, b.registry.GetNativeType(JSTypeNative_VOID_TYPE)}
+			b.inlineAlternates[0] = wildcard
+			b.inlineAlternates[1] = b.registry.GetNativeType(JSTypeNative_VOID_TYPE)
 			b.inlineLen = 2
+			b.alternates = nil
+			b.finalAlternates = nil
 			return NewUnionType(b)
 		}
 		n := b.size()
@@ -1165,23 +1175,27 @@ func (b *UnionType_Builder) BuildInternal() *UnionType_Builder {
 	wildcard := b.GetNativeWildcardType()
 	if wildcard != nil {
 		if b.containsVoidType {
-			b.inlineAlternates = [4]JSType{wildcard, b.registry.GetNativeType(JSTypeNative_VOID_TYPE)}
+			b.inlineAlternates[0] = wildcard
+			b.inlineAlternates[1] = b.registry.GetNativeType(JSTypeNative_VOID_TYPE)
 			b.inlineLen = 2
 		} else {
-			b.inlineAlternates = [4]JSType{wildcard}
+			b.inlineAlternates[0] = wildcard
 			b.inlineLen = 1
 		}
 		b.alternates = nil
+		b.finalAlternates = nil
 	} else if b.size() == 0 {
 		// To simplify the typesystem, empty union types are forbidden. Using a
 		// single `bottom` makes it essentially a proxy instead.
-		b.inlineAlternates = [4]JSType{b.registry.GetNativeType(JSTypeNative_NO_TYPE)}
+		b.inlineAlternates[0] = b.registry.GetNativeType(JSTypeNative_NO_TYPE)
 		b.inlineLen = 1
 		b.alternates = nil
+		b.finalAlternates = nil
 	} else if b.size() > UnionType_MAX_UNION_SIZE {
-		b.inlineAlternates = [4]JSType{b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)}
+		b.inlineAlternates[0] = b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		b.inlineLen = 1
 		b.alternates = nil
+		b.finalAlternates = nil
 	} else if b.alternates != nil {
 		b.finalAlternates = b.alternates
 	}
