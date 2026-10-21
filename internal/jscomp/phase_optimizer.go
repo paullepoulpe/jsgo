@@ -191,6 +191,7 @@ func (p *PhaseOptimizer) SetPrintAstHashcodes(printAstHashcodes bool) {
 //
 // Java: PhaseOptimizer.process(Node, Node)
 func (p *PhaseOptimizer) Process(externs *rhino.Node, root *rhino.Node) {
+	defer evictCachedReusableCfgs()
 	// When looking at this code, one can mistakenly think that the instance of
 	// PhaseOptimizer keeps all compiler passes live. This would be undesirable. A pass can
 	// create large data structures that are only useful to the pass, and we shouldn't
@@ -412,7 +413,11 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 	state := PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER
 	var lastIterMadeChanges bool
 	count := 1
-	astSize := NodeUtil_CountAstSize(root)
+	trackAstSize := p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop
+	var astSize int
+	if trackAstSize {
+		astSize = NodeUtil_CountAstSize(root)
+	}
 	previousAstSize := astSize
 
 	// The loop starts at state RUN_PASSES_NOT_RUN_IN_PREV_ITER and runs all passes.
@@ -428,6 +433,7 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 	defer func() {
 		p.inLoop = false
 		p.changeTracker.RemoveChangeHandler(l.scopeHandler)
+		evictOptimizeCallsLoopCache()
 	}()
 	for {
 		if count > p.optimizationLoopMaxIterations && l.isCodeRemovalLoop {
@@ -464,8 +470,10 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 			}
 		}
 
-		previousAstSize = astSize
-		astSize = NodeUtil_CountAstSize(root)
+		if trackAstSize && lastIterMadeChanges {
+			previousAstSize = astSize
+			astSize = NodeUtil_CountAstSize(root)
+		}
 		if state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER {
 			if lastIterMadeChanges && l.IsAstSufficientlyChanging(previousAstSize, astSize) {
 				state = PhaseOptimizer_State_RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER

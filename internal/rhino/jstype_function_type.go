@@ -240,7 +240,7 @@ var (
 //
 // Java: FunctionType(Builder)
 func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
-	t := &FunctionTypeBase{}
+	t := builder.registry.allocFunctionType()
 	t.InitFunctionTypeBase(t, builder)
 	return t
 }

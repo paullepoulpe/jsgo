@@ -5768,7 +5768,7 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 	return &s
 }
 
-const nodeUtilByteSlabSize = 32768
+const nodeUtilByteSlabSize = 65536
 
 type nodeUtilByteSlab struct {
 	buf  [nodeUtilByteSlabSize]byte
@@ -5828,13 +5828,10 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 			return "", false
 		}
 		methodName := lValue.GetString()
-		var maybePrototype string
 		if lValue.IsStaticMember() {
-			maybePrototype = "."
-		} else {
-			maybePrototype = ".prototype."
+			return nodeUtilConcatDot(*className, methodName), true
 		}
-		return nodeUtilConcat3(*className, maybePrototype, methodName), true
+		return nodeUtilConcat3(*className, ".prototype.", methodName), true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
@@ -6024,24 +6021,49 @@ var NodeUtil_NUMBER_NAN = rhino.IR_Getprop(rhino.IR_Name("Number"), "NaN")
 
 // Java: NodeUtil.countAstSizeUpToLimit(Node, int)
 func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
-	// Java doesn't allow accessing mutable local variables from another class.
-	wrappedSize := 0
-	NodeUtil_VisitPreOrderWithPred(n, NodeUtil_VisitorFunc(func(n12 *rhino.Node) { wrappedSize++ }),
-		func(n1 *rhino.Node) bool { return wrappedSize < limit })
-	return wrappedSize
+	return nodeUtil_countAstSizeUpToLimit(n, limit, 0)
+}
+
+func nodeUtil_countAstSizeUpToLimit(n *rhino.Node, limit int, count int) int {
+	count++
+	if count < limit {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.GetFirstChild() == nil {
+				count++
+			} else {
+				count = nodeUtil_countAstSizeUpToLimit(c, limit, count)
+			}
+		}
+	}
+	return count
 }
 
 // Java: NodeUtil.countAstSize(Node)
 func NodeUtil_CountAstSize(n *rhino.Node) int {
 	count := 1
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() == nil {
-			count++
-		} else {
-			count += NodeUtil_CountAstSize(c)
-		}
+	if n.GetFirstChild() == nil {
+		return 1
 	}
-	return count
+	var stackBuf [64]*rhino.Node
+	stack := stackBuf[:0]
+	cur := n
+	for {
+		for c := cur.GetFirstChild(); c != nil; c = c.GetNext() {
+			count++
+			if gc := c.GetFirstChild(); gc != nil {
+				if gc.GetNext() == nil && gc.GetFirstChild() == nil {
+					count++
+				} else {
+					stack = append(stack, c)
+				}
+			}
+		}
+		if len(stack) == 0 {
+			return count
+		}
+		cur = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+	}
 }
 
 // Java: NodeUtil.createConstantJsDoc()

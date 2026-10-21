@@ -221,6 +221,7 @@ type JSTypeRegistry struct {
 
 	templateTypeMapSlab []TemplateTypeMap
 	templatizedTypeSlab []TemplatizedType
+	functionTypeSlab    []FunctionTypeBase
 	jsTypeSliceSlab     []JSType
 	unionBuilderStack   [8]UnionType_Builder
 	unionBuilderDepth   int
@@ -268,6 +269,18 @@ func (r *JSTypeRegistry) allocTemplatizedType() *TemplatizedType {
 	}
 	t := &r.templatizedTypeSlab[0]
 	r.templatizedTypeSlab = r.templatizedTypeSlab[1:]
+	return t
+}
+
+func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
+	if r == nil {
+		return &FunctionTypeBase{}
+	}
+	if len(r.functionTypeSlab) == 0 {
+		r.functionTypeSlab = make([]FunctionTypeBase, 256)
+	}
+	t := &r.functionTypeSlab[0]
+	r.functionTypeSlab = r.functionTypeSlab[1:]
 	return t
 }
 

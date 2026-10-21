@@ -21,12 +21,66 @@ package jscomp
 import (
 	"reflect"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var _ [unsafe.Sizeof([]*rhino.Node(nil))]byte = [unsafe.Sizeof(jutil.ArrayList[*rhino.Node]{})]byte{}
+
+var ambiguateNodesToRenamePool sync.Pool
+var cachedPropNodesToRename atomic.Pointer[jutil.ArrayList[*rhino.Node]]
+
+func acquireAmbiguateNodesToRename() *jutil.ArrayList[*rhino.Node] {
+	if l := cachedPropNodesToRename.Swap(nil); l != nil {
+		return l
+	}
+	if v := ambiguateNodesToRenamePool.Get(); v != nil {
+		return v.(*jutil.ArrayList[*rhino.Node])
+	}
+	if v := renamePropsNodeListPool.Get(); v != nil {
+		return v.(*jutil.ArrayList[*rhino.Node])
+	}
+	return jutil.NewArrayListWithCapacity[*rhino.Node](4096)
+}
+
+func releaseAmbiguateNodesToRename(a *AmbiguateProperties) {
+	l := a.stringNodesToRename
+	if l == nil {
+		return
+	}
+	a.stringNodesToRename = nil
+	clear(l.Slice())
+	l.Clear()
+	if cap(l.Slice()) <= 1048576 {
+		if !cachedPropNodesToRename.CompareAndSwap(nil, l) {
+			ambiguateNodesToRenamePool.Put(l)
+		}
+	}
+}
+
+func addPropNodeToRename(list *jutil.ArrayList[*rhino.Node], n *rhino.Node) {
+	s := (*[]*rhino.Node)(unsafe.Pointer(list))
+	if len(*s) == cap(*s) {
+		oldCap := cap(*s)
+		var newCap int
+		if oldCap < 4096 {
+			newCap = 4096
+		} else if oldCap < 262144 {
+			newCap = oldCap * 4
+		} else {
+			newCap = oldCap * 2
+		}
+		next := make([]*rhino.Node, len(*s), newCap)
+		copy(next, *s)
+		*s = next
+	}
+	*s = append(*s, n)
+}
 
 func newLinkedHashSetWithCapacity[T comparable](cap int) *jutil.LinkedHashSet[T] {
 	return (*jutil.LinkedHashSet[T])(unsafe.Pointer(jutil.NewLinkedHashMapWithCapacity[T, struct{}](cap)))
@@ -110,7 +164,7 @@ func NewAmbiguateProperties(
 	}
 	a := &AmbiguateProperties{
 		compiler:                   compiler,
-		stringNodesToRename:        jutil.NewArrayListWithCapacity[*rhino.Node](1024),
+		stringNodesToRename:        acquireAmbiguateNodesToRename(),
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
@@ -143,6 +197,9 @@ func (a *AmbiguateProperties) GetRenamingMap() *jutil.LinkedHashMap[string, stri
 
 // Java: AmbiguateProperties.process(Node, Node)
 func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+	if a.stringNodesToRename == nil {
+		a.stringNodesToRename = acquireAmbiguateNodesToRename()
+	}
 	a.graphNodeFactory = ColorGraphNodeFactory_CreateFactory(a.colorRegistry)
 
 	// Find all property references and record the types on which they occur.
@@ -255,7 +312,7 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 
 	// Actually assign the new names to the relevant STRING nodes in the AST.
-	for n := range a.stringNodesToRename.All() {
+	for _, n := range a.stringNodesToRename.Slice() {
 		oldName := n.GetString()
 		p := a.propertyMap.Get(oldName)
 		if p != nil && p.newName != nil {
@@ -266,6 +323,7 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			}
 		}
 	}
+	releaseAmbiguateNodesToRename(a)
 
 	// We may have renamed getter / setter properties.
 	// TODO(b/161947315): this shouldn't be the responsibility of AmbiguateProperties
@@ -610,7 +668,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidat
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
-		a.stringNodesToRename.Add(n)
+		addPropNodeToRename(a.stringNodesToRename, n)
 		p.RecordProperty(name, type_)
 	}
 }

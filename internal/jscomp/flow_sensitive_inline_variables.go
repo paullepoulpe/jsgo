@@ -62,8 +62,7 @@ type FlowSensitiveInlineVariables struct {
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
 
-	cfaStorage          ControlFlowAnalysis
-	cfgStorage          ControlFlowAnalysis_AstControlFlowGraph
+	reusableCfg         *ReusableCfg
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
 	allVarsMap          jutil.LinkedHashMap[string, *Var]
@@ -312,12 +311,17 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	}
 
 	// Compute the forward reaching definition.
-	f.cfg = f.cfaStorage.ComputeReusableCfg(
+	rc := f.reusableCfg
+	if rc == nil {
+		rc = acquireReusableCfg()
+		f.reusableCfg = rc
+	}
+	f.cfg = rc.cfa.ComputeReusableCfg(
 		f.compiler,
 		functionScopeRoot,
 		/* shouldTraverseFunctions= */ false,
 		/* edgeAnnotations= */ true,
-		&f.cfgStorage)
+		&rc.cfg)
 
 	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef = &f.reachingDefStorage
@@ -432,7 +436,13 @@ func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := NewSyntacticScopeCreator(f.compiler)
 	sc.EnableArenaPool()
+	rc := acquireReusableCfg()
+	f.reusableCfg = rc
 	defer func() {
+		if f.reusableCfg != nil {
+			releaseReusableCfg(f.reusableCfg)
+			f.reusableCfg = nil
+		}
 		f.escapedSet.Clear()
 		sc.ReleaseArena()
 	}()

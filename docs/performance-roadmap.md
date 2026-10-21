@@ -980,6 +980,39 @@ Profiling Round 16 (`080e9677`) on `typed-mega` (`3,191.65 MB` `alloc_space`) an
 | **`checks-only`** (11.3 MB) | 2.16 s | **2.16 s** | +0.07% | 535 MiB | **564 MiB** | +5.49% | `MATCH` |
 | **`downlevel-simple`** (2.1 MB) | 1.07 s | **1.06 s** | **−0.72%** | 205 MiB | **190 MiB** | **−7.29%** (**−15 MiB**) | `MATCH` |
 
+## Round 18: `node_sourceFilePropSet` (`−63.5 MB`), `functionTypeSlab` (`−53.5 MB`), Iterative `NodeUtil_CountAstSize` & Loop Guards, Pooled `inferConstsCollector` (`−30 MB`), 1-Slot Loop-Retained `OptimizeCalls_ReferenceMap` & 4x `stringNodesToRename` Handoff (`−115 MB`), and Shared `ReusableCfg` Pool (`−45 MB`) (2026-10-21)
+
+Profiling Round 17 (`b97b6be8`) identified five disjoint targets:
+
+1. **`node_sourceFilePropSet` Shared `IntPropListItem`s & `functionTypeSlab` (`Subagent 18A`, `internal/rhino/node.go`, `internal/rhino/jstype_function_type.go`, `internal/rhino/jstype_js_type_registry.go`):**
+   - Embedded the 16 most common `(Node_Prop, int32)` property items directly alongside each file's `Node_Prop_SOURCE_FILE` item in `node_sourceFilePropSet` (`base` + `commons [16]Node_PropListItem` with `shared: true`), eliminating `63.5 MB` of `NewNode_IntPropListItem` allocations on `typed-mega` and `bundle-mega`.
+   - Added `functionTypeSlab []FunctionType` (`allocFunctionType()`) on `JSTypeRegistry` (`−53.5 MB` `NewFunctionType`).
+2. **Guarded & Iterative `NodeUtil_CountAstSize` and Closure-Free `NodeUtil_CountAstSizeUpToLimit` (`Subagent 18B`, `internal/jscomp/phase_optimizer.go`, `internal/jscomp/node_util.go`):**
+   - Guarded `NodeUtil_CountAstSize(root)` in `PhaseOptimizer_Loop.Process` on `trackAstSize` (`p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop`) and `lastIterMadeChanges`, and replaced recursive `NodeUtil_CountAstSize` with a 2-level leaf-unrolled iterative walk.
+3. **Pooled `inferConstsCollector` & Chunked `BasicBlock` Slabs (`Subagent 18C`, `internal/jscomp/infer_consts.go`):**
+   - Pooled `inferConstsCollector` (`inferConstsCollectorPool`), replaced `blockSlab` with multi-chunk `blockChunks`, and pooled `blockStack` slices across `maybeJumpToHoistedFunction`.
+4. **Loop-Retained `OptimizeCalls_ReferenceMap` & 4x-Grown `stringNodesToRename` Handoff (`Subagent 18D`, `internal/jscomp/optimize_calls.go`, `internal/jscomp/disambiguate_ambiguate_properties.go`, `internal/jscomp/rename_properties.go`):**
+   - Added 1-slot `cachedOptimizeCallsRefMap` and `cachedOptimizeCallsCallback` (evicted via `evictOptimizeCallsLoopCache()` when `PhaseOptimizer_Loop.Process` exits) so `OptimizeCalls` retains its pre-grown reference map across GC cycles between loop iterations (`−79 MB` `alloc_space`).
+   - Added `addPropNodeToRename` (4x slice growth below 256K elements instead of Go's 1.25x `growslice` factor) and a 1-slot handoff `cachedPropNodesToRename` from `AmbiguateProperties` to `RenameProperties` (`−55 MB` `alloc_space`).
+5. **Shared `ReusableCfg` Pool Across `TypeInferencePass`, `FlowSensitiveInlineVariables`, and `NodeTraversal_AbstractCfgCallbackBase` (`Subagent 18E`, `internal/jscomp/control_flow_analysis.go`, `internal/jscomp/graph_linked_directed_graph.go`, `internal/jscomp/node_traversal.go`, `internal/jscomp/type_inference_pass.go`, `internal/jscomp/flow_sensitive_inline_variables.go`):**
+   - Added `ClearSlabsForPool()` on `LinkedDirectedGraph` and a 4-slot `cachedReusableCfgs` + `reusableCfgPool` (evicted via `evictCachedReusableCfgs()` when `PhaseOptimizer.Process` exits), sharing pre-warmed CFG node/edge chunks across all CFG-consuming passes.
+
+### Final measured results — Round 18 (`t=1` and `t=4`, 1 warmup + 5 interleaved runs, PGO enabled)
+
+| Benchmark | Round 17 (`b97b6be8` `t=1` / `t=4`) | **Round 18 (`t=1` / `t=4`)** | Round 18 vs Round 17 (`t=1` / `t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 24.04 s / 23.24 s | **24.02 s** / **23.11 s** | **−0.10%** / **−0.56%** | 1,742 / 1,743 MiB | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 19.27 s / 18.13 s | **19.28 s** / **18.12 s** | +0.03% / **−0.01%** | 1,728 / **1,714 MiB** (**−2.88%** `t=4`) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 11.08 s / 10.50 s | **11.06 s** / **10.47 s** | **−0.18%** / **−0.35%** | 1,096 / 1,093 MiB | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.86 s / 6.73 s | **6.82 s** / **6.70 s** | **−0.56%** / **−0.45%** | 554 / **547 MiB** (**−27.27%** / **−205 MiB** `t=4`) | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.47 s / 4.36 s | **4.46 s** / **4.36 s** | **−0.23%** / +0.21% | **530** / 736 MiB (**−3.70%** `t=1`) | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.60 s / 4.37 s | **4.58 s** / **4.34 s** | **−0.50%** / **−0.47%** | 490 / 474 MiB | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.50 s / 3.36 s | **3.49 s** / **3.34 s** | **−0.32%** / **−0.56%** | **323** / 309 MiB | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.57 s / 2.16 s | **2.56 s** / **2.16 s** | **−0.56%** / **−0.23%** | **522** / **557 MiB** (**−5.50%** / **−2.63%**) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.44 s / 1.32 s | **1.43 s** / **1.32 s** | **−0.54%** / **−0.33%** | 266 / 257 MiB | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.14 s / 1.05 s | **1.14 s** / **1.06 s** | +0.09% / +0.28% | 196 / 203 MiB | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.55 s / 0.46 s | **0.55 s** / **0.46 s** | **−0.47%** / +0.24% | 156 / 157 MiB | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

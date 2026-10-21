@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -215,7 +216,18 @@ type OptimizeCalls_ReferenceMap struct {
 var optimizeCallsRefMapPool sync.Pool
 var optimizeCallsCallbackPool sync.Pool
 
+var cachedOptimizeCallsRefMap atomic.Pointer[OptimizeCalls_ReferenceMap]
+var cachedOptimizeCallsCallback atomic.Pointer[OptimizeCalls_ReferenceMapBuildingCallback]
+
+func evictOptimizeCallsLoopCache() {
+	cachedOptimizeCallsRefMap.Store(nil)
+	cachedOptimizeCallsCallback.Store(nil)
+}
+
 func acquireOptimizeCallsRefMap() *OptimizeCalls_ReferenceMap {
+	if m := cachedOptimizeCallsRefMap.Swap(nil); m != nil {
+		return m
+	}
 	if v := optimizeCallsRefMapPool.Get(); v != nil {
 		return v.(*OptimizeCalls_ReferenceMap)
 	}
@@ -245,6 +257,7 @@ func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
 		}
 		for i := 0; i < limit; i++ {
 			slot := &chunk[i]
+			clear(slot.list.Slice())
 			slot.list.Clear()
 			slot.buf = [8]*rhino.Node{}
 			if cap(slot.list.Slice()) > 4096 {
@@ -260,12 +273,20 @@ func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
 	m.slotChunkIdx = 0
 	m.slotUsed = 0
 	m.pooled = true
+	if cachedOptimizeCallsRefMap.CompareAndSwap(nil, m) {
+		return
+	}
 	optimizeCallsRefMapPool.Put(m)
 }
 
 func acquireOptimizeCallsCallback(outer *OptimizeCalls, references *OptimizeCalls_ReferenceMap) *OptimizeCalls_ReferenceMapBuildingCallback {
-	if v := optimizeCallsCallbackPool.Get(); v != nil {
-		c := v.(*OptimizeCalls_ReferenceMapBuildingCallback)
+	c := cachedOptimizeCallsCallback.Swap(nil)
+	if c == nil {
+		if v := optimizeCallsCallbackPool.Get(); v != nil {
+			c = v.(*OptimizeCalls_ReferenceMapBuildingCallback)
+		}
+	}
+	if c != nil {
 		c.outer = outer
 		c.codingConvention = outer.compiler.GetCodingConvention()
 		c.externProps = OptimizeCalls_SafeSet(outer.compiler.GetExternProperties())
@@ -286,6 +307,9 @@ func releaseOptimizeCallsCallback(c *OptimizeCalls_ReferenceMapBuildingCallback)
 	c.hasExternProp = false
 	clear(c.nameCache[:])
 	clear(c.propCache[:])
+	if cachedOptimizeCallsCallback.CompareAndSwap(nil, c) {
+		return
+	}
 	optimizeCallsCallbackPool.Put(c)
 }
 

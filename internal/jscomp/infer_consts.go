@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -46,12 +48,15 @@ func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
 	scopeCreator.EnableArenaPool()
 	defer scopeCreator.ReleaseArena()
-	collector := newInferConstsCollector(c, c.compiler, scopeCreator)
+	collector := acquireInferConstsCollector(c, c.compiler, scopeCreator)
+	defer releaseInferConstsCollector(collector)
 	collector.processRoot(js)
 
 	collector.flushLocalStates()
 	for i := 1; i < len(collector.globalStates); i++ {
-		c.considerVarState(&collector.globalStates[i])
+		st := &collector.globalStates[i]
+		st.v.nameHash = 0
+		c.considerVarState(st)
 	}
 
 	globalExternsScope := scopeCreator.CreateScopeOfScope(externs, nil)
@@ -165,7 +170,10 @@ type inferConstsCollector struct {
 	localStates         []inferConstVarState
 	globalStates        []inferConstVarState
 	blockStack          []*BasicBlock
-	blockSlab           []BasicBlock
+	blockStackPool      [][]*BasicBlock
+	blockChunks         [][]BasicBlock
+	blockChunkIdx       int
+	blockUsed           int
 	collectedHoistedMap map[*rhino.Node]struct{}
 	funcDepth           int
 	jumpDepth           int
@@ -173,17 +181,76 @@ type inferConstsCollector struct {
 	blockBuf            [32]BasicBlock
 }
 
-func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, scopeCreator ScopeCreator) *inferConstsCollector {
+var inferConstsCollectorPool sync.Pool
+
+func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, scopeCreator ScopeCreator) *inferConstsCollector {
+	if v := inferConstsCollectorPool.Get(); v != nil {
+		c := v.(*inferConstsCollector)
+		c.outer = outer
+		c.compiler = compiler
+		c.scopeCreator = scopeCreator
+		return c
+	}
 	c := &inferConstsCollector{
-		outer:        outer,
-		compiler:     compiler,
-		scopeCreator: scopeCreator,
-		localStates:  make([]inferConstVarState, 1, 1024),
-		globalStates: make([]inferConstVarState, 1, 4096),
+		outer:         outer,
+		compiler:      compiler,
+		scopeCreator:  scopeCreator,
+		localStates:   make([]inferConstVarState, 1, 4096),
+		globalStates:  make([]inferConstVarState, 1, 8192),
+		blockChunkIdx: -1,
 	}
 	c.blockStack = c.blockStackBuf[:0]
-	c.blockSlab = c.blockBuf[:0]
 	return c
+}
+
+func releaseInferConstsCollector(c *inferConstsCollector) {
+	if cap(c.localStates) > 131072 {
+		c.localStates = make([]inferConstVarState, 1, 4096)
+	} else {
+		clear(c.localStates[1:])
+		c.localStates = c.localStates[:1]
+	}
+	if cap(c.globalStates) > 131072 {
+		c.globalStates = make([]inferConstVarState, 1, 8192)
+	} else {
+		clear(c.globalStates[1:])
+		c.globalStates = c.globalStates[:1]
+	}
+	if c.blockChunkIdx == -1 {
+		clear(c.blockBuf[:c.blockUsed])
+	} else {
+		clear(c.blockBuf[:])
+		limit := min(c.blockChunkIdx, 63)
+		for i := 0; i <= limit; i++ {
+			if i == c.blockChunkIdx {
+				clear(c.blockChunks[i][:c.blockUsed])
+			} else {
+				clear(c.blockChunks[i])
+			}
+		}
+		if len(c.blockChunks) > 64 {
+			clear(c.blockChunks[64:])
+			c.blockChunks = c.blockChunks[:64]
+		}
+	}
+	c.blockChunkIdx = -1
+	c.blockUsed = 0
+	clear(c.blockStack)
+	clear(c.blockStackBuf[:])
+	c.blockStack = c.blockStackBuf[:0]
+	if c.collectedHoistedMap != nil {
+		if len(c.collectedHoistedMap) <= 65536 {
+			clear(c.collectedHoistedMap)
+		} else {
+			c.collectedHoistedMap = nil
+		}
+	}
+	c.funcDepth = 0
+	c.jumpDepth = 0
+	c.outer = nil
+	c.compiler = nil
+	c.scopeCreator = nil
+	inferConstsCollectorPool.Put(c)
 }
 
 func (c *inferConstsCollector) flushLocalStates() {
@@ -217,16 +284,29 @@ func (c *inferConstsCollector) createTraversalBuilder() *NodeTraversal_Builder {
 }
 
 func (c *inferConstsCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
-	if len(c.blockSlab) == cap(c.blockSlab) {
-		newCap := 64
-		if cap(c.blockSlab) >= 64 {
-			newCap = min(cap(c.blockSlab)*2, 4096)
+	if c.blockChunkIdx == -1 {
+		if c.blockUsed < len(c.blockBuf) {
+			b := &c.blockBuf[c.blockUsed]
+			c.blockUsed++
+			return initBasicBlock(b, parent, root)
 		}
-		c.blockSlab = make([]BasicBlock, 0, newCap)
+		c.blockChunkIdx = 0
+		c.blockUsed = 0
 	}
-	idx := len(c.blockSlab)
-	c.blockSlab = c.blockSlab[:idx+1]
-	return initBasicBlock(&c.blockSlab[idx], parent, root)
+	if c.blockChunkIdx < len(c.blockChunks) && c.blockUsed == len(c.blockChunks[c.blockChunkIdx]) {
+		c.blockChunkIdx++
+		c.blockUsed = 0
+	}
+	if c.blockChunkIdx == len(c.blockChunks) {
+		chunkCap := 64
+		if c.blockChunkIdx > 0 {
+			chunkCap = min(len(c.blockChunks[c.blockChunkIdx-1])*2, 4096)
+		}
+		c.blockChunks = append(c.blockChunks, make([]BasicBlock, chunkCap))
+	}
+	b := &c.blockChunks[c.blockChunkIdx][c.blockUsed]
+	c.blockUsed++
+	return initBasicBlock(b, parent, root)
 }
 
 func (c *inferConstsCollector) pushNewBlock(root *rhino.Node) {
@@ -246,7 +326,7 @@ func (c *inferConstsCollector) popLastBlock(root *rhino.Node) {
 
 func (c *inferConstsCollector) addCollectedHoistedFunction(n *rhino.Node) bool {
 	if c.collectedHoistedMap == nil {
-		c.collectedHoistedMap = make(map[*rhino.Node]struct{}, 8)
+		c.collectedHoistedMap = make(map[*rhino.Node]struct{}, 64)
 	}
 	if _, exists := c.collectedHoistedMap[n]; exists {
 		return false
@@ -331,18 +411,25 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	}
 	varScope := var_.scope
 	oldBlockStack := c.blockStack
-	c.blockStack = nil
+	var newStack []*BasicBlock
+	if n := len(c.blockStackPool); n > 0 {
+		newStack = c.blockStackPool[n-1][:0]
+		c.blockStackPool = c.blockStackPool[:n-1]
+	} else {
+		newStack = make([]*BasicBlock, 0, 16)
+	}
 
 	if varScope.IsGlobal() {
-		c.blockStack = append(c.blockStack, referenceCollector_getFirst(oldBlockStack))
+		newStack = append(newStack, referenceCollector_getFirst(oldBlockStack))
 	} else {
 		for _, b := range oldBlockStack {
-			c.blockStack = append(c.blockStack, b)
+			newStack = append(newStack, b)
 			if b.GetRoot() == varScope.GetRootNode() {
 				break
 			}
 		}
 	}
+	c.blockStack = newStack
 
 	firstChild := fnNode.GetFirstChild()
 	c.addReference(var_, firstChild, fnNode, t.GetScope())
@@ -353,6 +440,9 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 		c.flushLocalStates()
 	}
 
+	usedStack := c.blockStack
+	clear(usedStack)
+	c.blockStackPool = append(c.blockStackPool, usedStack[:0])
 	c.blockStack = oldBlockStack
 }
 

@@ -549,13 +549,92 @@ func (p *Node_PropListItem) markShared() {
 	}
 }
 
+const nodeSourceFilePropMagic int32 = -0x5346
+
+type node_sourceFilePropSet struct {
+	base    Node_PropListItem
+	commons [16]Node_PropListItem
+}
+
+var nodeCommonProps = [16]struct {
+	prop Node_Prop
+	val  int32
+}{
+	0:  {Node_Prop_IS_PARENTHESIZED, 1},
+	1:  {Node_Prop_INCRDECR, 1},
+	2:  {Node_Prop_QUOTED, 1},
+	3:  {Node_Prop_SYNTHETIC, 1},
+	4:  {Node_Prop_ADDED_BLOCK, 1},
+	5:  {Node_Prop_IS_CONSTANT_NAME, 1},
+	6:  {Node_Prop_IS_NAMESPACE, 1},
+	7:  {Node_Prop_FREE_CALL, 1},
+	8:  {Node_Prop_STATIC_MEMBER, 1},
+	9:  {Node_Prop_ARROW_FN, 1},
+	10: {Node_Prop_ASYNC_FN, 1},
+	11: {Node_Prop_CONSTANT_VAR_FLAGS, 1},
+	12: {Node_Prop_CONSTANT_VAR_FLAGS, 2},
+	13: {Node_Prop_CONSTANT_VAR_FLAGS, 3},
+	14: {Node_Prop_NON_INDEXABLE, 1},
+	15: {Node_Prop_IS_SHORTHAND_PROPERTY, 1},
+}
+
+var nodeCommonPropByProp = [64]int8{
+	Node_Prop_IS_PARENTHESIZED:      0 + 1,
+	Node_Prop_INCRDECR:              1 + 1,
+	Node_Prop_QUOTED:                2 + 1,
+	Node_Prop_SYNTHETIC:             3 + 1,
+	Node_Prop_ADDED_BLOCK:           4 + 1,
+	Node_Prop_IS_CONSTANT_NAME:      5 + 1,
+	Node_Prop_IS_NAMESPACE:          6 + 1,
+	Node_Prop_FREE_CALL:             7 + 1,
+	Node_Prop_STATIC_MEMBER:         8 + 1,
+	Node_Prop_ARROW_FN:              9 + 1,
+	Node_Prop_ASYNC_FN:              10 + 1,
+	Node_Prop_CONSTANT_VAR_FLAGS:    11 + 1,
+	Node_Prop_NON_INDEXABLE:         14 + 1,
+	Node_Prop_IS_SHORTHAND_PROPERTY: 15 + 1,
+}
+
+func nodeCommonPropIdx(prop Node_Prop, value int32) int {
+	if value == 1 {
+		if uint(prop) < uint(len(nodeCommonPropByProp)) {
+			return int(nodeCommonPropByProp[prop]) - 1
+		}
+		return -1
+	}
+	if prop == Node_Prop_CONSTANT_VAR_FLAGS && (value == 2 || value == 3) {
+		return int(10 + value)
+	}
+	return -1
+}
+
 // Java: Node.ObjectPropListItem(byte, Object, PropListItem)
 func NewNode_ObjectPropListItem(propType int8, objectValue any, next *Node_PropListItem) *Node_PropListItem {
+	obj := jutil.CheckNotNull(objectValue)
+	if propType == int8(Node_Prop_SOURCE_FILE) && next == nil {
+		s := &node_sourceFilePropSet{}
+		s.base = Node_PropListItem{
+			propType:    propType,
+			isObject:    true,
+			objectValue: obj,
+			intValue:    nodeSourceFilePropMagic,
+			shared:      true,
+		}
+		for i, cp := range nodeCommonProps {
+			s.commons[i] = Node_PropListItem{
+				next:     &s.base,
+				propType: int8(cp.prop),
+				intValue: cp.val,
+				shared:   true,
+			}
+		}
+		return &s.base
+	}
 	return &Node_PropListItem{
 		propType:    propType,
 		next:        next,
 		isObject:    true,
-		objectValue: jutil.CheckNotNull(objectValue),
+		objectValue: obj,
 	}
 }
 
@@ -1439,6 +1518,32 @@ func (n *Node) PutIntProp(prop Node_Prop, value int32) {
 	if value != 0 && n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
 		n.propListHead.intValue = value
 		return
+	}
+	if head := n.propListHead; head != nil {
+		if head.intValue == nodeSourceFilePropMagic {
+			if value == 0 {
+				return
+			}
+			if idx := nodeCommonPropIdx(prop, value); idx >= 0 {
+				s := (*node_sourceFilePropSet)(unsafe.Pointer(head))
+				n.propListHead = &s.commons[idx]
+				return
+			}
+			n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head)
+			return
+		} else if int(head.propType) == prop.Ordinal() && head.next != nil && head.next.intValue == nodeSourceFilePropMagic {
+			if value == 0 {
+				n.propListHead = head.next
+				return
+			}
+			if idx := nodeCommonPropIdx(prop, value); idx >= 0 {
+				s := (*node_sourceFilePropSet)(unsafe.Pointer(head.next))
+				n.propListHead = &s.commons[idx]
+				return
+			}
+			n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head.next)
+			return
+		}
 	}
 	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
 	if value != 0 {

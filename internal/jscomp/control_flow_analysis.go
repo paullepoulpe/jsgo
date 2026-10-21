@@ -21,6 +21,7 @@ package jscomp
 import (
 	"cmp"
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -138,6 +139,104 @@ var cfaRootNodesPool = sync.Pool{
 	New: func() any {
 		return *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]](4096)
 	},
+}
+
+// ReusableCfg pairs a reusable ControlFlowAnalysis and AstControlFlowGraph.
+type ReusableCfg struct {
+	cfa ControlFlowAnalysis
+	cfg ControlFlowAnalysis_AstControlFlowGraph
+}
+
+var reusableCfgPool = sync.Pool{
+	New: func() any {
+		return &ReusableCfg{}
+	},
+}
+
+var cachedReusableCfgs [4]atomic.Pointer[ReusableCfg]
+
+func evictCachedReusableCfgs() {
+	for i := range cachedReusableCfgs {
+		cachedReusableCfgs[i].Store(nil)
+	}
+}
+
+func acquireReusableCfg() *ReusableCfg {
+	for {
+		bestIdx := -1
+		bestChunks := -1
+		for i := range cachedReusableCfgs {
+			if rc := cachedReusableCfgs[i].Load(); rc != nil {
+				if n := len(rc.cfg.nodeChunks); n > bestChunks {
+					bestChunks = n
+					bestIdx = i
+				}
+			}
+		}
+		if bestIdx < 0 {
+			break
+		}
+		if rc := cachedReusableCfgs[bestIdx].Swap(nil); rc != nil {
+			return rc
+		}
+	}
+	if v := reusableCfgPool.Get(); v != nil {
+		return v.(*ReusableCfg)
+	}
+	return &ReusableCfg{}
+}
+
+func releaseReusableCfg(rc *ReusableCfg) {
+	if rc == nil {
+		return
+	}
+	rc.cfg.ReleaseRootNodes()
+	rc.cfg.ClearSlabsForPool()
+	rc.cfg.self = nil
+	rc.cfg.entry = nil
+	rc.cfg.implicitReturn = nil
+	rc.cfa.compiler = nil
+	rc.cfa.root = nil
+	rc.cfa.cfg = nil
+	rc.cfa.cfgStorage = nil
+	rc.cfa.finallyMap = cfaEmptyFinallyMap
+	clear(rc.cfa.exceptionHandler)
+	rc.cfa.exceptionHandler = rc.cfa.exceptionHandler[:0]
+	clear(rc.cfa.worklist)
+	rc.cfa.worklist = rc.cfa.worklist[:0]
+	if rc.cfa.astPosition != nil {
+		if len(rc.cfa.astPosition) > 1024 {
+			clear(rc.cfa.astPosition)
+			if len(rc.cfa.astPosition) <= 262144 {
+				cfaLargeAstPositionPool.Put(rc.cfa.astPosition)
+			}
+			rc.cfa.astPosition = nil
+		} else if len(rc.cfa.astPosition) > 0 {
+			clear(rc.cfa.astPosition)
+		}
+	}
+	for i := range cachedReusableCfgs {
+		if cachedReusableCfgs[i].CompareAndSwap(nil, rc) {
+			return
+		}
+	}
+	minIdx := -1
+	minChunks := len(rc.cfg.nodeChunks)
+	for i := range cachedReusableCfgs {
+		if old := cachedReusableCfgs[i].Load(); old != nil {
+			if n := len(old.cfg.nodeChunks); n < minChunks {
+				minChunks = n
+				minIdx = i
+			}
+		}
+	}
+	if minIdx >= 0 {
+		if old := cachedReusableCfgs[minIdx].Swap(rc); old != nil {
+			reusableCfgPool.Put(old)
+			return
+		}
+	}
+	reusableCfgPool.Put(rc)
 }
 
 // newControlFlowAnalysis is the constructor. Should only be called from
@@ -273,6 +372,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
 	isRoot := root.IsRoot()
+	prevAstPos := c.astPosition
 	var astPos map[*rhino.Node]int32
 	if isRoot {
 		astPos = cfaLargeAstPositionPool.Get().(map[*rhino.Node]int32)
@@ -332,7 +432,7 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 			clear(astPos)
 			cfaLargeAstPositionPool.Put(astPos)
 		}
-		c.astPosition = nil
+		c.astPosition = prevAstPos
 	} else if c.cfgStorage != nil {
 		if len(astPos) <= 1024 {
 			clear(astPos)
