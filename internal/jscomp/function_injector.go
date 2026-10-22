@@ -208,6 +208,7 @@ type FunctionInjector_Reference interface {
 type FunctionInjector_ReferenceBase struct {
 	callNode *rhino.Node
 	scope    *Scope
+	t        *NodeTraversal
 	chunk    *JSChunk
 	mode     FunctionInjector_InliningMode
 }
@@ -228,8 +229,47 @@ func NewFunctionInjector_Reference(callNode *rhino.Node, scope *Scope, chunk *JS
 func (r *FunctionInjector_ReferenceBase) InitFunctionInjector_ReferenceBase(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) {
 	r.callNode = callNode
 	r.scope = scope
+	r.t = nil
 	r.chunk = chunk
 	r.mode = mode
+}
+
+func (r *FunctionInjector_ReferenceBase) inGlobalScope() bool {
+	if r.scope != nil {
+		return r.scope.IsGlobal()
+	}
+	if r.t != nil {
+		return r.t.InGlobalScope()
+	}
+	return false
+}
+
+func (r *FunctionInjector_ReferenceBase) closestHoistScopeRoot() *rhino.Node {
+	if r.scope != nil {
+		hs := r.scope.GetClosestHoistScope()
+		if hs == nil || hs.IsGlobal() {
+			return nil
+		}
+		return hs.GetRootNode()
+	}
+	if r.t != nil {
+		root := r.t.GetClosestHoistScopeRoot()
+		if root == nil || root.IsRoot() || root.IsScript() {
+			return nil
+		}
+		return root
+	}
+	return nil
+}
+
+func (r *FunctionInjector_ReferenceBase) lookupScope() *Scope {
+	if r.scope != nil {
+		return r.scope
+	}
+	if r.t != nil {
+		return r.t.resolveLookupScope(len(r.t.scopes) - 1)
+	}
+	return nil
 }
 
 // GetFunctionInjector_ReferenceBase gives access to the base through the
@@ -353,7 +393,7 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	// a memory leak.  This isn't a problem in the global scope as those values
 	// last until explicitly cleared.
 	if containsClosures {
-		if !f.assumeMinimumCapture && !ref.GetFunctionInjector_ReferenceBase().scope.IsGlobal() {
+		if !f.assumeMinimumCapture && !ref.GetFunctionInjector_ReferenceBase().inGlobalScope() {
 			// TODO(johnlenz): Allow inlining into any scope without local names or inner functions.
 			return FunctionInjector_CanInlineResult_NO
 		} else if NodeUtil_IsWithinLoop(callNode) {
@@ -632,7 +672,10 @@ func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allo
 		// left-hand-side of the assignments and handling them as EXPRESSION?
 		return FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT
 	} else if allowDecomposition {
-		decomposer := f.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().scope)
+		if ExpressionDecomposer_FindExpressionRoot(callNode) == nil {
+			return FunctionInjector_CallSiteType_UNSUPPORTED
+		}
+		decomposer := f.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().lookupScope())
 		switch decomposer.CanExposeExpression(callNode) {
 		case ExpressionDecomposer_DecompositionType_MOVABLE:
 			return FunctionInjector_CallSiteType_EXPRESSION
@@ -1022,9 +1065,8 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 	// of an issue.
 
 	forbidTemps := false
-	callRefScope := callRef.GetFunctionInjector_ReferenceBase().scope
-	if !callRefScope.GetClosestHoistScope().IsGlobal() {
-		callerFn := callRefScope.GetClosestHoistScope().GetRootNode().GetParent()
+	if hoistRoot := callRef.GetFunctionInjector_ReferenceBase().closestHoistScopeRoot(); hoistRoot != nil {
+		callerFn := hoistRoot.GetParent()
 
 		// Don't allow any new vars into a scope that contains eval or one
 		// that contains functions (excluding the function being inlined).

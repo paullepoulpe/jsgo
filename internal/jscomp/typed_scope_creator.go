@@ -841,14 +841,16 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOr
 		return
 	}
 	if info != nil && info.HasEnumParameterType() {
-		v.registry.IdentifyNonNullableName(t.GetScope(), *nameNode.GetQualifiedName())
+		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), *nameNode.GetQualifiedName())
 	} else if info != nil && info.HasTypedefType() {
-		v.registry.IdentifyNonNullableName(t.GetScope(), *nameNode.GetQualifiedName())
+		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), *nameNode.GetQualifiedName())
 	} else if rvalue != nil &&
 		rvalue.IsQualifiedName() &&
-		NodeUtil_IsConstantDeclaration(info, nameNode) &&
-		v.registry.IsNonNullableName(t.GetScope(), *rvalue.GetQualifiedName()) {
-		v.registry.IdentifyNonNullableName(t.GetScope(), *nameNode.GetQualifiedName())
+		NodeUtil_IsConstantDeclaration(info, nameNode) {
+		scope := t.resolveLookupScope(len(t.scopes) - 1)
+		if v.registry.IsNonNullableName(scope, *rvalue.GetQualifiedName()) {
+			v.registry.IdentifyNonNullableName(scope, *nameNode.GetQualifiedName())
+		}
 	}
 }
 
@@ -4196,6 +4198,13 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
 	a.outer.scopeCount++
+	if t.InGlobalScope() && t.scopes[0].untypedScope == nil {
+		gs := Scope_CreateGlobalScope(t.GetScopeRoot())
+		gs.scanDone = true
+		t.scopes[0].scope = gs
+		t.scopes[0].untypedScope = gs
+		t.scopes[0].lookupScope = gs
+	}
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.exitScope(NodeTraversal)

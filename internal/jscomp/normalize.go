@@ -490,7 +490,7 @@ func normalizeScopeMayHaveDeclarations(n *rhino.Node) bool {
 		}
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsFunctionBlock(n) || NodeUtil_IsClassStaticBlock(n) {
-			return n.HasChildren()
+			return !syntacticFunctionBlockHasNoDecls(n)
 		}
 		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 			switch c.GetToken() {

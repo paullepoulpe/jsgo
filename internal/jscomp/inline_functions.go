@@ -1165,13 +1165,10 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		return false
 	}
 
-	var scope *Scope
-	if mode != FunctionInjector_InliningMode_DIRECT || (!r.outer.assumeMinimumCapture && functionState.HasInnerClosures()) {
-		scope = t.resolveLookupScope(len(t.scopes) - 1)
-	}
 	r.scratchRef.requiresDecomposition = false
 	r.scratchRef.inlined = false
-	r.scratchRef.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
+	r.scratchRef.InitFunctionInjector_ReferenceBase(callNode, nil, chunk, mode)
+	r.scratchRef.t = t
 	result := r.outer.injector.CanInlineReferenceToFunction(
 		&r.scratchRef,
 		functionState.GetFn().GetFunctionNode(),
@@ -1180,6 +1177,12 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		functionState.HasInnerClosures())
 	if result != FunctionInjector_CanInlineResult_NO {
 		// Yeah!
+		var scope *Scope
+		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
+			scope = t.GetScope()
+		} else if mode != FunctionInjector_InliningMode_DIRECT && !NodeUtil_IsExprCall(callNode.GetParent()) {
+			scope = t.resolveLookupScope(len(t.scopes) - 1)
+		}
 		candidate := r.outer.allocReference(callNode, scope, chunk, mode)
 		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
 		functionState.addReference(candidate, r.outer.poolState)

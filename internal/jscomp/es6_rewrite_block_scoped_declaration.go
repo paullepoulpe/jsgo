@@ -32,11 +32,14 @@ import (
 // process destructuring let/const declarations at all.
 type Es6RewriteBlockScopedDeclaration struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	compiler         AbstractCompiler
-	astFactory       *AstFactory
-	letConsts        *jutil.LinkedHashSet[*rhino.Node]
-	uniqueIdSupplier *UniqueIdSupplier
+	compiler          AbstractCompiler
+	astFactory        *AstFactory
+	letConsts         *jutil.LinkedHashSet[*rhino.Node]
+	loopLetConstNames map[string]struct{}
+	uniqueIdSupplier  *UniqueIdSupplier
 }
+
+func (e *Es6RewriteBlockScopedDeclaration) noVisitLeaves() {}
 
 // Java: Es6RewriteBlockScopedDeclaration.transpiledFeatures
 var es6RewriteBlockScopedDeclaration_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(parser.FeatureSet_Feature_LET_DECLARATIONS, parser.FeatureSet_Feature_CONST_DECLARATIONS)
@@ -76,12 +79,14 @@ func (e *Es6RewriteBlockScopedDeclaration) Process(externs *rhino.Node, root *rh
 	// - Also add `= void 0` to any that are not initialized.
 	NodeTraversal_Traverse(e.compiler, root, e)
 	if !e.letConsts.IsEmpty() {
-		sc := NewSyntacticScopeCreator(e.compiler)
-		sc.EnableArenaPool()
-		defer sc.ReleaseArena()
-		transformer := newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(e)
-		NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
-		transformer.TransformLoopClosure()
+		if len(e.loopLetConstNames) > 0 {
+			sc := NewSyntacticScopeCreator(e.compiler)
+			sc.EnableArenaPool()
+			defer sc.ReleaseArena()
+			transformer := newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(e)
+			NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
+			transformer.TransformLoopClosure()
+		}
 		e.RewriteDeclsToVars()
 	}
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteBlockScopedDeclaration_transpiledFeatures)
@@ -93,10 +98,19 @@ func (e *Es6RewriteBlockScopedDeclaration) Process(externs *rhino.Node, root *rh
 //
 // Java: Es6RewriteBlockScopedDeclaration.visitBlockScopedNameDeclaration(Node, Node)
 func (e *Es6RewriteBlockScopedDeclaration) VisitBlockScopedNameDeclaration(decl *rhino.Node, nameNode *rhino.Node) {
+	if !e.InLoop(decl) {
+		return
+	}
+	if nameNode.IsName() {
+		if e.loopLetConstNames == nil {
+			e.loopLetConstNames = make(map[string]struct{}, 8)
+		}
+		e.loopLetConstNames[nameNode.GetString()] = struct{}{}
+	}
 	parent := decl.GetParent()
 	// Normalize "let x;" to "let x = undefined;" if in a loop, since we later convert x
 	// to be $jscomp$loop$0.x and want to reset the property to undefined every loop iteration.
-	if !nameNode.HasChildren() && (parent == nil || !parent.IsForIn()) && e.InLoop(decl) {
+	if !nameNode.HasChildren() && (parent == nil || !parent.IsForIn()) {
 		undefined := e.astFactory.CreateUndefinedValue().SrcrefTree(nameNode)
 		nameNode.AddChildToFront(undefined)
 		e.compiler.ReportChangeToEnclosingScope(undefined)
@@ -402,6 +416,9 @@ func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) ShouldTraverse
 	}
 
 	name := n.GetString()
+	if _, ok := l.outer.loopLetConstNames[name]; !ok {
+		return true
+	}
 	referencedIn := t.GetScope()
 	var_ := referencedIn.GetVar(name)
 	if var_ == nil {

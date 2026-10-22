@@ -2727,7 +2727,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNameLocal(t *NodeTraversal, n *rhino.Node) bool {
 	jutil.CheckState(n.IsQualifiedName())
 	leftmostName := NodeUtil_GetRootOfQualifiedName(n).GetString()
-	v := t.GetScope().GetVar(leftmostName)
+	v := t.LookupVar(leftmostName)
 	return v != nil && v.IsLocal()
 }
 

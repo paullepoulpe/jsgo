@@ -189,6 +189,19 @@ func syntacticScopeHasBlockDecls(n *rhino.Node) bool {
 	return true
 }
 
+func syntacticFunctionBlockHasNoDecls(n *rhino.Node) bool {
+	if n.HasNoBlockScopeDecls() {
+		return true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if scanVarsTokenKind[uint8(c.GetToken())] == 1 {
+			return false
+		}
+	}
+	n.SetNoBlockScopeDecls()
+	return true
+}
+
 // SyntacticScopeCreator_ScopeScanner is a class to traverse the AST looking
 // for name definitions and add them to the Scope.
 type SyntacticScopeCreator_ScopeScanner struct {
@@ -395,7 +408,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 		return
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsFunctionBlock(n) || NodeUtil_IsClassStaticBlock(n) {
-			s.ScanVars(n, s.scope, s.scope)
+			if !syntacticFunctionBlockHasNoDecls(n) {
+				s.ScanVars(n, s.scope, s.scope)
+			}
 		} else {
 			if n.HasNoBlockScopeDecls() {
 				return

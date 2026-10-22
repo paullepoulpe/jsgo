@@ -2035,7 +2035,7 @@ func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
 		return e.lookupScope
 	}
 	if e.untypedScope != nil {
-		if e.untypedScope.scanDone && len(e.untypedScope.varList) == 0 && !e.untypedScope.hasImplicitVars && !NodeUtil_IsFunctionBlock(e.untypedScope.rootNode) && e.untypedScope.lookupParent != nil {
+		if e.untypedScope.scanDone && len(e.untypedScope.varList) == 0 && !e.untypedScope.hasImplicitVars && e.untypedScope.lookupParent != nil {
 			e.lookupScope = e.untypedScope.lookupParent
 		} else {
 			e.lookupScope = e.untypedScope
@@ -2043,14 +2043,26 @@ func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
 		return e.lookupScope
 	}
 	if t.syntacticScopeCreator != nil && e.scope == nil && e.node != nil && rootDepth > 0 {
-		if ((e.node.IsBlock() && !NodeUtil_IsFunctionBlock(e.node) && !e.node.IsClassMembers() && !NodeUtil_IsClassStaticBlock(e.node) && !NodeUtil_IsBundledGoogModuleScopeRoot(e.node)) || NodeUtil_IsAnyFor(e.node)) && !syntacticScopeHasBlockDecls(e.node) {
+		if e.node.IsBlock() {
+			if NodeUtil_IsFunctionBlock(e.node) {
+				if !NodeUtil_IsBundledGoogModuleScopeRoot(e.node) && syntacticFunctionBlockHasNoDecls(e.node) {
+					s := t.resolveLookupScope(rootDepth - 1)
+					t.scopes[rootDepth].lookupScope = s
+					return s
+				}
+			} else if !e.node.IsClassMembers() && !NodeUtil_IsClassStaticBlock(e.node) && !syntacticScopeHasBlockDecls(e.node) {
+				s := t.resolveLookupScope(rootDepth - 1)
+				t.scopes[rootDepth].lookupScope = s
+				return s
+			}
+		} else if NodeUtil_IsAnyFor(e.node) && !syntacticScopeHasBlockDecls(e.node) {
 			s := t.resolveLookupScope(rootDepth - 1)
 			t.scopes[rootDepth].lookupScope = s
 			return s
 		}
 	}
 	s := t.getScopeSlow(rootDepth)
-	if s.scanDone && len(s.varList) == 0 && !s.hasImplicitVars && !NodeUtil_IsFunctionBlock(s.rootNode) && s.lookupParent != nil {
+	if s.scanDone && len(s.varList) == 0 && !s.hasImplicitVars && s.lookupParent != nil {
 		t.scopes[rootDepth].lookupScope = s.lookupParent
 	} else {
 		t.scopes[rootDepth].lookupScope = s
