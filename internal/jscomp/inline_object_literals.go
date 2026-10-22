@@ -55,6 +55,7 @@ type iolCandidateScanner struct {
 	hasCandSubtree       map[*rhino.Node]bool
 	hasNonFnCandidate    bool
 	anyCandFnInHoistedFn bool
+	hasInvalidDecl       bool
 	candFns              []*rhino.Node
 }
 
@@ -219,8 +220,15 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 }
 
 func (s *iolCandidateScanner) scan(n *rhino.Node) {
-	if n.GetToken() == rhino.Token_OBJECTLIT {
+	switch n.GetToken() {
+	case rhino.Token_OBJECTLIT:
 		s.checkObjectLit(n)
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if !c.IsName() && !c.IsDestructuringLhs() {
+				s.hasInvalidDecl = true
+			}
+		}
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 		if c.GetFirstChild() == nil {
@@ -278,7 +286,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 	var s iolCandidateScanner
 	s.scan(root)
-	if s.candidateBloom == 0 {
+	if s.candidateBloom == 0 && !s.hasInvalidDecl {
 		return
 	}
 
@@ -304,7 +312,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 	opts := o.compiler.GetOptions()
 	fastMode := opts.isFastMode()
 
-	if !s.hasNonFnCandidate {
+	if !s.hasNonFnCandidate && !s.hasInvalidDecl {
 		s.collectCandFns(root)
 		if len(s.candFns) == 0 {
 			return

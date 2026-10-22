@@ -371,22 +371,29 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 		var a *RenameVars_Assignment
 		if local && r.ShouldTemporarilyRenameLocalsInScope(varScope) {
 			localIdx := r.GetLocalVarIndex(var_)
-			if localIdx < len(r.localByIndex) {
+			if localIdx >= 0 && localIdx < len(r.localByIndex) {
 				a = r.localByIndex[localIdx]
 			}
 			if a == nil {
 				tempName := RenameVars_LOCAL_VAR_PREFIX + strconv.Itoa(localIdx)
-				a = r.allocAssignment(tempName, true)
-				r.assignments.Put(tempName, a)
-				if localIdx >= cap(r.localByIndex) {
-					newCap := max(localIdx+1, cap(r.localByIndex)*2, 32)
-					grown := make([]*RenameVars_Assignment, localIdx+1, newCap)
-					copy(grown, r.localByIndex)
-					r.localByIndex = grown
-				} else if localIdx >= len(r.localByIndex) {
-					r.localByIndex = r.localByIndex[:localIdx+1]
+				if localIdx < 0 {
+					a = r.assignments.Get(tempName)
 				}
-				r.localByIndex[localIdx] = a
+				if a == nil {
+					a = r.allocAssignment(tempName, true)
+					r.assignments.Put(tempName, a)
+				}
+				if localIdx >= 0 {
+					if localIdx >= cap(r.localByIndex) {
+						newCap := max(localIdx+1, cap(r.localByIndex)*2, 32)
+						grown := make([]*RenameVars_Assignment, localIdx+1, newCap)
+						copy(grown, r.localByIndex)
+						r.localByIndex = grown
+					} else if localIdx >= len(r.localByIndex) {
+						r.localByIndex = r.localByIndex[:localIdx+1]
+					}
+					r.localByIndex[localIdx] = a
+				}
 			}
 			a.count++
 			r.appendLocalRef(n, a)

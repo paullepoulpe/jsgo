@@ -34,6 +34,8 @@ type FunctionToBlockMutator struct {
 	allowMoveCallArgs        bool
 	currentCallNode          *rhino.Node
 	onMovedArg               func(*rhino.Node)
+	errorNodes               map[*rhino.Node]struct{}
+	lastDiagCount            int
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -492,6 +494,15 @@ func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedF
 		}
 		deletedFnsHolder.AddChildToBack(n)
 		n = newFn
+	} else if len(m.errorNodes) > 0 {
+		if _, ok := m.errorNodes[n]; ok {
+			cloned := n.CloneNode()
+			cloned.AddChildrenToBack(n.RemoveChildren())
+			if n.GetParent() != nil {
+				n.ReplaceWith(cloned)
+			}
+			n = cloned
+		}
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 		c = m.rebindMovedArgFunctions(c, deletedFnsHolder)
@@ -501,6 +512,26 @@ func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedF
 
 func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg *rhino.Node) *rhino.Node {
 	if m.currentCallNode != nil && origArg.GetParent() == m.currentCallNode {
+		if m.compiler != nil {
+			if em := m.compiler.GetErrorManager(); em != nil {
+				if total := em.GetErrorCount() + em.GetWarningCount(); total > 0 && total != m.lastDiagCount {
+					m.lastDiagCount = total
+					if m.errorNodes == nil {
+						m.errorNodes = make(map[*rhino.Node]struct{}, total)
+					}
+					for _, e := range em.GetErrors() {
+						if e.Node() != nil {
+							m.errorNodes[e.Node()] = struct{}{}
+						}
+					}
+					for _, w := range em.GetWarnings() {
+						if w.Node() != nil {
+							m.errorNodes[w.Node()] = struct{}{}
+						}
+					}
+				}
+			}
+		}
 		placeholder := rhino.IR_Empty()
 		origArg.ReplaceWith(placeholder)
 		origArg = m.rebindMovedArgFunctions(origArg, placeholder)
