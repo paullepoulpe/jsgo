@@ -920,6 +920,9 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 	deferredActions *jutil.LinkedHashMultimap[*rhino.Node, *func()]
 
 	slotDefiner TypedScopeCreator_AbstractScopeBuilder_SlotDefiner
+
+	lastOwnerNode *rhino.Node
+	lastOwnerName string
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -937,6 +940,23 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.input = nil
 	b.inputResolved = false
 	b.deferredActions = nil
+	b.lastOwnerNode = nil
+	b.lastOwnerName = ""
+}
+
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ownerNode *rhino.Node) (string, bool) {
+	if ownerNode == nil {
+		return "", false
+	}
+	if ownerNode == b.lastOwnerNode {
+		return b.lastOwnerName, true
+	}
+	ownerName, ok := nodeUtil_getBestLValueNameString(ownerNode)
+	if ok {
+		b.lastOwnerNode = ownerNode
+		b.lastOwnerName = ownerName
+	}
+	return ownerName, ok
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key *rhino.Node, action *func()) {
@@ -1395,7 +1415,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node *rhi
 		return emptyTemplateTypeSlice
 	}
 	ownerNode := NodeUtil_GetBestLValueOwner(node)
-	if ownerName, ok := nodeUtil_getBestLValueNameString(ownerNode); ok {
+	if ownerName, ok := b.getOwnerLValueNameString(ownerNode); ok {
 		ownerVar := b.currentScope.GetVar(ownerName)
 		if ownerVar != nil {
 			ownerType := b.GetPrototypeOwnerType(rhino.ObjectType_Cast(ownerVar.GetType()))
@@ -1651,7 +1671,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n *rh
 	// Any of these may be null.
 	lValue := NodeUtil_GetBestLValue(n)
 	info := NodeUtil_GetBestJSDocInfo(n)
-	functionName := NodeUtil_GetBestLValueName(lValue)
+	var functionName *string
+	if lValue != nil && lValue.IsGetProp() {
+		if origName := n.GetOriginalName(); origName != nil && lValue.MatchesQualifiedName(*origName) {
+			functionName = origName
+		}
+	}
+	if functionName == nil {
+		functionName = NodeUtil_GetBestLValueName(lValue)
+	}
 	functionType := b.CreateFunctionTypeFromNodes(n, functionName, info, lValue)
 
 	// Assigning the function type to the function node
@@ -2112,13 +2140,27 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 			hasPropName = true
 		}
 	} else {
-		ownerName, hasOwnerName := nodeUtil_getBestLValueNameString(ownerNode)
+		var ownerName string
+		var hasOwnerName bool
+		if name != nil && lvalueNode != nil && lvalueNode.IsGetProp() && ownerNode == lvalueNode.GetFirstChild() {
+			propName = lvalueNode.GetString()
+			if len(*name) > len(propName)+1 && (*name)[len(*name)-len(propName)-1] == '.' {
+				ownerName = (*name)[:len(*name)-len(propName)-1]
+				hasOwnerName = true
+				hasPropName = true
+				b.lastOwnerNode = ownerNode
+				b.lastOwnerName = ownerName
+			}
+		}
+		if !hasOwnerName {
+			ownerName, hasOwnerName = b.getOwnerLValueNameString(ownerNode)
+		}
 		if hasOwnerName {
 			ownerType =
 				rhino.ObjectType_Cast(rhino.StaticTypedScope_LookupQualifiedNameString(b.currentScope, ownerName))
 		}
 
-		if hasOwnerName && name != nil {
+		if hasOwnerName && name != nil && !hasPropName {
 			// TODO(b/111621092): Use the AST rather than manipulating strings here.
 			jutil.CheckStateMsg2(
 				jutil.StringStartsWith(*name, ownerName), "Expected \"%s\" to start with \"%s\"", *name, ownerName)
@@ -3179,10 +3221,20 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 	}
 
 	ownerNode := n.GetFirstChild()
-	qName := n.GetQualifiedName()
+	var qName *string
+	if rhsValue != nil && rhsValue.IsFunction() {
+		if origName := rhsValue.GetOriginalName(); origName != nil && n.MatchesQualifiedName(*origName) {
+			qName = origName
+		}
+	}
+	if qName == nil {
+		qName = n.GetQualifiedName()
+	}
 	propName := n.GetString()
 	jutil.CheckArgument(qName != nil)
 	ownerNameStr := (*qName)[:len(*qName)-len(propName)-1]
+	b.lastOwnerNode = ownerNode
+	b.lastOwnerName = ownerNameStr
 
 	// Precedence of type information on GETPROPs:
 	// 1) @type annotation / @enum annotation

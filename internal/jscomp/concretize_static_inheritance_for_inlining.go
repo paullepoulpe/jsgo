@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -90,7 +92,8 @@ type ConcretizeStaticInheritanceForInlining struct {
 
 	compiler AbstractCompiler
 
-	classByAlias *jutil.LinkedHashMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass]
+	classByAlias    *jutil.LinkedHashMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass]
+	classAliasLeafs map[string]struct{}
 }
 
 var ConcretizeStaticInheritanceForInlining_DUPLICATE_CLASS = DiagnosticType_Error("DUPLICATE_CLASS", "Multiple classes cannot share the same name: {0}")
@@ -129,10 +132,66 @@ func NewConcretizeStaticInheritanceForInlining(compiler AbstractCompiler) *Concr
 	c := &ConcretizeStaticInheritanceForInlining{
 		duplicateClassNames: jutil.NewLinkedHashSet[string](),
 		classByAlias:        jutil.NewLinkedHashMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass](),
+		classAliasLeafs:     make(map[string]struct{}, 64),
 	}
 	c.compiler = compiler
 	c.inherits = compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.inherits")
 	return c
+}
+
+func (c *ConcretizeStaticInheritanceForInlining) putClassByAlias(name string, cls *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
+	c.classByAlias.Put(name, cls)
+	leaf := name
+	if dot := strings.LastIndexByte(name, '.'); dot >= 0 {
+		leaf = name[dot+1:]
+	}
+	c.classAliasLeafs[leaf] = struct{}{}
+}
+
+func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n *rhino.Node) (string, *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		name := n.GetString()
+		if name == "" {
+			return "", nil
+		}
+		if _, ok := c.classAliasLeafs[name]; !ok {
+			return "", nil
+		}
+		return name, c.classByAlias.Get(name)
+	case rhino.Token_GETPROP:
+		if _, ok := c.classAliasLeafs[n.GetString()]; !ok {
+			return "", nil
+		}
+		qname, ok := n.GetQualifiedNameString()
+		if !ok {
+			return "", nil
+		}
+		return qname, c.classByAlias.Get(qname)
+	case rhino.Token_THIS, rhino.Token_SUPER:
+		qname, ok := n.GetQualifiedNameString()
+		if !ok {
+			return "", nil
+		}
+		return qname, c.classByAlias.Get(qname)
+	default:
+		return "", nil
+	}
+}
+
+func (c *ConcretizeStaticInheritanceForInlining) resolveReferencedClass(t *NodeTraversal, n *rhino.Node) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
+	className, cls := c.lookupClassByNode(n)
+	if cls == nil {
+		return nil
+	}
+	if !n.IsName() {
+		return cls
+	}
+	var_ := t.GetScope().GetVar(className)
+	if var_ == nil || !var_.IsLocal() {
+		return cls
+	}
+	return nil
 }
 
 // classByAliasGet is
@@ -302,9 +361,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitDefinedPropertiesCall(NodeTraversal, Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedPropertiesCall(t *NodeTraversal, definePropertiesCall *rhino.Node) {
 	object := definePropertiesCall.GetSecondChild()
-	if f.outer.IsReferenceToClass(t, object) {
-		className := object.GetQualifiedName()
-		c := f.outer.classByAliasGet(className)
+	if c := f.outer.resolveReferencedClass(t, object); c != nil {
 		for _, prop := range NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall) {
 			c.definedProperties.Add(prop.GetString())
 		}
@@ -322,7 +379,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitFunction
 		if f.outer.classByAlias.ContainsKey(*name) {
 			f.outer.duplicateClassNames.Add(*name)
 		} else {
-			f.outer.classByAlias.Put(*name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
+			f.outer.putClassByAlias(*name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
 		}
 	}
 }
@@ -332,23 +389,21 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) SetAlias(orig
 	jutil.CheckNotNullMsg(original, "original is null")
 	jutil.CheckNotNullMsg(alias, "alias is null")
 	jutil.CheckArgument(f.outer.classByAlias.ContainsKey(*original))
-	f.outer.classByAlias.Put(*alias, f.outer.classByAlias.Get(*original))
+	f.outer.putClassByAlias(*alias, f.outer.classByAlias.Get(*original))
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitAssign(NodeTraversal, Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t *NodeTraversal, n *rhino.Node) {
 	// Alias for classes. We assume that the alias appears after the class declaration.
-	existingClassQname := n.GetLastChild().GetQualifiedName()
-	if existingClassQname != nil && f.outer.classByAlias.ContainsKey(*existingClassQname) {
-		alias := n.GetFirstChild().GetQualifiedName()
-		if alias != nil {
-			f.SetAlias(existingClassQname, alias)
+	if _, existingClass := f.outer.lookupClassByNode(n.GetLastChild()); existingClass != nil {
+		if alias, ok := n.GetFirstChild().GetQualifiedNameString(); ok {
+			f.outer.putClassByAlias(alias, existingClass)
 		}
 	} else if n.GetFirstChild().IsGetProp() {
 		getProp := n.GetFirstChild()
 		classNode := getProp.GetFirstChild()
-		if f.outer.IsReferenceToClass(t, classNode) && !ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES.Contains(getProp.GetString()) {
-			f.outer.classByAliasGet(classNode.GetQualifiedName()).AddStaticMember(n)
+		if cls := f.outer.resolveReferencedClass(t, classNode); cls != nil && !ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES.Contains(getProp.GetString()) {
+			cls.AddStaticMember(n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
 	}
@@ -360,11 +415,9 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariable
 	if !child.HasChildren() {
 		return
 	}
-	maybeOriginalName := child.GetFirstChild().GetQualifiedName()
-	if maybeOriginalName != nil && f.outer.classByAlias.ContainsKey(*maybeOriginalName) {
-		maybeAlias := child.GetQualifiedName()
-		if maybeAlias != nil {
-			f.SetAlias(maybeOriginalName, maybeAlias)
+	if _, existingClass := f.outer.lookupClassByNode(child.GetFirstChild()); existingClass != nil {
+		if maybeAlias, ok := child.GetQualifiedNameString(); ok {
+			f.outer.putClassByAlias(maybeAlias, existingClass)
 		}
 	}
 }

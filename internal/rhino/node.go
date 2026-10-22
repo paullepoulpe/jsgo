@@ -2526,6 +2526,12 @@ func (n *Node) SetOriginalName(s *string) {
 	}
 }
 
+// SetOriginalNameString interns s in RhinoStringPool and sets it as the node's
+// original name without boxing s on the heap.
+func (n *Node) SetOriginalNameString(s string) {
+	n.node_setOriginalName(rhinoStringPoolCell(s))
+}
+
 // Java: Node.setOriginalNameFromStringPool(RhinoStringPool.LazyInternedStringList, int)
 func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
 	// RhinoStringPool.LazyInternedStringList guarantees that the result of

@@ -225,6 +225,7 @@ type JSTypeRegistry struct {
 	arrowTypeSlab           []ArrowType
 	prototypeObjectTypeSlab []PrototypeObjectTypeBase
 	instanceObjectTypeSlab  []InstanceObjectType
+	unionTypeSlab           []UnionType
 	jsTypeSliceSlab         []JSType
 	unionBuilderStack       [8]UnionType_Builder
 	unionBuilderDepth       int
@@ -248,7 +249,15 @@ func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
 }
 
 func (r *JSTypeRegistry) allocUnionType() *UnionType {
-	return &UnionType{}
+	if r == nil {
+		return &UnionType{}
+	}
+	if len(r.unionTypeSlab) == 0 {
+		r.unionTypeSlab = make([]UnionType, 256)
+	}
+	u := &r.unionTypeSlab[0]
+	r.unionTypeSlab = r.unionTypeSlab[1:]
+	return u
 }
 
 func (r *JSTypeRegistry) allocTemplateTypeMap() *TemplateTypeMap {

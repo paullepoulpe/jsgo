@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -44,6 +46,7 @@ type ProcessClosureProvidesAndRequires struct {
 	// Use a LinkedHashMap because the goog.provides must be processed in a
 	// deterministic order.
 	providedNames *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]
+	providedLeafs map[string]struct{}
 
 	exportedVariables *jutil.LinkedHashSet[string]
 
@@ -72,6 +75,7 @@ func NewProcessClosureProvidesAndRequires(
 	preserveGoogProvidesAndRequires bool) *ProcessClosureProvidesAndRequires {
 	p := &ProcessClosureProvidesAndRequires{}
 	p.providedNames = jutil.NewLinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]()
+	p.providedLeafs = make(map[string]struct{}, 64)
 	p.exportedVariables = jutil.NewLinkedHashSet[string]()
 	p.requiresToBeRemoved = jutil.NewArrayList[*rhino.Node]()
 	p.hasRewritingOccurred = false
@@ -81,6 +85,41 @@ func NewProcessClosureProvidesAndRequires(
 	p.preserveGoogProvidesAndRequires = preserveGoogProvidesAndRequires
 	p.astFactory = compiler.CreateAstFactory()
 	return p
+}
+
+func (p *ProcessClosureProvidesAndRequires) putProvidedName(ns string, pn *ProcessClosureProvidesAndRequires_ProvidedName) {
+	p.providedNames.Put(ns, pn)
+	leaf := ns
+	if dot := strings.LastIndexByte(ns, '.'); dot >= 0 {
+		leaf = ns[dot+1:]
+	}
+	p.providedLeafs[leaf] = struct{}{}
+}
+
+func (p *ProcessClosureProvidesAndRequires) getProvidedNameByNode(node *rhino.Node) *ProcessClosureProvidesAndRequires_ProvidedName {
+	switch node.GetToken() {
+	case rhino.Token_NAME:
+		name := node.GetString()
+		if name == "" {
+			return nil
+		}
+		return p.providedNames.Get(name)
+	case rhino.Token_GETPROP:
+		if _, ok := p.providedLeafs[node.GetString()]; !ok {
+			return nil
+		}
+		name, ok := node.GetQualifiedNameString()
+		if !ok {
+			return nil
+		}
+		return p.providedNames.Get(name)
+	default:
+		name, ok := node.GetQualifiedNameString()
+		if !ok {
+			return nil
+		}
+		return p.providedNames.Get(name)
+	}
 }
 
 // Process: when invoked as compiler pass, we rewrite all provides and
@@ -103,7 +142,7 @@ func (p *ProcessClosureProvidesAndRequires) GetExportedVariableNames() *jutil.Li
 func (p *ProcessClosureProvidesAndRequires) CollectProvidedNames(externs *rhino.Node, root *rhino.Node) *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName] {
 	if p.providedNames.IsEmpty() {
 		// goog is special-cased because it is provided in Closure's base library.
-		p.providedNames.Put(
+		p.putProvidedName(
 			processClosureProvidesAndRequires_GOOG, newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).SetNamespace(processClosureProvidesAndRequires_GOOG).SetNode(nil).SetChunk(nil).Build())
 		NodeTraversal_TraverseRoots(p.compiler, newProcessClosureProvidesAndRequires_CollectDefinitions(p), externs, root)
 	}
@@ -248,7 +287,7 @@ func (p *ProcessClosureProvidesAndRequires) ProcessRequireCall(call *rhino.Node,
 // Java: ProcessClosureProvidesAndRequires.processLegacyModuleCall(String, Node, JSChunk)
 func (p *ProcessClosureProvidesAndRequires) ProcessLegacyModuleCall(namespace string, googModuleCall *rhino.Node, chunk *JSChunk) {
 	p.RegisterAnyProvidedPrefixes(namespace, googModuleCall, chunk)
-	p.providedNames.Put(
+	p.putProvidedName(
 		namespace,
 		newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).
 			SetNamespace(namespace).
@@ -281,7 +320,7 @@ func (p *ProcessClosureProvidesAndRequires) ProcessProvideCall(t *NodeTraversal,
 		}
 	} else {
 		p.RegisterAnyProvidedPrefixes(ns, parent, t.GetChunk())
-		p.providedNames.Put(
+		p.putProvidedName(
 			ns,
 			newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).
 				SetNamespace(ns).
@@ -310,12 +349,8 @@ func (p *ProcessClosureProvidesAndRequires) HandleStubDefinition(t *NodeTraversa
 	isValidTypedefStubDefinition := isTypedefStub && !p.hasRewritingOccurred
 
 	if isValidTypedefStubDefinition || isExternStub {
-		if exprResult.GetFirstChild().IsQualifiedName() {
-			name := *exprResult.GetFirstChild().GetQualifiedName()
-			pn := p.providedNames.Get(name)
-			if pn != nil {
-				pn.AddDefinition(exprResult, t.GetChunk(), p.chunkGraph)
-			}
+		if pn := p.getProvidedNameByNode(exprResult.GetFirstChild()); pn != nil {
+			pn.AddDefinition(exprResult, t.GetChunk(), p.chunkGraph)
 		}
 	}
 	if isTypedefStub {
@@ -340,12 +375,18 @@ func (p *ProcessClosureProvidesAndRequires) CheckNestedTypedefProvide(exprResult
 	// runtime because the compiler would initializer `my.parent.ChildType = {}` before
 	// `my.parent = [...]`, so report an error.
 
-	namePtr := exprResult.GetFirstChild().GetQualifiedName()
-	if namePtr == nil || !(jutil.StringIndexOf(*namePtr, ".") >= 0) {
+	child := exprResult.GetFirstChild()
+	if !child.IsGetProp() {
 		// @typedefs on simple names are okay.
 		return
 	}
-	name := *namePtr
+	if _, ok := p.providedLeafs[child.GetString()]; !ok {
+		return
+	}
+	name, ok := child.GetQualifiedNameString()
+	if !ok || !(jutil.StringIndexOf(name, ".") >= 0) {
+		return
+	}
 	if !p.providedNames.ContainsKey(name) {
 		// non-provided names don't matter.
 		return
@@ -378,37 +419,24 @@ func (p *ProcessClosureProvidesAndRequires) HandleCandidateProvideDefinition(t *
 	if !t.InGlobalHoistScope() {
 		return
 	}
-	var name *string
+	var pn *ProcessClosureProvidesAndRequires_ProvidedName
 	switch n.GetParent().GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST:
 		if t.InGlobalScope() {
-			s := n.GetString()
-			name = &s
-		} else {
-			name = nil
+			pn = p.providedNames.Get(n.GetString())
 		}
 	case rhino.Token_VAR:
-		s := n.GetString()
-		name = &s
+		pn = p.providedNames.Get(n.GetString())
 	case rhino.Token_EXPR_RESULT:
 		if n.IsAssign() {
-			name = n.GetFirstChild().GetQualifiedName()
-		} else {
-			name = nil
+			pn = p.getProvidedNameByNode(n.GetFirstChild())
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
 		// Class and function provides are forbidden; see ProcessClosurePrimitives's
 		// CLASS_NAMESPACE_ERROR and FUNCTION_NAMESPACE_ERROR.
-		name = nil
 	default:
-		name = nil
 	}
 
-	if name == nil {
-		return
-	}
-
-	pn := p.providedNames.Get(*name)
 	if pn != nil {
 		pn.AddDefinition(parent, t.GetChunk(), p.chunkGraph)
 	}
@@ -461,7 +489,7 @@ func (p *ProcessClosureProvidesAndRequires) RegisterAnyProvidedPrefixes(ns strin
 		if p.providedNames.ContainsKey(prefixNs) {
 			p.providedNames.Get(prefixNs).AddProvide(node, chunk, false /* explicit */, p.chunkGraph)
 		} else {
-			p.providedNames.Put(
+			p.putProvidedName(
 				prefixNs,
 				newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).
 					SetNamespace(prefixNs).

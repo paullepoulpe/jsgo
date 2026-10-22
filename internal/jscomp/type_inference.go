@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -84,11 +86,17 @@ type TypeInference struct {
 	lastModule              *Module
 	lastSyntacticBlockScope *TypedScope
 
-	qnameCache [2048][2]tiQNameCacheEntry
+	qnameCache     [4096][2]tiQNameCacheEntry
+	qnameNodeCache [64][2]tiNodeQNameEntry
 }
 
 type tiQNameCacheEntry struct {
 	a, b, res string
+}
+
+type tiNodeQNameEntry struct {
+	node  *rhino.Node
+	qname string
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -3190,23 +3198,48 @@ func (ti *TypeInference) TightenTypeAfterDereference(n *rhino.Node, scope FlowSc
 	return scope
 }
 
-func (ti *TypeInference) concatQName(a, b string) string {
+func (ti *TypeInference) lookupQNameCache(a, b string) (string, bool) {
 	h := gnConcatHash(a, b)
 	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
 	bucket := &ti.qnameCache[idx]
 	if e := &bucket[0]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
-		return e.res
+		return e.res, true
 	}
 	if e := &bucket[1]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
 		res := e.res
 		*e = bucket[0]
 		bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
+		return res, true
+	}
+	return "", false
+}
+
+func (ti *TypeInference) putQNameCache(a, b, res string) {
+	h := gnConcatHash(a, b)
+	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
+	bucket := &ti.qnameCache[idx]
+	bucket[1] = bucket[0]
+	bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
+}
+
+func (ti *TypeInference) concatQName(a, b string) string {
+	if res, ok := ti.lookupQNameCache(a, b); ok {
 		return res
 	}
 	res := nodeUtilConcatDot(a, b)
-	bucket[1] = bucket[0]
-	bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
+	ti.putQNameCache(a, b, res)
 	return res
+}
+
+func (ti *TypeInference) putNodeQNameCache(n *rhino.Node, qname string) {
+	nh := uint32(uintptr(unsafe.Pointer(n))>>4) ^ uint32(uintptr(unsafe.Pointer(n))>>13)
+	bucket := &ti.qnameNodeCache[nh&uint32(len(ti.qnameNodeCache)-1)]
+	if bucket[0].node == n {
+		bucket[0].qname = qname
+		return
+	}
+	bucket[1] = bucket[0]
+	bucket[0] = tiNodeQNameEntry{node: n, qname: qname}
 }
 
 func (ti *TypeInference) getBestLValueNameString(lValue *rhino.Node) (string, bool) {
@@ -3230,28 +3263,116 @@ func (ti *TypeInference) getBestLValueNameString(lValue *rhino.Node) (string, bo
 func (ti *TypeInference) getQualifiedNameString(n *rhino.Node) (string, bool) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP:
-		left := n.GetFirstChild()
-		var a string
-		switch left.GetToken() {
+		nh := uint32(uintptr(unsafe.Pointer(n))>>4) ^ uint32(uintptr(unsafe.Pointer(n))>>13)
+		bucket := &ti.qnameNodeCache[nh&uint32(len(ti.qnameNodeCache)-1)]
+		if bucket[0].node == n {
+			return bucket[0].qname, true
+		}
+		if bucket[1].node == n {
+			res := bucket[1].qname
+			bucket[1] = bucket[0]
+			bucket[0] = tiNodeQNameEntry{node: n, qname: res}
+			return res, true
+		}
+
+		var chain [32]*rhino.Node
+		depth := 0
+		cur := n
+		for cur.IsGetProp() {
+			if cur.GetString() == "" {
+				return "", false
+			}
+			if depth >= len(chain) {
+				a, ok := ti.getQualifiedNameString(n.GetFirstChild())
+				if !ok {
+					return "", false
+				}
+				res := ti.concatQName(a, n.GetString())
+				ti.putNodeQNameCache(n, res)
+				return res, true
+			}
+			chain[depth] = cur
+			depth++
+			cur = cur.GetFirstChild()
+		}
+		var rootStr string
+		switch cur.GetToken() {
 		case rhino.Token_NAME:
-			a = left.GetString()
-			if a == "" {
+			rootStr = cur.GetString()
+			if rootStr == "" {
 				return "", false
 			}
 		case rhino.Token_THIS:
-			a = "this"
+			rootStr = "this"
 		case rhino.Token_SUPER:
-			a = "super"
-		case rhino.Token_GETPROP:
-			var ok bool
-			a, ok = ti.getQualifiedNameString(left)
-			if !ok {
-				return "", false
-			}
+			rootStr = "super"
 		default:
 			return "", false
 		}
-		return ti.concatQName(a, n.GetString()), true
+
+		var upChain [32]*rhino.Node
+		upDepth := 0
+		outer := n
+		for upDepth < len(upChain) {
+			p := outer.GetParent()
+			if p == nil || !p.IsGetProp() || p.GetFirstChild() != outer || p.GetString() == "" {
+				break
+			}
+			upChain[upDepth] = p
+			upDepth++
+			outer = p
+		}
+
+		totalDepth := depth + upDepth
+		if totalDepth == 1 {
+			res := ti.concatQName(rootStr, n.GetString())
+			ti.putNodeQNameCache(n, res)
+			return res, true
+		}
+
+		nodeAt := func(i int) *rhino.Node {
+			if i < depth {
+				return chain[depth-1-i]
+			}
+			return upChain[i-depth]
+		}
+
+		var result string
+		acc := rootStr
+		for j := 0; j < totalDepth; j++ {
+			nodeJ := nodeAt(j)
+			propJ := nodeJ.GetString()
+			if cached, ok := ti.lookupQNameCache(acc, propJ); ok {
+				acc = cached
+				ti.putNodeQNameCache(nodeJ, acc)
+				if j == depth-1 {
+					result = acc
+				}
+				continue
+			}
+			totalLen := len(acc) + (totalDepth - j)
+			for m := j; m < totalDepth; m++ {
+				totalLen += len(nodeAt(m).GetString())
+			}
+			buf := nodeUtilAllocStringBytes(totalLen)
+			pos := copy(buf, acc)
+			for m := j; m < totalDepth; m++ {
+				nodeM := nodeAt(m)
+				propM := nodeM.GetString()
+				buf[pos] = '.'
+				pos++
+				pos += copy(buf[pos:], propM)
+				prefixM := unsafe.String(unsafe.SliceData(buf), pos)
+				ti.putQNameCache(acc, propM, prefixM)
+				ti.putNodeQNameCache(nodeM, prefixM)
+				if m == depth-1 {
+					result = prefixM
+				}
+				acc = prefixM
+			}
+			break
+		}
+		return result, true
 	case rhino.Token_NAME:
 		name := n.GetString()
 		if name == "" {

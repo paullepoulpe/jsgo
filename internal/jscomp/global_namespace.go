@@ -1187,6 +1187,15 @@ func globalNamespace_hasPrototype(s string) bool {
 	return strings.HasSuffix(s, ".prototype") || strings.Contains(s, ".prototype.")
 }
 
+func globalNamespace_nodeHasPrototype(n *rhino.Node) bool {
+	for cur := n; cur != nil && cur.IsGetProp(); cur = cur.GetFirstChild() {
+		if cur.GetString() == "prototype" {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.Node, scope *Scope, t *NodeTraversal) (string, *rhino.Node, *Scope, uint8) {
 	mru := b.objLitCacheIdx
 	if e := &b.objLitCache[mru]; e.objLit == objLit {
@@ -1206,6 +1215,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 		objLitParent := objLit.GetParent()
 		if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParent) {
 			receiverNode := objLitParent.GetSecondChild()
+			if globalNamespace_nodeHasPrototype(receiverNode) {
+				return b.putObjLitCache(objLit, "", nil, scope, 0)
+			}
 			topName := globalNamespace_topNameOfQName(receiverNode)
 			if topName == "" {
 				return b.putObjLitCache(objLit, "", nil, scope, 0)
@@ -1232,10 +1244,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 		return b.putObjLitCache(objLit, "", nil, scope, 0)
 	}
 	if ownerParent.IsClassMembers() && !owner.IsComputedProp() {
-		if !owner.IsStaticMember() {
+		if !owner.IsStaticMember() || owner.GetString() == "prototype" {
 			return b.putObjLitCache(objLit, "", nil, scope, 0)
 		}
 		nameNode := NodeUtil_GetNameNode(ownerParent.GetParent())
+		if globalNamespace_nodeHasPrototype(nameNode) {
+			return b.putObjLitCache(objLit, "", nil, scope, 0)
+		}
 		topName := globalNamespace_topNameOfQName(nameNode)
 		if topName == "" {
 			return b.putObjLitCache(objLit, "", nil, scope, 0)
@@ -1277,6 +1292,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 			return b.putObjLitCache(objLit, "", nil, scope, 0)
 		}
+	}
+	if globalNamespace_nodeHasPrototype(owner) {
+		return b.putObjLitCache(objLit, "", nil, scope, 0)
 	}
 	topName := globalNamespace_topNameOfQName(owner)
 	if topName == "" {
@@ -1660,6 +1678,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			}
 			hasName = true
 		} else {
+			var protoTarget *rhino.Node
+			if n.GetString() == "prototype" {
+				protoTarget = n.GetFirstChild()
+			}
 			c1 := n.GetFirstChild()
 			if c1.IsName() {
 				topName := c1.GetString()
@@ -1670,9 +1692,14 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 				if !b.IsTopLevelScopeRoot(root) {
 					return
 				}
-				nameStr = g.concatDotCached(topName, n.GetString())
-				hasName = true
+				if protoTarget == nil {
+					nameStr = g.concatDotCached(topName, n.GetString())
+					hasName = true
+				}
 			} else if c1.IsGetProp() {
+				if c1.GetString() == "prototype" {
+					protoTarget = c1.GetFirstChild()
+				}
 				c2 := c1.GetFirstChild()
 				if c2.IsName() {
 					topName := c2.GetString()
@@ -1683,9 +1710,14 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 					if !b.IsTopLevelScopeRoot(root) {
 						return
 					}
-					nameStr = g.concatDot3Cached(topName, c1.GetString(), n.GetString())
-					hasName = true
+					if protoTarget == nil {
+						nameStr = g.concatDot3Cached(topName, c1.GetString(), n.GetString())
+						hasName = true
+					}
 				} else if c2.IsGetProp() {
+					if c2.GetString() == "prototype" {
+						protoTarget = c2.GetFirstChild()
+					}
 					c3 := c2.GetFirstChild()
 					if c3.IsName() {
 						topName := c3.GetString()
@@ -1696,11 +1728,16 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 						if !b.IsTopLevelScopeRoot(root) {
 							return
 						}
-						nameStr = g.concatDot4Cached(topName, c2.GetString(), c1.GetString(), n.GetString())
-						hasName = true
+						if protoTarget == nil {
+							nameStr = g.concatDot4Cached(topName, c2.GetString(), c1.GetString(), n.GetString())
+							hasName = true
+						}
 					} else {
 						left := c3
 						for left.IsGetProp() {
+							if left.GetString() == "prototype" {
+								protoTarget = left.GetFirstChild()
+							}
 							left = left.GetFirstChild()
 						}
 						if !left.IsName() {
@@ -1714,17 +1751,45 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 						if !b.IsTopLevelScopeRoot(root) {
 							return
 						}
-						prefix, ok := g.qnameStringCached(c3)
-						if !ok {
-							return
+						if protoTarget == nil {
+							prefix, ok := g.qnameStringCached(c3)
+							if !ok {
+								return
+							}
+							nameStr = g.concatDot4Cached(prefix, c2.GetString(), c1.GetString(), n.GetString())
+							hasName = true
 						}
-						nameStr = g.concatDot4Cached(prefix, c2.GetString(), c1.GetString(), n.GetString())
-						hasName = true
 					}
 				} else {
 					return
 				}
 			} else {
+				return
+			}
+			if protoTarget != nil {
+				var prefix string
+				if protoTarget.IsName() {
+					prefix = protoTarget.GetString()
+				} else {
+					var ok bool
+					prefix, ok = g.qnameStringCached(protoTarget)
+					if !ok {
+						return
+					}
+				}
+				var nameMetadata *ModuleMetadataMap_ModuleMetadata
+				if root != g.globalRoot {
+					nameMetadata = b.curMetadata
+				}
+				if !g.forProcessDefines || scope != nil || t == nil {
+					if scope == nil {
+						scope = t.GetScope()
+					}
+					if chunk == nil && t != nil {
+						chunk = t.GetChunk()
+					}
+				}
+				b.AddOrConfirmRef(b.GetOrCreateName(prefix, nameMetadata), protoTarget, GlobalNamespace_Ref_Type_PROTOTYPE_GET, scope, chunk)
 				return
 			}
 		}

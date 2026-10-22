@@ -229,8 +229,7 @@ func (p *InferJSDocInfo) inferJSDocForName(n *rhino.Node, parent *rhino.Node) {
 
 	objType := inferJSDocInfo_dereferenced(inferredType)
 	if inferJSDocInfo_shouldAttachJSDocToNominalTypeOrShape(objType, aliasedType) {
-		name := n.GetString()
-		inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(objType, typeDoc, &name)
+		inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(objType, typeDoc, n)
 	}
 }
 
@@ -320,7 +319,7 @@ func (p *InferJSDocInfo) inferJSDocForProperty(n *rhino.Node, parent *rhino.Node
 
 	propType := inferJSDocInfo_dereferenced(lhsType.GetPropertyType(propName))
 	if inferJSDocInfo_shouldAttachJSDocToNominalTypeOrShape(propType, aliasedType) {
-		inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n.GetQualifiedName())
+		inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n)
 	}
 }
 
@@ -361,10 +360,10 @@ func inferJSDocInfo_shouldAttachJSDocToNominalTypeOrShape(
 //
 // Java: InferJSDocInfo.attachJSDocInfoToNominalTypeOrShape(ObjectType, JSDocInfo, String)
 func inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(
-	objType rhino.ObjectType, docInfo *rhino.JSDocInfo, qName *string) {
+	objType rhino.ObjectType, docInfo *rhino.JSDocInfo, n *rhino.Node) {
 
 	if objType.IsConstructor() || objType.IsInterface() {
-		if !inferJSDocInfo_isReferenceNameOf(objType, qName) {
+		if !inferJSDocInfo_isReferenceNameOf(objType, n) {
 			return
 		}
 
@@ -375,7 +374,7 @@ func inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(
 		// Then: typeOf(MyEnum).referenceName() == "enum{MyEnum}"
 		// Then: typeOf(MyEnum.FOO).referenceName() == "MyEnum"
 		elementType := objType.ToMaybeEnumType().GetElementsType()
-		if !inferJSDocInfo_isReferenceNameOf(elementType, qName) {
+		if !inferJSDocInfo_isReferenceNameOf(elementType, n) {
 			return
 		}
 
@@ -389,10 +388,13 @@ func inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(
 }
 
 // Java: InferJSDocInfo.isReferenceNameOf(ObjectType, String)
-func inferJSDocInfo_isReferenceNameOf(type_ rhino.ObjectType, name *string) bool {
-	if !type_.HasReferenceName() {
+func inferJSDocInfo_isReferenceNameOf(type_ rhino.ObjectType, n *rhino.Node) bool {
+	if !type_.HasReferenceName() || n == nil {
 		return false
 	}
-	// type.getReferenceName().equals(name): a null name is never equal.
-	return name != nil && *type_.GetReferenceName() == *name
+	refName := *type_.GetReferenceName()
+	if n.IsName() {
+		return n.GetString() == refName
+	}
+	return n.MatchesQualifiedName(refName)
 }

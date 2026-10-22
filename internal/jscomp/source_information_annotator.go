@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -79,10 +81,7 @@ func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n *rhino.Node, pare
 	}
 
 	if n.IsFunction() {
-		functionName := NodeUtil_GetNearestFunctionName(n)
-		if functionName != nil {
-			SourceInformationAnnotator_SetOriginalName(n, *functionName)
-		}
+		annotateFunctionOriginalName(n)
 	}
 }
 
@@ -97,8 +96,93 @@ func (a *SourceInformationAnnotator) AnnotateTree(n *rhino.Node) {
 		return
 	}
 	if n.IsFunction() {
-		if functionName := NodeUtil_GetNearestFunctionName(n); functionName != nil {
-			SourceInformationAnnotator_SetOriginalName(n, *functionName)
+		annotateFunctionOriginalName(n)
+	}
+}
+
+func appendQualifiedNameTo(dst []byte, n *rhino.Node) ([]byte, bool) {
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		s := n.GetString()
+		if s == "" {
+			return dst, false
+		}
+		return append(dst, s...), true
+	case rhino.Token_THIS:
+		return append(dst, "this"...), true
+	case rhino.Token_SUPER:
+		return append(dst, "super"...), true
+	case rhino.Token_GETPROP:
+		var parts [16]string
+		depth := 0
+		cur := n
+		for cur.IsGetProp() {
+			if depth >= len(parts) {
+				var ok bool
+				dst, ok = appendQualifiedNameTo(dst, cur.GetFirstChild())
+				if !ok {
+					return dst, false
+				}
+				dst = append(dst, '.')
+				dst = append(dst, cur.GetString()...)
+				for i := depth - 1; i >= 0; i-- {
+					dst = append(dst, '.')
+					dst = append(dst, parts[i]...)
+				}
+				return dst, true
+			}
+			parts[depth] = cur.GetString()
+			depth++
+			cur = cur.GetFirstChild()
+		}
+		var ok bool
+		dst, ok = appendQualifiedNameTo(dst, cur)
+		if !ok {
+			return dst, false
+		}
+		for i := depth - 1; i >= 0; i-- {
+			dst = append(dst, '.')
+			dst = append(dst, parts[i]...)
+		}
+		return dst, true
+	default:
+		return dst, false
+	}
+}
+
+func annotateFunctionOriginalName(n *rhino.Node) {
+	if n.GetOriginalName() != nil {
+		return
+	}
+	parent := n.GetParent()
+	switch parent.GetToken() {
+	case rhino.Token_NAME:
+		SourceInformationAnnotator_SetOriginalNameFromNode(n, parent)
+		return
+	case rhino.Token_ASSIGN:
+		firstChild := parent.GetFirstChild()
+		if firstChild.IsName() {
+			SourceInformationAnnotator_SetOriginalNameFromNode(n, firstChild)
+			return
+		}
+		var stackBuf [256]byte
+		if buf, ok := appendQualifiedNameTo(stackBuf[:0], firstChild); ok && len(buf) > 0 {
+			n.SetOriginalNameString(unsafe.String(unsafe.SliceData(buf), len(buf)))
+		}
+		return
+	default:
+		funNameNode := n.GetFirstChild()
+		if !funNameNode.IsEmpty() && funNameNode.GetString() != "" {
+			SourceInformationAnnotator_SetOriginalNameFromNode(n, funNameNode)
+			return
+		}
+	}
+	switch parent.GetToken() {
+	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY:
+		SourceInformationAnnotator_SetOriginalNameFromNode(n, parent)
+	case rhino.Token_NUMBER:
+		if s := NodeUtil_GetStringValue(parent); s != nil && *s != "" {
+			n.SetOriginalNameString(*s)
 		}
 	}
 }

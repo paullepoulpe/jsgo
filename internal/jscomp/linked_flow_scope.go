@@ -811,6 +811,9 @@ func linkedFlowScope_JoinMap(
 							if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
 								return slotA
 							}
+							if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
+								return slotB
+							}
 							return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
 						})
 				}
