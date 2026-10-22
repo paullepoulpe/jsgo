@@ -154,10 +154,71 @@ type scopeArena struct {
 	implicitChunks   [][][4]*Var
 	implicitChunkIdx int
 
+	baseScopeChunkIdx    int
+	baseScopeUsed        int
+	baseVarChunkIdx      int
+	baseVarUsed          int
+	baseSlotChunkIdx     int
+	baseSlotUsed         int
+	baseHashChunkIdx     int
+	baseHashUsed         int
+	baseImplicitChunkIdx int
+	baseImplicitUsed     int
+
 	globalVarList []*Var
 	globalVarHash []int32
 	globalScope   *Scope
 	pooled        bool
+}
+
+func resetArenaChunks[T any](chunks [][]T, baseIdx, baseUsed, curIdx, curUsed int) ([]T, int, int) {
+	if curIdx == 0 {
+		return nil, 0, 0
+	}
+	if baseIdx == 0 {
+		for i := 0; i < curIdx; i++ {
+			if i == curIdx-1 {
+				clear(chunks[i][:curUsed])
+			} else {
+				clear(chunks[i])
+			}
+		}
+		return nil, 0, 0
+	}
+	b := baseIdx - 1
+	if curIdx-1 == b {
+		if curUsed > baseUsed {
+			clear(chunks[b][baseUsed:curUsed])
+		}
+	} else if curIdx-1 > b {
+		clear(chunks[b][baseUsed:])
+		for i := b + 1; i < curIdx-1; i++ {
+			clear(chunks[i])
+		}
+		clear(chunks[curIdx-1][:curUsed])
+	}
+	return chunks[b], baseIdx, baseUsed
+}
+
+func (a *scopeArena) markGlobalBase() {
+	a.baseScopeChunkIdx = a.scopeChunkIdx
+	a.baseScopeUsed = a.scopeUsed
+	a.baseVarChunkIdx = a.varChunkIdx
+	a.baseVarUsed = a.varUsed
+	a.baseSlotChunkIdx = a.slotChunkIdx
+	a.baseSlotUsed = a.slotUsed
+	a.baseHashChunkIdx = a.hashChunkIdx
+	a.baseHashUsed = a.hashUsed
+	a.baseImplicitChunkIdx = a.implicitChunkIdx
+	a.baseImplicitUsed = a.implicitUsed
+}
+
+func (a *scopeArena) resetToBase() {
+	a.scopeChunk, a.scopeChunkIdx, a.scopeUsed = resetArenaChunks(a.scopeChunks, a.baseScopeChunkIdx, a.baseScopeUsed, a.scopeChunkIdx, a.scopeUsed)
+	a.varChunk, a.varChunkIdx, a.varUsed = resetArenaChunks(a.varChunks, a.baseVarChunkIdx, a.baseVarUsed, a.varChunkIdx, a.varUsed)
+	a.slotChunk, a.slotChunkIdx, a.slotUsed = resetArenaChunks(a.slotChunks, a.baseSlotChunkIdx, a.baseSlotUsed, a.slotChunkIdx, a.slotUsed)
+	a.hashChunk, a.hashChunkIdx, a.hashUsed = resetArenaChunks(a.hashChunks, a.baseHashChunkIdx, a.baseHashUsed, a.hashChunkIdx, a.hashUsed)
+	a.implicitChunk, a.implicitChunkIdx, a.implicitUsed = resetArenaChunks(a.implicitChunks, a.baseImplicitChunkIdx, a.baseImplicitUsed, a.implicitChunkIdx, a.implicitUsed)
 }
 
 var cachedScopeArenas [4]atomic.Pointer[scopeArena]
@@ -202,19 +263,29 @@ func (a *scopeArena) release() {
 	}
 	if gs := a.globalScope; gs != nil {
 		a.globalScope = nil
-		if cap(gs.varList) <= 65536 {
+		if cap(gs.varList) <= 262144 {
 			clear(gs.varList)
 			a.globalVarList = gs.varList[:0]
 		} else {
 			a.globalVarList = nil
 		}
-		if len(gs.varHash) <= 131072 {
+		if len(gs.varHash) <= 524288 {
 			clear(gs.varHash)
 			a.globalVarHash = gs.varHash
 		} else {
 			a.globalVarHash = nil
 		}
 	}
+	a.baseScopeChunkIdx = 0
+	a.baseScopeUsed = 0
+	a.baseVarChunkIdx = 0
+	a.baseVarUsed = 0
+	a.baseSlotChunkIdx = 0
+	a.baseSlotUsed = 0
+	a.baseHashChunkIdx = 0
+	a.baseHashUsed = 0
+	a.baseImplicitChunkIdx = 0
+	a.baseImplicitUsed = 0
 
 	for i := 0; i < a.scopeChunkIdx && i < maxScopeChunks; i++ {
 		if i == a.scopeChunkIdx-1 {
@@ -1083,7 +1154,7 @@ func (s *Scope) growVarList(v *Var) {
 	if newCap < 4 {
 		newCap = 4
 	}
-	if a := s.arena; a != nil && s != a.globalScope && newCap <= maxSlotChunkSize {
+	if a := s.arena; a != nil && s.parent != nil && newCap <= maxSlotChunkSize {
 		if oldLen > 0 && a.slotUsed >= oldLen && &s.varList[0] == &a.slotChunk[a.slotUsed-oldLen] {
 			start := a.slotUsed - oldLen
 			if len(a.slotChunk)-start >= newCap {
@@ -1106,7 +1177,7 @@ func (s *Scope) growVarList(v *Var) {
 }
 
 func (s *Scope) initVarHash(size int) {
-	if a := s.arena; a != nil && s != a.globalScope && size <= maxHashChunkSize {
+	if a := s.arena; a != nil && s.parent != nil && size <= maxHashChunkSize {
 		s.varHash = a.allocVarHash(size)
 	} else {
 		s.varHash = make([]int32, size)
@@ -1129,7 +1200,7 @@ func (s *Scope) growVarHash() {
 	if newLen < 32 {
 		newLen = 32
 	}
-	if a := s.arena; a != nil && s != a.globalScope && newLen <= maxHashChunkSize {
+	if a := s.arena; a != nil && s.parent != nil && newLen <= maxHashChunkSize {
 		oldLen := len(s.varHash)
 		if oldLen > 0 && a.hashUsed >= oldLen && &s.varHash[0] == &a.hashChunk[a.hashUsed-oldLen] {
 			start := a.hashUsed - oldLen
@@ -1228,7 +1299,7 @@ func (s *Scope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *Var {
 		return nil
 	}
 	if s.implicitVars == nil {
-		if s.arena != nil {
+		if s.arena != nil && (!s.scanDone || s.parent != nil) {
 			s.implicitVars = s.arena.allocImplicitVars()
 		} else {
 			s.implicitVars = new([4]*Var)
@@ -1294,7 +1365,7 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 		}
 	}
 	var var_ *Var
-	if s.arena != nil {
+	if s.arena != nil && (!s.scanDone || s.parent != nil) {
 		var_ = s.arena.allocVar()
 		initVar(var_, name, nameNode, s, int(s.varCount), input, nil)
 	} else {
@@ -1518,7 +1589,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 		}
 	}
 	if var_ == nil {
-		if s.arena != nil {
+		if s.arena != nil && (!s.scanDone || s.parent != nil) {
 			var_ = s.arena.allocVar()
 			initVar(var_, name, nil, s, -1, nil, definition)
 		} else {
@@ -1543,7 +1614,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 
 // Java: Scope.makeImplicitVar(ImplicitVar)
 func (s *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *Var {
-	if s.arena != nil {
+	if s.arena != nil && (!s.scanDone || s.parent != nil) {
 		v := s.arena.allocVar()
 		initVar(v, var_.name(), nil, s, -1, nil, nil)
 		return v

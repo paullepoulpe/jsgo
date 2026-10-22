@@ -48,44 +48,283 @@ type scopedVarKey struct {
 	name      string
 }
 
-type referenceCollectorArena struct {
+type rcVarSlabs struct {
 	vars           []*Var
 	cols           []*ReferenceCollection
+	refSlab        []Reference
 	refChunks      [][]Reference
 	refChunkIdx    int
+	refPtrSlab     []*Reference
 	refPtrChunks   [][]*Reference
 	refPtrChunkIdx int
+	colSlab        []ReferenceCollection
 	colChunks      [][]ReferenceCollection
 	colChunkIdx    int
-	blkChunks      [][]BasicBlock
-	blkChunkIdx    int
-	hoistedTable   []*rhino.Node
-	hoistedList    []*rhino.Node
-	argumentsRefs  map[*rhino.Node]*ReferenceCollection
+	pooled         bool
+}
+
+func (s *rcVarSlabs) addVarCol(v *Var, col *ReferenceCollection, minGrow int) {
+	if len(s.vars) == cap(s.vars) {
+		newCap := max(cap(s.vars)*2, minGrow)
+		newVars := make([]*Var, len(s.vars), newCap)
+		copy(newVars, s.vars)
+		s.vars = newVars
+		newCols := make([]*ReferenceCollection, len(s.cols), newCap)
+		copy(newCols, s.cols)
+		s.cols = newCols
+	}
+	s.vars = append(s.vars, v)
+	s.cols = append(s.cols, col)
+	v.nameHash = int32(len(s.vars))
+}
+
+func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
+	if len(s.refSlab) == cap(s.refSlab) {
+		if s.pooled {
+			if s.refChunkIdx > 0 {
+				s.refChunks[s.refChunkIdx-1] = s.refSlab
+			}
+			if s.refChunkIdx < len(s.refChunks) {
+				s.refSlab = s.refChunks[s.refChunkIdx][:0]
+				s.refChunkIdx++
+			} else {
+				newCap := 256
+				if cap(s.refSlab) >= 256 {
+					newCap = min(cap(s.refSlab)*2, 8192)
+				}
+				s.refSlab = make([]Reference, 0, newCap)
+				s.refChunks = append(s.refChunks, s.refSlab)
+				s.refChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(s.refSlab) >= 256 {
+				newCap = min(cap(s.refSlab)*2, 8192)
+			}
+			s.refSlab = make([]Reference, 0, newCap)
+		}
+	}
+	idx := len(s.refSlab)
+	s.refSlab = s.refSlab[:idx+1]
+	r := &s.refSlab[idx]
+	r.nameNode = n
+	r.basicBlock = basicBlock
+	r.scope = scope
+	r.inputId = inputId
+	return r
+}
+
+func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
+	if len(s.colSlab) == cap(s.colSlab) {
+		if s.pooled {
+			if s.colChunkIdx > 0 {
+				s.colChunks[s.colChunkIdx-1] = s.colSlab
+			}
+			if s.colChunkIdx < len(s.colChunks) {
+				s.colSlab = s.colChunks[s.colChunkIdx][:0]
+				s.colChunkIdx++
+			} else {
+				newCap := 64
+				if cap(s.colSlab) >= 64 {
+					newCap = min(cap(s.colSlab)*2, 4096)
+				}
+				s.colSlab = make([]ReferenceCollection, 0, newCap)
+				s.colChunks = append(s.colChunks, s.colSlab)
+				s.colChunkIdx++
+			}
+		} else {
+			newCap := 64
+			if cap(s.colSlab) >= 64 {
+				newCap = min(cap(s.colSlab)*2, 4096)
+			}
+			s.colSlab = make([]ReferenceCollection, 0, newCap)
+		}
+	}
+	idx := len(s.colSlab)
+	s.colSlab = s.colSlab[:idx+1]
+	col := &s.colSlab[idx]
+	if col.references != nil {
+		return col
+	}
+	return initReferenceCollection(col)
+}
+
+func (s *rcVarSlabs) allocRefPtrSlice(n int) []*Reference {
+	if len(s.refPtrSlab)+n > cap(s.refPtrSlab) {
+		if s.pooled {
+			if s.refPtrChunkIdx > 0 {
+				s.refPtrChunks[s.refPtrChunkIdx-1] = s.refPtrSlab
+			}
+			if s.refPtrChunkIdx < len(s.refPtrChunks) {
+				ch := s.refPtrChunks[s.refPtrChunkIdx]
+				if cap(ch) < n {
+					ch = make([]*Reference, 0, max(8192, n))
+					s.refPtrChunks[s.refPtrChunkIdx] = ch
+				}
+				s.refPtrSlab = ch[:0]
+				s.refPtrChunkIdx++
+			} else {
+				s.refPtrSlab = make([]*Reference, 0, max(8192, n))
+				s.refPtrChunks = append(s.refPtrChunks, s.refPtrSlab)
+				s.refPtrChunkIdx++
+			}
+		} else {
+			newCap := 256
+			if cap(s.refPtrSlab) >= 256 {
+				newCap = min(cap(s.refPtrSlab)*2, 4096)
+			}
+			if newCap < n {
+				newCap = n
+			}
+			s.refPtrSlab = make([]*Reference, 0, newCap)
+		}
+	}
+	idx := len(s.refPtrSlab)
+	s.refPtrSlab = s.refPtrSlab[:idx+n]
+	return s.refPtrSlab[idx : idx+n : idx+n]
+}
+
+func (s *rcVarSlabs) growReferenceCollection(col *ReferenceCollection, slice []*Reference) {
+	oldCap := cap(slice)
+	newCap := 16
+	if oldCap >= 16 {
+		newCap = oldCap * 2
+	}
+	newBuf := s.allocRefPtrSlice(newCap)
+	col.refsList.InitWithBuffer(newBuf)
+	col.refsList.AddAll(slice...)
+	if oldCap == len(col.refsBuf) {
+		clear(slice)
+	}
+}
+
+func (s *rcVarSlabs) reset(maxRefChunks, maxRefPtrChunks, maxColChunks, maxVarsCap int) {
+	for _, kv := range s.vars {
+		kv.nameHash = 0
+	}
+	if cap(s.vars) <= maxVarsCap {
+		clear(s.vars)
+		s.vars = s.vars[:0]
+		clear(s.cols)
+		s.cols = s.cols[:0]
+	} else {
+		s.vars = nil
+		s.cols = nil
+	}
+	if s.refChunkIdx > 0 {
+		s.refChunks[s.refChunkIdx-1] = s.refSlab
+	}
+	for i := 0; i < s.refChunkIdx && i < maxRefChunks; i++ {
+		ch := s.refChunks[i]
+		clear(ch)
+		s.refChunks[i] = ch[:0]
+	}
+	if len(s.refChunks) > maxRefChunks {
+		clear(s.refChunks[maxRefChunks:])
+		s.refChunks = s.refChunks[:maxRefChunks]
+	}
+	s.refSlab = nil
+	s.refChunkIdx = 0
+
+	if s.refPtrChunkIdx > 0 {
+		s.refPtrChunks[s.refPtrChunkIdx-1] = s.refPtrSlab
+	}
+	for i := 0; i < s.refPtrChunkIdx && i < maxRefPtrChunks; i++ {
+		ch := s.refPtrChunks[i]
+		clear(ch)
+		s.refPtrChunks[i] = ch[:0]
+	}
+	if len(s.refPtrChunks) > maxRefPtrChunks {
+		clear(s.refPtrChunks[maxRefPtrChunks:])
+		s.refPtrChunks = s.refPtrChunks[:maxRefPtrChunks]
+	}
+	s.refPtrSlab = nil
+	s.refPtrChunkIdx = 0
+
+	if s.colChunkIdx > 0 {
+		s.colChunks[s.colChunkIdx-1] = s.colSlab
+	}
+	for i := 0; i < s.colChunkIdx && i < maxColChunks; i++ {
+		ch := s.colChunks[i]
+		for j := range ch {
+			col := &ch[j]
+			if cap(col.refsList.Slice()) == len(col.refsBuf) {
+				col.refsList.Clear()
+			} else {
+				col.refsList.InitWithBuffer(col.refsBuf[:])
+			}
+		}
+		s.colChunks[i] = ch[:0]
+	}
+	if len(s.colChunks) > maxColChunks {
+		clear(s.colChunks[maxColChunks:])
+		s.colChunks = s.colChunks[:maxColChunks]
+	}
+	s.colSlab = nil
+	s.colChunkIdx = 0
+}
+
+type referenceCollectorArena struct {
+	global        rcVarSlabs
+	local         rcVarSlabs
+	blkChunks     [][]BasicBlock
+	blkChunkIdx   int
+	hoistedTable  []*rhino.Node
+	hoistedList   []*rhino.Node
+	argumentsRefs map[*rhino.Node]*ReferenceCollection
 }
 
 var cachedRCArenas [2]atomic.Pointer[referenceCollectorArena]
 
 var referenceCollectorArenaPool = sync.Pool{
 	New: func() any {
-		return &referenceCollectorArena{}
+		return &referenceCollectorArena{
+			global: rcVarSlabs{pooled: true},
+			local:  rcVarSlabs{pooled: true},
+		}
 	},
 }
 
 func acquireRCArena() *referenceCollectorArena {
 	for i := range cachedRCArenas {
 		if a := cachedRCArenas[i].Swap(nil); a != nil {
+			a.global.pooled = true
+			a.local.pooled = true
 			return a
 		}
 	}
-	return referenceCollectorArenaPool.Get().(*referenceCollectorArena)
+	a := referenceCollectorArenaPool.Get().(*referenceCollectorArena)
+	a.global.pooled = true
+	a.local.pooled = true
+	return a
+}
+
+func (a *referenceCollectorArena) trimSmall() {
+	a.global.reset(8, 8, 8, 4096)
+	a.local.reset(8, 8, 8, 4096)
+	if len(a.blkChunks) > 8 {
+		clear(a.blkChunks[8:])
+		a.blkChunks = a.blkChunks[:8]
+	}
 }
 
 func releaseRCArena(a *referenceCollectorArena) {
-	for i := range cachedRCArenas {
-		if cachedRCArenas[i].CompareAndSwap(nil, a) {
+	if cachedRCArenas[0].CompareAndSwap(nil, a) {
+		return
+	}
+	if old := cachedRCArenas[0].Load(); old != nil && len(a.global.refChunks)+len(a.blkChunks) > len(old.global.refChunks)+len(old.blkChunks) {
+		if cachedRCArenas[0].CompareAndSwap(old, a) {
+			old.trimSmall()
+			if cachedRCArenas[1].CompareAndSwap(nil, old) {
+				return
+			}
+			referenceCollectorArenaPool.Put(old)
 			return
 		}
+	}
+	a.trimSmall()
+	if cachedRCArenas[1].CompareAndSwap(nil, a) {
+		return
 	}
 	referenceCollectorArenaPool.Put(a)
 }
@@ -114,18 +353,25 @@ type ReferenceCollector struct {
 	// hence the Object map.
 	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
 
-	vars            []*Var
-	cols            []*ReferenceCollection
-	varsBuf         [16]*Var
-	colsBuf         [16]*ReferenceCollection
-	refByKey        map[scopedVarKey]*ReferenceCollection
-	argumentsRefs   map[*rhino.Node]*ReferenceCollection
-	lastVar         *Var
-	lastCollection  *ReferenceCollection
-	lastRejectedVar *Var
-	activeTraversal *NodeTraversal
-	arena           *referenceCollectorArena
-	poolable        bool
+	defaultSlabs     rcVarSlabs
+	globalSlabs      *rcVarSlabs
+	localSlabs       *rcVarSlabs
+	varsBuf          [16]*Var
+	colsBuf          [16]*ReferenceCollection
+	refByKey         map[scopedVarKey]*ReferenceCollection
+	argumentsRefs    map[*rhino.Node]*ReferenceCollection
+	lastVar          *Var
+	lastCollection   *ReferenceCollection
+	lastRejectedVar  *Var
+	activeTraversal  *NodeTraversal
+	arena            *referenceCollectorArena
+	poolable         bool
+	reclaimLocals    bool
+	canReclaimLocals func() bool
+	localScopeDepth  int
+	globalRefInLocal bool
+	baseBlkChunkIdx  int
+	baseBlkSlabLen   int
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
@@ -157,14 +403,11 @@ type ReferenceCollector struct {
 
 	narrowScope *Scope
 
-	refSlab    []Reference
-	refBuf     [8]Reference
-	refPtrSlab []*Reference
-	refPtrBuf  [64]*Reference
-	colSlab    []ReferenceCollection
-	colBuf     [2]ReferenceCollection
-	blockSlab  []BasicBlock
-	blockBuf   [8]BasicBlock
+	refBuf    [8]Reference
+	refPtrBuf [64]*Reference
+	colBuf    [2]ReferenceCollection
+	blockSlab []BasicBlock
+	blockBuf  [8]BasicBlock
 }
 
 // NewReferenceCollector: constructor initializes block stack.
@@ -192,12 +435,14 @@ func NewReferenceCollectorWithVarFilter(
 		scopeCreator: creator,
 		varFilter:    varFilter,
 	}
-	c.vars = c.varsBuf[:0]
-	c.cols = c.colsBuf[:0]
+	c.defaultSlabs.vars = c.varsBuf[:0]
+	c.defaultSlabs.cols = c.colsBuf[:0]
+	c.defaultSlabs.refSlab = c.refBuf[:0]
+	c.defaultSlabs.refPtrSlab = c.refPtrBuf[:0]
+	c.defaultSlabs.colSlab = c.colBuf[:0]
+	c.globalSlabs = &c.defaultSlabs
+	c.localSlabs = &c.defaultSlabs
 	c.blockStack = c.blockStackBuf[:0]
-	c.refSlab = c.refBuf[:0]
-	c.refPtrSlab = c.refPtrBuf[:0]
-	c.colSlab = c.colBuf[:0]
 	c.blockSlab = c.blockBuf[:0]
 	c.callbackVal.c = c
 	c.callback = &c.callbackVal
@@ -207,9 +452,19 @@ func NewReferenceCollectorWithVarFilter(
 
 func (c *ReferenceCollector) enableArenaPool() {
 	c.poolable = true
+	a := c.getArena()
+	c.globalSlabs = &a.global
+	c.localSlabs = &a.global
 	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
 		sc.EnableArenaPool()
 	}
+}
+
+func (c *ReferenceCollector) enableLocalReclamation(canReclaim func() bool) {
+	c.enableArenaPool()
+	c.reclaimLocals = true
+	c.canReclaimLocals = canReclaim
+	c.localSlabs = &c.arena.local
 }
 
 func (c *ReferenceCollector) getArena() *referenceCollectorArena {
@@ -219,11 +474,61 @@ func (c *ReferenceCollector) getArena() *referenceCollectorArena {
 	return c.arena
 }
 
+func (c *ReferenceCollector) slabsForVar(v *Var) *rcVarSlabs {
+	if c.reclaimLocals && v.scope != nil && v.scope.parent != nil {
+		return c.localSlabs
+	}
+	return c.globalSlabs
+}
+
+func (c *ReferenceCollector) maybeReclaimLocals() {
+	if c.narrowScope != nil || c.referenceMap != nil || (c.canReclaimLocals != nil && !c.canReclaimLocals()) {
+		return
+	}
+	c.localSlabs.reset(64, 64, 64, 65536)
+	if c.lastVar != nil && c.lastVar.scope != nil && c.lastVar.scope.parent != nil {
+		c.lastVar = nil
+		c.lastCollection = nil
+	}
+	if c.lastRejectedVar != nil && c.lastRejectedVar.scope != nil && c.lastRejectedVar.scope.parent != nil {
+		c.lastRejectedVar = nil
+	}
+	if len(c.argumentsRefs) > 0 {
+		clear(c.argumentsRefs)
+	}
+	if c.refByKey != nil {
+		clear(c.refByKey)
+		c.refByKey = nil
+	}
+	if !c.globalRefInLocal && c.arena != nil && c.baseBlkChunkIdx > 0 {
+		a := c.arena
+		if a.blkChunkIdx > 0 {
+			a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
+		}
+		b := c.baseBlkChunkIdx - 1
+		if a.blkChunkIdx-1 == b {
+			clear(c.blockSlab[c.baseBlkSlabLen:])
+			c.blockSlab = c.blockSlab[:c.baseBlkSlabLen]
+		} else if a.blkChunkIdx-1 > b {
+			chB := a.blkChunks[b]
+			clear(chB[c.baseBlkSlabLen:])
+			a.blkChunks[b] = chB[:c.baseBlkSlabLen]
+			for i := b + 1; i < a.blkChunkIdx; i++ {
+				ch := a.blkChunks[i]
+				clear(ch)
+				a.blkChunks[i] = ch[:0]
+			}
+			c.blockSlab = a.blkChunks[b]
+			a.blkChunkIdx = c.baseBlkChunkIdx
+		}
+	}
+}
+
 func (c *ReferenceCollector) release() {
 	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
 		defer sc.ReleaseArena()
 	}
-	for _, kv := range c.vars {
+	for _, kv := range c.defaultSlabs.vars {
 		kv.nameHash = 0
 	}
 	a := c.arena
@@ -231,19 +536,10 @@ func (c *ReferenceCollector) release() {
 		return
 	}
 	c.arena = nil
-	if cap(c.vars) > len(c.varsBuf) {
-		if cap(c.vars) <= 524288 {
-			clear(c.vars)
-			a.vars = c.vars[:0]
-			clear(c.cols)
-			a.cols = c.cols[:0]
-		} else {
-			a.vars = nil
-			a.cols = nil
-		}
-	}
-	c.vars = nil
-	c.cols = nil
+	a.global.reset(512, 256, 256, 1048576)
+	a.local.reset(64, 64, 64, 65536)
+	c.globalSlabs = &c.defaultSlabs
+	c.localSlabs = &c.defaultSlabs
 	if len(c.hoistedTable) > 0 && len(c.hoistedList) > 0 {
 		if len(c.hoistedTable) <= 524288 {
 			if len(c.hoistedList)*16 < len(c.hoistedTable) {
@@ -284,55 +580,7 @@ func (c *ReferenceCollector) release() {
 		}
 	}
 	c.argumentsRefs = nil
-	const (
-		maxRetainedRefChunks    = 128
-		maxRetainedRefPtrChunks = 128
-		maxRetainedColChunks    = 96
-		maxRetainedBlkChunks    = 96
-	)
-	if a.refChunkIdx > 0 {
-		a.refChunks[a.refChunkIdx-1] = c.refSlab
-	}
-	for i := 0; i < a.refChunkIdx && i < maxRetainedRefChunks; i++ {
-		ch := a.refChunks[i]
-		clear(ch)
-		a.refChunks[i] = ch[:0]
-	}
-	if len(a.refChunks) > maxRetainedRefChunks {
-		clear(a.refChunks[maxRetainedRefChunks:])
-		a.refChunks = a.refChunks[:maxRetainedRefChunks]
-	}
-	if a.refPtrChunkIdx > 0 {
-		a.refPtrChunks[a.refPtrChunkIdx-1] = c.refPtrSlab
-	}
-	for i := 0; i < a.refPtrChunkIdx && i < maxRetainedRefPtrChunks; i++ {
-		ch := a.refPtrChunks[i]
-		clear(ch)
-		a.refPtrChunks[i] = ch[:0]
-	}
-	if len(a.refPtrChunks) > maxRetainedRefPtrChunks {
-		clear(a.refPtrChunks[maxRetainedRefPtrChunks:])
-		a.refPtrChunks = a.refPtrChunks[:maxRetainedRefPtrChunks]
-	}
-	if a.colChunkIdx > 0 {
-		a.colChunks[a.colChunkIdx-1] = c.colSlab
-	}
-	for i := 0; i < a.colChunkIdx && i < maxRetainedColChunks; i++ {
-		ch := a.colChunks[i]
-		for j := range ch {
-			col := &ch[j]
-			if cap(col.refsList.Slice()) == len(col.refsBuf) {
-				col.refsList.Clear()
-			} else {
-				col.refsList.InitWithBuffer(col.refsBuf[:])
-			}
-		}
-		a.colChunks[i] = ch[:0]
-	}
-	if len(a.colChunks) > maxRetainedColChunks {
-		clear(a.colChunks[maxRetainedColChunks:])
-		a.colChunks = a.colChunks[:maxRetainedColChunks]
-	}
+	const maxRetainedBlkChunks = 160
 	if a.blkChunkIdx > 0 {
 		a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
 	}
@@ -345,134 +593,8 @@ func (c *ReferenceCollector) release() {
 		clear(a.blkChunks[maxRetainedBlkChunks:])
 		a.blkChunks = a.blkChunks[:maxRetainedBlkChunks]
 	}
-	a.refChunkIdx = 0
-	a.refPtrChunkIdx = 0
-	a.colChunkIdx = 0
 	a.blkChunkIdx = 0
 	releaseRCArena(a)
-}
-
-func (c *ReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
-	if len(c.refSlab) == cap(c.refSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.refChunkIdx > 0 {
-				a.refChunks[a.refChunkIdx-1] = c.refSlab
-			}
-			if a.refChunkIdx < len(a.refChunks) {
-				c.refSlab = a.refChunks[a.refChunkIdx][:0]
-				a.refChunkIdx++
-			} else {
-				newCap := 256
-				if cap(c.refSlab) >= 256 {
-					newCap = min(cap(c.refSlab)*2, 8192)
-				}
-				c.refSlab = make([]Reference, 0, newCap)
-				a.refChunks = append(a.refChunks, c.refSlab)
-				a.refChunkIdx++
-			}
-		} else {
-			newCap := 256
-			if cap(c.refSlab) >= 256 {
-				newCap = min(cap(c.refSlab)*2, 8192)
-			}
-			c.refSlab = make([]Reference, 0, newCap)
-		}
-	}
-	idx := len(c.refSlab)
-	c.refSlab = c.refSlab[:idx+1]
-	r := &c.refSlab[idx]
-	r.nameNode = n
-	r.basicBlock = basicBlock
-	r.scope = scope
-	r.inputId = inputId
-	return r
-}
-
-func (c *ReferenceCollector) allocReferenceCollection() *ReferenceCollection {
-	if len(c.colSlab) == cap(c.colSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.colChunkIdx > 0 {
-				a.colChunks[a.colChunkIdx-1] = c.colSlab
-			}
-			if a.colChunkIdx < len(a.colChunks) {
-				c.colSlab = a.colChunks[a.colChunkIdx][:0]
-				a.colChunkIdx++
-			} else {
-				newCap := 64
-				if cap(c.colSlab) >= 64 {
-					newCap = min(cap(c.colSlab)*2, 4096)
-				}
-				c.colSlab = make([]ReferenceCollection, 0, newCap)
-				a.colChunks = append(a.colChunks, c.colSlab)
-				a.colChunkIdx++
-			}
-		} else {
-			newCap := 64
-			if cap(c.colSlab) >= 64 {
-				newCap = min(cap(c.colSlab)*2, 4096)
-			}
-			c.colSlab = make([]ReferenceCollection, 0, newCap)
-		}
-	}
-	idx := len(c.colSlab)
-	c.colSlab = c.colSlab[:idx+1]
-	col := &c.colSlab[idx]
-	if col.references != nil {
-		return col
-	}
-	return initReferenceCollection(col)
-}
-
-func (c *ReferenceCollector) allocRefPtrSlice(n int) []*Reference {
-	if len(c.refPtrSlab)+n > cap(c.refPtrSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.refPtrChunkIdx > 0 {
-				a.refPtrChunks[a.refPtrChunkIdx-1] = c.refPtrSlab
-			}
-			if a.refPtrChunkIdx < len(a.refPtrChunks) {
-				ch := a.refPtrChunks[a.refPtrChunkIdx]
-				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(8192, n))
-					a.refPtrChunks[a.refPtrChunkIdx] = ch
-				}
-				c.refPtrSlab = ch[:0]
-				a.refPtrChunkIdx++
-			} else {
-				c.refPtrSlab = make([]*Reference, 0, max(8192, n))
-				a.refPtrChunks = append(a.refPtrChunks, c.refPtrSlab)
-				a.refPtrChunkIdx++
-			}
-		} else {
-			newCap := 256
-			if cap(c.refPtrSlab) >= 256 {
-				newCap = min(cap(c.refPtrSlab)*2, 4096)
-			}
-			if newCap < n {
-				newCap = n
-			}
-			c.refPtrSlab = make([]*Reference, 0, newCap)
-		}
-	}
-	idx := len(c.refPtrSlab)
-	c.refPtrSlab = c.refPtrSlab[:idx+n]
-	return c.refPtrSlab[idx : idx+n : idx+n]
-}
-
-func (c *ReferenceCollector) growReferenceCollection(col *ReferenceCollection, s []*Reference) {
-	oldCap := cap(s)
-	newCap := 16
-	if oldCap >= 16 {
-		newCap = oldCap * 2
-	}
-	newBuf := c.allocRefPtrSlice(newCap)
-	col.refsList.InitWithBuffer(newBuf)
-	col.refsList.AddAll(s...)
-	if oldCap == len(col.refsBuf) {
-		clear(s)
-	}
 }
 
 func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
@@ -626,28 +748,6 @@ func (c *ReferenceCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
 	}
 }
 
-func (c *ReferenceCollector) growVarsCols() {
-	if c.poolable && cap(c.vars) == len(c.varsBuf) {
-		a := c.getArena()
-		if cap(a.vars) > len(c.vars) {
-			c.vars = append(a.vars[:0], c.vars...)
-			c.cols = append(a.cols[:0], c.cols...)
-			return
-		}
-	}
-	newCap := max(cap(c.vars)*2, 4096)
-	newVars := make([]*Var, len(c.vars), newCap)
-	copy(newVars, c.vars)
-	c.vars = newVars
-	newCols := make([]*ReferenceCollection, len(c.cols), newCap)
-	copy(newCols, c.cols)
-	c.cols = newCols
-	if c.arena != nil {
-		c.arena.vars = newVars[:0]
-		c.arena.cols = newCols[:0]
-	}
-}
-
 func (c *ReferenceCollector) recordNewVarCol(v *Var, col *ReferenceCollection) {
 	if v.name == Var_ARGUMENTS {
 		if c.argumentsRefs == nil {
@@ -671,47 +771,48 @@ func (c *ReferenceCollector) recordNewVarCol(v *Var, col *ReferenceCollection) {
 	}
 }
 
-func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection {
+func (c *ReferenceCollector) getOrCreateReferences(v *Var) (*ReferenceCollection, *rcVarSlabs) {
+	slabs := c.slabsForVar(v)
 	if v == c.lastVar && v != nil {
-		return c.lastCollection
+		return c.lastCollection, slabs
 	}
-	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
-		col := c.cols[idx]
+	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(slabs.vars) && slabs.vars[idx] == v {
+		col := slabs.cols[idx]
 		c.lastVar = v
 		c.lastCollection = col
-		return col
+		return col, slabs
 	}
-	if len(c.vars) <= len(c.varsBuf) {
-		for i, kv := range c.vars {
+	if !c.poolable && len(slabs.vars) <= len(c.varsBuf) {
+		for i, kv := range slabs.vars {
 			if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
-				col := c.cols[i]
+				col := slabs.cols[i]
 				v.nameHash = int32(i + 1)
 				c.lastVar = v
 				c.lastCollection = col
-				return col
+				return col, slabs
 			}
 		}
 	}
-	col := c.allocReferenceCollection()
-	if len(c.vars) == cap(c.vars) {
-		c.growVarsCols()
+	col := slabs.allocReferenceCollection()
+	minGrow := 4096
+	if c.reclaimLocals && slabs == c.localSlabs {
+		minGrow = 256
 	}
-	c.vars = append(c.vars, v)
-	c.cols = append(c.cols, col)
+	slabs.addVarCol(v, col, minGrow)
 	c.recordNewVarCol(v, col)
-	v.nameHash = int32(len(c.vars))
 	c.lastVar = v
 	c.lastCollection = col
-	return col
+	return col, slabs
 }
 
 func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
+	slabs := c.slabsForVar(v)
 	if s := v.scope; s != nil {
 		if s.implicitVars != nil {
 			if imp := AbstractScope_ImplicitVar_Of(v.name); imp != nil {
 				if canon := s.implicitVars[*imp]; canon != nil && canon != v {
-					if idx := int(canon.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == canon {
-						col := c.cols[idx]
+					if idx := int(canon.nameHash) - 1; idx >= 0 && idx < len(slabs.vars) && slabs.vars[idx] == canon {
+						col := slabs.cols[idx]
 						v.nameHash = canon.nameHash
 						c.lastVar = v
 						c.lastCollection = col
@@ -741,17 +842,33 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 			return nil
 		}
 	}
-	if len(c.vars) <= len(c.varsBuf) {
-		for i, kv := range c.vars {
+	gVars := c.globalSlabs.vars
+	gCols := c.globalSlabs.cols
+	var lVars []*Var
+	var lCols []*ReferenceCollection
+	if c.reclaimLocals {
+		lVars = c.localSlabs.vars
+		lCols = c.localSlabs.cols
+	}
+	if len(gVars)+len(lVars) <= len(c.varsBuf) {
+		for i, kv := range gVars {
 			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
-				return c.cols[i]
+				return gCols[i]
+			}
+		}
+		for i, kv := range lVars {
+			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
+				return lCols[i]
 			}
 		}
 	} else {
 		if c.refByKey == nil {
-			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, len(c.vars))
-			for i, kv := range c.vars {
-				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = c.cols[i]
+			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, len(gVars)+len(lVars))
+			for i, kv := range gVars {
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = gCols[i]
+			}
+			for i, kv := range lVars {
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = lCols[i]
 			}
 		}
 		if col := c.refByKey[scopedVarKey{scopeRoot: scopeRoot, name: name}]; col != nil {
@@ -771,9 +888,15 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 func (c *ReferenceCollector) ensureRawReferenceMap() *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection] {
 	if c.referenceMap == nil {
 		c.referenceMap = jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
-		for i, v := range c.vars {
+		for i, v := range c.globalSlabs.vars {
 			v.nameHash = 0
-			c.referenceMap.Put(v, c.cols[i])
+			c.referenceMap.Put(v, c.globalSlabs.cols[i])
+		}
+		if c.reclaimLocals {
+			for i, v := range c.localSlabs.vars {
+				v.nameHash = 0
+				c.referenceMap.Put(v, c.localSlabs.cols[i])
+			}
 		}
 	}
 	return c.referenceMap
@@ -844,7 +967,21 @@ func (c *ReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
 	if c.referenceMap != nil {
 		return c.referenceMap.Keys()
 	}
-	return slices.Values(c.vars)
+	if !c.reclaimLocals || len(c.localSlabs.vars) == 0 {
+		return slices.Values(c.globalSlabs.vars)
+	}
+	return func(yield func(*Var) bool) {
+		for _, v := range c.globalSlabs.vars {
+			if !yield(v) {
+				return
+			}
+		}
+		for _, v := range c.localSlabs.vars {
+			if !yield(v) {
+				return
+			}
+		}
+	}
 }
 
 // GetScope narrows StaticSymbolTable.getScope; see ReferenceCollector.
@@ -868,8 +1005,9 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
-	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
-		col := c.cols[idx]
+	slabs := c.slabsForVar(v)
+	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(slabs.vars) && slabs.vars[idx] == v {
+		col := slabs.cols[idx]
 		c.lastVar = v
 		c.lastCollection = col
 		return col
@@ -1083,6 +1221,16 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 //
 // Java: ReferenceCollector.CollectorCallback.enterScope(NodeTraversal)
 func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
+	if !t.InGlobalScope() {
+		if cb.c.localScopeDepth == 0 && cb.c.reclaimLocals {
+			cb.c.globalRefInLocal = false
+			if cb.c.arena != nil {
+				cb.c.baseBlkChunkIdx = cb.c.arena.blkChunkIdx
+				cb.c.baseBlkSlabLen = len(cb.c.blockSlab)
+			}
+		}
+		cb.c.localScopeDepth++
+	}
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() or processScope() and removed in visit().
@@ -1102,6 +1250,12 @@ func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 	cb.c.activeTraversal = t
 	cb.c.behavior.AfterExitScope(t, &cb.c.referenceMapWrapper)
 	cb.c.activeTraversal = prevTraversal
+	if !t.InGlobalScope() {
+		cb.c.localScopeDepth--
+		if cb.c.localScopeDepth == 0 && cb.c.reclaimLocals {
+			cb.c.maybeReclaimLocals()
+		}
+	}
 }
 
 // Visit: for each node, update the block stack and reference collection as
@@ -1207,14 +1361,16 @@ func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversa
 
 func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *NodeTraversal, scope *Scope) {
 	var collection *ReferenceCollection
+	var slabs *rcVarSlabs
 	if v == c.lastVar && v != nil {
 		collection = c.lastCollection
+		slabs = c.slabsForVar(v)
 	} else {
 		if c.varFilter != nil && (v == c.lastRejectedVar || !c.varFilter(v)) {
 			c.lastRejectedVar = v
 			return
 		}
-		collection = c.getOrCreateReferences(v)
+		collection, slabs = c.getOrCreateReferences(v)
 	}
 
 	// Add this particular reference
@@ -1228,10 +1384,13 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *Nod
 	if t.compilerInput == nil {
 		inputId = t.GetInput().GetInputId()
 	}
-	ref := c.allocReference(n, scope, c.getCurrentBlock(), inputId)
+	if slabs == c.globalSlabs && c.localScopeDepth > 0 {
+		c.globalRefInLocal = true
+	}
+	ref := slabs.allocReference(n, scope, c.getCurrentBlock(), inputId)
 	s := collection.refsList.Slice()
 	if len(s) == cap(s) {
-		c.growReferenceCollection(collection, s)
+		slabs.growReferenceCollection(collection, s)
 	}
 	collection.refsList.Add(ref)
 }

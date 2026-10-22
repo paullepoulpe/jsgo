@@ -36,11 +36,25 @@ type SyntacticScopeCreator struct {
 	lastInput                     *CompilerInput
 	arena                         *scopeArena
 	poolable                      bool
+	reclaimLocalScopes            bool
 }
 
 func (c *SyntacticScopeCreator) EnableArenaPool() {
 	if c != nil {
 		c.poolable = true
+	}
+}
+
+func (c *SyntacticScopeCreator) EnableLocalScopeReclamation() {
+	if c != nil {
+		c.poolable = true
+		c.reclaimLocalScopes = true
+	}
+}
+
+func (c *SyntacticScopeCreator) ResetLocalArena() {
+	if c != nil && c.arena != nil {
+		c.arena.resetToBase()
 	}
 }
 
@@ -129,6 +143,9 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 	scanner.creator = c
 	scanner.Populate()
 	scope.scanDone = true
+	if parent == nil {
+		c.arena.markGlobalBase()
+	}
 	return scope
 }
 
@@ -302,7 +319,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsExact() {
 	sc := s.scope
 	k := s.smallLen
 	s.smallLen = 0
-	if sc.arena != nil {
+	if sc.arena != nil && sc.parent != nil {
 		sc.varList = sc.arena.allocVarList(k, k)
 	} else {
 		sc.varList = make([]*Var, k)

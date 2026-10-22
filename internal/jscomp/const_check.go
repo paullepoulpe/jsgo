@@ -37,9 +37,8 @@ import (
 type ConstCheck struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	compiler AbstractCompiler
-	// Var equality is ScopedName's (name and scope root), hence the Object* set.
-	initializedConstants *jutil.ObjectLinkedHashSet[*Var]
+	compiler             AbstractCompiler
+	initializedConstants map[*rhino.Node]struct{}
 }
 
 // Java: ConstCheck.CONST_REASSIGNED_VALUE_ERROR
@@ -53,16 +52,28 @@ var ConstCheck_CONST_REASSIGNED_VALUE_ERROR = DiagnosticType_Warning(
 func NewConstCheck(compiler AbstractCompiler) *ConstCheck {
 	c := &ConstCheck{}
 	c.compiler = compiler
-	c.initializedConstants = jutil.NewObjectLinkedHashSet[*Var]()
+	c.initializedConstants = make(map[*rhino.Node]struct{})
 	return c
+}
+
+func (c *ConstCheck) addInitializedConstant(var_ *Var) bool {
+	key := var_.nameNode
+	if key == nil {
+		key = var_.scope.rootNode
+	}
+	if _, exists := c.initializedConstants[key]; exists {
+		return false
+	}
+	c.initializedConstants[key] = struct{}{}
+	return true
 }
 
 // Java: ConstCheck.process(Node, Node)
 func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := NewSyntacticScopeCreator(c.compiler)
-	sc.EnableArenaPool()
+	sc.EnableLocalScopeReclamation()
 	defer func() {
-		c.initializedConstants.Clear()
+		clear(c.initializedConstants)
 		sc.ReleaseArena()
 	}()
 	b := NodeTraversal_Builder{
@@ -86,9 +97,9 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 				// If a constant is declared in externs, add it to initializedConstants to indicate
 				// that it is initialized externally.
 				if n.IsFromExterns() {
-					c.initializedConstants.Add(var_)
+					c.addInitializedConstant(var_)
 				} else if n.HasChildren() {
-					if !c.initializedConstants.Add(var_) {
+					if !c.addInitializedConstant(var_) {
 						c.ReportError(n, var_, name)
 					}
 				}
@@ -111,9 +122,9 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		if lhs.IsName() {
 			name := lhs.GetString()
 			var_ := t.LookupVar(name)
-			if c.IsConstant(var_, lhs) && !c.initializedConstants.Add(var_) {
+			if c.IsConstant(var_, lhs) && !c.addInitializedConstant(var_) {
 				c.ReportError(n, var_, name)
-			} else if var_ != nil && var_.IsGoogModuleExports() && !c.initializedConstants.Add(var_) {
+			} else if var_ != nil && var_.IsGoogModuleExports() && !c.addInitializedConstant(var_) {
 				c.compiler.Report(
 					JSError_MakeWithNode(n, ConstCheck_CONST_REASSIGNED_VALUE_ERROR, "exports",
 						jutil.ToJavaString(n.GetSourceFileName())))

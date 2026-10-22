@@ -226,12 +226,6 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 
 // NewLinkedHashMapWithCapacity returns an empty map pre-sized for cap entries.
 func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K, V] {
-	if cap > lhmSmallSize {
-		return &LinkedHashMap[K, V]{
-			m:     &lhmLarge[K, V]{index: make(map[K]int, cap)},
-			slots: make([]LhmSlot[K, V], 0, cap),
-		}
-	}
 	if cap > 0 {
 		return &LinkedHashMap[K, V]{
 			slots: make([]LhmSlot[K, V], 0, cap),
@@ -259,6 +253,10 @@ func (h *LinkedHashMap[K, V]) isRemoved(i int) bool {
 // find returns k's slot index in h.slots, or -1 if absent.
 func (h *LinkedHashMap[K, V]) find(k K) int {
 	if h.m != nil {
+		return h.m.index[k] - 1
+	}
+	if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
+		h.buildIndex()
 		return h.m.index[k] - 1
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
@@ -337,7 +335,7 @@ func (h *LinkedHashMap[K, V]) HasBacking() bool {
 
 // add appends an entry for k, which must be absent.
 func (h *LinkedHashMap[K, V]) add(k K, v V) {
-	if len(h.slots) < cap(h.slots) && h.m == nil && len(h.slots) < lhmSmallSize {
+	if len(h.slots) < cap(h.slots) && h.m == nil {
 		h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
 		h.size++
 		return
@@ -365,8 +363,6 @@ func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 	h.size++
 	if h.m != nil {
 		h.m.index[k] = idx + 1
-	} else if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
-		h.buildIndex()
 	}
 }
 
@@ -664,6 +660,11 @@ func (s *LinkedHashSet[T]) Add(e T) bool {
 	return true
 }
 
+// AddNew inserts e when the caller has already verified that e is absent.
+func (s *LinkedHashSet[T]) AddNew(e T) {
+	s.m.add(e, struct{}{})
+}
+
 // AddAll adds every element; reports whether the set changed.
 func (s *LinkedHashSet[T]) AddAll(es ...T) bool {
 	changed := false
@@ -875,9 +876,21 @@ func (h *LinkedHashMap[K, V]) HashCode() int32 {
 
 // NewLinkedHashMapFrom is new LinkedHashMap<>(map) / ImmutableMap.copyOf.
 func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *LinkedHashMap[K, V] {
-	out := NewLinkedHashMap[K, V]()
+	n := src.Size()
+	if n == 0 {
+		return &LinkedHashMap[K, V]{}
+	}
+	if int(src.size) == len(src.slots) && src.first == 0 {
+		slots := make([]LhmSlot[K, V], n)
+		copy(slots, src.slots)
+		return &LinkedHashMap[K, V]{
+			slots: slots,
+			size:  int32(n),
+		}
+	}
+	out := NewLinkedHashMapWithCapacity[K, V](n)
 	for k, v := range src.All() {
-		out.Put(k, v)
+		out.PutNew(k, v)
 	}
 	return out
 }
@@ -942,19 +955,11 @@ func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
 	return -1, hash
 }
 
-// chain appends slot idx to the bucket of its hash.
+// chain prepends slot idx to the bucket of its hash.
 func (h *ObjectLinkedHashMap[K, V]) chain(idx int32) {
 	hash := h.slots[idx].hash
-	first := h.buckets[hash] - 1
-	if first < 0 {
-		h.buckets[hash] = idx + 1
-		return
-	}
-	last := first
-	for h.slots[last].hnext >= 0 {
-		last = h.slots[last].hnext
-	}
-	h.slots[last].hnext = idx
+	h.slots[idx].hnext = h.buckets[hash] - 1
+	h.buckets[hash] = idx + 1
 }
 
 func (h *ObjectLinkedHashMap[K, V]) Size() int {

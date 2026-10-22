@@ -145,7 +145,7 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 // Java: VarCheck.process(Node, Node)
 func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := v.CreateScopeCreator()
-	sc.EnableArenaPool()
+	sc.EnableLocalScopeReclamation()
 	defer sc.ReleaseArena()
 	var scopeCreator ScopeCreator = sc
 
@@ -158,6 +158,7 @@ func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 			SetCallback(NewVarCheck_NameRefInExternsCheck(v)).
 			SetScopeCreator(scopeCreator).
 			Traverse(externs)
+		sc.ReleaseArena()
 	}
 
 	NodeTraversal_Builder_().

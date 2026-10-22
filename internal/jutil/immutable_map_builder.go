@@ -5,8 +5,7 @@ package jutil
 // ImmutableMapBuilder is Guava's ImmutableMap.Builder: entries keep their
 // insertion order, and duplicate keys are rejected when the map is built.
 type ImmutableMapBuilder[K comparable, V any] struct {
-	keys   []K
-	values []V
+	slots []LhmSlot[K, V]
 }
 
 // NewImmutableMapBuilder is ImmutableMap.builder().
@@ -22,8 +21,7 @@ func (b *ImmutableMapBuilder[K, V]) Put(k K, v V) *ImmutableMapBuilder[K, V] {
 	} else if IsNil(v) {
 		panic(NewNullPointerExceptionMsg("null value in entry: " + ToJavaString(k) + "=null"))
 	}
-	b.keys = append(b.keys, k)
-	b.values = append(b.values, v)
+	b.slots = append(b.slots, LhmSlot[K, V]{key: k, value: v})
 	return b
 }
 
@@ -34,21 +32,43 @@ func (b *ImmutableMapBuilder[K, V]) Put(k K, v V) *ImmutableMapBuilder[K, V] {
 // later entry with that key: IllegalArgumentException "Multiple entries
 // with same key: k=later and k=earlier".
 func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
-	later := make(map[K]V, len(b.keys))
-	for i := len(b.keys) - 1; i >= 0; i-- {
-		k := b.keys[i]
-		if v, ok := later[k]; ok {
-			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				ToJavaString(k) + "=" + ToJavaString(v) + " and " +
-				ToJavaString(k) + "=" + ToJavaString(b.values[i])))
+	n := len(b.slots)
+	if n == 0 {
+		return &LinkedHashMap[K, V]{}
+	}
+	slots := make([]LhmSlot[K, V], n)
+	copy(slots, b.slots)
+	if n <= lhmSmallSize {
+		for i := n - 1; i >= 0; i-- {
+			k := slots[i].key
+			for j := i + 1; j < n; j++ {
+				if slots[j].key == k {
+					panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+						ToJavaString(k) + "=" + ToJavaString(slots[j].value) + " and " +
+						ToJavaString(k) + "=" + ToJavaString(slots[i].value)))
+				}
+			}
 		}
-		later[k] = b.values[i]
+		return &LinkedHashMap[K, V]{
+			slots: slots,
+			size:  int32(n),
+		}
 	}
-	m := NewLinkedHashMap[K, V]()
-	for i, k := range b.keys {
-		m.Put(k, b.values[i])
+	index := make(map[K]int, n)
+	for i := n - 1; i >= 0; i-- {
+		k := slots[i].key
+		if laterIdx1, ok := index[k]; ok {
+			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+				ToJavaString(k) + "=" + ToJavaString(slots[laterIdx1-1].value) + " and " +
+				ToJavaString(k) + "=" + ToJavaString(slots[i].value)))
+		}
+		index[k] = i + 1
 	}
-	return m
+	return &LinkedHashMap[K, V]{
+		m:     &lhmLarge[K, V]{index: index},
+		slots: slots,
+		size:  int32(n),
+	}
 }
 
 // PutAll is ImmutableMap.Builder.putAll(Map): puts each entry of m, in its

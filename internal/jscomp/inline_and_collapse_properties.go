@@ -1719,6 +1719,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(d
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p *GlobalNamespace_Name) bool {
+	if comp, ok := c.outer.compiler.(*Compiler); ok && comp.currentPassIndex <= 1 && !comp.options.isFastMode() {
+		return false
+	}
 	isAllowedToCollapse :=
 		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
 	return isAllowedToCollapse && p.CanCollapseOrInline().CanCollapse()

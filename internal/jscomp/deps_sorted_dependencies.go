@@ -44,27 +44,86 @@ import (
 type SortedDependencies[InputT DependencyInfo] struct {
 	userOrderedInputs          *jutil.ArrayList[InputT]
 	importOrderedInputs        *jutil.ArrayList[InputT]
-	completedInputs            *jutil.ObjectLinkedHashSet[InputT]
 	nonExportingInputs         *jutil.LinkedHashMap[string, InputT]
 	exportingInputBySymbolName *jutil.LinkedHashMap[string, InputT]
-	// Maps an input A to the inputs it depends on, ie, inputs that provide
-	// stuff that A requires.
-	importedInputByImportingInput *jutil.SetMultimap[InputT, InputT]
+
+	uniqueInputs            []InputT
+	ptrToID                 map[any]int32
+	objToID                 *jutil.ObjectLinkedHashMap[InputT, int32]
+	exportingIDBySymbolName map[string]int32
+	userOrderedIDs          []int32
+	importOrderedIDs        []int32
+	importOrderPos          []int32
+	strongDeps              [][]int32
+	weakDeps                [][]int32
+	visited                 []uint32
+	visitGen                uint32
+	worklist                []int32
+	weakWorklist            []int32
+	hasDuplicateUserInputs  bool
 }
 
 // Java: SortedDependencies(List<InputT>)
 func NewSortedDependencies[InputT DependencyInfo](userOrderedInputs []InputT) *SortedDependencies[InputT] {
 	d := &SortedDependencies[InputT]{
-		userOrderedInputs:             jutil.NewArrayList[InputT](),
-		importOrderedInputs:           jutil.NewArrayList[InputT](),
-		completedInputs:               jutil.NewObjectLinkedHashSet[InputT](),
-		nonExportingInputs:            jutil.NewLinkedHashMap[string, InputT](),
-		exportingInputBySymbolName:    jutil.NewLinkedHashMap[string, InputT](),
-		importedInputByImportingInput: jutil.NewSetMultimap[InputT, InputT](),
+		userOrderedInputs:          jutil.NewArrayList[InputT](),
+		importOrderedInputs:        jutil.NewArrayList[InputT](),
+		nonExportingInputs:         jutil.NewLinkedHashMap[string, InputT](),
+		exportingInputBySymbolName: jutil.NewLinkedHashMap[string, InputT](),
 	}
 	d.userOrderedInputs.AddAll(userOrderedInputs...)
 	d.ProcessInputs()
 	return d
+}
+
+func (d *SortedDependencies[InputT]) lookupID(input InputT) (int32, bool) {
+	if id, ok := d.ptrToID[input]; ok {
+		return id, true
+	}
+	if d.objToID != nil {
+		return d.objToID.Lookup(input)
+	}
+	return -1, false
+}
+
+func (d *SortedDependencies[InputT]) nextGen() uint32 {
+	d.visitGen++
+	if d.visitGen == 0 {
+		clear(d.visited)
+		d.visitGen = 1
+	}
+	return d.visitGen
+}
+
+func (d *SortedDependencies[InputT]) collectStrongDeps(rootInputs []InputT) uint32 {
+	gen := d.nextGen()
+	worklist := d.worklist[:0]
+	for _, root := range rootInputs {
+		if id, ok := d.lookupID(root); ok {
+			if d.visited[id] != gen {
+				d.visited[id] = gen
+				worklist = append(worklist, id)
+			}
+		} else if !jutil.IsNil(root) {
+			for _, req := range root.GetRequires() {
+				if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && d.visited[depID] != gen {
+					d.visited[depID] = gen
+					worklist = append(worklist, depID)
+				}
+			}
+		}
+	}
+	for i := 0; i < len(worklist); i++ {
+		u := worklist[i]
+		for _, depID := range d.strongDeps[u] {
+			if d.visited[depID] != gen {
+				d.visited[depID] = gen
+				worklist = append(worklist, depID)
+			}
+		}
+	}
+	d.worklist = worklist
+	return gen
 }
 
 // GetStrongDependenciesOf gets all the strong dependencies of the given
@@ -77,28 +136,66 @@ func NewSortedDependencies[InputT DependencyInfo](userOrderedInputs []InputT) *S
 //
 // Java: SortedDependencies.getStrongDependenciesOf(List<InputT>, boolean)
 func (d *SortedDependencies[InputT]) GetStrongDependenciesOf(rootInputs []InputT, sorted bool) []InputT {
-	includedInputs := jutil.NewObjectLinkedHashSet[InputT]()
-	worklist := append([]InputT(nil), rootInputs...)
-	for len(worklist) > 0 {
-		input := worklist[0]
-		worklist = worklist[1:]
-		if includedInputs.Add(input) {
-			for _, symbolName := range input.GetRequiredSymbols() {
-				if importedSymbolName, ok := d.exportingInputBySymbolName.Lookup(symbolName); ok && !jutil.IsNil(importedSymbolName) {
-					worklist = append(worklist, importedSymbolName)
-				}
-			}
-		}
+	if len(rootInputs) == 0 {
+		return nil
+	}
+	gen := d.collectStrongDeps(rootInputs)
+	worklist := d.worklist
+	if len(worklist) == 0 {
+		return nil
 	}
 
-	var builder []InputT
-	inputs := d.userOrderedInputs
 	if sorted {
-		inputs = d.importOrderedInputs
+		if len(worklist) == 1 {
+			return []InputT{d.uniqueInputs[worklist[0]]}
+		}
+		impSlice := d.importOrderedInputs.Slice()
+		if len(worklist)*16 < len(d.importOrderedIDs) {
+			for i, id := range worklist {
+				worklist[i] = d.importOrderPos[id]
+			}
+			slices.Sort(worklist)
+			builder := make([]InputT, len(worklist))
+			for i, pos := range worklist {
+				builder[i] = impSlice[pos]
+			}
+			return builder
+		}
+		builder := make([]InputT, 0, len(worklist))
+		for i, id := range d.importOrderedIDs {
+			if d.visited[id] == gen {
+				builder = append(builder, impSlice[i])
+			}
+		}
+		return builder
 	}
-	for input := range inputs.All() {
-		if includedInputs.Contains(input) {
-			builder = append(builder, input)
+
+	if !d.hasDuplicateUserInputs {
+		if len(worklist) == 1 {
+			return []InputT{d.uniqueInputs[worklist[0]]}
+		}
+		if len(worklist)*16 < len(d.uniqueInputs) {
+			slices.Sort(worklist)
+			builder := make([]InputT, len(worklist))
+			for i, id := range worklist {
+				builder[i] = d.uniqueInputs[id]
+			}
+			return builder
+		}
+		builder := make([]InputT, 0, len(worklist))
+		for id, input := range d.uniqueInputs {
+			if d.visited[id] == gen {
+				builder = append(builder, input)
+			}
+		}
+		return builder
+	}
+
+	userSlice := d.userOrderedInputs.Slice()
+	builder := make([]InputT, 0, len(worklist))
+	for i, id := range d.userOrderedIDs {
+		if d.visited[id] == gen {
+			builder = append(builder, userSlice[i])
 		}
 	}
 	return builder
@@ -148,39 +245,71 @@ func (d *SortedDependencies[InputT]) GetSortedStrongDependenciesOf(roots []Input
 //
 // Java: SortedDependencies.getSortedWeakDependenciesOf(List<InputT>)
 func (d *SortedDependencies[InputT]) GetSortedWeakDependenciesOf(rootInputs []InputT) []InputT {
-	strongInputs := jutil.NewObjectLinkedHashSet(d.GetSortedStrongDependenciesOf(rootInputs)...)
-	weakInputs := jutil.NewObjectLinkedHashSet[InputT]()
-	worklist := strongInputs.ToSlice()
-	for len(worklist) > 0 {
-		input := worklist[0]
-		worklist = worklist[1:]
-		isStrong := strongInputs.Contains(input)
+	if len(rootInputs) == 0 {
+		return nil
+	}
+	strongGen := d.collectStrongDeps(rootInputs)
+	strongList := d.worklist
 
-		var edges []string
-		if isStrong {
-			edges = input.GetTypeRequires()
-		} else {
-			edges = append(append([]string(nil), input.GetRequiredSymbols()...), input.GetTypeRequires()...)
-		}
-
-		if !isStrong && !weakInputs.Add(input) {
-			continue
-		}
-
-		for _, symbolName := range edges {
-			importedSymbolName, ok := d.exportingInputBySymbolName.Lookup(symbolName)
-			if ok && !jutil.IsNil(importedSymbolName) &&
-				!strongInputs.Contains(importedSymbolName) &&
-				!weakInputs.Contains(importedSymbolName) {
-				worklist = append(worklist, importedSymbolName)
+	weakGen := d.nextGen()
+	weakWorklist := d.weakWorklist[:0]
+	for _, u := range strongList {
+		for _, depID := range d.weakDeps[u] {
+			if d.visited[depID] != strongGen && d.visited[depID] != weakGen {
+				d.visited[depID] = weakGen
+				weakWorklist = append(weakWorklist, depID)
 			}
 		}
 	}
+	for _, root := range rootInputs {
+		if _, ok := d.lookupID(root); !ok && !jutil.IsNil(root) {
+			for _, symbolName := range root.GetTypeRequires() {
+				if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && d.visited[depID] != strongGen && d.visited[depID] != weakGen {
+					d.visited[depID] = weakGen
+					weakWorklist = append(weakWorklist, depID)
+				}
+			}
+		}
+	}
+	for i := 0; i < len(weakWorklist); i++ {
+		u := weakWorklist[i]
+		for _, depID := range d.strongDeps[u] {
+			if d.visited[depID] != strongGen && d.visited[depID] != weakGen {
+				d.visited[depID] = weakGen
+				weakWorklist = append(weakWorklist, depID)
+			}
+		}
+		for _, depID := range d.weakDeps[u] {
+			if d.visited[depID] != strongGen && d.visited[depID] != weakGen {
+				d.visited[depID] = weakGen
+				weakWorklist = append(weakWorklist, depID)
+			}
+		}
+	}
+	d.weakWorklist = weakWorklist
+	if len(weakWorklist) == 0 {
+		return nil
+	}
+	if len(weakWorklist) == 1 {
+		return []InputT{d.uniqueInputs[weakWorklist[0]]}
+	}
+	impSlice := d.importOrderedInputs.Slice()
+	if len(weakWorklist)*16 < len(d.importOrderedIDs) {
+		for i, id := range weakWorklist {
+			weakWorklist[i] = d.importOrderPos[id]
+		}
+		slices.Sort(weakWorklist)
+		builder := make([]InputT, len(weakWorklist))
+		for i, pos := range weakWorklist {
+			builder[i] = impSlice[pos]
+		}
+		return builder
+	}
 
-	var builder []InputT
-	for input := range d.importOrderedInputs.All() {
-		if weakInputs.Contains(input) {
-			builder = append(builder, input)
+	builder := make([]InputT, 0, len(weakWorklist))
+	for i, id := range d.importOrderedIDs {
+		if d.visited[id] == weakGen {
+			builder = append(builder, impSlice[i])
 		}
 	}
 	return builder
@@ -199,29 +328,45 @@ func (d *SortedDependencies[InputT]) GetSortedList() []InputT {
 //
 // Java: SortedDependencies.maybeGetInputProviding(String)
 func (d *SortedDependencies[InputT]) MaybeGetInputProviding(symbol string) InputT {
-	if d.exportingInputBySymbolName.ContainsKey(symbol) {
-		return d.exportingInputBySymbolName.Get(symbol)
+	if v, ok := d.exportingInputBySymbolName.Lookup(symbol); ok {
+		return v
 	}
 	return d.nonExportingInputs.Get(ModuleNames_FileToModuleName(symbol))
 }
 
-func (d *SortedDependencies[InputT]) OrderInput(input InputT) {
-	if d.completedInputs.Contains(input) {
-		return
-	}
-
-	d.completedInputs.Add(input)
-	for importedInput := range d.importedInputByImportingInput.Get(input).All() {
-		d.OrderInput(importedInput)
-	}
-
-	// Emit an input after its imports have been emitted.
-	d.importOrderedInputs.Add(input)
-}
-
 func (d *SortedDependencies[InputT]) ProcessInputs() {
+	userSlice := d.userOrderedInputs.Slice()
+	n := len(userSlice)
+	d.uniqueInputs = make([]InputT, 0, n)
+	d.ptrToID = make(map[any]int32, n)
+	var zero InputT
+	if _, isEqualer := any(zero).(jutil.Equaler); isEqualer {
+		d.objToID = jutil.NewObjectLinkedHashMap[InputT, int32]()
+	}
+	d.userOrderedIDs = make([]int32, n)
+	d.exportingIDBySymbolName = make(map[string]int32, n)
+
 	// Index.
-	for userOrderedInput := range d.userOrderedInputs.All() {
+	for i, userOrderedInput := range userSlice {
+		id, ok := d.ptrToID[userOrderedInput]
+		if !ok && d.objToID != nil {
+			id, ok = d.objToID.Lookup(userOrderedInput)
+			if ok {
+				d.ptrToID[userOrderedInput] = id
+			}
+		}
+		if !ok {
+			id = int32(len(d.uniqueInputs))
+			d.uniqueInputs = append(d.uniqueInputs, userOrderedInput)
+			d.ptrToID[userOrderedInput] = id
+			if d.objToID != nil {
+				d.objToID.Put(userOrderedInput, id)
+			}
+		} else {
+			d.hasDuplicateUserInputs = true
+		}
+		d.userOrderedIDs[i] = id
+
 		provides := userOrderedInput.GetProvides()
 		var firstProvide *string
 		if len(provides) > 0 {
@@ -238,30 +383,63 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 				!userOrderedInput.IsEs6Module()) {
 			d.nonExportingInputs.Put(ModuleNames_FileToModuleName(userOrderedInput.GetName()), userOrderedInput)
 		}
-		for _, providedSymbolName := range userOrderedInput.GetProvides() {
+		for _, providedSymbolName := range provides {
 			d.exportingInputBySymbolName.Put(providedSymbolName, userOrderedInput)
+			d.exportingIDBySymbolName[providedSymbolName] = id
 		}
 	}
-	for userOrderedInput := range d.userOrderedInputs.All() {
-		for _, symbolName := range userOrderedInput.GetRequiredSymbols() {
-			importedInput, ok := d.exportingInputBySymbolName.Lookup(symbolName)
-			if ok && !jutil.IsNil(importedInput) {
-				d.importedInputByImportingInput.Put(userOrderedInput, importedInput)
+
+	uCount := len(d.uniqueInputs)
+	d.strongDeps = make([][]int32, uCount)
+	d.weakDeps = make([][]int32, uCount)
+	d.visited = make([]uint32, uCount)
+
+	for i, userOrderedInput := range userSlice {
+		u := d.userOrderedIDs[i]
+		reqs := userOrderedInput.GetRequires()
+		if len(reqs) > 0 {
+			deps := d.strongDeps[u]
+			for _, req := range reqs {
+				if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && !slices.Contains(deps, depID) {
+					deps = append(deps, depID)
+				}
 			}
+			d.strongDeps[u] = deps
+		}
+		typeReqs := userOrderedInput.GetTypeRequires()
+		if len(typeReqs) > 0 {
+			wdeps := d.weakDeps[u]
+			for _, symbolName := range typeReqs {
+				if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && !slices.Contains(wdeps, depID) {
+					wdeps = append(wdeps, depID)
+				}
+			}
+			d.weakDeps[u] = wdeps
 		}
 	}
 
 	// Order.
 	// For each input, traverse in user-provided order.
-	for userOrderedInput := range d.userOrderedInputs.All() {
-		// Traverse the graph starting from this input and record any
-		// newly-reached inputs.
-		d.OrderInput(userOrderedInput)
+	completed := make([]bool, uCount)
+	d.importOrderedIDs = make([]int32, 0, uCount)
+	d.importOrderPos = make([]int32, uCount)
+	var orderInput func(u int32)
+	orderInput = func(u int32) {
+		if completed[u] {
+			return
+		}
+		completed[u] = true
+		for _, depID := range d.strongDeps[u] {
+			orderInput(depID)
+		}
+		// Emit an input after its imports have been emitted.
+		d.importOrderPos[u] = int32(len(d.importOrderedIDs))
+		d.importOrderedIDs = append(d.importOrderedIDs, u)
+		d.importOrderedInputs.Add(d.uniqueInputs[u])
 	}
-
-	// Free temporary indexes.
-	d.completedInputs.Clear()
-	d.importedInputByImportingInput.Clear()
+	for _, u := range d.userOrderedIDs {
+		orderInput(u)
+	}
 }
 
 // SortedDependencies_MissingProvideException is

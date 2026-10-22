@@ -458,7 +458,7 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	fnNames := p.fnNames
 	fnNames.Clear()
 	for k := range f.fns.Keys() {
-		fnNames.Add(k)
+		fnNames.AddNew(k)
 	}
 	f.injector.SetKnownConstantFunctions(fnNames)
 
@@ -1807,7 +1807,7 @@ func (s *InlineFunctions_FunctionState) addReference(ref *InlineFunctions_Refere
 		}
 		s.references = &s.refMapVal
 	}
-	s.references.Put(ref.callNode, ref)
+	s.references.PutNew(ref.callNode, ref)
 }
 
 // Java: InlineFunctions.FunctionState.addReference(Reference)

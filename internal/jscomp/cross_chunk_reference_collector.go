@@ -178,40 +178,40 @@ func (c *CrossChunkReferenceCollector) release() {
 	if a := c.arena; a != nil {
 		c.arena = nil
 		if cap(c.vars) > len(c.varsBuf) {
-			if cap(c.vars) <= 524288 {
+			if cap(c.vars) <= 1048576 {
 				clear(c.vars)
-				a.vars = c.vars[:0]
+				a.global.vars = c.vars[:0]
 				clear(c.cols)
-				a.cols = c.cols[:0]
+				a.global.cols = c.cols[:0]
 			} else {
-				a.vars = nil
-				a.cols = nil
+				a.global.vars = nil
+				a.global.cols = nil
 			}
 		}
 		c.vars = nil
 		c.cols = nil
 		const (
-			maxRetainedRefChunks = 128
-			maxRetainedColChunks = 96
-			maxRetainedBlkChunks = 96
+			maxRetainedRefChunks = 512
+			maxRetainedColChunks = 256
+			maxRetainedBlkChunks = 160
 		)
-		if a.refChunkIdx > 0 {
-			a.refChunks[a.refChunkIdx-1] = c.refSlab
+		if a.global.refChunkIdx > 0 {
+			a.global.refChunks[a.global.refChunkIdx-1] = c.refSlab
 		}
-		for i := 0; i < a.refChunkIdx && i < maxRetainedRefChunks; i++ {
-			ch := a.refChunks[i]
+		for i := 0; i < a.global.refChunkIdx && i < maxRetainedRefChunks; i++ {
+			ch := a.global.refChunks[i]
 			clear(ch)
-			a.refChunks[i] = ch[:0]
+			a.global.refChunks[i] = ch[:0]
 		}
-		if len(a.refChunks) > maxRetainedRefChunks {
-			clear(a.refChunks[maxRetainedRefChunks:])
-			a.refChunks = a.refChunks[:maxRetainedRefChunks]
+		if len(a.global.refChunks) > maxRetainedRefChunks {
+			clear(a.global.refChunks[maxRetainedRefChunks:])
+			a.global.refChunks = a.global.refChunks[:maxRetainedRefChunks]
 		}
-		if a.colChunkIdx > 0 {
-			a.colChunks[a.colChunkIdx-1] = c.colSlab
+		if a.global.colChunkIdx > 0 {
+			a.global.colChunks[a.global.colChunkIdx-1] = c.colSlab
 		}
-		for i := 0; i < a.colChunkIdx && i < maxRetainedColChunks; i++ {
-			ch := a.colChunks[i]
+		for i := 0; i < a.global.colChunkIdx && i < maxRetainedColChunks; i++ {
+			ch := a.global.colChunks[i]
 			for j := range ch {
 				col := &ch[j]
 				if col.references != nil {
@@ -222,11 +222,11 @@ func (c *CrossChunkReferenceCollector) release() {
 					}
 				}
 			}
-			a.colChunks[i] = ch[:0]
+			a.global.colChunks[i] = ch[:0]
 		}
-		if len(a.colChunks) > maxRetainedColChunks {
-			clear(a.colChunks[maxRetainedColChunks:])
-			a.colChunks = a.colChunks[:maxRetainedColChunks]
+		if len(a.global.colChunks) > maxRetainedColChunks {
+			clear(a.global.colChunks[maxRetainedColChunks:])
+			a.global.colChunks = a.global.colChunks[:maxRetainedColChunks]
 		}
 		if a.blkChunkIdx > 0 {
 			a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
@@ -240,8 +240,8 @@ func (c *CrossChunkReferenceCollector) release() {
 			clear(a.blkChunks[maxRetainedBlkChunks:])
 			a.blkChunks = a.blkChunks[:maxRetainedBlkChunks]
 		}
-		a.refChunkIdx = 0
-		a.colChunkIdx = 0
+		a.global.refChunkIdx = 0
+		a.global.colChunkIdx = 0
 		a.blkChunkIdx = 0
 		releaseRCArena(a)
 	}
@@ -377,20 +377,20 @@ func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scop
 	if len(c.refSlab) == cap(c.refSlab) {
 		if c.poolable {
 			a := c.getArena()
-			if a.refChunkIdx > 0 {
-				a.refChunks[a.refChunkIdx-1] = c.refSlab
+			if a.global.refChunkIdx > 0 {
+				a.global.refChunks[a.global.refChunkIdx-1] = c.refSlab
 			}
-			if a.refChunkIdx < len(a.refChunks) {
-				c.refSlab = a.refChunks[a.refChunkIdx][:0]
-				a.refChunkIdx++
+			if a.global.refChunkIdx < len(a.global.refChunks) {
+				c.refSlab = a.global.refChunks[a.global.refChunkIdx][:0]
+				a.global.refChunkIdx++
 			} else {
 				newCap := 256
 				if cap(c.refSlab) >= 256 {
 					newCap = min(cap(c.refSlab)*2, 4096)
 				}
 				c.refSlab = make([]Reference, 0, newCap)
-				a.refChunks = append(a.refChunks, c.refSlab)
-				a.refChunkIdx++
+				a.global.refChunks = append(a.global.refChunks, c.refSlab)
+				a.global.refChunkIdx++
 			}
 		} else {
 			newCap := 256
@@ -414,20 +414,20 @@ func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceColl
 	if len(c.colSlab) == cap(c.colSlab) {
 		if c.poolable {
 			a := c.getArena()
-			if a.colChunkIdx > 0 {
-				a.colChunks[a.colChunkIdx-1] = c.colSlab
+			if a.global.colChunkIdx > 0 {
+				a.global.colChunks[a.global.colChunkIdx-1] = c.colSlab
 			}
-			if a.colChunkIdx < len(a.colChunks) {
-				c.colSlab = a.colChunks[a.colChunkIdx][:0]
-				a.colChunkIdx++
+			if a.global.colChunkIdx < len(a.global.colChunks) {
+				c.colSlab = a.global.colChunks[a.global.colChunkIdx][:0]
+				a.global.colChunkIdx++
 			} else {
 				newCap := 64
 				if cap(c.colSlab) >= 64 {
 					newCap = min(cap(c.colSlab)*2, 2048)
 				}
 				c.colSlab = make([]ReferenceCollection, 0, newCap)
-				a.colChunks = append(a.colChunks, c.colSlab)
-				a.colChunkIdx++
+				a.global.colChunks = append(a.global.colChunks, c.colSlab)
+				a.global.colChunkIdx++
 			}
 		} else {
 			newCap := 64
@@ -620,9 +620,9 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 func (c *CrossChunkReferenceCollector) growVarsCols() {
 	if c.poolable && cap(c.vars) == len(c.varsBuf) {
 		a := c.getArena()
-		if cap(a.vars) > len(c.vars) {
-			c.vars = append(a.vars[:0], c.vars...)
-			c.cols = append(a.cols[:0], c.cols...)
+		if cap(a.global.vars) > len(c.vars) {
+			c.vars = append(a.global.vars[:0], c.vars...)
+			c.cols = append(a.global.cols[:0], c.cols...)
 			return
 		}
 	}
@@ -634,8 +634,8 @@ func (c *CrossChunkReferenceCollector) growVarsCols() {
 	copy(newCols, c.cols)
 	c.cols = newCols
 	if c.arena != nil {
-		c.arena.vars = newVars[:0]
-		c.arena.cols = newCols[:0]
+		c.arena.global.vars = newVars[:0]
+		c.arena.global.cols = newCols[:0]
 	}
 }
 

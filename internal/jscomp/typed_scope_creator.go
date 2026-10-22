@@ -592,7 +592,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 
 	// Gather global information used in typed scope creation.
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
-	scopeCreator.EnableArenaPool()
+	scopeCreator.EnableLocalScopeReclamation()
 	defer scopeCreator.ReleaseArena()
 
 	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
@@ -733,25 +733,25 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	}
 
 	// free up memory. we no longer need this state now that all scopes have been visited
-	if c.reservedNamesForScope != nil && len(c.reservedNamesForScope) <= 65536 {
+	if c.reservedNamesForScope != nil && len(c.reservedNamesForScope) <= 524288 {
 		clear(c.reservedNamesForScope)
 		tscReservedNamesPool.Put(c.reservedNamesForScope)
 	}
 	c.reservedNamesForScope = nil
 	c.arena = typedScopeArena{}
 	c.scopeCount = 0
-	if c.functionsWithNonEmptyReturns != nil && len(c.functionsWithNonEmptyReturns) <= 65536 {
+	if c.functionsWithNonEmptyReturns != nil && len(c.functionsWithNonEmptyReturns) <= 262144 {
 		clear(c.functionsWithNonEmptyReturns)
 		tscNonEmptyReturnsPool.Put(c.functionsWithNonEmptyReturns)
 	}
 	c.functionsWithNonEmptyReturns = nil
-	if c.varFlags != nil && len(c.varFlags) <= 65536 {
+	if c.varFlags != nil && len(c.varFlags) <= 262144 {
 		clear(c.varFlags)
 		tscVarFlagsPool.Put(c.varFlags)
 	}
 	c.varFlags = nil
 	c.weakImports = nil
-	if c.unresolvedNodes != nil && cap(c.unresolvedNodes) <= 131072 {
+	if c.unresolvedNodes != nil && cap(c.unresolvedNodes) <= 262144 {
 		clear(c.unresolvedNodes)
 		tscUnresolvedNodesPool.Put(c.unresolvedNodes[:0])
 	}
@@ -4188,6 +4188,7 @@ type TypedScopeCreator_FirstOrderFunctionAnalyzer struct {
 	// this inner class.
 	outer                    *TypedScopeCreator
 	identifyEnumsAndTypedefs TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable
+	localContainerDepth      int
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer()
@@ -4198,12 +4199,19 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
 	a.outer.scopeCount++
-	if t.InGlobalScope() && t.scopes[0].untypedScope == nil {
-		gs := Scope_CreateGlobalScope(t.GetScopeRoot())
-		gs.scanDone = true
-		t.scopes[0].scope = gs
-		t.scopes[0].untypedScope = gs
-		t.scopes[0].lookupScope = gs
+	if t.InGlobalScope() {
+		if t.scopes[0].untypedScope == nil {
+			gs := Scope_CreateGlobalScope(t.GetScopeRoot())
+			gs.scanDone = true
+			t.scopes[0].scope = gs
+			t.scopes[0].untypedScope = gs
+			t.scopes[0].lookupScope = gs
+		}
+		return
+	}
+	root := t.GetScopeRoot()
+	if root.IsFunction() || root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
+		a.localContainerDepth++
 	}
 }
 
@@ -4212,15 +4220,17 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 	if t.InGlobalScope() {
 		return
 	}
+	root := t.GetScopeRoot()
+	if root.IsFunction() || root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
+		a.localContainerDepth--
+	}
 	scope := t.scopes[len(t.scopes)-1].untypedScope
 	if scope == nil {
-		root := t.GetScopeRoot()
 		if !root.IsModuleBody() && (!root.IsFunction() || root.GetFirstChild().GetString() == "") {
 			return
 		}
 		scope = t.GetScope()
 	}
-	root := scope.GetRootNode()
 	if scope.implicitVars != nil {
 		if ev := scope.implicitVars[AbstractScope_ImplicitVar_EXPORTS]; ev != nil {
 			h := ev.nameHash
@@ -4321,23 +4331,27 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 				if (var_.nameHash & 3) < 2 {
 					var_.nameHash++
 				}
-				containerScope := scope.GetClosestContainerScope()
-				if !containerScope.HasSameContainerScope(ownerScope) {
-					var_.nameHash |= 4
+				if a.localContainerDepth > 1 {
+					containerScope := scope.GetClosestContainerScope()
+					if !containerScope.HasSameContainerScope(ownerScope) {
+						var_.nameHash |= 4
+					}
 				}
 			}
 		}
 	} else if n.IsGetProp() && n.IsUnscopedQualifiedName() && NodeUtil_IsLValue(n) {
-		name := NodeUtil_GetRootOfQualifiedName(n).GetString()
 		scope := t.resolveLookupScope(len(t.scopes) - 1)
-		var_ := scope.GetVar(name)
-		if var_ != nil {
-			ownerScope := var_.scope
-			if ownerScope.IsLocal() {
-				containerScope := scope.GetClosestContainerScope()
-				if !containerScope.HasSameContainerScope(ownerScope) {
-					qName, _ := n.GetQualifiedNameString()
-					a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
+		if a.localContainerDepth > 1 {
+			name := NodeUtil_GetRootOfQualifiedName(n).GetString()
+			var_ := scope.GetVar(name)
+			if var_ != nil {
+				ownerScope := var_.scope
+				if ownerScope.IsLocal() {
+					containerScope := scope.GetClosestContainerScope()
+					if !containerScope.HasSameContainerScope(ownerScope) {
+						qName, _ := n.GetQualifiedNameString()
+						a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
+					}
 				}
 			}
 		}

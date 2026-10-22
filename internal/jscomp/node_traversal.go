@@ -1975,6 +1975,9 @@ func (t *NodeTraversal) PopScopeWithQuietly(quietly bool) {
 	}
 	t.scopes[len(t.scopes)-1] = scopeStackEntry{}
 	t.scopes = t.scopes[:len(t.scopes)-1]
+	if len(t.scopes) == 1 && t.syntacticScopeCreator != nil && t.syntacticScopeCreator.reclaimLocalScopes {
+		t.syntacticScopeCreator.ResetLocalArena()
+	}
 }
 
 // GetNodeRootFromScopeObj: scopes are stored in a list of objects. These

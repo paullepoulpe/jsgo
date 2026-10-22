@@ -106,7 +106,7 @@ func (v *VariableReferenceCheck) Process(externs *rhino.Node, root *rhino.Node) 
 	sc.EnableArenaPool()
 	callback := NewReferenceCollector(
 		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc)
-	callback.enableArenaPool()
+	callback.enableLocalReclamation(nil)
 	callback.Process(externs, root)
 	v.blocksWithDeclarations.Clear()
 	callback.release()

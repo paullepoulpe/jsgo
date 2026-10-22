@@ -122,7 +122,9 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 		behavior,
 		NewSyntacticScopeCreator(iv.compiler),
 		inlineVariables_Mode_varPredicate[iv.mode])
-	callback.enableArenaPool()
+	callback.enableLocalReclamation(func() bool {
+		return len(behavior.aliasRetryHandlers) == 0
+	})
 	callback.Process(externs, root)
 	callback.release()
 	behavior.release()
