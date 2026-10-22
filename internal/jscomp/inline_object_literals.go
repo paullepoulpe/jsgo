@@ -352,7 +352,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 							}
 						}
 						rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-						rc.enableArenaPool()
+						rc.enableLocalReclamation(nil)
 						tb := rc.builderVal()
 						t := acquireNodeTraversal(&tb)
 						t.currentNode = root
@@ -395,7 +395,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 						return id
 					}
 					rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-					rc.enableArenaPool()
+					rc.enableLocalReclamation(nil)
 					tb := rc.builderVal()
 					t := acquireNodeTraversal(&tb)
 					t.currentNode = root
@@ -410,7 +410,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 				return
 			}
 			callback := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-			callback.enableArenaPool()
+			callback.enableLocalReclamation(nil)
 			defer callback.release()
 			dummyGlobalScope := newScope(root)
 			dummyGlobalScope.scanDone = true
@@ -440,7 +440,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		behavior,
 		sc,
 		varFilter)
-	callback.enableArenaPool()
+	callback.enableLocalReclamation(nil)
 	callback.Process(externs, root)
 	callback.release()
 }

@@ -284,6 +284,8 @@ func (p *ProcessDefines) InitNamespace(externs *rhino.Node, root *rhino.Node) {
 	}
 	if p.namespace == nil {
 		p.namespace = NewGlobalNamespaceWithRoots(p.compiler, externs, root)
+		p.namespace.forProcessDefines = true
+		p.namespace.processDefinesCheck = p.mode.Check()
 	}
 }
 
@@ -446,11 +448,9 @@ func (p *ProcessDefines) IsValidDefineType(expression *rhino.JSTypeExpression) b
 //
 // Java: ProcessDefines.collectDefines(Node)
 func (p *ProcessDefines) CollectDefines(root *rhino.Node) {
-	if p.recognizeClosureDefines {
-		NodeTraversal_Builder_().
-			SetCompiler(p.compiler).
-			SetCallback(&ProcessDefines_ClosureDefinesCollector{outer: p}).
-			Traverse(root)
+	if p.recognizeClosureDefines && root != nil {
+		c := ProcessDefines_ClosureDefinesCollector{outer: p}
+		c.walk(root)
 	}
 	for name := range p.namespace.GetAllSymbols() {
 		declaration := p.SelectDefineDeclaration(name)
@@ -576,6 +576,17 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		}
 	}
 
+	hasUnknownDefineValue := false
+	for define := range p.defineByDefineName.Values() {
+		if define.valueParent != nil && !define.valueParent.IsFromExterns() && p.IsValidDefineValue(define.value) == base.Tri_UNKNOWN {
+			hasUnknownDefineValue = true
+			break
+		}
+	}
+	if !hasUnknownDefineValue {
+		return
+	}
+
 	var namesToCheck []*GlobalNamespace_Name
 	for name := range p.namespace.GetAllSymbols() {
 		if !processDefines_isGlobalConst(name) {
@@ -692,26 +703,38 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root *rhino.Node) {
 	 *
 	 * <p>We don't check the externs because they can't contain local vars.
 	 */
+	cb := func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+		jsdoc := n.GetJSDocInfo()
+		if jsdoc != nil && jsdoc.IsDefine() && p.knownDefineJsdocs.Add(jsdoc) {
+			p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_INVALID_DEFINE_LOCATION))
+		}
+
+		if p.IsGoogDefineCall(n) && p.knownGoogDefineCalls.Add(n) {
+			p.VerifyGoogDefine(n)
+		}
+
+		if n.MatchesName("CLOSURE_DEFINES") &&
+			(NodeUtil_IsNameDeclaration(parent) ||
+				(parent.IsGetElem() && parent.GetParent().IsAssign())) &&
+			!NodeUtil_GetEnclosingScopeRoot(n).IsRoot() {
+			p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_NON_GLOBAL_CLOSURE_DEFINES_ERROR))
+		}
+	}
+	if p.namespace != nil && p.namespace.forProcessDefines && p.namespace.generated && root != nil && root.IsRoot() && !p.namespace.hasNonScriptDefineCand {
+		if len(p.namespace.defineCandidateScripts) == 0 {
+			return
+		}
+		b := NodeTraversal_Builder_().SetCompiler(p.compiler).SetCallbackFunc(cb)
+		for s := root.GetFirstChild(); s != nil; s = s.GetNext() {
+			if _, ok := p.namespace.defineCandidateScripts[s]; ok {
+				b.Traverse(s)
+			}
+		}
+		return
+	}
 	NodeTraversal_Builder_().
 		SetCompiler(p.compiler).
-		SetCallbackFunc(
-			func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-				jsdoc := n.GetJSDocInfo()
-				if jsdoc != nil && jsdoc.IsDefine() && p.knownDefineJsdocs.Add(jsdoc) {
-					p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_INVALID_DEFINE_LOCATION))
-				}
-
-				if p.IsGoogDefineCall(n) && p.knownGoogDefineCalls.Add(n) {
-					p.VerifyGoogDefine(n)
-				}
-
-				if n.MatchesName("CLOSURE_DEFINES") &&
-					(NodeUtil_IsNameDeclaration(parent) ||
-						(parent.IsGetElem() && parent.GetParent().IsAssign())) &&
-					!NodeUtil_GetEnclosingScopeRoot(n).IsRoot() {
-					p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_NON_GLOBAL_CLOSURE_DEFINES_ERROR))
-				}
-			}).
+		SetCallbackFunc(cb).
 		Traverse(root)
 }
 
@@ -719,6 +742,47 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root *rhino.Node) {
 // ProcessDefines.ClosureDefinesCollector (an inner class).
 type ProcessDefines_ClosureDefinesCollector struct {
 	outer *ProcessDefines
+}
+
+func (c *ProcessDefines_ClosureDefinesCollector) walk(n *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_ROOT, rhino.Token_EXPR_RESULT:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			c.walk(ch)
+		}
+	case rhino.Token_SCRIPT:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			c.walk(ch)
+		}
+		p := c.outer
+		if p.zoneInputPattern != nil {
+			source := n.GetSourceFileName()
+			if source != nil && p.zoneInputPattern.Matches(*source) {
+				p.hasZoneInput = true
+			}
+		}
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			c.walk(ch)
+		}
+		if first := n.GetFirstChild(); first != nil && first.MatchesName("CLOSURE_DEFINES") {
+			valueNode := first.GetFirstChild()
+			if valueNode != nil && valueNode.IsObjectLit() {
+				p := c.outer
+				for ch := valueNode.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+					p.HandleClosureDefinesValue(ch, ch.GetFirstChild(), n)
+				}
+			}
+		}
+	case rhino.Token_ASSIGN:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			c.walk(ch)
+		}
+		lhs := n.GetFirstChild()
+		if lhs.IsGetElem() && lhs.GetFirstChild().MatchesName("CLOSURE_DEFINES") {
+			c.outer.HandleClosureDefinesValue(lhs.GetSecondChild(), n.GetSecondChild(), n)
+		}
+	}
 }
 
 // Java: ProcessDefines.ClosureDefinesCollector.shouldTraverse(NodeTraversal, Node, Node)

@@ -131,6 +131,12 @@ func NewVariableReferenceCheck_ReferenceCheckingBehavior(v *VariableReferenceChe
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.afterExitScope(NodeTraversal, ReferenceMap)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
+	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
+		if NodeUtil_IsFunctionBlock(t.GetScopeRoot()) {
+			b.varsInFunctionBody.Clear()
+		}
+		return
+	}
 	// Check all vars after finishing a scope
 	scope := t.GetScope()
 	if scope.IsFunctionBlockScope() {

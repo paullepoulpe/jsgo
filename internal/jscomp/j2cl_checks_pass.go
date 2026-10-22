@@ -50,6 +50,17 @@ var J2clChecksPass_REFERENCE_EQUALITY_TYPE_PATTERNS = func() *jutil.LinkedHashMa
 	return m
 }()
 
+var j2clReferenceEqualityPatterns = [...]struct {
+	typeName string
+	fileName string
+}{
+	{"java.lang.Integer", "java/lang/Integer.impl.java.js"},
+	{"java.lang.Float", "java/lang/Float.impl.java.js"},
+	{"goog.math.Long", "javascript/closure/math/long.js"},
+}
+
+var j2clEmptySourceName = ""
+
 // Java: J2clChecksPass(AbstractCompiler)
 func NewJ2clChecksPass(compiler AbstractCompiler) *J2clChecksPass {
 	p := &J2clChecksPass{}
@@ -59,8 +70,19 @@ func NewJ2clChecksPass(compiler AbstractCompiler) *J2clChecksPass {
 
 // Java: J2clChecksPass.visit(NodeTraversal, Node, Node)
 func (p *J2clChecksPass) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	for typeName := range J2clChecksPass_REFERENCE_EQUALITY_TYPE_PATTERNS.Keys() {
-		p.CheckReferenceEquality(n, typeName, J2clChecksPass_REFERENCE_EQUALITY_TYPE_PATTERNS.Get(typeName))
+	switch n.GetToken() {
+	case rhino.Token_SHEQ, rhino.Token_EQ, rhino.Token_SHNE, rhino.Token_NE:
+		firstJsType := n.GetFirstChild().GetJSType()
+		lastJsType := n.GetLastChild().GetJSType()
+		if (firstJsType == nil && lastJsType == nil) || p.IsNullType(firstJsType) || p.IsNullType(lastJsType) {
+			return
+		}
+		for i := range j2clReferenceEqualityPatterns {
+			pat := &j2clReferenceEqualityPatterns[i]
+			if p.IsType(firstJsType, pat.fileName) || p.IsType(lastJsType, pat.fileName) {
+				p.compiler.Report(JSError_MakeWithNode(n, J2clChecksPass_J2CL_REFERENCE_EQUALITY, pat.typeName))
+			}
+		}
 	}
 }
 
@@ -107,13 +129,46 @@ func (p *J2clChecksPass) IsType(jsType rhino.JSType, fileName string) bool {
 func (p *J2clChecksPass) GetSourceName(jsType rhino.JSType) *string {
 	constructor := jsType.ToMaybeObjectType().GetConstructor()
 	if constructor == nil {
-		empty := ""
-		return &empty
+		return &j2clEmptySourceName
 	}
 	return NodeUtil_GetSourceName(constructor.GetSource())
 }
 
+func (p *J2clChecksPass) walk(n *rhino.Node) {
+	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.IsComputedProp() || c.IsComputedFieldDef() {
+				p.walk(c.GetFirstChild())
+			}
+		}
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			switch c.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				p.walk(c.GetLastChild())
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if c.HasTwoChildren() {
+					p.walk(c.GetLastChild())
+				}
+			default:
+				p.walk(c)
+			}
+		}
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() != nil {
+			p.walk(c)
+		}
+	}
+	switch n.GetToken() {
+	case rhino.Token_SHEQ, rhino.Token_EQ, rhino.Token_SHNE, rhino.Token_NE:
+		p.Visit(nil, n, n.GetParent())
+	}
+}
+
 // Java: J2clChecksPass.process(Node, Node)
 func (p *J2clChecksPass) Process(externs *rhino.Node, root *rhino.Node) {
-	NodeTraversal_Traverse(p.compiler, root, p)
+	if root != nil {
+		p.walk(root)
+	}
 }

@@ -532,8 +532,12 @@ type GlobalNamespace struct {
 	// Limits traversal to scripts matching the given predicate.
 	shouldTraverseScript func(*rhino.Node) bool
 
-	arena        *globalNamespaceArena
-	scopeCreator *SyntacticScopeCreator
+	arena                  *globalNamespaceArena
+	scopeCreator           *SyntacticScopeCreator
+	forProcessDefines      bool
+	processDefinesCheck    bool
+	hasNonScriptDefineCand bool
+	defineCandidateScripts map[*rhino.Node]struct{}
 }
 
 func (g *GlobalNamespace) allocRefSlice(length, capacity int) []*GlobalNamespace_Ref {
@@ -960,6 +964,9 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	if g.scopeCreator == nil {
 		g.scopeCreator = NewSyntacticScopeCreator(g.compiler)
 		g.scopeCreator.EnableArenaPool()
+		if g.forProcessDefines {
+			g.scopeCreator.EnableLocalScopeReclamation()
+		}
 	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 	builder.confirmExisting = !isInitial
@@ -1104,6 +1111,12 @@ type globalNamespace_objLitCacheEntry struct {
 	state  uint8 // 0: invalid, 1: LValue, 2: Object.defineProperties
 }
 
+type globalNamespace_rootCacheEntry struct {
+	scopeRoot *rhino.Node
+	varName   string
+	root      *rhino.Node
+}
+
 // GlobalNamespace_BuildGlobalNamespace builds a tree representation of the
 // global namespace. Omits prototypes.
 type GlobalNamespace_BuildGlobalNamespace struct {
@@ -1125,6 +1138,8 @@ type GlobalNamespace_BuildGlobalNamespace struct {
 	lastRootScopeRoot *rhino.Node
 	lastRootNode      *rhino.Node
 
+	rootCache       [8]globalNamespace_rootCacheEntry
+	rootCacheIdx    int
 	objLitCache     [8]globalNamespace_objLitCacheEntry
 	objLitCacheIdx  int
 	confirmExisting bool
@@ -1204,7 +1219,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 			if !ok || globalNamespace_hasPrototype(qname) {
 				return b.putObjLitCache(objLit, "", nil, scope, 0)
 			}
-			if scope == nil {
+			if scope == nil && !g.forProcessDefines {
 				scope = t.GetScope()
 			}
 			return b.putObjLitCache(objLit, qname, root, scope, 2)
@@ -1237,7 +1252,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 		if globalNamespace_hasPrototype(ownerName) {
 			return b.putObjLitCache(objLit, "", nil, scope, 0)
 		}
-		if scope == nil {
+		if scope == nil && !g.forProcessDefines {
 			scope = t.GetScope()
 		}
 		return b.putObjLitCache(objLit, ownerName, root, scope, 1)
@@ -1257,6 +1272,12 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 		return b.putObjLitCache(objLit, g.concatDotCached(parentPrefix, key), root, resolvedScope, 1)
 	}
 
+	if owner.IsName() && t != nil && b.curModuleRoot == nil && t.currentHoistScopeRoot != nil {
+		switch ownerParent.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			return b.putObjLitCache(objLit, "", nil, scope, 0)
+		}
+	}
 	topName := globalNamespace_topNameOfQName(owner)
 	if topName == "" {
 		return b.putObjLitCache(objLit, "", nil, scope, 0)
@@ -1269,7 +1290,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit *rhino.No
 	if !ok || globalNamespace_hasPrototype(ownerName) {
 		return b.putObjLitCache(objLit, "", nil, scope, 0)
 	}
-	if scope == nil {
+	if scope == nil && !g.forProcessDefines {
 		scope = t.GetScope()
 	}
 	return b.putObjLitCache(objLit, ownerName, root, scope, 1)
@@ -1294,7 +1315,44 @@ func (b *GlobalNamespace_BuildGlobalNamespace) getRootNodeOfTopNameWithTraversal
 	if scopeRoot == b.lastRootScopeRoot && topName == b.lastRootVarName && scopeRoot != nil {
 		return b.lastRootNode
 	}
+	if scopeRoot != nil {
+		for i := range b.rootCache {
+			if e := &b.rootCache[i]; e.scopeRoot == scopeRoot && e.varName == topName {
+				b.lastRootScopeRoot = scopeRoot
+				b.lastRootVarName = topName
+				b.lastRootNode = e.root
+				return e.root
+			}
+		}
+	}
 	g := b.outer
+	if b.curModuleRoot == nil && len(t.scopes) > 0 {
+		globalScope := t.scopes[0].untypedScope
+		if globalScope == nil {
+			globalScope = t.getScopeSlow(0)
+		}
+		if globalScope.GetVar(topName) == nil {
+			providedName := g.nameMap.Get(topName)
+			if providedName == nil || !providedName.GetBooleanProperty(GlobalNamespace_NameProp_IS_PROVIDED) {
+				b.lastRootVarName = topName
+				b.lastRootScopeRoot = scopeRoot
+				b.lastRootNode = nil
+				if scopeRoot != nil {
+					idx := (b.rootCacheIdx + 1) & 7
+					b.rootCacheIdx = idx
+					b.rootCache[idx] = globalNamespace_rootCacheEntry{scopeRoot: scopeRoot, varName: topName, root: nil}
+				}
+				return nil
+			}
+		}
+		if len(t.scopes) == 1 {
+			root := g.globalRoot
+			b.lastRootVarName = topName
+			b.lastRootScopeRoot = scopeRoot
+			b.lastRootNode = root
+			return root
+		}
+	}
 	var root *rhino.Node
 	v := t.LookupVar(topName)
 	if v == nil {
@@ -1310,6 +1368,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) getRootNodeOfTopNameWithTraversal
 	b.lastRootVarName = topName
 	b.lastRootScopeRoot = scopeRoot
 	b.lastRootNode = root
+	if scopeRoot != nil {
+		idx := (b.rootCacheIdx + 1) & 7
+		b.rootCacheIdx = idx
+		b.rootCache[idx] = globalNamespace_rootCacheEntry{scopeRoot: scopeRoot, varName: topName, root: root}
+	}
 	return root
 }
 
@@ -1327,6 +1390,20 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 		g.sourceKind = GlobalNamespace_SourceKind_FromScriptNode(n)
 	} else if n == g.root {
 		g.sourceKind = GlobalNamespace_SourceKind_CODE
+	}
+	if g.forProcessDefines && g.processDefinesCheck && g.sourceKind == GlobalNamespace_SourceKind_CODE {
+		if jsdoc := n.GetJSDocInfo(); (jsdoc != nil && jsdoc.IsDefine()) ||
+			(n.IsCall() && n.GetFirstChild().MatchesQualifiedNameNode(processDefines_GOOG_DEFINE)) ||
+			(n.IsName() && n.GetString() == "CLOSURE_DEFINES") {
+			if t.currentScript != nil {
+				if g.defineCandidateScripts == nil {
+					g.defineCandidateScripts = make(map[*rhino.Node]struct{}, 8)
+				}
+				g.defineCandidateScripts[t.currentScript] = struct{}{}
+			} else {
+				g.hasNonScriptDefineCand = true
+			}
+		}
 	}
 	if n.IsModuleBody() || NodeUtil_IsBundledGoogModuleScopeRoot(n) {
 		b.SetupModuleMetadata(n)
@@ -1454,6 +1531,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			hasName = true
 			isSet = true
 		} else if parent.IsObjectPattern() {
+			if g.forProcessDefines && (!g.processDefinesCheck || (t != nil && t.currentHoistScopeRoot != nil && b.curModuleRoot == nil)) {
+				return
+			}
 			patternParent := parent.GetParent()
 			if !patternParent.IsAssign() && !patternParent.IsDestructuringLhs() {
 				return
@@ -1489,7 +1569,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			// getprop in the chain.
 			return
 		}
-		if (pTok == rhino.Token_CALL || pTok == rhino.Token_OPTCHAIN_CALL) &&
+		if !g.forProcessDefines && (pTok == rhino.Token_CALL || pTok == rhino.Token_OPTCHAIN_CALL) &&
 			n.IsFirstChildOf(parent) && b.IsObjectHasOwnPropertyCall(parent) {
 			qname, _ := g.qnameStringCached(n.GetFirstChild())
 			globalName := b.GetOrCreateName(qname, b.curMetadata)
@@ -1498,13 +1578,81 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		if n.GetToken() == rhino.Token_OPTCHAIN_GETPROP {
 			return
 		}
+		// TODO(b/127505242): CAST parents may indicate a set.
+		// This may be a variable get or set.
+		switch pTok {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			isSet = true
+			rvalue := n.GetFirstChild()
+			if rvalue == nil {
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			} else {
+				type_ = b.GetValueType(rvalue)
+			}
+		case rhino.Token_ASSIGN:
+			if parent.GetFirstChild() == n {
+				isSet = true
+				type_ = b.GetValueType(n.GetNext())
+			}
+		case rhino.Token_FUNCTION:
+			grandparent := parent.GetParent()
+			if grandparent == nil || NodeUtil_IsFunctionExpression(parent) {
+				return
+			}
+			isSet = true
+			type_ = GlobalNamespace_NameProp_FUNCTION
+		case rhino.Token_CATCH, rhino.Token_INC, rhino.Token_DEC:
+			isSet = true
+			type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			if parent.GetFirstChild() == n {
+				isSet = true
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			}
+		case rhino.Token_CLASS:
+			// The first child is the class name, and the second child is the superclass name.
+			if parent.GetFirstChild() == n {
+				isSet = true
+				type_ = GlobalNamespace_NameProp_CLASS
+			}
+		case rhino.Token_STRING_KEY,
+			rhino.Token_ARRAY_PATTERN,
+			rhino.Token_DEFAULT_VALUE,
+			rhino.Token_COMPUTED_PROP,
+			rhino.Token_ITER_REST,
+			rhino.Token_OBJECT_REST:
+			// This may be a set.
+			// TODO(b/120303257): this should extend to qnames too, but doing
+			// so causes invalid output. Covered in CollapsePropertiesTest
+			if n.IsName() && NodeUtil_IsLhsByDestructuring(n) {
+				isSet = true
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			}
+		case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
+			// isSet = false, type = OTHER.
+		default:
+			if NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n {
+				isSet = true
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			}
+		}
+		if g.forProcessDefines && !isSet && (!g.processDefinesCheck || (t != nil && t.currentHoistScopeRoot != nil && b.curModuleRoot == nil)) {
+			return
+		}
 		if n.GetToken() == rhino.Token_NAME {
 			nameStr = n.GetString()
 			if nameStr == "" || pTok == rhino.Token_PARAM_LIST {
 				return
 			}
-			if pTok == rhino.Token_FUNCTION && (parent.GetParent() == nil || NodeUtil_IsFunctionExpression(parent)) {
-				return
+			if t != nil && b.curModuleRoot == nil && t.currentHoistScopeRoot != nil {
+				switch pTok {
+				case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CATCH:
+					return
+				case rhino.Token_CLASS:
+					if parent.GetFirstChild() == n {
+						return
+					}
+				}
 			}
 			root = b.getRootNodeOfTopNameWithTraversal(nameStr, scope, t)
 			if !b.IsTopLevelScopeRoot(root) {
@@ -1580,64 +1728,6 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 				return
 			}
 		}
-		// TODO(b/127505242): CAST parents may indicate a set.
-		// This may be a variable get or set.
-		switch pTok {
-		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-			isSet = true
-			rvalue := n.GetFirstChild()
-			if rvalue == nil {
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			} else {
-				type_ = b.GetValueType(rvalue)
-			}
-		case rhino.Token_ASSIGN:
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = b.GetValueType(n.GetNext())
-			}
-		case rhino.Token_FUNCTION:
-			grandparent := parent.GetParent()
-			if grandparent == nil || NodeUtil_IsFunctionExpression(parent) {
-				return
-			}
-			isSet = true
-			type_ = GlobalNamespace_NameProp_FUNCTION
-		case rhino.Token_CATCH, rhino.Token_INC, rhino.Token_DEC:
-			isSet = true
-			type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			}
-		case rhino.Token_CLASS:
-			// The first child is the class name, and the second child is the superclass name.
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_CLASS
-			}
-		case rhino.Token_STRING_KEY,
-			rhino.Token_ARRAY_PATTERN,
-			rhino.Token_DEFAULT_VALUE,
-			rhino.Token_COMPUTED_PROP,
-			rhino.Token_ITER_REST,
-			rhino.Token_OBJECT_REST:
-			// This may be a set.
-			// TODO(b/120303257): this should extend to qnames too, but doing
-			// so causes invalid output. Covered in CollapsePropertiesTest
-			if n.IsName() && NodeUtil_IsLhsByDestructuring(n) {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			}
-		case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
-			// isSet = false, type = OTHER.
-		default:
-			if NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			}
-		}
 	case rhino.Token_CALL:
 		if parent.IsExprResult() &&
 			GlobalNamespace_GOOG_PROVIDE.Matches(n.GetFirstChild()) &&
@@ -1656,6 +1746,19 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 	var nameMetadata *ModuleMetadataMap_ModuleMetadata
 	if root != g.globalRoot {
 		nameMetadata = b.curMetadata
+	}
+	if g.forProcessDefines && scope == nil && t != nil {
+		if isSet {
+			hoistIdx, hoistRoot := t.closestScopeHoistRoot()
+			if hoistIdx == 0 || (root != g.globalRoot && hoistRoot == b.curModuleRoot) {
+				b.HandleSetFromGlobal(nil, nil, n, nameStr, type_, nameMetadata)
+			} else {
+				b.HandleSetFromLocal(nil, nil, n, nameStr, nameMetadata)
+			}
+		} else {
+			b.HandleGet(nil, nil, n, nameStr, nameMetadata)
+		}
+		return
 	}
 	if scope == nil {
 		scope = t.GetScope()
@@ -1745,6 +1848,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) CreateNamesFromProvide(namespace 
 	newName.SetBooleanProperty(GlobalNamespace_NameProp_IS_PROVIDED)
 	b.lastRootScope = nil
 	b.lastRootScopeRoot = nil
+	b.rootCache = [8]globalNamespace_rootCacheEntry{}
 	b.objLitCache = [8]globalNamespace_objLitCacheEntry{}
 }
 
@@ -2654,7 +2758,9 @@ func (n *GlobalNamespace_Name) CastRefsForNodeMap() *jutil.LinkedHashMap[*rhino.
 
 // Java: GlobalNamespace.Name.createNewRef(JSChunk, Scope, Node, Ref.Type)
 func (n *GlobalNamespace_Name) CreateNewRef(chunk *JSChunk, scope *Scope, node *rhino.Node, type_ GlobalNamespace_Ref_Type) *GlobalNamespace_Ref {
-	jutil.CheckNotNull(scope)
+	if n.outer == nil || !n.outer.forProcessDefines {
+		jutil.CheckNotNull(scope)
+	}
 	jutil.CheckNotNull(node) // may be null later, but not on creation
 	if n.outer != nil && n.outer.arena != nil {
 		r := n.outer.arena.allocRef()

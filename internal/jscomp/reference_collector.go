@@ -362,16 +362,20 @@ type ReferenceCollector struct {
 	argumentsRefs    map[*rhino.Node]*ReferenceCollection
 	lastVar          *Var
 	lastCollection   *ReferenceCollection
-	lastRejectedVar  *Var
-	activeTraversal  *NodeTraversal
-	arena            *referenceCollectorArena
-	poolable         bool
-	reclaimLocals    bool
-	canReclaimLocals func() bool
-	localScopeDepth  int
-	globalRefInLocal bool
-	baseBlkChunkIdx  int
-	baseBlkSlabLen   int
+	lastRejectedVar       *Var
+	activeTraversal       *NodeTraversal
+	arena                 *referenceCollectorArena
+	poolable              bool
+	reclaimLocals         bool
+	canReclaimLocals      func() bool
+	localScopeDepth       int
+	globalRefInLocal      bool
+	globalRefInNonFnLocal bool
+	baseBlkChunkIdx       int
+	baseBlkSlabLen        int
+	dummyFnScopes         [2]Scope
+	lastDummyFn           *rhino.Node
+	dummyFnIdx            uint8
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
@@ -481,6 +485,27 @@ func (c *ReferenceCollector) slabsForVar(v *Var) *rcVarSlabs {
 	return c.globalSlabs
 }
 
+var rcDummyFnNode = rhino.NewNode(rhino.Token_FUNCTION)
+
+func (c *ReferenceCollector) getDummyFnScope(t *NodeTraversal) *Scope {
+	gs := t.scopes[0].untypedScope
+	if gs == nil {
+		gs = t.getScopeSlow(0)
+	}
+	if t.currentFunction != c.lastDummyFn {
+		c.lastDummyFn = t.currentFunction
+		c.dummyFnIdx ^= 1
+	}
+	s := &c.dummyFnScopes[c.dummyFnIdx]
+	s.rootNode = rcDummyFnNode
+	s.parent = gs
+	s.lookupParent = gs
+	s.depth = 1
+	s.scanDone = true
+	s.self = s
+	return s
+}
+
 func (c *ReferenceCollector) maybeReclaimLocals() {
 	if c.narrowScope != nil || c.referenceMap != nil || (c.canReclaimLocals != nil && !c.canReclaimLocals()) {
 		return
@@ -499,6 +524,14 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 	if c.refByKey != nil {
 		clear(c.refByKey)
 		c.refByKey = nil
+	}
+	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
+		if !c.globalRefInNonFnLocal {
+			sc.ResetLocalArena()
+		} else if sc.arena != nil {
+			sc.arena.markGlobalBase()
+			c.globalRefInNonFnLocal = false
+		}
 	}
 	if !c.globalRefInLocal && c.arena != nil && c.baseBlkChunkIdx > 0 {
 		a := c.arena
@@ -794,6 +827,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) (*ReferenceCollection
 		}
 	}
 	col := slabs.allocReferenceCollection()
+	col.varScope = v.scope
 	minGrow := 4096
 	if c.reclaimLocals && slabs == c.localSlabs {
 		minGrow = 256
@@ -1377,15 +1411,20 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *Nod
 	if len(c.blockStack) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.getLast()
 	}
+	if slabs == c.globalSlabs && c.localScopeDepth > 0 {
+		c.globalRefInLocal = true
+		if c.reclaimLocals && scope == nil && t.currentFunction != nil && !t.GetScopeRoot().IsMemberFieldDef() {
+			scope = c.getDummyFnScope(t)
+		} else {
+			c.globalRefInNonFnLocal = true
+		}
+	}
 	if scope == nil {
 		scope = t.GetScope()
 	}
 	inputId := t.inputId
 	if t.compilerInput == nil {
 		inputId = t.GetInput().GetInputId()
-	}
-	if slabs == c.globalSlabs && c.localScopeDepth > 0 {
-		c.globalRefInLocal = true
 	}
 	ref := slabs.allocReference(n, scope, c.getCurrentBlock(), inputId)
 	s := collection.refsList.Slice()

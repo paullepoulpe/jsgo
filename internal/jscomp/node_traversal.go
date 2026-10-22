@@ -2193,6 +2193,27 @@ func nodeTraversal_isHoistScopeRootNode(n *rhino.Node) bool {
 	}
 }
 
+func (t *NodeTraversal) closestScopeHoistRoot() (int, *rhino.Node) {
+	for i := len(t.scopes) - 1; i > 0; i-- {
+		r := t.scopes[i].node
+		if r == nil {
+			r = t.scopes[i].scope.GetRootNode()
+		}
+		switch r.GetToken() {
+		case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY:
+			return i, r
+		case rhino.Token_BLOCK:
+			if NodeUtil_IsFunctionBlock(r) || NodeUtil_IsClassStaticBlock(r) {
+				return i, r
+			}
+		}
+	}
+	if len(t.scopes) > 0 {
+		return 0, t.scopes[0].node
+	}
+	return 0, nil
+}
+
 // GetClosestScopeRootNodeBindingThisOrSuper returns the closest scope
 // binding the `this` or `super` keyword
 //

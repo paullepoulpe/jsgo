@@ -30,6 +30,7 @@ type ReferenceCollection struct {
 	references *jutil.ArrayList[*Reference]
 	refsList   jutil.ArrayList[*Reference]
 	refsBuf    [4]*Reference
+	varScope   *Scope
 }
 
 func initReferenceCollection(c *ReferenceCollection) *ReferenceCollection {
@@ -216,7 +217,7 @@ func (c *ReferenceCollection) IsAssignedOnceInLifetime() bool {
 		return false
 	}
 
-	var varScope *Scope
+	varScope := c.varScope
 	// Make sure this assignment is not in a loop or an enclosing function.
 	for block := ref.basicBlock; block != nil; block = block.parent {
 		if block.isFunction {

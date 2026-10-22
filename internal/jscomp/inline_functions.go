@@ -429,15 +429,16 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		releaseIfPoolState(p)
 	}()
 
-	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
-
 	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
-	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findCandidates, sc)
+	if root != nil {
+		findCandidates.walk(root, nil, nil, false)
+	}
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
 	}
+	sc := NewSyntacticScopeCreator(f.compiler)
+	sc.EnableArenaPool()
+	defer sc.ReleaseArena()
 	findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
 	findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
 	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
@@ -471,7 +472,9 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	inlineCb := InlineFunctions_Inline{injector: f.injector}
 	callVisitor := InlineFunctions_CallVisitorBase{}
 	callVisitor.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &inlineCb)
-	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &callVisitor, sc)
+	if root != nil {
+		callVisitor.inlineWalk(root, nil)
+	}
 
 	f.RemoveInlinedFunctions()
 }
@@ -528,6 +531,59 @@ func NewInlineFunctions_FindCandidateFunctions(outer *InlineFunctions) *InlineFu
 
 func (*InlineFunctions_FindCandidateFunctions) noVisitLeaves() {}
 
+func (c *InlineFunctions_FindCandidateFunctions) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	tok := n.GetToken()
+	childLocalHoist := inLocalHoist
+	switch tok {
+	case rhino.Token_SCRIPT:
+		if id := n.GetInputId(); id != nil {
+			if inp := c.outer.compiler.GetInput(id); inp != nil {
+				chunk = inp.GetChunk()
+			}
+		}
+	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
+		childLocalHoist = true
+	case rhino.Token_BLOCK:
+		if parent != nil && parent.IsClassMembers() {
+			childLocalHoist = true
+		}
+	case rhino.Token_CLASS_MEMBERS:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
+				c.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
+			}
+		}
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			switch ch.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				c.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if ch.HasTwoChildren() {
+					c.walk(ch.GetLastChild(), ch, chunk, true)
+				}
+			default:
+				c.walk(ch, n, chunk, inLocalHoist)
+			}
+		}
+		return
+	}
+	for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		if ch.GetFirstChild() != nil {
+			c.walk(ch, n, chunk, childLocalHoist)
+		}
+	}
+	switch tok {
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION:
+		if c.outer.reach.IncludesGlobals() || inLocalHoist {
+			c.findNamedFunctionsWithChunk(n, parent, chunk)
+		}
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
+		if c.outer.reach.IncludesGlobals() || inLocalHoist {
+			c.findFunctionExpressionsWithChunk(n, chunk)
+		}
+	}
+}
+
 // Java: InlineFunctions.FindCandidateFunctions.visit(NodeTraversal, Node, Node)
 func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
@@ -545,6 +601,10 @@ func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n *rhin
 
 // Java: InlineFunctions.FindCandidateFunctions.findNamedFunctions(NodeTraversal, Node, Node)
 func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	c.findNamedFunctionsWithChunk(n, parent, t.GetChunk())
+}
+
+func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if !NodeUtil_IsStatement(n) {
@@ -557,7 +617,7 @@ func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTrave
 		if nameNode.IsName() &&
 			nameNode.HasChildren() &&
 			nameNode.GetFirstChild().IsFunction() {
-			c.outer.MaybeAddFunction(c.outer.allocFunctionVar(n), t.GetChunk())
+			c.outer.MaybeAddFunction(c.outer.allocFunctionVar(n), chunk)
 		}
 		// Named functions
 		// function Foo(x) { return ... }
@@ -567,7 +627,7 @@ func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTrave
 		}
 		jutil.CheckState(NodeUtil_IsStatementBlock(parent) || parent.IsLabel())
 		if NodeUtil_IsFunctionDeclaration(n) {
-			c.outer.MaybeAddFunction(c.outer.allocNamedFunction(n), t.GetChunk())
+			c.outer.MaybeAddFunction(c.outer.allocNamedFunction(n), chunk)
 		}
 	default:
 	}
@@ -579,6 +639,10 @@ func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTrave
 //
 // Java: InlineFunctions.FindCandidateFunctions.findFunctionExpressions(NodeTraversal, Node)
 func (c *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *NodeTraversal, n *rhino.Node) {
+	c.findFunctionExpressionsWithChunk(n, t.GetChunk())
+}
+
+func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChunk(n *rhino.Node, chunk *JSChunk) {
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Functions expressions in the form of:
@@ -596,7 +660,7 @@ func (c *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *Node
 			callsSeen := c.callsSeen
 			c.callsSeen++
 			fn := c.outer.allocFunctionExpression(fnNode, callsSeen)
-			c.outer.MaybeAddFunction(fn, t.GetChunk())
+			c.outer.MaybeAddFunction(fn, chunk)
 			c.outer.anonFns.Put(fnNode, fn.GetName())
 		}
 	default:
@@ -1006,6 +1070,44 @@ func (v *InlineFunctions_CallVisitorBase) GetInlineFunctions_CallVisitorBase() *
 
 func (*InlineFunctions_CallVisitorBase) noVisitLeaves() {}
 
+func (v *InlineFunctions_CallVisitorBase) inlineWalk(n *rhino.Node, parent *rhino.Node) {
+	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
+		for c := n.GetFirstChild(); c != nil; {
+			next := c.GetNext()
+			if c.IsComputedProp() || c.IsComputedFieldDef() {
+				v.inlineWalk(c.GetFirstChild(), c)
+			}
+			c = next
+		}
+		for c := n.GetFirstChild(); c != nil; {
+			next := c.GetNext()
+			switch c.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				v.inlineWalk(c.GetLastChild(), c)
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if c.HasTwoChildren() {
+					v.inlineWalk(c.GetLastChild(), c)
+				}
+			default:
+				v.inlineWalk(c, n)
+			}
+			c = next
+		}
+		return
+	}
+	for c := n.GetFirstChild(); c != nil; {
+		next := c.GetNext()
+		if c.GetFirstChild() != nil {
+			v.inlineWalk(c, n)
+		}
+		c = next
+	}
+	switch n.GetToken() {
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
+		v.Visit(nil, n, parent)
+	}
+}
+
 // Java: InlineFunctions.CallVisitor.visit(NodeTraversal, Node, Node)
 func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	switch n.GetToken() {
@@ -1288,7 +1390,11 @@ func (i *InlineFunctions_Inline) InlineFunction(t *NodeTraversal, ref *InlineFun
 
 	newExpr := i.injector.Inline(ref, fnName, fnNode)
 	if newExpr != ref.callNode {
-		t.GetCompiler().ReportChangeToEnclosingScope(newExpr)
+		if t != nil {
+			t.GetCompiler().ReportChangeToEnclosingScope(newExpr)
+		} else {
+			i.injector.compiler.ReportChangeToEnclosingScope(newExpr)
+		}
 	}
 }
 
