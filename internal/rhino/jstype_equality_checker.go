@@ -504,12 +504,12 @@ func (c *EqualityChecker) AreRecordEqual(left *RecordType, right *RecordType) bo
 	leftEntries = left.properties.entries
 	rightEntries = right.properties.entries
 	for i := range leftEntries {
-		if leftEntries[i].key != rightEntries[i].key {
+		if leftEntries[i].nameID != rightEntries[i].nameID {
 			return false
 		}
 	}
 	for i := range leftEntries {
-		if !c.AreEqualCaching(leftEntries[i].prop.GetType(), rightEntries[i].prop.GetType()) {
+		if !c.AreEqualCaching(leftEntries[i].GetType(), rightEntries[i].GetType()) {
 			return false
 		}
 	}

@@ -35,25 +35,42 @@
 
 package rhino
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"sync"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+var (
+	propertySymbolMu   sync.RWMutex
+	propertySymbolList []*KnownSymbolType
+)
+
+func registerPropertySymbol(sym *KnownSymbolType) rhinoStringID {
+	propertySymbolMu.Lock()
+	for i, existing := range propertySymbolList {
+		if existing == sym {
+			propertySymbolMu.Unlock()
+			return rhinoStringID(i + 1)
+		}
+	}
+	propertySymbolList = append(propertySymbolList, sym)
+	id := rhinoStringID(len(propertySymbolList))
+	propertySymbolMu.Unlock()
+	return id
+}
+
+func propertySymbolFromID(id rhinoStringID) *KnownSymbolType {
+	propertySymbolMu.RLock()
+	sym := propertySymbolList[id-1]
+	propertySymbolMu.RUnlock()
+	return sym
+}
 
 // Property is a property slot of an object.
 type Property struct {
-	// Property's name. Either a String or a KnownSymbolType.
-	//
-	// NOTE(lharker): storing this as a Key would be correct & more
-	// type-safe, but that caused some OOMs when I tried it, presumably
-	// because of the extra memory usage. So we store this as a plain Object
-	// for now. All the non-private API methods should use Key though.
-	//
-	// Go: a string or a *KnownSymbolType.
-	name any
-
 	// Property's type.
 	type_ JSType
-
-	// Whether the property's type is inferred.
-	inferred bool
 
 	// The node corresponding to this property, e.g., a GETPROP node that
 	// declares this property.
@@ -61,6 +78,14 @@ type Property struct {
 
 	// The JSDocInfo for this property.
 	docInfo *JSDocInfo
+
+	// Property's name: either a 32-bit RhinoStringPool ID (!isSymbol) or a
+	// 1-based index into propertySymbolList (isSymbol).
+	nameID rhinoStringID
+
+	// Whether the property's type is inferred.
+	inferred bool
+	isSymbol bool
 }
 
 // Property_KeyKind is what kind of property this is - currently the spec
@@ -227,9 +252,14 @@ const Property_serialVersionUID int64 = 1
 
 // Java: Property(String, JSType, boolean, Node)
 func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *Property {
-	p := &Property{}
-	p.name = name
-	p.type_ = jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
+	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
+	var r *JSTypeRegistry
+	if tb := type_.GetJSTypeBase(); tb != nil {
+		r = tb.registry
+	}
+	p := r.allocProperty()
+	p.nameID = rhinoStringPoolIntern(name)
+	p.type_ = type_
 	p.inferred = inferred
 	p.propertyNode = propertyNode
 	return p
@@ -237,15 +267,20 @@ func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *
 
 // Java: Property(Key, JSType, boolean, Node)
 func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) *Property {
-	p := &Property{}
-	switch name.Kind() {
-	case Property_KeyKind_STRING:
-		p.name = name.String_()
-	case Property_KeyKind_SYMBOL:
-		p.name = name.Symbol()
-	}
 	if jutil.IsNil(type_) {
 		jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
+	}
+	var r *JSTypeRegistry
+	if tb := type_.GetJSTypeBase(); tb != nil {
+		r = tb.registry
+	}
+	p := r.allocProperty()
+	switch name.Kind() {
+	case Property_KeyKind_STRING:
+		p.nameID = rhinoStringPoolIntern(name.String_())
+	case Property_KeyKind_SYMBOL:
+		p.nameID = registerPropertySymbol(name.Symbol())
+		p.isSymbol = true
 	}
 	p.type_ = type_
 	p.inferred = inferred
@@ -253,15 +288,19 @@ func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNo
 	return p
 }
 
+func (p *Property) nameObject() any {
+	if !p.isSymbol {
+		return rhinoStringFromID(p.nameID)
+	}
+	return propertySymbolFromID(p.nameID)
+}
+
 // Java: Property.getName()
 func (p *Property) GetName() string {
-	switch s := p.name.(type) {
-	case string:
-		return s
-	case *KnownSymbolType:
-		return *s.GetDisplayName()
+	if !p.isSymbol {
+		return rhinoStringFromID(p.nameID)
 	}
-	panic(jutil.NewAssertionErrorNoMessage())
+	return *propertySymbolFromID(p.nameID).GetDisplayName()
 }
 
 // Java: Property.getNode()
@@ -317,7 +356,7 @@ func (p *Property) IsFromExterns() bool {
 // Java: Property.setType(JSType)
 func (p *Property) SetType(type_ JSType) {
 	if jutil.IsNil(type_) {
-		jutil.CheckNotNullMsg1(type_, "Null type specified for property %s", jutil.ToJavaString(p.name))
+		jutil.CheckNotNullMsg1(type_, "Null type specified for property %s", jutil.ToJavaString(p.nameObject()))
 	}
 	p.type_ = type_
 }
@@ -340,7 +379,7 @@ func (p *Property) SetNode(n *Node) {
 // Java: Property.toString()
 func (p *Property) String() string {
 	return "Property { " +
-		" name: " + jutil.ToJavaString(p.name) +
+		" name: " + jutil.ToJavaString(p.nameObject()) +
 		", type:" + jutil.ToJavaString(p.type_) +
 		", inferred: " + jutil.ToJavaString(p.inferred) +
 		"}"
@@ -353,7 +392,10 @@ func (p *Property) GetScope() StaticScope {
 
 // Java: Property.hashCode()
 func (p *Property) HashCode() int32 {
-	return jutil.ObjectsHash(p.name, p.type_)
+	if !p.isSymbol {
+		return 31*(31+jutil.StringHashCode(rhinoStringFromID(p.nameID))) + jutil.ObjectHashCode(p.type_)
+	}
+	return jutil.ObjectsHash(propertySymbolFromID(p.nameID), p.type_)
 }
 
 // Equals is Object.equals (Property does not override it): identity.

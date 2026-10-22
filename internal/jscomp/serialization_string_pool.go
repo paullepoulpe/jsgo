@@ -81,15 +81,16 @@ func (p *StringPool) GetInternedStrings() *rhino.RhinoStringPool_LazyInternedStr
 
 // Java: StringPool.toProto()
 func (p *StringPool) ToProto() *StringPoolProto {
-	raw := p.pool.Slice()
+	n := p.pool.Len()
 	var strings [][]byte
-	if len(raw) > 1 {
-		strings = make([][]byte, len(raw)-1)
-		for i, s := range raw[1:] {
+	if n > 1 {
+		strings = make([][]byte, n-1)
+		for i := 1; i < n; i++ {
+			s := p.pool.Get(i)
 			if jutil.IsASCII(s) {
-				strings[i] = unsafe.Slice(unsafe.StringData(s), len(s))
+				strings[i-1] = unsafe.Slice(unsafe.StringData(s), len(s))
 			} else {
-				strings[i] = Wtf8_EncodeToWtf8(s)
+				strings[i-1] = Wtf8_EncodeToWtf8(s)
 			}
 		}
 	}
@@ -112,20 +113,120 @@ func StringPool_Builder_() *StringPool_Builder {
 // StringPool_Builder is StringPool.Builder.
 type StringPool_Builder struct {
 	maxLength int
-	pool      map[string]int
-	keys      []string
-	lastStr   string
+	idTable   []uint64 // noscan open-addressed hash table: (uint64(id) << 32) | uint64(idx+1)
+	ids       []uint32 // noscan slice of rhinoStringIDs
+	lastID    uint32
 	lastIdx   int
 }
 
+func stringPoolHashID(id uint32) uint32 {
+	h := id * 0x9e3779b9
+	return h ^ (h >> 16)
+}
+
 func newStringPool_Builder() *StringPool_Builder {
-	b := &StringPool_Builder{
-		pool: make(map[string]int, 1024),
-		keys: make([]string, 0, 1024),
+	emptyID := rhino.RhinoStringPool_InternID("")
+	idTable := make([]uint64, 2048)
+	slot := stringPoolHashID(emptyID) & uint32(len(idTable)-1)
+	idTable[slot] = (uint64(emptyID) << 32) | 1
+	ids := make([]uint32, 1, 1024)
+	ids[0] = emptyID
+	return &StringPool_Builder{
+		idTable: idTable,
+		ids:     ids,
+		lastID:  emptyID,
+		lastIdx: 0,
 	}
-	b.pool[""] = 0
-	b.keys = append(b.keys, "")
-	return b
+}
+
+func (b *StringPool_Builder) growIDTable() {
+	newCap := len(b.idTable) * 2
+	newTable := make([]uint64, newCap)
+	mask := uint32(newCap - 1)
+	for _, entry := range b.idTable {
+		if entry == 0 {
+			continue
+		}
+		id := uint32(entry >> 32)
+		slot := stringPoolHashID(id) & mask
+		for newTable[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+		newTable[slot] = entry
+	}
+	b.idTable = newTable
+}
+
+// PutID inserts the string with the given 32-bit RhinoStringPool ID into the
+// string pool if not present and returns its index.
+func (b *StringPool_Builder) PutID(id uint32) int {
+	if id == 0 {
+		return 0
+	}
+	if id == b.lastID {
+		return b.lastIdx
+	}
+	mask := uint32(len(b.idTable) - 1)
+	slot := stringPoolHashID(id) & mask
+	for {
+		entry := b.idTable[slot]
+		if entry == 0 {
+			break
+		}
+		if uint32(entry>>32) == id {
+			idx := int(uint32(entry) - 1)
+			b.lastID = id
+			b.lastIdx = idx
+			return idx
+		}
+		slot = (slot + 1) & mask
+	}
+	s := rhino.RhinoStringPool_StringFromID(id)
+	if len(s) > b.maxLength {
+		if n := jutil.StringLength(s); n > b.maxLength {
+			b.maxLength = n
+		}
+	}
+	idx := len(b.ids)
+	b.ids = append(b.ids, id)
+	if len(b.ids)*2 > len(b.idTable) {
+		b.growIDTable()
+		mask = uint32(len(b.idTable) - 1)
+		slot = stringPoolHashID(id) & mask
+		for b.idTable[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+	}
+	b.idTable[slot] = (uint64(id) << 32) | uint64(idx+1)
+	b.lastID = id
+	b.lastIdx = idx
+	return idx
+}
+
+// Lookup returns the pool index of s if present.
+func (b *StringPool_Builder) Lookup(s string) (int, bool) {
+	if s == "" {
+		return 0, true
+	}
+	id := rhino.RhinoStringPool_LookupID(s)
+	if id == 0 {
+		return 0, false
+	}
+	if id == b.lastID {
+		return b.lastIdx, true
+	}
+	mask := uint32(len(b.idTable) - 1)
+	slot := stringPoolHashID(id) & mask
+	for {
+		entry := b.idTable[slot]
+		if entry == 0 {
+			return 0, false
+		}
+		if uint32(entry>>32) == id {
+			return int(uint32(entry) - 1), true
+		}
+		slot = (slot + 1) & mask
+	}
 }
 
 // Put inserts the given string into the string pool if not present and
@@ -133,25 +234,7 @@ func newStringPool_Builder() *StringPool_Builder {
 //
 // Java: StringPool.Builder.put(String)
 func (b *StringPool_Builder) Put(s string) int {
-	if s == b.lastStr {
-		return b.lastIdx
-	}
-	if idx, ok := b.pool[s]; ok {
-		b.lastStr = s
-		b.lastIdx = idx
-		return idx
-	}
-	if len(s) > b.maxLength {
-		if n := jutil.StringLength(s); n > b.maxLength {
-			b.maxLength = n
-		}
-	}
-	idx := len(b.keys)
-	b.keys = append(b.keys, s)
-	b.pool[s] = idx
-	b.lastStr = s
-	b.lastIdx = idx
-	return idx
+	return b.PutID(rhino.RhinoStringPool_InternID(s))
 }
 
 // Java: StringPool.Builder.putAnd(String)
@@ -162,7 +245,10 @@ func (b *StringPool_Builder) PutAnd(s string) *StringPool_Builder {
 
 // Java: StringPool.Builder.build()
 func (b *StringPool_Builder) Build() *StringPool {
-	return newStringPool(b.maxLength, b.keys)
+	return &StringPool{
+		maxLength: b.maxLength,
+		pool:      rhino.NewRhinoStringPool_LazyInternedStringListFromIDs(b.ids),
+	}
 }
 
 var stringPool_EMPTY = StringPool_Builder_().Build()

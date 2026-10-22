@@ -2490,6 +2490,16 @@ func (n *Node) GetString() string {
 	return n.nodeStringValue()
 }
 
+// GetStringID returns the 32-bit interned string ID of a StringNode.
+func (n *Node) GetStringID() uint32 {
+	n.node_castKind(node_kindString)
+	id := uint32(n.payload)
+	if id == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	return id
+}
+
 // Java: Node.setString(String)
 func (n *Node) SetString(str string) {
 	n.node_castKind(node_kindString)
@@ -2510,10 +2520,26 @@ func (n *Node) GetRawString() string {
 	return n.nodeStringValue() // raw
 }
 
+// GetRawStringID returns the 32-bit interned raw string ID of a TemplateLiteralSubstringNode.
+func (n *Node) GetRawStringID() uint32 {
+	n.node_castKind(node_kindTemplateLiteralSubstring)
+	id := uint32(n.payload)
+	if id == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	return id
+}
+
 // Java: Node.getCookedString()
 func (n *Node) GetCookedString() *string {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
 	return n.node_cooked()
+}
+
+// GetCookedStringID returns the 32-bit interned cooked string ID of a TemplateLiteralSubstringNode, or 0 if unset.
+func (n *Node) GetCookedStringID() uint32 {
+	n.node_castKind(node_kindTemplateLiteralSubstring)
+	return uint32(n.payload >> 32)
 }
 
 // Java: Node.toString()
@@ -2982,6 +3008,11 @@ func (n *Node) GetOriginalName() *string {
 		return nil
 	}
 	return &s
+}
+
+// GetOriginalNameID returns the 32-bit interned originalName ID of n, or 0 if unset.
+func (n *Node) GetOriginalNameID() uint32 {
+	return uint32(n.node_originalNameID())
 }
 
 func (n *Node) getOriginalNameString() (string, bool) {

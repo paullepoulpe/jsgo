@@ -41,12 +41,8 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-type propMapEntry struct {
-	key  string
-	prop *Property
-}
-
 type propMapExt struct {
+	byID                     map[rhinoStringID]*Property
 	knownSymbols             *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]
 	cachedKeySet             []string
 	cachedKnownSymbolsKeySet []*KnownSymbolType
@@ -62,11 +58,10 @@ type PropertyMap struct {
 	parentSource ObjectType
 
 	// Own string properties. Small maps (<=24 entries) scan entries directly
-	// with string equality; larger maps maintain byName for O(1) lookup and
+	// by 32-bit rhinoStringID; larger maps maintain ext.byID for O(1) lookup and
 	// sort entries by StringCompareTo lazily when key-ordered iteration is
 	// requested.
-	entries []propMapEntry
-	byName  map[string]*Property
+	entries []*Property
 	ext     *propMapExt
 
 	// A "timestamp" for map mutations to validate cachedKeySet and
@@ -120,8 +115,8 @@ func (m *PropertyMap) ensureSorted() {
 		m.sorted = true
 		return
 	}
-	slices.SortFunc(m.entries, func(a, b propMapEntry) int {
-		return jutil.StringCompareTo(a.key, b.key)
+	slices.SortFunc(m.entries, func(a, b *Property) int {
+		return jutil.StringCompareTo(rhinoStringFromID(a.nameID), rhinoStringFromID(b.nameID))
 	})
 	m.sorted = true
 }
@@ -184,11 +179,21 @@ func (m *PropertyMap) FindClosest(name string) *Property_OwnedProperty {
 // findClosestPairByKey resolves the closest (owner, Property) pair without
 // heap-allocating a Property_OwnedProperty wrapper.
 func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Property) {
+	if name.Kind() == Property_KeyKind_STRING {
+		str := name.String_()
+		if len(m.entries) == 1 && !m.hasNonASCII {
+			if p := m.entries[0]; rhinoStringFromID(p.nameID) == str {
+				return m.parentSource, p
+			}
+		}
+		return m.findClosestPairByStringID(str, rhinoStringPoolLookup(str))
+	}
 	// Check primary parents which always has precedence over secondary.
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
-		prop := pm.GetOwnPropertyByKey(name)
-		if prop != nil {
-			return pm.parentSource, prop
+		if pm.ext != nil && pm.ext.knownSymbols != nil {
+			if prop := pm.ext.knownSymbols.Get(name.Symbol()); prop != nil {
+				return pm.parentSource, prop
+			}
 		}
 	}
 
@@ -208,6 +213,24 @@ func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Prop
 	return nil, nil
 }
 
+func (m *PropertyMap) findClosestPairByStringID(str string, id rhinoStringID) (ObjectType, *Property) {
+	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
+		if prop := pm.getOwnPropertyByID(str, id); prop != nil {
+			return pm.parentSource, prop
+		}
+	}
+	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
+		for _, o := range pm.GetSecondaryParentObjects() {
+			if parent := o.GetPropertyMap(); parent != nil {
+				if owner, prop := parent.findClosestPairByStringID(str, id); prop != nil {
+					return owner, prop
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
 // Java: PropertyMap.findClosest(Property.Key)
 func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedProperty {
 	owner, prop := m.findClosestPairByKey(name)
@@ -217,25 +240,44 @@ func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedPropert
 	return NewProperty_OwnedProperty(owner, prop)
 }
 
-// Java: PropertyMap.getOwnProperty(String)
-func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
-	if m.byName != nil {
-		return m.byName[propertyName]
+func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) *Property {
+	if len(m.entries) == 0 {
+		return nil
 	}
 	if !m.hasNonASCII {
-		for i := range m.entries {
-			if m.entries[i].key == propertyName {
-				return m.entries[i].prop
+		if id == 0 {
+			return nil
+		}
+		if m.ext != nil && m.ext.byID != nil {
+			return m.ext.byID[id]
+		}
+		for _, p := range m.entries {
+			if p.nameID == id {
+				return p
 			}
 		}
 		return nil
 	}
-	for i := range m.entries {
-		if m.entries[i].key == propertyName || jutil.StringCompareTo(m.entries[i].key, propertyName) == 0 {
-			return m.entries[i].prop
+	for _, p := range m.entries {
+		if (id != 0 && p.nameID == id) || jutil.StringCompareTo(rhinoStringFromID(p.nameID), propertyName) == 0 {
+			return p
 		}
 	}
 	return nil
+}
+
+// Java: PropertyMap.getOwnProperty(String)
+func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
+	if len(m.entries) == 0 {
+		return nil
+	}
+	if len(m.entries) == 1 && !m.hasNonASCII {
+		if p := m.entries[0]; rhinoStringFromID(p.nameID) == propertyName {
+			return p
+		}
+		return nil
+	}
+	return m.getOwnPropertyByID(propertyName, rhinoStringPoolLookup(propertyName))
 }
 
 // Java: PropertyMap.getOwnProperty(Property.Key)
@@ -268,8 +310,8 @@ func (m *PropertyMap) GetPropertiesCount() int {
 func (m *PropertyMap) GetOwnPropertyNames() []string {
 	m.ensureSorted()
 	out := make([]string, len(m.entries))
-	for i, e := range m.entries {
-		out[i] = e.key
+	for i, p := range m.entries {
+		out[i] = rhinoStringFromID(p.nameID)
 	}
 	return out
 }
@@ -313,8 +355,8 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			}
 
 			ancestor.ensureSorted()
-			for _, e := range ancestor.entries {
-				keys.Add(e.key)
+			for _, p := range ancestor.entries {
+				keys.Add(rhinoStringFromID(p.nameID))
 			}
 			if ancestor.ext != nil && ancestor.ext.knownSymbols != nil {
 				for s := range ancestor.ext.knownSymbols.Keys() {
@@ -416,23 +458,27 @@ func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*Proper
 
 // Java: PropertyMap.putProperty(String, Property)
 func (m *PropertyMap) PutProperty(name string, newProp *Property) {
+	nameID := newProp.nameID
+	if newProp.isSymbol || rhinoStringFromID(nameID) != name {
+		nameID = rhinoStringPoolIntern(name)
+	}
 	isASCII := !m.hasNonASCII && propMapIsASCII(name)
 	var oldProp *Property
 	oldIdx := -1
-	if m.byName != nil && isASCII {
-		oldProp = m.byName[name]
+	if m.ext != nil && m.ext.byID != nil && isASCII {
+		oldProp = m.ext.byID[nameID]
 	} else if !m.hasNonASCII && isASCII {
-		for i := range m.entries {
-			if m.entries[i].key == name {
-				oldProp = m.entries[i].prop
+		for i, p := range m.entries {
+			if p.nameID == nameID {
+				oldProp = p
 				oldIdx = i
 				break
 			}
 		}
 	} else {
-		for i := range m.entries {
-			if m.entries[i].key == name || jutil.StringCompareTo(m.entries[i].key, name) == 0 {
-				oldProp = m.entries[i].prop
+		for i, p := range m.entries {
+			if p.nameID == nameID || jutil.StringCompareTo(rhinoStringFromID(p.nameID), name) == 0 {
+				oldProp = p
 				oldIdx = i
 				break
 			}
@@ -453,12 +499,12 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	}
 	if oldProp != nil {
 		if oldIdx >= 0 {
-			m.entries[oldIdx].prop = newProp
+			m.entries[oldIdx] = newProp
 		} else {
-			m.byName[name] = newProp
-			for i := range m.entries {
-				if m.entries[i].key == name {
-					m.entries[i].prop = newProp
+			m.ext.byID[nameID] = newProp
+			for i, p := range m.entries {
+				if p.nameID == nameID {
+					m.entries[i] = newProp
 					break
 				}
 			}
@@ -467,21 +513,24 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	}
 	if !isASCII && !m.hasNonASCII {
 		m.hasNonASCII = true
-		m.byName = nil
+		if m.ext != nil {
+			m.ext.byID = nil
+		}
 	}
 	if len(m.entries) == 0 {
 		m.sorted = true
-	} else if m.sorted && jutil.StringCompareTo(m.entries[len(m.entries)-1].key, name) >= 0 {
+	} else if m.sorted && jutil.StringCompareTo(rhinoStringFromID(m.entries[len(m.entries)-1].nameID), name) >= 0 {
 		m.sorted = false
 	}
-	m.entries = append(m.entries, propMapEntry{key: name, prop: newProp})
+	m.entries = append(m.entries, newProp)
 	if !m.hasNonASCII {
-		if m.byName != nil {
-			m.byName[name] = newProp
+		if m.ext != nil && m.ext.byID != nil {
+			m.ext.byID[nameID] = newProp
 		} else if len(m.entries) > 24 {
-			m.byName = make(map[string]*Property, 32)
-			for _, e := range m.entries {
-				m.byName[e.key] = e.prop
+			ext := m.ensureExt()
+			ext.byID = make(map[rhinoStringID]*Property, 32)
+			for _, p := range m.entries {
+				ext.byID[p.nameID] = p
 			}
 		}
 	}
@@ -524,7 +573,7 @@ func (m *PropertyMap) Values() func(yield func(*Property) bool) {
 	m.ensureSorted()
 	return func(yield func(*Property) bool) {
 		for i := 0; i < len(m.entries); i++ {
-			if !yield(m.entries[i].prop) {
+			if !yield(m.entries[i]) {
 				return
 			}
 		}
@@ -541,8 +590,8 @@ func (m *PropertyMap) HashCode() int32 {
 	// Otherwise we can get into an infinite loop because the ObjectType
 	// hashCode method calls this one.
 	var propHash int32
-	for _, e := range m.entries {
-		propHash += jutil.StringHashCode(e.key)
+	for _, p := range m.entries {
+		propHash += jutil.StringHashCode(rhinoStringFromID(p.nameID))
 	}
 	if m.ext == nil || m.ext.knownSymbols == nil {
 		return propHash

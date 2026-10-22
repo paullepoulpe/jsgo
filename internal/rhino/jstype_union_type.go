@@ -66,7 +66,14 @@ type UnionType struct {
 	// overhead of allocating iterators. All loops over this collection should
 	// be indexed.
 	alternates       []JSType
-	inlineAlternates [4]JSType
+	inlineAlternates [2]JSType
+
+	// How many alternates were resolved the last time this union was
+	// (re)built?
+	//
+	// Used to skip rebuilds that cannot change anything. -1 means "never
+	// rebuilt since construction".
+	resolvedAlternatesAtLastBuild int32
 
 	// Were all the types used in the most recent build of this union resolved
 	// before that build?
@@ -74,13 +81,6 @@ type UnionType struct {
 	// If this is true, there is no need to rebuild this union ever again,
 	// including during resolution. The result will not change.
 	alternatesResolvedBeforeBuild bool
-
-	// How many alternates were resolved the last time this union was
-	// (re)built?
-	//
-	// Used to skip rebuilds that cannot change anything. -1 means "never
-	// rebuilt since construction".
-	resolvedAlternatesAtLastBuild int
 }
 
 // Java: UnionType.TYPE_CLASS
@@ -142,7 +142,7 @@ func (t *UnionType) GetAlternates() []JSType {
 		// same union, and `alternates` is not replaced until the rebuild
 		// finishes, so the nested read sees no change and returns instead of
 		// starting another rebuild.
-		resolvedAlternates := t.CountResolvedAlternates()
+		resolvedAlternates := int32(t.CountResolvedAlternates())
 
 		if resolvedAlternates != t.resolvedAlternatesAtLastBuild {
 			t.resolvedAlternatesAtLastBuild = resolvedAlternates
@@ -160,7 +160,7 @@ func (t *UnionType) GetAlternates() []JSType {
 				// a union is flattened into its members, and those members may
 				// themselves be unresolved. Re-baseline against the list we
 				// actually have now, so the next read compares like with like.
-				t.resolvedAlternatesAtLastBuild = t.CountResolvedAlternates()
+				t.resolvedAlternatesAtLastBuild = int32(t.CountResolvedAlternates())
 			}
 			t.registry.releaseUnionBuilder(b)
 		}

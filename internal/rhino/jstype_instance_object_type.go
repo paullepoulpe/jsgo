@@ -44,7 +44,7 @@ import (
 type InstanceObjectType struct {
 	PrototypeObjectTypeBase
 
-	constructor FunctionType
+	constructor *FunctionTypeBase
 }
 
 // Java: InstanceObjectType.TYPE_CLASS
@@ -54,7 +54,7 @@ const InstanceObjectType_TYPE_CLASS = JSTypeClass_INSTANCE_OBJECT
 func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectType {
 	t := builder.registry.allocInstanceObjectType()
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
-	t.constructor = jutil.CheckNotNull(builder.constructor)
+	t.constructor = jutil.CheckNotNull(builder.constructor).GetFunctionTypeBase()
 
 	t.registry.GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
 	return t
@@ -107,7 +107,7 @@ func (t *InstanceObjectType) GetTypeClass() JSTypeClass {
 
 // Java: ObjectType.hasReferenceName()
 func (t *InstanceObjectType) HasReferenceName() bool {
-	return t.constructor.HasReferenceName()
+	return t.constructor.selfFunc().HasReferenceName()
 }
 
 // Java: InstanceObjectType.getReferenceName()
@@ -122,7 +122,7 @@ func (t *InstanceObjectType) GetImplicitPrototype() ObjectType {
 
 // Java: InstanceObjectType.getConstructor()
 func (t *InstanceObjectType) GetConstructor() FunctionType {
-	return t.constructor
+	return t.constructor.selfFunc()
 }
 
 // Java: InstanceObjectType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -136,17 +136,18 @@ func (t *InstanceObjectType) DefinePropertyByKey(name Property_Key, type_ JSType
 
 // Java: InstanceObjectType.appendTo(TypeStringBuilder)
 func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
-	if !t.constructor.HasReferenceName() {
+	ctor := t.constructor.selfFunc()
+	if !ctor.HasReferenceName() {
 		t.PrototypeObjectTypeBase.AppendTo(sb)
 		return
 	} else if sb.IsForAnnotations() {
-		sb.Append(*t.constructor.GetNormalizedReferenceName())
+		sb.Append(*ctor.GetNormalizedReferenceName())
 		return
 	}
 
-	name := *t.constructor.GetReferenceName()
+	name := *ctor.GetReferenceName()
 	if name == "" {
-		n := t.constructor.GetSource()
+		n := ctor.GetSource()
 		sourceFileName := "unknown"
 		lineno := 0
 		if n != nil {
@@ -249,7 +250,7 @@ func (t *InstanceObjectType) ResolveInternal(reporter ErrorReporter) JSType {
 	// reference because to create this InstanceObjectType, we must have the
 	// constructor first. But we do need to call resolve on the constructor to
 	// resolve its fields and implemented/extended interfaces, if any.
-	_ = JSType_SafeResolve(t.constructor, reporter)
+	_ = JSType_SafeResolve(t.constructor.selfFunc(), reporter)
 	return resolved
 }
 

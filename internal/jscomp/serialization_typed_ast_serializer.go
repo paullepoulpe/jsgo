@@ -63,6 +63,8 @@ type TypedAstSerializer struct {
 	templateSlabs    [][]TemplateStringValue
 	templateSlabIdx  int
 	templateSlabPos  int
+	scriptByteSlab   []byte
+	lazyAstSlab      []LazyAst
 }
 
 // Java: TypedAstSerializer(AbstractCompiler, SerializationOptions)
@@ -286,8 +288,26 @@ func (s *TypedAstSerializer) SerializeScriptNode(script *rhino.Node) *LazyAst {
 
 	encodedSourceMap := s.compiler.GetBase64SourceMapContents(*script.GetSourceFileName())
 
-	lazyAst := &LazyAst{
-		script_:      scriptProto.ToByteString(),
+	var scriptBytes []byte
+	sz := scriptProto.serializedSize()
+	if sz <= 262144 {
+		if len(s.scriptByteSlab) < sz {
+			s.scriptByteSlab = make([]byte, max(4*1024*1024, sz))
+		}
+		buf := s.scriptByteSlab[:0:sz]
+		s.scriptByteSlab = s.scriptByteSlab[sz:]
+		scriptBytes = scriptProto.appendTo(buf)
+	} else {
+		scriptBytes = scriptProto.ToByteString()
+	}
+
+	if len(s.lazyAstSlab) == 0 {
+		s.lazyAstSlab = make([]LazyAst, 256)
+	}
+	lazyAst := &s.lazyAstSlab[0]
+	s.lazyAstSlab = s.lazyAstSlab[1:]
+	*lazyAst = LazyAst{
+		script_:      scriptBytes,
 		sourceFile_:  int32(sourceFile),
 		frozen:       true,
 		memoizedSize: -1,
@@ -387,8 +407,8 @@ func (s *TypedAstSerializer) visitArena(n *rhino.Node) *AstNode {
 		}
 		s.subtreeSourceFiles = s.subtreeSourceFiles[:len(s.subtreeSourceFiles)-1]
 	}
-	if originalName := n.GetOriginalName(); originalName != nil {
-		m.originalNamePointer_ = int32(s.stringPool.Put(*originalName))
+	if origID := n.GetOriginalNameID(); origID != 0 {
+		m.originalNamePointer_ = int32(s.stringPool.PutID(origID))
 	}
 
 	size := m.scalarsSerializedSize()
@@ -471,7 +491,7 @@ func (s *TypedAstSerializer) markUsedProp(ptr int) {
 }
 
 func (s *TypedAstSerializer) lookupUsedPropIndex(prop string) (int, bool) {
-	idx, ok := s.stringPool.pool[prop]
+	idx, ok := s.stringPool.Lookup(prop)
 	if !ok {
 		return 0, false
 	}
@@ -486,7 +506,7 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
 		rhino.Token_OPTCHAIN_GETPROP:
-		ptr := s.stringPool.Put(n.GetString())
+		ptr := s.stringPool.PutID(n.GetStringID())
 		if s.recordUsedProps {
 			s.markUsedProp(ptr)
 		}
@@ -498,7 +518,7 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
 		rhino.Token_MEMBER_FIELD_DEF,
 		rhino.Token_GETTER_DEF,
 		rhino.Token_SETTER_DEF:
-		ptr := s.stringPool.Put(n.GetString())
+		ptr := s.stringPool.PutID(n.GetStringID())
 		if s.recordUsedProps && !n.IsQuotedStringKey() {
 			s.markUsedProp(ptr)
 		}
@@ -509,16 +529,16 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
 		rhino.Token_STRINGLIT,
 		rhino.Token_LABEL_NAME,
 		rhino.Token_IMPORT_STAR:
-		m.stringValuePointer_ = int32(s.stringPool.Put(n.GetString()))
+		m.stringValuePointer_ = int32(s.stringPool.PutID(n.GetStringID()))
 		m.valueCase_ = 3
 		return
 	case rhino.Token_TEMPLATELIT_STRING:
 		// The raw string is put in the pool before the cooked one (Java's
 		// evaluation order).
-		rawPtr := int32(s.stringPool.Put(n.GetRawString()))
+		rawPtr := int32(s.stringPool.PutID(n.GetRawStringID()))
 		cookedPtr := int32(-1)
-		if n.GetCookedString() != nil {
-			cookedPtr = int32(s.stringPool.Put(*n.GetCookedString()))
+		if cookedID := n.GetCookedStringID(); cookedID != 0 {
+			cookedPtr = int32(s.stringPool.PutID(cookedID))
 		}
 		m.templateStringValue_ = s.allocTemplateStringValue(rawPtr, cookedPtr)
 		m.valueCase_ = 8
@@ -551,16 +571,16 @@ func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n *rhino.
 		rhino.Token_SETTER_DEF,
 		rhino.Token_LABEL_NAME,
 		rhino.Token_IMPORT_STAR:
-		builder.SetStringValuePointer(int32(s.stringPool.Put(n.GetString())))
+		builder.SetStringValuePointer(int32(s.stringPool.PutID(n.GetStringID())))
 		return
 	case rhino.Token_TEMPLATELIT_STRING:
 		// The raw string is put in the pool before the cooked one (Java's
 		// evaluation order).
 		templateStringValue := TemplateStringValue_NewBuilder().
-			SetRawStringPointer(int32(s.stringPool.Put(n.GetRawString())))
+			SetRawStringPointer(int32(s.stringPool.PutID(n.GetRawStringID())))
 		cookedStringPointer := -1
-		if n.GetCookedString() != nil {
-			cookedStringPointer = s.stringPool.Put(*n.GetCookedString())
+		if cookedID := n.GetCookedStringID(); cookedID != 0 {
+			cookedStringPointer = s.stringPool.PutID(cookedID)
 		}
 		builder.SetTemplateStringValue(
 			templateStringValue.
@@ -581,13 +601,13 @@ func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n *rhino.
 
 // Java: TypedAstSerializer.setOriginalName(AstNode.Builder, Node)
 func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n *rhino.Node) {
-	originalName := n.GetOriginalName()
-	if originalName == nil {
+	origID := n.GetOriginalNameID()
+	if origID == 0 {
 		builder.SetOriginalNamePointer(0) // equivalent to 'not set'
 		return
 	}
 
-	builder.SetOriginalNamePointer(int32(s.stringPool.Put(*originalName)))
+	builder.SetOriginalNamePointer(int32(s.stringPool.PutID(origID)))
 }
 
 // Java: TypedAstSerializer.kindTranslator(Node)

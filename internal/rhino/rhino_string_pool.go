@@ -317,9 +317,51 @@ func RhinoStringPool_AddOrGet(s string) string {
 	return rhinoStringFromID(rhinoStringPoolIntern(s))
 }
 
+func rhinoStringPoolLookup(str string) rhinoStringID {
+	if len(str) == 0 {
+		return 1
+	}
+	h := rhinoStringPoolHash(str)
+	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
+	hash32 := uint32(h >> 32)
+	shard := &rhinoStringPool_shards[shardIdx]
+
+	shard.mu.RLock()
+	if tbl := shard.table; len(tbl) > 0 {
+		mask := uint32(len(tbl) - 1)
+		slot := hash32 & mask
+		for {
+			entry := tbl[slot]
+			if entry == 0 {
+				break
+			}
+			if uint32(entry>>32) == hash32 {
+				localIdx := uint32(entry) - 1
+				if shard.stringAtLocked(localIdx) == str {
+					shard.mu.RUnlock()
+					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
+				}
+			}
+			slot = (slot + 1) & mask
+		}
+	}
+	shard.mu.RUnlock()
+	return 0
+}
+
 // RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
 func RhinoStringPool_InternID(s string) uint32 {
 	return uint32(rhinoStringPoolIntern(s))
+}
+
+// RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
+func RhinoStringPool_LookupID(s string) uint32 {
+	return uint32(rhinoStringPoolLookup(s))
+}
+
+// RhinoStringPool_StringFromID returns the interned string for a 32-bit ID.
+func RhinoStringPool_StringFromID(id uint32) string {
+	return rhinoStringFromID(rhinoStringID(id))
 }
 
 // Java: RhinoStringPool()
@@ -425,6 +467,11 @@ func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
 		out[i] = rhinoStringFromID(id)
 	}
 	return out
+}
+
+// Len returns the number of strings in the list.
+func (l *RhinoStringPool_LazyInternedStringList) Len() int {
+	return len(l.ids)
 }
 
 // RhinoStringPool_WriteOnlyBitset is a bitset implementation that only

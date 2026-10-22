@@ -90,7 +90,7 @@ type PrototypeObjectTypeBase struct {
 	// PrototypeObjectType can only be the prototype of one function. If we
 	// try to do this for multiple functions, then we'll have to create a new
 	// one.
-	ownerFunction FunctionType
+	ownerFunction *FunctionTypeBase
 
 	templateParamCount int32
 	nativeType         bool
@@ -557,12 +557,19 @@ func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
 // Java: PrototypeObjectType.setOwnerFunction(FunctionType)
 func (p *PrototypeObjectTypeBase) SetOwnerFunction(type_ FunctionType) {
 	jutil.CheckState(p.ownerFunction == nil || type_ == nil)
-	p.ownerFunction = type_
+	if type_ == nil {
+		p.ownerFunction = nil
+	} else {
+		p.ownerFunction = type_.GetFunctionTypeBase()
+	}
 }
 
 // Java: PrototypeObjectType.getOwnerFunction()
 func (p *PrototypeObjectTypeBase) GetOwnerFunction() FunctionType {
-	return p.ownerFunction
+	if p.ownerFunction == nil {
+		return nil
+	}
+	return p.ownerFunction.selfFunc()
 }
 
 // Java: PrototypeObjectType.getCtorImplementedInterfaces()
@@ -589,7 +596,7 @@ func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType
 	}
 	p.properties.ensureSorted()
 	for i := 0; i < len(p.properties.entries); i++ {
-		prop := p.properties.entries[i].prop
+		prop := p.properties.entries[i]
 		prop.SetType(JSType_SafeResolve(prop.GetType(), reporter))
 	}
 	return p.self
