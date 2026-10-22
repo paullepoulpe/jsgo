@@ -787,12 +787,7 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) *rhino.Node 
 	sourceFile := a.outer.sourceFile
 	astRootSource := compiler.GetTypedAstDeserializer(sourceFile)
 	if astRootSource != nil {
-		a.root = astRootSource()
-		if p := a.root.GetProp(rhino.Node_FEATURE_SET); p != nil {
-			a.features = p.(*parser.FeatureSet)
-		} else {
-			a.features = nil
-		}
+		a.installDeserializedRoot(astRootSource())
 	} else {
 		a.parse(compiler)
 	}
@@ -802,6 +797,15 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) *rhino.Node 
 	// needed.
 	sourceFile.ClearCachedSource()
 	return a.root
+}
+
+func (a *CompilerInput_JsAst) installDeserializedRoot(root *rhino.Node) {
+	a.root = root
+	if p := a.root.GetProp(rhino.Node_FEATURE_SET); p != nil {
+		a.features = p.(*parser.FeatureSet)
+	} else {
+		a.features = nil
+	}
 }
 
 // Java: CompilerInput.JsAst.clearAst()

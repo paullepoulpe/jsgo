@@ -151,6 +151,19 @@ func wtf8_byteAt(encoded []byte, i int) int32 {
 	return int32(int8(encoded[i]))
 }
 
+// DecodeView decodes encoded WTF8 bytes into a string, returning a zero-copy
+// string view over encoded when it is pure ASCII within maxLength.
+func (d *Wtf8_Decoder) DecodeView(encoded []byte) string {
+	encodedByteCount := len(encoded)
+	if encodedByteCount <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
+		if encodedByteCount == 0 {
+			return ""
+		}
+		return unsafe.String(unsafe.SliceData(encoded), encodedByteCount)
+	}
+	return d.Decode(encoded)
+}
+
 // Java: Wtf8.Decoder.decode(ByteString)
 func (d *Wtf8_Decoder) Decode(encoded []byte) string {
 	encodedByteCount := len(encoded)

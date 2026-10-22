@@ -41,11 +41,12 @@ func NewPrebuildAst(compiler AbstractCompiler, numParalleThreads int) *PrebuildA
 
 // Prebuild gets the AST root of every input.
 //
-// Go-only: language-adapter — independent files are parsed by a bounded worker
-// pool. Compiler state and diagnostics are published in input order after the
-// workers finish. Custom compilers, shared sources and TypedAST loading use the
-// sequential compatibility path. Every task completes even if another fails;
-// the first failure in input order has Java's ExecutionException wrapping.
+// Go-only: language-adapter — independent files and TypedAST scripts are
+// materialized by a bounded worker pool. Compiler state and diagnostics are
+// published in input order after the workers finish. Custom compilers and
+// shared sources use the sequential compatibility path. Every task completes
+// even if another fails; the first failure in input order has Java's
+// ExecutionException wrapping.
 //
 // Java: PrebuildAst.prebuild(Iterable<CompilerInput>)
 func (p *PrebuildAst) Prebuild(allInputs iter.Seq[*CompilerInput]) {

@@ -78,6 +78,7 @@ func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
 	defer func() {
 		r.owner_ = nil
 		r.featureCollector = nil
+		r.nodeSlab = jutil.Slab[rhino.Node]{}
 		clear(r.childBytes)
 		r.childBytes = r.childBytes[:0]
 		r.jsdoc = OptimizationJsdoc{}
@@ -90,6 +91,7 @@ func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
 type scriptNodeDeserializer_Runner struct {
 	owner_           *ScriptNodeDeserializer
 	featureCollector *parsing.FeatureCollector
+	nodeSlab         jutil.Slab[rhino.Node]
 	previousLine     int
 	previousColumn   int
 	childBytes       [][]byte
@@ -103,7 +105,7 @@ func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNode
 }
 
 func (r *scriptNodeDeserializer_Runner) allocNode() *rhino.Node {
-	return &rhino.Node{}
+	return r.nodeSlab.New()
 }
 
 // Java: ScriptNodeDeserializer.Runner.run()

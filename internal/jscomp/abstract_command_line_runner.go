@@ -1825,6 +1825,15 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	}
 
 	mlicenseTracker := NewCompiler_ChunkGraphAwareLicenseTracker(r.compiler)
+	if !r.IsOutputInJson() &&
+		!r.self.IsInTestMode() &&
+		!options.ShouldGatherSourceMapInfo() &&
+		options.GetOutputJs() == CompilerOptions_OutputJs_NORMAL &&
+		options.GetNumParallelThreads() > 1 &&
+		len(chunks) > 1 {
+		r.outputChunksParallel(chunks, options, mlicenseTracker)
+		return nil
+	}
 	for _, m := range chunks {
 		if m.GetName() == JSChunk_WEAK_CHUNK_NAME {
 			// Skip the weak chunk, which is always empty.
@@ -1863,6 +1872,169 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 		mapFileOut.Close()
 	}
 	return nil
+}
+
+func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
+	chunks []*JSChunk,
+	options *CompilerOptions,
+	mlicenseTracker *Compiler_ChunkGraphAwareLicenseTracker) {
+	activeChunks := make([]*JSChunk, 0, len(chunks))
+	for _, m := range chunks {
+		if m.GetName() != JSChunk_WEAK_CHUNK_NAME {
+			activeChunks = append(activeChunks, m)
+		}
+	}
+	if len(activeChunks) == 0 {
+		return
+	}
+
+	numThreads := options.GetNumParallelThreads()
+	const batchSize = 256
+	type printedInput struct {
+		root *rhino.Node
+		sm   CodePrinter_SourceAndMappings
+		rec  compiler_ParallelScriptLicenseRecorder
+	}
+	type printedChunk struct {
+		inputs []printedInput
+		single [2]printedInput
+	}
+	type chunkWriteTask struct {
+		filename string
+		code     string
+		wrapper  string
+	}
+
+	printed := make([]printedChunk, min(len(activeChunks), batchSize))
+	writeBufA := make([]chunkWriteTask, min(len(activeChunks), batchSize))
+	writeBufB := make([]chunkWriteTask, min(len(activeChunks), batchSize))
+	createdDirs := make(map[string]struct{}, 16)
+	ensureDir := func(filename *string) {
+		if filename == nil || *filename == "" {
+			return
+		}
+		dir := ""
+		if idx := strings.LastIndexAny(*filename, "/\\"); idx >= 0 {
+			dir = (*filename)[:idx]
+		}
+		if _, ok := createdDirs[dir]; !ok {
+			createdDirs[dir] = struct{}{}
+			abstractCommandLineRunner_maybeCreateDirsForPath(filename)
+		}
+	}
+
+	var prevWriteDone chan jutil.Throwable
+	waitPrevWrite := func() {
+		if prevWriteDone != nil {
+			if err := <-prevWriteDone; err != nil {
+				panic(err)
+			}
+			prevWriteDone = nil
+		}
+	}
+	defer waitPrevWrite()
+
+	useBufB := false
+	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
+		batchEnd := min(batchStart+batchSize, len(activeChunks))
+		batchLen := batchEnd - batchStart
+
+		failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+			m := activeChunks[batchStart+j]
+			inputs := m.GetInputs()
+			nInputs := len(inputs)
+			pc := &printed[j]
+			if nInputs == 0 {
+				pc.inputs = nil
+				return
+			}
+			if nInputs <= len(pc.single) {
+				pc.inputs = pc.single[:nInputs]
+			} else if cap(pc.inputs) >= nInputs {
+				pc.inputs = pc.inputs[:nInputs]
+			} else {
+				pc.inputs = make([]printedInput, nInputs)
+			}
+			for i := 0; i < nInputs; i++ {
+				scriptNode := inputs[i].GetAstRoot(r.compiler)
+				if scriptNode == nil {
+					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName()))
+				}
+				pi := &pc.inputs[i]
+				pi.root = scriptNode
+				pi.rec.Reset(false)
+				r.compiler.toSourceAndMappingsInto(scriptNode, i == 0, &pi.rec, &pi.sm)
+			}
+		})
+		for _, f := range failures {
+			if f != nil {
+				for j := 0; j < batchLen; j++ {
+					for i := range printed[j].inputs {
+						printed[j].inputs[i].sm.Release()
+					}
+				}
+				waitPrevWrite()
+				panic(f)
+			}
+		}
+
+		waitPrevWrite()
+		writeTasks := writeBufA[:batchLen]
+		if useBufB {
+			writeTasks = writeBufB[:batchLen]
+		}
+		useBufB = !useBufB
+
+		cb := NewCompiler_CodeBuilder()
+		for j := 0; j < batchLen; j++ {
+			m := activeChunks[batchStart+j]
+			chunkFilename := r.self.GetChunkOutputFileName(m)
+			ensureDir(&chunkFilename)
+			mlicenseTracker.SetCurrentChunkContext(m)
+			pc := &printed[j]
+			var code string
+			if len(pc.inputs) > 0 {
+				cb.Reset()
+				for i := range pc.inputs {
+					pi := &pc.inputs[i]
+					for _, file := range pi.rec.seenFiles {
+						mlicenseTracker.trackLicensesForFileName(file)
+					}
+					r.compiler.appendSourceAndMappingsToCodeBuilder(cb, mlicenseTracker, i, pi.root, &pi.sm)
+					pi.root = nil
+				}
+				code = cb.String()
+			}
+			baseName := jutil.NewFile(chunkFilename).GetName()
+			wrapper := strings.ReplaceAll(r.parsedChunkWrappers.Get(m.GetName()), "%basename%", baseName)
+			writeTasks[j] = chunkWriteTask{
+				filename: chunkFilename,
+				code:     code,
+				wrapper:  wrapper,
+			}
+		}
+
+		done := make(chan jutil.Throwable, 1)
+		prevWriteDone = done
+		go func(tasks []chunkWriteTask) {
+			wFailures := parallelPrebuild(len(tasks), numThreads, func(j int) {
+				t := &tasks[j]
+				writer := r.FileNameToLegacyOutputWriter(&t.filename)
+				defer abstractCommandLineRunner_closeWriter(writer)
+				r.self.WriteOutputOfCode(writer, r.compiler, t.code, t.wrapper, "%s", nil, t.filename)
+				t.code = ""
+				t.wrapper = ""
+				t.filename = ""
+			})
+			for _, f := range wFailures {
+				if f != nil {
+					done <- f
+					return
+				}
+			}
+			done <- nil
+		}(writeTasks)
+	}
 }
 
 // CreateJsonFileFromChunk converts the given output chunk to a JSONFileSpec

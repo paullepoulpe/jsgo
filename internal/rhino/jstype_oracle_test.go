@@ -278,7 +278,7 @@ func taSexp(n *Node) string {
 func taSexpTo(n *Node, sb *strings.Builder) {
 	sb.WriteByte('(')
 	sb.WriteString(n.GetToken().Name())
-	if n.kind == node_kindString {
+	if n.nodeKind() == node_kindString {
 		sb.WriteString(" \"")
 		sb.WriteString(strings.ReplaceAll(taEsc(n.GetString()), "\"", "\\\""))
 		sb.WriteByte('"')

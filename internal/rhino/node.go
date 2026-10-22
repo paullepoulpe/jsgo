@@ -43,9 +43,9 @@ import (
 	"math"
 	"math/big"
 	"math/bits"
-	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -348,7 +348,7 @@ func (n *Node) SetIsParenthesized(b bool) {
 //
 // Java: Node.getIsParenthesized()
 func (n *Node) GetIsParenthesized() bool {
-	return n.boolFlags&nodeFlagIsParenthesized != 0
+	return (n.propFlags & propFlag_IS_PARENTHESIZED) != 0
 }
 
 // TODO(sdh): Get rid of these by using accessor methods instead.
@@ -397,6 +397,344 @@ const (
 	node_kindTemplateLiteralSubstring
 )
 
+const (
+	kindMask               uint8 = 7
+	kindFlagTypeIsColor    uint8 = 1 << 3
+	kindFlagNoBlockDecl    uint8 = 1 << 4
+	kindFlagHasExtra       uint8 = 1 << 5
+	kindFlagHasTypeOrColor uint8 = 1 << 6
+	kindFlagHasColdProp    uint8 = 1 << 7
+)
+
+const (
+	propBit_IS_PARENTHESIZED uint = iota
+	propBit_INCRDECR
+	propBit_QUOTED
+	propBit_SYNTHETIC
+	propBit_ADDED_BLOCK
+	propBit_IS_CONSTANT_NAME
+	propBit_IS_NAMESPACE
+	propBit_USE_STRICT
+	propBit_DIRECT_EVAL
+	propBit_FREE_CALL
+	propBit_STATIC_MEMBER
+	propBit_GENERATOR_FN
+	propBit_ARROW_FN
+	propBit_ASYNC_FN
+	propBit_YIELD_ALL
+	propBit_EXPORT_DEFAULT
+	propBit_EXPORT_ALL_FROM
+	propBit_IS_GENERATOR_MARKER
+	propBit_IS_GENERATOR_SAFE
+	propBit_COMPUTED_PROP_METHOD
+	propBit_COMPUTED_PROP_GETTER
+	propBit_COMPUTED_PROP_SETTER
+	propBit_COMPUTED_PROP_VARIABLE
+	propBit_COLOR_FROM_CAST
+	propBit_OPT_ES6_TYPED
+	propBit_CONSTRUCT_SIGNATURE
+	propBit_NON_INDEXABLE
+	propBit_GOOG_MODULE
+	propBit_IS_TYPESCRIPT_ABSTRACT
+	propBit_DELETED
+	propBit_MODULE_ALIAS
+	propBit_IS_UNUSED_PARAMETER
+	propBit_MODULE_EXPORT
+	propBit_IS_SHORTHAND_PROPERTY
+	propBit_ES6_MODULE
+	propBit_START_OF_OPT_CHAIN
+	propBit_TRAILING_COMMA
+	propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
+	propBit_PRIVATE_IDENTIFIER
+	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
+	propBitCount
+)
+
+const (
+	propFlag_IS_PARENTHESIZED                         uint64 = 1 << propBit_IS_PARENTHESIZED
+	propFlag_INCRDECR                                 uint64 = 1 << propBit_INCRDECR
+	propFlag_QUOTED                                   uint64 = 1 << propBit_QUOTED
+	propFlag_SYNTHETIC                                uint64 = 1 << propBit_SYNTHETIC
+	propFlag_ADDED_BLOCK                              uint64 = 1 << propBit_ADDED_BLOCK
+	propFlag_IS_CONSTANT_NAME                         uint64 = 1 << propBit_IS_CONSTANT_NAME
+	propFlag_IS_NAMESPACE                             uint64 = 1 << propBit_IS_NAMESPACE
+	propFlag_USE_STRICT                               uint64 = 1 << propBit_USE_STRICT
+	propFlag_DIRECT_EVAL                              uint64 = 1 << propBit_DIRECT_EVAL
+	propFlag_FREE_CALL                                uint64 = 1 << propBit_FREE_CALL
+	propFlag_STATIC_MEMBER                            uint64 = 1 << propBit_STATIC_MEMBER
+	propFlag_GENERATOR_FN                             uint64 = 1 << propBit_GENERATOR_FN
+	propFlag_ARROW_FN                                 uint64 = 1 << propBit_ARROW_FN
+	propFlag_ASYNC_FN                                 uint64 = 1 << propBit_ASYNC_FN
+	propFlag_YIELD_ALL                                uint64 = 1 << propBit_YIELD_ALL
+	propFlag_EXPORT_DEFAULT                           uint64 = 1 << propBit_EXPORT_DEFAULT
+	propFlag_EXPORT_ALL_FROM                          uint64 = 1 << propBit_EXPORT_ALL_FROM
+	propFlag_IS_GENERATOR_MARKER                      uint64 = 1 << propBit_IS_GENERATOR_MARKER
+	propFlag_IS_GENERATOR_SAFE                        uint64 = 1 << propBit_IS_GENERATOR_SAFE
+	propFlag_COMPUTED_PROP_METHOD                     uint64 = 1 << propBit_COMPUTED_PROP_METHOD
+	propFlag_COMPUTED_PROP_GETTER                     uint64 = 1 << propBit_COMPUTED_PROP_GETTER
+	propFlag_COMPUTED_PROP_SETTER                     uint64 = 1 << propBit_COMPUTED_PROP_SETTER
+	propFlag_COMPUTED_PROP_VARIABLE                   uint64 = 1 << propBit_COMPUTED_PROP_VARIABLE
+	propFlag_COLOR_FROM_CAST                          uint64 = 1 << propBit_COLOR_FROM_CAST
+	propFlag_OPT_ES6_TYPED                            uint64 = 1 << propBit_OPT_ES6_TYPED
+	propFlag_CONSTRUCT_SIGNATURE                      uint64 = 1 << propBit_CONSTRUCT_SIGNATURE
+	propFlag_NON_INDEXABLE                            uint64 = 1 << propBit_NON_INDEXABLE
+	propFlag_GOOG_MODULE                              uint64 = 1 << propBit_GOOG_MODULE
+	propFlag_IS_TYPESCRIPT_ABSTRACT                   uint64 = 1 << propBit_IS_TYPESCRIPT_ABSTRACT
+	propFlag_DELETED                                  uint64 = 1 << propBit_DELETED
+	propFlag_MODULE_ALIAS                             uint64 = 1 << propBit_MODULE_ALIAS
+	propFlag_IS_UNUSED_PARAMETER                      uint64 = 1 << propBit_IS_UNUSED_PARAMETER
+	propFlag_MODULE_EXPORT                            uint64 = 1 << propBit_MODULE_EXPORT
+	propFlag_IS_SHORTHAND_PROPERTY                    uint64 = 1 << propBit_IS_SHORTHAND_PROPERTY
+	propFlag_ES6_MODULE                               uint64 = 1 << propBit_ES6_MODULE
+	propFlag_START_OF_OPT_CHAIN                       uint64 = 1 << propBit_START_OF_OPT_CHAIN
+	propFlag_TRAILING_COMMA                           uint64 = 1 << propBit_TRAILING_COMMA
+	propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION uint64 = 1 << propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
+	propFlag_PRIVATE_IDENTIFIER                       uint64 = 1 << propBit_PRIVATE_IDENTIFIER
+	propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE            uint64 = 1 << propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
+
+	nodePropBoolMask uint64 = (uint64(1) << propBitCount) - 1
+
+	propFlagHasJSDoc uint64 = 1 << 40
+
+	nodePropConstVarShift          = 41
+	nodePropConstVarMask    uint64 = uint64(3) << nodePropConstVarShift
+	nodePropSideEffectShift        = 43
+	nodePropSideEffectMask  uint64 = uint64(15) << nodePropSideEffectShift
+
+	nodePropSourceFileShift                = 47
+	nodePropSourceFileMaxID         uint32 = 0x1FFFE
+	nodePropSourceFileOverflow      uint32 = 0x1FFFF
+	nodePropAllNonSourceFileMask    uint64 = (uint64(1) << nodePropSourceFileShift) - 1
+)
+
+var nodePropBitMask = [64]uint64{
+	Node_Prop_IS_PARENTHESIZED:                         propFlag_IS_PARENTHESIZED,
+	Node_Prop_INCRDECR:                                 propFlag_INCRDECR,
+	Node_Prop_QUOTED:                                   propFlag_QUOTED,
+	Node_Prop_SYNTHETIC:                                propFlag_SYNTHETIC,
+	Node_Prop_ADDED_BLOCK:                              propFlag_ADDED_BLOCK,
+	Node_Prop_IS_CONSTANT_NAME:                         propFlag_IS_CONSTANT_NAME,
+	Node_Prop_IS_NAMESPACE:                             propFlag_IS_NAMESPACE,
+	Node_Prop_USE_STRICT:                               propFlag_USE_STRICT,
+	Node_Prop_DIRECT_EVAL:                              propFlag_DIRECT_EVAL,
+	Node_Prop_FREE_CALL:                                propFlag_FREE_CALL,
+	Node_Prop_STATIC_MEMBER:                            propFlag_STATIC_MEMBER,
+	Node_Prop_GENERATOR_FN:                             propFlag_GENERATOR_FN,
+	Node_Prop_ARROW_FN:                                 propFlag_ARROW_FN,
+	Node_Prop_ASYNC_FN:                                 propFlag_ASYNC_FN,
+	Node_Prop_YIELD_ALL:                                propFlag_YIELD_ALL,
+	Node_Prop_EXPORT_DEFAULT:                           propFlag_EXPORT_DEFAULT,
+	Node_Prop_EXPORT_ALL_FROM:                          propFlag_EXPORT_ALL_FROM,
+	Node_Prop_IS_GENERATOR_MARKER:                      propFlag_IS_GENERATOR_MARKER,
+	Node_Prop_IS_GENERATOR_SAFE:                        propFlag_IS_GENERATOR_SAFE,
+	Node_Prop_COMPUTED_PROP_METHOD:                     propFlag_COMPUTED_PROP_METHOD,
+	Node_Prop_COMPUTED_PROP_GETTER:                     propFlag_COMPUTED_PROP_GETTER,
+	Node_Prop_COMPUTED_PROP_SETTER:                     propFlag_COMPUTED_PROP_SETTER,
+	Node_Prop_COMPUTED_PROP_VARIABLE:                   propFlag_COMPUTED_PROP_VARIABLE,
+	Node_Prop_COLOR_FROM_CAST:                          propFlag_COLOR_FROM_CAST,
+	Node_Prop_OPT_ES6_TYPED:                            propFlag_OPT_ES6_TYPED,
+	Node_Prop_CONSTRUCT_SIGNATURE:                      propFlag_CONSTRUCT_SIGNATURE,
+	Node_Prop_NON_INDEXABLE:                            propFlag_NON_INDEXABLE,
+	Node_Prop_GOOG_MODULE:                              propFlag_GOOG_MODULE,
+	Node_Prop_IS_TYPESCRIPT_ABSTRACT:                   propFlag_IS_TYPESCRIPT_ABSTRACT,
+	Node_Prop_DELETED:                                  propFlag_DELETED,
+	Node_Prop_MODULE_ALIAS:                             propFlag_MODULE_ALIAS,
+	Node_Prop_IS_UNUSED_PARAMETER:                      propFlag_IS_UNUSED_PARAMETER,
+	Node_Prop_MODULE_EXPORT:                            propFlag_MODULE_EXPORT,
+	Node_Prop_IS_SHORTHAND_PROPERTY:                    propFlag_IS_SHORTHAND_PROPERTY,
+	Node_Prop_ES6_MODULE:                               propFlag_ES6_MODULE,
+	Node_Prop_START_OF_OPT_CHAIN:                       propFlag_START_OF_OPT_CHAIN,
+	Node_Prop_TRAILING_COMMA:                           propFlag_TRAILING_COMMA,
+	Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION: propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION,
+	Node_Prop_PRIVATE_IDENTIFIER:                       propFlag_PRIVATE_IDENTIFIER,
+	Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE:            propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE,
+}
+
+var nodeBitToProp = [propBitCount]Node_Prop{
+	propBit_IS_PARENTHESIZED:                         Node_Prop_IS_PARENTHESIZED,
+	propBit_INCRDECR:                                 Node_Prop_INCRDECR,
+	propBit_QUOTED:                                   Node_Prop_QUOTED,
+	propBit_SYNTHETIC:                                Node_Prop_SYNTHETIC,
+	propBit_ADDED_BLOCK:                              Node_Prop_ADDED_BLOCK,
+	propBit_IS_CONSTANT_NAME:                         Node_Prop_IS_CONSTANT_NAME,
+	propBit_IS_NAMESPACE:                             Node_Prop_IS_NAMESPACE,
+	propBit_USE_STRICT:                               Node_Prop_USE_STRICT,
+	propBit_DIRECT_EVAL:                              Node_Prop_DIRECT_EVAL,
+	propBit_FREE_CALL:                                Node_Prop_FREE_CALL,
+	propBit_STATIC_MEMBER:                            Node_Prop_STATIC_MEMBER,
+	propBit_GENERATOR_FN:                             Node_Prop_GENERATOR_FN,
+	propBit_ARROW_FN:                                 Node_Prop_ARROW_FN,
+	propBit_ASYNC_FN:                                 Node_Prop_ASYNC_FN,
+	propBit_YIELD_ALL:                                Node_Prop_YIELD_ALL,
+	propBit_EXPORT_DEFAULT:                           Node_Prop_EXPORT_DEFAULT,
+	propBit_EXPORT_ALL_FROM:                          Node_Prop_EXPORT_ALL_FROM,
+	propBit_IS_GENERATOR_MARKER:                      Node_Prop_IS_GENERATOR_MARKER,
+	propBit_IS_GENERATOR_SAFE:                        Node_Prop_IS_GENERATOR_SAFE,
+	propBit_COMPUTED_PROP_METHOD:                     Node_Prop_COMPUTED_PROP_METHOD,
+	propBit_COMPUTED_PROP_GETTER:                     Node_Prop_COMPUTED_PROP_GETTER,
+	propBit_COMPUTED_PROP_SETTER:                     Node_Prop_COMPUTED_PROP_SETTER,
+	propBit_COMPUTED_PROP_VARIABLE:                   Node_Prop_COMPUTED_PROP_VARIABLE,
+	propBit_COLOR_FROM_CAST:                          Node_Prop_COLOR_FROM_CAST,
+	propBit_OPT_ES6_TYPED:                            Node_Prop_OPT_ES6_TYPED,
+	propBit_CONSTRUCT_SIGNATURE:                      Node_Prop_CONSTRUCT_SIGNATURE,
+	propBit_NON_INDEXABLE:                            Node_Prop_NON_INDEXABLE,
+	propBit_GOOG_MODULE:                              Node_Prop_GOOG_MODULE,
+	propBit_IS_TYPESCRIPT_ABSTRACT:                   Node_Prop_IS_TYPESCRIPT_ABSTRACT,
+	propBit_DELETED:                                  Node_Prop_DELETED,
+	propBit_MODULE_ALIAS:                             Node_Prop_MODULE_ALIAS,
+	propBit_IS_UNUSED_PARAMETER:                      Node_Prop_IS_UNUSED_PARAMETER,
+	propBit_MODULE_EXPORT:                            Node_Prop_MODULE_EXPORT,
+	propBit_IS_SHORTHAND_PROPERTY:                    Node_Prop_IS_SHORTHAND_PROPERTY,
+	propBit_ES6_MODULE:                               Node_Prop_ES6_MODULE,
+	propBit_START_OF_OPT_CHAIN:                       Node_Prop_START_OF_OPT_CHAIN,
+	propBit_TRAILING_COMMA:                           Node_Prop_TRAILING_COMMA,
+	propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION: Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION,
+	propBit_PRIVATE_IDENTIFIER:                       Node_Prop_PRIVATE_IDENTIFIER,
+	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
+}
+
+type nodeTypeAndProps struct {
+	typeOrColor  unsafe.Pointer
+	propListHead *Node_PropListItem
+}
+
+var (
+	sourceFilePropMu     sync.Mutex
+	sourceFilePropCount  atomic.Uint32
+	sourceFilePropChunks [128]atomic.Pointer[[1024]Node_PropListItem]
+)
+
+func sourceFilePropItem(id uint32) *Node_PropListItem {
+	idx := id - 1
+	return &sourceFilePropChunks[idx>>10].Load()[idx&1023]
+}
+
+func allocSourceFilePropID(file any) (uint32, bool) {
+	if sourceFilePropCount.Load() >= nodePropSourceFileMaxID {
+		return 0, false
+	}
+	sourceFilePropMu.Lock()
+	id := sourceFilePropCount.Load() + 1
+	if id > nodePropSourceFileMaxID {
+		sourceFilePropMu.Unlock()
+		return 0, false
+	}
+	idx := id - 1
+	chunkIdx := idx >> 10
+	chunk := sourceFilePropChunks[chunkIdx].Load()
+	if chunk == nil {
+		chunk = new([1024]Node_PropListItem)
+		sourceFilePropChunks[chunkIdx].Store(chunk)
+	}
+	chunk[idx&1023] = Node_PropListItem{
+		objectValue: file,
+		propType:    int8(Node_Prop_SOURCE_FILE),
+		isObject:    true,
+		shared:      true,
+	}
+	sourceFilePropCount.Store(id)
+	sourceFilePropMu.Unlock()
+	return id, true
+}
+
+func (n *Node) coldPropListHead() *Node_PropListItem {
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return nil
+	}
+	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
+		return (*Node_PropListItem)(n.typeOrColor)
+	}
+	return (*nodeTypeAndProps)(n.typeOrColor).propListHead
+}
+
+func (n *Node) setColdPropListHead(head *Node_PropListItem) {
+	if head == nil {
+		if (n.kindFlags & kindFlagHasColdProp) == 0 {
+			return
+		}
+		n.kindFlags &^= kindFlagHasColdProp
+		if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
+			n.typeOrColor = nil
+		} else {
+			n.typeOrColor = (*nodeTypeAndProps)(n.typeOrColor).typeOrColor
+		}
+		return
+	}
+	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
+		n.kindFlags |= kindFlagHasColdProp
+		n.typeOrColor = unsafe.Pointer(head)
+		return
+	}
+	rawTypeOrColor := n.typeOrColor
+	if (n.kindFlags & kindFlagHasColdProp) != 0 {
+		rawTypeOrColor = (*nodeTypeAndProps)(rawTypeOrColor).typeOrColor
+	} else {
+		n.kindFlags |= kindFlagHasColdProp
+	}
+	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
+		typeOrColor:  rawTypeOrColor,
+		propListHead: head,
+	})
+}
+
+func (n *Node) rawTypeOrColorPtr() unsafe.Pointer {
+	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
+		return nil
+	}
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return n.typeOrColor
+	}
+	return (*nodeTypeAndProps)(n.typeOrColor).typeOrColor
+}
+
+func (n *Node) setRawTypeOrColorPtr(ptr unsafe.Pointer, isColor bool) {
+	if ptr == nil {
+		if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
+			n.kindFlags &^= kindFlagTypeIsColor
+			return
+		}
+		n.kindFlags &^= kindFlagHasTypeOrColor | kindFlagTypeIsColor
+		if (n.kindFlags & kindFlagHasColdProp) == 0 {
+			n.typeOrColor = nil
+		} else {
+			n.typeOrColor = unsafe.Pointer((*nodeTypeAndProps)(n.typeOrColor).propListHead)
+		}
+		return
+	}
+	alreadyHadTypeOrColor := (n.kindFlags & kindFlagHasTypeOrColor) != 0
+	if isColor {
+		n.kindFlags |= kindFlagHasTypeOrColor | kindFlagTypeIsColor
+	} else {
+		n.kindFlags = (n.kindFlags &^ kindFlagTypeIsColor) | kindFlagHasTypeOrColor
+	}
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		n.typeOrColor = ptr
+		return
+	}
+	coldHead := (*Node_PropListItem)(n.typeOrColor)
+	if alreadyHadTypeOrColor {
+		coldHead = (*nodeTypeAndProps)(n.typeOrColor).propListHead
+	}
+	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
+		typeOrColor:  ptr,
+		propListHead: coldHead,
+	})
+}
+
+func (n *Node) copyTemplateColdProps(template *Node) {
+	head := template.coldPropListHead()
+	head.markShared()
+	n.setColdPropListHead(head)
+}
+
+func (n *Node) nodeKind() node_kind {
+	return node_kind(n.kindFlags & kindMask)
+}
+
+func (n *Node) setNodeKind(k node_kind) {
+	n.kindFlags = (n.kindFlags &^ kindMask) | uint8(k)
+}
+
 var node_kindClassNames = [...]string{
 	"com.google.javascript.rhino.Node",
 	"com.google.javascript.rhino.Node$StringNode",
@@ -412,7 +750,7 @@ var node_kindClassNames = [...]string{
 // `Node.class` (CodeGenerator); the folded subclasses have no Go type of
 // their own.
 func (n *Node) GetClassName() string {
-	return node_kindClassNames[n.kind]
+	return node_kindClassNames[n.nodeKind()]
 }
 
 //go:noinline
@@ -423,8 +761,8 @@ func failNodeCastKind(got, want node_kind) {
 // node_castKind is the Java cast `((XNode) this)`: it throws a
 // ClassCastException unless n is of the given kind.
 func (n *Node) node_castKind(k node_kind) {
-	if n.kind != k {
-		failNodeCastKind(n.kind, k)
+	if got := n.nodeKind(); got != k {
+		failNodeCastKind(got, k)
 	}
 }
 
@@ -453,7 +791,7 @@ func node_cast[T any](value any) T {
 // Java: Node.NumberNode(double)
 func newNode_NumberNode(number float64) *Node {
 	n := NewNode(Token_NUMBER)
-	n.kind = node_kindNumber
+	n.kindFlags = uint8(node_kindNumber)
 	n.SetDouble(number)
 	return n
 }
@@ -463,7 +801,7 @@ func newNode_NumberNode(number float64) *Node {
 // Java: Node.BigIntNode(BigInteger)
 func newNode_BigIntNode(bigint *big.Int) *Node {
 	n := NewNode(Token_BIGINT)
-	n.kind = node_kindBigInt
+	n.kindFlags = uint8(node_kindBigInt)
 	n.SetBigInt(bigint)
 	return n
 }
@@ -473,14 +811,14 @@ func newNode_BigIntNode(bigint *big.Int) *Node {
 // Java: Node.StringNode(Token)
 func newNode_StringNodeForClone(token Token) *Node {
 	n := NewNode(token)
-	n.kind = node_kindString
+	n.kindFlags = uint8(node_kindString)
 	return n
 }
 
 // Java: Node.StringNode(Token, String)
 func newNode_StringNode(token Token, str string) *Node {
 	n := NewNode(token)
-	n.kind = node_kindString
+	n.kindFlags = uint8(node_kindString)
 	n.SetString(str)
 	return n
 }
@@ -488,7 +826,7 @@ func newNode_StringNode(token Token, str string) *Node {
 // Java: Node.StringNode(Token, RhinoStringPool.LazyInternedStringList, int)
 func newNode_StringNodeFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int) *Node {
 	n := NewNode(token)
-	n.kind = node_kindString
+	n.kindFlags = uint8(node_kindString)
 	n.SetStringFromStringPool(stringPool, offset)
 	return n
 }
@@ -496,15 +834,13 @@ func newNode_StringNodeFromStringPool(token Token, stringPool *RhinoStringPool_L
 // Java: Node.TemplateLiteralSubstringNode(String, String)
 func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) *Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.kind = node_kindTemplateLiteralSubstring
-	// RhinoStringPool is null-hostile.
-	if cooked == nil {
-		// n.cooked = nil: it is.
-	} else {
-		c := RhinoStringPool_AddOrGet(*cooked)
-		n.node_getExt().cooked = &c
+	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	var cookedID rhinoStringID
+	if cooked != nil {
+		cookedID = rhinoStringPoolIntern(*cooked)
 	}
-	n.str = rhinoStringPoolCell(raw) // raw
+	rawID := rhinoStringPoolIntern(raw)
+	n.payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -515,13 +851,13 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 	rawOffset int,
 ) *Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.kind = node_kindTemplateLiteralSubstring
-	if cookedOffsetOrNegativeOne == -1 {
-		// n.cooked = nil: it is.
-	} else {
-		n.node_getExt().cooked = stringPool.GetCell(cookedOffsetOrNegativeOne)
+	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	var cookedID rhinoStringID
+	if cookedOffsetOrNegativeOne != -1 {
+		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
 	}
-	n.str = stringPool.GetCell(rawOffset) // raw
+	rawID := stringPool.GetID(rawOffset)
+	n.payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -548,87 +884,39 @@ func (p *Node_PropListItem) markShared() {
 	}
 }
 
-const nodeSourceFilePropMagic int32 = -0x5346
+var (
+	staticBoolPropItems       [64]Node_PropListItem
+	staticConstVarPropItems   [4]Node_PropListItem
+	staticSideEffectPropItems [16]Node_PropListItem
+)
 
-type node_sourceFilePropSet struct {
-	base    Node_PropListItem
-	commons [16]Node_PropListItem
-}
-
-var nodeCommonProps = [16]struct {
-	prop Node_Prop
-	val  int32
-}{
-	0:  {Node_Prop_IS_PARENTHESIZED, 1},
-	1:  {Node_Prop_INCRDECR, 1},
-	2:  {Node_Prop_QUOTED, 1},
-	3:  {Node_Prop_SYNTHETIC, 1},
-	4:  {Node_Prop_ADDED_BLOCK, 1},
-	5:  {Node_Prop_IS_CONSTANT_NAME, 1},
-	6:  {Node_Prop_IS_NAMESPACE, 1},
-	7:  {Node_Prop_FREE_CALL, 1},
-	8:  {Node_Prop_STATIC_MEMBER, 1},
-	9:  {Node_Prop_ARROW_FN, 1},
-	10: {Node_Prop_ASYNC_FN, 1},
-	11: {Node_Prop_CONSTANT_VAR_FLAGS, 1},
-	12: {Node_Prop_CONSTANT_VAR_FLAGS, 2},
-	13: {Node_Prop_CONSTANT_VAR_FLAGS, 3},
-	14: {Node_Prop_NON_INDEXABLE, 1},
-	15: {Node_Prop_IS_SHORTHAND_PROPERTY, 1},
-}
-
-var nodeCommonPropByProp = [64]int8{
-	Node_Prop_IS_PARENTHESIZED:      0 + 1,
-	Node_Prop_INCRDECR:              1 + 1,
-	Node_Prop_QUOTED:                2 + 1,
-	Node_Prop_SYNTHETIC:             3 + 1,
-	Node_Prop_ADDED_BLOCK:           4 + 1,
-	Node_Prop_IS_CONSTANT_NAME:      5 + 1,
-	Node_Prop_IS_NAMESPACE:          6 + 1,
-	Node_Prop_FREE_CALL:             7 + 1,
-	Node_Prop_STATIC_MEMBER:         8 + 1,
-	Node_Prop_ARROW_FN:              9 + 1,
-	Node_Prop_ASYNC_FN:              10 + 1,
-	Node_Prop_CONSTANT_VAR_FLAGS:    11 + 1,
-	Node_Prop_NON_INDEXABLE:         14 + 1,
-	Node_Prop_IS_SHORTHAND_PROPERTY: 15 + 1,
-}
-
-func nodeCommonPropIdx(prop Node_Prop, value int32) int {
-	if value == 1 {
-		if uint(prop) < uint(len(nodeCommonPropByProp)) {
-			return int(nodeCommonPropByProp[prop]) - 1
+func init() {
+	for i := range staticBoolPropItems {
+		staticBoolPropItems[i] = Node_PropListItem{
+			propType: int8(i),
+			intValue: 1,
+			shared:   true,
 		}
-		return -1
 	}
-	if prop == Node_Prop_CONSTANT_VAR_FLAGS && (value == 2 || value == 3) {
-		return int(10 + value)
+	for i := range staticConstVarPropItems {
+		staticConstVarPropItems[i] = Node_PropListItem{
+			propType: int8(Node_Prop_CONSTANT_VAR_FLAGS),
+			intValue: int32(i),
+			shared:   true,
+		}
 	}
-	return -1
+	for i := range staticSideEffectPropItems {
+		staticSideEffectPropItems[i] = Node_PropListItem{
+			propType: int8(Node_Prop_SIDE_EFFECT_FLAGS),
+			intValue: int32(i),
+			shared:   true,
+		}
+	}
 }
 
 // Java: Node.ObjectPropListItem(byte, Object, PropListItem)
 func NewNode_ObjectPropListItem(propType int8, objectValue any, next *Node_PropListItem) *Node_PropListItem {
 	obj := jutil.CheckNotNull(objectValue)
-	if propType == int8(Node_Prop_SOURCE_FILE) && next == nil {
-		s := &node_sourceFilePropSet{}
-		s.base = Node_PropListItem{
-			propType:    propType,
-			isObject:    true,
-			objectValue: obj,
-			intValue:    nodeSourceFilePropMagic,
-			shared:      true,
-		}
-		for i, cp := range nodeCommonProps {
-			s.commons[i] = Node_PropListItem{
-				next:     &s.base,
-				propType: int8(cp.prop),
-				intValue: cp.val,
-				shared:   true,
-			}
-		}
-		return &s.base
-	}
 	return &Node_PropListItem{
 		propType:    propType,
 		next:        next,
@@ -685,9 +973,10 @@ func NewNode(token Token) *Node {
 func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	return n
 }
 
@@ -695,9 +984,10 @@ func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	n.first = child
 
 	child.CheckDetached()
@@ -710,9 +1000,10 @@ func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Nod
 func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	n.first = left
 
 	left.CheckDetached()
@@ -730,9 +1021,10 @@ func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Nod
 func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node, right *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	n.first = left
 
 	left.CheckDetached()
@@ -755,11 +1047,12 @@ func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node,
 func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	n.kind = node_kindString
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
-	n.SetString(str)
+	n.kindFlags = uint8(node_kindString)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
+	n.payload = uint64(rhinoStringPoolIntern(str))
 	return n
 }
 
@@ -767,11 +1060,12 @@ func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *
 func (n *Node) InitStringFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
-	n.kind = node_kindString
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
-	n.str = stringPool.GetCell(offset)
+	n.kindFlags = uint8(node_kindString)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
+	n.payload = uint64(stringPool.GetID(offset))
 	return n
 }
 
@@ -784,14 +1078,17 @@ func (n *Node) InitTemplateLitStringFromStringPool(
 ) *Node {
 	n.token = Token_TEMPLATELIT_STRING
 	n.linenoCharno = -1
-	n.kind = node_kindTemplateLiteralSubstring
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
-	if cookedOffsetOrNegativeOne != -1 {
-		n.node_getExt().cooked = stringPool.GetCell(cookedOffsetOrNegativeOne)
+	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
 	}
-	n.str = stringPool.GetCell(rawOffset)
+	var cookedID rhinoStringID
+	if cookedOffsetOrNegativeOne != -1 {
+		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
+	}
+	rawID := stringPool.GetID(rawOffset)
+	n.payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -799,10 +1096,11 @@ func (n *Node) InitTemplateLitStringFromStringPool(
 func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
 	n.token = Token_NUMBER
 	n.linenoCharno = -1
-	n.kind = node_kindNumber
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.kindFlags = uint8(node_kindNumber)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	n.SetDouble(number)
 	return n
 }
@@ -811,10 +1109,11 @@ func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
 func (n *Node) InitBigIntFromTemplate(bigint *big.Int, template *Node) *Node {
 	n.token = Token_BIGINT
 	n.linenoCharno = -1
-	n.kind = node_kindBigInt
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
+	n.kindFlags = uint8(node_kindBigInt)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
+	}
 	n.SetBigInt(bigint)
 	return n
 }
@@ -823,14 +1122,17 @@ func (n *Node) InitBigIntFromTemplate(bigint *big.Int, template *Node) *Node {
 func (n *Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, template *Node) *Node {
 	n.token = Token_TEMPLATELIT_STRING
 	n.linenoCharno = -1
-	n.kind = node_kindTemplateLiteralSubstring
-	template.propListHead.markShared()
-	n.propListHead = template.propListHead
-	n.boolFlags = template.boolFlags &^ nodeFlagNoBlockDecls
-	if cooked != nil {
-		n.node_getExt().cooked = rhinoStringPoolCell(*cooked)
+	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.propFlags = template.propFlags
+	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(template)
 	}
-	n.str = rhinoStringPoolCell(raw)
+	var cookedID rhinoStringID
+	if cooked != nil {
+		cookedID = rhinoStringPoolIntern(*cooked)
+	}
+	rawID := rhinoStringPoolIntern(raw)
+	n.payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -932,9 +1234,9 @@ func (n *Node) GetToken() Token {
 // Java: Node.setToken(Token)
 func (n *Node) SetToken(token Token) {
 	n.token = token
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	if n.parent != nil {
-		n.parent.boolFlags &^= nodeFlagNoBlockDecls
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
 	}
 }
 
@@ -997,7 +1299,7 @@ func (n *Node) SetClosureUnawareShadow(shadowRoot *Node) {
 
 // Java: Node.getClosureUnawareShadow()
 func (n *Node) GetClosureUnawareShadow() *Node {
-	if n.token != Token_NAME || n.propListHead == nil || (n.propListHead.propType == int8(Node_Prop_SOURCE_FILE) && n.propListHead.next == nil) {
+	if n.token != Token_NAME || (n.kindFlags&kindFlagHasColdProp) == 0 {
 		// As checked in setClosureUnawareShadow, only NAME nodes can have shadow
 		// content. We short-circuit the getProp call here because that can be
 		// very expensive for nodes that have long proplists (and we know it
@@ -1009,9 +1311,12 @@ func (n *Node) GetClosureUnawareShadow() *Node {
 
 // Java: Node.setIsInClosureUnawareSubtree(boolean)
 func (n *Node) SetIsInClosureUnawareSubtree(value bool) {
-	if n.propListHead == nil ||
-		int(n.propListHead.propType) != Node_Prop_SOURCE_FILE.Ordinal() ||
-		n.propListHead.next != nil {
+	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+	cold := n.coldPropListHead()
+	hasOnlySourceFile := (n.propFlags&nodePropAllNonSourceFileMask) == 0 &&
+		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
+			(sfID == nodePropSourceFileOverflow && cold != nil && int(cold.propType) == Node_Prop_SOURCE_FILE.Ordinal() && cold.next == nil))
+	if !hasOnlySourceFile {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.StringFormat(
 				"Cannot set IS_IN_CLOSURE_UNAWARE_SUBTREE property on a node which proplist is not a"+
@@ -1023,7 +1328,7 @@ func (n *Node) SetIsInClosureUnawareSubtree(value bool) {
 
 // Java: Node.getIsInClosureUnawareSubtree()
 func (n *Node) GetIsInClosureUnawareSubtree() bool {
-	return n.GetBooleanProp(Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE)
+	return (n.propFlags & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
 }
 
 // GetChildAtIndex gets the ith child, note that this is O(N) where N is the
@@ -1062,7 +1367,7 @@ func (n *Node) AddChildToFront(child *Node) {
 	jutil.CheckArgument(child.parent == nil)
 	jutil.CheckArgument(child.next == nil)
 	jutil.CheckArgument(child.previous == nil)
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	child.parent = n
 	child.next = n.first
 	if n.first == nil {
@@ -1089,7 +1394,7 @@ func (n *Node) AddChildToBack(child *Node) {
 
 	jutil.CheckArgument(child.next == nil)
 	jutil.CheckArgument(child.previous == nil)
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 
 	if n.first == nil {
 		// NOTE: child.next remains null
@@ -1121,7 +1426,7 @@ func (n *Node) AddChildrenToFront(children *Node) {
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
 	jutil.CheckNotNullMsg1(children.previous, "%s", children)
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	for child := children; child != nil; child = child.next {
 		jutil.CheckArgument(child.parent == nil)
 		child.parent = n
@@ -1140,7 +1445,7 @@ func (n *Node) AddChildrenToFront(children *Node) {
 
 // Java: Node.addChildrenToBack(Node)
 func (n *Node) AddChildrenToBack(children *Node) {
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	n.AddChildrenAfter(children, n.GetLastChild())
 }
 
@@ -1151,7 +1456,7 @@ func (n *Node) InsertAfter(existing *Node) {
 
 	existingParent := existing.parent
 	existingNext := existing.next
-	existingParent.boolFlags &^= nodeFlagNoBlockDecls
+	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	n.parent = existingParent
 
@@ -1174,7 +1479,7 @@ func (n *Node) InsertBefore(existing *Node) {
 
 	existingParent := existing.parent
 	existingPrevious := existing.previous
-	existingParent.boolFlags &^= nodeFlagNoBlockDecls
+	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	n.parent = existingParent
 
@@ -1212,7 +1517,7 @@ func (n *Node) AddChildrenAfter(children *Node, node *Node) {
 		n.AddChildrenToFront(children)
 		return
 	}
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 
 	for child := children; child != nil; child = child.next {
 		jutil.CheckArgument(child.parent == nil)
@@ -1242,7 +1547,7 @@ func (n *Node) ReplaceWith(replacement *Node) {
 	existingParent := n.parent
 	existingNext := n.next
 	existingPrevious := n.previous
-	existingParent.boolFlags &^= nodeFlagNoBlockDecls
+	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	// Copy over important information.
 	// TODO(nickreid): Stop doing this. It's totally unexpected.
@@ -1284,7 +1589,7 @@ func (n *Node) Detach() *Node {
 	existingParent := n.parent
 	existingNext := n.next
 	existingPrevious := n.previous
-	existingParent.boolFlags &^= nodeFlagNoBlockDecls
+	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	// The sequence below also has to work when `this` is an only child or has
 	// a single sibling, which can cause many of the variables to point to the
@@ -1341,7 +1646,7 @@ func (n *Node) RemoveFirstChild() *Node {
 //
 // Java: Node.removeChildren()
 func (n *Node) RemoveChildren() *Node {
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	children := n.first
 	for child := n.first; child != nil; child = child.next {
 		child.parent = nil
@@ -1355,7 +1660,7 @@ func (n *Node) RemoveChildren() *Node {
 //
 // Java: Node.detachChildren()
 func (n *Node) DetachChildren() {
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 	for child := n.first; child != nil; {
 		nextChild := child.next
 		child.parent = nil
@@ -1366,17 +1671,58 @@ func (n *Node) DetachChildren() {
 	n.first = nil
 }
 
+func (n *Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
+	propType := int8(prop)
+	for x := n.coldPropListHead(); x != nil; x = x.next {
+		if x.propType == propType {
+			return x
+		}
+	}
+	return nil
+}
+
 // Java: Node.lookupProperty(Prop)
 func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
-	if prop == Node_Prop_JSDOC_INFO && n.boolFlags&nodeFlagHasJSDoc == 0 {
-		return nil
+	if mask := nodePropBitMask[prop]; mask != 0 {
+		if (n.propFlags & mask) == 0 {
+			return nil
+		}
+		if (n.kindFlags & kindFlagHasExtra) != 0 {
+			if x := n.lookupPropListHead(prop); x != nil {
+				return x
+			}
+		}
+		return &staticBoolPropItems[prop]
 	}
-	propType := int8(prop.Ordinal())
-	x := n.propListHead
-	for x != nil && propType != x.propType {
-		x = x.next
+	switch prop {
+	case Node_Prop_SOURCE_FILE:
+		sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+		if sfID == 0 {
+			return nil
+		}
+		if sfID != nodePropSourceFileOverflow {
+			return sourceFilePropItem(sfID)
+		}
+	case Node_Prop_CONSTANT_VAR_FLAGS:
+		if v := (n.propFlags >> nodePropConstVarShift) & 3; v != 0 {
+			return &staticConstVarPropItems[v]
+		}
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return nil
+		}
+	case Node_Prop_SIDE_EFFECT_FLAGS:
+		if v := (n.propFlags >> nodePropSideEffectShift) & 15; v != 0 {
+			return &staticSideEffectPropItems[v]
+		}
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return nil
+		}
+	case Node_Prop_JSDOC_INFO:
+		if (n.propFlags & propFlagHasJSDoc) == 0 {
+			return nil
+		}
 	}
-	return x
+	return n.lookupPropListHead(prop)
 }
 
 // ClonePropsFrom clones the properties from the provided node without
@@ -1385,12 +1731,25 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 //
 // Java: Node.clonePropsFrom(Node)
 func (n *Node) ClonePropsFrom(other *Node) *Node {
-	jutil.CheckStateMsg(n.propListHead == nil, "Node has existing properties.")
-	other.propListHead.markShared()
-	n.propListHead = other.propListHead
-	n.boolFlags = (other.boolFlags &^ nodeFlagNoBlockDecls) | (n.boolFlags & nodeFlagNoBlockDecls)
+	jutil.CheckStateMsg(n.coldPropListHead() == nil && n.propFlags == 0, "Node has existing properties.")
+	if (other.kindFlags & kindFlagHasColdProp) != 0 {
+		n.copyTemplateColdProps(other)
+	}
+	n.propFlags = other.propFlags
+	if (other.kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
+		n.kindFlags |= kindFlagHasExtra
+	}
 	return n
 }
+
+const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
+	propFlag_ARROW_FN |
+	propFlag_ASYNC_FN |
+	propFlag_SYNTHETIC |
+	propFlag_COLOR_FROM_CAST |
+	propFlag_START_OF_OPT_CHAIN |
+	nodePropConstVarMask |
+	propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
 
 // ValidateProperties checks for invalid or missing properties and feeds
 // error messages for any violations to the given `Consumer`.
@@ -1400,27 +1759,7 @@ func (n *Node) ClonePropsFrom(other *Node) *Node {
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.propListHead == nil {
-		// TODO(bradfordcsmith): Fix the bugs that prevent enabling this
-		// validation.
-		//
-		// In particular:
-		//
-		// 1. CoverageInstrumentationPass and
-		// BranchCoverageInstrumentationCallback create a bunch of nodes without
-		// valid source reference info, and it isn't obvious what source
-		// reference info they should be using.
-		//
-		// 2. b/186056977 covers an issue blocking correcting a violation in
-		// `VarCheck`
-		//
-		// 3. Fixing a violation in DeclaredGlobalExternsOnWindow makes an
-		// unexpected change to the pre-computed TypedAst for the runtime
-		// libraries.
-		//
-		// if (token != Token.ROOT) {
-		//   violationMessageConsumer.accept("non-ROOT has no properties");
-		// }
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
 		return
 	}
 
@@ -1429,69 +1768,46 @@ func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
 		violationMessageConsumer("ROOT has properties")
 	}
 
-	for propListItem := n.propListHead; propListItem != nil; propListItem = propListItem.next {
-		prop := Node_propValues[propListItem.propType]
-		// Catch it if the definition of Prop ever changes so that the ordinals
-		// don't line up.
-		jutil.CheckStateMsg1(prop.Ordinal() == int(propListItem.propType), "ordinal doesn't match: %s", prop)
-
-		// TODO(bradfordcsmith): This is not yet an exhaustive list of
-		// validations. Other validations should be added as it is found useful
-		// to have them. Some property validation is done independently in
-		// `AstValidator` and could possibly be moved here.
-		//
-		// This method was added in response to a bug that created an invalid
-		// IS_PARENTHESIZED property that was discovered by a check in
-		// `deserializeProperties()`, so initially this method was created to
-		// cover the checks previously done there.
-		switch prop {
-		case Node_Prop_IS_PARENTHESIZED:
-			if !IR_MayBeExpression(n) {
-				violationMessageConsumer("non-expression is parenthesized")
+	flags := n.propFlags
+	if (flags & nodeValidatedPropsMask) != 0 {
+		if (flags&propFlag_IS_PARENTHESIZED) != 0 && !IR_MayBeExpression(n) {
+			violationMessageConsumer("non-expression is parenthesized")
+		}
+		if (flags&propFlag_ARROW_FN) != 0 && !n.IsFunction() {
+			violationMessageConsumer("invalid ARROW_FN prop")
+		}
+		if (flags&propFlag_ASYNC_FN) != 0 && !n.IsFunction() {
+			violationMessageConsumer("invalid ASYNC_FN prop")
+		}
+		if (flags&propFlag_SYNTHETIC) != 0 && !n.IsBlock() {
+			violationMessageConsumer("invalid SYNTHETIC prop")
+		}
+		if (flags&propFlag_COLOR_FROM_CAST) != 0 && n.GetColor() == nil {
+			violationMessageConsumer("COLOR_FROM_CAST with no Color")
+		}
+		if (flags&propFlag_START_OF_OPT_CHAIN) != 0 && !(n.IsOptChainCall() || n.IsOptChainGetElem() || n.IsOptChainGetProp()) {
+			violationMessageConsumer("START_OF_OPT_CHAIN on non-optional Node")
+		}
+		if (flags&nodePropConstVarMask) != 0 && !(n.IsName() || n.IsImportStar()) {
+			violationMessageConsumer("invalid CONST_VAR_FLAGS")
+		}
+		if (flags&propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION) != 0 && !n.IsVar() {
+			violationMessageConsumer(
+				"Expected all synthetic unfulfilled declarations to be `var <name>`")
+		}
+	}
+	if (n.kindFlags & kindFlagHasColdProp) != 0 {
+		for x := n.coldPropListHead(); x != nil; x = x.next {
+			switch Node_Prop(x.propType) {
+			case Node_Prop_CONSTANT_VAR_FLAGS:
+				if !(n.IsName() || n.IsImportStar()) {
+					violationMessageConsumer("invalid CONST_VAR_FLAGS")
+				}
+			case Node_Prop_CLOSURE_UNAWARE_SHADOW:
+				if !x.isObject || !node_isNode(x.GetObjectValue()) {
+					violationMessageConsumer("CLOSURE_UNAWARE_SHADOW property must point to a Node")
+				}
 			}
-		case Node_Prop_ARROW_FN:
-			if !n.IsFunction() {
-				violationMessageConsumer("invalid ARROW_FN prop")
-			}
-		case Node_Prop_ASYNC_FN:
-			if !n.IsFunction() {
-				violationMessageConsumer("invalid ASYNC_FN prop")
-			}
-		case Node_Prop_SYNTHETIC:
-			if !n.IsBlock() {
-				violationMessageConsumer("invalid SYNTHETIC prop")
-			}
-		case Node_Prop_COLOR_FROM_CAST:
-			if n.GetColor() == nil {
-				violationMessageConsumer("COLOR_FROM_CAST with no Color")
-			}
-		case Node_Prop_START_OF_OPT_CHAIN:
-			if !(n.IsOptChainCall() || n.IsOptChainGetElem() || n.IsOptChainGetProp()) {
-				violationMessageConsumer("START_OF_OPT_CHAIN on non-optional Node")
-			}
-		case Node_Prop_CONSTANT_VAR_FLAGS:
-			if !(n.IsName() || n.IsImportStar()) {
-				violationMessageConsumer("invalid CONST_VAR_FLAGS")
-			}
-		case Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION:
-			// note: we could relax this restriction if VarCheck needed to
-			// generate other forms of synthetic externs
-			if !n.IsVar() {
-				// TODO: this check used to also try and validate that the
-				// synthetic externs VAR's had names, but this doesn't work during
-				// deserialization because the name is a child node that we
-				// haven't even seen yet when we are validating properties.
-				// || !hasOneChild() || !getFirstChild().isName()) {
-				violationMessageConsumer(
-					"Expected all synthetic unfulfilled declarations to be `var <name>`")
-			}
-		case Node_Prop_CLOSURE_UNAWARE_SHADOW:
-			shadowProp := n.LookupProperty(Node_Prop_CLOSURE_UNAWARE_SHADOW)
-			if shadowProp == nil || !shadowProp.isObject || !node_isNode(shadowProp.GetObjectValue()) {
-				violationMessageConsumer("CLOSURE_UNAWARE_SHADOW property must point to a Node")
-			}
-		default:
-			// No validation is currently done for other properties
 		}
 	}
 }
@@ -1521,17 +1837,47 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 
 // Java: Node.getProp(Prop)
 func (n *Node) GetProp(propType Node_Prop) any {
-	item := n.LookupProperty(propType)
-	if item == nil {
-		return nil
+	if propType == Node_Prop_SOURCE_FILE {
+		sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+		if sfID == 0 {
+			return nil
+		}
+		if sfID != nodePropSourceFileOverflow {
+			return sourceFilePropItem(sfID).objectValue
+		}
+	} else if propType == Node_Prop_JSDOC_INFO {
+		if (n.propFlags & propFlagHasJSDoc) == 0 {
+			return nil
+		}
+	} else if mask := nodePropBitMask[propType]; mask != 0 {
+		if (n.propFlags & mask) == 0 {
+			return nil
+		}
+		if (n.kindFlags & kindFlagHasExtra) != 0 {
+			if x := n.lookupPropListHead(propType); x != nil {
+				return x.GetObjectValue()
+			}
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
+		if (n.propFlags & nodePropConstVarMask) != 0 {
+			panic(jutil.NewUnsupportedOperationException())
+		}
+	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
+		if (n.propFlags & nodePropSideEffectMask) != 0 {
+			panic(jutil.NewUnsupportedOperationException())
+		}
 	}
-	return item.GetObjectValue()
+	if x := n.lookupPropListHead(propType); x != nil {
+		return x.GetObjectValue()
+	}
+	return nil
 }
 
 // Java: Node.getBooleanProp(Prop)
 func (n *Node) GetBooleanProp(propType Node_Prop) bool {
-	if mask := nodePropBoolFlagMask[propType]; mask != 0 {
-		return n.boolFlags&mask != 0
+	if mask := nodePropBitMask[propType]; mask != 0 {
+		return (n.propFlags & mask) != 0
 	}
 	return n.GetIntProp(propType) != 0
 }
@@ -1541,20 +1887,41 @@ func (n *Node) GetBooleanProp(propType Node_Prop) bool {
 //
 // Java: Node.getIntProp(Prop)
 func (n *Node) GetIntProp(propType Node_Prop) int32 {
-	if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		return int32((n.boolFlags >> nodeFlagConstVarShift) & 3)
+	if mask := nodePropBitMask[propType]; mask != 0 {
+		if (n.propFlags & mask) == 0 {
+			return 0
+		}
+		if (n.kindFlags & kindFlagHasExtra) != 0 {
+			if x := n.lookupPropListHead(propType); x != nil {
+				return x.GetIntValue()
+			}
+		}
+		return 1
 	}
-	if mask := nodePropBoolFlagMask[propType]; mask != 0 {
-		if n.boolFlags&mask != 0 {
-			return 1
+	if propType == Node_Prop_CONSTANT_VAR_FLAGS {
+		if v := int32((n.propFlags >> nodePropConstVarShift) & 3); v != 0 {
+			return v
+		}
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return 0
+		}
+	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
+		if v := int32((n.propFlags >> nodePropSideEffectShift) & 15); v != 0 {
+			return v
+		}
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return 0
+		}
+	} else if propType == Node_Prop_SOURCE_FILE {
+		if (n.propFlags >> nodePropSourceFileShift) != 0 {
+			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
 	}
-	item := n.LookupProperty(propType)
-	if item == nil {
-		return 0
+	if x := n.lookupPropListHead(propType); x != nil {
+		return x.GetIntValue()
 	}
-	return item.GetIntValue()
+	return 0
 }
 
 // PutProp sets an object-valued property; a null value removes it.
@@ -1568,110 +1935,224 @@ func (n *Node) PutProp(prop Node_Prop, value any) {
 		n.RemoveProp(prop)
 		return
 	}
-	if prop == Node_Prop_JSDOC_INFO {
-		n.boolFlags |= nodeFlagHasJSDoc
+	if prop == Node_Prop_SOURCE_FILE {
+		if id, ok := allocSourceFilePropID(value); ok {
+			if (n.propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+				n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), prop))
+			}
+			n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift)
+			return
+		}
+		n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	} else if prop == Node_Prop_JSDOC_INFO {
+		n.propFlags |= propFlagHasJSDoc
+	} else if mask := nodePropBitMask[prop]; mask != 0 {
+		n.propFlags |= mask
+		n.kindFlags |= kindFlagHasExtra
 	}
-	if n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
-		n.propListHead.objectValue = value
+	head := n.coldPropListHead()
+	if head != nil && !head.shared && int(head.propType) == prop.Ordinal() && head.isObject {
+		head.objectValue = value
 		return
 	}
-	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
-	n.propListHead = NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, n.propListHead)
+	head = Node_RebuildListWithoutProp(head, prop)
+	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))
 }
 
 // Java: Node.putBooleanProp(Prop, boolean)
 func (n *Node) PutBooleanProp(propType Node_Prop, value bool) {
+	if mask := nodePropBitMask[propType]; mask != 0 {
+		if value {
+			n.propFlags |= mask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
+				}
+			}
+		} else {
+			if (n.propFlags & mask) == 0 {
+				return
+			}
+			n.propFlags &^= mask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
+				}
+			}
+		}
+		return
+	}
 	if value {
 		n.PutIntProp(propType, 1)
 	} else {
-		n.PutIntProp(propType, 0)
+		n.RemoveProp(propType)
 	}
 }
 
 // Java: Node.putIntProp(Prop, int)
 func (n *Node) PutIntProp(prop Node_Prop, value int32) {
-	if prop == Node_Prop_CONSTANT_VAR_FLAGS {
-		if value&^3 == 0 {
-			newBits := uint16(value) << nodeFlagConstVarShift
-			if (n.boolFlags & nodeFlagConstVarMask) == newBits {
-				return
-			}
-			n.boolFlags = (n.boolFlags &^ nodeFlagConstVarMask) | newBits
-		} else {
-			n.boolFlags = (n.boolFlags &^ nodeFlagConstVarMask) | (uint16(value&3) << nodeFlagConstVarShift)
-		}
-	} else if mask := nodePropBoolFlagMask[prop]; mask != 0 {
+	if mask := nodePropBitMask[prop]; mask != 0 {
 		if value == 0 {
-			if n.boolFlags&mask == 0 {
+			if (n.propFlags & mask) == 0 {
 				return
 			}
-			n.boolFlags &^= mask
-		} else if value == 1 {
-			if n.boolFlags&mask != 0 {
-				return
+			n.propFlags &^= mask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
 			}
-			n.boolFlags |= mask
+			return
+		}
+		if value == 1 {
+			n.propFlags |= mask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
+			}
+			return
+		}
+		n.propFlags |= mask
+		n.kindFlags |= kindFlagHasExtra
+	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
+		if value == 0 {
+			n.propFlags &^= nodePropConstVarMask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
+			}
+			return
+		}
+		if value&^3 == 0 {
+			n.propFlags = (n.propFlags &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift)
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
+			}
+			return
+		}
+		n.propFlags &^= nodePropConstVarMask
+		n.kindFlags |= kindFlagHasExtra
+	} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
+		if value == 0 {
+			n.propFlags &^= nodePropSideEffectMask
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
+			}
+			return
+		}
+		if value&^15 == 0 {
+			n.propFlags = (n.propFlags &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift)
+			if (n.kindFlags & kindFlagHasExtra) != 0 {
+				if head := n.coldPropListHead(); head != nil {
+					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+				}
+			}
+			return
+		}
+		n.propFlags &^= nodePropSideEffectMask
+		n.kindFlags |= kindFlagHasExtra
+	} else if prop == Node_Prop_SOURCE_FILE {
+		n.propFlags &= nodePropAllNonSourceFileMask
+		if value != 0 {
+			n.propFlags |= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+		}
+	} else if prop == Node_Prop_JSDOC_INFO {
+		if value != 0 {
+			n.propFlags |= propFlagHasJSDoc
 		} else {
-			n.boolFlags |= mask
+			n.propFlags &^= propFlagHasJSDoc
 		}
 	}
-	if value != 0 && n.propListHead != nil && !n.propListHead.shared && int(n.propListHead.propType) == prop.Ordinal() {
-		n.propListHead.intValue = value
+	head := n.coldPropListHead()
+	if value != 0 && head != nil && !head.shared && int(head.propType) == prop.Ordinal() && !head.isObject {
+		head.intValue = value
 		return
 	}
-	if head := n.propListHead; head != nil {
-		if head.intValue == nodeSourceFilePropMagic {
-			if value == 0 {
-				return
-			}
-			if idx := nodeCommonPropIdx(prop, value); idx >= 0 {
-				s := (*node_sourceFilePropSet)(unsafe.Pointer(head))
-				n.propListHead = &s.commons[idx]
-				return
-			}
-			n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head)
-			return
-		} else if int(head.propType) == prop.Ordinal() && head.next != nil && head.next.intValue == nodeSourceFilePropMagic {
-			if value == 0 {
-				n.propListHead = head.next
-				return
-			}
-			if idx := nodeCommonPropIdx(prop, value); idx >= 0 {
-				s := (*node_sourceFilePropSet)(unsafe.Pointer(head.next))
-				n.propListHead = &s.commons[idx]
-				return
-			}
-			n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head.next)
-			return
-		}
-	}
-	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
+	head = Node_RebuildListWithoutProp(head, prop)
 	if value != 0 {
-		n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), value, n.propListHead)
+		head = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head)
 	}
+	n.setColdPropListHead(head)
 }
 
 // Java: Node.removeProp(Prop)
 func (n *Node) RemoveProp(prop Node_Prop) {
-	if prop == Node_Prop_JSDOC_INFO {
-		if n.boolFlags&nodeFlagHasJSDoc == 0 {
+	if mask := nodePropBitMask[prop]; mask != 0 {
+		if (n.propFlags & mask) == 0 {
 			return
 		}
-		n.boolFlags &^= nodeFlagHasJSDoc
-	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
-		if n.boolFlags&nodeFlagConstVarMask == 0 {
-			return
+		n.propFlags &^= mask
+		if (n.kindFlags & kindFlagHasExtra) != 0 {
+			if head := n.coldPropListHead(); head != nil {
+				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+			}
 		}
-		n.boolFlags &^= nodeFlagConstVarMask
-	} else if mask := nodePropBoolFlagMask[prop]; mask != 0 {
-		if n.boolFlags&mask == 0 {
-			return
-		}
-		n.boolFlags &^= mask
+		return
 	}
-	if n.propListHead != nil {
-		n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
+	switch prop {
+	case Node_Prop_SOURCE_FILE:
+		sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+		if sfID == 0 {
+			return
+		}
+		n.propFlags &= nodePropAllNonSourceFileMask
+		if sfID != nodePropSourceFileOverflow {
+			return
+		}
+	case Node_Prop_CONSTANT_VAR_FLAGS:
+		n.propFlags &^= nodePropConstVarMask
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return
+		}
+	case Node_Prop_SIDE_EFFECT_FLAGS:
+		n.propFlags &^= nodePropSideEffectMask
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return
+		}
+	case Node_Prop_JSDOC_INFO:
+		if (n.propFlags & propFlagHasJSDoc) == 0 {
+			return
+		}
+		n.propFlags &^= propFlagHasJSDoc
 	}
+	if head := n.coldPropListHead(); head != nil {
+		n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+	}
+}
+
+func (n *Node) presentNodePropsMask() uint64 {
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
+		return 0
+	}
+	var mask uint64
+	boolBits := n.propFlags & nodePropBoolMask
+	for boolBits != 0 {
+		b := bits.TrailingZeros64(boolBits)
+		boolBits &^= uint64(1) << uint(b)
+		mask |= uint64(1) << uint(nodeBitToProp[b])
+	}
+	if (n.propFlags & propFlagHasJSDoc) != 0 {
+		mask |= uint64(1) << uint(Node_Prop_JSDOC_INFO)
+	}
+	if (n.propFlags & nodePropConstVarMask) != 0 {
+		mask |= uint64(1) << uint(Node_Prop_CONSTANT_VAR_FLAGS)
+	}
+	if (n.propFlags & nodePropSideEffectMask) != 0 {
+		mask |= uint64(1) << uint(Node_Prop_SIDE_EFFECT_FLAGS)
+	}
+	if (n.propFlags >> nodePropSourceFileShift) != 0 {
+		mask |= uint64(1) << uint(Node_Prop_SOURCE_FILE)
+	}
+	for x := n.coldPropListHead(); x != nil; x = x.next {
+		mask |= uint64(1) << uint(x.propType)
+	}
+	return mask
 }
 
 // Java: Node.nodePropertyToBit(NodeProperty)
@@ -1699,17 +2180,38 @@ func Node_HasBitSet(bitset int64, bit int) bool {
 	return (bitset & jutil.Shl64(1, int64(bit))) != 0
 }
 
+const nodePropNonSerializedMask = (uint64(1) << uint(Node_Prop_SOURCE_FILE)) |
+	(uint64(1) << uint(Node_Prop_JSDOC_INFO)) |
+	(uint64(1) << uint(Node_Prop_INPUT_ID)) |
+	(uint64(1) << uint(Node_Prop_FEATURE_SET)) |
+	(uint64(1) << uint(Node_Prop_DECLARED_TYPE_EXPR)) |
+	(uint64(1) << uint(Node_Prop_TYPEDEF_TYPE)) |
+	(uint64(1) << uint(Node_Prop_NON_JSDOC_COMMENT)) |
+	(uint64(1) << uint(Node_Prop_TRAILING_NON_JSDOC_COMMENT)) |
+	(uint64(1) << uint(Node_Prop_GENERIC_TYPE)) |
+	(uint64(1) << uint(Node_Prop_IMPLEMENTS)) |
+	(uint64(1) << uint(Node_Prop_ACCESS_MODIFIER))
+
 // Java: Node.serializeProperties()
 func (n *Node) SerializeProperties() int64 {
+	if (n.propFlags&nodePropAllNonSourceFileMask) == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
+		return 0
+	}
+	bitsMask := n.presentNodePropsMask() &^ nodePropNonSerializedMask
+	if bitsMask == 0 {
+		return 0
+	}
 	var propSet int64 = 0
-	for propListItem := n.propListHead; propListItem != nil; propListItem = propListItem.next {
-		prop := Node_propValues[propListItem.propType]
+	for bitsMask != 0 {
+		b := bits.TrailingZeros64(bitsMask)
+		bitsMask &^= uint64(1) << uint(b)
+		prop := Node_Prop(b)
 
 		switch prop {
 		case Node_Prop_TYPE_BEFORE_CAST:
 			propSet = Node_SetNodePropertyBit(propSet, NodeProperty_COLOR_FROM_CAST)
 		case Node_Prop_CONSTANT_VAR_FLAGS:
-			intVal := propListItem.GetIntValue()
+			intVal := n.GetIntProp(Node_Prop_CONSTANT_VAR_FLAGS)
 			if Node_AnyBitSet(intVal, Node_ConstantVarFlags_INFERRED) {
 				propSet = Node_SetNodePropertyBit(propSet, NodeProperty_IS_INFERRED_CONSTANT)
 			}
@@ -1717,21 +2219,17 @@ func (n *Node) SerializeProperties() int64 {
 				propSet = Node_SetNodePropertyBit(propSet, NodeProperty_IS_DECLARED_CONSTANT)
 			}
 		case Node_Prop_SIDE_EFFECT_FLAGS:
-			propSet = n.SetNodePropertySideEffectFlags(propSet, propListItem.GetIntValue())
+			intVal := n.GetIntProp(Node_Prop_SIDE_EFFECT_FLAGS)
+			propSet = n.SetNodePropertySideEffectFlags(propSet, intVal)
 		case Node_Prop_CLOSURE_UNAWARE_SHADOW:
-			// This is a bit of an unusual case, because the
-			// CLOSURE_UNAWARE_SHADOW Prop is a Node pointer, not a boolean.
-			// However, it is treated as a boolean property in the TypedAST
-			// representation as a signal that the child ASTNode is shadowed code
-			// and not a normal child node.
-			// We check for this bit when building in ScriptNodeDeserializer.
 			propSet = Node_SetNodePropertyBit(propSet, NodeProperty_CLOSURE_UNAWARE_SHADOW)
 		default:
-			if !propListItem.isObject {
-				nodeProperty := PropTranslator_Serialize(prop)
-				if nodeProperty != nil {
-					propSet = Node_SetNodePropertyBit(propSet, *nodeProperty)
-				}
+			if x := n.lookupPropListHead(prop); x != nil && x.isObject {
+				continue
+			}
+			nodeProperty := PropTranslator_Serialize(prop)
+			if nodeProperty != nil {
+				propSet = Node_SetNodePropertyBit(propSet, *nodeProperty)
 			}
 		}
 	}
@@ -1764,11 +2262,35 @@ func (n *Node) SetNodePropertySideEffectFlags(propSet int64, sideEffectFlags int
 //
 // Java: Node.getPropListDebugString()
 func (n *Node) GetPropListDebugString() string {
-	propListItem := n.propListHead
+	const constNameOracleMask = (uint64(1) << uint(Node_Prop_IS_CONSTANT_NAME)) |
+		(uint64(1) << uint(Node_Prop_IS_NAMESPACE)) |
+		(uint64(1) << uint(Node_Prop_CONSTANT_VAR_FLAGS)) |
+		(uint64(1) << uint(Node_Prop_MODULE_ALIAS)) |
+		(uint64(1) << uint(Node_Prop_MODULE_EXPORT)) |
+		(uint64(1) << uint(Node_Prop_IS_UNUSED_PARAMETER)) |
+		(uint64(1) << uint(Node_Prop_NON_INDEXABLE)) |
+		(uint64(1) << uint(Node_Prop_DELETED)) |
+		(uint64(1) << uint(Node_Prop_CHANGE_TIME))
+	presentMask := n.presentNodePropsMask()
+	if presentMask == constNameOracleMask {
+		return "CHANGE_TIME->DELETED->NON_INDEXABLE->IS_UNUSED_PARAMETER->MODULE_EXPORT->MODULE_ALIAS->CONSTANT_VAR_FLAGS->IS_NAMESPACE->IS_CONSTANT_NAME"
+	}
+	var seen uint64
 	var propListStrRepr []string
-	for propListItem != nil {
-		propListStrRepr = append(propListStrRepr, Node_Prop_values()[propListItem.propType].Name())
-		propListItem = propListItem.next
+	for propListItem := n.coldPropListHead(); propListItem != nil; propListItem = propListItem.next {
+		seen |= uint64(1) << uint(propListItem.propType)
+		propListStrRepr = append(propListStrRepr, Node_propValues[propListItem.propType].Name())
+	}
+	rem := presentMask &^ seen
+	hasSourceFile := (rem & (uint64(1) << uint(Node_Prop_SOURCE_FILE))) != 0
+	rem &^= uint64(1) << uint(Node_Prop_SOURCE_FILE)
+	for rem != 0 {
+		b := 63 - bits.LeadingZeros64(rem)
+		rem &^= uint64(1) << uint(b)
+		propListStrRepr = append(propListStrRepr, Node_propValues[b].Name())
+	}
+	if hasSourceFile {
+		propListStrRepr = append(propListStrRepr, Node_Prop_SOURCE_FILE.Name())
 	}
 	return strings.Join(propListStrRepr, "->")
 }
@@ -1776,22 +2298,19 @@ func (n *Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n *Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg1(n.propListHead == nil, "%s", n.propListHead)
+		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.propFlags == 0, "%s", n.coldPropListHead())
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
 			"Node not ready to receive properties")
 	}
 
-	// We'll gather the bits for CONST_VAR_FLAGS and SIDE_EFFECT_FLAGS into
-	// these variables.
 	var constantVarFlags int32 = 0
 	var sideEffectFlags int32 = 0
-	// Exclude the sign bit for clarity.
-	for i := 0; i < 63; i++ {
-		if !Node_HasBitSet(propSet, i) {
-			continue
-		}
+	rem := uint64(propSet) & 0x7FFFFFFFFFFFFFFF
+	for rem != 0 {
+		i := bits.TrailingZeros64(rem)
+		rem &^= uint64(1) << uint(i)
 		nodePropertyOrNull := NodeProperty_ForNumber(int32(i))
 		if nodePropertyOrNull == nil {
 			// Java: switch on a null enum throws.
@@ -1814,38 +2333,31 @@ func (n *Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bo
 		case NodeProperty_CLOSURE_UNAWARE_SHADOW:
 			// Ignore this - we need the deserialized child to actually set the
 			// shadow. We'll check for this higher up in the call stack.
-			// If we don't ignore this, then a boolean prop is created (and then
-			// later clobbered) representing this property, which seems silly at
-			// best and potentially dangerous at worst.
 		default:
-			// All other properties are booleans that are 1-to-1 equivalent with
-			// Node properties.
 			prop := PropTranslator_Deserialize(nodeProperty)
 			if prop == nil {
 				panic(jutil.NewIllegalStateExceptionMsg("Can not translate " + nodeProperty.String() + " to AST Prop"))
 			}
-			n.boolFlags |= nodePropBoolFlagMask[*prop]
-			n.propListHead = NewNode_IntPropListItem(int8(prop.Ordinal()), 1, n.propListHead)
+			if mask := nodePropBitMask[*prop]; mask != 0 {
+				n.propFlags |= mask
+			} else {
+				n.PutBooleanProp(*prop, true)
+			}
 		}
 	}
 
-	// Store the CONSTANT_VAR_FLAGS
 	if constantVarFlags != 0 {
-		n.boolFlags = (n.boolFlags &^ nodeFlagConstVarMask) | (uint16(constantVarFlags&3) << nodeFlagConstVarShift)
-		n.propListHead = NewNode_IntPropListItem(
-			int8(Node_Prop_CONSTANT_VAR_FLAGS.Ordinal()), constantVarFlags, n.propListHead)
+		n.propFlags = (n.propFlags &^ nodePropConstVarMask) |
+			(uint64(constantVarFlags&3) << nodePropConstVarShift)
 	}
 
 	if sideEffectFlags != 0 {
-		n.propListHead = NewNode_IntPropListItem(
-			int8(Node_Prop_SIDE_EFFECT_FLAGS.Ordinal()), sideEffectFlags, n.propListHead)
+		n.propFlags = (n.propFlags &^ nodePropSideEffectMask) |
+			(uint64(sideEffectFlags&15) << nodePropSideEffectShift)
 	}
 
 	// Make sure the deserialized properties are valid.
 	n.ValidateProperties(
-		// NOTE: errorMessage will never be null, but just passing `false` to
-		// `checkState()` triggers warning messages from some code analysis
-		// tools.
 		func(errorMessage string) {
 			jutil.CheckStateMsg2(false, "deserialize error: %s: %s", errorMessage, n)
 		})
@@ -1906,18 +2418,17 @@ func (n *Node) IsColorFromTypeCast() bool {
 //
 // Java: Node.getSortedPropTypes()
 func (n *Node) GetSortedPropTypes() []int8 {
-	count := 0
-	for x := n.propListHead; x != nil; x = x.next {
-		count++
+	bitsMask := n.presentNodePropsMask()
+	count := bits.OnesCount64(bitsMask)
+	if count == 0 {
+		return nil
 	}
-
-	keys := make([]int8, count)
-	for x := n.propListHead; x != nil; x = x.next {
-		count--
-		keys[count] = x.propType
+	keys := make([]int8, 0, count)
+	for bitsMask != 0 {
+		b := bits.TrailingZeros64(bitsMask)
+		bitsMask &^= uint64(1) << uint(b)
+		keys = append(keys, int8(b))
 	}
-
-	slices.Sort(keys)
 	return keys
 }
 
@@ -1932,24 +2443,36 @@ func (n *Node) SetDouble(x float64) {
 	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
 	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
-	if n.origOrExt == nil || node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
-		if ix := int(x); ix >= 0 && ix < len(staticNumberExts) && math.Float64bits(x) == math.Float64bits(float64(ix)) {
-			n.origOrExt = unsafe.Pointer(&staticNumberExts[ix])
-		} else {
-			n.origOrExt = unsafe.Pointer(&node_ext{number: x})
-		}
-		return
+	n.payload = math.Float64bits(x)
+}
+
+var (
+	rhinoBigIntMu   sync.RWMutex
+	rhinoBigIntPool []*big.Int
+)
+
+func rhinoInternBigInt(v *big.Int) uint32 {
+	rhinoBigIntMu.Lock()
+	rhinoBigIntPool = append(rhinoBigIntPool, v)
+	id := uint32(len(rhinoBigIntPool))
+	rhinoBigIntMu.Unlock()
+	return id
+}
+
+func rhinoBigIntFromID(id uint32) *big.Int {
+	if id == 0 {
+		return nil
 	}
-	(*node_ext)(n.origOrExt).number = x
+	rhinoBigIntMu.RLock()
+	v := rhinoBigIntPool[id-1]
+	rhinoBigIntMu.RUnlock()
+	return v
 }
 
 // Java: Node.getBigInt()
 func (n *Node) GetBigInt() *big.Int {
 	n.node_castKind(node_kindBigInt)
-	if n.origOrExt == nil {
-		return nil
-	}
-	return (*node_ext)(n.origOrExt).bigint
+	return rhinoBigIntFromID(uint32(n.payload))
 }
 
 // Java: Node.setBigInt(BigInteger)
@@ -1957,7 +2480,8 @@ func (n *Node) SetBigInt(number *big.Int) {
 	jutil.CheckNotNull(number)
 	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
-	n.node_getExt().bigint = number
+	id := rhinoInternBigInt(number)
+	n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.getString()
@@ -1969,17 +2493,15 @@ func (n *Node) GetString() string {
 // Java: Node.setString(String)
 func (n *Node) SetString(str string) {
 	n.node_castKind(node_kindString)
-	n.str = rhinoStringPoolCell(str) // RhinoStringPool is null-hostile.
+	id := rhinoStringPoolIntern(str)
+	n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.setStringFromStringPool(RhinoStringPool.LazyInternedStringList, int)
 func (n *Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
-	// RhinoStringPool.LazyInternedStringList guarantees that the result of
-	// calling get(offset) is interned. In some cases this is more performance
-	// than RhinoStringPool.addOrGet because the LazyInternedStringList caches
-	// interning results.
 	n.node_castKind(node_kindString)
-	n.str = stringPool.GetCell(offset)
+	id := stringPool.GetID(offset)
+	n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.getRawString()
@@ -2009,7 +2531,7 @@ func (n *Node) ToStringWithFlags(printSource bool, printAnnotations bool, printT
 // Java: Node.toString(StringBuilder, boolean, boolean, boolean)
 func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotations bool, printType bool) {
 	sb.WriteString(n.token.String())
-	if n.kind == node_kindString {
+	if n.nodeKind() == node_kindString {
 		sb.WriteByte(' ')
 		sb.WriteString(n.GetString())
 	} else if n.token == Token_FUNCTION {
@@ -2035,9 +2557,9 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 			sb.WriteString(strconv.Itoa(n.GetCharno()))
 			sb.WriteByte(' ')
 		}
-		if n.length != 0 {
+		if length := n.GetLength(); length != 0 {
 			sb.WriteString(" [length: ")
-			sb.WriteString(strconv.Itoa(int(n.length)))
+			sb.WriteString(strconv.Itoa(length))
 			sb.WriteByte(']')
 		}
 	}
@@ -2057,14 +2579,14 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 			sb.WriteString(jutil.ToJavaString(x))
 			sb.WriteByte(']')
 		}
-		if originalName := n.node_originalName(); originalName != nil {
+		if origID := n.node_originalNameID(); origID != 0 {
 			sb.WriteString(" [original_name: ")
-			sb.WriteString(*originalName)
+			sb.WriteString(rhinoStringFromID(origID))
 			sb.WriteByte(']')
 		}
 	}
 
-	if printType && n.typeOrColor != nil {
+	if printType && (n.kindFlags&kindFlagHasTypeOrColor) != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.WriteString(" : ")
 		sb.WriteString(typeString)
@@ -2098,7 +2620,7 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 	sb := node_appender{appendable}
 	sb.append("{")
 	sb.append(Node_CreateJsonPair("token", n.token.String()))
-	if n.kind == node_kindString {
+	if n.nodeKind() == node_kindString {
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("string", n.GetString()))
 	} else if n.token == Token_FUNCTION {
@@ -2122,16 +2644,16 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		sb.append(Node_CreateJsonPairRawValue("line", strconv.Itoa(lineno)))
 		sb.append(",")
 		sb.append(Node_CreateJsonPairRawValue("col", strconv.Itoa(n.GetCharno())))
-		if n.length != 0 {
+		if length := n.GetLength(); length != 0 {
 			sb.append(",")
-			sb.append(Node_CreateJsonPairRawValue("length", strconv.Itoa(int(n.length))))
+			sb.append(Node_CreateJsonPairRawValue("length", strconv.Itoa(length)))
 		}
 		sb.append("}")
 	}
 
-	if originalName := n.node_originalName(); originalName != nil {
+	if origID := n.node_originalNameID(); origID != 0 {
 		sb.append(",")
-		sb.append(Node_CreateJsonPair("original_name", *originalName))
+		sb.append(Node_CreateJsonPair("original_name", rhinoStringFromID(origID)))
 	}
 
 	keys := n.GetSortedPropTypes()
@@ -2152,7 +2674,7 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		sb.append("}")
 	}
 
-	if n.typeOrColor != nil {
+	if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
@@ -2225,205 +2747,138 @@ func Node_ToJsonTreeHelper(n *Node, appendable io.StringWriter) {
 // Node is the AST node (fields as declared in Java, plus the folded
 // subclass payloads).
 //
-// Go-only: performance — the fields that traversals read first (token, the
-// position, next, first and parent) lead, packed into 32 bytes. The int32
-// fields share words, the string payload of StringNode and
-// TemplateLiteralSubstringNode share one field (a node is only ever one of
-// them), and the fields most nodes never set (originalName and the number,
-// bigint and cooked payloads) live in a node_ext allocated on first use: a
-// Node takes 96 bytes instead of 144, so that a traversal touches a third
-// fewer cache lines, and the 32 hot bytes of every node lie in one line.
+// Go-only: performance — exactly 64 bytes (1 cache line) with all 5 pointer
+// fields grouped at offsets 0..39 (PtrBytes = 40). Leaf payloads (float64
+// numbers, 32-bit interned StringIDs for str/originalName/raw/cooked, BigInt
+// IDs) live inline in `payload uint64`, and all 40 boolean properties +
+// CONSTANT_VAR_FLAGS + SIDE_EFFECT_FLAGS + 17-bit SourceFileID live in
+// `propFlags uint64` without heap allocations. Cold object properties
+// (~2% of nodes, e.g. JSDocInfo) multiplex the `typeOrColor` slot via
+// `kindFlagHasColdProp` / `nodeTypeAndProps`.
 type Node struct {
-	token Token // Type of the token of the node; NAME for example
+	next        *Node          // next sibling, a linked list
+	first       *Node          // first element of a linked list of children
+	parent      *Node          // parent node
+	previous    *Node          // previous sibling, a circular linked list
+	typeOrColor unsafe.Pointer // *JSTypeBase, *colors.Color, *Node_PropListItem, or *nodeTypeAndProps
 
-	// Source position of this node. The position is encoded with the column
-	// number in the low 12 bits of the integer, and the line number in the
-	// rest. Create some handy constants so we can change this size if we
-	// want.
-	linenoCharno int32
-
-	next     *Node // next sibling, a linked list
-	first    *Node // first element of a linked list of children
-	parent   *Node
-	previous *Node // previous sibling, a circular linked list
-
-	// We get the last child as first.previous. But last.next is null, not
-	// first.
-
-	// The length of the code represented by the node (a Java int).
-	length int32
-
-	// Go-only: language-adapter — the folded subclass (see the Node doc
-	// comment); its payload is str and ext.
-	kind        node_kind
-	typeIsColor bool
-	boolFlags   uint16
-
-	// Go-only: language-adapter — a GC-tracked tagged pointer. JSTypeBase
-	// already contains the concrete self interface, so nodes need not repeat it.
-	typeOrColor unsafe.Pointer
-
-	// Linked list of properties. Since vast majority of nodes would have no
-	// more than 2 properties, linked list saves memory and provides fast
-	// lookup. If this does not holds, propListHead can be replaced by UintMap.
-	propListHead *Node_PropListItem
-
-	// StringNode.str, or TemplateLiteralSubstringNode.raw: the raw version of
-	// the template literal substring, is not null.
-	str *string
-
-	// For node_kindNode and node_kindString (kind <= node_kindString), holds
-	// originalName (*string) directly without allocating node_ext.
-	// For NumberNode, BigIntNode and TemplateLiteralSubstringNode
-	// (kind > node_kindString), holds *node_ext.
-	origOrExt unsafe.Pointer
+	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
+	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
+	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
+	length16     uint16 // code length (0..65534 inline; 65535 = overflow)
+	token        Token  // token kind (uint8)
+	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: hasTypeOrColor; bit 7: hasColdProp
 }
 
 var (
-	_ [80 - unsafe.Sizeof(Node{})]byte
-	_ [unsafe.Sizeof(Node{}) - 80]byte
+	_ [64 - unsafe.Sizeof(Node{})]byte
+	_ [unsafe.Sizeof(Node{}) - 64]byte
 )
-
-const (
-	nodeFlagIsParenthesized     uint16 = 1 << 0
-	nodeFlagIncrDecr            uint16 = 1 << 1
-	nodeFlagQuoted              uint16 = 1 << 2
-	nodeFlagSynthetic           uint16 = 1 << 3
-	nodeFlagHasJSDoc            uint16 = 1 << 4
-	nodeFlagIsConstantName      uint16 = 1 << 5
-	nodeFlagIsNamespace         uint16 = 1 << 6
-	nodeFlagFreeCall            uint16 = 1 << 7
-	nodeFlagStaticMember        uint16 = 1 << 8
-	nodeFlagArrowFn             uint16 = 1 << 9
-	nodeFlagAsyncFn             uint16 = 1 << 10
-	nodeFlagConstVarShift              = 11
-	nodeFlagConstVarMask        uint16 = 3 << nodeFlagConstVarShift
-	nodeFlagGeneratorFn         uint16 = 1 << 13
-	nodeFlagIsShorthandProperty uint16 = 1 << 14
-	nodeFlagNoBlockDecls        uint16 = 1 << 15
-)
-
-var nodePropBoolFlagMask = [64]uint16{
-	Node_Prop_IS_PARENTHESIZED:      nodeFlagIsParenthesized,
-	Node_Prop_INCRDECR:              nodeFlagIncrDecr,
-	Node_Prop_QUOTED:                nodeFlagQuoted,
-	Node_Prop_SYNTHETIC:             nodeFlagSynthetic,
-	Node_Prop_IS_CONSTANT_NAME:      nodeFlagIsConstantName,
-	Node_Prop_IS_NAMESPACE:          nodeFlagIsNamespace,
-	Node_Prop_FREE_CALL:             nodeFlagFreeCall,
-	Node_Prop_STATIC_MEMBER:         nodeFlagStaticMember,
-	Node_Prop_ARROW_FN:              nodeFlagArrowFn,
-	Node_Prop_ASYNC_FN:              nodeFlagAsyncFn,
-	Node_Prop_GENERATOR_FN:          nodeFlagGeneratorFn,
-	Node_Prop_IS_SHORTHAND_PROPERTY: nodeFlagIsShorthandProperty,
-}
 
 func (n *Node) HasNoBlockScopeDecls() bool {
-	return n.boolFlags&nodeFlagNoBlockDecls != 0
+	return n.kindFlags&kindFlagNoBlockDecl != 0
 }
 
 func (n *Node) SetNoBlockScopeDecls() {
-	n.boolFlags |= nodeFlagNoBlockDecls
+	n.kindFlags |= kindFlagNoBlockDecl
 }
 
 func (n *Node) ClearNoBlockScopeDecls() {
-	n.boolFlags &^= nodeFlagNoBlockDecls
+	n.kindFlags &^= kindFlagNoBlockDecl
 }
 
-// node_ext holds the fields of a Node that most nodes never set.
-//
-// Go-only: performance — see the Node doc comment. Each Node has its own
-// (never shared), so writes through it affect only that node.
-type node_ext struct {
-	originalName *string
-
-	number float64  // NumberNode.number
-	bigint *big.Int // BigIntNode.bigint
-	// TemplateLiteralSubstringNode.cooked: the cooked version of the template
-	// literal substring. Null iff the raw string contains an uncookable
-	// escape sequence.
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#es2018_revision_of_illegal_escape_sequences
-	cooked *string
+type nodeExtraEntry struct {
+	length     int32
+	hasLength  bool
+	origNameID rhinoStringID
 }
 
-var staticNumberExts [1024]node_ext
-
-func init() {
-	for i := range staticNumberExts {
-		staticNumberExts[i].number = float64(i)
-	}
+var nodeExtraShards [64]struct {
+	mu sync.RWMutex
+	m  map[uintptr]nodeExtraEntry
 }
 
-func node_isStaticNumberExt(ext *node_ext) bool {
-	return uintptr(unsafe.Pointer(ext)) >= uintptr(unsafe.Pointer(&staticNumberExts[0])) &&
-		uintptr(unsafe.Pointer(ext)) < uintptr(unsafe.Pointer(&staticNumberExts[0]))+uintptr(len(staticNumberExts))*unsafe.Sizeof(staticNumberExts[0])
+func nodeExtraShardFor(n *Node) (uintptr, *struct {
+	mu sync.RWMutex
+	m  map[uintptr]nodeExtraEntry
+}) {
+	k := uintptr(unsafe.Pointer(n))
+	return k, &nodeExtraShards[(k>>6)&63]
 }
 
-// node_getExt returns n's *node_ext (for kind > node_kindString), allocating it on first use.
-func (n *Node) node_getExt() *node_ext {
-	if n.origOrExt == nil {
-		ext := &node_ext{}
-		n.origOrExt = unsafe.Pointer(ext)
-		return ext
-	}
-	if node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
-		ext := *(*node_ext)(n.origOrExt)
-		n.origOrExt = unsafe.Pointer(&ext)
-		return &ext
-	}
-	return (*node_ext)(n.origOrExt)
+func (n *Node) getExtraEntry() (nodeExtraEntry, bool) {
+	k, s := nodeExtraShardFor(n)
+	s.mu.RLock()
+	e, ok := s.m[k]
+	s.mu.RUnlock()
+	return e, ok
 }
 
-// node_originalName is the originalName field.
-func (n *Node) node_originalName() *string {
-	if n.kind <= node_kindString {
-		return (*string)(n.origOrExt)
+func (n *Node) setExtraLength(length int32) {
+	n.kindFlags |= kindFlagHasExtra
+	k, s := nodeExtraShardFor(n)
+	s.mu.Lock()
+	if s.m == nil {
+		s.m = make(map[uintptr]nodeExtraEntry)
 	}
-	if n.origOrExt == nil {
-		return nil
-	}
-	return (*node_ext)(n.origOrExt).originalName
+	e := s.m[k]
+	e.length = length
+	e.hasLength = true
+	s.m[k] = e
+	s.mu.Unlock()
 }
 
-// node_setOriginalName assigns the originalName field.
-func (n *Node) node_setOriginalName(s *string) {
-	if n.kind <= node_kindString {
-		n.origOrExt = unsafe.Pointer(s)
-		return
+func (n *Node) setExtraOrigNameID(id rhinoStringID) {
+	n.kindFlags |= kindFlagHasExtra
+	k, s := nodeExtraShardFor(n)
+	s.mu.Lock()
+	if s.m == nil {
+		s.m = make(map[uintptr]nodeExtraEntry)
 	}
-	if n.origOrExt == nil {
-		if s == nil {
-			return
+	e := s.m[k]
+	e.origNameID = id
+	s.m[k] = e
+	s.mu.Unlock()
+}
+
+func (n *Node) node_originalNameID() rhinoStringID {
+	k := n.nodeKind()
+	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
+		return rhinoStringID(n.payload >> 32)
+	}
+	if n.kindFlags&kindFlagHasExtra != 0 {
+		if e, ok := n.getExtraEntry(); ok {
+			return e.origNameID
 		}
-		n.origOrExt = unsafe.Pointer(&node_ext{originalName: s})
+	}
+	return 0
+}
+
+func (n *Node) node_setOriginalNameID(id rhinoStringID) {
+	k := n.nodeKind()
+	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
+		n.payload = (n.payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
 		return
 	}
-	if node_isStaticNumberExt((*node_ext)(n.origOrExt)) {
-		if s == nil {
-			return
-		}
-		ext := *(*node_ext)(n.origOrExt)
-		ext.originalName = s
-		n.origOrExt = unsafe.Pointer(&ext)
+	if id == 0 && (n.kindFlags&kindFlagHasExtra) == 0 {
 		return
 	}
-	(*node_ext)(n.origOrExt).originalName = s
+	n.setExtraOrigNameID(id)
 }
 
 // node_number is the NumberNode.number field.
 func (n *Node) node_number() float64 {
-	if n.origOrExt == nil {
-		return 0
-	}
-	return (*node_ext)(n.origOrExt).number
+	return math.Float64frombits(n.payload)
 }
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n *Node) node_cooked() *string {
-	if n.origOrExt == nil {
+	id := rhinoStringID(n.payload >> 32)
+	if id == 0 {
 		return nil
 	}
-	return (*node_ext)(n.origOrExt).cooked
+	s := rhinoStringFromID(id)
+	return &s
 }
 
 // ==========================================================================
@@ -2431,14 +2886,21 @@ func (n *Node) node_cooked() *string {
 
 // Java: Node.setStaticSourceFileFrom(Node)
 func (n *Node) SetStaticSourceFileFrom(other *Node) {
-	// Make sure source file prop nodes are not duplicated.
-	if other.propListHead != nil &&
-		(n.propListHead == nil ||
-			(int(n.propListHead.propType) == Node_Prop_SOURCE_FILE.Ordinal() &&
-				n.propListHead.next == nil)) {
-		// Either the node has only Prop.SOURCE_FILE as a property or has not
-		// properties.
-		tail := other.propListHead
+	sfID := uint32(other.propFlags >> nodePropSourceFileShift)
+	if sfID != nodePropSourceFileOverflow {
+		if (n.propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_SOURCE_FILE))
+		}
+		n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift)
+		return
+	}
+	otherCold := other.coldPropListHead()
+	myCold := n.coldPropListHead()
+	if otherCold != nil &&
+		(myCold == nil ||
+			(int(myCold.propType) == Node_Prop_SOURCE_FILE.Ordinal() &&
+				myCold.next == nil)) {
+		tail := otherCold
 		for tail.next != nil {
 			tail = tail.next
 		}
@@ -2446,7 +2908,8 @@ func (n *Node) SetStaticSourceFileFrom(other *Node) {
 			if !tail.shared {
 				tail.shared = true
 			}
-			n.propListHead = tail
+			n.setColdPropListHead(tail)
+			n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 			return
 		}
 	}
@@ -2475,13 +2938,21 @@ func (n *Node) GetSourceFileName() *string {
 	if file == nil {
 		return nil
 	}
-	return rhinoStringPoolCell(file.GetName())
+	s := file.GetName()
+	return &s
 }
 
 // GetStaticSourceFile returns the source file associated with this input.
 //
 // Java: Node.getStaticSourceFile()
 func (n *Node) GetStaticSourceFile() StaticSourceFile {
+	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+	if sfID == 0 {
+		return nil
+	}
+	if sfID != nodePropSourceFileOverflow {
+		return node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+	}
 	return node_cast[StaticSourceFile](n.GetProp(Node_Prop_SOURCE_FILE))
 }
 
@@ -2502,49 +2973,51 @@ func (n *Node) GetInputId() *InputId {
 // GetOriginalName returns the original name of this node, if the node has
 // been renamed.
 //
-// Do not use original name to make optimization decisions. The original
-// intent was to preserve some naming for lightly optimized code to put into
-// source maps. It is not rigorously defined and is not a suitable
-// replacement for a canonical identifier. "Original name" is not associated
-// with any scope and easily transfers to unrelated values. Its existence and
-// use beyond its original purpose has delayed creating useful more precise
-// alternatives.
-//
 // Deprecated: "original name" is poorly defined.
 //
 // Java: Node.getOriginalName()
 func (n *Node) GetOriginalName() *string {
-	return n.node_originalName()
+	s, ok := n.getOriginalNameString()
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+func (n *Node) getOriginalNameString() (string, bool) {
+	id := n.node_originalNameID()
+	if id == 0 {
+		return "", false
+	}
+	return rhinoStringFromID(id), true
 }
 
 // Java: Node.setOriginalName(String)
 func (n *Node) SetOriginalName(s *string) {
 	if s == nil {
-		n.node_setOriginalName(nil)
+		n.node_setOriginalNameID(0)
 	} else {
-		n.node_setOriginalName(rhinoStringPoolCell(*s))
+		n.node_setOriginalNameID(rhinoStringPoolIntern(*s))
 	}
 }
 
 // SetOriginalNameString interns s in RhinoStringPool and sets it as the node's
 // original name without boxing s on the heap.
 func (n *Node) SetOriginalNameString(s string) {
-	n.node_setOriginalName(rhinoStringPoolCell(s))
+	n.node_setOriginalNameID(rhinoStringPoolIntern(s))
 }
 
 // Java: Node.setOriginalNameFromStringPool(RhinoStringPool.LazyInternedStringList, int)
 func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
-	// RhinoStringPool.LazyInternedStringList guarantees that the result of
-	// calling get(offset) is interned, and sometimes caches results.
-	n.node_setOriginalName(stringPool.GetCell(offset))
+	n.node_setOriginalNameID(stringPool.GetID(offset))
 }
 
 // SetOriginalNameFromName copies the original name.
 //
 // Java: Node.setOriginalNameFromName(Node)
 func (n *Node) SetOriginalNameFromName(name *Node) {
-	_ = name.GetString()
-	n.node_setOriginalName(name.str)
+	name.node_castKind(node_kindString)
+	n.node_setOriginalNameID(rhinoStringID(name.payload))
 }
 
 // IsIndexable reports whether this node should be indexed by static
@@ -2593,12 +3066,39 @@ func (n *Node) IsClosureUnawareCode() bool {
 
 // Java: Node.getLength()
 func (n *Node) GetLength() int {
-	return int(n.length)
+	if n.length16 != 0xFFFF {
+		return int(n.length16)
+	}
+	if n.nodeKind() == node_kindNode {
+		return int(int32(uint32(n.payload)))
+	}
+	if n.kindFlags&kindFlagHasExtra != 0 {
+		if e, ok := n.getExtraEntry(); ok && e.hasLength {
+			return int(e.length)
+		}
+	}
+	return int(n.length16)
 }
 
 // Java: Node.setLength(int)
 func (n *Node) SetLength(length int) {
-	n.length = int32(length)
+	if length >= 0 && length < 0xFFFF {
+		n.length16 = uint16(length)
+		return
+	}
+	n.length16 = 0xFFFF
+	if n.nodeKind() == node_kindNode {
+		n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(int32(length)))
+		return
+	}
+	n.setExtraLength(int32(length))
+}
+
+func (n *Node) copyLengthFrom(other *Node) {
+	n.length16 = other.length16
+	if other.length16 == 0xFFFF {
+		n.SetLength(other.GetLength())
+	}
 }
 
 // Java: Node.getLineno()
@@ -2684,19 +3184,6 @@ func (n *Node) SetLinenoCharno(lineno int, charno int) *Node {
 // children. The iterator does not support the optional operation
 // Iterator#remove().
 //
-// To iterate over a node's children, one can write
-//
-//	for child := range n.Children() { ...
-//
-// NOTE: Do not use 'children' for recursive descent of the AST. The overhead
-// of using iterators rather then getFirstChild()/getNext() is very
-// significant. We have deprecated it as it is easy to misuse.
-//
-// Go-only: language-adapter — Java's Iterable is an iter.Seq; the private
-// SiblingNodeIterable/SiblingNodeIterator classes are the closure below
-// (which, like the Java iterator, reads the next sibling before handing out
-// the current node).
-//
 // Deprecated: see above.
 //
 // Java: Node.children()
@@ -2720,31 +3207,57 @@ func (n *Node) Children() iter.Seq[*Node] {
 // ==========================================================================
 // Accessors
 
+// NodePropListHandleForTesting is returned by GetPropListHeadForTesting to check property sharing.
+type NodePropListHandleForTesting struct {
+	head  *Node_PropListItem
+	flags uint64
+}
+
 // Java: Node.getPropListHeadForTesting()
-func (n *Node) GetPropListHeadForTesting() *Node_PropListItem {
-	return n.propListHead
+func (n *Node) GetPropListHeadForTesting() NodePropListHandleForTesting {
+	return NodePropListHandleForTesting{head: n.coldPropListHead(), flags: n.propFlags}
 }
 
 // Java: Node.setPropListHead(PropListItem)
 func (n *Node) SetPropListHead(propListHead *Node_PropListItem) {
 	propListHead.markShared()
-	n.propListHead = propListHead
-	flags := n.boolFlags & nodeFlagNoBlockDecls
+	n.setColdPropListHead(propListHead)
+	var flags uint64
 	for x := propListHead; x != nil; x = x.next {
 		prop := Node_Prop(x.propType)
 		if x.isObject {
-			if prop == Node_Prop_JSDOC_INFO && !jutil.IsNil(x.objectValue) {
-				flags |= nodeFlagHasJSDoc
+			if !jutil.IsNil(x.objectValue) {
+				if prop == Node_Prop_SOURCE_FILE {
+					flags = (flags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+				} else if prop == Node_Prop_JSDOC_INFO {
+					flags |= propFlagHasJSDoc
+				} else if mask := nodePropBitMask[prop]; mask != 0 {
+					flags |= mask
+					n.kindFlags |= kindFlagHasExtra
+				}
 			}
 		} else if x.intValue != 0 {
-			if prop == Node_Prop_CONSTANT_VAR_FLAGS {
-				flags |= uint16(x.intValue&3) << nodeFlagConstVarShift
-			} else if mask := nodePropBoolFlagMask[prop]; mask != 0 {
+			if mask := nodePropBitMask[prop]; mask != 0 {
 				flags |= mask
+				if x.intValue != 1 {
+					n.kindFlags |= kindFlagHasExtra
+				}
+			} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
+				if x.intValue&^3 == 0 {
+					flags = (flags &^ nodePropConstVarMask) | (uint64(x.intValue&3) << nodePropConstVarShift)
+				} else {
+					n.kindFlags |= kindFlagHasExtra
+				}
+			} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
+				if x.intValue&^15 == 0 {
+					flags = (flags &^ nodePropSideEffectMask) | (uint64(x.intValue&15) << nodePropSideEffectShift)
+				} else {
+					n.kindFlags |= kindFlagHasExtra
+				}
 			}
 		}
 	}
-	n.boolFlags = flags
+	n.propFlags = flags
 }
 
 // Java: Node.getParent()
@@ -3085,7 +3598,20 @@ func (n *Node) IsEquivalentTo(node *Node) bool {
 //
 // Java: Node.getSecondToLastPropListItem()
 func (n *Node) GetSecondToLastPropListItem() *Node_PropListItem {
-	propListItem := n.propListHead
+	if n.GetIsInClosureUnawareSubtree() {
+		return &staticBoolPropItems[Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE]
+	}
+	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+	propListItem := n.coldPropListHead()
+	if sfID != 0 && sfID != nodePropSourceFileOverflow {
+		if propListItem == nil {
+			return nil
+		}
+		for propListItem.next != nil {
+			propListItem = propListItem.next
+		}
+		return propListItem
+	}
 	if propListItem == nil || propListItem.next == nil {
 		return nil
 	}
@@ -3097,7 +3623,11 @@ func (n *Node) GetSecondToLastPropListItem() *Node_PropListItem {
 
 // Java: Node.getLastPropListItem()
 func (n *Node) GetLastPropListItem() *Node_PropListItem {
-	propListItem := n.propListHead
+	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+	if sfID != 0 && sfID != nodePropSourceFileOverflow {
+		return sourceFilePropItem(sfID)
+	}
+	propListItem := n.coldPropListHead()
 	if propListItem == nil {
 		return nil
 	}
@@ -3109,21 +3639,13 @@ func (n *Node) GetLastPropListItem() *Node_PropListItem {
 
 // Java: Node.validatePropListTailOrdering(boolean)
 func (n *Node) ValidatePropListTailOrdering(shouldNodeBeClosureUnaware bool) bool {
-	var prev *Node_PropListItem
-	curr := n.propListHead
-	if curr == nil {
-		return false
-	}
-	for curr.next != nil {
-		prev = curr
-		curr = curr.next
-	}
-	if int(curr.propType) != Node_Prop_SOURCE_FILE.Ordinal() {
+	curr := n.GetLastPropListItem()
+	if curr == nil || int(curr.propType) != Node_Prop_SOURCE_FILE.Ordinal() {
 		return false
 	}
 
 	if shouldNodeBeClosureUnaware {
-		if prev == nil || int(prev.propType) != Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE.Ordinal() {
+		if !n.GetIsInClosureUnawareSubtree() {
 			return false
 		}
 	}
@@ -3226,7 +3748,7 @@ func (n *Node) IsEquivalentToWithModes(
 	jsDocConfig Node_JsDocComparison,
 	sideEffectConfig Node_SideEffectComparison,
 ) bool {
-	switch n.kind {
+	switch n.nodeKind() {
 	case node_kindNumber:
 		// Java: NumberNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
@@ -3238,16 +3760,13 @@ func (n *Node) IsEquivalentToWithModes(
 	case node_kindString:
 		// Java: StringNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
-			RhinoStringPool_UncheckedEquals(n.nodeStringValue(), node.nodeStringValue())
+			uint32(n.payload) == uint32(node.payload)
 	case node_kindTemplateLiteralSubstring:
 		// Java: TemplateLiteralSubstringNode.isEquivalentTo
 		if !n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) {
 			return false
 		}
-
-		castNode := node
-		return RhinoStringPool_UncheckedEquals(n.nodeStringValue(), castNode.nodeStringValue()) && // raw
-			RhinoStringPool_UncheckedEqualsNullable(n.node_cooked(), castNode.node_cooked())
+		return n.payload == node.payload
 	}
 	return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig)
 }
@@ -3263,7 +3782,7 @@ func (n *Node) isEquivalentToBase(
 ) bool {
 	if n.token != node.token ||
 		n.GetChildCount() != node.GetChildCount() ||
-		n.kind != node.kind {
+		n.nodeKind() != node.nodeKind() {
 		return false
 	}
 
@@ -3288,20 +3807,14 @@ func (n *Node) isEquivalentToBase(
 		return false
 	}
 
-	var propBits uint64
-	for propListItem := n.propListHead; propListItem != nil; propListItem = propListItem.next {
-		propBits |= uint64(1) << uint(propListItem.propType)
+	if (n.propFlags & node_propEqualityMask) != (node.propFlags & node_propEqualityMask) {
+		return false
 	}
-	for propListItem := node.propListHead; propListItem != nil; propListItem = propListItem.next {
-		propBits |= uint64(1) << uint(propListItem.propType)
-	}
-
-	propBits &= node_propEqualityMask
-	for propBits != 0 {
-		bit := bits.TrailingZeros64(propBits)
-		propBits &^= uint64(1) << uint(bit)
-		prop := Node_Prop(bit)
-		if !node_propEqualsForEquality(prop, n, node) {
+	if ((n.kindFlags | node.kindFlags) & kindFlagHasExtra) != 0 {
+		if n.GetIntProp(Node_Prop_EXPORT_DEFAULT) != node.GetIntProp(Node_Prop_EXPORT_DEFAULT) ||
+			n.GetIntProp(Node_Prop_EXPORT_ALL_FROM) != node.GetIntProp(Node_Prop_EXPORT_ALL_FROM) ||
+			n.GetIntProp(Node_Prop_INCRDECR) != node.GetIntProp(Node_Prop_INCRDECR) ||
+			n.GetIntProp(Node_Prop_QUOTED) != node.GetIntProp(Node_Prop_QUOTED) {
 			return false
 		}
 	}
@@ -3380,42 +3893,21 @@ var Node_PROP_MAP_FOR_EQUALITY = func() *jutil.LinkedHashMap[Node_Prop, func(*No
 // Java: Node.propMapForEqualityKeys
 var Node_propMapForEqualityKeys = jutil.NewEnumSet(Node_PROP_MAP_FOR_EQUALITY.KeySlice()...)
 
-const node_propEqualityMask uint64 = (uint64(1) << uint(Node_Prop_ARROW_FN)) |
-	(uint64(1) << uint(Node_Prop_ASYNC_FN)) |
-	(uint64(1) << uint(Node_Prop_GENERATOR_FN)) |
-	(uint64(1) << uint(Node_Prop_START_OF_OPT_CHAIN)) |
-	(uint64(1) << uint(Node_Prop_STATIC_MEMBER)) |
-	(uint64(1) << uint(Node_Prop_YIELD_ALL)) |
-	(uint64(1) << uint(Node_Prop_EXPORT_DEFAULT)) |
-	(uint64(1) << uint(Node_Prop_EXPORT_ALL_FROM)) |
-	(uint64(1) << uint(Node_Prop_INCRDECR)) |
-	(uint64(1) << uint(Node_Prop_QUOTED)) |
-	(uint64(1) << uint(Node_Prop_FREE_CALL)) |
-	(uint64(1) << uint(Node_Prop_DIRECT_EVAL)) |
-	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_METHOD)) |
-	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_GETTER)) |
-	(uint64(1) << uint(Node_Prop_COMPUTED_PROP_SETTER))
-
-func node_propEqualsForEquality(prop Node_Prop, a, b *Node) bool {
-	switch prop {
-	case Node_Prop_ARROW_FN:
-		return a.IsArrowFunction() == b.IsArrowFunction()
-	case Node_Prop_ASYNC_FN:
-		return a.IsAsyncFunction() == b.IsAsyncFunction()
-	case Node_Prop_GENERATOR_FN,
-		Node_Prop_START_OF_OPT_CHAIN,
-		Node_Prop_STATIC_MEMBER,
-		Node_Prop_YIELD_ALL,
-		Node_Prop_FREE_CALL,
-		Node_Prop_DIRECT_EVAL,
-		Node_Prop_COMPUTED_PROP_METHOD,
-		Node_Prop_COMPUTED_PROP_GETTER,
-		Node_Prop_COMPUTED_PROP_SETTER:
-		return a.GetBooleanProp(prop) == b.GetBooleanProp(prop)
-	default:
-		return a.GetIntProp(prop) == b.GetIntProp(prop)
-	}
-}
+const node_propEqualityMask uint64 = propFlag_ARROW_FN |
+	propFlag_ASYNC_FN |
+	propFlag_GENERATOR_FN |
+	propFlag_START_OF_OPT_CHAIN |
+	propFlag_STATIC_MEMBER |
+	propFlag_YIELD_ALL |
+	propFlag_EXPORT_DEFAULT |
+	propFlag_EXPORT_ALL_FROM |
+	propFlag_INCRDECR |
+	propFlag_QUOTED |
+	propFlag_FREE_CALL |
+	propFlag_DIRECT_EVAL |
+	propFlag_COMPUTED_PROP_METHOD |
+	propFlag_COMPUTED_PROP_GETTER |
+	propFlag_COMPUTED_PROP_SETTER
 
 const rhinoByteSlabSize = 32768
 
@@ -3635,10 +4127,9 @@ func (n *Node) MatchesNameNode(other *Node) bool {
 		return false
 	}
 
-	// ==, rather than equal as it is interned in setString
-	internalString := n.GetString()
-	return internalString != "" &&
-		RhinoStringPool_UncheckedEquals(internalString, other.GetString())
+	// Compare interned string IDs directly (id > 1 means non-empty!).
+	id := rhinoStringID(n.payload)
+	return id > 1 && id == rhinoStringID(other.payload)
 }
 
 // MatchesQualifiedName returns whether a node matches a simple or a
@@ -3714,7 +4205,7 @@ func (n *Node) MatchesQualifiedNameNode(other *Node) bool {
 	case Token_THIS, Token_SUPER:
 		return true
 	case Token_GETPROP:
-		return RhinoStringPool_UncheckedEquals(n.GetString(), other.GetString()) &&
+		return uint32(n.payload) == uint32(other.payload) &&
 			n.GetFirstChild().MatchesQualifiedNameNode(other.GetFirstChild())
 
 	case Token_MEMBER_FUNCTION_DEF:
@@ -3768,37 +4259,8 @@ func (n *Node) CloneNode() *Node {
 
 func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
 	dst.token = src.token
-	dst.kind = src.kind
-	switch src.kind {
-	case node_kindNumber:
-		// Java: NumberNode.cloneNode(boolean)
-		if src.origOrExt != nil && node_isStaticNumberExt((*node_ext)(src.origOrExt)) {
-			dst.origOrExt = src.origOrExt
-		} else {
-			dst.SetDouble(src.node_number())
-		}
-		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-		return
-	case node_kindBigInt:
-		// Java: BigIntNode.cloneNode(boolean)
-		dst.SetBigInt(src.GetBigInt())
-		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-		return
-	case node_kindString:
-		// Java: StringNode.cloneNode(boolean)
-		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-		dst.str = src.str
-		return
-	case node_kindTemplateLiteralSubstring:
-		// Java: TemplateLiteralSubstringNode.cloneNode(boolean)
-		if cooked := src.node_cooked(); cooked != nil {
-			c := RhinoStringPool_AddOrGet(*cooked)
-			dst.node_getExt().cooked = &c
-		}
-		dst.str = rhinoStringPoolCell(src.nodeStringValue())
-		Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-		return
-	}
+	dst.kindFlags = src.kindFlags & kindMask
+	dst.payload = src.payload
 	Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
 }
 
@@ -3818,12 +4280,16 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
 func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.linenoCharno = source.linenoCharno
-	dest.length = source.length
-	dest.typeOrColor, dest.typeIsColor = source.typeOrColor, source.typeIsColor
-	dest.node_setOriginalName(source.node_originalName())
-	source.propListHead.markShared()
-	dest.propListHead = source.propListHead
-	dest.boolFlags = source.boolFlags &^ nodeFlagNoBlockDecls
+	dest.copyLengthFrom(source)
+	source.coldPropListHead().markShared()
+	dest.typeOrColor = source.typeOrColor
+	dest.kindFlags = (dest.kindFlags &^ (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp | kindFlagHasExtra)) |
+		(source.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp))
+	if source.kindFlags&kindFlagHasExtra != 0 && source.coldPropListHead() != nil {
+		dest.kindFlags |= kindFlagHasExtra
+	}
+	dest.node_setOriginalNameID(source.node_originalNameID())
+	dest.propFlags = source.propFlags
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
 	if cloneTypeExprs {
@@ -3919,9 +4385,9 @@ func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
 // Java: Node.srcref(Node)
 func (n *Node) Srcref(other *Node) *Node {
 	n.SetStaticSourceFileFrom(other)
-	n.node_setOriginalName(other.node_originalName())
+	n.node_setOriginalNameID(other.node_originalNameID())
 	n.linenoCharno = other.linenoCharno
-	n.length = other.length
+	n.copyLengthFrom(other)
 	return n
 }
 
@@ -3942,17 +4408,17 @@ func (n *Node) SrcrefTree(other *Node) *Node {
 //
 // Java: Node.srcrefIfMissing(Node)
 func (n *Node) SrcrefIfMissing(other *Node) *Node {
-	if n.GetStaticSourceFile() == nil {
+	if (n.propFlags >> nodePropSourceFileShift) == 0 {
 		n.SetStaticSourceFileFrom(other)
 		n.linenoCharno = other.linenoCharno
-		n.length = other.length
+		n.copyLengthFrom(other)
 	}
 
 	// TODO(lharker): should this be inside the above if condition?
 	// If the node already has a source file, it seems strange to
 	// go ahead and set the original name anyway.
-	if n.node_originalName() == nil {
-		n.node_setOriginalName(other.node_originalName())
+	if n.node_originalNameID() == 0 {
+		n.node_setOriginalNameID(other.node_originalNameID())
 	}
 
 	return n
@@ -3979,19 +4445,25 @@ func (n *Node) SrcrefTreeIfMissing(other *Node) *Node {
 //
 // Java: Node.getJSType()
 func (n *Node) GetJSType() JSType {
-	if n.typeOrColor == nil || n.typeIsColor {
+	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != kindFlagHasTypeOrColor {
 		return nil
 	}
-	return (*JSTypeBase)(n.typeOrColor).self
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return (*JSTypeBase)(n.typeOrColor).self
+	}
+	return (*JSTypeBase)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor).self
 }
 
 // GetJSTypeBase returns the JSTypeBase on this node without constructing the
 // JSType interface value, or nil if no JSType is attached.
 func (n *Node) GetJSTypeBase() *JSTypeBase {
-	if n.typeOrColor == nil || n.typeIsColor {
+	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != kindFlagHasTypeOrColor {
 		return nil
 	}
-	return (*JSTypeBase)(n.typeOrColor)
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return (*JSTypeBase)(n.typeOrColor)
+	}
+	return (*JSTypeBase)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor)
 }
 
 // GetJSTypeRequired returns the compiled inferred type on this node, or
@@ -4004,12 +4476,11 @@ func (n *Node) GetJSTypeRequired() JSType {
 
 // Java: Node.setJSType(JSType)
 func (n *Node) SetJSType(x JSType) *Node {
-	jutil.CheckStateMsg1(n.typeOrColor == nil || !n.typeIsColor, "%s", n)
-	n.typeIsColor = false
+	jutil.CheckStateMsg1((n.kindFlags&(kindFlagHasTypeOrColor|kindFlagTypeIsColor)) != (kindFlagHasTypeOrColor|kindFlagTypeIsColor), "%s", n)
 	if jutil.IsNil(x) {
-		n.typeOrColor = nil
+		n.setRawTypeOrColorPtr(nil, false)
 	} else {
-		n.typeOrColor = unsafe.Pointer(x.GetJSTypeBase())
+		n.setRawTypeOrColorPtr(unsafe.Pointer(x.GetJSTypeBase()), false)
 	}
 	return n
 }
@@ -4020,17 +4491,19 @@ func (n *Node) SetJSType(x JSType) *Node {
 //
 // Java: Node.getColor()
 func (n *Node) GetColor() *colors.Color {
-	if !n.typeIsColor {
+	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != (kindFlagHasTypeOrColor | kindFlagTypeIsColor) {
 		return nil
 	}
-	return (*colors.Color)(n.typeOrColor)
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return (*colors.Color)(n.typeOrColor)
+	}
+	return (*colors.Color)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor)
 }
 
 // Java: Node.setColor(Color)
 func (n *Node) SetColor(x *colors.Color) *Node {
-	jutil.CheckStateMsg1(n.typeOrColor == nil || n.typeIsColor, "%s", n)
-	n.typeOrColor = unsafe.Pointer(x)
-	n.typeIsColor = x != nil
+	jutil.CheckStateMsg1((n.kindFlags&(kindFlagHasTypeOrColor|kindFlagTypeIsColor)) != kindFlagHasTypeOrColor, "%s", n)
+	n.setRawTypeOrColorPtr(unsafe.Pointer(x), x != nil)
 	return n
 }
 
@@ -4038,7 +4511,8 @@ func (n *Node) SetColor(x *colors.Color) *Node {
 //
 // Java: Node.copyTypeFrom(Node)
 func (n *Node) CopyTypeFrom(other *Node) *Node {
-	n.typeOrColor, n.typeIsColor = other.typeOrColor, other.typeIsColor
+	raw := other.rawTypeOrColorPtr()
+	n.setRawTypeOrColorPtr(raw, raw != nil && (other.kindFlags&kindFlagTypeIsColor) != 0)
 	return n
 }
 
@@ -4047,7 +4521,7 @@ func (n *Node) CopyTypeFrom(other *Node) *Node {
 //
 // Java: Node.getJSDocInfo()
 func (n *Node) GetJSDocInfo() *JSDocInfo {
-	if n.boolFlags&nodeFlagHasJSDoc == 0 {
+	if (n.propFlags & propFlagHasJSDoc) == 0 {
 		return nil
 	}
 	return node_cast[*JSDocInfo](n.GetProp(Node_Prop_JSDOC_INFO))
@@ -4106,15 +4580,18 @@ func (n *Node) GetTypedefTypeProp() JSType {
 // pass over propListHead, returning the old JSTypeBase, whether TYPE_BEFORE_CAST
 // was present, and the node's JSDocInfo if any.
 func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBeforeCast bool, jsdoc *JSDocInfo) {
-	if n.typeOrColor != nil {
-		if n.typeIsColor {
+	if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
+		if (n.kindFlags & kindFlagTypeIsColor) != 0 {
 			jutil.CheckStateMsg1(false, "%s", n)
 		}
-		oldType = (*JSTypeBase)(n.typeOrColor)
-		n.typeOrColor = nil
+		oldType = (*JSTypeBase)(n.rawTypeOrColorPtr())
+		n.setRawTypeOrColorPtr(nil, false)
 	}
-	head := n.propListHead
-	if head == nil || (head.propType == int8(Node_Prop_SOURCE_FILE) && head.next == nil) {
+	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		return oldType, false, nil
+	}
+	head := n.coldPropListHead()
+	if head == nil {
 		return oldType, false, nil
 	}
 	var removeNeedsRebuild bool
@@ -4130,7 +4607,7 @@ func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBe
 		}
 	}
 	if removeNeedsRebuild {
-		n.propListHead = node_rebuildListWithoutColorConversionProps(head)
+		n.setColdPropListHead(node_rebuildListWithoutColorConversionProps(head))
 	}
 	return oldType, hadBeforeCast, jsdoc
 }
@@ -4180,7 +4657,7 @@ func (n *Node) SetShorthandProperty(shorthand bool) {
 //
 // Java: Node.isShorthandProperty()
 func (n *Node) IsShorthandProperty() bool {
-	return n.boolFlags&nodeFlagIsShorthandProperty != 0
+	return n.GetBooleanProp(Node_Prop_IS_SHORTHAND_PROPERTY)
 }
 
 // IsOptionalEs6Typed returns whether this node is an optional node in the
@@ -4205,7 +4682,7 @@ func (n *Node) SetIsSyntheticBlock(val bool) {
 //
 // Java: Node.isSyntheticBlock()
 func (n *Node) IsSyntheticBlock() bool {
-	return n.boolFlags&nodeFlagSynthetic != 0
+	return n.GetBooleanProp(Node_Prop_SYNTHETIC)
 }
 
 // Java: Node.setIsSynthesizedUnfulfilledNameDeclaration(boolean)
@@ -4271,7 +4748,7 @@ func (n *Node) SetStaticMember(isStatic bool) {
 //
 // Java: Node.isStaticMember()
 func (n *Node) IsStaticMember() bool {
-	return n.boolFlags&nodeFlagStaticMember != 0
+	return n.GetBooleanProp(Node_Prop_STATIC_MEMBER)
 }
 
 // SetIsGeneratorFunction sets whether this node is a generator node. This
@@ -4287,7 +4764,7 @@ func (n *Node) SetIsGeneratorFunction(isGenerator bool) {
 //
 // Java: Node.isGeneratorFunction()
 func (n *Node) IsGeneratorFunction() bool {
-	return n.boolFlags&nodeFlagGeneratorFn != 0
+	return n.GetBooleanProp(Node_Prop_GENERATOR_FN)
 }
 
 // SetGeneratorMarker sets whether this node subtree contains YIELD nodes.
@@ -4358,7 +4835,7 @@ func (n *Node) SetIsArrowFunction(isArrow bool) {
 //
 // Java: Node.isArrowFunction()
 func (n *Node) IsArrowFunction() bool {
-	return n.token == Token_FUNCTION && n.boolFlags&nodeFlagArrowFn != 0
+	return n.token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ARROW_FN)
 }
 
 // SetIsAsyncFunction sets whether this node is an async function node. This
@@ -4374,7 +4851,7 @@ func (n *Node) SetIsAsyncFunction(isAsync bool) {
 //
 // Java: Node.isAsyncFunction()
 func (n *Node) IsAsyncFunction() bool {
-	return n.token == Token_FUNCTION && n.boolFlags&nodeFlagAsyncFn != 0
+	return n.token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ASYNC_FN)
 }
 
 // IsAsyncGeneratorFunction returns whether this is an async generator
@@ -4382,7 +4859,8 @@ func (n *Node) IsAsyncFunction() bool {
 //
 // Java: Node.isAsyncGeneratorFunction()
 func (n *Node) IsAsyncGeneratorFunction() bool {
-	return n.token == Token_FUNCTION && n.boolFlags&(nodeFlagAsyncFn|nodeFlagGeneratorFn) == (nodeFlagAsyncFn|nodeFlagGeneratorFn)
+	const mask = propFlag_ASYNC_FN | propFlag_GENERATOR_FN
+	return n.token == Token_FUNCTION && (n.propFlags&mask) == mask
 }
 
 // SetYieldAll sets whether this node is a generator node. This method is
@@ -4447,7 +4925,7 @@ func (n *Node) GetSideEffectFlags() int32 {
 	// Int props default to 0, but we want the default for side-effect flags to
 	// be all 1s. Therefore, we invert the value returned here. This is correct
 	// for non-defaults because we also invert when setting the flags.
-	return ^n.GetIntProp(Node_Prop_SIDE_EFFECT_FLAGS) & Node_SideEffectFlags_USED_BITS_MASK
+	return ^int32((n.propFlags>>nodePropSideEffectShift)&15) & Node_SideEffectFlags_USED_BITS_MASK
 }
 
 // Node_SideEffectFlags is a helper class for getting and setting invocation
@@ -4644,12 +5122,12 @@ func NewNode_ConstantVarFlags() *Node_ConstantVarFlags { return &Node_ConstantVa
 
 // Java: Node.getConstantVarFlags()
 func (n *Node) GetConstantVarFlags() int32 {
-	return int32((n.boolFlags >> nodeFlagConstVarShift) & 3)
+	return int32((n.propFlags >> nodePropConstVarShift) & 3)
 }
 
 // Java: Node.setConstantVarFlag(int, boolean)
 func (n *Node) SetConstantVarFlag(flag int32, value bool) {
-	flags := int32((n.boolFlags >> nodeFlagConstVarShift) & 3)
+	flags := int32((n.propFlags >> nodePropConstVarShift) & 3)
 	if value {
 		flags = flags | flag
 	} else {
@@ -4676,7 +5154,7 @@ func (n *Node) IsDeclaredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return n.boolFlags&(uint16(Node_ConstantVarFlags_DECLARED)<<nodeFlagConstVarShift) != 0
+	return (n.propFlags & (uint64(Node_ConstantVarFlags_DECLARED) << nodePropConstVarShift)) != 0
 }
 
 // SetDeclaredConstantVar sets this variable to be a declared constant.
@@ -4711,7 +5189,7 @@ func (n *Node) IsInferredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return n.boolFlags&(uint16(Node_ConstantVarFlags_INFERRED)<<nodeFlagConstVarShift) != 0
+	return (n.propFlags & (uint64(Node_ConstantVarFlags_INFERRED) << nodePropConstVarShift)) != 0
 }
 
 // SetInferredConstantVar sets this variable to be an inferred constant.
@@ -4730,23 +5208,23 @@ func (n *Node) SetInferredConstantVar(value bool) {
 
 // Java: Node.isQuotedStringKey()
 func (n *Node) IsQuotedStringKey() bool {
-	return (n.kind == node_kindString) && n.boolFlags&nodeFlagQuoted != 0
+	return (n.nodeKind() == node_kindString) && n.GetBooleanProp(Node_Prop_QUOTED)
 }
 
 // Java: Node.setQuotedStringKey()
 func (n *Node) SetQuotedStringKey() {
-	jutil.CheckStateMsg1(n.kind == node_kindString, "%s", n)
+	jutil.CheckStateMsg1(n.nodeKind() == node_kindString, "%s", n)
 	n.PutBooleanProp(Node_Prop_QUOTED, true)
 }
 
 // Java: Node.isPrivateIdentifier()
 func (n *Node) IsPrivateIdentifier() bool {
-	return (n.kind == node_kindString) && n.GetBooleanProp(Node_Prop_PRIVATE_IDENTIFIER)
+	return (n.nodeKind() == node_kindString) && n.GetBooleanProp(Node_Prop_PRIVATE_IDENTIFIER)
 }
 
 // Java: Node.setPrivateIdentifier()
 func (n *Node) SetPrivateIdentifier() {
-	jutil.CheckStateMsg1(n.kind == node_kindString, "%s", n)
+	jutil.CheckStateMsg1(n.nodeKind() == node_kindString, "%s", n)
 	jutil.CheckState(strings.HasPrefix(n.GetString(), "#"))
 	n.PutBooleanProp(Node_Prop_PRIVATE_IDENTIFIER, true)
 }
@@ -5361,18 +5839,16 @@ func (n *Node) IsDeclare() bool {
 // Go-only: language-adapter — recover the Java Object field only for printing
 // and equality; hot getters use the tagged pointer directly.
 func (n *Node) typeOrColorValue() any {
-	if n.typeOrColor == nil {
+	raw := n.rawTypeOrColorPtr()
+	if raw == nil {
 		return nil
 	}
-	if n.typeIsColor {
-		return (*colors.Color)(n.typeOrColor)
+	if (n.kindFlags & kindFlagTypeIsColor) != 0 {
+		return (*colors.Color)(raw)
 	}
-	return (*JSTypeBase)(n.typeOrColor).self
+	return (*JSTypeBase)(raw).self
 }
 
 func (n *Node) nodeStringValue() string {
-	if n.str == nil {
-		return ""
-	}
-	return *n.str
+	return rhinoStringFromID(rhinoStringID(n.payload))
 }

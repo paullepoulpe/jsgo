@@ -91,6 +91,10 @@ type ReplaceCssNames struct {
 	symbolMap CssRenamingMap // may be nil
 
 	skiplist jutil.Set[string] // may be nil
+
+	partsScratch    []string
+	replacedScratch []string
+	instanceSlab    []ReplaceCssNames_GetCssNameInstance
 }
 
 // This is used only for qualified name comparison, so it's OK to build it with IR instead of
@@ -359,7 +363,17 @@ func (r *ReplaceCssNames) IsGetCssNameCall(node *rhino.Node) bool {
 func (r *ReplaceCssNames) CreateGetCssNameInstance(
 	n *rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
 	validationError := r.ValidateGetCssNameCall(n)
-	return NewReplaceCssNames_GetCssNameInstance(r, n, validationError, cssClosureClassesQualifiedName)
+	if len(r.instanceSlab) == cap(r.instanceSlab) {
+		r.instanceSlab = make([]ReplaceCssNames_GetCssNameInstance, 0, 256)
+	}
+	idx := len(r.instanceSlab)
+	r.instanceSlab = r.instanceSlab[:idx+1]
+	inst := &r.instanceSlab[idx]
+	inst.outer = r
+	inst.callNode = n
+	inst.validationError = validationError
+	inst.cssClosureClassesQualifiedName = cssClosureClassesQualifiedName
+	return inst
 }
 
 // ReplaceCssNames_GetCssNameInstance represents a `goog.getCssName()` call.
@@ -571,7 +585,6 @@ func (r *ReplaceCssNames) ProcessStringNode(n *rhino.Node) {
 		// External substitution maps should do the same.
 		return
 	}
-	parts := jutil.StringSplitLiteral(name, "-")
 	if r.symbolMap != nil {
 		var replacement *string
 
@@ -591,7 +604,25 @@ func (r *ReplaceCssNames) ProcessStringNode(n *rhino.Node) {
 					return
 				}
 			case CssRenamingMap_Style_BY_PART:
-				replaced := make([]string, len(parts))
+				parts := r.partsScratch[:0]
+				if !strings.Contains(name, "-") {
+					parts = append(parts, name)
+				} else {
+					for rem := name; ; {
+						idx := strings.IndexByte(rem, '-')
+						if idx < 0 {
+							parts = append(parts, rem)
+							break
+						}
+						parts = append(parts, rem[:idx])
+						rem = rem[idx+1:]
+					}
+					for len(parts) > 0 && parts[len(parts)-1] == "" {
+						parts = parts[:len(parts)-1]
+					}
+				}
+				r.partsScratch = parts
+				replaced := r.replacedScratch[:0]
 				for i := 0; i < len(parts); i++ {
 					part := r.symbolMap.Get(parts[i])
 					if part == nil {
@@ -599,8 +630,9 @@ func (r *ReplaceCssNames) ProcessStringNode(n *rhino.Node) {
 						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, parts[i], name))
 						return
 					}
-					replaced[i] = *part
+					replaced = append(replaced, *part)
 				}
+				r.replacedScratch = replaced
 				joined := strings.Join(replaced, "-")
 				replacement = &joined
 			}

@@ -180,7 +180,7 @@ func j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes []*rhin
 		NodeUtil_GetParentChangeScopeNodes(changedScopeNodes))
 }
 
-// J2clClinitPrunerPass_RedundantClinitPruner removes redundant clinit calls
+	// J2clClinitPrunerPass_RedundantClinitPruner removes redundant clinit calls
 // inside method body if it is guaranteed to be called earlier.
 //
 // Java: private final class J2clClinitPrunerPass.RedundantClinitPruner implements NodeTraversal.Callback
@@ -189,16 +189,36 @@ type J2clClinitPrunerPass_RedundantClinitPruner struct {
 	roots                 *jutil.LinkedHashSet[*rhino.Node]
 	stateStack            []*J2clClinitPrunerPass_HierarchicalSet[string]
 	clinitsCalledAtBranch *J2clClinitPrunerPass_HierarchicalSet[string]
+	setPool               []*J2clClinitPrunerPass_HierarchicalSet[string]
+}
+
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) allocSet(parent *J2clClinitPrunerPass_HierarchicalSet[string]) *J2clClinitPrunerPass_HierarchicalSet[string] {
+	if n := len(r.setPool); n > 0 {
+		s := r.setPool[n-1]
+		r.setPool = r.setPool[:n-1]
+		if s.currentSet != nil && !s.currentSet.IsEmpty() {
+			s.currentSet.Clear()
+		}
+		s.parent = parent
+		return s
+	}
+	return &J2clClinitPrunerPass_HierarchicalSet[string]{parent: parent}
+}
+
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) releaseSet(s *J2clClinitPrunerPass_HierarchicalSet[string]) {
+	if s == nil {
+		return
+	}
+	s.parent = nil
+	r.setPool = append(r.setPool, s)
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner(Iterable<Node>)
 func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []*rhino.Node) *J2clClinitPrunerPass_RedundantClinitPruner {
 	r := &J2clClinitPrunerPass_RedundantClinitPruner{outer: p}
 	r.stateStack = nil // new ArrayDeque<>()
-	r.clinitsCalledAtBranch = NewJ2clClinitPrunerPass_HierarchicalSet[string](nil)
-	if roots == nil {
-		r.roots = jutil.NewLinkedHashSet[*rhino.Node]()
-	} else {
+	r.clinitsCalledAtBranch = r.allocSet(nil)
+	if len(roots) > 0 {
 		r.roots = jutil.NewLinkedHashSet(roots...)
 	}
 	return r
@@ -206,9 +226,9 @@ func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []*rhino.Node) *J2
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.shouldTraverse(NodeTraversal, Node, Node)
 func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
-	if r.roots.Contains(node) {
+	if r.roots != nil && r.roots.Contains(node) {
 		// Reset the clinit call tracking when starting over on a new scope.
-		r.clinitsCalledAtBranch = NewJ2clClinitPrunerPass_HierarchicalSet[string](nil)
+		r.clinitsCalledAtBranch = r.allocSet(nil)
 		r.stateStack = r.stateStack[:0]
 	}
 
@@ -218,11 +238,11 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTrave
 		// In the case of script roots, when using modules, we can not assume the scripts are going
 		// to be executed in program order.
 		r.stateStack = append(r.stateStack, r.clinitsCalledAtBranch)
-		r.clinitsCalledAtBranch = NewJ2clClinitPrunerPass_HierarchicalSet[string](nil)
+		r.clinitsCalledAtBranch = r.allocSet(nil)
 	}
 
 	if r.isNewControlBranch(parent) {
-		r.clinitsCalledAtBranch = NewJ2clClinitPrunerPass_HierarchicalSet(r.clinitsCalledAtBranch)
+		r.clinitsCalledAtBranch = r.allocSet(r.clinitsCalledAtBranch)
 		if j2clClinitPrunerPass_isClinitMethod(parent) {
 			// Adds itself as any of your children can assume clinit is already called.
 			r.clinitsCalledAtBranch.Add(*j2clClinitPrunerPass_getQualifiedNameOfFunction(parent))
@@ -237,7 +257,9 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) Visit(t *NodeTraversal, nod
 	r.tryRemovingClinit(node)
 
 	if r.isNewControlBranch(parent) {
-		r.clinitsCalledAtBranch = r.clinitsCalledAtBranch.parent
+		old := r.clinitsCalledAtBranch
+		r.clinitsCalledAtBranch = old.parent
+		r.releaseSet(old)
 	}
 
 	if NodeUtil_IsFunctionDeclaration(node) || node.IsScript() {
@@ -248,6 +270,7 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) Visit(t *NodeTraversal, nod
 		if len(r.stateStack) == 0 {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeLast()
 		}
+		r.releaseSet(r.clinitsCalledAtBranch)
 		r.clinitsCalledAtBranch = r.stateStack[len(r.stateStack)-1]
 		r.stateStack = r.stateStack[:len(r.stateStack)-1]
 	}
@@ -530,14 +553,19 @@ type J2clClinitPrunerPass_HierarchicalSet[T comparable] struct {
 // Java: J2clClinitPrunerPass.HierarchicalSet(HierarchicalSet<T>)
 func NewJ2clClinitPrunerPass_HierarchicalSet[T comparable](parent *J2clClinitPrunerPass_HierarchicalSet[T]) *J2clClinitPrunerPass_HierarchicalSet[T] {
 	return &J2clClinitPrunerPass_HierarchicalSet[T]{
-		currentSet: jutil.NewLinkedHashSet[T](),
-		parent:     parent,
+		parent: parent,
 	}
 }
 
 // Java: J2clClinitPrunerPass.HierarchicalSet.add(T)
 func (s *J2clClinitPrunerPass_HierarchicalSet[T]) Add(o T) bool {
-	return !s.parentsContains(o) && s.currentSet.Add(o)
+	if s.parentsContains(o) {
+		return false
+	}
+	if s.currentSet == nil {
+		s.currentSet = jutil.NewLinkedHashSet[T]()
+	}
+	return s.currentSet.Add(o)
 }
 
 // parentsContains returns true either my parent or any of its parents
@@ -545,7 +573,12 @@ func (s *J2clClinitPrunerPass_HierarchicalSet[T]) Add(o T) bool {
 //
 // Java: J2clClinitPrunerPass.HierarchicalSet.parentsContains(T)
 func (s *J2clClinitPrunerPass_HierarchicalSet[T]) parentsContains(o T) bool {
-	return s.parent != nil && (s.parent.currentSet.Contains(o) || s.parent.parentsContains(o))
+	for p := s.parent; p != nil; p = p.parent {
+		if p.currentSet != nil && p.currentSet.Contains(o) {
+			return true
+		}
+	}
+	return false
 }
 
 // j2clClinitPrunerPass_getQualifiedNameOfFunction returns the qualifed name

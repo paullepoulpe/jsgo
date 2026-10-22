@@ -121,3 +121,24 @@ func TestPatternDollarTerminatorsObserved(t *testing.T) {
 		})
 	}
 }
+
+func TestPatternMultilineAndDotallMatches(t *testing.T) {
+	pm := Pattern_CompileWithFlags("^foo$", Pattern_MULTILINE)
+	if pm.Matches("foo\nbar") {
+		t.Errorf("MULTILINE Matches should anchor to full string, matched 'foo\\nbar'")
+	}
+	if !pm.Find("foo\nbar") {
+		t.Errorf("MULTILINE Find should match line in 'foo\\nbar'")
+	}
+	pmEmbedded := Pattern_Compile("(?m)^foo$")
+	if pmEmbedded.Matches("foo\nbar") {
+		t.Errorf("(?m) Matches should anchor to full string, matched 'foo\\nbar'")
+	}
+	if !pmEmbedded.Find("foo\nbar") {
+		t.Errorf("(?m) Find should match line in 'foo\\nbar'")
+	}
+	ps := Pattern_CompileWithFlags("foo.*bar", Pattern_DOTALL)
+	if !ps.Matches("foo\nbar") {
+		t.Errorf("DOTALL Matches should match across newline in 'foo\\nbar'")
+	}
+}

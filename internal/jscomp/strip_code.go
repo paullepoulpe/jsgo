@@ -664,18 +664,24 @@ func (st *StripCode_Strip) QualifiedNameBeginsWithStripTypeName(name *string) bo
 	if name != nil {
 		for _, type_ := range s.stripTypesList {
 			if *name == type_ {
-				st.LogStripName(jutil.ToJavaString(name), "equals strip type")
+				if st.decisionsLog.IsLogging() {
+					st.LogStripName(jutil.ToJavaString(name), "equals strip type")
+				}
 				return true
 			}
 		}
 		for _, type_ := range s.stripTypePrefixesList {
 			if jutil.StringStartsWith(*name, type_) {
-				st.LogStripName(jutil.ToJavaString(name), "starts with strip type prefix")
+				if st.decisionsLog.IsLogging() {
+					st.LogStripName(jutil.ToJavaString(name), "starts with strip type prefix")
+				}
 				return true
 			}
 		}
 	}
-	st.LogNotAStripName(jutil.ToJavaString(name), "does not begin with a strip type")
+	if st.decisionsLog.IsLogging() {
+		st.LogNotAStripName(jutil.ToJavaString(name), "does not begin with a strip type")
+	}
 	return false
 }
 
@@ -816,12 +822,12 @@ func (st *StripCode_Strip) ActsOnStripType(t *NodeTraversal, callNode *rhino.Nod
 // Java: Strip.isStripName(String)
 func (st *StripCode_Strip) IsStripName(name string) bool {
 	s := st.this_
-	if s.stripNameSuffixes.Contains(name) {
+	if !s.stripNameSuffixes.IsEmpty() && s.stripNameSuffixes.Contains(name) {
 		st.LogStripName(name, "matches a suffix")
 		return true
 	}
 
-	if s.stripNamePrefixes.Contains(name) {
+	if !s.stripNamePrefixes.IsEmpty() && s.stripNamePrefixes.Contains(name) {
 		st.LogStripName(name, "matches a prefix")
 		return true
 	}
@@ -831,18 +837,24 @@ func (st *StripCode_Strip) IsStripName(name string) bool {
 		return false
 	}
 
-	lcName := jutil.StringToLowerCaseRoot(name)
-	for _, stripName := range s.stripNamePrefixesLowerCaseList {
-		if jutil.StringStartsWith(lcName, stripName) {
-			st.LogStripNameSupplier(name, func() string { return "matches lc prefix: " + stripName })
-			return true
+	if len(s.stripNamePrefixesLowerCaseList) > 0 || len(s.stripNameSuffixesLowerCaseList) > 0 {
+		lcName := jutil.StringToLowerCaseRoot(name)
+		for _, stripName := range s.stripNamePrefixesLowerCaseList {
+			if jutil.StringStartsWith(lcName, stripName) {
+				if st.decisionsLog.IsLogging() {
+					st.LogStripNameSupplier(name, func() string { return "matches lc prefix: " + stripName })
+				}
+				return true
+			}
 		}
-	}
 
-	for _, stripName := range s.stripNameSuffixesLowerCaseList {
-		if jutil.StringEndsWith(lcName, stripName) {
-			st.LogStripNameSupplier(name, func() string { return "matches lc suffix: " + stripName })
-			return true
+		for _, stripName := range s.stripNameSuffixesLowerCaseList {
+			if jutil.StringEndsWith(lcName, stripName) {
+				if st.decisionsLog.IsLogging() {
+					st.LogStripNameSupplier(name, func() string { return "matches lc suffix: " + stripName })
+				}
+				return true
+			}
 		}
 	}
 
@@ -876,7 +888,9 @@ func (st *StripCode_Strip) LogStripNameSupplier(name string, reasonSupplier func
 //
 // Java: Strip.replaceWithNull(Node)
 func (st *StripCode_Strip) ReplaceWithNull(n *rhino.Node) {
-	st.decisionsLog.LogSupplier(func() string { return "replace with null: " + n.GetLocation() })
+	if st.decisionsLog.IsLogging() {
+		st.decisionsLog.LogSupplier(func() string { return "replace with null: " + n.GetLocation() })
+	}
 	n.ReplaceWith(rhino.IR_NullNode())
 	NodeUtil_MarkFunctionsDeleted(n, st.this_.compiler)
 }
@@ -888,7 +902,9 @@ func (st *StripCode_Strip) ReplaceWithNull(n *rhino.Node) {
 //
 // Java: Strip.replaceWithEmpty(Node, Node)
 func (st *StripCode_Strip) ReplaceWithEmpty(n *rhino.Node, parent *rhino.Node) {
-	st.decisionsLog.LogSupplier(func() string { return "replace with empty: " + n.GetLocation() })
+	if st.decisionsLog.IsLogging() {
+		st.decisionsLog.LogSupplier(func() string { return "replace with empty: " + n.GetLocation() })
+	}
 	NodeUtil_RemoveChild(parent, n)
 	NodeUtil_MarkFunctionsDeleted(n, st.this_.compiler)
 }

@@ -4,13 +4,13 @@ package jutil
 //
 // Java regexes are translated to RE2 syntax so that the constructs they have
 // in common keep Java's meaning:
-//   - `.` excludes Java's line terminators (\n, \r, \u0085,  ,  ),
-//     not only \n as in RE2;
+//   - `.` excludes Java's line terminators (\n, \r, \u0085, \u2028, \u2029),
+//     not only \n as in RE2 (unless Pattern_DOTALL or (?s) is active);
 //   - \s, \S (and \s inside classes) are Java's [ \t\n\x0B\f\r];
 //   - \v, \h (also inside classes), \V and \H are the vertical and
 //     horizontal whitespace classes of the Pattern Javadoc;
 //   - \Q...\E quoting is resolved here;
-//   - Matcher.matches() anchors the whole input;
+//   - Matcher.matches() anchors the whole input with \A(?:...)\z;
 //   - `^` and `$` keep their default (non-MULTILINE) Java meaning, see
 //     below.
 //
@@ -49,6 +49,12 @@ import (
 	"sync/atomic"
 )
 
+const (
+	Pattern_CASE_INSENSITIVE = 0x02
+	Pattern_MULTILINE        = 0x08
+	Pattern_DOTALL           = 0x20
+)
+
 // Pattern is a compiled java.util.regex.Pattern.
 type Pattern struct {
 	pattern string
@@ -74,6 +80,7 @@ type javaRegexMode struct {
 	anchored bool // for matches(): `$` is end of text
 	resumed  bool // the search starts past offset 0: `^` never matches
 	crlf     bool // the input ends in "\r\n"
+	flags    int
 }
 
 // javaRegexInfo is what translateJavaRegex learns about the pattern.
@@ -93,6 +100,11 @@ const javaSpaceChars = `\t\n\x0B\f\r `
 const javaVerticalSpaceChars = `\n\x0B\f\r\x{85}\x{2028}\x{2029}`
 const javaHorizontalSpaceChars = ` \t\x{A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}`
 
+type patternCacheKey struct {
+	regex string
+	flags int
+}
+
 // Pattern_Compile is Pattern.compile(String).
 //
 // Go-only: performance — translating a Java regex and compiling its RE2
@@ -104,14 +116,20 @@ const javaHorizontalSpaceChars = ` \t\x{A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{2
 // sharing the cached translation; a regex that fails to compile is not
 // cached and fails the same way every time.
 func Pattern_Compile(regex string) *Pattern {
-	if cached, ok := patternCache.Load(regex); ok {
+	return Pattern_CompileWithFlags(regex, 0)
+}
+
+// Pattern_CompileWithFlags is Pattern.compile(String, int).
+func Pattern_CompileWithFlags(regex string, flags int) *Pattern {
+	key := patternCacheKey{regex: regex, flags: flags}
+	if cached, ok := patternCache.Load(key); ok {
 		p := *cached.(*Pattern)
 		return &p
 	}
-	p := patternCompile(regex)
+	p := patternCompileWithFlags(regex, flags)
 	if patternCacheSize.Add(1) <= patternCacheLimit {
 		cached := *p
-		patternCache.Store(regex, &cached)
+		patternCache.Store(key, &cached)
 	}
 	return p
 }
@@ -119,7 +137,7 @@ func Pattern_Compile(regex string) *Pattern {
 // patternCache maps a regex to its compiled Pattern (see Pattern_Compile).
 // It stops growing at patternCacheLimit entries, so that regexes built from
 // input cannot make it grow without bound.
-var patternCache sync.Map // string -> *Pattern
+var patternCache sync.Map // patternCacheKey -> *Pattern
 
 var patternCacheSize atomic.Int64
 
@@ -127,11 +145,19 @@ const patternCacheLimit = 4096
 
 // patternCompile compiles regex (Pattern_Compile without the cache).
 func patternCompile(regex string) *Pattern {
-	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true})
+	return patternCompileWithFlags(regex, 0)
+}
+
+func patternCompileWithFlags(regex string, flags int) *Pattern {
+	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true, flags: flags})
+	fullRe := `\A(?:` + whole + `)\z`
+	if (flags & Pattern_DOTALL) != 0 {
+		fullRe = `(?s)` + fullRe
+	}
 	p := &Pattern{
 		pattern: regex,
 		groups:  info.groups,
-		full:    compileTranslatedJavaRegex(regex, `^(?:`+whole+`)$`),
+		full:    compileTranslatedJavaRegex(regex, fullRe),
 	}
 	for resumed := range 2 {
 		for crlf := range 2 {
@@ -141,7 +167,7 @@ func patternCompile(regex string) *Pattern {
 			case crlf == 1 && !info.dollar:
 				p.searchers[resumed][1] = p.searchers[resumed][0]
 			default:
-				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1})
+				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1, flags: flags})
 				p.searchers[resumed][crlf] = searcher{compileTranslatedJavaRegex(regex, t), ti.marks}
 			}
 		}
@@ -262,6 +288,17 @@ const (
 func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo) {
 	var sb strings.Builder
 	var info javaRegexInfo
+	multiline := (mode.flags & Pattern_MULTILINE) != 0
+	dotall := (mode.flags & Pattern_DOTALL) != 0
+	if (mode.flags & Pattern_CASE_INSENSITIVE) != 0 {
+		sb.WriteString("(?i)")
+	}
+	if multiline {
+		sb.WriteString("(?m)")
+	}
+	if dotall {
+		sb.WriteString("(?s)")
+	}
 	rs := []rune(regex)
 	n := len(rs)
 	inClass := false
@@ -283,7 +320,7 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 	}
 	for i := 0; i < n; i++ {
 		c := rs[i]
-		if tailDepth >= 0 && !inClass && c != ')' && c != '|' && c != '$' {
+		if !multiline && tailDepth >= 0 && !inClass && c != ')' && c != '|' && c != '$' {
 			unsupportedJavaRegex(regex, "$ not at the end of an alternative")
 		}
 		switch {
@@ -392,28 +429,36 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 			classStart = i + 1
 			sb.WriteRune(c)
 		case c == '.':
-			sb.WriteString(javaDotClass)
+			if dotall {
+				sb.WriteByte('.')
+			} else {
+				sb.WriteString(javaDotClass)
+			}
 		case c == '^':
 			info.caret = true
-			if mode.resumed {
+			if mode.resumed && !multiline {
 				sb.WriteString(javaNoMatch)
 			} else {
 				sb.WriteByte('^')
 			}
 		case c == '$':
 			info.dollar = true
-			tailDepth = depth
-			switch {
-			case mode.anchored:
-				sb.WriteString(`\z`)
-			default:
-				lastGroup++
-				info.marks = append(info.marks, lastGroup)
-				term := javaFinalTerminators
-				if mode.crlf {
-					term = javaFinalCRLF
+			if multiline {
+				sb.WriteByte('$')
+			} else {
+				tailDepth = depth
+				switch {
+				case mode.anchored:
+					sb.WriteString(`\z`)
+				default:
+					lastGroup++
+					info.marks = append(info.marks, lastGroup)
+					term := javaFinalTerminators
+					if mode.crlf {
+						term = javaFinalCRLF
+					}
+					sb.WriteString(`(?:\z|(` + term + `)\z)`)
 				}
-				sb.WriteString(`(?:\z|(` + term + `)\z)`)
 			}
 		case c == '|':
 			if tailDepth == depth {
@@ -440,6 +485,38 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 				if i+2 < n && rs[i+2] == ':' {
 					sb.WriteString("(?:")
 					i += 2
+					continue
+				}
+				j := i + 2
+				neg := false
+				mSet, mVal := false, false
+				sSet, sVal := false, false
+				validFlags := j < n
+				for ; j < n && rs[j] != ')' && rs[j] != ':'; j++ {
+					switch rs[j] {
+					case '-':
+						neg = true
+					case 'i':
+					case 'm':
+						mSet, mVal = true, !neg
+					case 's':
+						sSet, sVal = true, !neg
+					default:
+						validFlags = false
+					}
+				}
+				if validFlags && j > i+2 && j < n && (rs[j] == ')' || rs[j] == ':') {
+					if mSet {
+						multiline = mVal
+					}
+					if sSet {
+						dotall = sVal
+					}
+					sb.WriteString(string(rs[i : j+1]))
+					if rs[j] == ')' {
+						depth--
+					}
+					i = j
 					continue
 				}
 				unsupportedJavaRegex(regex, "special group")

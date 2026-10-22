@@ -6,13 +6,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Go-only: language-adapter — parse files independently, then publish roots,
-// diagnostics, comments and source maps in submission order. Compiler maps and
-// error managers are touched only by the calling goroutine. TypedAST loading
-// and unusual/shared SourceFiles keep the original sequential path.
+// Go-only: language-adapter — parse files or deserialize TypedAST script roots
+// independently, then publish roots, diagnostics, comments and source maps in
+// submission order. Compiler maps and error managers are touched only by the
+// calling goroutine. Unusual/shared SourceFiles keep the original sequential
+// path.
 func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	compiler, ok := p.compiler.(*Compiler)
-	if !ok || compiler == nil || compiler.typedAstFilesystem != nil || len(inputs) < 2 {
+	if !ok || compiler == nil || len(inputs) < 2 {
 		return false
 	}
 	seen := make(map[*SourceFile]bool, len(inputs))
@@ -22,17 +23,42 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		}
 		seen[input.sourceFile] = true
 	}
-	normal := compiler.GetParserConfig(AbstractCompiler_ConfigContext_DEFAULT)
-	extern := compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
+	var normal, extern *parsing.Config
+	needParserConfig := compiler.typedAstFilesystem == nil
 	type outcome struct {
-		parsed  *parsing.ParserRunner_ParseResult
-		errors  parseBufferedErrors
-		failure jutil.Throwable
+		deserializer     func() *rhino.Node
+		deserializedRoot *rhino.Node
+		parsed           *parsing.ParserRunner_ParseResult
+		errors           parseBufferedErrors
+		failure          jutil.Throwable
 	}
 	outcomes := make([]outcome, len(inputs))
+	if compiler.typedAstFilesystem != nil {
+		for index, input := range inputs {
+			if input.ast.isParsed() {
+				continue
+			}
+			jutil.Try(func() {
+				outcomes[index].deserializer = compiler.GetTypedAstDeserializer(input.sourceFile)
+				if outcomes[index].deserializer == nil {
+					needParserConfig = true
+				}
+			}, func(t jutil.Throwable) {
+				outcomes[index].failure = t
+			})
+		}
+	}
+	if needParserConfig {
+		normal = compiler.GetParserConfig(AbstractCompiler_ConfigContext_DEFAULT)
+		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
+	}
 	failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(index int) {
 		input, result := inputs[index], &outcomes[index]
-		if input.ast.isParsed() {
+		if input.ast.isParsed() || result.failure != nil {
+			return
+		}
+		if result.deserializer != nil {
+			result.deserializedRoot = result.deserializer()
 			return
 		}
 		config := normal
@@ -42,7 +68,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		result.parsed = parsing.ParserRunner_Parse(input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
 	})
 	for i, f := range failures {
-		if f != nil {
+		if f != nil && outcomes[i].failure == nil {
 			outcomes[i].failure = f
 		}
 	}
@@ -54,17 +80,24 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		}
 		result := &outcomes[index]
 		jutil.Try(func() {
-			result.errors.replay(reporter)
-			if result.failure != nil {
-				if ioerr, ok := result.failure.(jutil.IIOException); ok {
-					compiler.Report(JSError_Make(AbstractCompiler_READ_ERROR, input.sourceFile.GetName(), ioerr.GetMessage()))
-				} else {
+			if result.deserializer != nil {
+				if result.failure != nil {
 					panic(result.failure)
 				}
+				input.ast.installDeserializedRoot(result.deserializedRoot)
 			} else {
-				input.ast.installParseResult(compiler, result.parsed)
+				result.errors.replay(reporter)
+				if result.failure != nil {
+					if ioerr, ok := result.failure.(jutil.IIOException); ok {
+						compiler.Report(JSError_Make(AbstractCompiler_READ_ERROR, input.sourceFile.GetName(), ioerr.GetMessage()))
+					} else {
+						panic(result.failure)
+					}
+				} else {
+					input.ast.installParseResult(compiler, result.parsed)
+				}
+				input.ast.ensureScriptRoot()
 			}
-			input.ast.ensureScriptRoot()
 			jutil.CheckState(input.ast.root.GetStaticSourceFile() == rhino.StaticSourceFile(input.sourceFile))
 			input.ast.root.SetInputId(input.id)
 			input.sourceFile.ClearCachedSource()

@@ -360,7 +360,10 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 							}
 						}
 						rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-						rc.enableLocalReclamation(nil)
+						rc.enableLocalReclamation(func() bool {
+							behavior.staleVars.Clear()
+							return true
+						})
 						tb := rc.builderVal()
 						t := acquireNodeTraversal(&tb)
 						t.currentNode = root
@@ -403,7 +406,10 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 						return id
 					}
 					rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-					rc.enableLocalReclamation(nil)
+					rc.enableLocalReclamation(func() bool {
+						behavior.staleVars.Clear()
+						return true
+					})
 					tb := rc.builderVal()
 					t := acquireNodeTraversal(&tb)
 					t.currentNode = root
@@ -418,7 +424,10 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 				return
 			}
 			callback := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-			callback.enableLocalReclamation(nil)
+			callback.enableLocalReclamation(func() bool {
+				behavior.staleVars.Clear()
+				return true
+			})
 			defer callback.release()
 			dummyGlobalScope := newScope(root)
 			dummyGlobalScope.scanDone = true
@@ -429,6 +438,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 			t.currentNode = root
 			t.PushScopeOfScope(dummyGlobalScope)
 			for _, candFn := range s.candFns {
+				behavior.staleVars.Clear()
 				t.currentScript = t.GetEnclosingScript(candFn)
 				t.ClearScriptState()
 				t.TraverseBranch(candFn, candFn.GetParent())
@@ -448,7 +458,10 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		behavior,
 		sc,
 		varFilter)
-	callback.enableLocalReclamation(nil)
+	callback.enableLocalReclamation(func() bool {
+		behavior.staleVars.Clear()
+		return true
+	})
 	callback.Process(externs, root)
 	callback.release()
 }

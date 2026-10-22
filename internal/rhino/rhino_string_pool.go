@@ -37,6 +37,7 @@ package rhino
 import (
 	"iter"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -50,67 +51,38 @@ import (
 // measurably more performant than `String::intern`.
 type RhinoStringPool struct{}
 
-// The threadsafe datastructure that backs this pool.
-//
-// We use weak-refs, rather than strong-refs, to prevent a memory leak in
-// server-like applications.
-//
-// Go-only: performance — Guava's Interners.newWeakInterner() was Go's unique
-// package (canonical, weakly held values), but unique.Make and the cleanup
-// that walks its whole map after every GC cost ~14% of the front end's CPU.
-// The pool is now a strong map behind a mutex (the parse oracles parse on
-// several goroutines). Identity is never observable in the port: strings
-// compare by value (RhinoStringPool_UncheckedEquals), so the pool only
-// shares memory, as Java's does. The map holds the strings of the current
-// compilation, which its AST keeps alive anyway; to stay bounded in a
-// long-lived process (tests, benchmarks) it starts over once it holds
-// rhinoStringPool_MAX_SIZE strings, which only ends the sharing with the
-// strings interned before.
+// rhinoStringID is a 32-bit pointer-free handle to an interned string:
+//   - 0: null / unset
+//   - 1: "" (empty string)
+//   - >= 2: ((localIdx << 6) | shardIdx) + 2
+type rhinoStringID uint32
+
 const (
 	rhinoStringPool_SHARDS         = 64
 	rhinoStringPool_MAX_SHARD_SIZE = 56000
+	rhinoStringPageSize            = 32768
+	rhinoSpanChunkSize             = 1024
 )
 
 type rhinoStringPoolShard struct {
-	mu       sync.RWMutex
-	strings  map[string]*string
-	cellSlab []string
-	byteSlab []byte
-}
-
-func (s *rhinoStringPoolShard) allocCell(v string) *string {
-	if len(s.cellSlab) == 0 {
-		s.cellSlab = make([]string, 512)
-	}
-	cell := &s.cellSlab[0]
-	*cell = v
-	s.cellSlab = s.cellSlab[1:]
-	return cell
-}
-
-func (s *rhinoStringPoolShard) allocStringFromBytes(b []byte) string {
-	n := len(b)
-	if n == 0 {
-		return ""
-	}
-	if n > 1024 {
-		return string(b)
-	}
-	if len(s.byteSlab) < n {
-		s.byteSlab = make([]byte, 16384)
-	}
-	buf := s.byteSlab[:n]
-	s.byteSlab = s.byteSlab[n:]
-	copy(buf, b)
-	return unsafe.String(&buf[0], n)
+	mu           sync.RWMutex
+	table        []uint64 // noscan open-addressed hash table: (hash32 << 32) | (localIdx + 1)
+	count        uint32
+	nextLocalIdx uint32
+	curPageIdx   uint32
+	curPageOff   uint32
+	hasCurPage   bool
+	spanChunks   [16384]*[rhinoSpanChunkSize]uint64
+	pages        [65536]*[rhinoStringPageSize]byte
+	largeStrings []string
 }
 
 var rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
 
-func rhinoStringPoolShardFor(s string) *rhinoStringPoolShard {
+func rhinoStringPoolHash(s string) uint64 {
 	n := len(s)
 	if n == 0 {
-		return &rhinoStringPool_shards[0]
+		return 0
 	}
 	p := unsafe.Pointer(unsafe.StringData(s))
 	var h uint64
@@ -130,21 +102,179 @@ func rhinoStringPoolShardFor(s string) *rhinoStringPoolShard {
 		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
 		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
 	} else {
-		u := (uint32(s[0]) | (uint32(s[n>>1]) << 8) | (uint32(s[n-1]) << 16) | (uint32(n) << 24)) * 0xcc9e2d51
-		return &rhinoStringPool_shards[(u^(u>>16))&(rhinoStringPool_SHARDS-1)]
+		u := uint64(uint32(s[0])|(uint32(s[n>>1])<<8)|(uint32(s[n-1])<<16)|(uint32(n)<<24)) * 0x9e3779b97f4a7c15
+		u ^= u >> 33
+		u *= 0xff51afd7ed558ccd
+		return u ^ (u >> 32)
 	}
 	h ^= h >> 33
 	h *= 0xff51afd7ed558ccd
-	return &rhinoStringPool_shards[uint32(h^(h>>32))&(rhinoStringPool_SHARDS-1)]
+	return h ^ (h >> 32)
+}
+
+func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
+	desc := s.spanChunks[localIdx>>10][localIdx&1023]
+	if int64(desc) < 0 {
+		return s.largeStrings[uint32(desc)]
+	}
+	pageOff := uint32(desc & 0xFFFF)
+	length := uint32((desc >> 16) & 0xFFFF)
+	pageIdx := uint32((desc >> 32) & 0xFFFF)
+	return unsafe.String(&s.pages[pageIdx][pageOff], length)
+}
+
+func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
+	localIdx := s.nextLocalIdx
+	s.nextLocalIdx = localIdx + 1
+	chunkIdx := localIdx >> 10
+	if s.spanChunks[chunkIdx] == nil {
+		s.spanChunks[chunkIdx] = new([rhinoSpanChunkSize]uint64)
+	}
+	n := len(str)
+	if n > rhinoStringPageSize || s.curPageIdx >= 65535 {
+		largeIdx := uint32(len(s.largeStrings))
+		// Copy string bytes so substring slices don't pin large source buffers.
+		b := make([]byte, n)
+		copy(b, str)
+		s.largeStrings = append(s.largeStrings, unsafe.String(unsafe.SliceData(b), n))
+		s.spanChunks[chunkIdx][localIdx&1023] = (uint64(1) << 63) | uint64(largeIdx)
+		return localIdx
+	}
+	if !s.hasCurPage || int(s.curPageOff)+n > rhinoStringPageSize {
+		if s.hasCurPage {
+			s.curPageIdx++
+		} else {
+			s.hasCurPage = true
+		}
+		s.curPageOff = 0
+		s.pages[s.curPageIdx] = new([rhinoStringPageSize]byte)
+	}
+	off := s.curPageOff
+	s.curPageOff = off + uint32(n)
+	copy(s.pages[s.curPageIdx][off:off+uint32(n)], str)
+	desc := uint64(off) | (uint64(n) << 16) | (uint64(s.curPageIdx) << 32)
+	s.spanChunks[chunkIdx][localIdx&1023] = desc
+	return localIdx
+}
+
+func (s *rhinoStringPoolShard) growTable() {
+	newCap := len(s.table) * 2
+	if newCap < 128 {
+		newCap = 128
+	}
+	newTable := make([]uint64, newCap)
+	mask := uint32(newCap - 1)
+	for _, entry := range s.table {
+		if entry == 0 {
+			continue
+		}
+		h32 := uint32(entry >> 32)
+		slot := h32 & mask
+		for newTable[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+		newTable[slot] = entry
+	}
+	s.table = newTable
+}
+
+func rhinoStringPoolIntern(str string) rhinoStringID {
+	if len(str) == 0 {
+		return 1
+	}
+	h := rhinoStringPoolHash(str)
+	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
+	hash32 := uint32(h >> 32)
+	shard := &rhinoStringPool_shards[shardIdx]
+
+	shard.mu.RLock()
+	if tbl := shard.table; len(tbl) > 0 {
+		mask := uint32(len(tbl) - 1)
+		slot := hash32 & mask
+		for {
+			entry := tbl[slot]
+			if entry == 0 {
+				break
+			}
+			if uint32(entry>>32) == hash32 {
+				localIdx := uint32(entry) - 1
+				if shard.stringAtLocked(localIdx) == str {
+					shard.mu.RUnlock()
+					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
+				}
+			}
+			slot = (slot + 1) & mask
+		}
+	}
+	shard.mu.RUnlock()
+
+	shard.mu.Lock()
+	if len(shard.table) == 0 {
+		shard.table = make([]uint64, 128)
+	} else {
+		mask := uint32(len(shard.table) - 1)
+		slot := hash32 & mask
+		for {
+			entry := shard.table[slot]
+			if entry == 0 {
+				break
+			}
+			if uint32(entry>>32) == hash32 {
+				localIdx := uint32(entry) - 1
+				if shard.stringAtLocked(localIdx) == str {
+					shard.mu.Unlock()
+					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
+				}
+			}
+			slot = (slot + 1) & mask
+		}
+	}
+	if int(shard.count+1)*2 > len(shard.table) {
+		shard.growTable()
+	}
+	localIdx := shard.allocSpan(str)
+	mask := uint32(len(shard.table) - 1)
+	slot := hash32 & mask
+	for shard.table[slot] != 0 {
+		slot = (slot + 1) & mask
+	}
+	shard.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
+	shard.count++
+	shard.mu.Unlock()
+	return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
+}
+
+//go:noinline
+func (s *rhinoStringPoolShard) largeStringAt(largeIdx uint32) string {
+	s.mu.RLock()
+	v := s.largeStrings[largeIdx]
+	s.mu.RUnlock()
+	return v
+}
+
+func rhinoStringFromID(id rhinoStringID) string {
+	if id <= 1 {
+		return ""
+	}
+	idx := uint32(id - 2)
+	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
+	localIdx := idx >> 6
+	desc := s.spanChunks[localIdx>>10][localIdx&1023]
+	if int64(desc) < 0 {
+		return s.largeStringAt(uint32(desc))
+	}
+	pageOff := uint32(desc & 0xFFFF)
+	length := uint32((desc >> 16) & 0xFFFF)
+	pageIdx := uint32((desc >> 32) & 0xFFFF)
+	return unsafe.String(&s.pages[pageIdx][pageOff], length)
 }
 
 func rhinoStringPoolClearForTest() {
 	for i := range rhinoStringPool_shards {
 		s := &rhinoStringPool_shards[i]
 		s.mu.Lock()
-		clear(s.strings)
-		s.cellSlab = nil
-		s.byteSlab = nil
+		clear(s.table)
+		s.count = 0
 		s.mu.Unlock()
 	}
 }
@@ -183,68 +313,13 @@ func RhinoStringPool_UncheckedEqualsNullable(a *string, b *string) bool {
 }
 
 // Java: RhinoStringPool.addOrGet(String)
-func RhinoStringPool_AddOrGet(s string) string { return *rhinoStringPoolCell(s) }
-
-// Go-only: performance — immutable header shared by StringNodes.
-func rhinoStringPoolCell(s string) *string {
-	shard := rhinoStringPoolShardFor(s)
-	shard.mu.RLock()
-	if shard.strings != nil {
-		if interned, ok := shard.strings[s]; ok {
-			shard.mu.RUnlock()
-			return interned
-		}
-	}
-	shard.mu.RUnlock()
-
-	shard.mu.Lock()
-	if shard.strings == nil {
-		shard.strings = make(map[string]*string, 64)
-	} else if interned, ok := shard.strings[s]; ok {
-		shard.mu.Unlock()
-		return interned
-	}
-	if len(shard.strings) >= rhinoStringPool_MAX_SHARD_SIZE {
-		clear(shard.strings)
-		shard.cellSlab = nil
-		shard.byteSlab = nil
-	}
-	// Like unique.Make, keep a copy rather than the larger string s may
-	// be a slice of.
-	value := shard.allocStringFromBytes(unsafe.Slice(unsafe.StringData(s), len(s)))
-	interned := shard.allocCell(value)
-	shard.strings[value] = interned
-	shard.mu.Unlock()
-	return interned
+func RhinoStringPool_AddOrGet(s string) string {
+	return rhinoStringFromID(rhinoStringPoolIntern(s))
 }
 
-func rhinoStringPoolCellOwned(s string) *string {
-	shard := rhinoStringPoolShardFor(s)
-	shard.mu.RLock()
-	if shard.strings != nil {
-		if interned, ok := shard.strings[s]; ok {
-			shard.mu.RUnlock()
-			return interned
-		}
-	}
-	shard.mu.RUnlock()
-
-	shard.mu.Lock()
-	if shard.strings == nil {
-		shard.strings = make(map[string]*string, 64)
-	} else if interned, ok := shard.strings[s]; ok {
-		shard.mu.Unlock()
-		return interned
-	}
-	if len(shard.strings) >= rhinoStringPool_MAX_SHARD_SIZE {
-		clear(shard.strings)
-		shard.cellSlab = nil
-		shard.byteSlab = nil
-	}
-	interned := shard.allocCell(s)
-	shard.strings[s] = interned
-	shard.mu.Unlock()
-	return interned
+// RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
+func RhinoStringPool_InternID(s string) uint32 {
+	return uint32(rhinoStringPoolIntern(s))
 }
 
 // Java: RhinoStringPool()
@@ -258,52 +333,60 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // This is a performance win if creating a lot of string nodes with the same
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
-	pool         *jutil.ArrayList[string]
-	cells        []*string
-	isInterned   *RhinoStringPool_WriteOnlyBitset
-	ownedStrings bool
+	pool       *jutil.ArrayList[string]
+	ids        []rhinoStringID
+	isInterned *RhinoStringPool_WriteOnlyBitset
 }
 
 // Java: RhinoStringPool.LazyInternedStringList(List<String>)
 func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{
 		pool:       jutil.NewArrayListFrom(pool),
-		cells:      make([]*string, len(pool)),
+		ids:        make([]rhinoStringID, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
 	}
 }
 
-// NewRhinoStringPool_LazyInternedStringListOwned creates a LazyInternedStringList
-// whose strings already own independent backing memory (not substrings of a larger buffer).
-func NewRhinoStringPool_LazyInternedStringListOwned(pool []string) *RhinoStringPool_LazyInternedStringList {
+// NewRhinoStringPool_LazyInternedStringListFromIDs creates a LazyInternedStringList
+// backed directly by pre-interned 32-bit rhinoStringIDs (noscan, zero pointers).
+func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoStringPool_LazyInternedStringList {
+	if len(ids) == 0 {
+		_ = NewRhinoStringPool_WriteOnlyBitset(0)
+	}
+	idSlice := unsafe.Slice((*rhinoStringID)(unsafe.SliceData(ids)), len(ids))
 	return &RhinoStringPool_LazyInternedStringList{
-		pool:         jutil.NewArrayListFrom(pool),
-		cells:        make([]*string, len(pool)),
-		isInterned:   NewRhinoStringPool_WriteOnlyBitset(len(pool)),
-		ownedStrings: true,
+		ids: idSlice,
 	}
 }
 
-// GetCell returns the interned *string cell at offset, interning on first access.
-func (l *RhinoStringPool_LazyInternedStringList) GetCell(offset int) *string {
-	if uint(offset) < uint(len(l.cells)) {
-		if cell := l.cells[offset]; cell != nil {
-			return cell
-		}
-	} else {
+//go:noinline
+func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStringID {
+	if l.pool == nil {
+		wordIdx := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
+		wordLen := RhinoStringPool_WriteOnlyBitset_WordIndex(len(l.ids)-1) + 1
+		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
+	}
+	if uint(offset) >= uint(len(l.ids)) {
 		_ = l.isInterned.Get(offset)
 	}
 	uninterned := l.pool.Get(offset)
-	var cell *string
-	if l.ownedStrings {
-		cell = rhinoStringPoolCellOwned(uninterned)
-	} else {
-		cell = rhinoStringPoolCell(uninterned)
+	id := rhinoStringPoolIntern(uninterned)
+	atomic.StoreUint32((*uint32)(&l.ids[offset]), uint32(id))
+	l.isInterned.Set(offset)
+	return id
+}
+
+// GetID returns the interned rhinoStringID at offset, interning on first access.
+func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
+	if uint(offset) < uint(len(l.ids)) {
+		if l.pool == nil {
+			return l.ids[offset]
+		}
+		if id := atomic.LoadUint32((*uint32)(&l.ids[offset])); id != 0 {
+			return rhinoStringID(id)
+		}
 	}
-	l.pool.Set(offset, *cell)
-	l.cells[offset] = cell
-	l.isInterned.Set(offset) // must happen after this.pool.set() to avoid a race condition
-	return cell
+	return l.getIDSlow(offset)
 }
 
 // Get returns the interned string at offset.
@@ -315,17 +398,33 @@ func (l *RhinoStringPool_LazyInternedStringList) GetCell(offset int) *string {
 //
 // Java: RhinoStringPool.LazyInternedStringList.get(int)
 func (l *RhinoStringPool_LazyInternedStringList) Get(offset int) string {
-	return *l.GetCell(offset)
+	return rhinoStringFromID(l.GetID(offset))
 }
 
 // Java: RhinoStringPool.LazyInternedStringList.stream()
 func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
-	return l.pool.All()
+	if l.pool != nil {
+		return l.pool.All()
+	}
+	return func(yield func(string) bool) {
+		for _, id := range l.ids {
+			if !yield(rhinoStringFromID(id)) {
+				return
+			}
+		}
+	}
 }
 
 // Slice returns the underlying string slice.
 func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
-	return l.pool.Slice()
+	if l.pool != nil {
+		return l.pool.Slice()
+	}
+	out := make([]string, len(l.ids))
+	for i, id := range l.ids {
+		out[i] = rhinoStringFromID(id)
+	}
+	return out
 }
 
 // RhinoStringPool_WriteOnlyBitset is a bitset implementation that only
@@ -367,14 +466,14 @@ func (b *RhinoStringPool_WriteOnlyBitset) checkIndex(wordIndex int) {
 func (b *RhinoStringPool_WriteOnlyBitset) Set(offset int) {
 	wordIndex := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
 	b.checkIndex(wordIndex)
-	b.bits[wordIndex] = b.bits[wordIndex] | jutil.Shl32(1, int64(offset))
+	atomic.OrInt32(&b.bits[wordIndex], jutil.Shl32(1, int64(offset)))
 }
 
 // Java: RhinoStringPool.WriteOnlyBitset.get(int)
 func (b *RhinoStringPool_WriteOnlyBitset) Get(offset int) bool {
 	wordIndex := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
 	b.checkIndex(wordIndex)
-	return (b.bits[wordIndex] & jutil.Shl32(1, int64(offset))) != 0
+	return (atomic.LoadInt32(&b.bits[wordIndex]) & jutil.Shl32(1, int64(offset))) != 0
 }
 
 // RhinoStringPool_WriteOnlyBitset_WordIndex returns, given a bit index, the

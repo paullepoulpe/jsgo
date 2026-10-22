@@ -10,14 +10,14 @@ import (
 // which is what ImmutableSet.copyOf(EnumSet) returns): a bit set over an enum
 // type's ordinals that iterates in ordinal order, like Java.
 
-// EnumSet is java.util.EnumSet<E> for a ported enum type E (an int32 ordinal).
-type EnumSet[E ~int32] struct {
+// EnumSet is java.util.EnumSet<E> for a ported enum type E (an int32 or uint8 ordinal).
+type EnumSet[E ~int32 | ~uint8] struct {
 	words []uint64
 	buf   [2]uint64
 }
 
 // NewEnumSet is EnumSet.noneOf / EnumSet.of(e...).
-func NewEnumSet[E ~int32](elems ...E) *EnumSet[E] {
+func NewEnumSet[E ~int32 | ~uint8](elems ...E) *EnumSet[E] {
 	s := &EnumSet[E]{}
 	s.words = s.buf[:0]
 	for _, e := range elems {
@@ -27,7 +27,7 @@ func NewEnumSet[E ~int32](elems ...E) *EnumSet[E] {
 }
 
 // EnumSetCopyOf is EnumSet.copyOf(set).
-func EnumSetCopyOf[E ~int32](other *EnumSet[E]) *EnumSet[E] {
+func EnumSetCopyOf[E ~int32 | ~uint8](other *EnumSet[E]) *EnumSet[E] {
 	s := &EnumSet[E]{}
 	if len(other.words) <= len(s.buf) {
 		s.words = append(s.buf[:0], other.words...)

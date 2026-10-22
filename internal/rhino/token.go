@@ -44,7 +44,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Token implements the JavaScript scanner's token kinds.
 //
 // It is based on the C source files jsscan.c and jsscan.h in the jsref package.
-type Token int32
+type Token uint8
 
 const (
 	Token_RETURN Token = iota

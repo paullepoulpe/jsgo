@@ -23,12 +23,32 @@ import (
 	"bytes"
 	"io"
 	"math"
+	"runtime"
 	"strconv"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+type runtimeLibsTypedAstStream struct {
+	data []byte
+}
+
+func (r *runtimeLibsTypedAstStream) Read(p []byte) (int, error) {
+	return 0, io.EOF
+}
+
+type cachedTypedAstShard struct {
+	proto       *TypedAst
+	stringShard *StringPool
+}
+
+var (
+	runtimeLibsTypedAstOnce   sync.Once
+	runtimeLibsTypedAstShards []cachedTypedAstShard
 )
 
 // TypedAstDeserializer deserializes a list of TypedAst protos into the
@@ -273,6 +293,16 @@ func (d *TypedAstDeserializer) deserializeTypedAst(
 	compiler AbstractCompiler,
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) {
+	d.deserializeTypedAstWithStringShard(
+		typedAstProto, nil, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+}
+
+func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
+	typedAstProto *TypedAst,
+	stringShard *StringPool,
+	compiler AbstractCompiler,
+	resolveSourceMapAnnotations bool,
+	parseInlineSourceMaps bool) {
 	fileShard := d.toFileShard(typedAstProto)
 
 	if d.mode == typedAstDeserializer_Mode_FULL_AST {
@@ -300,7 +330,9 @@ func (d *TypedAstDeserializer) deserializeTypedAst(
 
 	// TODO(b/248351234): can we avoid some of this work if the shard only contains weak srcs?
 	// one risk: could checks passes synthesize new externProperties even for weak srcs?
-	stringShard := StringPool_FromProto(typedAstProto.GetStringPool())
+	if stringShard == nil {
+		stringShard = StringPool_FromProto(typedAstProto.GetStringPool())
+	}
 	var colorShard *ColorPool_ShardView // Optional: nil when absent
 	if d.colorPoolBuilder != nil {
 		colorShard = d.colorPoolBuilder.AddShard(typedAstProto.GetTypePool(), stringShard)
@@ -448,6 +480,18 @@ func typedAstDeserializer_createStubWeakScriptNode(file *SourceFile) func() *rhi
 	}
 }
 
+func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool func(*TypedAst) bool) (*TypedAst, *StringPool) {
+	rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
+	m := &TypedAst{memoizedSize: -1}
+	m.mergeFromReader(rd)
+	typedAst := m.freeze()
+	var stringShard *StringPool
+	if buildStringPool == nil || buildStringPool(typedAst) {
+		stringShard = StringPool_FromProto(typedAst.GetStringPool())
+	}
+	return typedAst, stringShard
+}
+
 // Java: TypedAstDeserializer.deserializeTypedAsts(InputStream, TypedAstDeserializer, AbstractCompiler, boolean, boolean)
 func typedAstDeserializer_deserializeTypedAsts(
 	typedAstsStream io.Reader,
@@ -455,14 +499,9 @@ func typedAstDeserializer_deserializeTypedAsts(
 	compiler AbstractCompiler,
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) {
-	jutil.Try(func() {
-		typedAstBuilder := TypedAst_NewBuilder()
-		if br, ok := typedAstsStream.(*bytes.Reader); ok {
-			data := make([]byte, br.Len())
-			if _, err := io.ReadFull(br, data); err != nil {
-				panic(jutil.NewIOException(err.Error()))
-			}
-			codedInput := &protoReader{b: data, limit: math.MaxInt32}
+	if rlStream, ok := typedAstsStream.(*runtimeLibsTypedAstStream); ok {
+		runtimeLibsTypedAstOnce.Do(func() {
+			codedInput := &protoReader{b: rlStream.data, limit: math.MaxInt32}
 			for !codedInput.atEnd() {
 				tag := codedInput.readTag()
 				if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
@@ -474,11 +513,153 @@ func typedAstDeserializer_deserializeTypedAsts(
 							strconv.Itoa(tag&7)))
 				}
 				messageBytes := codedInput.readMessageBytes()
-				typedAstBuilder.m.mergeFromReader(codedInput.sub(messageBytes))
-				typedAst := typedAstBuilder.Build()
-				typedAstBuilder.Clear()
-				deserializer.deserializeTypedAst(
-					typedAst, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(messageBytes, nil)
+				runtimeLibsTypedAstShards = append(runtimeLibsTypedAstShards, cachedTypedAstShard{
+					proto:       typedAst,
+					stringShard: stringShard,
+				})
+			}
+		})
+		for i := range runtimeLibsTypedAstShards {
+			sh := &runtimeLibsTypedAstShards[i]
+			deserializer.deserializeTypedAstWithStringShard(
+				sh.proto, sh.stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+		}
+		return
+	}
+
+	jutil.Try(func() {
+		numWorkers := 1
+		if compiler != nil && compiler.GetOptions() != nil && compiler.GetOptions().GetNumParallelThreads() > 1 {
+			numWorkers = compiler.GetOptions().GetNumParallelThreads()
+		} else if n := runtime.GOMAXPROCS(0); n > 1 {
+			numWorkers = n
+		}
+
+		var requiredNames map[string]struct{}
+		buildStringPool := func(typedAstProto *TypedAst) bool {
+			if deserializer.mode != typedAstDeserializer_Mode_FULL_AST || deserializer.requiredInputFiles == nil {
+				return true
+			}
+			if requiredNames == nil {
+				requiredNames = make(map[string]struct{}, deserializer.requiredInputFiles.Size()*2)
+				for f := range deserializer.requiredInputFiles.All() {
+					name := f.GetName()
+					requiredNames[name] = struct{}{}
+					if canon := SourceFile_CanonicalizePathForMatching(name); canon != name {
+						requiredNames[canon] = struct{}{}
+					}
+				}
+			}
+			protos := typedAstProto.GetSourceFilePool().GetSourceFileList()
+			for _, lazyAst := range typedAstDeserializer_lazyAsts(typedAstProto) {
+				idx := int(lazyAst.GetSourceFile()) - 1
+				if idx >= 0 && idx < len(protos) {
+					fn := protos[idx].GetFilename()
+					if _, ok := requiredNames[fn]; ok {
+						return true
+					}
+					if _, ok := requiredNames[SourceFile_CanonicalizePathForMatching(fn)]; ok {
+						return true
+					}
+				}
+			}
+			return false
+		}
+
+		processShardBatch := func(batch [][]byte) {
+			if len(batch) == 1 {
+				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[0], buildStringPool)
+				deserializer.deserializeTypedAstWithStringShard(
+					typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+				return
+			}
+			// Trigger lazy initialization of requiredNames before launching workers.
+			if deserializer.mode == typedAstDeserializer_Mode_FULL_AST && deserializer.requiredInputFiles != nil && requiredNames == nil {
+				requiredNames = make(map[string]struct{}, deserializer.requiredInputFiles.Size()*2)
+				for f := range deserializer.requiredInputFiles.All() {
+					name := f.GetName()
+					requiredNames[name] = struct{}{}
+					if canon := SourceFile_CanonicalizePathForMatching(name); canon != name {
+						requiredNames[canon] = struct{}{}
+					}
+				}
+			}
+			outcomes := make([]cachedTypedAstShard, len(batch))
+			failures := parallelPrebuild(len(batch), min(numWorkers, len(batch)), func(i int) {
+				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[i], buildStringPool)
+				outcomes[i] = cachedTypedAstShard{proto: typedAst, stringShard: stringShard}
+			})
+			for i := range batch {
+				if failures[i] != nil {
+					panic(failures[i])
+				}
+				deserializer.deserializeTypedAstWithStringShard(
+					outcomes[i].proto,
+					outcomes[i].stringShard,
+					compiler,
+					resolveSourceMapAnnotations,
+					parseInlineSourceMaps)
+			}
+		}
+
+		if br, ok := typedAstsStream.(*bytes.Reader); ok {
+			data := make([]byte, br.Len())
+			if _, err := io.ReadFull(br, data); err != nil {
+				panic(jutil.NewIOException(err.Error()))
+			}
+			codedInput := &protoReader{b: data, limit: math.MaxInt32}
+			readNextFromCoded := func() ([]byte, bool) {
+				if codedInput.atEnd() {
+					return nil, false
+				}
+				tag := codedInput.readTag()
+				if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+					tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+					panic(NewInvalidProtocolBufferException(
+						"Unexpected field number " +
+							strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
+							" or wire type " +
+							strconv.Itoa(tag&7)))
+				}
+				return codedInput.readMessageBytes(), true
+			}
+			firstMsg, ok := readNextFromCoded()
+			if !ok {
+				return
+			}
+			if codedInput.atEnd() {
+				processShardBatch([][]byte{firstMsg})
+				return
+			}
+			const batchSize = 32
+			batch := make([][]byte, 0, batchSize)
+			batch = append(batch, firstMsg)
+			for {
+				var readErr jutil.Throwable
+				for len(batch) < batchSize {
+					var msg []byte
+					var hasMore bool
+					jutil.Try(func() {
+						msg, hasMore = readNextFromCoded()
+					}, func(t jutil.Throwable) {
+						readErr = t
+					})
+					if readErr != nil || !hasMore {
+						break
+					}
+					batch = append(batch, msg)
+				}
+				if len(batch) > 0 {
+					processShardBatch(batch)
+					batch = batch[:0]
+				}
+				if readErr != nil {
+					panic(readErr)
+				}
+				if codedInput.atEnd() {
+					break
+				}
 			}
 			return
 		}
@@ -515,11 +696,10 @@ func typedAstDeserializer_deserializeTypedAsts(
 			}
 			panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
 		}
-
-		for {
+		readNextFromStream := func() ([]byte, bool) {
 			first, ok := readByte(true)
 			if !ok {
-				break
+				return nil, false
 			}
 			uTag := readVarint64(first)
 			if uTag>>3 == 0 || uTag > math.MaxUint32 {
@@ -539,6 +719,7 @@ func typedAstDeserializer_deserializeTypedAsts(
 			if msgLen < 0 {
 				panic(protoNegativeSize())
 			}
+			// Do not pool messageBytes buffers because LazyAst.script uses zero-copy readBytesView().
 			var messageBytes []byte
 			const probeSize = 64 * 1024
 			if msgLen <= probeSize {
@@ -566,12 +747,46 @@ func typedAstDeserializer_deserializeTypedAsts(
 					panic(jutil.NewIOException(err.Error()))
 				}
 			}
-			rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
-			typedAstBuilder.m.mergeFromReader(rd)
-			typedAst := typedAstBuilder.Build()
-			typedAstBuilder.Clear()
-			deserializer.deserializeTypedAst(
-				typedAst, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+			return messageBytes, true
+		}
+
+		firstMsg, ok := readNextFromStream()
+		if !ok {
+			return
+		}
+		const batchSize = 32
+		batch := make([][]byte, 0, batchSize)
+		batch = append(batch, firstMsg)
+		for {
+			var readErr jutil.Throwable
+			var reachedEOF bool
+			for len(batch) < batchSize {
+				var msg []byte
+				var hasMore bool
+				jutil.Try(func() {
+					msg, hasMore = readNextFromStream()
+				}, func(t jutil.Throwable) {
+					readErr = t
+				})
+				if readErr != nil {
+					break
+				}
+				if !hasMore {
+					reachedEOF = true
+					break
+				}
+				batch = append(batch, msg)
+			}
+			if len(batch) > 0 {
+				processShardBatch(batch)
+				batch = batch[:0]
+			}
+			if readErr != nil {
+				panic(readErr)
+			}
+			if reachedEOF {
+				break
+			}
 		}
 	}, func(ex jutil.IIOException) {
 		message := "Cannot read from TypedAST input stream"

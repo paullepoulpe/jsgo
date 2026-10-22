@@ -25,18 +25,60 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type j2clFieldAssignments struct {
+	first  *rhino.Node
+	second *rhino.Node
+	count  int32
+}
+
+type j2clConstantHoisterCollector struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	outer *J2clConstantHoisterPass
+}
+
+func (c *j2clConstantHoisterCollector) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+	p := c.outer
+	if parent != nil && NodeUtil_IsLValue(node) {
+		if q := node.GetQualifiedName(); q != nil {
+			key := *q
+			entry := p.fieldAssignments[key]
+			switch entry.count {
+			case 0:
+				entry.first = parent
+				entry.count = 1
+				p.fieldOrder = append(p.fieldOrder, key)
+			case 1:
+				entry.second = parent
+				entry.count = 2
+			default:
+				entry.count++
+			}
+			p.fieldAssignments[key] = entry
+		}
+	}
+	if j2clConstantHoisterPass_isHoistableFunction(t, node) {
+		p.hoistableFunctions.Add(node)
+	}
+}
+
 // J2clConstantHoisterPass is an optimization pass for J2CL-generated code to
 // hoist some constant assignments out clinit method to declaration phase so
 // they could be used by other optimization passes for static evaluation.
 //
 // Java: public class J2clConstantHoisterPass implements CompilerPass
 type J2clConstantHoisterPass struct {
-	compiler AbstractCompiler
+	compiler           AbstractCompiler
+	fieldAssignments   map[string]j2clFieldAssignments
+	fieldOrder         []string
+	hoistableFunctions *jutil.LinkedHashSet[*rhino.Node]
+	collector          j2clConstantHoisterCollector
 }
 
 // Java: J2clConstantHoisterPass(AbstractCompiler)
 func NewJ2clConstantHoisterPass(compiler AbstractCompiler) *J2clConstantHoisterPass {
-	return &J2clConstantHoisterPass{compiler: compiler}
+	p := &J2clConstantHoisterPass{compiler: compiler}
+	p.collector.outer = p
+	return p
 }
 
 // Java: J2clConstantHoisterPass.process(Node, Node)
@@ -45,31 +87,25 @@ func (p *J2clConstantHoisterPass) Process(externs *rhino.Node, root *rhino.Node)
 		return
 	}
 
-	// Go-only: language-adapter — Java HashMap order: ArrayListMultimap
-	// iterates its keys in hash order, this one in insertion order. The order
-	// is not observable: each key's assignments are hoisted independently of
-	// the others (distinct declarations and clinit statements).
-	fieldAssignments := jutil.ArrayListMultimap_Create[*string, *rhino.Node]()
-	hoistableFunctions := jutil.NewLinkedHashSet[*rhino.Node]()
-	NodeTraversal_Builder_().
-		SetCompiler(p.compiler).
-		SetCallbackFunc(
-			func(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
-				// TODO(stalcup): don't gather assignments ourselves, switch to a persistent
-				// DefinitionUseSiteFinder instead.
-				if parent != nil && NodeUtil_IsLValue(node) {
-					fieldAssignments.Put(node.GetQualifiedName(), parent)
-				}
+	if p.fieldAssignments == nil {
+		p.fieldAssignments = make(map[string]j2clFieldAssignments, 64)
+		p.hoistableFunctions = jutil.NewLinkedHashSet[*rhino.Node]()
+	} else {
+		clear(p.fieldAssignments)
+		p.fieldOrder = p.fieldOrder[:0]
+		p.hoistableFunctions.Clear()
+	}
 
-				// TODO(stalcup): convert to a persistent index of hoistable functions.
-				if j2clConstantHoisterPass_isHoistableFunction(t, node) {
-					hoistableFunctions.Add(node)
-				}
-			}).
-		Traverse(root)
+	NodeTraversal_Traverse(p.compiler, root, &p.collector)
 
-	for _, assignments := range fieldAssignments.AsMap().All() {
-		p.maybeHoistClassField(assignments, hoistableFunctions)
+	var pair [2]*rhino.Node
+	for _, key := range p.fieldOrder {
+		entry := p.fieldAssignments[key]
+		if entry.count == 2 {
+			pair[0] = entry.first
+			pair[1] = entry.second
+			p.maybeHoistClassField(pair[:], p.hoistableFunctions)
+		}
 	}
 }
 

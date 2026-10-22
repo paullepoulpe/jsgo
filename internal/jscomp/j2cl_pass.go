@@ -34,6 +34,7 @@ const j2clPass_ALL_CLASS_FILE_NAMES = "*"
 type J2clPass struct {
 	compiler           AbstractCompiler
 	safeNameIdSupplier func() string
+	inliner            *J2clPass_ClassStaticFunctionsInliner
 }
 
 // Java: J2clPass(AbstractCompiler)
@@ -44,19 +45,12 @@ func NewJ2clPass(compiler AbstractCompiler) *J2clPass {
 	}
 }
 
-// Java: J2clPass.process(Node, Node)
-func (p *J2clPass) Process(externs *rhino.Node, root *rhino.Node) {
-	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
-		return
-	}
-
-	inlinings := []*J2clPass_InlineSpec{}
-
-	/*
-	 * Inline functions in Arrays that take references to static $isInstance() functions. This
-	 * ensures that the references will be fully qualified to work with collapse properties.
-	 */
-	inlinings = append(inlinings,
+var (
+	j2clPass_defaultInlinings = []*J2clPass_InlineSpec{
+		/*
+		 * Inline functions in Arrays that take references to static $isInstance() functions. This
+		 * ensures that the references will be fully qualified to work with collapse properties.
+		 */
 		NewJ2clPass_InlineSpec(
 			"Arrays.impl.java.js",
 			jutil.NewLinkedHashSet(
@@ -66,27 +60,22 @@ func (p *J2clPass) Process(externs *rhino.Node, root *rhino.Node) {
 				"$instanceIsOfType",
 				"$castTo",
 				"$stampType"),
-			FunctionInjector_InliningMode_DIRECT))
-	inlinings = append(inlinings,
-		NewJ2clPass_InlineSpec("Casts.impl.java.js", jutil.NewLinkedHashSet("$to"), FunctionInjector_InliningMode_DIRECT))
-
-	/*
-	 * Inlines all Interface.$markImplementor(FooClass) metaclass calls so that FooClass and others
-	 * like it are not unnecessarily retained and so that static analysis of interface instanceof
-	 * calls becomes possible.
-	 *
-	 * Note that this pass should NOT be restricted to j2cl .java.js files because JavaScript code
-	 * implementing Java interfaces (not recommended but widely used in xplat) needs calls to
-	 * $markImplementor.
-	 */
-	inlinings = append(inlinings,
+			FunctionInjector_InliningMode_DIRECT),
+		NewJ2clPass_InlineSpec("Casts.impl.java.js", jutil.NewLinkedHashSet("$to"), FunctionInjector_InliningMode_DIRECT),
+		/*
+		 * Inlines all Interface.$markImplementor(FooClass) metaclass calls so that FooClass and others
+		 * like it are not unnecessarily retained and so that static analysis of interface instanceof
+		 * calls becomes possible.
+		 *
+		 * Note that this pass should NOT be restricted to j2cl .java.js files because JavaScript code
+		 * implementing Java interfaces (not recommended but widely used in xplat) needs calls to
+		 * $markImplementor.
+		 */
 		NewJ2clPass_InlineSpec(
-			j2clPass_ALL_CLASS_FILE_NAMES, jutil.NewLinkedHashSet("$markImplementor"), FunctionInjector_InliningMode_BLOCK))
-
-	/*
-	 * Inlines class metadata calls so they become optimizable and avoids escaping of constructor.
-	 */
-	inlinings = append(inlinings,
+			j2clPass_ALL_CLASS_FILE_NAMES, jutil.NewLinkedHashSet("$markImplementor"), FunctionInjector_InliningMode_BLOCK),
+		/*
+		 * Inlines class metadata calls so they become optimizable and avoids escaping of constructor.
+		 */
 		NewJ2clPass_InlineSpec(
 			"Util.impl.java.js",
 			jutil.NewLinkedHashSet(
@@ -94,9 +83,26 @@ func (p *J2clPass) Process(externs *rhino.Node, root *rhino.Node) {
 				"$setClassMetadataForInterface",
 				"$setClassMetadataForEnum",
 				"$setClassMetadataForPrimitive"),
-			FunctionInjector_InliningMode_BLOCK))
+			FunctionInjector_InliningMode_BLOCK),
+	}
+	j2clPass_defaultFnNamesToInline = func() *jutil.LinkedHashSet[string] {
+		s := jutil.NewLinkedHashSet[string]()
+		for _, b := range j2clPass_defaultInlinings {
+			for name := range b.fnNamesToInline.All() {
+				s.Add(name)
+			}
+		}
+		return s
+	}()
+)
 
-	p.newClassStaticFunctionsInliner(root, inlinings).run()
+// Java: J2clPass.process(Node, Node)
+func (p *J2clPass) Process(externs *rhino.Node, root *rhino.Node) {
+	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
+		return
+	}
+
+	p.getOrCreateInliner(root, j2clPass_defaultInlinings).run()
 }
 
 // J2clPass_InlineSpec is the private record InlineSpec.
@@ -128,6 +134,8 @@ type J2clPass_ClassStaticFunctionsInliner struct {
 	injector                   *FunctionInjector
 	root                       *rhino.Node
 	inlineSpecs                []*J2clPass_InlineSpec
+	collector                  J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector
+	callInliner                J2clPass_ClassStaticFunctionsInliner_StaticCallInliner
 }
 
 // J2clPass_ClassStaticFunctionsInliner_InlinableFunction is the private
@@ -159,6 +167,30 @@ func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) String() string
 	return "InlinableFunction[impl=" + jutil.ToJavaString(f.impl) + ", inliningMode=" + f.inliningMode.String() + "]"
 }
 
+func (p *J2clPass) getOrCreateInliner(root *rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
+	c := p.inliner
+	if c == nil {
+		c = &J2clPass_ClassStaticFunctionsInliner{
+			outer:                      p,
+			fnsToInlineByQualifiedName: jutil.NewLinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction](),
+		}
+		c.injector = NewFunctionInjector_Builder(p.compiler).
+			SafeNameIdSupplier(p.safeNameIdSupplier).
+			AssumeStrictThis(true).
+			AssumeMinimumCapture(true).
+			Build()
+		c.injector.SetKnownConstantFunctions(j2clPass_defaultFnNamesToInline)
+		c.collector.outer = c
+		c.callInliner.outer = c
+		p.inliner = c
+	} else {
+		c.fnsToInlineByQualifiedName.Clear()
+	}
+	c.root = root
+	c.inlineSpecs = inlineSpecs
+	return c
+}
+
 // Java: J2clPass.ClassStaticFunctionsInliner(Node, List<InlineSpec>)
 func (p *J2clPass) newClassStaticFunctionsInliner(root *rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
 	c := &J2clPass_ClassStaticFunctionsInliner{
@@ -179,18 +211,22 @@ func (p *J2clPass) newClassStaticFunctionsInliner(root *rhino.Node, inlineSpecs 
 		}
 	}
 	c.injector.SetKnownConstantFunctions(fnNamesToInline)
+	c.collector.outer = c
+	c.callInliner.outer = c
 	return c
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.run()
 func (c *J2clPass_ClassStaticFunctionsInliner) run() {
-	NodeTraversal_Traverse(c.outer.compiler, c.root, c.newFunctionDefsCollector())
-	NodeTraversal_Traverse(c.outer.compiler, c.root, c.newStaticCallInliner())
+	NodeTraversal_Traverse(c.outer.compiler, c.root, &c.collector)
+	if !c.fnsToInlineByQualifiedName.IsEmpty() {
+		NodeTraversal_Traverse(c.outer.compiler, c.root, &c.callInliner)
+	}
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.findMatchingSpecsForFile(String)
-func (c *J2clPass_ClassStaticFunctionsInliner) findMatchingSpecsForFile(sourceFileName *string) []*J2clPass_InlineSpec {
-	matchingSpecs := []*J2clPass_InlineSpec{}
+func (c *J2clPass_ClassStaticFunctionsInliner) findMatchingSpecsForFile(sourceFileName *string, dst []*J2clPass_InlineSpec) []*J2clPass_InlineSpec {
+	matchingSpecs := dst[:0]
 	for _, inlineSpec := range c.inlineSpecs {
 		if inlineSpec.classFileName == j2clPass_ALL_CLASS_FILE_NAMES ||
 			strings.HasSuffix(*sourceFileName, inlineSpec.classFileName) {
@@ -216,7 +252,7 @@ func (c *J2clPass_ClassStaticFunctionsInliner) newFunctionDefsCollector() *J2clP
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.shouldTraverse(NodeTraversal, Node, Node)
 func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	if n.IsScript() {
-		f.currFileInlineSpecs = f.outer.findMatchingSpecsForFile(n.GetSourceFileName())
+		f.currFileInlineSpecs = f.outer.findMatchingSpecsForFile(n.GetSourceFileName(), f.currFileInlineSpecs)
 		return len(f.currFileInlineSpecs) != 0
 	}
 	return true

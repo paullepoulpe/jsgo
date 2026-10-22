@@ -2539,10 +2539,11 @@ type GlobalNamespace_Name struct {
 	//   0: empty
 	//   1: singleton Ref in refsBuf[0] (refsSlice == refsBuf[:1])
 	//   2: slice in refsSlice (with lazy refsIndex when len > 24)
-	refsBuf   [4]*GlobalNamespace_Ref
-	refsSlice []*GlobalNamespace_Ref
-	refsIndex map[*rhino.Node]int
-	refsState uint8
+	refsBuf        [4]*GlobalNamespace_Ref
+	refsSlice      []*GlobalNamespace_Ref
+	refsIndex      map[*rhino.Node]int
+	refsTombstones int32
+	refsState      uint8
 
 	globalSets              int32
 	localSets               int32
@@ -2778,14 +2779,34 @@ func (n *GlobalNamespace_Name) AddRef(chunk *JSChunk, scope *Scope, node *rhino.
 	n.UpdateStateForAddedRef(ref)
 }
 
+func (n *GlobalNamespace_Name) compactRefs() {
+	if n.refsTombstones == 0 {
+		return
+	}
+	w := 0
+	for _, r := range n.refsSlice {
+		if r != nil {
+			n.refsSlice[w] = r
+			if n.refsIndex != nil && r.node != nil {
+				n.refsIndex[r.node] = w
+			}
+			w++
+		}
+	}
+	clear(n.refsSlice[w:])
+	n.refsSlice = n.refsSlice[:w]
+	n.refsTombstones = 0
+}
+
 func (n *GlobalNamespace_Name) ensureRefsIndex() map[*rhino.Node]int {
 	if n.refsIndex != nil {
 		return n.refsIndex
 	}
-	if len(n.refsSlice) > 24 {
+	if len(n.refsSlice)-int(n.refsTombstones) > 24 {
+		n.compactRefs()
 		idxMap := make(map[*rhino.Node]int, len(n.refsSlice)*2)
 		for i, r := range n.refsSlice {
-			if r.node != nil {
+			if r != nil && r.node != nil {
 				idxMap[r.node] = i
 			}
 		}
@@ -2811,7 +2832,9 @@ func (n *GlobalNamespace_Name) CheckNoExistingRefsForNode(node *rhino.Node) {
 			return
 		}
 		for _, r := range n.refsSlice {
-			jutil.CheckStateMsg1(r.node != node, "Ref already exists for node: %s", r)
+			if r != nil {
+				jutil.CheckStateMsg1(r.node != node, "Ref already exists for node: %s", r)
+			}
 		}
 	}
 }
@@ -2850,6 +2873,10 @@ func (n *GlobalNamespace_Name) putNewRef(node *rhino.Node, ref *GlobalNamespace_
 		n.refsState = 2
 	default:
 		oldLen := len(n.refsSlice)
+		if oldLen == cap(n.refsSlice) && int(n.refsTombstones)*2 >= oldLen {
+			n.compactRefs()
+			oldLen = len(n.refsSlice)
+		}
 		if oldLen < cap(n.refsSlice) {
 			n.refsSlice = n.refsSlice[:oldLen+1]
 			n.refsSlice[oldLen] = ref
@@ -2893,19 +2920,13 @@ func (n *GlobalNamespace_Name) PutRef(node *rhino.Node, ref *GlobalNamespace_Ref
 	default:
 		if idxMap := n.ensureRefsIndex(); idxMap != nil {
 			if idx, ok := idxMap[node]; ok {
-				next := make([]*GlobalNamespace_Ref, len(n.refsSlice), cap(n.refsSlice))
-				copy(next, n.refsSlice)
-				next[idx] = ref
-				n.refsSlice = next
+				n.refsSlice[idx] = ref
 				return
 			}
 		} else {
 			for i, r := range n.refsSlice {
-				if r.node == node {
-					next := make([]*GlobalNamespace_Ref, len(n.refsSlice), cap(n.refsSlice))
-					copy(next, n.refsSlice)
-					next[i] = ref
-					n.refsSlice = next
+				if r != nil && r.node == node {
+					n.refsSlice[i] = ref
 					return
 				}
 			}
@@ -3045,7 +3066,7 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode *
 			}
 		} else {
 			for i, r := range n.refsSlice {
-				if r.node == oldNode || r == ref {
+				if r != nil && (r.node == oldNode || r == ref) {
 					idx = i
 					break
 				}
@@ -3058,51 +3079,23 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode *
 				}
 			} else {
 				for i, r := range n.refsSlice {
-					if i != idx && r.node == newNode {
+					if i != idx && r != nil && r.node == newNode {
 						jutil.CheckArgumentMsg1(false, "refs already exist: %s", r)
 					}
 				}
 			}
 		}
 		if idx >= 0 {
-			newLen := len(n.refsSlice) - 1
-			if newNode != nil {
-				newLen++
-			}
-			var next []*GlobalNamespace_Ref
-			if n.outer != nil && newLen > 0 && newLen <= 64 {
-				next = n.outer.allocRefSlice(0, newLen)
-			} else if newLen > 0 {
-				next = make([]*GlobalNamespace_Ref, 0, newLen)
-			}
-			next = append(next, n.refsSlice[:idx]...)
-			next = append(next, n.refsSlice[idx+1:]...)
-			if newNode != nil {
-				next = append(next, ref)
-			}
-			n.refsSlice = next
+			n.refsSlice[idx] = nil
+			n.refsTombstones++
 			if n.refsIndex != nil {
 				delete(n.refsIndex, oldNode)
-				for i := idx; i < len(next); i++ {
-					if next[i].node != nil {
-						n.refsIndex[next[i].node] = i
-					}
-				}
+			}
+			if newNode != nil {
+				n.putNewRef(newNode, ref)
 			}
 		} else if newNode != nil {
-			newLen := len(n.refsSlice) + 1
-			var next []*GlobalNamespace_Ref
-			if n.outer != nil && newLen <= 64 {
-				next = n.outer.allocRefSlice(newLen, newLen)
-			} else {
-				next = make([]*GlobalNamespace_Ref, newLen)
-			}
-			copy(next, n.refsSlice)
-			next[len(n.refsSlice)] = ref
-			n.refsSlice = next
-			if n.refsIndex != nil {
-				n.refsIndex[newNode] = len(next) - 1
-			}
+			n.putNewRef(newNode, ref)
 		}
 	}
 }
@@ -3130,7 +3123,7 @@ func (n *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
 			_, found = idxMap[refNode]
 		} else {
 			for _, r := range n.refsSlice {
-				if r.node == refNode {
+				if r != nil && r.node == refNode {
 					found = true
 					break
 				}
@@ -3151,8 +3144,8 @@ func (n *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
 func (n *GlobalNamespace_Name) RemoveRefAndUpdateState(ref *GlobalNamespace_Ref) {
 	if ref == n.declaration {
 		n.declaration = nil
-		for _, maybeNewDecl := range n.GetRefs() {
-			if maybeNewDecl.type_ == GlobalNamespace_Ref_Type_SET_FROM_GLOBAL {
+		for _, maybeNewDecl := range n.refsSlice {
+			if maybeNewDecl != nil && maybeNewDecl.type_ == GlobalNamespace_Ref_Type_SET_FROM_GLOBAL {
 				n.declaration = maybeNewDecl
 				break
 			}
@@ -3218,7 +3211,7 @@ func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 			}
 		} else {
 			for i, r := range n.refsSlice {
-				if r.node == refNode {
+				if r != nil && r.node == refNode {
 					refsForNode = r
 					idx = i
 					break
@@ -3230,23 +3223,15 @@ func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 			"Unexpected Refs for Node: %s: when removing Ref: %s",
 			refsForNode,
 			ref)
-		newLen := len(n.refsSlice) - 1
-		var next []*GlobalNamespace_Ref
-		if n.outer != nil && newLen > 0 && newLen <= 64 {
-			next = n.outer.allocRefSlice(0, newLen)
-		} else if newLen > 0 {
-			next = make([]*GlobalNamespace_Ref, 0, newLen)
-		}
-		next = append(next, n.refsSlice[:idx]...)
-		next = append(next, n.refsSlice[idx+1:]...)
-		n.refsSlice = next
+		n.refsSlice[idx] = nil
+		n.refsTombstones++
 		if n.refsIndex != nil {
 			delete(n.refsIndex, refNode)
-			for i := idx; i < len(next); i++ {
-				if next[i].node != nil {
-					n.refsIndex[next[i].node] = i
-				}
-			}
+		}
+		if len(n.refsSlice) == int(n.refsTombstones) {
+			n.refsSlice = n.refsSlice[:0]
+			n.refsTombstones = 0
+			n.refsState = 0
 		}
 	}
 }
@@ -3261,6 +3246,9 @@ func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
 	if n.refsState == 0 {
 		return nil
+	}
+	if n.refsTombstones > 0 {
+		n.compactRefs()
 	}
 	return n.refsSlice
 }
@@ -3288,7 +3276,7 @@ func (n *GlobalNamespace_Name) GetRefForNode(node *rhino.Node) *GlobalNamespace_
 			return nil
 		}
 		for _, r := range n.refsSlice {
-			if r.node == node {
+			if r != nil && r.node == node {
 				return r
 			}
 		}
@@ -3304,6 +3292,9 @@ func (n *GlobalNamespace_Name) GetFirstRef() *GlobalNamespace_Ref {
 	case 1:
 		return n.refsBuf[0]
 	default:
+		if n.refsTombstones > 0 {
+			n.compactRefs()
+		}
 		if len(n.refsSlice) > 0 {
 			return n.refsSlice[0]
 		}
@@ -3312,7 +3303,7 @@ func (n *GlobalNamespace_Name) GetFirstRef() *GlobalNamespace_Ref {
 }
 
 func (n *GlobalNamespace_Name) refCount() int {
-	return len(n.refsSlice)
+	return len(n.refsSlice) - int(n.refsTombstones)
 }
 
 // Java: GlobalNamespace.Name.canEliminate()

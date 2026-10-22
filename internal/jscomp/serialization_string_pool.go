@@ -39,20 +39,20 @@ type StringPool struct {
 
 // Java: StringPool.fromProto(StringPoolProto)
 func StringPool_FromProto(proto *StringPoolProto) *StringPool {
-	decoder := Wtf8_Decoder_(int(proto.GetMaxLength()))
+	maxLength := int(proto.GetMaxLength())
+	decoder := Wtf8_Decoder_(maxLength)
 
 	stringsList := proto.GetStringsList()
-	pool := make([]string, len(stringsList)+1)
+	ids := make([]uint32, len(stringsList)+1)
+	ids[0] = rhino.RhinoStringPool_InternID("")
 	for i := 0; i < len(stringsList); i++ {
-		pool[i+1] = decoder.Decode(stringsList[i])
+		ids[i+1] = rhino.RhinoStringPool_InternID(decoder.DecodeView(stringsList[i]))
 	}
 
-	p := &StringPool{
-		maxLength: int(proto.GetMaxLength()),
-		pool:      rhino.NewRhinoStringPool_LazyInternedStringListOwned(pool),
+	return &StringPool{
+		maxLength: maxLength,
+		pool:      rhino.NewRhinoStringPool_LazyInternedStringListFromIDs(ids),
 	}
-	jutil.CheckState(pool[0] == "")
-	return p
 }
 
 // Java: StringPool.empty()

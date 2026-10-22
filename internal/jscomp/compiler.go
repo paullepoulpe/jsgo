@@ -895,11 +895,18 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 	path := strings.Join([]string{
 		"/runtime_libs.typedast"}, "")
 
+	var stream io.Reader
+	if data := resources.ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.Compiler", path); data != nil {
+		stream = &runtimeLibsTypedAstStream{data: data}
+	} else {
+		stream = compiler_getResourceAsStream(path)
+	}
+
 	astData := TypedAstDeserializer_DeserializeRuntimeLibraries(
 		c,
 		c.SYNTHETIC_EXTERNS_FILE,
 		colorPoolBuilder,
-		compiler_getResourceAsStream(path),
+		stream,
 		c.GetOptions().GetResolveSourceMapAnnotations(),
 		c.GetOptions().GetParseInlineSourceMaps())
 
@@ -3100,6 +3107,54 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 				return ""
 			}
 			cb := NewCompiler_CodeBuilder()
+			if numInputs > 1 && c.options != nil && c.options.GetNumParallelThreads() > 1 {
+				replay, onlyScript, canParallel := compiler_licenseTrackerReplay(licenseTracker)
+				if canParallel {
+					scripts := make([]*rhino.Node, numInputs)
+					for i := 0; i < numInputs; i++ {
+						scriptNode := inputs[i].GetAstRoot(c)
+						if scriptNode == nil {
+							panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
+						}
+						scripts[i] = scriptNode
+					}
+					batchSize := 64
+					if numInputs <= 64 {
+						batchSize = max(c.options.GetNumParallelThreads(), 4)
+					}
+					type scriptPrinted struct {
+						sm  CodePrinter_SourceAndMappings
+						rec compiler_ParallelScriptLicenseRecorder
+					}
+					printed := make([]scriptPrinted, min(numInputs, batchSize))
+					numThreads := c.options.GetNumParallelThreads()
+					for batchStart := 0; batchStart < numInputs; batchStart += batchSize {
+						batchEnd := min(batchStart+batchSize, numInputs)
+						batchLen := batchEnd - batchStart
+						failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+							idx := batchStart + j
+							printed[j].rec.Reset(onlyScript)
+							c.toSourceAndMappingsInto(scripts[idx], idx == 0, &printed[j].rec, &printed[j].sm)
+						})
+						for _, f := range failures {
+							if f != nil {
+								for j := 0; j < batchLen; j++ {
+									printed[j].sm.Release()
+								}
+								panic(f)
+							}
+						}
+						for j := 0; j < batchLen; j++ {
+							idx := batchStart + j
+							for _, file := range printed[j].rec.seenFiles {
+								replay(file)
+							}
+							c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, idx, scripts[idx], &printed[j].sm)
+						}
+					}
+					return cb.String()
+				}
+			}
 			for i := 0; i < numInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(c)
 				if scriptNode == nil {
@@ -3287,13 +3342,17 @@ func (t *compiler_SeenSetLicenseTrackerBase) TrackLicensesForNode(node *rhino.No
 	if file == nil {
 		return
 	}
-	if *file == t.lastSeenFile {
+	t.trackLicensesForFileName(*file)
+}
+
+func (t *compiler_SeenSetLicenseTrackerBase) trackLicensesForFileName(file string) {
+	if file == t.lastSeenFile {
 		// Skip files we just saw.
 		return
 	} else {
-		t.lastSeenFile = *file
+		t.lastSeenFile = file
 	}
-	license := Compiler_GetLicenseForFile(t.compiler, file)
+	license := Compiler_GetLicenseForFile(t.compiler, &file)
 	if license == nil {
 		return
 	}
@@ -3441,13 +3500,17 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node *rhin
 	if sourceFile == nil {
 		return
 	}
-	if t.lastSeenFile == *sourceFile {
+	t.trackLicensesForFileName(*sourceFile)
+}
+
+func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(sourceFile string) {
+	if t.lastSeenFile == sourceFile {
 		// We just saw this file during the previous call to trackLicensesForNode
 		return
 	} else {
 		// Record the file whose license info we are going to analyze so that if we see this file
 		// again in consecutive calls to trackLicensesForNode we can skip redundant analysis.
-		t.lastSeenFile = *sourceFile
+		t.lastSeenFile = sourceFile
 	}
 	// Lazily initialize the set of licenses provided by the chunk's transitive dependencies
 	if !t.haveInitializedCurrentChunkLicenses {
@@ -3461,7 +3524,7 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node *rhin
 		}
 		t.haveInitializedCurrentChunkLicenses = true
 	}
-	license := Compiler_GetLicenseForFile(t.compiler, node.GetSourceFileName())
+	license := Compiler_GetLicenseForFile(t.compiler, &sourceFile)
 	if license == nil {
 		return
 	}
@@ -3483,6 +3546,57 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node *rhin
 		t.log.LogFormat(
 			"Chunk %s has new license:\n==================\n%s\n==================\n\n",
 			t.currentChunk, *license)
+	}
+}
+
+type compiler_ParallelScriptLicenseRecorder struct {
+	onlyScript      bool
+	lastSeenFilePtr *string
+	lastSeenFile    string
+	hasLastSeen     bool
+	seenFiles       []string
+}
+
+func (r *compiler_ParallelScriptLicenseRecorder) Reset(onlyScript bool) {
+	r.onlyScript = onlyScript
+	r.lastSeenFilePtr = nil
+	r.lastSeenFile = ""
+	r.hasLastSeen = false
+	r.seenFiles = r.seenFiles[:0]
+}
+
+func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node *rhino.Node) {
+	isRootOrScript := node.IsRoot() || node.IsScript()
+	if r.onlyScript != isRootOrScript {
+		return
+	}
+	file := node.GetSourceFileName()
+	if file == nil {
+		return
+	}
+	if r.hasLastSeen && (file == r.lastSeenFilePtr || *file == r.lastSeenFile) {
+		return
+	}
+	r.lastSeenFilePtr = file
+	r.lastSeenFile = *file
+	r.hasLastSeen = true
+	r.seenFiles = append(r.seenFiles, *file)
+}
+
+func (r *compiler_ParallelScriptLicenseRecorder) EmitLicenses() *jutil.LinkedHashSet[string] {
+	return nil
+}
+
+func compiler_licenseTrackerReplay(lt CodePrinter_LicenseTracker) (replay func(string), onlyScript bool, ok bool) {
+	switch t := lt.(type) {
+	case *Compiler_ChunkGraphAwareLicenseTracker:
+		return t.trackLicensesForFileName, false, true
+	case *Compiler_SingleBinaryLicenseTracker:
+		return t.trackLicensesForFileName, false, true
+	case *Compiler_ScriptNodeLicensesOnlyTracker:
+		return t.trackLicensesForFileName, true, true
+	default:
+		return nil, false, false
 	}
 }
 
@@ -5165,6 +5279,14 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	}
 
 	// Restore the inputs for each chunk.
+	type restoredChunkInput struct {
+		chunkIdx int
+		src      *SourceFile
+		input    *CompilerInput
+	}
+	var restoredInputs []restoredChunkInput
+	var prebuildInputs []*CompilerInput
+	parallelRestore := c.options != nil && c.options.GetNumParallelThreads() > 1
 	for i := 0; i < len(chunks); i++ {
 		chunkProto := stateProto.GetChunks(i)
 		for _, inputId := range chunkProto.GetInputIdsList() {
@@ -5177,13 +5299,30 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 				continue
 			}
 			input := NewCompilerInput(src)
-			script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
+			if parallelRestore {
+				restoredInputs = append(restoredInputs, restoredChunkInput{chunkIdx: i, src: src, input: input})
+				prebuildInputs = append(prebuildInputs, input)
+			} else {
+				script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
+
+				c.jsRoot.AddChildToBack(script)
+				c.scriptNodeByFilename.Put(src.GetName(), script)
+
+				c.putCompilerInput(input) // overwrite the old input
+				chunks[i].Add(input)
+			}
+		}
+	}
+	if parallelRestore && len(restoredInputs) > 0 {
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(prebuildInputs))
+		for _, item := range restoredInputs {
+			script := item.input.GetAstRoot(c)
 
 			c.jsRoot.AddChildToBack(script)
-			c.scriptNodeByFilename.Put(src.GetName(), script)
+			c.scriptNodeByFilename.Put(item.src.GetName(), script)
 
-			c.putCompilerInput(input) // overwrite the old input
-			chunks[i].Add(input)
+			c.putCompilerInput(item.input) // overwrite the old input
+			chunks[item.chunkIdx].Add(item.input)
 		}
 	}
 
