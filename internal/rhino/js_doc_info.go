@@ -114,6 +114,15 @@ var JSDocInfo_Property_values = make([]JSDocInfo_Property, 64)
 
 var jsDocInfo_typePropertiesMask int64
 
+const (
+	jsDocPropKindOther uint8 = iota
+	jsDocPropKindType
+	jsDocPropKindTypeList
+	jsDocPropKindTypeMap
+)
+
+var jsDocInfo_propKind [64]uint8
+
 // InitJSDocInfo_PropertyBase is the Property(String) constructor; self is
 // the object being constructed (stored in Property.values).
 //
@@ -236,6 +245,7 @@ func NewJSDocInfo_TypeProperty(name string) *JSDocInfo_TypeProperty {
 	p := &JSDocInfo_TypeProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
 	jsDocInfo_typePropertiesMask |= p.mask
+	jsDocInfo_propKind[p.bit] = jsDocPropKindType
 	return p
 }
 
@@ -275,6 +285,7 @@ func NewJSDocInfo_TypeListProperty(name string) *JSDocInfo_TypeListProperty {
 	p := &JSDocInfo_TypeListProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
 	jsDocInfo_typePropertiesMask |= p.mask
+	jsDocInfo_propKind[p.bit] = jsDocPropKindTypeList
 	return p
 }
 
@@ -352,6 +363,7 @@ func NewJSDocInfo_TypeMapProperty(name string) *JSDocInfo_TypeMapProperty {
 	p := &JSDocInfo_TypeMapProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
 	jsDocInfo_typePropertiesMask |= p.mask
+	jsDocInfo_propKind[p.bit] = jsDocPropKindTypeMap
 	return p
 }
 
@@ -1611,15 +1623,32 @@ func (i *JSDocInfo) ParameterTypes() iter.Seq[*JSTypeExpression] {
 //
 // Java: JSDocInfo.getParameterNameAt(int)
 func (i *JSDocInfo) GetParameterNameAt(index int) *string {
-	params := i.parameters()
-	if params == nil {
-		return nil
-	}
-	name, ok := params.KeyAt(index)
+	name, ok := i.GetParameterNameValueAt(index)
 	if !ok {
 		return nil
 	}
 	return &name
+}
+
+// GetParameterNameValueAt returns the nth defined parameter name without
+// allocating a *string pointer.
+func (i *JSDocInfo) GetParameterNameValueAt(index int) (string, bool) {
+	params := i.parameters()
+	if params == nil {
+		return "", false
+	}
+	return params.KeyAt(index)
+}
+
+// GetParameterTypeAt returns the nth defined parameter type expression in JSDoc
+// definition order without allocating an iterator closure.
+func (i *JSDocInfo) GetParameterTypeAt(index int) *JSTypeExpression {
+	params := i.parameters()
+	if params == nil {
+		return nil
+	}
+	t, _ := params.ValueAt(index)
+	return t
 }
 
 // GetParameterCount gets the number of parameters defined.
@@ -2255,21 +2284,94 @@ func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, *Node]
 // Any future type specific JSDoc should make sure to add the appropriate
 // nodes here.
 //
+// JSDocTypeExprIterator is a stack-allocated, zero-closure cursor over all
+// non-nil JSTypeExpressions in a JSDocInfo.
+type JSDocTypeExprIterator struct {
+	info     *JSDocInfo
+	typeBits uint64
+	curList  *jutil.ArrayList[*JSTypeExpression]
+	curMap   *jutil.LinkedHashMap[string, *JSTypeExpression]
+	subIdx   int
+	cur      *JSTypeExpression
+}
+
+// TypeExprIter returns a stack-allocated JSDocTypeExprIterator for i.
+func (i *JSDocInfo) TypeExprIter() JSDocTypeExprIterator {
+	if i == nil {
+		return JSDocTypeExprIterator{}
+	}
+	return JSDocTypeExprIterator{
+		info:     i,
+		typeBits: uint64(i.propertyKeysBitset & jsDocInfo_typePropertiesMask),
+	}
+}
+
+// Expr returns the current JSTypeExpression after Next returns true.
+func (it *JSDocTypeExprIterator) Expr() *JSTypeExpression { return it.cur }
+
+// Node returns the root Node of the current JSTypeExpression after Next returns true.
+func (it *JSDocTypeExprIterator) Node() *Node { return it.cur.GetRoot() }
+
+// Next advances to the next non-nil JSTypeExpression and reports whether one exists.
+func (it *JSDocTypeExprIterator) Next() bool {
+	for {
+		if it.curList != nil {
+			n := it.curList.Size()
+			for it.subIdx < n {
+				e := it.curList.Get(it.subIdx)
+				it.subIdx++
+				if e != nil {
+					it.cur = e
+					return true
+				}
+			}
+			it.curList = nil
+		}
+		if it.curMap != nil {
+			for {
+				v, nextSlot, ok := it.curMap.NextSlotValue(it.subIdx)
+				if !ok {
+					break
+				}
+				it.subIdx = nextSlot
+				if v != nil {
+					it.cur = v
+					return true
+				}
+			}
+			it.curMap = nil
+		}
+		if it.typeBits == 0 {
+			it.cur = nil
+			return false
+		}
+		low := bits.TrailingZeros64(it.typeBits)
+		propMask := uint64(1) << low
+		it.typeBits &^= propMask
+		index := bits.OnesCount64(uint64(it.info.propertyKeysBitset) & (propMask - 1))
+		val := it.info.GetPropertyValueByIndex(index)
+		switch jsDocInfo_propKind[low] {
+		case jsDocPropKindType:
+			if e := jsdocGet[*JSTypeExpression](val); e != nil {
+				it.cur = e
+				return true
+			}
+		case jsDocPropKindTypeList:
+			it.curList = jsdocGet[*jutil.ArrayList[*JSTypeExpression]](val)
+			it.subIdx = 0
+		case jsDocPropKindTypeMap:
+			it.curMap = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](val)
+			it.subIdx = 0
+		}
+	}
+}
+
 // TypeExpressions iterates over all non-nil JSTypeExpressions in this JSDocInfo
 // without allocating intermediate slices.
 func (i *JSDocInfo) TypeExpressions() iter.Seq[*JSTypeExpression] {
 	return func(yield func(*JSTypeExpression) bool) {
-		if i == nil {
-			return
-		}
-		typeBits := i.propertyKeysBitset & jsDocInfo_typePropertiesMask
-		for typeBits != 0 {
-			low := bits.TrailingZeros64(uint64(typeBits))
-			propMask := int64(1) << low
-			typeBits &^= propMask
-			index := bits.OnesCount64(uint64(i.propertyKeysBitset & (propMask - 1)))
-			prop := JSDocInfo_Property_values[low]
-			if !prop.forEachTypeExpression(i.GetPropertyValueByIndex(index), yield) {
+		for it := i.TypeExprIter(); it.Next(); {
+			if !yield(it.Expr()) {
 				return
 			}
 		}
@@ -2280,8 +2382,8 @@ func (i *JSDocInfo) TypeExpressions() iter.Seq[*JSTypeExpression] {
 // allocating intermediate slices.
 func (i *JSDocInfo) TypeNodes() iter.Seq[*Node] {
 	return func(yield func(*Node) bool) {
-		for expr := range i.TypeExpressions() {
-			if !yield(expr.GetRoot()) {
+		for it := i.TypeExprIter(); it.Next(); {
+			if !yield(it.Node()) {
 				return
 			}
 		}
@@ -2289,13 +2391,46 @@ func (i *JSDocInfo) TypeNodes() iter.Seq[*Node] {
 }
 
 // HasTypeNodes reports whether this JSDocInfo contains at least one type node,
-// without allocating slices.
+// without allocating slices or closures.
 func (i *JSDocInfo) HasTypeNodes() bool {
-	if i == nil || (i.propertyKeysBitset&jsDocInfo_typePropertiesMask) == 0 {
+	if i == nil {
 		return false
 	}
-	for range i.TypeExpressions() {
-		return true
+	typeBits := uint64(i.propertyKeysBitset & jsDocInfo_typePropertiesMask)
+	for typeBits != 0 {
+		low := bits.TrailingZeros64(typeBits)
+		propMask := uint64(1) << low
+		typeBits &^= propMask
+		index := bits.OnesCount64(uint64(i.propertyKeysBitset) & (propMask - 1))
+		val := i.GetPropertyValueByIndex(index)
+		switch jsDocInfo_propKind[low] {
+		case jsDocPropKindType:
+			if jsdocGet[*JSTypeExpression](val) != nil {
+				return true
+			}
+		case jsDocPropKindTypeList:
+			if list := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](val); list != nil {
+				for j := 0; j < list.Size(); j++ {
+					if list.Get(j) != nil {
+						return true
+					}
+				}
+			}
+		case jsDocPropKindTypeMap:
+			if mp := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](val); mp != nil {
+				slot := 0
+				for {
+					v, nextSlot, ok := mp.NextSlotValue(slot)
+					if !ok {
+						break
+					}
+					if v != nil {
+						return true
+					}
+					slot = nextSlot
+				}
+			}
+		}
 	}
 	return false
 }
@@ -2303,8 +2438,8 @@ func (i *JSDocInfo) HasTypeNodes() bool {
 // Java: JSDocInfo.getTypeExpressions()
 func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
 	builder := []*JSTypeExpression{}
-	for type_ := range i.TypeExpressions() {
-		builder = append(builder, type_)
+	for it := i.TypeExprIter(); it.Next(); {
+		builder = append(builder, it.Expr())
 	}
 	return builder
 }
@@ -2331,8 +2466,8 @@ func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
 func (i *JSDocInfo) GetTypeNodes() []*Node {
 	nodes := []*Node{}
 
-	for node := range i.TypeNodes() {
-		nodes = append(nodes, node)
+	for it := i.TypeExprIter(); it.Next(); {
+		nodes = append(nodes, it.Node())
 	}
 
 	return nodes

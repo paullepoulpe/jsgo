@@ -553,6 +553,48 @@ func (h *LinkedHashMap[K, V]) KeyAt(index int) (K, bool) {
 	return zero, false
 }
 
+// ValueAt returns the index-th value in insertion order without allocating a slice.
+func (h *LinkedHashMap[K, V]) ValueAt(index int) (V, bool) {
+	var zero V
+	if h == nil || index < 0 || index >= int(h.size) {
+		return zero, false
+	}
+	if h.first == 0 && (h.m == nil || len(h.m.removed) == 0) {
+		return h.slots[index].value, true
+	}
+	cur := 0
+	for i := int(h.first); i < len(h.slots); i++ {
+		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			continue
+		}
+		if cur == index {
+			return h.slots[i].value, true
+		}
+		cur++
+	}
+	return zero, false
+}
+
+// NextSlotValue advances from raw slot index `slot` (pass 0 initially) and
+// returns the next live value, the next raw slot index to pass on the
+// following call, and true; or the zero value, len(h.slots), and false.
+func (h *LinkedHashMap[K, V]) NextSlotValue(slot int) (V, int, bool) {
+	var zero V
+	if h == nil {
+		return zero, 0, false
+	}
+	if slot < int(h.first) {
+		slot = int(h.first)
+	}
+	for i := slot; i < len(h.slots); i++ {
+		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			continue
+		}
+		return h.slots[i].value, i + 1, true
+	}
+	return zero, len(h.slots), false
+}
+
 // Keys iterates keys in insertion order (Java: map.keySet()).
 //
 // Go-only: performance — Keys, Values and the sets' All walk the slot slice

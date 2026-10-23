@@ -251,9 +251,8 @@ func (k *CheckClosureImports_Checker) VisitWithModule(
 	parent := n.GetParent()
 
 	if n.IsCall() {
-		kindOfCall := k.KindOfCall(n)
-		if kindOfCall != nil {
-			k.CheckImport(t, n, parent, currentModule, *kindOfCall)
+		if kindOfCall, ok := k.kindOfCallValue(n); ok {
+			k.CheckImport(t, n, parent, currentModule, kindOfCall)
 		} else if n.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_MODULE_GET) {
 			k.CheckGoogModuleGet(t, n, currentModule)
 		}
@@ -267,20 +266,26 @@ func (k *CheckClosureImports_Checker) VisitWithModule(
 //
 // Java: CheckClosureImports.Checker.kindOfCall(Node)
 func (k *CheckClosureImports_Checker) KindOfCall(callNode *rhino.Node) *CheckClosureImports_ClosureImport {
-	jutil.CheckState(callNode.IsCall())
-	var kind CheckClosureImports_ClosureImport
-	if callNode.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE) {
-		kind = CheckClosureImports_ClosureImport_REQUIRE
-	} else if callNode.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_FORWARD_DECLARE) {
-		kind = CheckClosureImports_ClosureImport_FORWARD_DECLARE
-	} else if callNode.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE_TYPE) {
-		kind = CheckClosureImports_ClosureImport_REQUIRE_TYPE
-	} else if callNode.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE_DYNAMIC) {
-		kind = CheckClosureImports_ClosureImport_REQUIRE_DYNAMIC
-	} else {
+	kind, ok := k.kindOfCallValue(callNode)
+	if !ok {
 		return nil
 	}
 	return &kind
+}
+
+func (k *CheckClosureImports_Checker) kindOfCallValue(callNode *rhino.Node) (CheckClosureImports_ClosureImport, bool) {
+	jutil.CheckState(callNode.IsCall())
+	callee := callNode.GetFirstChild()
+	if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE) {
+		return CheckClosureImports_ClosureImport_REQUIRE, true
+	} else if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_FORWARD_DECLARE) {
+		return CheckClosureImports_ClosureImport_FORWARD_DECLARE, true
+	} else if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE_TYPE) {
+		return CheckClosureImports_ClosureImport_REQUIRE_TYPE, true
+	} else if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE_DYNAMIC) {
+		return CheckClosureImports_ClosureImport_REQUIRE_DYNAMIC, true
+	}
+	return 0, false
 }
 
 // Java: CheckClosureImports.Checker.checkValidImportCodeReference(NodeTraversal, Node)

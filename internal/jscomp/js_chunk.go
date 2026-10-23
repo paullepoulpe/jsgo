@@ -41,7 +41,8 @@ type JSChunk struct {
 	// non-final for deserialization
 	// CompilerInputs must be explicitly added to the JSChunk again after deserialization
 	// A map keyed by the CompilerInput.getName() to speed up getByName and removeByName.
-	inputs *jutil.LinkedHashMap[string, *CompilerInput]
+	inputs       *jutil.LinkedHashMap[string, *CompilerInput]
+	cachedInputs []*CompilerInput
 
 	// Chunks that this chunk depends on
 	deps []*JSChunk
@@ -168,6 +169,7 @@ func (c *JSChunk) Add(input *CompilerInput) {
 	inputName := input.GetName()
 	previous := c.inputs.Put(inputName, input)
 	jutil.CheckStateMsg2(previous == nil, "%s already exist in chunk %s", inputName, c.GetName())
+	c.cachedInputs = nil
 	input.SetChunk(c)
 }
 
@@ -186,6 +188,7 @@ func (c *JSChunk) AddDependency(dep *JSChunk) {
 func (c *JSChunk) Remove(input *CompilerInput) {
 	input.SetChunk(nil)
 	c.inputs.Remove(input.GetName())
+	c.cachedInputs = nil
 }
 
 // RemoveAll removes all of the inputs from this chunk.
@@ -196,6 +199,7 @@ func (c *JSChunk) RemoveAll() {
 		input.SetChunk(nil)
 	}
 	c.inputs.Clear()
+	c.cachedInputs = nil
 }
 
 // GetDependencies gets the list of chunks that this chunk depends on.
@@ -264,11 +268,13 @@ func (c *JSChunk) GetInputCount() int {
 	return c.inputs.Size()
 }
 
+var emptyCompilerInputs = []*CompilerInput{}
+
 // GetFirst returns the first source code input.
 //
 // Java: JSChunk.getFirst()
 func (c *JSChunk) GetFirst() *CompilerInput {
-	for input := range c.inputs.Values() {
+	if input, ok := c.inputs.ValueAt(0); ok {
 		return input
 	}
 	panic(jutil.NewNoSuchElementException())
@@ -280,11 +286,26 @@ func (c *JSChunk) GetFirst() *CompilerInput {
 //
 // Java: JSChunk.getInputs()
 func (c *JSChunk) GetInputs() []*CompilerInput {
-	out := make([]*CompilerInput, 0, c.inputs.Size())
-	for input := range c.inputs.Values() {
-		out = append(out, input)
+	if c.cachedInputs != nil {
+		return c.cachedInputs[:len(c.cachedInputs):len(c.cachedInputs)]
 	}
-	return out
+	n := c.inputs.Size()
+	if n == 0 {
+		c.cachedInputs = emptyCompilerInputs
+		return emptyCompilerInputs[:0:0]
+	}
+	out := make([]*CompilerInput, 0, n)
+	slot := 0
+	for {
+		input, nextSlot, ok := c.inputs.NextSlotValue(slot)
+		if !ok {
+			break
+		}
+		out = append(out, input)
+		slot = nextSlot
+	}
+	c.cachedInputs = out
+	return out[:len(out):len(out)]
 }
 
 // GetInputsIterable is a live view of the inputs.
@@ -307,7 +328,11 @@ func (c *JSChunk) GetByName(name string) *CompilerInput {
 // Java: JSChunk.removeByName(String)
 func (c *JSChunk) RemoveByName(name string) bool {
 	value := c.inputs.Remove(name)
-	return value != nil
+	if value != nil {
+		c.cachedInputs = nil
+		return true
+	}
+	return false
 }
 
 // IsSynthetic returns whether this chunk is synthetic (i.e. one of the
@@ -347,6 +372,7 @@ func (c *JSChunk) SortInputsByDeps(compiler AbstractCompiler) {
 	for _, input := range sortedList {
 		c.inputs.Put(input.GetName(), input)
 	}
+	c.cachedInputs = sortedList
 }
 
 // SetDepth sets the depth.
@@ -385,4 +411,5 @@ func (c *JSChunk) GetIndex() int {
 // Java: JSChunk.readObject(ObjectInputStream)
 func (c *JSChunk) ReadObject() {
 	c.inputs = jutil.NewLinkedHashMap[string, *CompilerInput]()
+	c.cachedInputs = nil
 }

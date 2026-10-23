@@ -91,26 +91,34 @@ func StringGetBytesUTF8(s string) []byte {
 	if utf8.ValidString(s) {
 		return []byte(s)
 	}
+	return AppendStringBytesUTF8(make([]byte, 0, len(s)), s)
+}
+
+// AppendStringBytesUTF8 appends the bytes of String.getBytes(StandardCharsets.UTF_8)
+// to dst without allocating an intermediate []byte when s is valid UTF-8.
+func AppendStringBytesUTF8(dst []byte, s string) []byte {
+	if utf8.ValidString(s) {
+		return append(dst, s...)
+	}
 	units := StringToUTF16(s)
-	out := make([]byte, 0, len(s))
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		switch {
 		case c < 0x80:
-			out = append(out, byte(c))
+			dst = append(dst, byte(c))
 		case c < 0x800:
-			out = append(out, byte(0xC0|c>>6), byte(0x80|c&0x3F))
+			dst = append(dst, byte(0xC0|c>>6), byte(0x80|c&0x3F))
 		case c >= 0xD800 && c <= 0xDBFF && i+1 < len(units) && units[i+1] >= 0xDC00 && units[i+1] <= 0xDFFF:
 			r := 0x10000 + (rune(c)-0xD800)<<10 + (rune(units[i+1]) - 0xDC00)
-			out = utf8.AppendRune(out, r)
+			dst = utf8.AppendRune(dst, r)
 			i++
 		case isSurrogate(c):
-			out = append(out, '?')
+			dst = append(dst, '?')
 		default:
-			out = append(out, byte(0xE0|c>>12), byte(0x80|(c>>6)&0x3F), byte(0x80|c&0x3F))
+			dst = append(dst, byte(0xE0|c>>12), byte(0x80|(c>>6)&0x3F), byte(0x80|c&0x3F))
 		}
 	}
-	return out
+	return dst
 }
 
 // NewStringFromUTF8Bytes is new String(byte[], StandardCharsets.UTF_8):

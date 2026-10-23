@@ -125,7 +125,8 @@ func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
 	}
 	slices.Sort(sorted)
 
-	hasher := ColorId_FARM_64()
+	var hasher jutil.FarmHashFingerprint64Hasher
+	hasher.Reset()
 	for i := 0; i < len(sorted); i++ {
 		hasher.PutLong(sorted[i])
 	}

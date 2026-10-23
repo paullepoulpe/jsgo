@@ -41,7 +41,8 @@ type CheckSuper struct {
 
 	// Go-only: language-adapter — the Java ArrayDeque<Context> used as a
 	// stack; the top of the stack is the last element.
-	contextStack []CheckSuper_Context
+	contextStack        []CheckSuper_Context
+	superNotAllowedPool []*CheckSuper_SuperNotAllowedContext
 }
 
 // Java: CheckSuper.MISSING_CALL_TO_SUPER
@@ -139,7 +140,22 @@ func (c *CheckSuper) popContext() CheckSuper_Context {
 	top := c.contextStack[len(c.contextStack)-1]
 	c.contextStack[len(c.contextStack)-1] = nil
 	c.contextStack = c.contextStack[:len(c.contextStack)-1]
+	if sna, ok := top.(*CheckSuper_SuperNotAllowedContext); ok {
+		sna.contextNode = nil
+		c.superNotAllowedPool = append(c.superNotAllowedPool, sna)
+	}
 	return top
+}
+
+func (c *CheckSuper) acquireSuperNotAllowedContext(contextNode *rhino.Node) *CheckSuper_SuperNotAllowedContext {
+	if n := len(c.superNotAllowedPool); n > 0 {
+		ctx := c.superNotAllowedPool[n-1]
+		c.superNotAllowedPool[n-1] = nil
+		c.superNotAllowedPool = c.superNotAllowedPool[:n-1]
+		ctx.InitCheckSuper_ContextBase(contextNode)
+		return ctx
+	}
+	return NewCheckSuper_SuperNotAllowedContext(contextNode)
 }
 
 // Java: CheckSuper.shouldTraverse(NodeTraversal, Node, Node)
@@ -147,7 +163,7 @@ func (c *CheckSuper) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhi
 	switch n.GetToken() {
 	case rhino.Token_ROOT:
 		jutil.CheckState(len(c.contextStack) == 0)
-		c.pushContext(NewCheckSuper_SuperNotAllowedContext(n))
+		c.pushContext(c.acquireSuperNotAllowedContext(n))
 
 	case rhino.Token_FUNCTION:
 		{
@@ -187,7 +203,7 @@ func (c *CheckSuper) GetContextForFunctionNode(currentContext CheckSuper_Context
 		if fn.IsArrowFunction() {
 			return currentContext.GetContextForArrowFunctionNode(fn)
 		}
-		return NewCheckSuper_SuperNotAllowedContext(fn)
+		return c.acquireSuperNotAllowedContext(fn)
 	}
 }
 

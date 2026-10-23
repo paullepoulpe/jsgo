@@ -209,10 +209,17 @@ func (s *NodeIterators_FunctionlessLocalScope) CurrentAncestors() *jutil.ArrayLi
 type NodeIterators_LocalVarMotion struct {
 	compiler            AbstractCompiler
 	valueHasSideEffects bool
-	iterator            *NodeIterators_FunctionlessLocalScope
+	extIterator         *NodeIterators_FunctionlessLocalScope
 	iteratorStorage     NodeIterators_FunctionlessLocalScope
 	varName             string
 	lookAhead           *rhino.Node
+}
+
+func (m *NodeIterators_LocalVarMotion) iter() *NodeIterators_FunctionlessLocalScope {
+	if m.extIterator != nil {
+		return m.extIterator
+	}
+	return &m.iteratorStorage
 }
 
 // NodeIterators_LocalVarMotion_ForVar: the name is a bit of a misnomer;
@@ -236,7 +243,7 @@ func (m *NodeIterators_LocalVarMotion) initForVar(compiler AbstractCompiler, nam
 	// names and the "name" node may have siblings. The actual assigned value
 	// is skipped as it is a child of name.
 	m.iteratorStorage.init3(name, var_, block)
-	m.init(compiler, name, &m.iteratorStorage)
+	m.init(compiler, name, nil)
 }
 
 // NodeIterators_LocalVarMotion_ForAssign returns a LocalVarMotion for use
@@ -258,7 +265,7 @@ func (m *NodeIterators_LocalVarMotion) initForAssign(
 	// The FunctionlessLocalScope must start at "assign", to skip the value
 	// assigned to "name" (which would be its sibling).
 	m.iteratorStorage.init3(assign, expr, block)
-	m.init(compiler, name, &m.iteratorStorage)
+	m.init(compiler, name, nil)
 }
 
 // newNodeIterators_LocalVarMotion: iterator is the iterator to use while
@@ -279,7 +286,7 @@ func (m *NodeIterators_LocalVarMotion) init(
 	m.compiler = jutil.CheckNotNull(compiler)
 	m.varName = nameNode.GetString()
 	m.valueHasSideEffects = valueNode != nil && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode)
-	m.iterator = iterator
+	m.extIterator = iterator
 	m.lookAhead = nil
 	m.AdvanceLookAhead(true)
 }
@@ -303,6 +310,7 @@ func (m *NodeIterators_LocalVarMotion) Remove() {
 
 // Java: NodeIterators.LocalVarMotion.advanceLookAhead(boolean)
 func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
+	it := m.iter()
 	if !atStart {
 		if m.lookAhead == nil {
 			return
@@ -310,20 +318,20 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 
 		// Don't advance past a reference to the variable that we're trying
 		// to inline.
-		curNode := m.iterator.Current()
+		curNode := it.Current()
 		if curNode.IsName() && m.varName == curNode.GetString() {
 			m.lookAhead = nil
 			return
 		}
 	}
 
-	if !m.iterator.HasNext() {
+	if !it.HasNext() {
 		m.lookAhead = nil
 		return
 	}
 
-	nextNode := m.iterator.Next()
-	nextParent := m.iterator.CurrentParent()
+	nextNode := it.Next()
+	nextParent := it.CurrentParent()
 	type_ := nextNode.GetToken()
 
 	if m.valueHasSideEffects {

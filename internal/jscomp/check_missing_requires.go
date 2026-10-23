@@ -224,8 +224,9 @@ func (c *CheckMissingRequires) VisitJsDocInfo(t *NodeTraversal, currentModule *M
 	if info.HasType() {
 		c.VisitJsDocExpr(t, currentModule, info.GetType(), CheckMissingRequires_Strength_WEAK_TYPE)
 	}
-	for paramType := range info.ParameterTypes() {
-		if paramType != nil {
+	paramCount := info.GetParameterCount()
+	for i := 0; i < paramCount; i++ {
+		if paramType := info.GetParameterTypeAt(i); paramType != nil {
 			c.VisitJsDocExpr(t, currentModule, paramType, CheckMissingRequires_Strength_WEAK_TYPE)
 		}
 	}

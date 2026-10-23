@@ -45,6 +45,8 @@ type OptimizeParameters struct {
 	fnNodes           []*rhino.Node
 	defNodes          []*rhino.Node
 	ttlList           jutil.ArrayList[*rhino.Node]
+	fixedParams       jutil.ArrayList[*OptimizeParameters_Parameter]
+	paramSlab         []OptimizeParameters_Parameter
 	candidateBuilder  OptimizeParameters_CandidateAnalysisBuilder
 	candidateAnalysis OptimizeParameters_CandidateAnalysis
 }
@@ -96,6 +98,9 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs *rhino.Node, root *
 		clear(o.defNodes)
 		o.defNodes = o.defNodes[:0]
 		o.ttlList.Clear()
+		o.fixedParams.Clear()
+		clear(o.paramSlab)
+		o.paramSlab = o.paramSlab[:0]
 	}()
 	// Save the LogFile into a field to avoid bucket-brigade passing it through a bunch of methods
 	o.decisionsLog = decisionsLog
@@ -178,6 +183,9 @@ type OptimizeParameters_UnusedParameterOptimizer struct {
 	outer             *OptimizeParameters
 	toRemove          []*rhino.Node
 	toReplaceWithZero []*rhino.Node
+	used              jutil.BitSet
+	unused            jutil.BitSet
+	unremovable       jutil.BitSet
 }
 
 // Java: OptimizeParameters.UnusedParameterOptimizer()
@@ -212,7 +220,8 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 	// In this case maxFormalsCount = 3, lowestUsedRest = 2, and used = { 0, 2 }
 	maxFormalsCount := 0
 	lowestUsedRest := math.MaxInt32
-	used := jutil.NewBitSet()
+	used := &u.used
+	used.ClearAll()
 	for _, fn := range fns {
 		paramList := NodeUtil_GetFunctionParameters(fn)
 		index := -1
@@ -238,7 +247,8 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 		used.SetRange(lowestUsedRest, maxFormalsCount)
 	}
 
-	unused := used.Clone()
+	unused := &u.unused
+	unused.CopyFrom(used)
 	unused.FlipRange(0, maxFormalsCount)
 
 	// If was a used "rest" declaration, there are no trailing parameters to remove, so
@@ -250,7 +260,8 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 	// NOTE: RemoveUnusedCode removes any trailing unused formals, so we don't need to
 	// do for that case.
 
-	unremovable := used.Clone()
+	unremovable := &u.unremovable
+	unremovable.CopyFrom(used)
 
 	// A parameter is removable from a call-site if the parameter value
 	// has no side-effects. If all call-sites can be updated, the
@@ -968,9 +979,24 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[*rhi
 // values fixed values from all call sites or null if there are no candidate
 // values.
 //
+func (o *OptimizeParameters) allocParam(arg *rhino.Node, shouldRemove bool) *OptimizeParameters_Parameter {
+	if len(o.paramSlab) == cap(o.paramSlab) {
+		nextCap := max(cap(o.paramSlab)*2, 16)
+		o.paramSlab = make([]OptimizeParameters_Parameter, 0, nextCap)
+	}
+	idx := len(o.paramSlab)
+	o.paramSlab = o.paramSlab[:idx+1]
+	p := &o.paramSlab[idx]
+	*p = OptimizeParameters_Parameter{shouldRemove: shouldRemove, arg: arg}
+	return p
+}
+
 // Java: OptimizeParameters.findFixedArguments(ArrayList<Node>)
 func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[*rhino.Node]) *jutil.ArrayList[*OptimizeParameters_Parameter] {
-	parameters := jutil.NewArrayList[*OptimizeParameters_Parameter]()
+	parameters := &o.fixedParams
+	parameters.Clear()
+	clear(o.paramSlab)
+	o.paramSlab = o.paramSlab[:0]
 	firstCall := true
 
 	// Build a list of parameters to remove
@@ -1139,7 +1165,7 @@ func (o *OptimizeParameters) FindFixedParameters(parameters *jutil.ArrayList[*Op
 	for cur != nil {
 		var p *OptimizeParameters_Parameter
 		if index >= parameters.Size() {
-			p = NewOptimizeParameters_Parameter(cur, false)
+			p = o.allocParam(cur, false)
 			parameters.Add(p)
 			o.SetParameterSideEffectInfo(p, cur)
 		} else {
@@ -1177,7 +1203,7 @@ func (o *OptimizeParameters) BuildInitialParameterList(parameters *jutil.ArrayLi
 	anyMovable := false
 	for cur != nil {
 		movable := OptimizeParameters_IsMovableValue(cur, o.globalScope)
-		p := NewOptimizeParameters_Parameter(cur, movable)
+		p := o.allocParam(cur, movable)
 		o.SetParameterSideEffectInfo(p, cur)
 		parameters.Add(p)
 		if movable {

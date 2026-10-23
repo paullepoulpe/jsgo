@@ -1680,7 +1680,7 @@ func (tc *TypeCheck) CheckDeclaredPropertyAgainstPrototypalInheritance(
 
 	declaredOverride := TypeCheck_DeclaresOverride(info)
 	var supertypeWithProperty rhino.ObjectType
-	for type_ := range receiverType.GetImplicitPrototypeChain() {
+	for type_ := receiverType.GetImplicitPrototype(); type_ != nil; type_ = type_.GetImplicitPrototype() {
 		// We want to report the supertype that actually had the overridden declaration.
 		if type_.HasOwnPropertyByKey(propertyName) {
 			// We only care about the lowest match in the chain because it must be the most
@@ -3401,10 +3401,9 @@ func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n *rhino.Node, i
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetType())
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
-	if info.GetParameterCount() > 0 {
-		for paramType := range info.ParameterTypes() {
-			tc.CheckTypeContainsObjectWithBadKey(n, paramType)
-		}
+	paramCount := info.GetParameterCount()
+	for i := 0; i < paramCount; i++ {
+		tc.CheckTypeContainsObjectWithBadKey(n, info.GetParameterTypeAt(i))
 	}
 }
 

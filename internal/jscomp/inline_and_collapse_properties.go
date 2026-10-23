@@ -2091,7 +2091,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) MoveDeclarationIntoHigh
 	initializer := newNode.GetFirstChild()
 	jutil.CheckStateMsg1(varNode.IsVar(), "Unexpected declaration %s", varNode)
 
-	newRoot := commonAncestor.GetInputs()[0].GetAstRoot(c.outer.compiler)
+	newRoot := commonAncestor.GetFirst().GetAstRoot(c.outer.compiler)
 	if initializer == nil {
 		// Already a stub declaration - "var a$b;". Move it to the ancestor chunk.
 		newRoot.AddChildToFront(varNode.Detach())

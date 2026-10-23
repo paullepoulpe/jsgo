@@ -35,13 +35,25 @@ const (
 // Hashing.farmHashFingerprint64().newHasher(): it buffers the input bytes
 // and hashes them on Hash().
 type FarmHashFingerprint64Hasher struct {
-	buf []byte
+	buf        []byte
+	bufStorage [128]byte
 }
 
 // Hashing_FarmHashFingerprint64NewHasher is
 // Hashing.farmHashFingerprint64().newHasher().
 func Hashing_FarmHashFingerprint64NewHasher() *FarmHashFingerprint64Hasher {
-	return &FarmHashFingerprint64Hasher{}
+	h := &FarmHashFingerprint64Hasher{}
+	h.buf = h.bufStorage[:0]
+	return h
+}
+
+// Reset resets the buffered bytes for reuse, initializing inline storage if needed.
+func (h *FarmHashFingerprint64Hasher) Reset() {
+	if h.buf == nil {
+		h.buf = h.bufStorage[:0]
+	} else {
+		h.buf = h.buf[:0]
+	}
 }
 
 // PutLong is Hasher.putLong(long): eight little-endian bytes.
@@ -59,7 +71,7 @@ func (h *FarmHashFingerprint64Hasher) PutInt(v int32) *FarmHashFingerprint64Hash
 // PutStringUTF8 is Hasher.putString(CharSequence, StandardCharsets.UTF_8):
 // the bytes of String.getBytes(UTF_8) (unpaired surrogates become '?').
 func (h *FarmHashFingerprint64Hasher) PutStringUTF8(s string) *FarmHashFingerprint64Hasher {
-	h.buf = append(h.buf, StringGetBytesUTF8(s)...)
+	h.buf = AppendStringBytesUTF8(h.buf, s)
 	return h
 }
 

@@ -31,6 +31,7 @@ type JSTypeColorIdHasher struct {
 	// ObjectLinkedHashMap rather than a Go-== keyed map.
 	standardColorObjectIds *jutil.ObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]
 	standardColorByPtr     map[*rhino.JSTypeBase]colors.ColorId
+	hasher                 jutil.FarmHashFingerprint64Hasher
 }
 
 // Java: JSTypeColorIdHasher(JSTypeRegistry)
@@ -76,7 +77,8 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 		}
 	}
 
-	hasher := jsTypeColorIdHasher_FARM_64()
+	hasher := &h.hasher
+	hasher.Reset()
 
 	if type_.IsFunctionType() {
 		fnType := type_.ToMaybeFunctionType()

@@ -603,15 +603,15 @@ func (m *ClosureRewriteModule) RewriteJsdoc(info *rhino.JSDocInfo, scope *Scope)
 		return
 	}
 	replacer := ClosureRewriteModule_ReplaceJsDocRefs{outer: m, scope: scope}
-	for typeNode := range info.TypeNodes() {
-		replacer.visitPreOrder(typeNode)
+	for it := info.TypeExprIter(); it.Next(); {
+		replacer.visitPreOrder(it.Node())
 	}
 }
 
 func (m *ClosureRewriteModule) rewriteJsdocInfoWithTraversal(info *rhino.JSDocInfo, t *NodeTraversal) {
 	replacer := ClosureRewriteModule_ReplaceJsDocRefs{outer: m, t: t}
-	for typeNode := range info.TypeNodes() {
-		replacer.visitPreOrder(typeNode)
+	for it := info.TypeExprIter(); it.Next(); {
+		replacer.visitPreOrder(it.Node())
 	}
 }
 

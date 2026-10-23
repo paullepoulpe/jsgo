@@ -36,6 +36,12 @@ type FunctionToBlockMutator struct {
 	onMovedArg               func(*rhino.Node)
 	errorNodes               map[*rhino.Node]struct{}
 	lastDiagCount            int
+	paramNamesScratch        jutil.LinkedHashSet[string]
+	modifiedParamsScratch    jutil.LinkedHashSet[string]
+	argsScratch              jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
+	allNamesToAliasScratch   jutil.LinkedHashSet[string]
+	paramReplacementsScratch jutil.LinkedHashMap[string, *rhino.Node]
+	newAliasesToAddScratch   jutil.ArrayList[*rhino.Node]
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -146,17 +152,17 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	}
 
 	// TODO(johnlenz): Mark NAME nodes constant for parameters that are not modified.
-	modifiedParameters := m.functionArgumentInjector.FindModifiedParameters(newFnNode)
-	args := m.functionArgumentInjector.GetFunctionCallParameterMap(
-		newFnNode, callNode, m.safeNameIdSupplier)
+	modifiedParameters := &m.modifiedParamsScratch
+	m.functionArgumentInjector.FindModifiedParametersInto(newFnNode, &m.paramNamesScratch, modifiedParameters)
+	args := &m.argsScratch
+	m.functionArgumentInjector.FillFunctionCallParameterPairMap(
+		newFnNode, callNode, m.safeNameIdSupplier, args)
 	hasArgs := !args.IsEmpty()
-	allNamesToAlias := jutil.NewLinkedHashSet[string]()
+	allNamesToAlias := &m.allNamesToAliasScratch
+	allNamesToAlias.Clear()
 	if hasArgs {
-		temps := m.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
-			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention())
-		allNamesToAlias = jutil.NewLinkedHashSet[string]()
-		allNamesToAlias.AddAll(modifiedParameters.ToSlice()...)
-		allNamesToAlias.AddAll(temps.ToSlice()...)
+		m.functionArgumentInjector.GatherCallArgumentsNeedingTempsInto(
+			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention(), allNamesToAlias)
 	}
 
 	newBlock := NodeUtil_GetFunctionBody(newFnNode)
@@ -560,7 +566,8 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 
 	if namesToAlias == nil || namesToAlias.IsEmpty() {
 		// There are no names to alias. Just inline the arguments directly.
-		replacements := jutil.NewLinkedHashMap[string, *rhino.Node]()
+		replacements := &m.paramReplacementsScratch
+		replacements.Clear()
 		for key, value := range paramToArgMap.All() {
 			replacements.Put(key, value.Arg())
 		}
@@ -573,10 +580,12 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		// A map from function parameter to the value it should be replaced with post-inlining.
 		// This is a subset of paramToArg: we exclude parameters for which we create
 		// an explicit alias.
-		paramReplacements := jutil.NewLinkedHashMap[string, *rhino.Node]()
+		paramReplacements := &m.paramReplacementsScratch
+		paramReplacements.Clear()
 
 		// Declare the aliases in the same order as the arguments are defined.
-		newAliasesToAdd := jutil.NewArrayList[*rhino.Node]()
+		newAliasesToAdd := &m.newAliasesToAddScratch
+		newAliasesToAdd.Clear()
 		// NOTE: paramToArgMap is a linked map so we get the parameters in the order that they were
 		// declared.
 		for name, arg := range paramToArgMap.All() {

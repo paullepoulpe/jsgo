@@ -49,8 +49,8 @@ func (e *Es6RenameTypeReferences) Visit(t *NodeTraversal, n *rhino.Node, parent 
 	// after type checking.
 	info := n.GetJSDocInfo()
 	if info != nil {
-		for root := range info.TypeNodes() {
-			e.RenameTypeNodeRecursive(t, root)
+		for it := info.TypeExprIter(); it.Next(); {
+			e.RenameTypeNodeRecursive(t, it.Node())
 		}
 	}
 }

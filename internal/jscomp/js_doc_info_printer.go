@@ -216,9 +216,10 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		parts = append(parts, p.BuildAnnotationWithTypeNode("this", typeNode))
 	}
 
-	if info.GetParameterCount() > 0 {
+	if paramCount := info.GetParameterCount(); paramCount > 0 {
 		multiline = true
-		for name := range info.ParameterNames() {
+		for i := 0; i < paramCount; i++ {
+			name, _ := info.GetParameterNameValueAt(i)
 			parts = append(parts, "@param "+p.BuildParamType(info, name))
 		}
 	}

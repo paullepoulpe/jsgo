@@ -310,8 +310,8 @@ func (c *ClosureCheckModule) VisitWithModule(
 
 // Java: ClosureCheckModule.checkJSDoc(NodeTraversal, JSDocInfo)
 func (c *ClosureCheckModule) CheckJSDoc(t *NodeTraversal, jsDoc *rhino.JSDocInfo) {
-	for typeNode := range jsDoc.TypeNodes() {
-		c.CheckTypeExpression(t, typeNode)
+	for it := jsDoc.TypeExprIter(); it.Next(); {
+		c.CheckTypeExpression(t, it.Node())
 	}
 }
 

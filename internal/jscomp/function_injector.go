@@ -496,13 +496,9 @@ func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnN
 	// no need to check for conflicts.
 
 	// Create an paramName -> argument value map, checking for side effects.
-	paramToArgMap := f.functionArgumentInjector.GetFunctionCallParameterMap(
-		fnNode, callNode, f.safeNameIdSupplier)
 	paramReplacements := f.paramReplacementsScratch
-	paramReplacements.Clear()
-	for key, value := range paramToArgMap.All() {
-		paramReplacements.Put(key, value.Arg())
-	}
+	f.functionArgumentInjector.FillFunctionCallParameterNodeMap(
+		fnNode, callNode, f.safeNameIdSupplier, paramReplacements)
 
 	var newExpression *rhino.Node
 	if !block.HasChildren() {

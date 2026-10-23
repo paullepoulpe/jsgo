@@ -734,7 +734,9 @@ func (f *FunctionTypeBuilder) InferThisType(info *rhino.JSDocInfo) *FunctionType
 func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *FunctionTypeBuilder {
 	// Create a fake args parent.
 	lp := rhino.IR_ParamList()
-	for name := range info.ParameterNames() {
+	paramCount := info.GetParameterCount()
+	for i := 0; i < paramCount; i++ {
+		name, _ := info.GetParameterNameValueAt(i)
 		lp.AddChildToBack(rhino.IR_Name(name))
 	}
 
@@ -806,8 +808,8 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 			// ordering the JSDoc parameters. So the third formal parameter will correspond to the
 			// third JSDoc parameter.
 			if info != nil {
-				if p := info.GetParameterNameAt(paramIndex); p != nil {
-					paramName = *p
+				if p, ok := info.GetParameterNameValueAt(paramIndex); ok {
+					paramName = p
 					hasParamName = true
 				}
 			}
@@ -870,7 +872,7 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 		paramCount := info.GetParameterCount()
 		nInline := min(seenCount, len(seenBuf))
 		for i := 0; i < paramCount; i++ {
-			jsDocParam := *info.GetParameterNameAt(i)
+			jsDocParam, _ := info.GetParameterNameValueAt(i)
 			found := false
 			for j := 0; j < nInline; j++ {
 				if seenBuf[j] == jsDocParam {

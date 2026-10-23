@@ -686,8 +686,8 @@ func (c *CheckJSDoc) ValidateRestParameter(restParam *rhino.Node) {
 			indexOfRest := paramList.GetIndexOfChild(restParam)
 			if functionInfo.GetParameterCount() >= indexOfRest {
 				// getParameterType(null) (no such parameter) is null.
-				if paramName := functionInfo.GetParameterNameAt(indexOfRest); paramName != nil {
-					paramTypeAnnotation = functionInfo.GetParameterType(*paramName)
+				if paramName, ok := functionInfo.GetParameterNameValueAt(indexOfRest); ok {
+					paramTypeAnnotation = functionInfo.GetParameterType(paramName)
 				}
 			} else {
 				paramTypeAnnotation = nil
@@ -817,8 +817,8 @@ func (c *CheckJSDoc) ValidateJsDocTypeNames(info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
-	for typeNode := range info.TypeNodes() {
-		NodeUtil_VisitPreOrder(typeNode, c.checkJsDocTypesVisitor)
+	for it := info.TypeExprIter(); it.Next(); {
+		NodeUtil_VisitPreOrder(it.Node(), c.checkJsDocTypesVisitor)
 	}
 }
 

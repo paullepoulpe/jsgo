@@ -123,7 +123,7 @@ func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rh
 		builder.RecordReturnType(jsdocUtil_replaceWithUnusableType(jsdoc.GetReturnType()))
 	}
 	for i := 0; i < jsdoc.GetParameterCount(); i++ {
-		name := *jsdoc.GetParameterNameAt(i)
+		name, _ := jsdoc.GetParameterNameValueAt(i)
 		original := jsdoc.GetParameterType(name)
 		if original == nil {
 			continue
