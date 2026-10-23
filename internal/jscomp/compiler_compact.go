@@ -22,8 +22,9 @@ import (
 // Everything else that holds nodes is pass-local and dead between passes.
 //
 // Compaction never runs before typesToColors (the type graph holds hundreds
-// of thousands of nodes) nor when the typed scopes are kept
-// (PreservesDetailedSourceInfo).
+// of thousands of nodes), nor when the typed scopes are kept
+// (PreservesDetailedSourceInfo), nor in a NestedCompilerRunner's shadow
+// compiler (its tree is spliced into, and held by, the outer compilation).
 //
 // JSGO_AST_COMPACT=0|1 overrides the default (fast mode only, for now),
 // JSGO_AST_COMPACT_LOG=1
@@ -32,6 +33,7 @@ import (
 
 type astCompaction struct {
 	enabled      bool
+	nested       bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
 	allowed      bool // inside the optimization stage
 	chunksAtLast int
 	liveAtLast   int
@@ -55,7 +57,10 @@ func (c *Compiler) initASTCompaction() {
 	case "1":
 		on = true
 	}
-	c.astCompact = astCompaction{enabled: on && !c.options.PreservesDetailedSourceInfo()}
+	c.astCompact = astCompaction{
+		enabled: on && !c.astCompact.nested && !c.options.PreservesDetailedSourceInfo(),
+		nested:  c.astCompact.nested,
+	}
 }
 
 // maybeCompactAST compacts the AST after a pass when the policy says so.
@@ -71,7 +76,7 @@ func (c *Compiler) maybeCompactAST(after string, externs, root **rhino.Node, ext
 	}
 	if after != "typesToColors" {
 		allocated := (rhino.NodeChunksAllocated() - a.chunksAtLast) * rhino.NodeChunkCapacity
-		if allocated < max(a.liveAtLast/2, astCompactMinNodes) {
+		if allocated < max(a.liveAtLast/4, astCompactMinNodes) {
 			return
 		}
 	}

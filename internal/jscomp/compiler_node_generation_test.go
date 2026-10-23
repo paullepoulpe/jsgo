@@ -13,6 +13,9 @@ import (
 // package-level cache) would pin the whole AST of that compilation; this
 // checks that finished compilations are released.
 func TestNodeGenerationsAreReleased(t *testing.T) {
+	if rhino.NodePoisonMode {
+		t.Skip("poison mode keeps the old chunks alive on purpose")
+	}
 	externs := []*SourceFile{SourceFile_FromCode("externs.js", "/** @param {*} x */ function alert(x) {}")}
 	src := `
 /** @constructor @param {number} x */
