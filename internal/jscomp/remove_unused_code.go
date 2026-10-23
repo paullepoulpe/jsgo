@@ -32,12 +32,15 @@ type propRemovableList struct {
 	tail *RemoveUnusedCode_RemovableBase
 }
 
-// rucVarKey identifies a variable: RemoveUnusedCode re-creates the scopes of
-// a function, so one variable has several Var objects (Java: Var.equals
-// compares the name and the scope root).
-type rucVarKey struct {
-	scopeRoot *rhino.Node
-	nameID    uint32
+// rucVarHash hashes the identity of a variable: RemoveUnusedCode re-creates
+// the scopes of a function, so one variable has several Var objects (Java:
+// Var.equals compares the name and the scope root).
+func rucVarHash(scopeRoot *rhino.Node, nameID uint32) uint32 {
+	h := uint32(31*int32(31+nameID) + jutil.IdentityHashCodeOfPointer(scopeRoot))
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	h ^= h >> 13
+	return h
 }
 
 // removeUnusedCodeState is the state of one run of the pass; Process drops
@@ -47,8 +50,13 @@ type removeUnusedCodeState struct {
 	worklistHead int
 	worklistSize int
 
-	// Java: varInfoMap; varInfos holds its values in insertion order.
-	varInfoMap map[rucVarKey]*RemoveUnusedCode_RealVarInfo
+	// Java: varInfoMap. varBuckets is a hash table of the VarInfos keyed by
+	// (scope root, name), chained through RealVarInfo.hashNext; varInfos
+	// holds them in insertion order.
+	//
+	// Go-only: performance — a Go map with that key allocated several times
+	// more (up to 60 MB in the bundle benchmark).
+	varBuckets []*RemoveUnusedCode_RealVarInfo
 	varInfos   []*RemoveUnusedCode_RealVarInfo
 
 	pinnedPropertyNames map[string]struct{}
@@ -464,10 +472,8 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root *rhino.Node) {
 	// Create scope from parent of root node, which also has externs as a child, so we'll
 	// have extern definitions in scope.
 	scope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
-	if r.varInfoMap == nil {
-		// Go-only: performance — sized for the global variables, which are
-		// most of the VarInfos of a large program.
-		r.varInfoMap = make(map[rucVarKey]*RemoveUnusedCode_RealVarInfo, scope.GetVarCount())
+	if r.varBuckets == nil {
+		r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 1024)
 	}
 	if !scope.HasSlot(NodeUtil_JSC_PROPERTY_NAME_FN) {
 		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
@@ -2161,11 +2167,15 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
 	}
-	key := rucVarKey{scopeRoot: var_.GetScopeRoot(), nameID: var_.nameID}
-	if varInfo := r.varInfoMap[key]; varInfo != nil {
-		return varInfo
+	scopeRoot := var_.GetScopeRoot()
+	h := rucVarHash(scopeRoot, var_.nameID)
+	for v := r.varBuckets[h&uint32(len(r.varBuckets)-1)]; v != nil; v = v.hashNext {
+		if v.hash == h && v.var_.nameID == var_.nameID && v.var_.GetScopeRoot() == scopeRoot {
+			return v
+		}
 	}
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
+	varInfo.hash = h
 	if var_.GetParentNode().IsParamList() {
 		varInfo.SetHasNonLocalOrNonLiteralValue()
 	}
@@ -2177,9 +2187,25 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	} else if !r.removeLocalVars && !isGlobal {
 		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
 	}
-	r.varInfoMap[key] = varInfo
-	r.varInfos = append(r.varInfos, varInfo)
+	r.putVarInfo(varInfo)
 	return varInfo
+}
+
+func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
+	r.varInfos = appendDoubling(r.varInfos, v)
+	if len(r.varInfos)*4 > len(r.varBuckets)*3 {
+		buckets := make([]*RemoveUnusedCode_RealVarInfo, 2*len(r.varBuckets))
+		mask := uint32(len(buckets) - 1)
+		for _, info := range r.varInfos {
+			info.hashNext = buckets[info.hash&mask]
+			buckets[info.hash&mask] = info
+		}
+		r.varBuckets = buckets
+		return
+	}
+	i := v.hash & uint32(len(r.varBuckets)-1)
+	v.hashNext = r.varBuckets[i]
+	r.varBuckets[i] = v
 }
 
 // RemoveUnreferencedVarsAndPolyfills removes any vars in the scope that were
@@ -3303,11 +3329,13 @@ const (
 // RemoveUnusedCode_RealVarInfo tracks the removable code and other state
 // related to variables we may be able to remove.
 type RemoveUnusedCode_RealVarInfo struct {
-	outer   *RemoveUnusedCode
-	var_    *Var
-	remHead *RemoveUnusedCode_RemovableBase
-	remTail *RemoveUnusedCode_RemovableBase
+	outer    *RemoveUnusedCode
+	var_     *Var
+	remHead  *RemoveUnusedCode_RemovableBase
+	remTail  *RemoveUnusedCode_RemovableBase
+	hashNext *RemoveUnusedCode_RealVarInfo // see removeUnusedCodeState.varBuckets
 
+	hash  uint32
 	flags uint8
 }
 

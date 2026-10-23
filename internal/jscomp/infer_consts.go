@@ -476,10 +476,10 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		}
 		if v.IsLocal() {
 			v.nameHash = int32(len(c.localStates))
-			c.localStates = append(c.localStates, st)
+			c.localStates = appendDoubling(c.localStates, st)
 		} else {
 			v.nameHash = -int32(len(c.globalStates))
-			c.globalStates = append(c.globalStates, st)
+			c.globalStates = appendDoubling(c.globalStates, st)
 		}
 		return
 	}

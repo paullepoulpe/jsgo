@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -234,6 +235,15 @@ func listAddDoubling[T any](l *jutil.ArrayList[T], e T) {
 		l.AddAll(s...)
 	}
 	l.Add(e)
+}
+
+// appendDoubling is append that doubles the capacity of a full slice (see
+// listAddDoubling).
+func appendDoubling[T any](s []T, e T) []T {
+	if len(s) == cap(s) {
+		s = slices.Grow(s, len(s))
+	}
+	return append(s, e)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
