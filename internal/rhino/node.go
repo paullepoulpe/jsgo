@@ -398,9 +398,12 @@ const (
 )
 
 const (
-	kindMask               uint8 = 7
-	kindFlagTypeIsColor    uint8 = 1 << 3
-	kindFlagNoBlockDecl    uint8 = 1 << 4
+	kindMask            uint8 = 7
+	kindFlagTypeIsColor uint8 = 1 << 3
+	kindFlagNoBlockDecl uint8 = 1 << 4
+	// kindFlagHasExtra: the cold property list may hold the value of a
+	// property that is normally stored inline (e.g. an int value other than
+	// 1 for a boolean property, or CHANGE_TIME of a non-Node kind).
 	kindFlagHasExtra       uint8 = 1 << 5
 	kindFlagHasTypeOrColor uint8 = 1 << 6
 	kindFlagHasExtBox      uint8 = 1 << 7
@@ -593,11 +596,14 @@ var nodeBitToProp = [propBitCount]Node_Prop{
 	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 }
 
+// nodeExtBox holds the rarely-set parts of a node (see Node.typeOrColor).
 type nodeExtBox struct {
 	typeOrColor    unsafe.Pointer     // *JSTypeBase or *colors.Color (valid iff kindFlagHasTypeOrColor != 0)
 	jsDocInfo      *JSDocInfo         // canonical *JSDocInfo (valid iff propFlagHasJSDoc != 0 && jsDocInfo != nil)
 	typeBeforeCast *JSTypeBase        // canonical TYPE_BEFORE_CAST (non-nil iff present as JSType)
 	propListHead   *Node_PropListItem // remaining cold properties
+	length         int32              // the length, when Node.length16 is 0xFFFF
+	origNameID     rhinoStringID      // the originalName of a NUMBER or TEMPLATELIT_STRING node
 }
 
 var (
@@ -669,7 +675,7 @@ func (n *Node) ensureExtBox() *nodeExtBox {
 }
 
 func (n *Node) maybeCollapseExtBox(box *nodeExtBox) {
-	if box.typeBeforeCast != nil || box.propListHead != nil {
+	if box.typeBeforeCast != nil || box.propListHead != nil || n.extBoxHoldsNodeFields(box) {
 		return
 	}
 	hasTOC := (n.kindFlags & kindFlagHasTypeOrColor) != 0
@@ -685,6 +691,12 @@ func (n *Node) maybeCollapseExtBox(box *nodeExtBox) {
 	} else {
 		n.typeOrColor = nil
 	}
+}
+
+// extBoxHoldsNodeFields reports whether box holds a length or an original
+// name that does not fit in the Node itself.
+func (n *Node) extBoxHoldsNodeFields(box *nodeExtBox) bool {
+	return n.length16 == 0xFFFF || box.origNameID != 0
 }
 
 func (n *Node) coldPropListHead() *Node_PropListItem {
@@ -3077,7 +3089,7 @@ type Node struct {
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
 	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
 	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
-	length16     uint16 // code length (0..65534 inline; 65535 = overflow)
+	length16     uint16 // code length (0..65534 inline; 65535: in the nodeExtBox)
 	token        Token  // token kind (uint8)
 	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: hasTypeOrColor; bit 7: hasExtBox
 }
@@ -3099,69 +3111,13 @@ func (n *Node) ClearNoBlockScopeDecls() {
 	n.kindFlags &^= kindFlagNoBlockDecl
 }
 
-type nodeExtraEntry struct {
-	length     int32
-	hasLength  bool
-	origNameID rhinoStringID
-}
-
-var nodeExtraShards [64]struct {
-	mu sync.RWMutex
-	m  map[uintptr]nodeExtraEntry
-}
-
-func nodeExtraShardFor(n *Node) (uintptr, *struct {
-	mu sync.RWMutex
-	m  map[uintptr]nodeExtraEntry
-}) {
-	k := uintptr(unsafe.Pointer(n))
-	return k, &nodeExtraShards[(k>>6)&63]
-}
-
-func (n *Node) getExtraEntry() (nodeExtraEntry, bool) {
-	k, s := nodeExtraShardFor(n)
-	s.mu.RLock()
-	e, ok := s.m[k]
-	s.mu.RUnlock()
-	return e, ok
-}
-
-func (n *Node) setExtraLength(length int32) {
-	n.kindFlags |= kindFlagHasExtra
-	k, s := nodeExtraShardFor(n)
-	s.mu.Lock()
-	if s.m == nil {
-		s.m = make(map[uintptr]nodeExtraEntry)
-	}
-	e := s.m[k]
-	e.length = length
-	e.hasLength = true
-	s.m[k] = e
-	s.mu.Unlock()
-}
-
-func (n *Node) setExtraOrigNameID(id rhinoStringID) {
-	n.kindFlags |= kindFlagHasExtra
-	k, s := nodeExtraShardFor(n)
-	s.mu.Lock()
-	if s.m == nil {
-		s.m = make(map[uintptr]nodeExtraEntry)
-	}
-	e := s.m[k]
-	e.origNameID = id
-	s.m[k] = e
-	s.mu.Unlock()
-}
-
 func (n *Node) node_originalNameID() rhinoStringID {
 	k := n.nodeKind()
 	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
 		return rhinoStringID(n.payload >> 32)
 	}
-	if n.kindFlags&kindFlagHasExtra != 0 {
-		if e, ok := n.getExtraEntry(); ok {
-			return e.origNameID
-		}
+	if n.kindFlags&kindFlagHasExtBox != 0 {
+		return (*nodeExtBox)(n.typeOrColor).origNameID
 	}
 	return 0
 }
@@ -3172,10 +3128,13 @@ func (n *Node) node_setOriginalNameID(id rhinoStringID) {
 		n.payload = (n.payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
 		return
 	}
-	if id == 0 && (n.kindFlags&kindFlagHasExtra) == 0 {
-		return
+	if id != 0 {
+		n.ensureExtBox().origNameID = id
+	} else if n.kindFlags&kindFlagHasExtBox != 0 {
+		box := (*nodeExtBox)(n.typeOrColor)
+		box.origNameID = 0
+		n.maybeCollapseExtBox(box)
 	}
-	n.setExtraOrigNameID(id)
 }
 
 // node_number is the NumberNode.number field.
@@ -3389,29 +3348,29 @@ func (n *Node) GetLength() int {
 	if n.length16 != 0xFFFF {
 		return int(n.length16)
 	}
-	if n.kindFlags&kindFlagHasExtra != 0 {
-		if e, ok := n.getExtraEntry(); ok && e.hasLength {
-			return int(e.length)
-		}
-	}
-	return int(n.length16)
+	return int((*nodeExtBox)(n.typeOrColor).length)
 }
 
 // Java: Node.setLength(int)
 func (n *Node) SetLength(length int) {
 	if length >= 0 && length < 0xFFFF {
+		wasInBox := n.length16 == 0xFFFF
 		n.length16 = uint16(length)
+		if wasInBox {
+			n.maybeCollapseExtBox((*nodeExtBox)(n.typeOrColor))
+		}
 		return
 	}
+	n.ensureExtBox().length = int32(length)
 	n.length16 = 0xFFFF
-	n.setExtraLength(int32(length))
 }
 
 func (n *Node) copyLengthFrom(other *Node) {
-	n.length16 = other.length16
-	if other.length16 == 0xFFFF {
-		n.SetLength(other.GetLength())
+	if other.length16 != 0xFFFF && n.length16 != 0xFFFF {
+		n.length16 = other.length16
+		return
 	}
+	n.SetLength(other.GetLength())
 }
 
 // Java: Node.getLineno()
@@ -4983,7 +4942,7 @@ func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBe
 			box.propListHead = node_rebuildListWithoutColorConversionProps(head)
 		}
 	}
-	if box.jsDocInfo == nil && box.propListHead == nil {
+	if box.jsDocInfo == nil && box.propListHead == nil && !n.extBoxHoldsNodeFields(box) {
 		n.kindFlags &^= kindFlagHasExtBox
 		n.typeOrColor = nil
 	}
