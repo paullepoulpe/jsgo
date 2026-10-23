@@ -18,55 +18,38 @@
 
 package parser
 
-import (
-	"strings"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // SourcePosition is a position in a source string - includes offset, line
 // and column.
+//
+// Go-only: performance — a small pointer-free value (int32 fields, no
+// SourceFile): a parse creates one or two per token, and the file is always
+// known from context (the scanner, the parser, the error reporter).
 type SourcePosition struct {
-	Source *SourceFile
-	Offset int
-	Line   int
-	Column int
+	Offset int32
+	Line   int32
+	Column int32
 }
 
 // GetOffset returns the offset.
 //
 // Java: SourcePosition.getOffset()
-func (s *SourcePosition) GetOffset() int {
-	return s.Offset
+func (s SourcePosition) GetOffset() int {
+	return int(s.Offset)
 }
 
 // NewSourcePosition constructs a SourcePosition.
 //
 // Java: SourcePosition(SourceFile, int, int, int)
-func NewSourcePosition(source *SourceFile, offset, line, column int) *SourcePosition {
-	s := &SourcePosition{}
-	s.Source = source
-	s.Offset = offset
-	s.Line = line
-	s.Column = column
-	return s
+func NewSourcePosition(offset, line, column int) SourcePosition {
+	return SourcePosition{Offset: int32(offset), Line: int32(line), Column: int32(column)}
 }
 
-// String renders the position as "<file>(<line>, <column>)", 1-based.
+// String renders the position as "(<line>, <column>)", 1-based.
 //
-// Java: SourcePosition.toString()
-func (s *SourcePosition) String() string {
-	return jutil.StringFormat("%s(%d, %d)", s.ShortSourceName(), s.Line+1, s.Column+1)
-}
-
-// ShortSourceName returns the last '/'-separated segment of the source name.
-//
-// Java: SourcePosition.shortSourceName()
-func (s *SourcePosition) ShortSourceName() string {
-	if s.Source == nil {
-		return ""
-	}
-
-	// Java: Iterables.getLast(Splitter.on('/').split(source.name))
-	return s.Source.Name[strings.LastIndexByte(s.Source.Name, '/')+1:]
+// Java: SourcePosition.toString() — Go-only: language-adapter — without the
+// short source name (see SourcePosition).
+func (s SourcePosition) String() string {
+	return jutil.StringFormat("(%d, %d)", int(s.Line)+1, int(s.Column)+1)
 }

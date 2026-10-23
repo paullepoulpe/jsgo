@@ -28,9 +28,9 @@ type FinallyTree struct {
 // NewFinallyTree constructs a FinallyTree.
 //
 // Java: FinallyTree(SourceRange, ParseTree)
-func NewFinallyTree(location *SourceRange, block ParseTree) *FinallyTree {
+func NewFinallyTree(location SourceRange, block ParseTree) *FinallyTree {
 	t := &FinallyTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FINALLY, location)
+	t.InitParseTreeBase(ParseTreeType_FINALLY, location)
 	t.Block = block
 	return t
 }

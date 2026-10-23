@@ -30,9 +30,9 @@ type ForInStatementTree struct {
 // NewForInStatementTree constructs a ForInStatementTree.
 //
 // Java: ForInStatementTree(SourceRange, ParseTree, ParseTree, ParseTree)
-func NewForInStatementTree(location *SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForInStatementTree {
+func NewForInStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForInStatementTree {
 	t := &ForInStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FOR_IN_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_FOR_IN_STATEMENT, location)
 	t.Initializer = initializer
 	t.Collection = collection
 	t.Body = body

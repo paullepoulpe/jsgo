@@ -29,9 +29,9 @@ type ObjectLiteralExpressionTree struct {
 // NewObjectLiteralExpressionTree constructs a ObjectLiteralExpressionTree.
 //
 // Java: ObjectLiteralExpressionTree(SourceRange, ImmutableList, boolean)
-func NewObjectLiteralExpressionTree(location *SourceRange, propertyNameAndValues []ParseTree, hasTrailingComma bool) *ObjectLiteralExpressionTree {
+func NewObjectLiteralExpressionTree(location SourceRange, propertyNameAndValues []ParseTree, hasTrailingComma bool) *ObjectLiteralExpressionTree {
 	t := &ObjectLiteralExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_OBJECT_LITERAL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_OBJECT_LITERAL_EXPRESSION, location)
 	t.PropertyNameAndValues = propertyNameAndValues
 	t.HasTrailingComma = hasTrailingComma
 	return t

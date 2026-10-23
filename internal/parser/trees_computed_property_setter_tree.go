@@ -21,19 +21,20 @@ package parser
 // ComputedPropertySetterTree is the parse tree for ParseTreeType COMPUTED_PROPERTY_SETTER.
 type ComputedPropertySetterTree struct {
 	ParseTreeBase
+	// Go-only: performance — before the other fields, in the base's padding.
+	IsStatic bool
 
 	Property  ParseTree
 	Parameter *FormalParameterListTree
-	IsStatic  bool
 	Body      *BlockTree
 }
 
 // NewComputedPropertySetterTree constructs a ComputedPropertySetterTree.
 //
 // Java: ComputedPropertySetterTree(SourceRange, ParseTree, boolean, FormalParameterListTree, BlockTree)
-func NewComputedPropertySetterTree(location *SourceRange, property ParseTree, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *ComputedPropertySetterTree {
+func NewComputedPropertySetterTree(location SourceRange, property ParseTree, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *ComputedPropertySetterTree {
 	t := &ComputedPropertySetterTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_SETTER, location)
+	t.InitParseTreeBase(ParseTreeType_COMPUTED_PROPERTY_SETTER, location)
 	t.Property = property
 	t.IsStatic = isStatic
 	t.Parameter = parameter

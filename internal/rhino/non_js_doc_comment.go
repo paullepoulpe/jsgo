@@ -40,15 +40,15 @@ import "github.com/paullepoulpe/jsgo/internal/parser"
 // NonJSDocComment is a minimal class holding information about a nonJSDoc
 // comment's source location and contents.
 type NonJSDocComment struct {
-	startPosition     *parser.SourcePosition
-	endPosition       *parser.SourcePosition
+	startPosition     parser.SourcePosition
+	endPosition       parser.SourcePosition
 	contents          *string
 	endsAsLineComment bool
 	isInline          bool
 }
 
 // Java: NonJSDocComment(SourcePosition, SourcePosition, String)
-func NewNonJSDocComment(start *parser.SourcePosition, end *parser.SourcePosition, s *string) *NonJSDocComment {
+func NewNonJSDocComment(start parser.SourcePosition, end parser.SourcePosition, s *string) *NonJSDocComment {
 	c := &NonJSDocComment{}
 	c.startPosition = start
 	c.endPosition = end
@@ -67,12 +67,12 @@ func (c *NonJSDocComment) GetCommentString() string {
 }
 
 // Java: NonJSDocComment.getStartPosition()
-func (c *NonJSDocComment) GetStartPosition() *parser.SourcePosition {
+func (c *NonJSDocComment) GetStartPosition() parser.SourcePosition {
 	return c.startPosition
 }
 
 // Java: NonJSDocComment.getEndPosition()
-func (c *NonJSDocComment) GetEndPosition() *parser.SourcePosition {
+func (c *NonJSDocComment) GetEndPosition() parser.SourcePosition {
 	return c.endPosition
 }
 

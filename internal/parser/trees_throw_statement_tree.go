@@ -28,9 +28,9 @@ type ThrowStatementTree struct {
 // NewThrowStatementTree constructs a ThrowStatementTree.
 //
 // Java: ThrowStatementTree(SourceRange, ParseTree)
-func NewThrowStatementTree(location *SourceRange, value ParseTree) *ThrowStatementTree {
+func NewThrowStatementTree(location SourceRange, value ParseTree) *ThrowStatementTree {
 	t := &ThrowStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_THROW_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_THROW_STATEMENT, location)
 	t.Value = value
 	return t
 }

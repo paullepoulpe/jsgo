@@ -64,8 +64,8 @@ func newSilentParserReporter() *silentParserReporter {
 	return r
 }
 
-func (r *silentParserReporter) ReportError(location *parser.SourcePosition, message string)   {}
-func (r *silentParserReporter) ReportWarning(location *parser.SourcePosition, message string) {}
+func (r *silentParserReporter) ReportError(location parser.SourcePosition, message string)   {}
+func (r *silentParserReporter) ReportWarning(location parser.SourcePosition, message string) {}
 
 // jsdocRecordingReporter is JsDocDump.RecordingReporter.
 type jsdocRecordingReporter struct {
@@ -294,9 +294,9 @@ func testCreateJsDocInfoParser(
 	state *jsdocFileState,
 ) *JsDocInfoParser {
 	comment := node.Value
-	lineno := node.Location.Start.Line + 1
-	charno := node.Location.Start.Column
-	position := node.Location.Start.Offset
+	lineno := int(node.Location.Start.Line) + 1
+	charno := int(node.Location.Start.Column)
+	position := int(node.Location.Start.Offset)
 
 	// The JsDocInfoParser expects the comment without the initial '/**'.
 	numOpeningChars := 3
@@ -355,8 +355,8 @@ func testParseInlineTypeDoc(
 	node *parser.Comment, templateNode *rhino.Node, config *Config, errorReporter rhino.ErrorReporter,
 ) *rhino.JSDocInfo {
 	comment := node.Value
-	lineno := node.Location.Start.Line + 1
-	charno := node.Location.Start.Column
+	lineno := int(node.Location.Start.Line) + 1
+	charno := int(node.Location.Start.Column)
 
 	// The JsDocInfoParser expects the comment without the initial '/**'.
 	numOpeningChars := 3
@@ -364,7 +364,7 @@ func testParseInlineTypeDoc(
 		NewJsDocTokenStreamWithLinenoCharno(
 			jutil.StringSubstringFrom(comment, numOpeningChars), lineno, charno+numOpeningChars),
 		comment,
-		node.Location.Start.Offset,
+		int(node.Location.Start.Offset),
 		templateNode,
 		config,
 		JsDocInfoParser_JsDocSourceKind_NORMAL,
@@ -420,11 +420,11 @@ func jsdocPos(p jsdocSourcePosition, item string) string {
 	return fmt.Sprintf("%s@%d:%d-%d:%d", item, p.GetStartLine(), p.GetPositionOnStartLine(), p.GetEndLine(), p.GetPositionOnEndLine())
 }
 
-func jsdocRange(r *parser.SourceRange) string {
+func jsdocRange(r parser.SourceRange) string {
 	return jsdocPosition(r.Start) + "-" + jsdocPosition(r.End)
 }
 
-func jsdocPosition(p *parser.SourcePosition) string {
+func jsdocPosition(p parser.SourcePosition) string {
 	return fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
 }
 

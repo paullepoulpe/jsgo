@@ -28,9 +28,9 @@ type LiteralExpressionTree struct {
 // NewLiteralExpressionTree constructs a LiteralExpressionTree.
 //
 // Java: LiteralExpressionTree(SourceRange, Token)
-func NewLiteralExpressionTree(location *SourceRange, literalToken Token) *LiteralExpressionTree {
+func NewLiteralExpressionTree(location SourceRange, literalToken Token) *LiteralExpressionTree {
 	t := &LiteralExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_LITERAL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_LITERAL_EXPRESSION, location)
 	t.LiteralToken = literalToken
 	return t
 }

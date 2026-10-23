@@ -30,9 +30,9 @@ type DynamicImportTree struct {
 // NewDynamicImportTree constructs a DynamicImportTree.
 //
 // Java: DynamicImportTree(SourceRange, ParseTree)
-func NewDynamicImportTree(location *SourceRange, argument ParseTree) *DynamicImportTree {
+func NewDynamicImportTree(location SourceRange, argument ParseTree) *DynamicImportTree {
 	t := &DynamicImportTree{}
-	t.InitParseTreeBase(t, ParseTreeType_DYNAMIC_IMPORT_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_DYNAMIC_IMPORT_EXPRESSION, location)
 	t.Argument = argument
 	return t
 }

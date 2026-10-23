@@ -29,9 +29,9 @@ type ProgramTree struct {
 // NewProgramTree constructs a ProgramTree.
 //
 // Java: ProgramTree(SourceRange, ImmutableList, ImmutableList)
-func NewProgramTree(location *SourceRange, sourceElements []ParseTree, sourceComments []*Comment) *ProgramTree {
+func NewProgramTree(location SourceRange, sourceElements []ParseTree, sourceComments []*Comment) *ProgramTree {
 	t := &ProgramTree{}
-	t.InitParseTreeBase(t, ParseTreeType_PROGRAM, location)
+	t.InitParseTreeBase(ParseTreeType_PROGRAM, location)
 	t.SourceElements = sourceElements
 	t.SourceComments = sourceComments
 	return t

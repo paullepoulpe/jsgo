@@ -29,9 +29,9 @@ type DoWhileStatementTree struct {
 // NewDoWhileStatementTree constructs a DoWhileStatementTree.
 //
 // Java: DoWhileStatementTree(SourceRange, ParseTree, ParseTree)
-func NewDoWhileStatementTree(location *SourceRange, body ParseTree, condition ParseTree) *DoWhileStatementTree {
+func NewDoWhileStatementTree(location SourceRange, body ParseTree, condition ParseTree) *DoWhileStatementTree {
 	t := &DoWhileStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_DO_WHILE_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_DO_WHILE_STATEMENT, location)
 	t.Body = body
 	t.Condition = condition
 	return t

@@ -30,9 +30,9 @@ type ConditionalExpressionTree struct {
 // NewConditionalExpressionTree constructs a ConditionalExpressionTree.
 //
 // Java: ConditionalExpressionTree(SourceRange, ParseTree, ParseTree, ParseTree)
-func NewConditionalExpressionTree(location *SourceRange, condition ParseTree, left ParseTree, right ParseTree) *ConditionalExpressionTree {
+func NewConditionalExpressionTree(location SourceRange, condition ParseTree, left ParseTree, right ParseTree) *ConditionalExpressionTree {
 	t := &ConditionalExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_CONDITIONAL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_CONDITIONAL_EXPRESSION, location)
 	t.Condition = condition
 	t.Left = left
 	t.Right = right

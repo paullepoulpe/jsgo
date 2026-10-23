@@ -87,7 +87,7 @@ func FunctionDeclarationTree_NewBuilder(kind FunctionDeclarationTree_Kind) *Func
 // Java: FunctionDeclarationTree(Builder)
 func NewFunctionDeclarationTree(builder *FunctionDeclarationTree_Builder) *FunctionDeclarationTree {
 	t := &FunctionDeclarationTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FUNCTION_DECLARATION, builder.location)
+	t.InitParseTreeBase(ParseTreeType_FUNCTION_DECLARATION, builder.location)
 
 	t.Name = builder.name
 	t.IsClassMember = builder.isClassMember
@@ -113,8 +113,7 @@ type FunctionDeclarationTree_Builder struct {
 	isGenerator         bool
 	isOptional          bool
 	isAsync             bool
-	location            *SourceRange
-	arena               *ParseArena
+	location            SourceRange
 }
 
 // NewFunctionDeclarationTree_Builder constructs a Builder.
@@ -210,25 +209,7 @@ func (b *FunctionDeclarationTree_Builder) SetAsync(isAsync bool) *FunctionDeclar
 // calculated until the whole function has been parsed.
 //
 // Java: FunctionDeclarationTree.Builder.build(SourceRange)
-func (b *FunctionDeclarationTree_Builder) Build(location *SourceRange) *FunctionDeclarationTree {
+func (b *FunctionDeclarationTree_Builder) Build(location SourceRange) *FunctionDeclarationTree {
 	b.location = location
-	if b.arena != nil {
-		t := b.arena.functionDeclarations.New()
-		t.InitParseTreeBase(t, ParseTreeType_FUNCTION_DECLARATION, b.location)
-		t.Name = b.name
-		t.IsClassMember = b.isClassMember
-		t.IsStatic = b.isStatic
-		t.IsGenerator = b.isGenerator
-		t.IsOptional = b.isOptional
-		t.Kind = b.kind
-		t.FormalParameterList = jutil.CheckNotNull(b.formalParameterList)
-		t.FunctionBody = jutil.CheckNotNull(builderFunctionBody(b))
-		t.IsAsync = b.isAsync
-		return t
-	}
 	return NewFunctionDeclarationTree(b)
-}
-
-func builderFunctionBody(b *FunctionDeclarationTree_Builder) ParseTree {
-	return b.functionBody
 }

@@ -27,10 +27,10 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // ReportWarning (the abstract two-argument overloads).
 type ErrorReporter interface {
 	GetErrorReporterBase() *ErrorReporterBase
-	ReportErrorFormat(location *SourcePosition, format string, arguments ...any)
-	ReportError(location *SourcePosition, message string)
-	ReportWarningFormat(location *SourcePosition, format string, arguments ...any)
-	ReportWarning(location *SourcePosition, message string)
+	ReportErrorFormat(location SourcePosition, format string, arguments ...any)
+	ReportError(location SourcePosition, message string)
+	ReportWarningFormat(location SourcePosition, format string, arguments ...any)
+	ReportWarning(location SourcePosition, message string)
 	HadError() bool
 }
 
@@ -60,7 +60,7 @@ func (e *ErrorReporterBase) GetErrorReporterBase() *ErrorReporterBase {
 // reports it as an error.
 //
 // Java: ErrorReporter.reportError(SourcePosition, String, Object...)
-func (e *ErrorReporterBase) ReportErrorFormat(location *SourcePosition, format string, arguments ...any) {
+func (e *ErrorReporterBase) ReportErrorFormat(location SourcePosition, format string, arguments ...any) {
 	e.hadError = true
 	message := jutil.StringFormat(format, arguments...)
 	e.self.ReportError(location, message)
@@ -70,7 +70,7 @@ func (e *ErrorReporterBase) ReportErrorFormat(location *SourcePosition, format s
 // reports it as a warning.
 //
 // Java: ErrorReporter.reportWarning(SourcePosition, String, Object...)
-func (e *ErrorReporterBase) ReportWarningFormat(location *SourcePosition, format string, arguments ...any) {
+func (e *ErrorReporterBase) ReportWarningFormat(location SourcePosition, format string, arguments ...any) {
 	message := jutil.StringFormat(format, arguments...)
 	e.self.ReportWarning(location, message)
 }

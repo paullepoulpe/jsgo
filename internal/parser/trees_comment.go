@@ -21,7 +21,7 @@ package parser
 // Comment is a placeholder class.
 type Comment struct {
 	Value    string
-	Location *SourceRange
+	Location SourceRange
 	Type     Comment_Type
 }
 
@@ -68,7 +68,7 @@ func (t Comment_Type) String() string { return t.Name() }
 // NewComment constructs a Comment.
 //
 // Java: Comment(String, SourceRange, Type)
-func NewComment(value string, location *SourceRange, type_ Comment_Type) *Comment {
+func NewComment(value string, location SourceRange, type_ Comment_Type) *Comment {
 	c := &Comment{}
 	c.Value = value
 	c.Location = location
@@ -87,12 +87,12 @@ func (c *Comment) IsJsDoc() bool {
 //
 // Java: Comment.getAbsolutePosition()
 func (c *Comment) GetAbsolutePosition() int {
-	return c.Location.Start.Offset
+	return int(c.Location.Start.Offset)
 }
 
 // GetLength returns the length in UTF-16 code units.
 //
 // Java: Comment.getLength()
 func (c *Comment) GetLength() int {
-	return c.Location.End.Offset - c.Location.Start.Offset
+	return int(c.Location.End.Offset - c.Location.Start.Offset)
 }

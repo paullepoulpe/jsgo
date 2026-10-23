@@ -28,9 +28,9 @@ type ReturnStatementTree struct {
 // NewReturnStatementTree constructs a ReturnStatementTree.
 //
 // Java: ReturnStatementTree(SourceRange, ParseTree)
-func NewReturnStatementTree(location *SourceRange, expression ParseTree) *ReturnStatementTree {
+func NewReturnStatementTree(location SourceRange, expression ParseTree) *ReturnStatementTree {
 	t := &ReturnStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_RETURN_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_RETURN_STATEMENT, location)
 	t.Expression = expression
 	return t
 }

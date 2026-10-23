@@ -28,9 +28,9 @@ type ObjectRestTree struct {
 // NewObjectRestTree constructs a ObjectRestTree.
 //
 // Java: ObjectRestTree(SourceRange, ParseTree)
-func NewObjectRestTree(location *SourceRange, assignmentTarget ParseTree) *ObjectRestTree {
+func NewObjectRestTree(location SourceRange, assignmentTarget ParseTree) *ObjectRestTree {
 	t := &ObjectRestTree{}
-	t.InitParseTreeBase(t, ParseTreeType_OBJECT_REST, location)
+	t.InitParseTreeBase(ParseTreeType_OBJECT_REST, location)
 	t.AssignmentTarget = assignmentTarget
 	return t
 }

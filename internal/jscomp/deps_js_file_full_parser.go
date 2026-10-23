@@ -339,7 +339,7 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 //
 // Java: JsFileFullParser.parseTopLevelJsDocComments(List<SourceRange>, List<Comment>, FileInfo)
 func jsFileFullParser_parseTopLevelJsDocComments(
-	statementRanges []*parser.SourceRange, comments []*parser.Comment, info *JsFileFullParser_FileInfo) {
+	statementRanges []parser.SourceRange, comments []*parser.Comment, info *JsFileFullParser_FileInfo) {
 	i := 0
 	for _, comment := range comments {
 		if comment.Type != parser.Comment_Type_JSDOC {
