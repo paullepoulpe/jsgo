@@ -1202,7 +1202,22 @@ func (c *Compiler) Compile(externs []*SourceFile, inputs []*SourceFile, options 
 func (c *Compiler) GenerateReport() {
 	t := c.NewTracer("generateReport")
 	c.errorManager.GenerateReport()
+	c.clearSourcesCachedForReport()
 	c.StopTracer(t, "generateReport")
+}
+
+// clearSourcesCachedForReport drops the code that the report read into the
+// SourceFiles to quote the lines of its warnings, so that it is not kept
+// through the output. A later reader loads it again.
+//
+// Go-only: performance — Java keeps it cached until the Compiler is gone.
+func (c *Compiler) clearSourcesCachedForReport() {
+	for input := range c.inputsById.Values() {
+		input.GetSourceFile().ClearCachedSource()
+	}
+	for f := range c.sourceMapOriginalSources.Values() {
+		f.ClearCachedSource()
+	}
 }
 
 // CompileChunks compiles a list of chunks.
