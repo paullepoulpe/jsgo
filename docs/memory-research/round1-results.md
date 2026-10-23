@@ -53,6 +53,24 @@ Mean of 2 interleaved runs on an otherwise idle machine; all outputs MATCH.
 The Go 1.27.3 toolchain alone (same code) gives −3 to −9 % RSS and −2 to −6 %
 wall.
 
+### googleapis: 44,240 files, 7,483 chunks, ~35 M AST nodes (staged, 1 thread)
+
+macOS arm64, 8 cores, 24 GB, Go 1.27.1, single runs. The final build's
+7,483 chunk outputs, both state files and the diagnostics are byte-identical
+with the base build's.
+
+| Stage | Peak RSS base → final | Wall base → final | CPU base → final |
+|---|---|---|---|
+| CHECKS | 8,468 → 5,935 MB (**−30 %**) | 262 → 138 s (**−47 %**) | 150 → 135 s |
+| OPTIMIZATIONS | 5,808 → 5,110 MB (−12 %) | 48 → 71 s (+48 %) | 51 → 78 s |
+| FINALIZATIONS | 1,778 → 1,367 MB (−23 %) | 10 → 11 s | 11 → 12.5 s |
+
+Peak live heap during FINALIZATIONS: 1,125 → 697 MB (−38 %). This is the
+"larger than the benchmarks" regime: base's CHECKS stage used only 150 s of
+CPU in 262 s of wall, i.e. it stalled on memory at 8.5 GB RSS, and the
+smaller final heap removes that. OPTIMIZATIONS pays for the extra allocation
+(+27 s CPU), the round-2 target.
+
 ### Cost
 
 - Allocation volume rose (typed-full 1.38 → 2.33 GB, objects 4.7 M → 32 M):
@@ -165,8 +183,8 @@ wall.
 7. **Input source-map parsers** keep ~45 MB through output on bundle-mega.
 8. **Pointer-free AST with compaction** (see [round2-design.md](round2-design.md)):
    only together with a complete census of cross-pass `*Node` holders.
-9. **googleapis (35 M nodes)**: measure base vs final on a machine with
-   ≥ 20 GB (needs protoc; setup notes in the session log).
+9. **googleapis with Java and `--num_parallel_threads=4`**, and repeated runs
+   (the numbers above are single runs).
 
 Fast-mode candidates (need relaxed semantics): hash-consing nullable/optional
 unions and templatized types (70 % of live unions are duplicates); dropping
