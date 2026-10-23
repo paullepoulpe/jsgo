@@ -34,41 +34,26 @@ type SyntacticScopeCreator struct {
 	treatProvidesAsRedeclarations bool
 	lastInputId                   *rhino.InputId
 	lastInput                     *CompilerInput
-	arena                         *scopeArena
-	poolable                      bool
-	reclaimLocalScopes            bool
+
+	// Go-only: performance — the vars this creator declares, which become
+	// garbage with its scopes at the end of a pass, are allocated in chunks;
+	// varScratch collects a scope's vars while it is scanned, so that its
+	// varList is allocated once, at its final size.
+	vars       jutil.Slab[Var]
+	varScratch []*Var
+	scanning   bool
 }
 
-func (c *SyntacticScopeCreator) EnableArenaPool() {
-	if c != nil {
-		c.poolable = true
-	}
-}
-
-func (c *SyntacticScopeCreator) EnableLocalScopeReclamation() {
-	if c != nil {
-		c.poolable = true
-		c.reclaimLocalScopes = true
-	}
-}
-
-func (c *SyntacticScopeCreator) ResetLocalArena() {
-	if c != nil && c.arena != nil {
-		c.arena.resetToBase()
-	}
-}
-
+// TODO(scope-arena-removal): the four methods below are no-ops left for the
+// passes that still call them; delete them with their call sites.
+func (c *SyntacticScopeCreator) EnableArenaPool()             {}
+func (c *SyntacticScopeCreator) EnableLocalScopeReclamation() {}
+func (c *SyntacticScopeCreator) ResetLocalArena()             {}
 func (c *SyntacticScopeCreator) ReleaseArena() {
-	if c == nil {
-		return
+	if c != nil {
+		c.lastInputId = nil
+		c.lastInput = nil
 	}
-	if c.arena != nil {
-		c.arena.pooled = true
-		c.arena.release()
-		c.arena = nil
-	}
-	c.lastInputId = nil
-	c.lastInput = nil
 }
 
 // The arguments variable is special, in that it's declared for every function,
@@ -123,29 +108,34 @@ func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope)
 
 // Java: SyntacticScopeCreator.createScope(Node, Scope)
 func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope) *Scope {
-	if c.arena == nil {
-		if c.poolable {
-			c.arena = acquireScopeArena()
-		} else {
-			c.arena = &scopeArena{}
-		}
-	}
 	var scope *Scope
 	if parent == nil {
-		scope = newScopeInArena(n, c.arena)
+		scope = newScope(n)
 	} else {
-		scope = newScopeWithParentInArena(parent, n, c.arena)
+		scope = newScopeWithParent(parent, n)
 	}
 	// Go-only: performance — the scanner, which nothing keeps, is a local
 	// variable rather than a heap object (one per scope created).
 	var scanner SyntacticScopeCreator_ScopeScanner
 	initSyntacticScopeCreator_ScopeScanner(&scanner, c.compiler, c.redeclarationHandler, scope, nil, c.treatProvidesAsRedeclarations)
 	scanner.creator = c
-	scanner.Populate()
-	scope.scanDone = true
-	if parent == nil {
-		c.arena.markGlobalBase()
+	if c.scanning {
+		scanner.Populate()
+	} else {
+		c.scanning = true
+		scope.varList = c.varScratch[:0]
+		scanner.Populate()
+		vs := scope.varList
+		scope.varList = nil
+		if len(vs) > 0 {
+			scope.varList = make([]*Var, len(vs))
+			copy(scope.varList, vs)
+			clear(vs)
+		}
+		c.varScratch = vs[:0]
+		c.scanning = false
 	}
+	scope.scanDone = true
 	return scope
 }
 
@@ -228,7 +218,6 @@ type SyntacticScopeCreator_ScopeScanner struct {
 	redeclarationHandler          SyntacticScopeCreator_RedeclarationHandler
 	treatProvidesAsRedeclarations bool
 	isFnBlock                     bool
-	parentBloom                   uint64
 
 	// Will be null, when a detached node is traversed.
 	inputId         *rhino.InputId
@@ -236,25 +225,12 @@ type SyntacticScopeCreator_ScopeScanner struct {
 	inputIdResolved bool
 	inputResolved   bool
 	changeRootSet   *jutil.LinkedHashSet[*rhino.Node]
-
-	smallVars [8]*Var
-	smallLen  int
-}
-
-// Java: SyntacticScopeCreator.ScopeScanner(AbstractCompiler, RedeclarationHandler, Scope, Set<Node>, boolean)
-func newSyntacticScopeCreator_ScopeScanner(
-	compiler AbstractCompiler,
-	redeclarationHandler SyntacticScopeCreator_RedeclarationHandler,
-	scope *Scope,
-	changeRootSet *jutil.LinkedHashSet[*rhino.Node],
-	treatProvidesAsRedeclarations bool) *SyntacticScopeCreator_ScopeScanner {
-	s := &SyntacticScopeCreator_ScopeScanner{}
-	initSyntacticScopeCreator_ScopeScanner(s, compiler, redeclarationHandler, scope, changeRootSet, treatProvidesAsRedeclarations)
-	return s
 }
 
 // initSyntacticScopeCreator_ScopeScanner is the body of the ScopeScanner
 // constructor.
+//
+// Java: SyntacticScopeCreator.ScopeScanner(AbstractCompiler, RedeclarationHandler, Scope, Set<Node>, boolean)
 func initSyntacticScopeCreator_ScopeScanner(
 	s *SyntacticScopeCreator_ScopeScanner,
 	compiler AbstractCompiler,
@@ -269,11 +245,6 @@ func initSyntacticScopeCreator_ScopeScanner(
 	jutil.CheckState(changeRootSet == nil || scope.IsGlobal())
 	s.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations
 	s.isFnBlock = scope.parent != nil && scope.parent.rootNode.IsFunction() && scope.rootNode.IsBlock()
-	if s.isFnBlock {
-		s.parentBloom = scope.parent.varBloom
-	} else {
-		s.parentBloom = 0
-	}
 }
 
 func (s *SyntacticScopeCreator_ScopeScanner) setInputId(id *rhino.InputId) {
@@ -315,53 +286,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) resolveInputSlow() *CompilerInput {
 	return s.input
 }
 
-func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsExact() {
-	sc := s.scope
-	k := s.smallLen
-	s.smallLen = 0
-	if sc.arena != nil && sc.parent != nil {
-		sc.varList = sc.arena.allocVarList(k, k)
-	} else {
-		sc.varList = make([]*Var, k)
-	}
-	copy(sc.varList, s.smallVars[:k])
-	sc.varCount = int32(k)
-	sc.varsInitialized = true
-}
-
-func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsForMore() {
-	sc := s.scope
-	k := s.smallLen
-	s.smallLen = 0
-	n := largeScopeVarSlotCount(sc)
-	if n <= k {
-		n = k + 4
-	}
-	sc.initLargeVars(n)
-	sc.varsInitialized = true
-	mask := uint32(len(sc.varHash) - 1)
-	for i := 0; i < k; i++ {
-		v := s.smallVars[i]
-		sc.varList = append(sc.varList, v)
-		vh := scopeIDHash(v.nameID)
-		slot := vh & mask
-		for sc.varHash[slot] != 0 {
-			slot = (slot + 1) & mask
-		}
-		sc.varHash[slot] = (vh & varHashTagMask) | uint32(i+1)
-	}
-	sc.varCount = int32(k)
-}
-
 // Java: SyntacticScopeCreator.ScopeScanner.populate()
 func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
-	s.populate()
-	if s.smallLen > 0 {
-		s.flushSmallVarsExact()
-	}
-}
-
-func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 	n := s.scope.GetRootNode()
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
@@ -416,7 +342,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 		if last != nil && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
 			s.ScanVars(last, nil, s.scope)
 		}
-		if s.smallLen == 0 && s.scope.varCount == 0 && (last == nil || last.IsBlock()) {
+		if len(s.scope.varList) == 0 && (last == nil || last.IsBlock()) {
 			n.SetNoBlockScopeDecls()
 		}
 		return
@@ -441,7 +367,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 				}
 				c = next
 			}
-			if canCacheNoDecls && s.smallLen == 0 && s.scope.varCount == 0 {
+			if canCacheNoDecls && len(s.scope.varList) == 0 {
 				n.SetNoBlockScopeDecls()
 			}
 		}
@@ -793,54 +719,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	// the same var declared name node twice. Bail out in this case.
 	// TODO(johnlenz): Hash lookups are not free and building scopes are already expensive.
 	// Restructure the scope building to avoid this check.
-	h := scopeIDHash(id)
-	tag := h & varHashTagMask
-	bloom := scopeBloomFromHash(h)
-	alreadyMaybePresent := (sc.varBloom & bloom) == bloom
-	var v *Var
-	var probeSlot uint32
-	if sc.varHash != nil {
-		mask := uint32(len(sc.varHash) - 1)
-		probeSlot = h & mask
-		if alreadyMaybePresent {
-			for {
-				entry := sc.varHash[probeSlot]
-				if entry == 0 {
-					break
-				}
-				if (entry & varHashTagMask) == tag {
-					if cand := sc.varList[(entry&varHashIdxMask)-1]; cand.nameID == id {
-						v = cand
-						break
-					}
-				}
-				probeSlot = (probeSlot + 1) & mask
-			}
-		} else {
-			for sc.varHash[probeSlot] != 0 {
-				probeSlot = (probeSlot + 1) & mask
-			}
-		}
-		if v == nil && sc.hasImplicitVars {
-			if imp := AbstractScope_ImplicitVar_OfID(id); imp != nil {
-				v = sc.GetOwnImplicitSlot(imp)
-			}
-		}
-	} else {
-		if alreadyMaybePresent {
-			for i := 0; i < s.smallLen; i++ {
-				if s.smallVars[i].nameID == id {
-					v = s.smallVars[i]
-					break
-				}
-			}
-		}
-		if v == nil && sc.hasImplicitVars {
-			if imp := AbstractScope_ImplicitVar_OfID(id); imp != nil {
-				v = sc.GetOwnImplicitSlot(imp)
-			}
-		}
-	}
+	v := sc.getOwnSlotByID(id)
 	if v != nil {
 		if v.GetNode() == n {
 			return
@@ -848,33 +727,20 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			// this is replacing an implicit provide. treat this as the actual declaration.
 			sc.Undeclare(v)
 			v = nil
-			if sc.varHash != nil {
-				mask := uint32(len(sc.varHash) - 1)
-				probeSlot = h & mask
-				for sc.varHash[probeSlot] != 0 {
-					probeSlot = (probeSlot + 1) & mask
-				}
-			}
 		}
 	}
 
-	isFnBlock := s.isFnBlock
 	var parentVar *Var
-	if v == nil && (s.parentBloom&bloom) == bloom {
-		parentVar = sc.parent.lookupOwnVarWithIDHash(id, h, bloom)
+	if v == nil && s.isFnBlock {
+		parentVar = sc.parent.lookupOwnVarByID(id)
 	}
 
 	input := s.getInput()
 	if v != nil ||
 		(parentVar != nil && parentVar.IsParam()) ||
 		(id == implicitArgumentsID &&
-			(sc.rootNode.IsFunction() || isFnBlock)) {
-		if s.redeclarationHandler != SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER {
-			if sc.varHash == nil && s.smallLen > 0 {
-				s.flushSmallVarsForMore()
-			}
-			s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
-		}
+			(sc.rootNode.IsFunction() || s.isFnBlock)) {
+		s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
 	} else {
 		if id <= rhino.RhinoStringPool_EmptyID {
 			panic(jutil.NewIllegalArgumentException())
@@ -882,36 +748,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		if parentVar != nil && !sc.isBleedingFunctionNameID(id) {
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
 		}
-		sc.varBloom |= bloom
-		if sc.varHash == nil {
-			if s.smallLen < len(s.smallVars) {
-				var var_ *Var
-				if sc.arena != nil {
-					var_ = sc.arena.allocVar()
-				} else {
-					var_ = &Var{}
-				}
-				initVarWithID(var_, id, n, sc, s.smallLen, input, nil)
-				s.smallVars[s.smallLen] = var_
-				s.smallLen++
-				return
-			}
-			s.flushSmallVarsForMore()
-			mask := uint32(len(sc.varHash) - 1)
-			probeSlot = h & mask
-			for sc.varHash[probeSlot] != 0 {
-				probeSlot = (probeSlot + 1) & mask
-			}
-		}
-		var var_ *Var
-		idx := int(sc.varCount)
-		if sc.arena != nil {
-			var_ = sc.arena.allocVar()
-		} else {
-			var_ = &Var{}
-		}
-		initVarWithID(var_, id, n, sc, idx, input, nil)
-		sc.appendVarToInitialized(var_, probeSlot, tag)
+		var_ := s.creator.vars.New()
+		var_.InitAbstractVarBaseWithID(id, n, sc, len(sc.varList), input, nil)
+		sc.addVar(var_)
 	}
 }
 
@@ -935,9 +774,6 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 
 	if root == "" {
 		return
-	}
-	if sc.varHash == nil {
-		s.flushSmallVarsForMore()
 	}
 	// Conditionally report a redeclaration if the root name has already been declared as a normal
 	// variable (normal meaning a var/function/class/etc. declaration).

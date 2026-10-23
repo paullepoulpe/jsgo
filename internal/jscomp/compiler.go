@@ -2996,12 +2996,6 @@ func (c *Compiler) evictPassArenaCaches() {
 	if a := cachedCCAArena.Swap(nil); a != nil {
 		crossChunkArenaPool.Put(a)
 	}
-	for i := range cachedScopeArenas {
-		if a := cachedScopeArenas[i].Swap(nil); a != nil {
-			a.trimSmall()
-			scopeArenaPool.Put(a)
-		}
-	}
 	if ic := cachedInferConstsCollector.Swap(nil); ic != nil {
 		inferConstsCollectorPool.Put(ic)
 	}

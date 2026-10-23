@@ -49,37 +49,18 @@ func NewVar(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) *Var {
-	v := &Var{}
-	initVar(v, name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
-	return v
+	return newVarWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 }
 
-func initVar(
-	v *Var,
-	name string,
-	nameNode *rhino.Node,
-	scope *Scope,
-	index int,
-	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
-	v.InitAbstractVarBase(name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
-	if nameNode != nil {
-		switch nameNode.GetToken() {
-		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
-		default:
-			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
-		}
-	}
-}
-
-func initVarWithID(
-	v *Var,
+// newVarWithID is NewVar for an interned name.
+func newVarWithID(
 	nameID uint32,
 	nameNode *rhino.Node,
 	scope *Scope,
 	index int,
 	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
+	implicitGoogNamespaceDefinition *rhino.Node) *Var {
+	v := &Var{}
 	v.InitAbstractVarBaseWithID(nameID, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 	if nameNode != nil {
 		switch nameNode.GetToken() {
@@ -88,6 +69,7 @@ func initVarWithID(
 			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
 		}
 	}
+	return v
 }
 
 // Java: AbstractVar.getSymbol()

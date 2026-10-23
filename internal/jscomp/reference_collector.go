@@ -558,9 +558,6 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 	}
 	if c.canReclaimLocals != nil && !c.canReclaimLocals() {
 		c.localSlabs.markBase()
-		if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil && sc.arena != nil {
-			sc.arena.markGlobalBase()
-		}
 		c.globalRefInNonFnLocal = false
 		return
 	}
@@ -579,14 +576,7 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 		clear(c.refByKey)
 		c.refByKey = nil
 	}
-	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
-		if !c.globalRefInNonFnLocal {
-			sc.ResetLocalArena()
-		} else if sc.arena != nil {
-			sc.arena.markGlobalBase()
-			c.globalRefInNonFnLocal = false
-		}
-	}
+	c.globalRefInNonFnLocal = false
 	if !c.globalRefInLocal && c.arena != nil && c.baseBlkChunkIdx > 0 {
 		a := c.arena
 		if a.blkChunkIdx > 0 {
