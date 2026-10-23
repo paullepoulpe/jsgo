@@ -21,7 +21,6 @@ package jscomp
 import (
 	"reflect"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -33,28 +32,12 @@ type propRemovableList struct {
 	tail *RemoveUnusedCode_RemovableBase
 }
 
-type rucVarCacheEntry struct {
-	v    *Var
-	info *RemoveUnusedCode_RealVarInfo
-}
-
-func rucVarCacheIdx(v *Var) uint32 {
-	return (uint32(uintptr(unsafe.Pointer(v))>>4) * 0x9e3779b1) >> 20
-}
-
-type rucScopeVarCacheEntry struct {
-	scope  *Scope
-	nameID uint32
-	info   *RemoveUnusedCode_RealVarInfo
-}
-
-func rucScopeVarCacheIdx(scope *Scope, id uint32) uint32 {
-	return ((uint32(uintptr(unsafe.Pointer(scope))>>4) * 0x9e3779b1) ^ (id * 0x85ebca6b)) & 2047
-}
-
-func rucPropCacheIdx(s string) uint32 {
-	n := len(s)
-	return (uint32(n)*31 + uint32(s[0])*131 + uint32(s[n-1])*17 + uint32(s[n>>1])*65) & 1023
+// rucVarKey identifies a variable: RemoveUnusedCode re-creates the scopes of
+// a function, so one variable has several Var objects (Java: Var.equals
+// compares the name and the scope root).
+type rucVarKey struct {
+	scopeRoot *rhino.Node
+	nameID    uint32
 }
 
 // removeUnusedCodeState is the state of one run of the pass; Process drops
@@ -64,19 +47,11 @@ type removeUnusedCodeState struct {
 	worklistHead int
 	worklistSize int
 
-	varBuckets      []*RemoveUnusedCode_RealVarInfo
-	varInfos        []*RemoveUnusedCode_RealVarInfo
-	lastVar         *Var
-	lastVarInfo     *RemoveUnusedCode_RealVarInfo
-	lastScope       *Scope
-	lastScopeNameID uint32
-	lastScopeInfo   *RemoveUnusedCode_RealVarInfo
-	varPtrCache     *[4096]rucVarCacheEntry
-	scopeVarCache   *[2048]rucScopeVarCacheEntry
+	// Java: varInfoMap; varInfos holds its values in insertion order.
+	varInfoMap map[rucVarKey]*RemoveUnusedCode_RealVarInfo
+	varInfos   []*RemoveUnusedCode_RealVarInfo
 
 	pinnedPropertyNames map[string]struct{}
-	lastPinnedProp      string
-	pinnedPropCache     *[1024]string
 	propRemovables      map[string]propRemovableList
 	propRemovableKeys   []string
 
@@ -417,10 +392,6 @@ func (r *RemoveUnusedCode) Process(externs *rhino.Node, root *rhino.Node) {
 		if r.scopeCreator != nil {
 			r.scopeCreator.ReleaseArena()
 		}
-		// Var.nameHash indexes varInfos during the run (see putVarInfo).
-		for _, info := range r.varInfos {
-			info.var_.nameHash = 0
-		}
 		r.removeUnusedCodeState = removeUnusedCodeState{}
 	}()
 
@@ -490,18 +461,14 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root *rhino.Node) {
 		r.pinnedPropertyNames = make(map[string]struct{}, 64)
 		r.propRemovables = make(map[string]propRemovableList, 64)
 	}
-	if r.varPtrCache == nil {
-		r.varPtrCache = new([4096]rucVarCacheEntry)
-	}
-	if r.scopeVarCache == nil {
-		r.scopeVarCache = new([2048]rucScopeVarCacheEntry)
-	}
-	if r.pinnedPropCache == nil {
-		r.pinnedPropCache = new([1024]string)
-	}
 	// Create scope from parent of root node, which also has externs as a child, so we'll
 	// have extern definitions in scope.
 	scope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
+	if r.varInfoMap == nil {
+		// Go-only: performance — sized for the global variables, which are
+		// most of the VarInfos of a large program.
+		r.varInfoMap = make(map[rucVarKey]*RemoveUnusedCode_RealVarInfo, scope.GetVarCount())
+	}
 	if !scope.HasSlot(NodeUtil_JSC_PROPERTY_NAME_FN) {
 		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
 		// NOTE: null input makes this an extern var.
@@ -926,34 +893,7 @@ func (r *RemoveUnusedCode) TraverseNameNode(n *rhino.Node, scope *Scope) *Remove
 			}
 		}
 	}
-	id := n.GetStringID()
-	if id > rhino.RhinoStringPool_EmptyID && scope != nil {
-		if scope == r.lastScope && id == r.lastScopeNameID && r.lastScopeInfo != nil {
-			return r.lastScopeInfo
-		}
-		if r.scopeVarCache != nil {
-			idx := rucScopeVarCacheIdx(scope, id)
-			if slot := &r.scopeVarCache[idx]; slot.scope == scope && slot.nameID == id && slot.info != nil {
-				r.lastScope = scope
-				r.lastScopeNameID = id
-				r.lastScopeInfo = slot.info
-				return slot.info
-			}
-			v := scope.GetVarByID(id)
-			if v == nil {
-				jutil.CheckNotNullMsg1(v, "%s", n)
-			}
-			info := r.TraverseVar(v)
-			if r.lastVar == v {
-				r.scopeVarCache[idx] = rucScopeVarCacheEntry{scope: scope, nameID: id, info: info}
-				r.lastScope = scope
-				r.lastScopeNameID = id
-				r.lastScopeInfo = info
-			}
-			return info
-		}
-	}
-	v := scope.GetVarByID(id)
+	v := scope.GetVarByID(n.GetStringID())
 	if v == nil {
 		jutil.CheckNotNullMsg1(v, "%s", n)
 	}
@@ -1853,46 +1793,14 @@ func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
 }
 
 func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
-	if len(propertyName) > 0 {
-		if scopeNameEq(propertyName, r.lastPinnedProp) {
-			return true
-		}
-		if r.pinnedPropCache != nil {
-			idx := rucPropCacheIdx(propertyName)
-			if scopeNameEq(r.pinnedPropCache[idx], propertyName) {
-				r.lastPinnedProp = propertyName
-				return true
-			}
-			if isImplicitlyUsedProperty(propertyName) {
-				r.pinnedPropCache[idx] = propertyName
-				r.lastPinnedProp = propertyName
-				return true
-			}
-			if _, ok := r.pinnedPropertyNames[propertyName]; ok {
-				r.pinnedPropCache[idx] = propertyName
-				r.lastPinnedProp = propertyName
-				return true
-			}
-			if r.externProperties != nil && r.externProperties.Contains(propertyName) {
-				r.pinnedPropertyNames[propertyName] = struct{}{}
-				r.pinnedPropCache[idx] = propertyName
-				r.lastPinnedProp = propertyName
-				return true
-			}
-			return false
-		}
-	}
 	if isImplicitlyUsedProperty(propertyName) {
-		r.lastPinnedProp = propertyName
 		return true
 	}
 	if _, ok := r.pinnedPropertyNames[propertyName]; ok {
-		r.lastPinnedProp = propertyName
 		return true
 	}
 	if r.externProperties != nil && r.externProperties.Contains(propertyName) {
 		r.pinnedPropertyNames[propertyName] = struct{}{}
-		r.lastPinnedProp = propertyName
 		return true
 	}
 	return false
@@ -1900,41 +1808,20 @@ func (r *RemoveUnusedCode) isPropertyPinned(propertyName string) bool {
 
 // Java: RemoveUnusedCode.markPropertyNameAsPinned(String)
 func (r *RemoveUnusedCode) MarkPropertyNameAsPinned(propertyName string) {
-	if len(propertyName) > 0 {
-		if scopeNameEq(propertyName, r.lastPinnedProp) {
-			return
-		}
-		if r.pinnedPropCache != nil && scopeNameEq(r.pinnedPropCache[rucPropCacheIdx(propertyName)], propertyName) {
-			r.lastPinnedProp = propertyName
-			return
-		}
-	}
-	r.markPropertyNameAsPinnedSlow(propertyName)
-}
-
-func (r *RemoveUnusedCode) markPropertyNameAsPinnedSlow(propertyName string) {
 	if r.isPropertyPinned(propertyName) {
 		return
 	}
 	r.pinnedPropertyNames[propertyName] = struct{}{}
-	if len(propertyName) > 0 {
-		r.lastPinnedProp = propertyName
-		if r.pinnedPropCache != nil {
-			r.pinnedPropCache[rucPropCacheIdx(propertyName)] = propertyName
-		}
-	}
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
-	if len(r.propRemovables) > 0 {
-		if list, ok := r.propRemovables[propertyName]; ok {
-			delete(r.propRemovables, propertyName)
-			for cur := list.head; cur != nil; {
-				next := cur.propNext
-				cur.propNext = nil
-				cur.flags &^= remFlagInPropList
-				cur.ApplyContinuations(r)
-				cur = next
-			}
+	if list, ok := r.propRemovables[propertyName]; ok {
+		delete(r.propRemovables, propertyName)
+		for cur := list.head; cur != nil; {
+			next := cur.propNext
+			cur.propNext = nil
+			cur.flags &^= remFlagInPropList
+			cur.ApplyContinuations(r)
+			cur = next
 		}
 	}
 }
@@ -2203,31 +2090,6 @@ func (r *RemoveUnusedCode) TraverseVar(var_ *Var) *RemoveUnusedCode_RealVarInfo 
 	if var_ == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	if var_ == r.lastVar {
-		return r.lastVarInfo
-	}
-	if idx := int(var_.nameHash); idx != 0 {
-		if idx > 0 && idx <= len(r.varInfos) {
-			info := r.varInfos[idx-1]
-			if info.var_ == var_ || (info.var_.GetScopeRoot() == var_.GetScopeRoot() && info.var_.nameID == var_.nameID) {
-				r.lastVar = var_
-				r.lastVarInfo = info
-				return info
-			}
-		} else if idx == -1 && !r.unremovableLog.IsLogging() {
-			info := r.canonicalUnremovableVarInfo
-			r.lastVar = var_
-			r.lastVarInfo = info
-			return info
-		}
-	}
-	if r.varPtrCache != nil {
-		if slot := &r.varPtrCache[rucVarCacheIdx(var_)]; slot.v == var_ {
-			r.lastVar = var_
-			r.lastVarInfo = slot.info
-			return slot.info
-		}
-	}
 	if r.removeLocalVars && var_.IsArguments() {
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
@@ -2271,34 +2133,6 @@ func RemoveUnusedCode_NameOfParam(param *rhino.Node) *rhino.Node {
 	}
 }
 
-func hashVar(v *Var) uint32 {
-	h := uint32(31*int32(31+v.nameID) + jutil.IdentityHashCodeOfPointer(v.scope.GetRootNode()))
-	h ^= h >> 16
-	h *= 0x85ebca6b
-	h ^= h >> 13
-	return h
-}
-
-func (r *RemoveUnusedCode) putVarInfo(v *RemoveUnusedCode_RealVarInfo) {
-	r.varInfos = append(r.varInfos, v)
-	v.var_.nameHash = int32(len(r.varInfos))
-	if len(r.varInfos)*4 > len(r.varBuckets)*3 && len(r.varBuckets) < 524288 {
-		newCap := len(r.varBuckets) * 2
-		newBuckets := make([]*RemoveUnusedCode_RealVarInfo, newCap)
-		mask := uint32(newCap - 1)
-		for _, info := range r.varInfos {
-			idx := info.hash & mask
-			info.hashNext = newBuckets[idx]
-			newBuckets[idx] = info
-		}
-		r.varBuckets = newBuckets
-		return
-	}
-	idx := v.hash & uint32(len(r.varBuckets)-1)
-	v.hashNext = r.varBuckets[idx]
-	r.varBuckets[idx] = v
-}
-
 // GetVarInfo gets the right VarInfo object to use for the given Var.
 //
 // This method is responsible for managing the entries in varInfoMap.
@@ -2311,87 +2145,27 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	if var_ == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	if var_ == r.lastVar {
-		return r.lastVarInfo
-	}
-	if idx := int(var_.nameHash); idx != 0 {
-		if idx > 0 && idx <= len(r.varInfos) {
-			info := r.varInfos[idx-1]
-			if info.var_ == var_ || (info.var_.GetScopeRoot() == var_.GetScopeRoot() && info.var_.nameID == var_.nameID) {
-				r.lastVar = var_
-				r.lastVarInfo = info
-				return info
-			}
-		} else if idx == -1 && !r.unremovableLog.IsLogging() {
-			info := r.canonicalUnremovableVarInfo
-			r.lastVar = var_
-			r.lastVarInfo = info
-			return info
-		}
-	}
-	cacheIdx := rucVarCacheIdx(var_)
-	if r.varPtrCache != nil {
-		if slot := &r.varPtrCache[cacheIdx]; slot.v == var_ {
-			r.lastVar = var_
-			r.lastVarInfo = slot.info
-			return slot.info
-		}
-	}
+	isGlobal := var_.IsGlobal()
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
 			name := var_.GetName()
 			r.unremovableLog.LogSupplier(func() string { return name + ": extern" })
-			return r.canonicalUnremovableVarInfo
 		}
-		info := r.canonicalUnremovableVarInfo
-		var_.nameHash = -1
-		r.lastVar = var_
-		r.lastVarInfo = info
-		if r.varPtrCache != nil {
-			r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: info}
+		return r.canonicalUnremovableVarInfo
+	} else if name := var_.GetName(); r.isExportedByConvention(name /* local= */, !isGlobal) {
+		if r.unremovableLog.IsLogging() {
+			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
 		}
-		return info
+		return r.canonicalUnremovableVarInfo
 	} else if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
 	}
-	scopeRoot := var_.GetScopeRoot()
-	nameID := var_.nameID
-	h := hashVar(var_)
-	if len(r.varBuckets) == 0 {
-		r.varBuckets = make([]*RemoveUnusedCode_RealVarInfo, 16384)
+	key := rucVarKey{scopeRoot: var_.GetScopeRoot(), nameID: var_.nameID}
+	if varInfo := r.varInfoMap[key]; varInfo != nil {
+		return varInfo
 	}
-	mask := uint32(len(r.varBuckets) - 1)
-	for cur := r.varBuckets[h&mask]; cur != nil; cur = cur.hashNext {
-		if cur.var_ == var_ || (cur.hash == h && cur.var_.GetScopeRoot() == scopeRoot && cur.var_.nameID == nameID) {
-			var_.nameHash = cur.var_.nameHash
-			r.lastVar = var_
-			r.lastVarInfo = cur
-			if r.varPtrCache != nil {
-				r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: cur}
-			}
-			return cur
-		}
-	}
-
-	isGlobal := var_.IsGlobal()
-	name := var_.GetName()
-	if r.isExportedByConvention(name /* local= */, !isGlobal) {
-		if r.unremovableLog.IsLogging() {
-			r.unremovableLog.LogSupplier(func() string { return name + ": exported by convention" })
-			return r.canonicalUnremovableVarInfo
-		}
-		info := r.canonicalUnremovableVarInfo
-		var_.nameHash = -1
-		r.lastVar = var_
-		r.lastVarInfo = info
-		if r.varPtrCache != nil {
-			r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: info}
-		}
-		return info
-	}
-
-	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_, h)
+	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
 	if var_.GetParentNode().IsParamList() {
 		varInfo.SetHasNonLocalOrNonLiteralValue()
 	}
@@ -2403,12 +2177,8 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	} else if !r.removeLocalVars && !isGlobal {
 		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
 	}
-	r.putVarInfo(varInfo)
-	r.lastVar = var_
-	r.lastVarInfo = varInfo
-	if r.varPtrCache != nil {
-		r.varPtrCache[cacheIdx] = rucVarCacheEntry{v: var_, info: varInfo}
-	}
+	r.varInfoMap[key] = varInfo
+	r.varInfos = append(r.varInfos, varInfo)
 	return varInfo
 }
 
@@ -3531,26 +3301,19 @@ const (
 )
 
 // RemoveUnusedCode_RealVarInfo tracks the removable code and other state
-// related to variables we may be able to remove (48 bytes, 5 pointers).
+// related to variables we may be able to remove.
 type RemoveUnusedCode_RealVarInfo struct {
-	outer    *RemoveUnusedCode
-	var_     *Var
-	hashNext *RemoveUnusedCode_RealVarInfo
-	remHead  *RemoveUnusedCode_RemovableBase
-	remTail  *RemoveUnusedCode_RemovableBase
+	outer   *RemoveUnusedCode
+	var_    *Var
+	remHead *RemoveUnusedCode_RemovableBase
+	remTail *RemoveUnusedCode_RemovableBase
 
-	hash  uint32
 	flags uint8
 }
 
 // Java: RemoveUnusedCode.RealVarInfo(String)
-func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, var_ *Var, hash uint32) *RemoveUnusedCode_RealVarInfo {
-	v := new(RemoveUnusedCode_RealVarInfo)
-	v.outer = outer
-	v.var_ = var_
-	v.hash = hash
-	v.flags = rucVarFlagEntirelyRemovable
-	return v
+func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, var_ *Var) *RemoveUnusedCode_RealVarInfo {
+	return &RemoveUnusedCode_RealVarInfo{outer: outer, var_: var_, flags: rucVarFlagEntirelyRemovable}
 }
 
 // Java: RemoveUnusedCode.RealVarInfo.addRemovable(Removable)
