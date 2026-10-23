@@ -775,19 +775,20 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeT
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable.identifyEnumOrTypedefDeclaration(NodeTraversal, Node, Node, JSDocInfo)
 func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOrTypedefDeclaration(
 	t *NodeTraversal, nameNode *rhino.Node, rvalue *rhino.Node, info *rhino.JSDocInfo) {
-	if !nameNode.IsQualifiedName() {
+	nameQname, ok := nameNode.GetQualifiedNameString()
+	if !ok {
 		return
 	}
 	if info != nil && info.HasEnumParameterType() {
-		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), *nameNode.GetQualifiedName())
+		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
 	} else if info != nil && info.HasTypedefType() {
-		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), *nameNode.GetQualifiedName())
-	} else if rvalue != nil &&
-		rvalue.IsQualifiedName() &&
-		NodeUtil_IsConstantDeclaration(info, nameNode) {
-		scope := t.resolveLookupScope(len(t.scopes) - 1)
-		if v.registry.IsNonNullableName(scope, *rvalue.GetQualifiedName()) {
-			v.registry.IdentifyNonNullableName(scope, *nameNode.GetQualifiedName())
+		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
+	} else if rvalue != nil && NodeUtil_IsConstantDeclaration(info, nameNode) {
+		if rvalQname, ok := rvalue.GetQualifiedNameString(); ok {
+			scope := t.resolveLookupScope(len(t.scopes) - 1)
+			if v.registry.IsNonNullableName(scope, rvalQname) {
+				v.registry.IdentifyNonNullableName(scope, nameQname)
+			}
 		}
 	}
 }
@@ -2013,17 +2014,19 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	info *rhino.JSDocInfo,
 	lvalueNode *rhino.Node) rhino.FunctionType {
 	// Check for an alias.
-	if rValue != nil && rValue.IsQualifiedName() && lvalueNode != nil {
-		var_ := b.currentScope.GetVar(*rValue.GetQualifiedName())
-		if var_ != nil && var_.GetType() != nil && var_.GetType().IsFunctionType() {
-			aliasedType := var_.GetType().ToMaybeFunctionType()
-			if aliasedType.IsConstructor() || aliasedType.IsInterface() {
-				// TODO(nick): Remove this. This should already be handled by normal type resolution.
-				if name != nil {
-					b.outer.typeRegistry.DeclareType(b.currentScope, *name, aliasedType.GetInstanceType())
+	if rValue != nil && lvalueNode != nil {
+		if rvalQname, ok := rValue.GetQualifiedNameString(); ok {
+			var_ := b.currentScope.GetVar(rvalQname)
+			if var_ != nil && var_.GetType() != nil && var_.GetType().IsFunctionType() {
+				aliasedType := var_.GetType().ToMaybeFunctionType()
+				if aliasedType.IsConstructor() || aliasedType.IsInterface() {
+					// TODO(nick): Remove this. This should already be handled by normal type resolution.
+					if name != nil {
+						b.outer.typeRegistry.DeclareType(b.currentScope, *name, aliasedType.GetInstanceType())
+					}
+					b.CheckFunctionAliasAnnotations(lvalueNode, aliasedType, info)
+					return aliasedType
 				}
-				b.CheckFunctionAliasAnnotations(lvalueNode, aliasedType, info)
-				return aliasedType
 			}
 		}
 	}
@@ -2323,12 +2326,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateEnumTypeFromNodes(
 		"An enum initializer should come from either an lvalue or rvalue")
 
 	var enumType *rhino.EnumType
-	if rValue != nil && rValue.IsQualifiedName() {
-		// Handle an aliased enum. Note that putting @enum on an enum alias is optional. If the
-		// rValue is not an enum, then this assignment errors during TypeCheck.
-		var_ := b.currentScope.GetVar(*rValue.GetQualifiedName())
-		if var_ != nil && var_.GetType() != nil && var_.GetType().IsEnumType() {
-			enumType = var_.GetType().ToMaybeEnumType()
+	if rValue != nil {
+		if rvalQname, ok := rValue.GetQualifiedNameString(); ok {
+			// Handle an aliased enum. Note that putting @enum on an enum alias is optional. If the
+			// rValue is not an enum, then this assignment errors during TypeCheck.
+			var_ := b.currentScope.GetVar(rvalQname)
+			if var_ != nil && var_.GetType() != nil && var_.GetType().IsEnumType() {
+				enumType = var_.GetType().ToMaybeEnumType()
+			}
 		}
 	}
 
@@ -2738,7 +2743,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 			//   const x = Symbol();
 			// We could consider relaxing that in the future & also defining known symbols from
 			// source code.
-			return rhino.NewKnownSymbolType(b.outer.typeRegistry, *lValue.GetQualifiedName())
+			lvalQname, ok := lValue.GetQualifiedNameString()
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
+			return rhino.NewKnownSymbolType(b.outer.typeRegistry, lvalQname)
 		}
 		return type_
 	} else if rValue != nil &&
@@ -3135,8 +3144,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareGetElem(info *r
 	if valueType == nil {
 		return
 	}
-	ownerName := ownerNode.GetQualifiedName()
-	ownerType := b.GetObjectSlot(*ownerName)
+	ownerName, ok := ownerNode.GetQualifiedNameString()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	ownerType := b.GetObjectSlot(ownerName)
 	if ownerType == nil {
 		return
 	}
@@ -3166,18 +3178,23 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 	}
 
 	ownerNode := n.GetFirstChild()
-	var qName *string
+	var qName string
+	var hasQName bool
 	if rhsValue != nil && rhsValue.IsFunction() {
-		if origName := rhsValue.GetOriginalName(); origName != nil && n.MatchesQualifiedName(*origName) {
-			qName = origName
+		if origID := rhsValue.GetOriginalNameID(); origID != 0 {
+			origStr := rhino.RhinoStringPool_StringFromID(origID)
+			if n.MatchesQualifiedName(origStr) {
+				qName = origStr
+				hasQName = true
+			}
 		}
 	}
-	if qName == nil {
-		qName = n.GetQualifiedName()
+	if !hasQName {
+		qName, hasQName = n.GetQualifiedNameString()
 	}
 	propName := n.GetString()
-	jutil.CheckArgument(qName != nil)
-	ownerNameStr := (*qName)[:len(*qName)-len(propName)-1]
+	jutil.CheckArgument(hasQName)
+	ownerNameStr := qName[:len(qName)-len(propName)-1]
 	b.lastOwnerNode = ownerNode
 	b.lastOwnerName = ownerNameStr
 
@@ -3207,7 +3224,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 	// So if F does not have an explicitly declared super type,
 	// allow F.prototype to be redefined arbitrarily.
 	if "prototype" == propName {
-		qVar := b.currentScope.GetVar(*qName)
+		qVar := b.currentScope.GetVar(qName)
 		if qVar != nil {
 			// If the programmer has declared that F inherits from Super,
 			// and they assign F.prototype to an object literal,
@@ -3242,7 +3259,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 		return
 	}
 
-	inferred := b.IsQualifiedNameInferred(qName, n, info, rhsValue, valueType)
+	inferred := b.IsQualifiedNameInferred(qName, hasQName, n, info, rhsValue, valueType)
 	if !inferred {
 		ownerType := b.GetObjectSlot(ownerNameStr)
 		if ownerType != nil {
@@ -3261,7 +3278,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 		if declareInScope {
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 				ForDeclarationNode(n).
-				ForVariableName(*qName).
+				ForVariableName(qName).
 				InScope(b.GetLValueRootScope(n)).
 				WithType(valueType).
 				AllowLaterTypeInference(inferred).
@@ -3293,14 +3310,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.isQualifiedNameInferred(String, Node, JSDocInfo, Node, JSType)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
-	qName *string,
+	qName string,
+	hasQName bool,
 	n *rhino.Node,
 	info *rhino.JSDocInfo,
 	rhsValue *rhino.Node,
 	valueType rhino.JSType) bool {
 	// Prototypes of constructors and interfaces are always declared.
-	if qName != nil && strings.HasSuffix(*qName, ".prototype") {
-		className := (*qName)[:len(*qName)-len(".prototype")]
+	if hasQName && strings.HasSuffix(qName, ".prototype") {
+		className := qName[:len(qName)-len(".prototype")]
 		slot := b.currentScope.GetVar(className)
 		var classType rhino.JSType
 		if slot != nil {
@@ -3345,7 +3363,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 
 	// If this qname is already declared then treat this definition as inferred.
 	ownerScope := b.GetLValueRootScope(n)
-	if ownerScope != nil && ownerScope.HasOwnSlot(*qName) {
+	if ownerScope != nil && ownerScope.HasOwnSlot(qName) {
 		return true
 	}
 
@@ -3358,7 +3376,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 	// Check if this is assigned in an inner scope.
 	// Functions assigned in inner scopes are inferred.
 	if ownerScope != nil && len(b.outer.varFlags) > 0 {
-		if (b.outer.varFlags[typedScopeCreator_ScopedNameKey{name: *qName, scopeRoot: ownerScope.GetRootNode()}] & typedScopeCreator_VarFlagEscaped) != 0 {
+		if (b.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] & typedScopeCreator_VarFlagEscaped) != 0 {
 			return true
 		}
 	}
@@ -3459,11 +3477,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetInheritedInterfaceProper
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.resolveStubDeclaration(Node, boolean, String)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(n *rhino.Node, isExtern bool, ownerName string) {
-	qName := n.GetQualifiedName()
+	qName, ok := n.GetQualifiedNameString()
 	propName := n.GetString()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
 
 	// TODO(b/111216910): should this be getLValueRoot(n).hasOwnSlot(qName)?
-	if b.currentScope.HasOwnSlot(*qName) {
+	if b.currentScope.HasOwnSlot(qName) {
 		return
 	}
 
@@ -3518,7 +3539,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsValidTypedefDeclaration(c
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareTypedefType(Node, JSDocInfo)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareTypedefType(candidate *rhino.Node, info *rhino.JSDocInfo) {
-	typedef := *candidate.GetQualifiedName()
+	typedef, ok := candidate.GetQualifiedNameString()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
 
 	// TODO(nicksantos|user): This is a terrible, terrible hack
 	// to bail out on recursive typedefs. We'll eventually need
@@ -3870,10 +3894,11 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParamet
 	isInferred := paramType.Equals(b.outer.unknownType)
 
 	if iifeArgumentNode != nil && isInferred {
-		argumentName := iifeArgumentNode.GetQualifiedName()
 		var argumentVar *TypedVar
-		if !(argumentName == nil || b.currentScope.GetParent() == nil) {
-			argumentVar = b.currentScope.GetParent().GetVar(*argumentName)
+		if b.currentScope.GetParent() != nil {
+			if argumentName, ok := iifeArgumentNode.GetQualifiedNameString(); ok {
+				argumentVar = b.currentScope.GetParent().GetVar(argumentName)
+			}
 		}
 		if argumentVar != nil && !argumentVar.IsTypeInferred() {
 			paramType = argumentVar.GetType()

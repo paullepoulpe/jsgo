@@ -701,6 +701,14 @@ func NodeUtil_GetName(n *rhino.Node) *string {
 	return nameNode.GetQualifiedName()
 }
 
+func NodeUtil_GetNameString(n *rhino.Node) (string, bool) {
+	nameNode := NodeUtil_GetNameNode(n)
+	if nameNode == nil {
+		return "", false
+	}
+	return nameNode.GetQualifiedNameString()
+}
+
 // NodeUtil_GetNameNode gets the node of a function or class's name. This
 // method recognizes five forms:
 //
@@ -4589,7 +4597,10 @@ func NodeUtil_GetPrototypeClassName(qName *rhino.Node) *rhino.Node {
 //
 // Java: NodeUtil.getPrototypePropertyName(Node)
 func NodeUtil_GetPrototypePropertyName(qName *rhino.Node) string {
-	qNameStr := *qName.GetQualifiedName()
+	qNameStr, ok := qName.GetQualifiedNameString()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
 	prototypeIdx := jutil.StringLastIndexOf(qNameStr, ".prototype.")
 	memberIndex := prototypeIdx + jutil.StringLength(".prototype") + 1
 	return jutil.StringSubstringFrom(qNameStr, memberIndex)

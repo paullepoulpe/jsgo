@@ -251,21 +251,28 @@ func (p *ProcessClosurePrimitives) ValidateWeakUsageCall(call *rhino.Node) {
 	// qualified).
 	childCount := call.GetChildCount()
 	arg := call.GetSecondChild()
-	calleeName := call.GetFirstChild().GetQualifiedName()
 	if childCount != 2 {
+		calleeName, ok := call.GetFirstChild().GetQualifiedNameString()
+		if !ok {
+			calleeName = "null"
+		}
 		p.compiler.Report(
 			JSError_MakeWithNode(
 				call,
 				ProcessClosurePrimitives_INVALID_GOOG_WEAK_USAGE_CALL,
-				jutil.ToJavaString(calleeName),
+				calleeName,
 				"should have exactly one argument, not "+strconv.Itoa(childCount-1)))
 	}
 	if childCount >= 2 && !call.GetSecondChild().IsQualifiedName() {
+		calleeName, ok := call.GetFirstChild().GetQualifiedNameString()
+		if !ok {
+			calleeName = "null"
+		}
 		p.compiler.Report(
 			JSError_MakeWithNode(
 				call,
 				ProcessClosurePrimitives_INVALID_GOOG_WEAK_USAGE_CALL,
-				jutil.ToJavaString(calleeName),
+				calleeName,
 				"argument should be a name or qualified name, not "+arg.String()))
 	}
 }
@@ -343,7 +350,7 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(n *rhino.Node) {
 		// Some unknown "base" method.
 		return
 	}
-	baseContainer := *callTarget.GetFirstChild().GetQualifiedName()
+	baseContainer, _ := baseContainerNode.GetQualifiedNameString()
 
 	enclosingFnNameNode := ProcessClosurePrimitives_GetEnclosingDeclNameNode(n)
 	if enclosingFnNameNode == nil || !enclosingFnNameNode.IsUnscopedQualifiedName() {
@@ -374,7 +381,7 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(n *rhino.Node) {
 		return
 	}
 
-	enclosingQname := *enclosingFnNameNode.GetQualifiedName()
+	enclosingQname, _ := enclosingFnNameNode.GetQualifiedNameString()
 	if !(jutil.StringIndexOf(enclosingQname, ".prototype.") >= 0) {
 		p.RewriteBaseCallInConstructor(enclosingQname, baseContainer, n, enclosingFnNameNode)
 	} else {
@@ -426,10 +433,14 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInConstructor(
 	}
 
 	// We're good to go.
+	baseClassQname, ok := baseClassNode.GetQualifiedNameString()
+	if !ok {
+		baseClassQname = "null"
+	}
 	callee.ReplaceWith(
 		NodeUtil_NewQNameWithOriginalName(
 			p.compiler,
-			jutil.ToJavaString(baseClassNode.GetQualifiedName())+".call",
+			baseClassQname+".call",
 			callee,
 			enclosingQname+".base"))
 	methodNameNode.Detach()
@@ -492,10 +503,14 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInMethod(
 
 	// We're good to go.
 	className := enclosingFnNameNode.GetFirstFirstChild()
+	classQname, ok := className.GetQualifiedNameString()
+	if !ok {
+		classQname = "null"
+	}
 	callee.ReplaceWith(
 		NodeUtil_NewQNameWithOriginalName(
 			p.compiler,
-			jutil.ToJavaString(className.GetQualifiedName())+".superClass_."+methodName+".call",
+			classQname+".superClass_."+methodName+".call",
 			callee,
 			enclosingQname+".base"))
 	methodNameNode.Detach()
@@ -531,7 +546,9 @@ func (p *ProcessClosurePrimitives) ProcessInheritsCall(n *rhino.Node) {
 		subClass := n.GetSecondChild()
 		superClass := subClass.GetNext()
 		if subClass.IsUnscopedQualifiedName() && superClass.IsUnscopedQualifiedName() {
-			p.knownClosureSubclasses.Add(*subClass.GetQualifiedName())
+			if subQname, ok := subClass.GetQualifiedNameString(); ok {
+				p.knownClosureSubclasses.Add(subQname)
+			}
 		}
 	}
 }
@@ -801,7 +818,11 @@ func ProcessClosurePrimitives_VerifySetCssNameMapping(
 		}
 	}
 	if diagnostic != nil {
-		compiler.Report(JSError_MakeWithNode(methodName, diagnostic, jutil.ToJavaString(methodName.GetQualifiedName())))
+		methodQname, ok := methodName.GetQualifiedNameString()
+		if !ok {
+			methodQname = "null"
+		}
+		compiler.Report(JSError_MakeWithNode(methodName, diagnostic, methodQname))
 		return false
 	}
 	return true
@@ -814,7 +835,10 @@ func (p *ProcessClosurePrimitives) CheckPropertyRenameCall(call *rhino.Node) {
 	if !p.compiler.GetCodingConvention().IsPropertyRenameFunction(callee) {
 		return
 	}
-	calleeName := jutil.ToJavaString(callee.GetQualifiedName())
+	calleeName, ok := callee.GetQualifiedNameString()
+	if !ok {
+		calleeName = "null"
+	}
 
 	switch call.GetChildCount() - 1 {
 	case 1, 2:

@@ -123,6 +123,7 @@ type NodeTraversal struct {
 	noVisit                                        bool
 	noVisitLeaves                                  bool
 	onlyNameLeaves                                 bool
+	fastMode                                       uint8
 
 	// Contains the current node
 	currentNode *rhino.Node
@@ -968,6 +969,16 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	options := t.compiler.GetOptions()
 	t.mayContainSyntheticBlocks =
 		options == nil || options.GetSyntheticBlockStartMarker() != nil
+	t.fastMode = nodeTraversalFastNone
+	if !t.noVisit && !t.noVisitLeaves && !t.onlyNameLeaves && !t.obeyDestructuringAndDefaultValueExecutionOrder {
+		if cp, ok := cb.(*CombinedCompilerPass); !ok || !cp.allNoVisit {
+			if t.noShouldTraverse {
+				t.fastMode = nodeTraversalFastPostOrder
+			} else {
+				t.fastMode = nodeTraversalFastFull
+			}
+		}
+	}
 }
 
 // Java: NodeTraversal.throwUnexpectedException(Throwable)
@@ -1487,10 +1498,231 @@ func (t *NodeTraversal) CreatesBlockScope(n *rhino.Node) bool {
 	return nodeTraversalBlockScopeToken[uint8(tok)]
 }
 
+const (
+	nodeTraversalFastNone uint8 = iota
+	nodeTraversalFastPostOrder
+	nodeTraversalFastFull
+)
+
+func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Node) {
+	tok := n.GetToken()
+	switch nodeTraversalTokenKind[uint8(tok)] {
+	case nodeTraversalTokenSpecial:
+		switch tok {
+		case rhino.Token_SCRIPT:
+			t.HandleScript(n, parent)
+			return
+		case rhino.Token_FUNCTION:
+			t.HandleFunction(n, parent)
+			return
+		case rhino.Token_MODULE_BODY:
+			t.HandleModule(n, parent)
+			return
+		case rhino.Token_CLASS:
+			t.HandleClass(n, parent)
+			return
+		case rhino.Token_CLASS_MEMBERS:
+			t.HandleClassMembers(n, parent)
+			return
+		}
+	case nodeTraversalTokenBlock:
+		if t.isBlockScopeBlock(n) {
+			cb := t.callback
+			t.currentNode = n
+			previousHoistScopeRoot := t.currentHoistScopeRoot
+			t.PushScope(n)
+			if n.GetParent().IsClassMembers() {
+				t.currentHoistScopeRoot = n
+			}
+			for child := n.GetFirstChild(); child != nil; {
+				next := child.GetNext()
+				if child.GetFirstChild() == nil {
+					ctok := child.GetToken()
+					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+						t.currentNode = child
+						cb.Visit(t, child, n)
+						child = next
+						continue
+					}
+				}
+				t.traverseBranchPostOrder(child, n)
+				child = next
+			}
+			t.PopScope()
+			t.currentHoistScopeRoot = previousHoistScopeRoot
+			t.currentNode = n
+			cb.Visit(t, n, parent)
+			return
+		}
+	case nodeTraversalTokenBlockScope:
+		cb := t.callback
+		t.currentNode = n
+		previousHoistScopeRoot := t.currentHoistScopeRoot
+		t.PushScope(n)
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.GetFirstChild() == nil {
+				ctok := child.GetToken()
+				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+					t.currentNode = child
+					cb.Visit(t, child, n)
+					child = next
+					continue
+				}
+			}
+			t.traverseBranchPostOrder(child, n)
+			child = next
+		}
+		t.PopScope()
+		t.currentHoistScopeRoot = previousHoistScopeRoot
+		t.currentNode = n
+		cb.Visit(t, n, parent)
+		return
+	}
+
+	cb := t.callback
+	t.currentNode = n
+	for child := n.GetFirstChild(); child != nil; {
+		next := child.GetNext()
+		if child.GetFirstChild() == nil {
+			ctok := child.GetToken()
+			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+				t.currentNode = child
+				cb.Visit(t, child, n)
+				child = next
+				continue
+			}
+		}
+		t.traverseBranchPostOrder(child, n)
+		child = next
+	}
+	t.currentNode = n
+	cb.Visit(t, n, parent)
+}
+
+func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
+	tok := n.GetToken()
+	switch nodeTraversalTokenKind[uint8(tok)] {
+	case nodeTraversalTokenSpecial:
+		switch tok {
+		case rhino.Token_SCRIPT:
+			t.HandleScript(n, parent)
+			return
+		case rhino.Token_FUNCTION:
+			t.HandleFunction(n, parent)
+			return
+		case rhino.Token_MODULE_BODY:
+			t.HandleModule(n, parent)
+			return
+		case rhino.Token_CLASS:
+			t.HandleClass(n, parent)
+			return
+		case rhino.Token_CLASS_MEMBERS:
+			t.HandleClassMembers(n, parent)
+			return
+		}
+	case nodeTraversalTokenBlock:
+		if t.isBlockScopeBlock(n) {
+			cb := t.callback
+			t.currentNode = n
+			if !cb.ShouldTraverse(t, n, parent) {
+				return
+			}
+			previousHoistScopeRoot := t.currentHoistScopeRoot
+			t.PushScope(n)
+			if n.GetParent().IsClassMembers() {
+				t.currentHoistScopeRoot = n
+			}
+			for child := n.GetFirstChild(); child != nil; {
+				next := child.GetNext()
+				if child.GetFirstChild() == nil {
+					ctok := child.GetToken()
+					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+						t.currentNode = child
+						if cb.ShouldTraverse(t, child, n) {
+							cb.Visit(t, child, n)
+						}
+						child = next
+						continue
+					}
+				}
+				t.traverseBranchFull(child, n)
+				child = next
+			}
+			t.PopScope()
+			t.currentHoistScopeRoot = previousHoistScopeRoot
+			t.currentNode = n
+			cb.Visit(t, n, parent)
+			return
+		}
+	case nodeTraversalTokenBlockScope:
+		cb := t.callback
+		t.currentNode = n
+		if !cb.ShouldTraverse(t, n, parent) {
+			return
+		}
+		previousHoistScopeRoot := t.currentHoistScopeRoot
+		t.PushScope(n)
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.GetFirstChild() == nil {
+				ctok := child.GetToken()
+				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+					t.currentNode = child
+					if cb.ShouldTraverse(t, child, n) {
+						cb.Visit(t, child, n)
+					}
+					child = next
+					continue
+				}
+			}
+			t.traverseBranchFull(child, n)
+			child = next
+		}
+		t.PopScope()
+		t.currentHoistScopeRoot = previousHoistScopeRoot
+		t.currentNode = n
+		cb.Visit(t, n, parent)
+		return
+	}
+
+	cb := t.callback
+	t.currentNode = n
+	if !cb.ShouldTraverse(t, n, parent) {
+		return
+	}
+	for child := n.GetFirstChild(); child != nil; {
+		next := child.GetNext()
+		if child.GetFirstChild() == nil {
+			ctok := child.GetToken()
+			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+				t.currentNode = child
+				if cb.ShouldTraverse(t, child, n) {
+					cb.Visit(t, child, n)
+				}
+				child = next
+				continue
+			}
+		}
+		t.traverseBranchFull(child, n)
+		child = next
+	}
+	t.currentNode = n
+	cb.Visit(t, n, parent)
+}
+
 // TraverseBranch traverses a branch.
 //
 // Java: NodeTraversal.traverseBranch(Node, Node)
 func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
+	switch t.fastMode {
+	case nodeTraversalFastPostOrder:
+		t.traverseBranchPostOrder(n, parent)
+		return
+	case nodeTraversalFastFull:
+		t.traverseBranchFull(n, parent)
+		return
+	}
 	tok := n.GetToken()
 	switch nodeTraversalTokenKind[uint8(tok)] {
 	case nodeTraversalTokenSpecial:
@@ -1832,6 +2064,42 @@ func (t *NodeTraversal) HandleMemberFieldDef(n *rhino.Node, child *rhino.Node) {
 // Java: NodeTraversal.traverseChildren(Node)
 func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 	cb := t.callback
+	switch t.fastMode {
+	case nodeTraversalFastPostOrder:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.GetFirstChild() == nil {
+				ctok := child.GetToken()
+				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+					t.currentNode = child
+					cb.Visit(t, child, n)
+					child = next
+					continue
+				}
+			}
+			t.traverseBranchPostOrder(child, n)
+			child = next
+		}
+		return
+	case nodeTraversalFastFull:
+		for child := n.GetFirstChild(); child != nil; {
+			next := child.GetNext()
+			if child.GetFirstChild() == nil {
+				ctok := child.GetToken()
+				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+					t.currentNode = child
+					if cb.ShouldTraverse(t, child, n) {
+						cb.Visit(t, child, n)
+					}
+					child = next
+					continue
+				}
+			}
+			t.traverseBranchFull(child, n)
+			child = next
+		}
+		return
+	}
 	noVisitLeaves := t.noVisitLeaves
 	onlyNameLeaves := t.onlyNameLeaves
 	for child := n.GetFirstChild(); child != nil; {

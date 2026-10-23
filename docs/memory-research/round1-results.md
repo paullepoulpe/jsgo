@@ -71,6 +71,33 @@ CPU in 262 s of wall, i.e. it stalled on memory at 8.5 GB RSS, and the
 smaller final heap removes that. OPTIMIZATIONS pays for the extra allocation
 (+27 s CPU), the round-2 target.
 
+### Against `main` after the merge (Rounds 2P–2U, commit c3830bd)
+
+The other optimization stream re-tuned its slabs in the meantime; the merged
+branch keeps plain allocation and main's algorithmic changes. Same machine,
+default GOGC, 2 runs each, all byte-identical with Java:
+
+| Task | Peak RSS main → merged | Wall main → merged |
+|---|---|---|
+| bundle | 616 → 307 MB (−50 %) | 4.2 → 4.7 s (+12 %) |
+| typed-full | 872 → 578 MB (−34 %) | 10.7 → 11.6 s (+9 %) |
+| typed-mega | 1,333 → 890 MB (−33 %) | 18.3 → 20.2 s (+10 %) |
+| bundle-mega | 1,300 → 912 MB (−30 %) | 23.0 → 26.4 s (+15 %) |
+| typed-app | 234 → 176 MB (−25 %) | 1.7 → 1.5 s (−12 %) |
+| checks-only | 397 → 344 MB (−13 %) | 2.3 → 2.4 s (+4 %) |
+
+googleapis, single runs, all 7,483 chunk outputs and stage logs
+byte-identical across the three (peak RSS / wall):
+
+| Stage | Java (`-Xmx16g`) | main | merged |
+|---|---|---|---|
+| CHECKS | 9,182 MB / 248 s | 6,987 MB / 95 s | 5,677 MB / 75 s |
+| OPTIMIZATIONS | 10,569 MB / 165 s | 5,781 MB / 63 s | 4,965 MB / 50 s |
+| FINALIZATIONS | 5,772 MB / 49 s | 1,742 MB / 8 s | 1,392 MB / 11 s |
+
+At that scale the smaller heap wins wall time back despite the higher CPU:
+1.9× less memory and 3.4× faster than Java (main: 1.5× and 2.8×).
+
 ### Cost
 
 - Allocation volume rose (typed-full 1.38 → 2.33 GB, objects 4.7 M → 32 M):

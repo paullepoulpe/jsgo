@@ -220,8 +220,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		}
 	case rhino.Token_CALL:
 		left := condition.GetFirstChild()
-		leftName := left.GetQualifiedName()
-		if leftName != nil && *leftName == "Array.isArray" && left.GetNext() != nil {
+		if left.MatchesQualifiedName("Array.isArray") && left.GetNext() != nil {
 			return s.CaseIsArray(left.GetNext(), blindScope, outcome)
 		}
 	default:
@@ -583,9 +582,8 @@ func (s *SemanticReverseAbstractInterpreter) CaseIn(object *rhino.Node, property
 		hasProperty = objectType.HasProperty(propertyName)
 	}
 	if !hasProperty {
-		qualifiedName := object.GetQualifiedName()
-		if qualifiedName != nil {
-			propertyQualifiedName := *qualifiedName + "." + propertyName
+		if qualifiedName, ok := object.GetQualifiedNameString(); ok {
+			propertyQualifiedName := qualifiedName + "." + propertyName
 			if blindScope.GetSlot(propertyQualifiedName) == nil {
 				unknownType := s.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 				return blindScope.InferQualifiedSlot(
