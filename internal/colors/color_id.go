@@ -20,6 +20,7 @@
 package colors
 
 import (
+	"encoding/binary"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -118,47 +119,45 @@ func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
 		return iterablesGetOnlyElement(ids)
 	}
 	if n == 2 {
-		var a, b int64
-		first := true
-		for id := range ids.All() {
-			if first {
-				a = id.rightAligned
-				first = false
-			} else {
-				b = id.rightAligned
-			}
-		}
+		c0, c1, _ := ids.FirstTwo()
+		a, b := c0.rightAligned, c1.rightAligned
 		if a > b {
 			a, b = b, a
 		}
-		var hasher jutil.FarmHashFingerprint64Hasher
-		hasher.Reset()
-		hasher.PutLong(a)
-		hasher.PutLong(b)
-		return NewColorId(hasher.HashAsLong())
+		var buf [16]byte
+		binary.LittleEndian.PutUint64(buf[0:8], uint64(a))
+		binary.LittleEndian.PutUint64(buf[8:16], uint64(b))
+		return NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
 	}
 
+	var stackCIDs [32]ColorId
 	var stackBuf [32]int64
+	var stackBytes [256]byte
 	var sorted []int64
+	var raw []byte
 	if n <= len(stackBuf) {
+		ids.CopyTo(stackCIDs[:n])
 		sorted = stackBuf[:n]
+		for i := 0; i < n; i++ {
+			sorted[i] = stackCIDs[i].rightAligned
+		}
+		raw = stackBytes[:n*8]
 	} else {
+		cids := make([]ColorId, n)
+		ids.CopyTo(cids)
 		sorted = make([]int64, n)
-	}
-	index := 0
-	for id := range ids.All() {
-		sorted[index] = id.rightAligned
-		index++
+		for i := 0; i < n; i++ {
+			sorted[i] = cids[i].rightAligned
+		}
+		raw = make([]byte, n*8)
 	}
 	slices.Sort(sorted)
 
-	var hasher jutil.FarmHashFingerprint64Hasher
-	hasher.Reset()
-	for i := 0; i < len(sorted); i++ {
-		hasher.PutLong(sorted[i])
+	for i := 0; i < n; i++ {
+		binary.LittleEndian.PutUint64(raw[i*8:], uint64(sorted[i]))
 	}
 
-	return NewColorId(hasher.HashAsLong())
+	return NewColorId(int64(jutil.FarmHashFingerprint64(raw)))
 }
 
 // iterablesGetOnlyElement is Guava's Iterables.getOnlyElement(Iterable).
@@ -169,7 +168,7 @@ func iterablesGetOnlyElement[T comparable](s *jutil.LinkedHashSet[T]) T {
 	if s.Size() > 1 {
 		panic(jutil.NewIllegalArgumentExceptionMsg("expected one element but was: " + s.String()))
 	}
-	for e := range s.All() {
+	if e, ok := s.First(); ok {
 		return e
 	}
 	panic(jutil.NewNoSuchElementException())

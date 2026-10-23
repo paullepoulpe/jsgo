@@ -173,6 +173,113 @@ func TypeTransformationParser_Keywords_ValueOf(name string) TypeTransformationPa
 		"No enum constant com.google.javascript.jscomp.parsing.TypeTransformationParser.Keywords." + name))
 }
 
+func asciiEqualUpper(s string, upperConst string) bool {
+	if len(s) != len(upperConst) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' {
+			c -= 'a' - 'A'
+		}
+		if c != upperConst[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TypeTransformationParser_Keywords_FromCaseInsensitiveASCII resolves
+// Keywords.valueOf(Ascii.toUpperCase(name)) without allocating an uppercase copy.
+func TypeTransformationParser_Keywords_FromCaseInsensitiveASCII(name string) TypeTransformationParser_Keywords {
+	switch len(name) {
+	case 2:
+		if asciiEqualUpper(name, "EQ") {
+			return TypeTransformationParser_Keywords_EQ
+		}
+	case 3:
+		if asciiEqualUpper(name, "ALL") {
+			return TypeTransformationParser_Keywords_ALL
+		}
+		if asciiEqualUpper(name, "SUB") {
+			return TypeTransformationParser_Keywords_SUB
+		}
+	case 4:
+		if asciiEqualUpper(name, "TYPE") {
+			return TypeTransformationParser_Keywords_TYPE
+		}
+		if asciiEqualUpper(name, "COND") {
+			return TypeTransformationParser_Keywords_COND
+		}
+		if asciiEqualUpper(name, "NONE") {
+			return TypeTransformationParser_Keywords_NONE
+		}
+	case 5:
+		if asciiEqualUpper(name, "UNION") {
+			return TypeTransformationParser_Keywords_UNION
+		}
+		if asciiEqualUpper(name, "STREQ") {
+			return TypeTransformationParser_Keywords_STREQ
+		}
+	case 6:
+		if asciiEqualUpper(name, "RECORD") {
+			return TypeTransformationParser_Keywords_RECORD
+		}
+		if asciiEqualUpper(name, "ISCTOR") {
+			return TypeTransformationParser_Keywords_ISCTOR
+		}
+	case 7:
+		if asciiEqualUpper(name, "UNKNOWN") {
+			return TypeTransformationParser_Keywords_UNKNOWN
+		}
+	case 8:
+		if asciiEqualUpper(name, "MAPUNION") {
+			return TypeTransformationParser_Keywords_MAPUNION
+		}
+		if asciiEqualUpper(name, "ISRECORD") {
+			return TypeTransformationParser_Keywords_ISRECORD
+		}
+		if asciiEqualUpper(name, "PROPTYPE") {
+			return TypeTransformationParser_Keywords_PROPTYPE
+		}
+		if asciiEqualUpper(name, "TYPEEXPR") {
+			return TypeTransformationParser_Keywords_TYPEEXPR
+		}
+	case 9:
+		if asciiEqualUpper(name, "ISDEFINED") {
+			return TypeTransformationParser_Keywords_ISDEFINED
+		}
+		if asciiEqualUpper(name, "ISUNKNOWN") {
+			return TypeTransformationParser_Keywords_ISUNKNOWN
+		}
+		if asciiEqualUpper(name, "MAPRECORD") {
+			return TypeTransformationParser_Keywords_MAPRECORD
+		}
+		if asciiEqualUpper(name, "PRINTTYPE") {
+			return TypeTransformationParser_Keywords_PRINTTYPE
+		}
+		if asciiEqualUpper(name, "RAWTYPEOF") {
+			return TypeTransformationParser_Keywords_RAWTYPEOF
+		}
+		if asciiEqualUpper(name, "TYPEOFVAR") {
+			return TypeTransformationParser_Keywords_TYPEOFVAR
+		}
+	case 10:
+		if asciiEqualUpper(name, "INSTANCEOF") {
+			return TypeTransformationParser_Keywords_INSTANCEOF
+		}
+	case 13:
+		if asciiEqualUpper(name, "ISTEMPLATIZED") {
+			return TypeTransformationParser_Keywords_ISTEMPLATIZED
+		}
+	case 14:
+		if asciiEqualUpper(name, "TEMPLATETYPEOF") {
+			return TypeTransformationParser_Keywords_TEMPLATETYPEOF
+		}
+	}
+	return TypeTransformationParser_Keywords_ValueOf(jutil.StringToUpperCaseASCII(name))
+}
+
 // String is Enum.name().
 func (k TypeTransformationParser_Keywords) String() string {
 	return typeTransformationParser_Keywords_constantNames[k]

@@ -157,7 +157,7 @@ func (c *ConstCheck) IsConstant(var_ *Var, nameNode *rhino.Node) bool {
 // Java: ConstCheck.reportError(Node, Var, String)
 func (c *ConstCheck) ReportError(n *rhino.Node, var_ *Var, name string) {
 	info := NodeUtil_GetBestJSDocInfo(n)
-	if info == nil || !info.GetSuppressions().Contains("const") {
+	if info == nil || !info.HasSuppression("const") {
 		declNode := var_.GetNode()
 		declaredPosition := jutil.ToJavaString(declNode.GetSourceFileName()) + ":" +
 			strconv.Itoa(declNode.GetLineno())

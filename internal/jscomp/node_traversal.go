@@ -1580,8 +1580,9 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		}
 	case nodeTraversalTokenBlock:
 		if t.isBlockScopeBlock(n) {
+			cb := t.callback
 			t.currentNode = n
-			if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+			if !t.noShouldTraverse && !cb.ShouldTraverse(t, n, parent) {
 				return
 			}
 			previousHoistScopeRoot := t.currentHoistScopeRoot
@@ -1589,25 +1590,29 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 			if n.GetParent().IsClassMembers() {
 				t.currentHoistScopeRoot = n
 			}
+			noVisitLeaves := t.noVisitLeaves
+			onlyNameLeaves := t.onlyNameLeaves
 			for child := n.GetFirstChild(); child != nil; {
 				next := child.GetNext()
-				ctok := child.GetToken()
-				if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(ctok)] == 0 {
-					if t.noShouldTraverse {
-						if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
+				if child.GetFirstChild() == nil {
+					ctok := child.GetToken()
+					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+						if t.noShouldTraverse {
+							if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+								t.currentNode = child
+								cb.Visit(t, child, n)
+							}
+						} else {
 							t.currentNode = child
-							t.callback.Visit(t, child, n)
-						}
-					} else {
-						t.currentNode = child
-						if t.callback.ShouldTraverse(t, child, n) {
-							if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
-								t.callback.Visit(t, child, n)
+							if cb.ShouldTraverse(t, child, n) {
+								if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+									cb.Visit(t, child, n)
+								}
 							}
 						}
+						child = next
+						continue
 					}
-					child = next
-					continue
 				}
 				t.TraverseBranch(child, n)
 				child = next
@@ -1616,36 +1621,41 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 			t.currentHoistScopeRoot = previousHoistScopeRoot
 			if !t.noVisit {
 				t.currentNode = n
-				t.callback.Visit(t, n, parent)
+				cb.Visit(t, n, parent)
 			}
 			return
 		}
 	case nodeTraversalTokenBlockScope:
+		cb := t.callback
 		t.currentNode = n
-		if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+		if !t.noShouldTraverse && !cb.ShouldTraverse(t, n, parent) {
 			return
 		}
 		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
+		noVisitLeaves := t.noVisitLeaves
+		onlyNameLeaves := t.onlyNameLeaves
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
-			ctok := child.GetToken()
-			if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(ctok)] == 0 {
-				if t.noShouldTraverse {
-					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
+			if child.GetFirstChild() == nil {
+				ctok := child.GetToken()
+				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+					if t.noShouldTraverse {
+						if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+							t.currentNode = child
+							cb.Visit(t, child, n)
+						}
+					} else {
 						t.currentNode = child
-						t.callback.Visit(t, child, n)
-					}
-				} else {
-					t.currentNode = child
-					if t.callback.ShouldTraverse(t, child, n) {
-						if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
-							t.callback.Visit(t, child, n)
+						if cb.ShouldTraverse(t, child, n) {
+							if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+								cb.Visit(t, child, n)
+							}
 						}
 					}
+					child = next
+					continue
 				}
-				child = next
-				continue
 			}
 			t.TraverseBranch(child, n)
 			child = next
@@ -1654,13 +1664,14 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		t.currentHoistScopeRoot = previousHoistScopeRoot
 		if !t.noVisit {
 			t.currentNode = n
-			t.callback.Visit(t, n, parent)
+			cb.Visit(t, n, parent)
 		}
 		return
 	}
 
+	cb := t.callback
 	t.currentNode = n
-	if !t.noShouldTraverse && !t.callback.ShouldTraverse(t, n, parent) {
+	if !t.noShouldTraverse && !cb.ShouldTraverse(t, n, parent) {
 		return
 	}
 
@@ -1671,36 +1682,40 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 	 * compilation. That can cause stack overflows on some very deep ASTs (e.g. b/188616350).
 	 * Inlining side-steps the issue.
 	 */
+	noVisitLeaves := t.noVisitLeaves
+	onlyNameLeaves := t.onlyNameLeaves
 	for child := n.GetFirstChild(); child != nil; {
 		// child could be replaced, in which case our child node
 		// would no longer point to the true next
 		next := child.GetNext()
-		ctok := child.GetToken()
-		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(ctok)] == 0 {
-			if t.noShouldTraverse {
-				if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
+		if child.GetFirstChild() == nil {
+			ctok := child.GetToken()
+			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+				if t.noShouldTraverse {
+					if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+						t.currentNode = child
+						cb.Visit(t, child, n)
+					}
+				} else {
 					t.currentNode = child
-					t.callback.Visit(t, child, n)
-				}
-			} else {
-				t.currentNode = child
-				if t.callback.ShouldTraverse(t, child, n) {
-					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
-						t.callback.Visit(t, child, n)
+					if cb.ShouldTraverse(t, child, n) {
+						if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+							cb.Visit(t, child, n)
+						}
 					}
 				}
+				child = next
+				continue
 			}
-			child = next
-			continue
 		}
 		t.TraverseBranch(child, n)
 		child = next
 	}
 
 	if !t.noVisit {
-		if n.GetFirstChild() != nil || (!t.noVisitLeaves && (!t.onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK {
+		if n.GetFirstChild() != nil || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK {
 			t.currentNode = n
-			t.callback.Visit(t, n, parent)
+			cb.Visit(t, n, parent)
 		}
 	}
 }
@@ -1877,27 +1892,32 @@ func (t *NodeTraversal) HandleMemberFieldDef(n *rhino.Node, child *rhino.Node) {
 
 // Java: NodeTraversal.traverseChildren(Node)
 func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
+	cb := t.callback
+	noVisitLeaves := t.noVisitLeaves
+	onlyNameLeaves := t.onlyNameLeaves
 	for child := n.GetFirstChild(); child != nil; {
 		// child could be replaced, in which case our child node
 		// would no longer point to the true next
 		next := child.GetNext()
-		ctok := child.GetToken()
-		if child.GetFirstChild() == nil && nodeTraversalTokenKind[uint8(ctok)] == 0 {
-			if t.noShouldTraverse {
-				if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
+		if child.GetFirstChild() == nil {
+			ctok := child.GetToken()
+			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
+				if t.noShouldTraverse {
+					if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+						t.currentNode = child
+						cb.Visit(t, child, n)
+					}
+				} else {
 					t.currentNode = child
-					t.callback.Visit(t, child, n)
-				}
-			} else {
-				t.currentNode = child
-				if t.callback.ShouldTraverse(t, child, n) {
-					if !t.noVisit && !t.noVisitLeaves && (!t.onlyNameLeaves || ctok == rhino.Token_NAME) {
-						t.callback.Visit(t, child, n)
+					if cb.ShouldTraverse(t, child, n) {
+						if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+							cb.Visit(t, child, n)
+						}
 					}
 				}
+				child = next
+				continue
 			}
-			child = next
-			continue
 		}
 		t.TraverseBranch(child, n)
 		child = next

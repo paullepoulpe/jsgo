@@ -535,8 +535,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 
 	proto := shard.typePool.GetTypeList()[trimmedIdx]
 	var result *colors.Color
-	switch proto.GetKindCase() {
-	case TypeProto_KindCase_OBJECT:
+	if proto.HasObject() {
 		objProto := proto.GetObject()
 		instanceColors := colorPool_emptyColorSet
 		if instanceTypeIds := objProto.GetInstanceTypeList(); len(instanceTypeIds) > 0 {
@@ -591,7 +590,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 			SetInvalidating(objProto.GetIsInvalidating()).
 			SetPropertiesKeepOriginalName(objProto.GetPropertiesKeepOriginalName()).
 			Build()
-	case TypeProto_KindCase_UNION:
+	} else if proto.HasUnion() {
 		union := b.allocColorSet()
 		unionMemberList := proto.GetUnion().GetUnionMemberList()
 		for i := 0; i < len(unionMemberList); i++ {
@@ -601,7 +600,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 		}
 		result = colors.Color_CreateUnion(union)
 		jutil.CheckStateMsg2(id.Equals(result.GetId()), "%s == %s", id, result)
-	default:
+	} else {
 		panic(jutil.NewAssertionError(proto.String()))
 	}
 
@@ -641,12 +640,11 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	jutil.CheckNotNullMsg1(sample, "%s", id)
 
 	var result *colors.Color
-	switch sample.GetKindCase() {
-	case TypeProto_KindCase_OBJECT:
+	if sample.HasObject() {
 		result = b.reconcileObjectProtos(id, entry)
-	case TypeProto_KindCase_UNION:
+	} else if sample.HasUnion() {
 		result = b.reconcileUnionProtos(id, entry)
-	default:
+	} else {
 		panic(jutil.NewAssertionError(sample.String()))
 	}
 
@@ -817,12 +815,11 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	hasUnion := false
 
 	for i, proto := range typeList {
-		switch proto.GetKindCase() {
-		case TypeProto_KindCase_OBJECT:
+		if proto.HasObject() {
 			out[i] = colors.ColorId_FromBytes(proto.GetObject().GetUuid())
-		case TypeProto_KindCase_UNION:
+		} else if proto.HasUnion() {
 			hasUnion = true
-		default:
+		} else {
 			panic(NewMalformedTypedAstException(proto))
 		}
 	}
@@ -830,7 +827,7 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	if hasUnion {
 		scratchMembers := jutil.NewLinkedHashSet[colors.ColorId]()
 		for i, proto := range typeList {
-			if proto.GetKindCase() == TypeProto_KindCase_UNION {
+			if proto.HasUnion() {
 				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, scratchMembers)
 			}
 		}
@@ -856,7 +853,7 @@ func colorPool_createUnionColorId(
 		} else {
 			trimmed := TypePointers_TrimOffset(memberPointer)
 			MalformedTypedAstException_CheckWellFormedWithParam(
-				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].GetKindCase() == TypeProto_KindCase_OBJECT),
+				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].HasObject()),
 				"Union member not found",
 				proto)
 			scratchMembers.Add(allIds[trimmed])

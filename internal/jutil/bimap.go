@@ -10,49 +10,70 @@ import (
 // inverse view iterates the same entries with key and value swapped. Keys
 // and values use Go equality (like LinkedHashMap).
 
-type biMapNode struct {
-	kv         [2]any
-	prev, next *biMapNode
+type biMapLink struct {
+	prev, next int32
 }
 
-type biMapList struct {
-	head, tail *biMapNode
+type biMapLinks struct {
+	nodes              []biMapLink
+	head, tail, freeHd int32
 }
 
 // BiMap is com.google.common.collect.BiMap as implemented by HashBiMap and
 // ImmutableBiMap (immutability is not enforced).
 type BiMap[K, V comparable] struct {
-	byKey   map[K]*biMapNode
-	byValue map[V]*biMapNode
-	list    *biMapList
-	side    int // index in biMapNode.kv of this view's key
+	byKey   map[K]int32 // 1-based index into *keys / *values (0 means absent)
+	byValue map[V]int32 // 1-based index into *keys / *values (0 means absent)
+	keys    *[]K
+	values  *[]V
+	links   *biMapLinks
 	inverse *BiMap[V, K]
 }
 
 // HashBiMap_Create is HashBiMap.create().
 func HashBiMap_Create[K, V comparable]() *BiMap[K, V] {
-	m := &BiMap[K, V]{byKey: map[K]*biMapNode{}, byValue: map[V]*biMapNode{}, list: &biMapList{}}
-	m.inverse = &BiMap[V, K]{byKey: m.byValue, byValue: m.byKey, list: m.list, side: 1, inverse: m}
+	return newBiMapWithCapacity[K, V](0)
+}
+
+func newBiMapWithCapacity[K, V comparable](capHint int) *BiMap[K, V] {
+	var (
+		ks      []K
+		vs      []V
+		byKey   map[K]int32
+		byValue map[V]int32
+		nodes   []biMapLink
+	)
+	if capHint > 0 {
+		ks = make([]K, 0, capHint)
+		vs = make([]V, 0, capHint)
+		byKey = make(map[K]int32, capHint)
+		byValue = make(map[V]int32, capHint)
+		nodes = make([]biMapLink, 0, capHint)
+	} else {
+		byKey = map[K]int32{}
+		byValue = map[V]int32{}
+	}
+	links := &biMapLinks{nodes: nodes, head: -1, tail: -1, freeHd: -1}
+	m := &BiMap[K, V]{byKey: byKey, byValue: byValue, keys: &ks, values: &vs, links: links}
+	m.inverse = &BiMap[V, K]{byKey: byValue, byValue: byKey, keys: &vs, values: &ks, links: links, inverse: m}
 	return m
 }
 
 // ImmutableBiMap_CopyOf is ImmutableBiMap.copyOf(Map): throws
 // IllegalArgumentException if two keys map to the same value.
 func ImmutableBiMap_CopyOf[K, V comparable](src *LinkedHashMap[K, V]) *BiMap[K, V] {
-	m := HashBiMap_Create[K, V]()
+	m := newBiMapWithCapacity[K, V](src.Size())
 	for k, v := range src.All() {
-		if prev, ok := m.byValue[v]; ok {
+		if prevSlot, ok := m.byValue[v]; ok {
+			prevIdx := prevSlot - 1
 			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same value: " +
 				ToJavaString(k) + "=" + ToJavaString(v) + " and " +
-				ToJavaString(prev.kv[0]) + "=" + ToJavaString(prev.kv[1])))
+				ToJavaString((*m.keys)[prevIdx]) + "=" + ToJavaString((*m.values)[prevIdx])))
 		}
 		m.Put(k, v)
 	}
 	return m
 }
-
-func (m *BiMap[K, V]) key(n *biMapNode) K   { return n.kv[m.side].(K) }
-func (m *BiMap[K, V]) value(n *biMapNode) V { return n.kv[1-m.side].(V) }
 
 // Size is Map.size().
 func (m *BiMap[K, V]) Size() int { return len(m.byKey) }
@@ -68,8 +89,8 @@ func (m *BiMap[K, V]) Get(k K) V {
 
 // Lookup returns the value and whether the key is present.
 func (m *BiMap[K, V]) Lookup(k K) (V, bool) {
-	if n, ok := m.byKey[k]; ok {
-		return m.value(n), true
+	if slot, ok := m.byKey[k]; ok {
+		return (*m.values)[slot-1], true
 	}
 	var zero V
 	return zero, false
@@ -97,77 +118,81 @@ func (m *BiMap[K, V]) Put(k K, v V) V { return m.put(k, v, false) }
 func (m *BiMap[K, V]) ForcePut(k K, v V) V { return m.put(k, v, true) }
 
 func (m *BiMap[K, V]) put(k K, v V, force bool) V {
-	oldForKey, hasKey := m.byKey[k]
-	if hasKey && m.value(oldForKey) == v {
+	oldKeySlot, hasKey := m.byKey[k]
+	if hasKey && (*m.values)[oldKeySlot-1] == v {
 		return v
 	}
-	if oldForValue, ok := m.byValue[v]; ok {
+	if oldValSlot, ok := m.byValue[v]; ok {
 		if !force {
 			panic(NewIllegalArgumentExceptionMsg("value already present: " + ToJavaString(v)))
 		}
-		m.delete(oldForValue)
+		m.deleteSlot(oldValSlot - 1)
 	}
-	n := &biMapNode{}
-	n.kv[m.side] = k
-	n.kv[1-m.side] = v
 	if hasKey {
-		old := m.value(oldForKey)
+		idx := oldKeySlot - 1
+		old := (*m.values)[idx]
 		delete(m.byValue, old)
-		// Take over the position of the replaced entry.
-		n.prev, n.next = oldForKey.prev, oldForKey.next
-		if n.prev != nil {
-			n.prev.next = n
-		} else {
-			m.list.head = n
-		}
-		if n.next != nil {
-			n.next.prev = n
-		} else {
-			m.list.tail = n
-		}
-		oldForKey.prev, oldForKey.next = nil, nil
-		m.byKey[k] = n
-		m.byValue[v] = n
+		(*m.values)[idx] = v
+		m.byValue[v] = oldKeySlot
 		return old
 	}
-	n.prev = m.list.tail
-	if m.list.tail != nil {
-		m.list.tail.next = n
+	var idx int32
+	if m.links.freeHd >= 0 {
+		idx = m.links.freeHd
+		m.links.freeHd = m.links.nodes[idx].next
+		(*m.keys)[idx] = k
+		(*m.values)[idx] = v
+		m.links.nodes[idx] = biMapLink{prev: m.links.tail, next: -1}
 	} else {
-		m.list.head = n
+		idx = int32(len(*m.keys))
+		*m.keys = append(*m.keys, k)
+		*m.values = append(*m.values, v)
+		m.links.nodes = append(m.links.nodes, biMapLink{prev: m.links.tail, next: -1})
 	}
-	m.list.tail = n
-	m.byKey[k] = n
-	m.byValue[v] = n
+	if m.links.tail >= 0 {
+		m.links.nodes[m.links.tail].next = idx
+	} else {
+		m.links.head = idx
+	}
+	m.links.tail = idx
+	m.byKey[k] = idx + 1
+	m.byValue[v] = idx + 1
 	var zero V
 	return zero
 }
 
-func (m *BiMap[K, V]) delete(n *biMapNode) {
-	delete(m.byKey, m.key(n))
-	delete(m.byValue, m.value(n))
-	if n.prev != nil {
-		n.prev.next = n.next
+func (m *BiMap[K, V]) deleteSlot(idx int32) {
+	delete(m.byKey, (*m.keys)[idx])
+	delete(m.byValue, (*m.values)[idx])
+	var zeroK K
+	var zeroV V
+	(*m.keys)[idx] = zeroK
+	(*m.values)[idx] = zeroV
+	nd := m.links.nodes[idx]
+	if nd.prev >= 0 {
+		m.links.nodes[nd.prev].next = nd.next
 	} else {
-		m.list.head = n.next
+		m.links.head = nd.next
 	}
-	if n.next != nil {
-		n.next.prev = n.prev
+	if nd.next >= 0 {
+		m.links.nodes[nd.next].prev = nd.prev
 	} else {
-		m.list.tail = n.prev
+		m.links.tail = nd.prev
 	}
-	n.prev, n.next = nil, nil
+	m.links.nodes[idx] = biMapLink{prev: -2, next: m.links.freeHd}
+	m.links.freeHd = idx
 }
 
 // Remove is Map.remove; returns the removed value (zero if absent).
 func (m *BiMap[K, V]) Remove(k K) V {
-	n, ok := m.byKey[k]
+	slot, ok := m.byKey[k]
 	if !ok {
 		var zero V
 		return zero
 	}
-	v := m.value(n)
-	m.delete(n)
+	idx := slot - 1
+	v := (*m.values)[idx]
+	m.deleteSlot(idx)
 	return v
 }
 
@@ -175,7 +200,12 @@ func (m *BiMap[K, V]) Remove(k K) V {
 func (m *BiMap[K, V]) Clear() {
 	clear(m.byKey)
 	clear(m.byValue)
-	m.list.head, m.list.tail = nil, nil
+	clear(*m.keys)
+	clear(*m.values)
+	*m.keys = (*m.keys)[:0]
+	*m.values = (*m.values)[:0]
+	m.links.nodes = m.links.nodes[:0]
+	m.links.head, m.links.tail, m.links.freeHd = -1, -1, -1
 }
 
 // Inverse is BiMap.inverse(): a view sharing this map's entries.
@@ -184,12 +214,12 @@ func (m *BiMap[K, V]) Inverse() *BiMap[V, K] { return m.inverse }
 // All iterates entries in key insertion order.
 func (m *BiMap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		for n := m.list.head; n != nil; {
-			next := n.next
-			if !yield(m.key(n), m.value(n)) {
+		for idx := m.links.head; idx >= 0; {
+			next := m.links.nodes[idx].next
+			if !yield((*m.keys)[idx], (*m.values)[idx]) {
 				return
 			}
-			n = next
+			idx = next
 		}
 	}
 }

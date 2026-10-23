@@ -2776,12 +2776,27 @@ func (n *Node) GetString() string {
 	return n.nodeStringValue()
 }
 
+//go:noinline
+func (n *Node) failGetStringID() {
+	if got := n.nodeKind(); got != node_kindString {
+		failNodeCastKind(got, node_kindString)
+	}
+	panic(jutil.NewNullPointerException())
+}
+
+//go:noinline
+func (n *Node) failGetRawStringID() {
+	if got := n.nodeKind(); got != node_kindTemplateLiteralSubstring {
+		failNodeCastKind(got, node_kindTemplateLiteralSubstring)
+	}
+	panic(jutil.NewNullPointerException())
+}
+
 // GetStringID returns the 32-bit interned string ID of a StringNode.
 func (n *Node) GetStringID() uint32 {
-	n.node_castKind(node_kindString)
 	id := uint32(n.payload)
-	if id == 0 {
-		panic(jutil.NewNullPointerException())
+	if n.kindFlags&kindMask != uint8(node_kindString) || id == 0 {
+		n.failGetStringID()
 	}
 	return id
 }
@@ -2808,10 +2823,9 @@ func (n *Node) GetRawString() string {
 
 // GetRawStringID returns the 32-bit interned raw string ID of a TemplateLiteralSubstringNode.
 func (n *Node) GetRawStringID() uint32 {
-	n.node_castKind(node_kindTemplateLiteralSubstring)
 	id := uint32(n.payload)
-	if id == 0 {
-		panic(jutil.NewNullPointerException())
+	if n.kindFlags&kindMask != uint8(node_kindTemplateLiteralSubstring) || id == 0 {
+		n.failGetRawStringID()
 	}
 	return id
 }

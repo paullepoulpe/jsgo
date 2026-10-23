@@ -135,7 +135,7 @@ func (c *StrictModeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 // Java: StrictModeCheck.checkWith(Node)
 func (c *StrictModeCheck) CheckWith(n *rhino.Node) {
 	info := n.GetJSDocInfo()
-	allowWith := info != nil && info.GetSuppressions().Contains("with")
+	allowWith := info != nil && info.HasSuppression("with")
 	if !allowWith {
 		c.Report(n, StrictModeCheck_USE_OF_WITH)
 	}

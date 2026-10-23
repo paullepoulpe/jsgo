@@ -777,6 +777,74 @@ func (s *LinkedHashSet[T]) ToSlice() []T {
 	return s.m.KeySlice()
 }
 
+// First returns the first element in insertion order, if any, without closures.
+func (s *LinkedHashSet[T]) First() (T, bool) {
+	if s != nil && s.m.size > 0 {
+		h := &s.m
+		if h.m == nil || len(h.m.removed) == 0 {
+			return h.slots[h.first].key, true
+		}
+		for i := int(h.first); i < len(h.slots); i++ {
+			if i >= len(h.m.removed) || !h.m.removed[i] {
+				return h.slots[i].key, true
+			}
+		}
+	}
+	var zero T
+	return zero, false
+}
+
+// FirstTwo returns the first two elements in insertion order when Size() >= 2.
+func (s *LinkedHashSet[T]) FirstTwo() (T, T, bool) {
+	if s != nil && s.m.size >= 2 {
+		h := &s.m
+		if h.m == nil || len(h.m.removed) == 0 {
+			f := int(h.first)
+			return h.slots[f].key, h.slots[f+1].key, true
+		}
+		var a T
+		gotFirst := false
+		for i := int(h.first); i < len(h.slots); i++ {
+			if i < len(h.m.removed) && h.m.removed[i] {
+				continue
+			}
+			if !gotFirst {
+				a = h.slots[i].key
+				gotFirst = true
+			} else {
+				return a, h.slots[i].key, true
+			}
+		}
+	}
+	var zero T
+	return zero, zero, false
+}
+
+// CopyTo copies up to len(dst) elements in insertion order into dst without
+// allocating an iterator closure, returning the number of elements copied.
+func (s *LinkedHashSet[T]) CopyTo(dst []T) int {
+	if s == nil || s.m.size == 0 || len(dst) == 0 {
+		return 0
+	}
+	h := &s.m
+	n := 0
+	if h.m == nil || len(h.m.removed) == 0 {
+		for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
+			dst[n] = h.slots[i].key
+			n++
+		}
+		return n
+	}
+	for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
+		if i < len(h.m.removed) && h.m.removed[i] {
+			continue
+		}
+		dst[n] = h.slots[i].key
+		n++
+	}
+	return n
+}
+
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
 

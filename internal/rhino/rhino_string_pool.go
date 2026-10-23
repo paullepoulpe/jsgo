@@ -410,6 +410,11 @@ func RhinoStringPool_StringFromID(id uint32) string {
 	return rhinoStringFromID(rhinoStringID(id))
 }
 
+// RhinoStringPool_WasClearedForTest reports whether rhinoStringPoolClearForTest has been called.
+func RhinoStringPool_WasClearedForTest() bool {
+	return rhinoStringPoolCleared
+}
+
 // Java: RhinoStringPool()
 func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 

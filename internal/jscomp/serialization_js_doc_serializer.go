@@ -155,19 +155,17 @@ func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *rhino.JSDocInfo) *r
 	}
 
 	var hasSuppressMessageConvention, hasSuppressPartialAlias, hasSuppressUntranspilableFeatures bool
-	suppressions := jsdoc.GetSuppressions()
-	if !suppressions.IsEmpty() {
-		for s := range suppressions.All() {
-			switch s {
-			case "messageConventions":
-				hasSuppressMessageConvention = true
-			case "partialAlias":
-				hasSuppressPartialAlias = true
-			case "untranspilableFeatures":
-				hasSuppressUntranspilableFeatures = true
-			}
+	jsdoc.ForEachSuppression(func(s string) bool {
+		switch s {
+		case "messageConventions":
+			hasSuppressMessageConvention = true
+		case "partialAlias":
+			hasSuppressPartialAlias = true
+		case "untranspilableFeatures":
+			hasSuppressUntranspilableFeatures = true
 		}
-	}
+		return true
+	})
 
 	if jsdoc.IsAbstract() {
 		ensureBuilder().RecordAbstract()
@@ -326,7 +324,7 @@ func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	if jsdoc.IsInterface() {
 		addKind(JsdocTag_JSDOC_INTERFACE)
 	}
-	if jsdoc.GetSuppressions().Contains("partialAlias") {
+	if jsdoc.HasSuppression("partialAlias") {
 		addKind(JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS)
 	}
 
@@ -345,10 +343,10 @@ func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	if jsdoc.GetMeaning() != nil {
 		m.meaningPointer_ = int32(stringPool.Put(*jsdoc.GetMeaning()))
 	}
-	if jsdoc.GetSuppressions().Contains("messageConventions") {
+	if jsdoc.HasSuppression("messageConventions") {
 		addKind(JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION)
 	}
-	if jsdoc.GetSuppressions().Contains("untranspilableFeatures") {
+	if jsdoc.HasSuppression("untranspilableFeatures") {
 		addKind(JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES)
 	}
 	if jsdoc.IsUsedViaDotConstructor() {

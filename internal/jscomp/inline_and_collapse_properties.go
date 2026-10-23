@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -1399,6 +1400,19 @@ type InlineAndCollapseProperties_CollapseProperties struct {
 	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name]
 
 	dynamicallyImportedModules *jutil.LinkedHashSet[string]
+	aliasByteSlab              []byte
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) allocSlabBytes(n int) []byte {
+	if n > 32768 {
+		return make([]byte, n)
+	}
+	if len(c.aliasByteSlab) < n {
+		c.aliasByteSlab = make([]byte, 32768)
+	}
+	b := c.aliasByteSlab[:n:n]
+	c.aliasByteSlab = c.aliasByteSlab[n:]
+	return b
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties()
@@ -1429,6 +1443,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs *rhino.
 		// invalidating the node ancestry stored with each reference.
 		c.CollapseDeclarationOfNameAndDescendants(name, name.GetBaseName(), escaped)
 	}
+	c.aliasByteSlab = nil
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.canCollapse(Name)
@@ -1826,12 +1841,19 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, nil, false)
 }
 
-func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
+func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
 	if extraDepth <= 0 {
 		return baseOriginalName
 	}
 	if extraDepth == 1 {
-		return baseOriginalName + n.baseName
+		totalLen := len(baseOriginalName) + len(n.baseName)
+		if totalLen == 0 {
+			return ""
+		}
+		buf := c.allocSlabBytes(totalLen)
+		copy(buf, baseOriginalName)
+		copy(buf[len(baseOriginalName):], n.baseName)
+		return unsafe.String(&buf[0], totalLen)
 	}
 	var stackBuf [16]string
 	var parts []string
@@ -1847,13 +1869,15 @@ func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Nam
 		totalLen += len(cur.baseName)
 		cur = cur.parent
 	}
-	var sb strings.Builder
-	sb.Grow(totalLen)
-	sb.WriteString(baseOriginalName)
-	for _, s := range parts {
-		sb.WriteString(s)
+	if totalLen == 0 {
+		return ""
 	}
-	return sb.String()
+	buf := c.allocSlabBytes(totalLen)
+	pos := copy(buf, baseOriginalName)
+	for _, s := range parts {
+		pos += copy(buf[pos:], s)
+	}
+	return unsafe.String(&buf[0], totalLen)
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
@@ -1867,17 +1891,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	descendantsVisited bool) {
 	var cachedOrig string
 	hasOrig := false
-	getOrig := func() string {
-		if !hasOrig {
-			cachedOrig = buildLazyPrefixOriginalName(baseOriginalName, n, extraDepth)
-			hasOrig = true
-		}
-		return cachedOrig
-	}
 
 	decl := n.getDeclarationRef()
 	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
-		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, getOrig(), isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
 	if descendantsVisited && c.willFlattenReferences(n) {
@@ -1888,7 +1905,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 		if r == decl {
 			continue
 		}
-		c.FlattenNameRefAtDepth(alias, r.GetNode(), depth, getOrig(), isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, r.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
 	if n.props != nil {
@@ -1898,6 +1915,34 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, escaped, nextDescendantsVisited)
 			}
 		}
+	}
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLazy(
+	alias string,
+	n *rhino.Node,
+	depth int,
+	baseOriginalName string,
+	nameObj *GlobalNamespace_Name,
+	extraDepth int,
+	cachedOrig *string,
+	hasOrig *bool,
+	isConstantName bool) {
+	nType := n.GetToken()
+	isQName := nType == rhino.Token_NAME || nType == rhino.Token_GETPROP
+	if !isQName {
+		jutil.CheckState(NodeUtil_MayBeObjectLitKey(n))
+		return
+	}
+	for i := 1; i < depth && n.HasChildren(); i++ {
+		n = n.GetFirstChild()
+	}
+	if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
+		if !*hasOrig {
+			*cachedOrig = c.buildLazyPrefixOriginalName(baseOriginalName, nameObj, extraDepth)
+			*hasOrig = true
+		}
+		c.FlattenNameRef(alias, n.GetFirstChild(), n, *cachedOrig, isConstantName)
 	}
 }
 
@@ -2539,16 +2584,47 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredPr
 
 // Java: InlineAndCollapseProperties.CollapseProperties.appendPropForAlias(String, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) AppendPropForAlias(root string, prop string) string {
+	dollars := 0
 	if strings.IndexByte(prop, '$') != -1 {
+		for i := 0; i < len(prop); i++ {
+			if prop[i] == '$' {
+				dollars++
+			}
+		}
+	}
+	baseLen := len(root) + 1 + len(prop) + dollars
+	buf := c.allocSlabBytes(baseLen)
+	pos := copy(buf, root)
+	buf[pos] = '$'
+	pos++
+	if dollars == 0 {
+		copy(buf[pos:], prop)
+	} else {
 		// Encode '$' in a property as '$0'. Because '0' cannot be the
 		// start of an identifier, this will never conflict with our
 		// encoding from '.' -> '$'.
-		prop = strings.ReplaceAll(prop, "$", "$0")
+		for i := 0; i < len(prop); i++ {
+			ch := prop[i]
+			buf[pos] = ch
+			pos++
+			if ch == '$' {
+				buf[pos] = '0'
+				pos++
+			}
+		}
 	}
-	result := root + "$" + prop
+	baseStr := unsafe.String(&buf[0], baseLen)
+	result := baseStr
 	id := 1
 	for c.nameMap.ContainsKey(result) {
-		result = root + "$" + prop + "$" + strconv.Itoa(id)
+		var numBuf [20]byte
+		numBytes := strconv.AppendInt(numBuf[:0], int64(id), 10)
+		extLen := len(baseStr) + 1 + len(numBytes)
+		ext := c.allocSlabBytes(extLen)
+		copy(ext, baseStr)
+		ext[len(baseStr)] = '$'
+		copy(ext[len(baseStr)+1:], numBytes)
+		result = unsafe.String(&ext[0], extLen)
 		id++
 	}
 	return result
