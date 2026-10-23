@@ -66,6 +66,7 @@ const EnumElementType_TYPE_CLASS = JSTypeClass_ENUM_ELEMENT
 // Java: EnumElementType(JSTypeRegistry, JSType, String, EnumType)
 func NewEnumElementType(registry *JSTypeRegistry, elementType JSType, name *string, enumType *EnumType) *EnumElementType {
 	t := &EnumElementType{}
+	t.objFlags = objKindEnumElement
 	t.InitObjectTypeBase(t, registry)
 	t.primitiveType = elementType
 	t.primitiveObjectType = elementType.ToObjectType()

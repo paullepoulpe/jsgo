@@ -45,6 +45,7 @@ type NullType struct {
 // Java: NullType(JSTypeRegistry)
 func NewNullType(registry *JSTypeRegistry) *NullType {
 	t := &NullType{}
+	t.objFlags = jsKindNull
 	t.InitValueTypeBase(t, registry)
 	return t
 }

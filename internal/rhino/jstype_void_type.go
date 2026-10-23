@@ -45,6 +45,7 @@ type VoidType struct {
 // Java: VoidType(JSTypeRegistry)
 func NewVoidType(registry *JSTypeRegistry) *VoidType {
 	t := &VoidType{}
+	t.objFlags = jsKindVoid
 	t.InitValueTypeBase(t, registry)
 	return t
 }

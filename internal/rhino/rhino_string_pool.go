@@ -60,8 +60,8 @@ type rhinoStringID uint32
 const (
 	rhinoStringPool_SHARDS         = 64
 	rhinoStringPool_MAX_SHARD_SIZE = 56000
-	rhinoStringPageSize            = 32768
-	rhinoSpanChunkSize             = 1024
+	rhinoStringPageSize            = 65536
+	rhinoSpanChunkSize             = 4096
 )
 
 type rhinoStringPoolShard struct {
@@ -72,12 +72,15 @@ type rhinoStringPoolShard struct {
 	curPageIdx   uint32
 	curPageOff   uint32
 	hasCurPage   bool
-	spanChunks   [16384]*[rhinoSpanChunkSize]uint64
-	pages        [65536]*[rhinoStringPageSize]byte
+	spanChunks   [1024]*[rhinoSpanChunkSize]uint64
+	pages        [2048]*[rhinoStringPageSize]byte
 	largeStrings []string
 }
 
-var rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
+var (
+	rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
+	rhinoStringPoolCleared bool
+)
 
 func rhinoStringPoolHash(s string) uint64 {
 	n := len(s)
@@ -113,31 +116,31 @@ func rhinoStringPoolHash(s string) uint64 {
 }
 
 func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
-	desc := s.spanChunks[localIdx>>10][localIdx&1023]
+	desc := s.spanChunks[localIdx>>12][localIdx&4095]
 	if int64(desc) < 0 {
 		return s.largeStrings[uint32(desc)]
 	}
-	pageOff := uint32(desc & 0xFFFF)
-	length := uint32((desc >> 16) & 0xFFFF)
-	pageIdx := uint32((desc >> 32) & 0xFFFF)
+	pageOff := uint32(desc & 0xFFFFF)
+	length := uint32((desc >> 20) & 0xFFFFF)
+	pageIdx := uint32((desc >> 40) & 0xFFFFF)
 	return unsafe.String(&s.pages[pageIdx][pageOff], length)
 }
 
 func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	localIdx := s.nextLocalIdx
 	s.nextLocalIdx = localIdx + 1
-	chunkIdx := localIdx >> 10
+	chunkIdx := localIdx >> 12
 	if s.spanChunks[chunkIdx] == nil {
 		s.spanChunks[chunkIdx] = new([rhinoSpanChunkSize]uint64)
 	}
 	n := len(str)
-	if n > rhinoStringPageSize || s.curPageIdx >= 65535 {
+	if n > rhinoStringPageSize || (s.hasCurPage && int(s.curPageOff)+n > rhinoStringPageSize && int(s.curPageIdx)+1 >= len(s.pages)) {
 		largeIdx := uint32(len(s.largeStrings))
 		// Copy string bytes so substring slices don't pin large source buffers.
 		b := make([]byte, n)
 		copy(b, str)
 		s.largeStrings = append(s.largeStrings, unsafe.String(unsafe.SliceData(b), n))
-		s.spanChunks[chunkIdx][localIdx&1023] = (uint64(1) << 63) | uint64(largeIdx)
+		s.spanChunks[chunkIdx][localIdx&4095] = (uint64(1) << 63) | uint64(largeIdx)
 		return localIdx
 	}
 	if !s.hasCurPage || int(s.curPageOff)+n > rhinoStringPageSize {
@@ -152,8 +155,8 @@ func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	off := s.curPageOff
 	s.curPageOff = off + uint32(n)
 	copy(s.pages[s.curPageIdx][off:off+uint32(n)], str)
-	desc := uint64(off) | (uint64(n) << 16) | (uint64(s.curPageIdx) << 32)
-	s.spanChunks[chunkIdx][localIdx&1023] = desc
+	desc := uint64(off) | (uint64(n) << 20) | (uint64(s.curPageIdx) << 40)
+	s.spanChunks[chunkIdx][localIdx&4095] = desc
 	return localIdx
 }
 
@@ -259,17 +262,18 @@ func rhinoStringFromID(id rhinoStringID) string {
 	idx := uint32(id - 2)
 	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
 	localIdx := idx >> 6
-	desc := s.spanChunks[localIdx>>10][localIdx&1023]
+	desc := s.spanChunks[localIdx>>12][localIdx&4095]
 	if int64(desc) < 0 {
 		return s.largeStringAt(uint32(desc))
 	}
-	pageOff := uint32(desc & 0xFFFF)
-	length := uint32((desc >> 16) & 0xFFFF)
-	pageIdx := uint32((desc >> 32) & 0xFFFF)
+	pageOff := uint32(desc & 0xFFFFF)
+	length := uint32((desc >> 20) & 0xFFFFF)
+	pageIdx := uint32((desc >> 40) & 0xFFFFF)
 	return unsafe.String(&s.pages[pageIdx][pageOff], length)
 }
 
 func rhinoStringPoolClearForTest() {
+	rhinoStringPoolCleared = true
 	for i := range rhinoStringPool_shards {
 		s := &rhinoStringPool_shards[i]
 		s.mu.Lock()

@@ -72,6 +72,7 @@ type NoResolvedType struct {
 // Java: NoResolvedType(JSTypeRegistry, String, ImmutableList<JSType>)
 func NewNoResolvedType(registry *JSTypeRegistry, referenceName string, templateTypes []JSType) *NoResolvedType {
 	t := &NoResolvedType{}
+	t.objFlags = objKindNoResolved
 	t.InitObjectTypeBase(t, registry)
 	t.referenceName = referenceName
 	t.templateTypes = templateTypes

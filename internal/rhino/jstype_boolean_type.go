@@ -45,6 +45,7 @@ type BooleanType struct {
 // Java: BooleanType(JSTypeRegistry)
 func NewBooleanType(registry *JSTypeRegistry) *BooleanType {
 	t := &BooleanType{}
+	t.objFlags = jsKindScalarValue
 	t.InitValueTypeBase(t, registry)
 	return t
 }

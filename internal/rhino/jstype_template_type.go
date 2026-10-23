@@ -72,6 +72,7 @@ func NewTemplateTypeWithTransformation(registry *JSTypeRegistry, name string, ty
 func NewTemplateTypeWithBoundAndTransformation(
 	registry *JSTypeRegistry, name string, bound JSType, typeTransformation *Node) *TemplateType {
 	t := &TemplateType{}
+	t.objFlags = objKindTemplate
 	referenced := bound
 	if bound == nil {
 		referenced = registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)

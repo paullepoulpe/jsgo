@@ -93,18 +93,17 @@ func scopeNameHash(s string) uint32 {
 	return uint32(h ^ (h >> 32))
 }
 
+const (
+	varHashTagMask uint32 = 0xFF000000
+	varHashIdxMask uint32 = 0x00FFFFFF
+)
+
+func scopeBloomFromHash(h uint32) uint64 {
+	return (uint64(1) << (h & 63)) | (uint64(1) << ((h >> 6) & 63))
+}
+
 func scopeBloomMask(s string) uint64 {
-	n := len(s)
-	if n == 0 {
-		return 1
-	}
-	p := unsafe.Pointer(unsafe.StringData(s))
-	b0 := uint32(*(*byte)(p))
-	b1 := uint32(*(*byte)(unsafe.Add(p, n-1)))
-	b2 := uint32(*(*byte)(unsafe.Add(p, n>>1)))
-	h1 := (b0*31 + b1 + uint32(n)*7) & 63
-	h2 := (b2*37 + b1*13 + b0 + uint32(n)) & 63
-	return (uint64(1) << h1) | (uint64(1) << h2)
+	return scopeBloomFromHash(scopeNameHash(s))
 }
 
 // Scope contains information about a variable scope in JavaScript. Scopes
@@ -125,7 +124,7 @@ type Scope struct {
 	lookupParent *Scope
 	arena        *scopeArena
 	varList      []*Var
-	varHash      []int32
+	varHash      []uint32
 	varBloom     uint64
 	varCount     int32
 }
@@ -145,9 +144,9 @@ type scopeArena struct {
 	slotUsed         int
 	slotChunks       [][]*Var
 	slotChunkIdx     int
-	hashChunk        []int32
+	hashChunk        []uint32
 	hashUsed         int
-	hashChunks       [][]int32
+	hashChunks       [][]uint32
 	hashChunkIdx     int
 	implicitChunk    [][4]*Var
 	implicitUsed     int
@@ -166,7 +165,7 @@ type scopeArena struct {
 	baseImplicitUsed     int
 
 	globalVarList []*Var
-	globalVarHash []int32
+	globalVarHash []uint32
 	globalScope   *Scope
 	pooled        bool
 }
@@ -514,12 +513,12 @@ func (a *scopeArena) allocVarList(length, capacity int) []*Var {
 	return a.slotChunk[u : u+length : u+capacity]
 }
 
-func (a *scopeArena) allocVarHash(size int) []int32 {
+func (a *scopeArena) allocVarHash(size int) []uint32 {
 	if size <= 0 {
 		return nil
 	}
 	if size > maxHashChunkSize {
-		return make([]int32, size)
+		return make([]uint32, size)
 	}
 	if len(a.hashChunk)-a.hashUsed < size {
 		if a.hashChunkIdx < len(a.hashChunks) {
@@ -535,7 +534,7 @@ func (a *scopeArena) allocVarHash(size int) []int32 {
 				if chunkSize > maxHashChunkSize {
 					chunkSize = maxHashChunkSize
 				}
-				ch = make([]int32, chunkSize)
+				ch = make([]uint32, chunkSize)
 				a.hashChunks[a.hashChunkIdx] = ch
 			}
 			a.hashChunkIdx++
@@ -552,7 +551,7 @@ func (a *scopeArena) allocVarHash(size int) []int32 {
 		if chunkSize < size {
 			chunkSize = size
 		}
-		ch := make([]int32, chunkSize)
+		ch := make([]uint32, chunkSize)
 		a.hashChunks = append(a.hashChunks, ch)
 		a.hashChunkIdx = len(a.hashChunks)
 		a.hashChunk = ch
@@ -583,7 +582,7 @@ func (sc *Scope) initLargeVars(n int) {
 				hashLen *= 2
 			}
 			if len(a.globalVarHash) < hashLen {
-				a.globalVarHash = make([]int32, hashLen)
+				a.globalVarHash = make([]uint32, hashLen)
 			}
 			sc.varHash = a.globalVarHash
 			a.globalVarHash = nil
@@ -602,7 +601,7 @@ func (sc *Scope) initLargeVars(n int) {
 	for hashLen < n*2 {
 		hashLen *= 2
 	}
-	sc.varHash = make([]int32, hashLen)
+	sc.varHash = make([]uint32, hashLen)
 }
 
 func (a *scopeArena) allocImplicitVars() *[4]*Var {
@@ -799,23 +798,27 @@ func (s *Scope) lookupOwnVar(name string) *Var {
 	if s.varCount == 0 {
 		return nil
 	}
-	return s.lookupOwnVarWithBloom(name, scopeBloomMask(name))
+	h := scopeNameHash(name)
+	return s.lookupOwnVarWithHash(name, h, scopeBloomFromHash(h))
 }
 
-func (s *Scope) lookupOwnVarWithBloom(name string, bloom uint64) *Var {
+func (s *Scope) lookupOwnVarWithHash(name string, h uint32, bloom uint64) *Var {
 	if (s.varBloom & bloom) != bloom {
 		return nil
 	}
 	if s.varHash != nil {
 		mask := uint32(len(s.varHash) - 1)
-		slot := scopeNameHash(name) & mask
+		tag := h & varHashTagMask
+		slot := h & mask
 		for {
-			idx := s.varHash[slot]
-			if idx == 0 {
+			entry := s.varHash[slot]
+			if entry == 0 {
 				return nil
 			}
-			if v := s.varList[idx-1]; scopeNameEq(v.name, name) {
-				return v
+			if (entry & varHashTagMask) == tag {
+				if v := s.varList[(entry&varHashIdxMask)-1]; scopeNameEq(v.name, name) {
+					return v
+				}
 			}
 			slot = (slot + 1) & mask
 		}
@@ -828,8 +831,8 @@ func (s *Scope) lookupOwnVarWithBloom(name string, bloom uint64) *Var {
 	return nil
 }
 
-func (s *Scope) hasOwnSlotWithBloom(name string, bloom uint64) bool {
-	if s.lookupOwnVarWithBloom(name, bloom) != nil {
+func (s *Scope) hasOwnSlotWithHash(name string, h uint32, bloom uint64) bool {
+	if s.lookupOwnVarWithHash(name, h, bloom) != nil {
 		return true
 	}
 	if s.hasImplicitVars && len(name) >= 4 && len(name) <= 9 {
@@ -875,11 +878,12 @@ func (s *Scope) HasOwnSlot(name string) bool {
 
 // Java: AbstractScope.canDeclare(String)
 func (s *Scope) CanDeclare(name string) bool {
-	bloom := scopeBloomMask(name)
-	if s.hasOwnSlotWithBloom(name, bloom) {
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	if s.hasOwnSlotWithHash(name, h, bloom) {
 		return false
 	}
-	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) {
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithHash(name, h, bloom) {
 		return s.IsBleedingFunctionName(name)
 	}
 	return true
@@ -887,27 +891,25 @@ func (s *Scope) CanDeclare(name string) bool {
 
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
-	bloom := scopeBloomMask(name)
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	tag := h & varHashTagMask
 	implicit := AbstractScope_ImplicitVar_Of(name)
-	var h uint32
-	var hashed bool
 	if implicit == nil {
 		for cur := s; cur != nil; cur = cur.lookupParent {
 			if (cur.varBloom & bloom) == bloom {
 				if cur.varHash != nil {
-					if !hashed {
-						h = scopeNameHash(name)
-						hashed = true
-					}
 					mask := uint32(len(cur.varHash) - 1)
 					slot := h & mask
 					for {
-						idx := cur.varHash[slot]
-						if idx == 0 {
+						entry := cur.varHash[slot]
+						if entry == 0 {
 							break
 						}
-						if scopeNameEq(cur.varList[idx-1].name, name) {
-							return true
+						if (entry & varHashTagMask) == tag {
+							if scopeNameEq(cur.varList[(entry&varHashIdxMask)-1].name, name) {
+								return true
+							}
 						}
 						slot = (slot + 1) & mask
 					}
@@ -925,19 +927,17 @@ func (s *Scope) HasSlot(name string) bool {
 	for cur := s; cur != nil; cur = cur.lookupParent {
 		if (cur.varBloom & bloom) == bloom {
 			if cur.varHash != nil {
-				if !hashed {
-					h = scopeNameHash(name)
-					hashed = true
-				}
 				mask := uint32(len(cur.varHash) - 1)
 				slot := h & mask
 				for {
-					idx := cur.varHash[slot]
-					if idx == 0 {
+					entry := cur.varHash[slot]
+					if entry == 0 {
 						break
 					}
-					if scopeNameEq(cur.varList[idx-1].name, name) {
-						return true
+					if (entry & varHashTagMask) == tag {
+						if scopeNameEq(cur.varList[(entry&varHashIdxMask)-1].name, name) {
+							return true
+						}
 					}
 					slot = (slot + 1) & mask
 				}
@@ -973,27 +973,25 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 // generic base must support TypedScope's virtual methods; untyped scopes can
 // avoid those dictionary calls and classify implicit names once per lookup.
 func (s *Scope) GetVar(name string) *Var {
-	bloom := scopeBloomMask(name)
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	tag := h & varHashTagMask
 	implicit := AbstractScope_ImplicitVar_Of(name)
-	var h uint32
-	var hashed bool
 	if implicit == nil {
 		for cur := s; cur != nil; cur = cur.lookupParent {
 			if (cur.varBloom & bloom) == bloom {
 				if cur.varHash != nil {
-					if !hashed {
-						h = scopeNameHash(name)
-						hashed = true
-					}
 					mask := uint32(len(cur.varHash) - 1)
 					slot := h & mask
 					for {
-						idx := cur.varHash[slot]
-						if idx == 0 {
+						entry := cur.varHash[slot]
+						if entry == 0 {
 							break
 						}
-						if v := cur.varList[idx-1]; scopeNameEq(v.name, name) {
-							return v
+						if (entry & varHashTagMask) == tag {
+							if v := cur.varList[(entry&varHashIdxMask)-1]; scopeNameEq(v.name, name) {
+								return v
+							}
 						}
 						slot = (slot + 1) & mask
 					}
@@ -1011,19 +1009,17 @@ func (s *Scope) GetVar(name string) *Var {
 	for cur := s; cur != nil; cur = cur.lookupParent {
 		if (cur.varBloom & bloom) == bloom {
 			if cur.varHash != nil {
-				if !hashed {
-					h = scopeNameHash(name)
-					hashed = true
-				}
 				mask := uint32(len(cur.varHash) - 1)
 				slot := h & mask
 				for {
-					idx := cur.varHash[slot]
-					if idx == 0 {
+					entry := cur.varHash[slot]
+					if entry == 0 {
 						break
 					}
-					if v := cur.varList[idx-1]; scopeNameEq(v.name, name) {
-						return v
+					if (entry & varHashTagMask) == tag {
+						if v := cur.varList[(entry&varHashIdxMask)-1]; scopeNameEq(v.name, name) {
+							return v
+						}
 					}
 					slot = (slot + 1) & mask
 				}
@@ -1098,33 +1094,39 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 	}
 	name := var_.name
 	if s.varHash != nil {
+		h := scopeNameHash(name)
+		tag := h & varHashTagMask
 		mask := uint32(len(s.varHash) - 1)
-		i := scopeNameHash(name) & mask
+		i := h & mask
 		for {
-			idx := s.varHash[i]
-			if idx == 0 {
+			entry := s.varHash[i]
+			if entry == 0 {
 				return
 			}
-			if scopeNameEq(s.varList[idx-1].name, name) {
-				s.varList[idx-1] = nil
-				s.varCount--
-				if s.varCount == 0 {
-					s.varBloom = 0
+			if (entry & varHashTagMask) == tag {
+				idx := (entry & varHashIdxMask) - 1
+				if scopeNameEq(s.varList[idx].name, name) {
+					s.varList[idx] = nil
+					s.varCount--
+					if s.varCount == 0 {
+						s.varBloom = 0
+					}
+					break
 				}
-				break
 			}
 			i = (i + 1) & mask
 		}
 		j := i
 		for {
 			j = (j + 1) & mask
-			idx := s.varHash[j]
-			if idx == 0 {
+			entry := s.varHash[j]
+			if entry == 0 {
 				break
 			}
-			k := scopeNameHash(s.varList[idx-1].name) & mask
+			idx := (entry & varHashIdxMask) - 1
+			k := scopeNameHash(s.varList[idx].name) & mask
 			if ((j - k) & mask) >= ((j - i) & mask) {
-				s.varHash[i] = idx
+				s.varHash[i] = entry
 				i = j
 			}
 		}
@@ -1183,18 +1185,19 @@ func (s *Scope) initVarHash(size int) {
 	if a := s.arena; a != nil && s.parent != nil && size <= maxHashChunkSize {
 		s.varHash = a.allocVarHash(size)
 	} else {
-		s.varHash = make([]int32, size)
+		s.varHash = make([]uint32, size)
 	}
 	mask := uint32(size - 1)
 	for i, v := range s.varList {
 		if v == nil {
 			continue
 		}
-		slot := scopeNameHash(v.name) & mask
+		h := scopeNameHash(v.name)
+		slot := h & mask
 		for s.varHash[slot] != 0 {
 			slot = (slot + 1) & mask
 		}
-		s.varHash[slot] = int32(i + 1)
+		s.varHash[slot] = uint32(i+1) | (h & varHashTagMask)
 	}
 }
 
@@ -1218,53 +1221,58 @@ func (s *Scope) growVarHash() {
 			s.varHash = a.allocVarHash(newLen)
 		}
 	} else {
-		s.varHash = make([]int32, newLen)
+		s.varHash = make([]uint32, newLen)
 	}
 	mask := uint32(newLen - 1)
 	for i, v := range s.varList {
 		if v == nil {
 			continue
 		}
-		slot := scopeNameHash(v.name) & mask
+		h := scopeNameHash(v.name)
+		slot := h & mask
 		for s.varHash[slot] != 0 {
 			slot = (slot + 1) & mask
 		}
-		s.varHash[slot] = int32(i + 1)
+		s.varHash[slot] = uint32(i+1) | (h & varHashTagMask)
 	}
 }
 
-func (s *Scope) appendVarToInitialized(var_ *Var, probeSlot uint32) {
+func (s *Scope) appendVarToInitialized(var_ *Var, probeSlot uint32, tag uint32) {
 	s.appendVar(var_)
 	s.varCount++
 	if int(s.varCount)*2 > len(s.varHash) {
 		s.growVarHash()
 		return
 	}
-	s.varHash[probeSlot] = int32(len(s.varList))
+	s.varHash[probeSlot] = uint32(len(s.varList)) | tag
 }
 
 // Java: AbstractScope.declareInternal(String, V)
 func (s *Scope) DeclareInternal(name string, var_ *Var) {
-	bloom := scopeBloomMask(name)
-	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) && !s.hasOwnSlotWithBloom(name, bloom) && !s.IsBleedingFunctionName(name) {
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	tag := h & varHashTagMask
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithHash(name, h, bloom) && !s.hasOwnSlotWithHash(name, h, bloom) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
 	alreadyMaybePresent := (s.varBloom & bloom) == bloom
 	s.varBloom |= bloom
 	s.varsInitialized = true
 	if s.varHash != nil {
-		h := scopeNameHash(name)
 		mask := uint32(len(s.varHash) - 1)
 		slot := h & mask
 		if alreadyMaybePresent {
 			for {
-				idx := s.varHash[slot]
-				if idx == 0 {
+				entry := s.varHash[slot]
+				if entry == 0 {
 					break
 				}
-				if scopeNameEq(s.varList[idx-1].name, name) {
-					s.varList[idx-1] = var_
-					return
+				if (entry & varHashTagMask) == tag {
+					idx := (entry & varHashIdxMask) - 1
+					if scopeNameEq(s.varList[idx].name, name) {
+						s.varList[idx] = var_
+						return
+					}
 				}
 				slot = (slot + 1) & mask
 			}
@@ -1273,7 +1281,7 @@ func (s *Scope) DeclareInternal(name string, var_ *Var) {
 				slot = (slot + 1) & mask
 			}
 		}
-		s.appendVarToInitialized(var_, slot)
+		s.appendVarToInitialized(var_, slot, tag)
 		return
 	}
 	if alreadyMaybePresent {
@@ -1334,19 +1342,23 @@ func (s *Scope) GetSlot(name string) rhino.StaticSlot {
 // Java: Scope.declare(String, Node, CompilerInput)
 func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput) *Var {
 	jutil.CheckArgument(name != "")
-	bloom := scopeBloomMask(name)
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	tag := h & varHashTagMask
 	var slot uint32
 	if s.varHash != nil {
 		mask := uint32(len(s.varHash) - 1)
-		slot = scopeNameHash(name) & mask
+		slot = h & mask
 		if (s.varBloom & bloom) == bloom {
 			for {
-				idx := s.varHash[slot]
-				if idx == 0 {
+				entry := s.varHash[slot]
+				if entry == 0 {
 					break
 				}
-				if scopeNameEq(s.varList[idx-1].name, name) {
-					panic(jutil.NewIllegalStateException())
+				if (entry & varHashTagMask) == tag {
+					if scopeNameEq(s.varList[(entry&varHashIdxMask)-1].name, name) {
+						panic(jutil.NewIllegalStateException())
+					}
 				}
 				slot = (slot + 1) & mask
 			}
@@ -1380,13 +1392,13 @@ func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput)
 			input,
 			/* implicitGoogNamespaceDefinition= */ nil)
 	}
-	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithBloom(name, bloom) && !s.IsBleedingFunctionName(name) {
+	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotWithHash(name, h, bloom) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
 	s.varsInitialized = true
 	s.varBloom |= bloom
 	if s.varHash != nil {
-		s.appendVarToInitialized(var_, slot)
+		s.appendVarToInitialized(var_, slot, tag)
 		return var_
 	}
 	s.appendVar(var_)
@@ -1554,22 +1566,26 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 	jutil.CheckStateMsg1(s.IsGlobal(), "Cannot declare implicit goog namespace in local scope %s", s)
 	// Allow redeclarations of provides, since they are implicit and don't have a single
 	// declaration site.
-	bloom := scopeBloomMask(name)
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	tag := h & varHashTagMask
 	alreadyMaybePresent := (s.varBloom & bloom) == bloom
 	var var_ *Var
 	var slot uint32
 	if s.varHash != nil {
 		mask := uint32(len(s.varHash) - 1)
-		slot = scopeNameHash(name) & mask
+		slot = h & mask
 		if alreadyMaybePresent {
 			for {
-				idx := s.varHash[slot]
-				if idx == 0 {
+				entry := s.varHash[slot]
+				if entry == 0 {
 					break
 				}
-				if cand := s.varList[idx-1]; scopeNameEq(cand.name, name) {
-					var_ = cand
-					break
+				if (entry & varHashTagMask) == tag {
+					if cand := s.varList[(entry&varHashIdxMask)-1]; scopeNameEq(cand.name, name) {
+						var_ = cand
+						break
+					}
 				}
 				slot = (slot + 1) & mask
 			}
@@ -1601,7 +1617,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 		s.varsInitialized = true
 		s.varBloom |= bloom
 		if s.varHash != nil {
-			s.appendVarToInitialized(var_, slot)
+			s.appendVarToInitialized(var_, slot, tag)
 		} else {
 			s.appendVar(var_)
 			s.varCount++

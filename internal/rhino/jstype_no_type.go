@@ -56,6 +56,7 @@ type NoType struct {
 // Java: NoType(JSTypeRegistry)
 func NewNoType(registry *JSTypeRegistry) *NoType {
 	t := &NoType{}
+	t.objFlags = objKindNo
 	t.InitNoObjectTypeBase(t, registry)
 	return t
 }

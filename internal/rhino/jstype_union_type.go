@@ -38,6 +38,7 @@ package rhino
 import (
 	"iter"
 	"slices"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -102,6 +103,7 @@ const UnionType_MAX_UNION_SIZE = 30
 // Java: UnionType(Builder)
 func NewUnionType(builder *UnionType_Builder) *UnionType {
 	t := builder.registry.allocUnionType()
+	t.objFlags = jsKindUnion
 	t.InitJSTypeBase(t, builder.registry)
 	t.resolvedAlternatesAtLastBuild = -1
 	t.FillFromBuilder(builder)
@@ -1035,7 +1037,13 @@ func (b *UnionType_Builder) AddAlternates(list []JSType) *UnionType_Builder {
 func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	b.CheckHasNotBuilt()
 
-	if alternate.IsUnionType() {
+	altBase := jsTypeBase(alternate)
+	altKind := altBase.objFlags & objKindMask
+	if altKind == jsKindUnion {
+		b.AddAlternates((*UnionType)(unsafe.Pointer(altBase)).GetAlternates())
+		return b
+	}
+	if ((uint32(1)<<altKind)&jsKindProxyOrFallbackMask) != 0 && alternate.IsUnionType() {
 		b.AddAlternates(alternate.ToMaybeUnionType().GetAlternates())
 		return b
 	}
@@ -1047,11 +1055,11 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	// Defer removing duplicate elements until all alternates in the union are
 	// resolved. JSType operations like equality and subtyping are not reliable
 	// pre-resolution.
-	if !alternate.IsResolved() {
+	if altBase.resolveResult == nil {
 		b.alternatesResolvedBeforeBuild = false
 
 		for i := 0; i < b.size(); i++ {
-			if b.get(i) == alternate {
+			if jsTypeBase(b.get(i)) == altBase {
 				return b
 			}
 		}
@@ -1061,17 +1069,20 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 
 	// build() returns the bottom type by default, so we can just bail out
 	// early here.
-	if alternate.IsNoType() {
+	if altKind == objKindNo || (((uint32(1)<<altKind)&jsKindProxyOrFallbackMask) != 0 && alternate.IsNoType()) {
 		return b
 	}
 
-	b.isAllType = b.isAllType || alternate.IsAllType()
-	b.containsVoidType = b.containsVoidType || alternate.IsVoidType()
+	if !b.isAllType && (altKind == jsKindAll || (((uint32(1)<<altKind)&jsKindProxyOrFallbackMask) != 0 && alternate.IsAllType())) {
+		b.isAllType = true
+	}
+	if !b.containsVoidType && (altKind == jsKindVoid || (altKind == objKindFallback && alternate.IsVoidType())) {
+		b.containsVoidType = true
+	}
 
-	_, isAlternateUnknown := alternate.(*UnknownType)
-	b.isNativeUnknownType = b.isNativeUnknownType || isAlternateUnknown
-	if isAlternateUnknown {
-		b.areAllUnknownsChecked = b.areAllUnknownsChecked && alternate.IsCheckedUnknownType()
+	if altKind == objKindUnknown {
+		b.isNativeUnknownType = true
+		b.areAllUnknownsChecked = b.areAllUnknownsChecked && (*UnknownType)(unsafe.Pointer(altBase)).isChecked
 	}
 
 	if b.isAllType || b.isNativeUnknownType {
@@ -1081,7 +1092,8 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	// Function types are special, because they have their own bizarre
 	// sub-lattice. See the comments on FunctionType#supAndInf helper and above
 	// at functionTypePosition.
-	if alternate.IsFunctionType() && b.functionTypePosition != -1 {
+	altIsFunc := jsTypeIsFunction(alternate, altKind)
+	if altIsFunc && b.functionTypePosition != -1 {
 		// See the comments on functionTypePosition above.
 		other := b.get(b.functionTypePosition).ToMaybeFunctionType()
 		supremum := alternate.ToMaybeFunctionType().SupAndInfHelper(other, true)
@@ -1089,27 +1101,36 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 		return b
 	}
 
+	altUnknown := jsTypeIsUnknown(alternate, altBase, altKind)
+	altHasTemplate := !altUnknown && jsTypeHasAnyTemplateTypes(altBase)
+	altTemplatized := !altUnknown && !altHasTemplate && jsTypeIsTemplatized(alternate, altKind)
+
 	// Look through the alternates we've got so far, and check if any of them
 	// are duplicates of one another.
 	for index := 0; index < b.size(); index++ {
 		removeCurrent := false
 		current := b.get(index)
-		if !current.IsResolved() { // Defer de-duplicating unresolved alternates.
+		curBase := jsTypeBase(current)
+		if curBase.resolveResult == nil { // Defer de-duplicating unresolved alternates.
 			continue
 		}
+		if curBase == altBase {
+			return b
+		}
+		curKind := curBase.objFlags & objKindMask
 
 		// Unknown types may just be names that haven't been resolved yet. So
 		// keep these in the union, and just use equality checking for simple
 		// de-duping.
-		if alternate.IsUnknownType() ||
-			current.IsUnknownType() ||
-			alternate.HasAnyTemplateTypes() ||
-			current.HasAnyTemplateTypes() {
-			if alternate.Equals(current) {
+		if altUnknown ||
+			jsTypeIsUnknown(current, curBase, curKind) ||
+			altHasTemplate ||
+			jsTypeHasAnyTemplateTypes(curBase) {
+			if equalityChecker_AreIdentityEqualWithBases(alternate, altBase, current, curBase) {
 				// Alternate is unnecessary.
 				return b
 			}
-		} else if alternate.IsTemplatizedType() || current.IsTemplatizedType() {
+		} else if curTemplatized := jsTypeIsTemplatized(current, curKind); altTemplatized || curTemplatized {
 			// Because "Foo" and "Foo<?>" are roughly equivalent templatized types,
 			// special care is needed when building the union. For example:
 			//   Object is consider a subtype of Object<string>
@@ -1135,26 +1156,25 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 			// 9) alternate:Array<string> and
 			//    current:Object<string> ==> Object<string>|Array<string>
 
-			if !current.IsTemplatizedType() {
+			if !curTemplatized {
 				if UnionType_Builder_IsSubtype(alternate, current) {
 					// case 1, 2
 					return b
 				}
 				// case 3: leave current, add alternate
-			} else if !alternate.IsTemplatizedType() {
+			} else if !altTemplatized {
 				if UnionType_Builder_IsSubtype(current, alternate) {
 					// case 4, 5
 					removeCurrent = true
 				}
 				// case 6: leave current, add alternate
 			} else {
-				jutil.CheckState(current.IsTemplatizedType() && alternate.IsTemplatizedType())
 				templatizedAlternate := alternate.ToMaybeTemplatizedType()
 				templatizedCurrent := current.ToMaybeTemplatizedType()
 
 				if templatizedCurrent.WrapsSameRawType(templatizedAlternate) {
 
-					if current.Equals(alternate) {
+					if equalityChecker_AreIdentityEqualWithBases(current, curBase, alternate, altBase) {
 						// case 8
 						return b
 					} else if !templatizedCurrent.GetReferencedType().IsReadonlyArrayType() {
@@ -1163,20 +1183,32 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 						// Providing no type-parameter values specializes `rawType` on `?`
 						// by default.
 						alternate = b.registry.CreateTemplatizedTypeOfList(rawType, nil)
+						altBase = jsTypeBase(alternate)
+						altKind = altBase.objFlags & objKindMask
+						altIsFunc = jsTypeIsFunction(alternate, altKind)
+						altUnknown = jsTypeIsUnknown(alternate, altBase, altKind)
+						altHasTemplate = !altUnknown && jsTypeHasAnyTemplateTypes(altBase)
+						altTemplatized = !altUnknown && !altHasTemplate && jsTypeIsTemplatized(alternate, altKind)
 						removeCurrent = true
 					}
 				}
 				// case 9 & 7b: leave current, add alternate
 			}
 			// Otherwise leave both templatized types.
-		} else if UnionType_Builder_IsSubtype(alternate, current) {
-			// Alternate is unnecessary.
-			b.MayRegisterDroppedProperties(alternate, current)
-			return b
-		} else if UnionType_Builder_IsSubtype(current, alternate) {
-			// Alternate makes current obsolete
-			b.MayRegisterDroppedProperties(current, alternate)
-			removeCurrent = true
+		} else {
+			bothBits := (uint32(1) << altKind) | (uint32(1) << curKind)
+			if (bothBits&jsKindSimpleDisjointValueMask) == 0 ||
+				(bothBits&jsKindCanRelateToValueMask) != 0 {
+				if UnionType_Builder_IsSubtype(alternate, current) {
+					// Alternate is unnecessary.
+					b.MayRegisterDroppedProperties(alternate, current)
+					return b
+				} else if UnionType_Builder_IsSubtype(current, alternate) {
+					// Alternate makes current obsolete
+					b.MayRegisterDroppedProperties(current, alternate)
+					removeCurrent = true
+				}
+			}
 		}
 
 		if removeCurrent {
@@ -1192,7 +1224,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 		}
 	}
 
-	if alternate.IsFunctionType() {
+	if altIsFunc {
 		// See the comments on functionTypePosition above.
 		jutil.CheckState(b.functionTypePosition == -1)
 		b.functionTypePosition = b.size()
@@ -1204,9 +1236,16 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 
 // Java: UnionType.Builder.mayRegisterDroppedProperties(JSType, JSType)
 func (b *UnionType_Builder) MayRegisterDroppedProperties(subtype JSType, supertype JSType) {
-	if subtype.ToMaybeRecordType() != nil && supertype.ToMaybeRecordType() != nil {
-		b.registry.RegisterDroppedPropertiesInUnion(
-			subtype.ToMaybeRecordType(), supertype.ToMaybeRecordType())
+	subKind := jsTypeBase(subtype).objFlags & objKindMask
+	supKind := jsTypeBase(supertype).objFlags & objKindMask
+	if ((uint32(1) << subKind) & jsKindMaybeRecordMask) == 0 ||
+		((uint32(1) << supKind) & jsKindMaybeRecordMask) == 0 {
+		return
+	}
+	if subRec := subtype.ToMaybeRecordType(); subRec != nil {
+		if supRec := supertype.ToMaybeRecordType(); supRec != nil && subRec != supRec {
+			b.registry.RegisterDroppedPropertiesInUnion(subRec, supRec)
+		}
 	}
 }
 

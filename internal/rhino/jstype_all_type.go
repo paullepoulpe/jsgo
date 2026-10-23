@@ -48,6 +48,7 @@ type AllType struct {
 // Java: AllType(JSTypeRegistry)
 func NewAllType(registry *JSTypeRegistry) *AllType {
 	t := &AllType{}
+	t.objFlags = jsKindAll
 	t.InitJSTypeBase(t, registry)
 	t.EagerlyResolveToSelf()
 	return t

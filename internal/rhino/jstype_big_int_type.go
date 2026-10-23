@@ -45,6 +45,7 @@ type BigIntType struct {
 // Java: BigIntType(JSTypeRegistry)
 func NewBigIntType(registry *JSTypeRegistry) *BigIntType {
 	t := &BigIntType{}
+	t.objFlags = jsKindScalarValue
 	t.InitValueTypeBase(t, registry)
 	return t
 }

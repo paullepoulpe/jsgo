@@ -4119,19 +4119,17 @@ func (n *Node) GetOriginalQualifiedName() *string {
 //
 // Java: Node.isQualifiedName()
 func (n *Node) IsQualifiedName() bool {
-	switch n.GetToken() {
-	case Token_NAME:
-		return n.GetString() != ""
-	case Token_THIS, Token_SUPER:
-		return true
-	case Token_GETPROP:
-		return n.GetFirstChild().IsQualifiedName()
-
-	case Token_MEMBER_FUNCTION_DEF:
-		// These are explicitly *not* qualified name components.
-		return false
-	default:
-		return false
+	for {
+		switch n.token {
+		case Token_NAME:
+			return n.GetStringID() > 1
+		case Token_THIS, Token_SUPER:
+			return true
+		case Token_GETPROP:
+			n = n.first
+		default:
+			return false
+		}
 	}
 }
 
@@ -4253,13 +4251,15 @@ func (n *Node) MatchesQualifiedNameNode(other *Node) bool {
 //
 // Java: Node.isUnscopedQualifiedName()
 func (n *Node) IsUnscopedQualifiedName() bool {
-	switch n.GetToken() {
-	case Token_NAME:
-		return n.GetString() != ""
-	case Token_GETPROP:
-		return n.GetFirstChild().IsUnscopedQualifiedName()
-	default:
-		return false
+	for {
+		switch n.token {
+		case Token_NAME:
+			return n.GetStringID() > 1
+		case Token_GETPROP:
+			n = n.first
+		default:
+			return false
+		}
 	}
 }
 
@@ -4508,11 +4508,7 @@ func (n *Node) GetJSTypeRequired() JSType {
 // Java: Node.setJSType(JSType)
 func (n *Node) SetJSType(x JSType) *Node {
 	jutil.CheckStateMsg1((n.kindFlags&(kindFlagHasTypeOrColor|kindFlagTypeIsColor)) != (kindFlagHasTypeOrColor|kindFlagTypeIsColor), "%s", n)
-	if jutil.IsNil(x) {
-		n.setRawTypeOrColorPtr(nil, false)
-	} else {
-		n.setRawTypeOrColorPtr(unsafe.Pointer(x.GetJSTypeBase()), false)
-	}
+	n.setRawTypeOrColorPtr(unsafe.Pointer(jsTypeBase(x)), false)
 	return n
 }
 

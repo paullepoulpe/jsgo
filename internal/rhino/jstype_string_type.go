@@ -45,6 +45,7 @@ type StringType struct {
 // Java: StringType(JSTypeRegistry)
 func NewStringType(registry *JSTypeRegistry) *StringType {
 	t := &StringType{}
+	t.objFlags = jsKindScalarValue
 	t.InitValueTypeBase(t, registry)
 	return t
 }

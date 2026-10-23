@@ -99,16 +99,31 @@ func (q *QualifiedNameBase) GetQualifiedNameBase() *QualifiedNameBase { return q
 func QualifiedName_Of(s string) QualifiedName {
 	n := 1 + strings.Count(s, ".")
 	terms := make([]string, 0, n)
+	q := &QualifiedName_StringListQname{}
+	q.InitQualifiedNameBase(q)
+	var ids []rhinoStringID
+	if n <= len(q.termIDsBuf) {
+		ids = q.termIDsBuf[:0]
+	} else {
+		ids = make([]rhinoStringID, 0, n)
+	}
 	for {
 		i := strings.IndexByte(s, '.')
 		if i < 0 {
-			terms = append(terms, RhinoStringPool_AddOrGet(s))
+			id := rhinoStringPoolIntern(s)
+			ids = append(ids, id)
+			terms = append(terms, rhinoStringFromID(id))
 			break
 		}
-		terms = append(terms, RhinoStringPool_AddOrGet(s[:i]))
+		id := rhinoStringPoolIntern(s[:i])
+		ids = append(ids, id)
+		terms = append(terms, rhinoStringFromID(id))
 		s = s[i+1:]
 	}
-	return NewQualifiedName_StringListQname(terms, len(terms))
+	q.terms = terms
+	q.termIDs = ids
+	q.size = len(terms)
+	return q
 }
 
 // GetRoot returns the root of this name, e.g. "foo" from "foo.bar.baz".
@@ -183,8 +198,10 @@ func (q *QualifiedNameBase) Getprop(propertyName string) QualifiedName {
 // string terms.
 type QualifiedName_StringListQname struct {
 	QualifiedNameBase
-	terms []string
-	size  int
+	terms      []string
+	termIDs    []rhinoStringID
+	termIDsBuf [4]rhinoStringID
+	size       int
 }
 
 // Java: QualifiedName.StringListQname(ImmutableList<String>, int)
@@ -193,13 +210,28 @@ func NewQualifiedName_StringListQname(terms []string, size int) *QualifiedName_S
 	q.InitQualifiedNameBase(q)
 	q.terms = terms
 	q.size = size
+	var ids []rhinoStringID
+	if size <= len(q.termIDsBuf) {
+		ids = q.termIDsBuf[:size]
+	} else {
+		ids = make([]rhinoStringID, size)
+	}
+	for i := 0; i < size; i++ {
+		ids[i] = rhinoStringPoolIntern(terms[i])
+	}
+	q.termIDs = ids
 	return q
 }
 
 // Java: QualifiedName.StringListQname.getOwner()
 func (q *QualifiedName_StringListQname) GetOwner() QualifiedName {
 	if q.size > 1 {
-		return NewQualifiedName_StringListQname(q.terms, q.size-1)
+		o := &QualifiedName_StringListQname{}
+		o.InitQualifiedNameBase(o)
+		o.terms = q.terms
+		o.termIDs = q.termIDs[:q.size-1]
+		o.size = q.size - 1
+		return o
 	}
 	return nil
 }
@@ -237,6 +269,31 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 // Java: QualifiedName.StringListQname.matches(Node)
 func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
 	pos := q.size - 1
+	if !rhinoStringPoolCleared {
+		for pos > 0 && n.token == Token_GETPROP {
+			n.node_castKind(node_kindString)
+			if rhinoStringID(n.payload) != q.termIDs[pos] {
+				return false
+			}
+			pos--
+			n = n.first
+		}
+		if pos > 0 {
+			return false
+		}
+		termID := q.termIDs[0]
+		switch n.token {
+		case Token_NAME, Token_MEMBER_FUNCTION_DEF:
+			n.node_castKind(node_kindString)
+			return rhinoStringID(n.payload) == termID
+		case Token_THIS:
+			return termID == qualifiedName_THIS_ID
+		case Token_SUPER:
+			return termID == qualifiedName_SUPER_ID
+		default:
+			return false
+		}
+	}
 	for pos > 0 && n.IsGetProp() {
 		if !RhinoStringPool_UncheckedEquals(n.GetString(), q.terms[pos]) {
 			return false
@@ -273,8 +330,9 @@ func (q *QualifiedName_StringListQname) String() string {
 // property access on an existing qualified name.
 type QualifiedName_GetpropQname struct {
 	QualifiedNameBase
-	owner QualifiedName
-	prop  string
+	owner  QualifiedName
+	prop   string
+	propID rhinoStringID
 }
 
 // Java: QualifiedName.GetpropQname(QualifiedName, String)
@@ -282,7 +340,9 @@ func NewQualifiedName_GetpropQname(owner QualifiedName, prop string) *QualifiedN
 	q := &QualifiedName_GetpropQname{}
 	q.InitQualifiedNameBase(q)
 	q.owner = owner
-	q.prop = RhinoStringPool_AddOrGet(prop)
+	id := rhinoStringPoolIntern(prop)
+	q.prop = rhinoStringFromID(id)
+	q.propID = id
 	return q
 }
 
@@ -310,6 +370,14 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 
 // Java: QualifiedName.GetpropQname.matches(Node)
 func (q *QualifiedName_GetpropQname) Matches(n *Node) bool {
+	if !rhinoStringPoolCleared {
+		if n.token != Token_GETPROP {
+			return false
+		}
+		n.node_castKind(node_kindString)
+		return rhinoStringID(n.payload) == q.propID &&
+			q.owner.Matches(n.first)
+	}
 	return n.IsGetProp() &&
 		RhinoStringPool_UncheckedEquals(n.GetString(), q.prop) &&
 		q.owner.Matches(n.GetFirstChild())
@@ -415,8 +483,13 @@ func (q *QualifiedName_NodeQname) String() string {
 	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$NodeQname", q)
 }
 
+var (
+	qualifiedName_THIS_ID  = rhinoStringPoolIntern("this")
+	qualifiedName_SUPER_ID = rhinoStringPoolIntern("super")
+)
+
 // Java: QualifiedName.THIS
-var QualifiedName_THIS = RhinoStringPool_AddOrGet("this")
+var QualifiedName_THIS = rhinoStringFromID(qualifiedName_THIS_ID)
 
 // Java: QualifiedName.SUPER
-var QualifiedName_SUPER = RhinoStringPool_AddOrGet("super")
+var QualifiedName_SUPER = rhinoStringFromID(qualifiedName_SUPER_ID)

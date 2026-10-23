@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -172,8 +174,13 @@ func (c *SubtypeChecker) Check() bool {
 //
 // Java: SubtypeChecker.isSubtypeCaching(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool {
-	if subtype == nil || supertype == nil {
+	subBase := jsTypeBase(subtype)
+	supBase := jsTypeBase(supertype)
+	if subBase == nil || supBase == nil {
 		failJSTypeNull()
+	}
+	if subBase == supBase {
+		return true
 	}
 
 	// Wait to instantiate/use the cache until we have some hint that there may
@@ -220,21 +227,40 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 //
 // Java: SubtypeChecker.isSubtypeDispatching(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeDispatching(subtype JSType, supertype JSType) bool {
-	switch subtype.GetTypeClass() {
-	case JSTypeClass_ENUM_ELEMENT:
-		return c.IsEnumElementSubtype(subtype.(*EnumElementType), supertype)
-	case JSTypeClass_ENUM:
-		return c.IsEnumSubtype(subtype.(*EnumType), supertype)
-	case JSTypeClass_NO_OBJECT, JSTypeClass_NO:
+	subBase := jsTypeBase(subtype)
+	switch subBase.objFlags & objKindMask {
+	case objKindEnumElement:
+		return c.IsEnumElementSubtype((*EnumElementType)(unsafe.Pointer(subBase)), supertype)
+	case objKindEnum:
+		return c.IsEnumSubtype((*EnumType)(unsafe.Pointer(subBase)), supertype)
+	case objKindNoObject, objKindNo:
 		return c.IsVariousBottomsSubtype(subtype, supertype)
-	case JSTypeClass_FUNCTION:
-		return c.IsFunctionSubtype(subtype.(FunctionType), supertype)
-	case JSTypeClass_TEMPLATE:
-		return c.IsTemplateSubtype(subtype.(*TemplateType), supertype)
-	case JSTypeClass_PROXY_OBJECT:
-		return c.IsProxyObjectSubtype(subtype.(ProxyObjectType), supertype)
-	case JSTypeClass_WELL_KNOWN_SYMBOL:
-		return c.IsWellKnownSymbolSubtype(subtype.(*KnownSymbolType), supertype)
+	case objKindFunction:
+		return c.IsFunctionSubtype((*FunctionTypeBase)(unsafe.Pointer(subBase)), supertype)
+	case objKindTemplate:
+		return c.IsTemplateSubtype((*TemplateType)(unsafe.Pointer(subBase)), supertype)
+	case objKindProxy:
+		return c.IsProxyObjectSubtype((*ProxyObjectTypeBase)(unsafe.Pointer(subBase)), supertype)
+	case jsKindKnownSymbol:
+		return c.IsWellKnownSymbolSubtype((*KnownSymbolType)(unsafe.Pointer(subBase)), supertype)
+	case objKindFallback:
+		switch subtype.GetTypeClass() {
+		case JSTypeClass_ENUM_ELEMENT:
+			return c.IsEnumElementSubtype(subtype.(*EnumElementType), supertype)
+		case JSTypeClass_ENUM:
+			return c.IsEnumSubtype(subtype.(*EnumType), supertype)
+		case JSTypeClass_NO_OBJECT, JSTypeClass_NO:
+			return c.IsVariousBottomsSubtype(subtype, supertype)
+		case JSTypeClass_FUNCTION:
+			return c.IsFunctionSubtype(subtype.(FunctionType), supertype)
+		case JSTypeClass_TEMPLATE:
+			return c.IsTemplateSubtype(subtype.(*TemplateType), supertype)
+		case JSTypeClass_PROXY_OBJECT:
+			return c.IsProxyObjectSubtype(subtype.(ProxyObjectType), supertype)
+		case JSTypeClass_WELL_KNOWN_SYMBOL:
+			return c.IsWellKnownSymbolSubtype(subtype.(*KnownSymbolType), supertype)
+		}
+		return c.IsSubtypeHelper(subtype, supertype)
 	}
 	return c.IsSubtypeHelper(subtype, supertype)
 }
@@ -252,9 +278,39 @@ func (c *SubtypeChecker) IsWellKnownSymbolSubtype(subtype *KnownSymbolType, supe
 
 // Java: SubtypeChecker.isSubtypeHelper(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool {
+	subBase := jsTypeBase(subtype)
+	supBase := jsTypeBase(supertype)
+	if subBase == supBase {
+		return true
+	}
+	subKind := subBase.objFlags & objKindMask
+	supKind := supBase.objFlags & objKindMask
+	if supKind == objKindUnknown || supKind == jsKindAll || subKind == objKindUnknown || subKind == objKindNo {
+		return true
+	}
+
+	bothBits := (uint32(1) << subKind) | (uint32(1) << supKind)
+	if (bothBits&jsKindMaybeUnknownMask) == 0 && !subBase.unknown && !supBase.unknown {
+		if c.subtypingMode != nil && *c.subtypingMode == JSType_SubtypingMode_IGNORE_NULL_UNDEFINED &&
+			(subKind == jsKindNull || subKind == jsKindVoid) {
+			return true
+		}
+		if equalityChecker_AreIdentityEqualWithBases(subtype, subBase, supertype, supBase) {
+			return true
+		}
+		if (bothBits & jsKindNonObjectMask) != 0 {
+			return false
+		}
+		if (bothBits & (1 << objKindEnumElement)) != 0 {
+			if !subtype.IsObjectType() || !supertype.IsObjectType() {
+				return false
+			}
+		}
+		return c.IsObjectSubtypeHelper(subBase.ToObjectType(), supBase.ToObjectType())
+	}
+
 	// Axiomatic cases.
-	if subtype == supertype ||
-		supertype.IsUnknownType() ||
+	if supertype.IsUnknownType() ||
 		supertype.IsAllType() ||
 		subtype.IsUnknownType() ||
 		subtype.IsNoType() {
@@ -263,12 +319,12 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 
 	// Special consideration for `null` and `undefined` in J2CL.
 	if c.subtypingMode != nil && *c.subtypingMode == JSType_SubtypingMode_IGNORE_NULL_UNDEFINED &&
-		(subtype.IsNullType() || subtype.IsVoidType()) {
+		(subKind == jsKindNull || subKind == jsKindVoid || (subKind == objKindFallback && (subtype.IsNullType() || subtype.IsVoidType()))) {
 		return true
 	}
 
 	// Reflexive case.
-	if equalityChecker_AreIdentityEqual(subtype, supertype) {
+	if equalityChecker_AreIdentityEqualWithBases(subtype, subBase, supertype, supBase) {
 		return true
 	}
 
@@ -280,14 +336,14 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 	//
 	// We don't want to check the cache here. Since `NamedType`s are generally
 	// equal to their referenced types, we'd get a false cache hit.
-	if subtype.IsNamedType() {
-		return c.IsSubtypeDispatching(subtype.ToMaybeNamedType().GetReferencedType(), supertype)
-	} else if supertype.IsNamedType() {
-		return c.IsSubtypeDispatching(subtype, supertype.ToMaybeNamedType().GetReferencedType())
+	if subKind == objKindNamed {
+		return c.IsSubtypeDispatching((*NamedType)(unsafe.Pointer(subBase)).GetReferencedType(), supertype)
+	} else if supKind == objKindNamed {
+		return c.IsSubtypeDispatching(subtype, (*NamedType)(unsafe.Pointer(supBase)).GetReferencedType())
 	}
 
 	// Union decomposition.
-	if subtype.IsUnionType() {
+	if jsTypeIsUnion(subtype, subKind) {
 		// All alternates must be subtypes.
 		for _, sub := range subtype.ToMaybeUnionType().GetAlternates() {
 			if !c.IsSubtypeCaching(sub, supertype) {
@@ -295,11 +351,11 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 			}
 		}
 		return true
-	} else if supertype.IsUnionType() {
+	} else if jsTypeIsUnion(supertype, supKind) {
 		// Some alternate must be a supertype.
 		alts := supertype.ToMaybeUnionType().GetAlternates()
 		for _, sup := range alts {
-			if subtype == sup {
+			if jsTypeBase(sup) == subBase {
 				return true
 			}
 		}
@@ -311,11 +367,24 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 		return false
 	}
 
+	if (bothBits & jsKindNonObjectMask) != 0 {
+		return false
+	}
 	if !subtype.IsObjectType() || !supertype.IsObjectType() {
 		return false // All cases for non object types have been covered by this point.
 	}
 
-	return c.IsObjectSubtypeHelper(subtype.AssertObjectType(), supertype.AssertObjectType())
+	return c.IsObjectSubtypeHelper(subBase.ToObjectType(), supBase.ToObjectType())
+}
+
+func jsTypeIsUnion(t JSType, kind uint8) bool {
+	if kind == jsKindUnion {
+		return true
+	}
+	if ((uint32(1) << kind) & jsKindProxyOrFallbackMask) != 0 {
+		return t.IsUnionType()
+	}
+	return false
 }
 
 // Java: SubtypeChecker.isObjectSubtypeHelper(ObjectType, ObjectType)
@@ -492,7 +561,7 @@ func (c *SubtypeChecker) IsFunctionSubtype(subtype FunctionType, nonFunctionSupe
 		return true
 	}
 
-	if nonFunctionSupertype.IsFunctionType() {
+	if jsTypeIsFunction(nonFunctionSupertype, jsTypeBase(nonFunctionSupertype).objFlags&objKindMask) {
 		supertype := nonFunctionSupertype.ToMaybeFunctionType()
 		if supertype.IsInterface() {
 			// Any function can be assigned to an interface function.
@@ -506,6 +575,10 @@ func (c *SubtypeChecker) IsFunctionSubtype(subtype FunctionType, nonFunctionSupe
 		return c.ShouldTreatThisTypesAsCovariant(subtype, supertype) &&
 			c.IsArrowTypeSubtype(
 				subtype.GetInternalArrowType(), supertype.GetInternalArrowType())
+	}
+
+	if ((uint32(1) << (jsTypeBase(nonFunctionSupertype).objFlags & objKindMask)) & jsKindNonObjectMask) != 0 {
+		return false
 	}
 
 	return c.IsSubtypeCaching(

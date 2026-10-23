@@ -82,6 +82,7 @@ func NewProxyObjectType(registry *JSTypeRegistry, referencedType JSType) *ProxyO
 func NewProxyObjectTypeWithTemplateTypeMap(
 	registry *JSTypeRegistry, referencedType JSType, templateTypeMap *TemplateTypeMap) *ProxyObjectTypeBase {
 	t := &ProxyObjectTypeBase{}
+	t.objFlags = objKindProxy
 	t.InitProxyObjectTypeBaseWithTemplateTypeMap(t, registry, referencedType, templateTypeMap)
 	return t
 }

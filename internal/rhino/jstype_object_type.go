@@ -169,7 +169,23 @@ const (
 	_ = -uint(unsafe.Offsetof(TemplatizedType{}.ObjectTypeBase))
 	_ = -uint(unsafe.Offsetof(RecordType{}.ObjectTypeBase))
 	_ = -uint(unsafe.Offsetof(EnumType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(UnknownType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(NoObjectTypeBase{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(NoType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(NoResolvedType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(EnumElementType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(TemplateType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(ProxyObjectTypeBase{}.ObjectTypeBase))
 )
+
+type objTypeIface struct {
+	tab  unsafe.Pointer
+	data *ObjectTypeBase
+}
+
+func objTypeBase(x ObjectType) *ObjectTypeBase {
+	return (*(*objTypeIface)(unsafe.Pointer(&x))).data
+}
 
 func (o *ObjectTypeBase) selfObj() ObjectType {
 	switch o.objFlags & objKindMask {
@@ -923,19 +939,34 @@ func (o *ObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JST
 //
 // Java: ObjectType.isImplicitPrototypeOf(ObjectType)
 func (o *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
-	unwrappedThis := ObjectType_DeeplyUnwrap(o.selfObj())
+	unwrappedThisBase := objTypeBase(ObjectType_DeeplyUnwrap(o.selfObj()))
+	if unwrappedThisBase == nil {
+		return false
+	}
 
-	for other = ObjectType_DeeplyUnwrap(other); other != nil; other = ObjectType_DeeplyUnwrap(other.GetImplicitPrototype()) {
+	for other = ObjectType_DeeplyUnwrap(other); ; {
+		ob := objTypeBase(other)
+		if ob == nil {
+			return false
+		}
 		// The prototype should match exactly. NOTE: the use of "==" here rather
 		// than equals is deliberate. This method is very hot in the type
 		// checker and relying on identity improves performance of both type
 		// checking/type inferrence and property disambiguation.
-		if unwrappedThis == other {
+		if unwrappedThisBase == ob {
 			return true
 		}
+		var next ObjectType
+		switch ob.objFlags & objKindMask {
+		case objKindPrototype, objKindFunction:
+			next = (*PrototypeObjectTypeBase)(unsafe.Pointer(ob)).implicitPrototypeFallback
+		case objKindInstance:
+			next = (*InstanceObjectType)(unsafe.Pointer(ob)).GetImplicitPrototype()
+		default:
+			next = other.GetImplicitPrototype()
+		}
+		other = ObjectType_DeeplyUnwrap(next)
 	}
-
-	return false
 }
 
 // ObjectType_DeeplyUnwrap recursively unwraps all ProxyObjectTypes,
@@ -948,24 +979,34 @@ func (o *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
 func ObjectType_DeeplyUnwrap(original ObjectType) ObjectType {
 	current := original
 	for {
-		proxy, ok := current.(ProxyObjectType)
-		if !ok {
-			break
+		cb := objTypeBase(current)
+		if cb == nil {
+			return nil
 		}
-		if current.IsTemplatizedType() {
-			current = current.ToMaybeTemplatizedType().GetReferencedType()
-		} else if current.IsNamedType() {
-			if !current.IsSuccessfullyResolved() {
-				break
+		switch cb.objFlags & objKindMask {
+		case objKindInstance, objKindPrototype, objKindFunction, objKindRecord, objKindEnum,
+			objKindUnknown, objKindNoObject, objKindNo, objKindNoResolved, objKindEnumElement:
+			return current
+		case objKindTemplatized:
+			current = (*TemplatizedType)(unsafe.Pointer(cb)).GetReferencedType()
+		case objKindNamed:
+			nt := (*NamedType)(unsafe.Pointer(cb))
+			if !nt.IsSuccessfullyResolved() {
+				return current
 			}
-			current = current.ToMaybeNamedType().GetReferencedObjTypeInternal()
-		} else {
+			current = nt.referencedObjType
+		case objKindTemplate, objKindProxy:
+			current = (*ProxyObjectTypeBase)(unsafe.Pointer(cb)).referencedObjType
+		default:
+			proxy, ok := current.(ProxyObjectType)
+			if !ok {
+				return current
+			}
 			// TODO(lharker): remove this case and instead fail. Only the Rhino unit
 			// tests are triggering this by creating new ProxyObjectTypes.
 			current = proxy.GetReferencedObjTypeInternal()
 		}
 	}
-	return current
 }
 
 // Java: ObjectType.getPossibleToBooleanOutcomes()

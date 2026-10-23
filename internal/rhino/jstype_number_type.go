@@ -45,6 +45,7 @@ type NumberType struct {
 // Java: NumberType(JSTypeRegistry)
 func NewNumberType(registry *JSTypeRegistry) *NumberType {
 	t := &NumberType{}
+	t.objFlags = jsKindScalarValue
 	t.InitValueTypeBase(t, registry)
 	return t
 }

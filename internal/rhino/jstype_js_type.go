@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -269,12 +271,139 @@ const (
 	objKindTemplatized
 	objKindRecord
 	objKindEnum
+	objKindUnknown
+	objKindNoObject
+	objKindNo
+	objKindNoResolved
+	objKindEnumElement
+	objKindTemplate
+	objKindProxy
+	jsKindUnion
+	jsKindAll
+	jsKindNull
+	jsKindVoid
+	jsKindScalarValue
+	jsKindKnownSymbol
 )
 
 const (
 	objKindMask   uint8 = 0x7f
 	objHasDocFlag uint8 = 0x80
 )
+
+const (
+	jsKindProxyOrFallbackMask uint32 = (1 << objKindFallback) |
+		(1 << objKindNamed) |
+		(1 << objKindTemplatized) |
+		(1 << objKindTemplate) |
+		(1 << objKindProxy)
+	jsKindMaybeUnknownMask uint32 = jsKindProxyOrFallbackMask | (1 << jsKindUnion)
+	jsKindComplexEqMask    uint32 = jsKindMaybeUnknownMask | (1 << objKindUnknown)
+	jsKindValueMask        uint32 = (1 << jsKindNull) |
+		(1 << jsKindVoid) |
+		(1 << jsKindScalarValue) |
+		(1 << jsKindKnownSymbol)
+	jsKindNonObjectMask           uint32 = jsKindValueMask | (1 << jsKindAll)
+	jsKindMaybeRecordMask         uint32 = (1 << objKindRecord) | jsKindProxyOrFallbackMask
+	jsKindSimpleDisjointValueMask uint32 = (1 << jsKindNull) | (1 << jsKindVoid) | (1 << jsKindScalarValue)
+	jsKindCanRelateToValueMask    uint32 = jsKindProxyOrFallbackMask |
+		(1 << jsKindKnownSymbol) |
+		(1 << objKindEnumElement) |
+		(1 << objKindNoObject) |
+		(1 << objKindNo) |
+		(1 << jsKindAll) |
+		(1 << jsKindUnion)
+)
+
+const (
+	_ = -uint(unsafe.Offsetof(FunctionTypeBase{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(InstanceObjectType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NamedType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(TemplatizedType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(RecordType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(EnumType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(UnknownType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NoObjectTypeBase{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NoType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NoResolvedType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(EnumElementType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(TemplateType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(ProxyObjectTypeBase{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(UnionType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(AllType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NullType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(VoidType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(BooleanType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(NumberType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(StringType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(BigIntType{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(SymbolTypeBase{}.JSTypeBase))
+	_ = -uint(unsafe.Offsetof(KnownSymbolType{}.JSTypeBase))
+)
+
+type jsTypeIface struct {
+	tab  unsafe.Pointer
+	data *JSTypeBase
+}
+
+type anyEface struct {
+	typ  unsafe.Pointer
+	data unsafe.Pointer
+}
+
+func jsTypeBase(x JSType) *JSTypeBase {
+	return (*(*jsTypeIface)(unsafe.Pointer(&x))).data
+}
+
+func jsTypeEquals(a, b JSType) bool {
+	ab := jsTypeBase(a)
+	bb := jsTypeBase(b)
+	if ab == nil || bb == nil {
+		return false
+	}
+	if ab == bb {
+		return true
+	}
+	return equalityChecker_AreIdentityEqualWithBases(a, ab, b, bb)
+}
+
+func jsTypeIsUnknown(t JSType, tb *JSTypeBase, kind uint8) bool {
+	if ((uint32(1) << kind) & jsKindMaybeUnknownMask) == 0 && !tb.unknown {
+		return false
+	}
+	if kind == objKindUnknown {
+		return true
+	}
+	return t.IsUnknownType()
+}
+
+func jsTypeHasAnyTemplateTypes(tb *JSTypeBase) bool {
+	if tb.templateCheckResult != 0 {
+		return tb.templateCheckResult == 2
+	}
+	return tb.HasAnyTemplateTypes()
+}
+
+func jsTypeIsTemplatized(t JSType, kind uint8) bool {
+	if kind == objKindTemplatized {
+		return true
+	}
+	if ((uint32(1) << kind) & jsKindProxyOrFallbackMask) != 0 {
+		return t.IsTemplatizedType()
+	}
+	return false
+}
+
+func jsTypeIsFunction(t JSType, kind uint8) bool {
+	if kind == objKindFunction {
+		return true
+	}
+	if ((uint32(1) << kind) & jsKindProxyOrFallbackMask) != 0 {
+		return t.IsFunctionType()
+	}
+	return false
+}
 
 // Java: JSType.serialVersionUID
 const JSType_serialVersionUID int64 = 1
@@ -1061,12 +1190,18 @@ func (t *JSTypeBase) IsOrdinaryFunction() bool {
 
 // Java: JSType.equals(Object)
 func (t *JSTypeBase) Equals(other any) bool {
-	if any(t.self) == other {
-		return true
+	if (*(*anyEface)(unsafe.Pointer(&other))).data == unsafe.Pointer(t) {
+		return any(t.self) == other
 	}
 	jSType, ok := other.(JSType)
-	return ok && jSType != nil &&
-		equalityChecker_AreIdentityEqual(t.self, jSType)
+	if !ok {
+		return false
+	}
+	otherBase := jsTypeBase(jSType)
+	if otherBase == nil {
+		return false
+	}
+	return equalityChecker_AreIdentityEqualWithBases(t.self, t, jSType, otherBase)
 }
 
 // DiffersFrom reports whether this type is meaningfully different from that
@@ -1077,7 +1212,7 @@ func (t *JSTypeBase) Equals(other any) bool {
 //
 // Java: JSType.differsFrom(JSType)
 func (t *JSTypeBase) DiffersFrom(that JSType) bool {
-	if t.self == that {
+	if jsTypeBase(that) == t {
 		return false
 	}
 	c := EqualityChecker{
@@ -1092,10 +1227,15 @@ func (t *JSTypeBase) DiffersFrom(that JSType) bool {
 //
 // Java: JSType.areSimilar(JSType, JSType)
 func JSType_AreSimilar(first JSType, second JSType) bool {
-	if first == nil || second == nil {
-		return first == second
+	fb := jsTypeBase(first)
+	sb := jsTypeBase(second)
+	if fb == sb {
+		return true
 	}
-	return !first.DiffersFrom(second)
+	if fb == nil || sb == nil {
+		return false
+	}
+	return !fb.DiffersFrom(second)
 }
 
 // HashCode calculates a hash of the object as per Object#hashCode().
@@ -1247,6 +1387,13 @@ func (t *JSTypeBase) IsBoxableScalar() bool {
 //
 // Java: JSType.toObjectType()
 func (t *JSTypeBase) ToObjectType() ObjectType {
+	k := t.objFlags & objKindMask
+	if k >= jsKindUnion {
+		return nil
+	}
+	if k >= objKindFunction && k <= objKindEnum {
+		return (*ObjectTypeBase)(unsafe.Pointer(t)).selfObj()
+	}
 	if objectType, ok := t.self.(ObjectType); ok {
 		return objectType
 	}
@@ -1474,30 +1621,31 @@ func (t *JSTypeBase) GetLeastSupertype(that JSType) JSType {
 //
 // Java: JSType.getLeastSupertype(JSType, JSType)
 func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
-	if thisType == thatType {
+	thisTb := jsTypeBase(thisType)
+	thatTb := jsTypeBase(thatType)
+	if thisTb == thatTb {
 		return thisType
 	}
-	thisTb := thisType.GetJSTypeBase()
 	registry := thisTb.registry
-	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.resolvedToSelf {
-		thatTb := thatType.GetJSTypeBase()
+	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.resolvedToSelf && thatTb != nil {
 		if thatTb.resolvedToSelf {
 			if cached := registry.lookupLeastSupertype(thisTb, thatTb); cached != nil {
 				return cached
 			}
-			areEquivalent := thisType.Equals(thatType)
+			areEquivalent := equalityChecker_AreIdentityEqualWithBases(thisType, thisTb, thatType, thatTb)
 			if areEquivalent {
 				registry.storeLeastSupertype(thisTb, thatTb, thisType)
 				return thisType
 			}
 			res := registry.CreateUnionType(thisType, thatType)
-			if res == thisType || res == thatType {
+			resTb := jsTypeBase(res)
+			if resTb == thisTb || resTb == thatTb {
 				registry.storeLeastSupertype(thisTb, thatTb, res)
 			}
 			return res
 		}
 	}
-	areEquivalent := thisType.Equals(thatType)
+	areEquivalent := jsTypeEquals(thisType, thatType)
 	if areEquivalent {
 		return thisType
 	}
@@ -1754,10 +1902,11 @@ func (t *JSTypeBase) RestrictByNotNull() JSType {
 //
 // Java: JSType.isSubtypeWithoutStructuralTyping(JSType)
 func (t *JSTypeBase) IsSubtypeWithoutStructuralTyping(supertype JSType) bool {
-	if supertype == nil {
+	supBase := jsTypeBase(supertype)
+	if supBase == nil {
 		failJSTypeNull()
 	}
-	if t.self == supertype {
+	if t == supBase {
 		return true
 	}
 	c := SubtypeChecker{
@@ -1828,10 +1977,11 @@ func (t *JSTypeBase) IsSubtypeWithMode(supertype JSType, mode JSType_SubtypingMo
 
 // Java: JSType.isSubtypeOf(JSType)
 func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
-	if supertype == nil {
+	supBase := jsTypeBase(supertype)
+	if supBase == nil {
 		failJSTypeNull()
 	}
-	if t.self == supertype {
+	if t == supBase {
 		return true
 	}
 	c := SubtypeChecker{
@@ -1847,10 +1997,11 @@ func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
 
 // Java: JSType.isSubtypeOf(JSType, SubtypingMode)
 func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_SubtypingMode) bool {
-	if supertype == nil {
+	supBase := jsTypeBase(supertype)
+	if supBase == nil {
 		failJSTypeNull()
 	}
-	if t.self == supertype {
+	if t == supBase {
 		return true
 	}
 	var modePtr *JSType_SubtypingMode

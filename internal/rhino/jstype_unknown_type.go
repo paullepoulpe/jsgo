@@ -51,6 +51,7 @@ type UnknownType struct {
 // Java: UnknownType(JSTypeRegistry, boolean)
 func NewUnknownType(registry *JSTypeRegistry, isChecked bool) *UnknownType {
 	t := &UnknownType{}
+	t.objFlags = objKindUnknown
 	t.InitObjectTypeBase(t, registry)
 	t.EagerlyResolveToSelf()
 	t.isChecked = isChecked

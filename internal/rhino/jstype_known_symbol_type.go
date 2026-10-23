@@ -49,6 +49,7 @@ const KnownSymbolType_TYPE_CLASS = JSTypeClass_WELL_KNOWN_SYMBOL
 // Java: KnownSymbolType(JSTypeRegistry, String)
 func NewKnownSymbolType(registry *JSTypeRegistry, name string) *KnownSymbolType {
 	t := &KnownSymbolType{}
+	t.objFlags = jsKindKnownSymbol
 	t.InitSymbolTypeBase(t, registry)
 	t.name = name
 	return t

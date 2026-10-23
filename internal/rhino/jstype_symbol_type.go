@@ -61,6 +61,7 @@ type SymbolTypeBase struct {
 // Java: SymbolType(JSTypeRegistry)
 func NewSymbolType(registry *JSTypeRegistry) *SymbolTypeBase {
 	t := &SymbolTypeBase{}
+	t.objFlags = jsKindScalarValue
 	t.InitSymbolTypeBase(t, registry)
 	return t
 }

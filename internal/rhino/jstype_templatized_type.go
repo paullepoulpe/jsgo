@@ -67,14 +67,14 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 		nKeys := len(ttm.templateKeys)
 		resolvedType := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-1])
 		t.templateTypes = ttm.resolvedTemplateValues[nKeys-1 : nKeys]
-		t.isSpecializedOnlyWithUnknown = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE).Equals(resolvedType)
+		t.isSpecializedOnlyWithUnknown = jsTypeEquals(t.GetNativeType(JSTypeNative_UNKNOWN_TYPE), resolvedType)
 	} else if nParams == 2 && len(ttm.resolvedTemplateValues) == len(ttm.templateKeys) && typeParams[0] != typeParams[1] {
 		nKeys := len(ttm.templateKeys)
 		r0 := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-2])
 		r1 := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-1])
 		t.templateTypes = ttm.resolvedTemplateValues[nKeys-2 : nKeys]
 		unk := t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
-		t.isSpecializedOnlyWithUnknown = unk.Equals(r0) && unk.Equals(r1)
+		t.isSpecializedOnlyWithUnknown = jsTypeEquals(unk, r0) && jsTypeEquals(unk, r1)
 	} else {
 		builder := registry.allocJSTypeSlice(nParams)[:0]
 		maybeIsSpecializedOnlyWithUnknown := true
@@ -83,7 +83,7 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 
 			builder = append(builder, jutil.CheckNotNull(resolvedType))
 			if maybeIsSpecializedOnlyWithUnknown {
-				maybeIsSpecializedOnlyWithUnknown = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE).Equals(resolvedType)
+				maybeIsSpecializedOnlyWithUnknown = jsTypeEquals(t.GetNativeType(JSTypeNative_UNKNOWN_TYPE), resolvedType)
 			}
 		}
 		t.templateTypes = builder

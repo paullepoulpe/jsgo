@@ -343,11 +343,12 @@ func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsForMore() {
 	for i := 0; i < k; i++ {
 		v := s.smallVars[i]
 		sc.varList = append(sc.varList, v)
-		slot := scopeNameHash(v.name) & mask
+		vh := scopeNameHash(v.name)
+		slot := vh & mask
 		for sc.varHash[slot] != 0 {
 			slot = (slot + 1) & mask
 		}
-		sc.varHash[slot] = int32(i + 1)
+		sc.varHash[slot] = (vh & varHashTagMask) | uint32(i+1)
 	}
 	sc.varCount = int32(k)
 }
@@ -626,8 +627,52 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 		s.setInputId(n.GetInputId())
 		for child := n.GetFirstChild(); child != nil; {
 			next := child.GetNext()
-			if scanVarsTokenKind[uint8(child.GetToken())] != 0 {
-				s.ScanVars(child, hoistScope, blockScope)
+			ctok := child.GetToken()
+			if scanVarsTokenKind[uint8(ctok)] != 0 {
+				switch ctok {
+				case rhino.Token_EXPR_RESULT:
+					if expr := child.GetFirstChild(); expr != nil && expr.GetToken() == rhino.Token_CALL {
+						if NodeUtil_IsGoogProvideCall(child) {
+							s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), child)
+						} else if NodeUtil_IsBundledGoogModuleCall(expr) && expr.GetSecondChild().IsFunction() {
+							fn := expr.GetSecondChild()
+							moduleCall := NodeUtil_GetFunctionBody(fn).GetFirstChild()
+							if syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(moduleCall) {
+								s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), moduleCall)
+							}
+						}
+					}
+				case rhino.Token_VAR:
+					if hoistScope != nil {
+						if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+							s.DeclareVar(hoistScope, first)
+						} else {
+							s.DeclareLHS(hoistScope, child)
+						}
+					}
+				case rhino.Token_LET, rhino.Token_CONST:
+					if blockScope != nil {
+						if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+							s.DeclareVar(blockScope, first)
+						} else {
+							s.DeclareLHS(blockScope, child)
+						}
+					}
+				case rhino.Token_FUNCTION:
+					if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
+						if fnNameNode := child.GetFirstChild(); fnNameNode.GetString() != "" {
+							s.DeclareVar(blockScope, fnNameNode)
+						}
+					}
+				case rhino.Token_CLASS:
+					if blockScope != nil && !NodeUtil_IsClassExpression(child) {
+						if classNameNode := child.GetFirstChild(); classNameNode.GetString() != "" {
+							s.DeclareVar(blockScope, classNameNode)
+						}
+					}
+				default:
+					s.ScanVars(child, hoistScope, blockScope)
+				}
 			}
 			child = next
 		}
@@ -688,8 +733,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 
 	for child := n.GetFirstChild(); child != nil; {
 		next := child.GetNext()
-		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
-			switch child.GetToken() {
+		ctok := child.GetToken()
+		if scanVarsTokenKind[uint8(ctok)] == 1 {
+			switch ctok {
 			case rhino.Token_VAR:
 				if hoistScope != nil {
 					if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
@@ -718,6 +764,14 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 						s.DeclareVar(blockScope, classNameNode)
 					}
 				}
+			case rhino.Token_BLOCK:
+				if hoistScope != nil || !scanVarsBlockCreatesScope(child) {
+					s.ScanVars(child, hoistScope, blockScope)
+				}
+			case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+				if hoistScope != nil {
+					s.ScanVars(child, hoistScope, nil)
+				}
 			default:
 				s.ScanVars(child, hoistScope, blockScope)
 			}
@@ -742,24 +796,26 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	// the same var declared name node twice. Bail out in this case.
 	// TODO(johnlenz): Hash lookups are not free and building scopes are already expensive.
 	// Restructure the scope building to avoid this check.
-	bloom := scopeBloomMask(name)
+	h := scopeNameHash(name)
+	tag := h & varHashTagMask
+	bloom := scopeBloomFromHash(h)
 	alreadyMaybePresent := (sc.varBloom & bloom) == bloom
 	var v *Var
-	var h uint32
 	var probeSlot uint32
 	if sc.varHash != nil {
-		h = scopeNameHash(name)
 		mask := uint32(len(sc.varHash) - 1)
 		probeSlot = h & mask
 		if alreadyMaybePresent {
 			for {
-				idx := sc.varHash[probeSlot]
-				if idx == 0 {
+				entry := sc.varHash[probeSlot]
+				if entry == 0 {
 					break
 				}
-				if cand := sc.varList[idx-1]; scopeNameEq(cand.name, name) {
-					v = cand
-					break
+				if (entry & varHashTagMask) == tag {
+					if cand := sc.varList[(entry&varHashIdxMask)-1]; scopeNameEq(cand.name, name) {
+						v = cand
+						break
+					}
 				}
 				probeSlot = (probeSlot + 1) & mask
 			}
@@ -808,7 +864,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	isFnBlock := s.isFnBlock
 	var parentVar *Var
 	if v == nil && (s.parentBloom&bloom) == bloom {
-		parentVar = sc.parent.lookupOwnVarWithBloom(name, bloom)
+		parentVar = sc.parent.lookupOwnVarWithHash(name, h, bloom)
 	}
 
 	input := s.getInput()
@@ -842,7 +898,6 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				return
 			}
 			s.flushSmallVarsForMore()
-			h = scopeNameHash(name)
 			mask := uint32(len(sc.varHash) - 1)
 			probeSlot = h & mask
 			for sc.varHash[probeSlot] != 0 {
@@ -857,7 +912,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		} else {
 			var_ = NewVar(name, n, sc, idx, input, nil)
 		}
-		sc.appendVarToInitialized(var_, probeSlot)
+		sc.appendVarToInitialized(var_, probeSlot, tag)
 	}
 }
 
