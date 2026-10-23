@@ -2664,7 +2664,7 @@ func (b *JSDocInfo_Builder) OverwriteVisibility(visibility JSDocInfo_Visibility)
 // Java: JSDocInfo.Builder.recordParameter(String, JSTypeExpression)
 func (b *JSDocInfo_Builder) RecordParameter(parameterName string, type_ *JSTypeExpression) bool {
 	return !b.HasAnySingletonTypeTags() &&
-		b.populateTypeMapEntry(JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
+		JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
 }
 
 // RecordParameterDescription records a parameter's description; returns
@@ -2699,25 +2699,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
 	}
-	return b.populateTypeMapEntry(b_propTemplateTypeNames(), RhinoStringPool_AddOrGet(name), bound)
-}
-
-func b_propTemplateTypeNames() *JSDocInfo_Property { return JSDocInfo_TEMPLATE_TYPE_NAMES }
-
-func (b *JSDocInfo_Builder) populateTypeMapEntry(prop *JSDocInfo_Property, key string, value *JSTypeExpression) bool {
-	raw := b.GetProp(prop)
-	var m *jutil.LinkedHashMap[string, *JSTypeExpression]
-	if raw == nil {
-		m = jutil.NewLinkedHashMap[string, *JSTypeExpression]()
-		b.SetProp(prop, m)
-	} else {
-		m = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](raw)
-	}
-	if m.PutIfAbsent(key, value) == nil {
-		b.populated = true
-		return true
-	}
-	return false
+	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
 }
 
 // RecordTypeTransformation records a type transformation expression
@@ -2846,7 +2828,10 @@ func (b *JSDocInfo_Builder) IsDeprecationReasonRecorded() bool {
 	return b.GetProp(JSDocInfo_DEPRECATION_REASON) != nil
 }
 
-// Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
+// Go-only: performance — the sets and maps recorded for @suppress are
+// immutable, so identical name lists share one interned set and
+// one-entry map (a direct-mapped cache), instead of each annotated
+// declaration keeping its own.
 const suppressionInternCacheSize = 2048
 
 type internedSuppressionEntry struct {
@@ -2937,6 +2922,7 @@ func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []str
 	b.SetProp(JSDocInfo_SUPPRESSIONS, mapBuilder)
 }
 
+// Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
 	if suppressions != nil && suppressions.Size() <= 8 {
 		var buf [8]string
