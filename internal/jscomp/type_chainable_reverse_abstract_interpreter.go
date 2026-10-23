@@ -170,11 +170,11 @@ func (b *ChainableReverseAbstractInterpreterBase) GetTypeIfRefinable(node *rhino
 		}
 		return nil
 	case rhino.Token_GETPROP:
-		qualifiedName := node.GetQualifiedName()
-		if qualifiedName == nil {
+		qualifiedName, ok := node.GetQualifiedNameString()
+		if !ok {
 			return nil
 		}
-		propVar, _ := scope.GetSlot(*qualifiedName).(rhino.StaticTypedSlot)
+		propVar, _ := scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)
 		var propVarType rhino.JSType
 		if propVar != nil {
 			propVarType = propVar.GetType()
@@ -204,14 +204,16 @@ func (b *ChainableReverseAbstractInterpreterBase) DeclareNameInScope(
 	case rhino.Token_NAME:
 		return scope.InferSlotType(node.GetString(), type_)
 	case rhino.Token_GETPROP:
-		qualifiedName := node.GetQualifiedName()
-		jutil.CheckNotNull(qualifiedName)
+		qualifiedName, ok := node.GetQualifiedNameString()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 
 		origType := node.GetJSType()
 		if origType == nil {
 			origType = b.self.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		}
-		return scope.InferQualifiedSlot(node, *qualifiedName, origType, type_, false)
+		return scope.InferQualifiedSlot(node, qualifiedName, origType, type_, false)
 	case rhino.Token_THIS:
 		// "this" references aren't currently modeled in the CFG.
 		return scope

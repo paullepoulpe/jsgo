@@ -639,6 +639,7 @@ type procToken struct {
 
 var (
 	nodePoolingEnabled atomic.Bool
+	singleProcessCLI   atomic.Bool
 	freeNodeArenaSlots atomic.Uint64
 	activeNodeArena    atomic.Pointer[NodeArena]
 
@@ -727,6 +728,16 @@ func ReleaseJSDocBuilderSlabs(slabs *JSDocBuilderSlabs) {
 // (called once package init completes).
 func EnableNodePooling() {
 	nodePoolingEnabled.Store(true)
+}
+
+// SetSingleProcessCLI marks the process as a single-invocation CLI run.
+func SetSingleProcessCLI() {
+	singleProcessCLI.Store(true)
+}
+
+// IsSingleProcessCLI reports whether single-invocation CLI pooling is enabled.
+func IsSingleProcessCLI() bool {
+	return singleProcessCLI.Load()
 }
 
 func allocPooledNodeExtBox() *nodeExtBox {
@@ -2303,9 +2314,11 @@ func (n *Node) PutProp(prop Node_Prop, value any) {
 		n.kindFlags |= kindFlagHasExtra
 	}
 	head := n.coldPropListHead()
-	if head != nil && !head.shared && int(head.propType) == prop.Ordinal() && head.isObject {
-		head.objectValue = value
-		return
+	for cur := head; cur != nil && !cur.shared; cur = cur.next {
+		if int(cur.propType) == prop.Ordinal() && cur.isObject {
+			cur.objectValue = value
+			return
+		}
 	}
 	head = Node_RebuildListWithoutProp(head, prop)
 	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))

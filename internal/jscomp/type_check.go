@@ -489,19 +489,21 @@ func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhi
 		tc.validator.SetSubtypingMode(tc.subtypingMode)
 	} else if n.IsFunction() {
 		// normal type checking
-		outerScope := t.GetTypedScope()
 		// Check for a bug in IE9 (quirks mode) and earlier where bleeding function names would
 		// refer to the wrong variable (i.e. "var x; var y = function x() { use(x); }" would pass
 		// the 'x' from the outer scope, rather than the local alias bled into the function).
-		var_ := outerScope.GetVar(n.GetFirstChild().GetString())
-		if var_ != nil &&
-			var_.GetScope().(*TypedScope).HasSameContainerScope(outerScope) &&
-			// Ideally, we would want to check whether the type in the scope
-			// differs from the type being defined, but then the extern
-			// redeclarations of built-in types generates spurious warnings.
-			!typeCheck_isFunctionType(var_.GetType()) &&
-			!TypeValidator_HasDuplicateDeclarationSuppression(tc.compiler, var_.GetNameNode()) {
-			tc.Report(n, TypeCheck_FUNCTION_MASKS_VARIABLE, var_.GetName())
+		if fnName := n.GetFirstChild().GetString(); fnName != "" {
+			outerScope := t.GetTypedScope()
+			var_ := outerScope.GetVar(fnName)
+			if var_ != nil &&
+				var_.GetScope().(*TypedScope).HasSameContainerScope(outerScope) &&
+				// Ideally, we would want to check whether the type in the scope
+				// differs from the type being defined, but then the extern
+				// redeclarations of built-in types generates spurious warnings.
+				!typeCheck_isFunctionType(var_.GetType()) &&
+				!TypeValidator_HasDuplicateDeclarationSuppression(tc.compiler, var_.GetNameNode()) {
+				tc.Report(n, TypeCheck_FUNCTION_MASKS_VARIABLE, var_.GetName())
+			}
 		}
 
 		// TODO(user): Only traverse the function's body. The function's
@@ -1239,9 +1241,9 @@ func (tc *TypeCheck) CheckCanAssignToNameGetpropOrGetelem(
 	// var obj = createUnknownType();
 	// /** @type {number} */ obj.foo = true;
 	leftType := tc.GetJSType(lvalue)
-	if lvalue.IsQualifiedName() {
+	if qName, ok := lvalue.GetQualifiedNameString(); ok {
 		// variable with inferred type case
-		var_ := t.GetTypedScope().GetVar(*lvalue.GetQualifiedName())
+		var_ := t.GetTypedScope().GetVar(qName)
 		if var_ != nil {
 			if var_.IsTypeInferred() {
 				return

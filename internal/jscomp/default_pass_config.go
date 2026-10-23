@@ -763,10 +763,12 @@ func (c *DefaultPassConfig) initFields() {
 						if comp, ok := compiler.(*Compiler); ok {
 							comp.evictPassArenaCaches()
 						}
-						var ms runtime.MemStats
-						runtime.ReadMemStats(&ms)
-						if ms.HeapAlloc > 2<<30 {
-							runtime.GC()
+						if rhino.IsSingleProcessCLI() {
+							var ms runtime.MemStats
+							runtime.ReadMemStats(&ms)
+							if ms.HeapAlloc > 2<<30 {
+								runtime.GC()
+							}
 						}
 					})
 				}).
@@ -795,10 +797,12 @@ func (c *DefaultPassConfig) initFields() {
 						if comp, ok := compiler.(*Compiler); ok {
 							comp.evictPassArenaCaches()
 						}
-						var ms runtime.MemStats
-						runtime.ReadMemStats(&ms)
-						if ms.HeapAlloc > 2<<30 {
-							runtime.GC()
+						if rhino.IsSingleProcessCLI() {
+							var ms runtime.MemStats
+							runtime.ReadMemStats(&ms)
+							if ms.HeapAlloc > 2<<30 {
+								runtime.GC()
+							}
 						}
 					})
 				}).
