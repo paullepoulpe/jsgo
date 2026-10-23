@@ -54,21 +54,21 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 			size:  int32(n),
 		}
 	}
-	index := make(map[K]int, n)
-	for i := n - 1; i >= 0; i-- {
-		k := slots[i].key
-		if laterIdx1, ok := index[k]; ok {
-			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				ToJavaString(k) + "=" + ToJavaString(slots[laterIdx1-1].value) + " and " +
-				ToJavaString(k) + "=" + ToJavaString(slots[i].value)))
-		}
-		index[k] = i + 1
-	}
-	return &LinkedHashMap[K, V]{
-		m:     &lhmLarge[K, V]{index: index},
+	h := &LinkedHashMap[K, V]{
+		m:     &lhmIndex{table: make([]uint32, lhmTableLen(n))},
 		slots: slots,
 		size:  int32(n),
 	}
+	for i := n - 1; i >= 0; i-- {
+		k := slots[i].key
+		if later := h.lookup(k); later >= 0 {
+			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+				ToJavaString(k) + "=" + ToJavaString(slots[later].value) + " and " +
+				ToJavaString(k) + "=" + ToJavaString(slots[i].value)))
+		}
+		h.m.insert(lhmHash(k), i)
+	}
+	return h
 }
 
 // PutAll is ImmutableMap.Builder.putAll(Map): puts each entry of m, in its

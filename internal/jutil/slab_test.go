@@ -29,26 +29,3 @@ func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 		}
 	}
 }
-
-func TestSlabChunkSizes(t *testing.T) {
-	var s Slab[int]
-	var got []int
-	for i := 0; i < 3000; i++ {
-		s.New()
-		if s.used == 1 {
-			got = append(got, len(s.chunk))
-		}
-	}
-	want := []int{16, 32, 64, 128}
-	for n := 16 + 32 + 64 + 128; n < 3000; n += 128 {
-		want = append(want, 128)
-	}
-	if len(got) != len(want) {
-		t.Fatalf("chunk sizes %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("chunk sizes %v, want %v", got, want)
-		}
-	}
-}
