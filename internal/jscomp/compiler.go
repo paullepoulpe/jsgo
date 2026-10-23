@@ -25,10 +25,12 @@ import (
 	"io"
 	"iter"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"unsafe"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -174,6 +176,10 @@ type Compiler struct {
 	forwardDeclaredTypes compiler_forwardDeclaredTypes
 
 	typeCheckingHasRun bool
+
+	// Go-only: the registry that ClearJSTypeRegistry dropped, for
+	// typeRegistryReleased.
+	clearedTypeRegistry weak.Pointer[rhino.JSTypeRegistry]
 
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
@@ -2173,9 +2179,24 @@ func (c *Compiler) GetChunks() []*JSChunk {
 
 // Java: Compiler.clearJSTypeRegistry()
 func (c *Compiler) ClearJSTypeRegistry() {
+	if c.typeRegistry != nil {
+		c.clearedTypeRegistry = weak.Make(c.typeRegistry)
+	}
 	c.typeRegistry = nil
 	c.typeValidator = nil
 	c.abstractInterpreter = nil
+}
+
+// typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
+// dropped has been garbage collected. Every JSType points to its registry,
+// so a single JSType that is still reachable (for example from a Node, live
+// or detached, that still carries it) keeps the whole type graph alive.
+//
+// Go-only: debugging aid for tests.
+func (c *Compiler) typeRegistryReleased() bool {
+	runtime.GC()
+	runtime.GC()
+	return c.clearedTypeRegistry.Value() == nil
 }
 
 // Java: Compiler.isTypeRegistryCleared()
