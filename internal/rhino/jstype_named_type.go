@@ -135,7 +135,7 @@ func NewNamedType(builder *NamedType_Builder) *NamedType {
 	t.templateTypes = builder.templateTypes
 	t.resolutionKind = builder.resolutionKind
 
-	t.registry.GetResolver().ResolveIfClosed(t, NamedType_TYPE_CLASS)
+	t.GetRegistry().GetResolver().ResolveIfClosed(t, NamedType_TYPE_CLASS)
 	return t
 }
 
@@ -311,7 +311,7 @@ func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 			resolvedTypeArgs = jsTypeSubList(resolvedTypeArgs, 0, numKeys)
 		}
 
-		result = t.registry.CreateTemplatizedTypeOfList(resultAsObject, resolvedTypeArgs)
+		result = t.GetRegistry().CreateTemplatizedTypeOfList(resultAsObject, resolvedTypeArgs)
 		t.SetReferencedType(result.Resolve(reporter))
 	}
 
@@ -323,7 +323,7 @@ func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 //
 // Java: NamedType.resolveViaRegistry(ErrorReporter)
 func (t *NamedType) ResolveViaRegistry(reporter ErrorReporter) bool {
-	type_ := t.registry.GetType(t.resolutionScope, t.reference)
+	type_ := t.GetRegistry().GetType(t.resolutionScope, t.reference)
 	if type_ == nil {
 		t.HandleUnresolvedType(reporter)
 		return false
@@ -342,18 +342,18 @@ func (t *NamedType) ResolveTypeof(reporter ErrorReporter) bool {
 	scopeName := jutil.StringSubstringFrom(t.reference, jutil.StringLength("typeof "))
 	type_ := t.resolutionScope.LookupQualifiedName(QualifiedName_Of(scopeName))
 	if type_ == nil || type_.IsUnknownType() {
-		if t.registry.IsForwardDeclaredType(scopeName) {
+		if t.GetRegistry().IsForwardDeclaredType(scopeName) {
 			// Preserve the "typeof" as a `NoResolvedType`. This is depended on by
 			// Clutz so it can generate `typeof ImportedType` instead of `any` when
 			// `ImportedType` is not defined in the files it can see.
-			t.SetReferencedType(NewNoResolvedType(t.registry, *t.GetReferenceName(), t.GetTemplateTypes()))
+			t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), *t.GetReferenceName(), t.GetTemplateTypes()))
 			if t.validator != nil {
 				unused := t.validator(t.GetReferencedType())
 				_ = unused
 			}
 		} else {
 			t.Warning(reporter, "Missing type for `typeof` value. The value must be declared and const.")
-			t.SetReferencedAndResolvedType(t.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), reporter)
+			t.SetReferencedAndResolvedType(t.GetRegistry().GetNativeType(JSTypeNative_UNKNOWN_TYPE), reporter)
 		}
 	} else {
 		if type_.IsLiteralObject() {
@@ -361,7 +361,7 @@ func (t *NamedType) ResolveTypeof(reporter ErrorReporter) bool {
 			// preserved for namespaces. This is depended on by Clutz to prevent
 			// infinite loops in self-referential typeof types.
 			objlit := type_
-			type_ = NamedType_Builder_(t.registry, *t.GetReferenceName()).
+			type_ = NamedType_Builder_(t.GetRegistry(), *t.GetReferenceName()).
 				SetResolutionKind(NamedType_ResolutionKind_NONE).
 				SetReferencedType(objlit).
 				Build()
@@ -388,7 +388,7 @@ func (t *NamedType) SetReferencedAndResolvedType(type_ JSType, reporter ErrorRep
 
 // Java: NamedType.handleTypeCycle(ErrorReporter)
 func (t *NamedType) HandleTypeCycle(reporter ErrorReporter) {
-	t.SetReferencedType(t.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE))
+	t.SetReferencedType(t.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE))
 	t.Warning(reporter, "Cycle detected in inheritance chain of type "+t.reference)
 }
 
@@ -414,7 +414,7 @@ func (t *NamedType) CheckProtoCycle(reporter ErrorReporter) {
 //
 // Java: NamedType.handleUnresolvedType(ErrorReporter)
 func (t *NamedType) HandleUnresolvedType(reporter ErrorReporter) {
-	isForwardDeclared := t.registry.IsForwardDeclaredType(t.reference)
+	isForwardDeclared := t.GetRegistry().IsForwardDeclaredType(t.reference)
 	if !isForwardDeclared {
 		msg := "Bad type annotation. Unknown type " + t.reference
 		// Look for a local variable that shadows a global namespace to give a
@@ -431,7 +431,7 @@ func (t *NamedType) HandleUnresolvedType(reporter ErrorReporter) {
 		}
 		t.Warning(reporter, msg)
 	} else {
-		t.SetReferencedType(NewNoResolvedType(t.registry, *t.GetReferenceName(), t.GetTemplateTypes()))
+		t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), *t.GetReferenceName(), t.GetTemplateTypes()))
 		if t.validator != nil {
 			unused := t.validator(t.GetReferencedType())
 			_ = unused
@@ -547,7 +547,7 @@ func (k NamedType_ResolutionKind) String() string { return namedType_ResolutionK
 // Java: NamedType.toBuilder()
 func (t *NamedType) ToBuilder() *NamedType_Builder {
 	jutil.CheckStateMsg(!t.IsResolved(), "Only call toBuilder on unresolved NamedTypes")
-	return NewNamedType_Builder(t.registry, t.reference).
+	return NewNamedType_Builder(t.GetRegistry(), t.reference).
 		SetScope(t.resolutionScope).
 		SetResolutionKind(t.resolutionKind).
 		SetErrorReportingLocation(t.sourceName, int(t.lineno), int(t.charno)).

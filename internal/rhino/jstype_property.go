@@ -57,13 +57,16 @@ func (r *JSTypeRegistry) propertySymbolID(sym *KnownSymbolType) rhinoStringID {
 
 // symbol is the key of a symbol-keyed property.
 func (p *Property) symbol() *KnownSymbolType {
-	return p.type_.GetJSTypeBase().registry.propertySymbols[p.nameID-1]
+	return p.type_.GetRegistry().propertySymbols[p.nameID-1]
 }
 
 // Property is a property slot of an object.
 type Property struct {
 	// Property's type.
-	type_ JSType
+	//
+	// Go-only: performance — the type's base (8 bytes) rather than a JSType
+	// interface (16); GetType returns its self().
+	type_ *JSTypeBase
 
 	// The node corresponding to this property, e.g., a GETPROP node that
 	// declares this property.
@@ -248,7 +251,7 @@ func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *
 	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
 	p := &Property{}
 	p.nameID = rhinoStringPoolIntern(name)
-	p.type_ = type_
+	p.type_ = type_.GetJSTypeBase()
 	p.inferred = inferred
 	p.propertyNode = propertyNode
 	return p
@@ -264,10 +267,10 @@ func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNo
 	case Property_KeyKind_STRING:
 		p.nameID = rhinoStringPoolIntern(name.String_())
 	case Property_KeyKind_SYMBOL:
-		p.nameID = type_.GetJSTypeBase().registry.propertySymbolID(name.Symbol())
+		p.nameID = type_.GetJSTypeBase().GetRegistry().propertySymbolID(name.Symbol())
 		p.isSymbol = true
 	}
-	p.type_ = type_
+	p.type_ = type_.GetJSTypeBase()
 	p.inferred = inferred
 	p.propertyNode = propertyNode
 	return p
@@ -322,7 +325,7 @@ func (p *Property) GetDeclaration() StaticRef {
 
 // Java: Property.getType()
 func (p *Property) GetType() JSType {
-	return p.type_
+	return p.type_.self()
 }
 
 // Java: Property.isTypeInferred()
@@ -343,7 +346,7 @@ func (p *Property) SetType(type_ JSType) {
 	if jutil.IsNil(type_) {
 		jutil.CheckNotNullMsg1(type_, "Null type specified for property %s", jutil.ToJavaString(p.nameObject()))
 	}
-	p.type_ = type_
+	p.type_ = type_.GetJSTypeBase()
 }
 
 // Java: Property.getJSDocInfo()
@@ -365,7 +368,7 @@ func (p *Property) SetNode(n *Node) {
 func (p *Property) String() string {
 	return "Property { " +
 		" name: " + jutil.ToJavaString(p.nameObject()) +
-		", type:" + jutil.ToJavaString(p.type_) +
+		", type:" + jutil.ToJavaString(p.type_.self()) +
 		", inferred: " + jutil.ToJavaString(p.inferred) +
 		"}"
 }
@@ -378,9 +381,9 @@ func (p *Property) GetScope() StaticScope {
 // Java: Property.hashCode()
 func (p *Property) HashCode() int32 {
 	if !p.isSymbol {
-		return 31*(31+jutil.StringHashCode(rhinoStringFromID(p.nameID))) + jutil.ObjectHashCode(p.type_)
+		return 31*(31+jutil.StringHashCode(rhinoStringFromID(p.nameID))) + jutil.ObjectHashCode(p.type_.self())
 	}
-	return jutil.ObjectsHash(p.symbol(), p.type_)
+	return jutil.ObjectsHash(p.symbol(), p.type_.self())
 }
 
 // Equals is Object.equals (Property does not override it): identity.

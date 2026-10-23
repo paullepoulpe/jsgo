@@ -571,15 +571,15 @@ func (c *EqualityChecker) AreRecordEqual(left *RecordType, right *RecordType) bo
 	// Additionally, code that makes heavy use of inline record types compiles
 	// very slowly if the set of inherited properties is recomputed during
 	// every equality check.
-	leftEntries := left.properties.entries
-	rightEntries := right.properties.entries
+	leftEntries := left.properties.entries()
+	rightEntries := right.properties.entries()
 	if len(leftEntries) != len(rightEntries) {
 		return false
 	}
 	left.properties.ensureSorted()
 	right.properties.ensureSorted()
-	leftEntries = left.properties.entries
-	rightEntries = right.properties.entries
+	leftEntries = left.properties.entries()
+	rightEntries = right.properties.entries()
 	for i := range leftEntries {
 		if leftEntries[i].nameID != rightEntries[i].nameID {
 			return false

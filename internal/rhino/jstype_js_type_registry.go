@@ -1563,8 +1563,8 @@ func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, s
 	foundDroppedProperty := false
 	subMap := subtype.GetPropertyMap()
 	subMap.ensureSorted()
-	for i := 0; i < len(subMap.entries); i++ {
-		pname := rhinoStringFromID(subMap.entries[i].nameID)
+	for i := 0; i < len(subMap.entries()); i++ {
+		pname := rhinoStringFromID(subMap.entries()[i].nameID)
 		if !supertype.HasProperty(pname) {
 			foundDroppedProperty = true
 			r.droppedPropertiesOfUnions.Add(pname)
@@ -1573,8 +1573,8 @@ func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, s
 	if foundDroppedProperty {
 		superMap := supertype.GetPropertyMap()
 		superMap.ensureSorted()
-		for i := 0; i < len(superMap.entries); i++ {
-			r.propertiesOfSupertypesInUnions.Add(rhinoStringFromID(superMap.entries[i].nameID))
+		for i := 0; i < len(superMap.entries()); i++ {
+			r.propertiesOfSupertypesInUnions.Add(rhinoStringFromID(superMap.entries()[i].nameID))
 		}
 	}
 }
@@ -1716,8 +1716,8 @@ func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string)
 
 		if rec := type_.ToMaybeRecordType(); rec != nil && r.droppedPropertiesOfUnions.Contains(propertyName) {
 			propMap := rec.GetPropertyMap()
-			for i := 0; i < len(propMap.entries); i++ {
-				if r.propertiesOfSupertypesInUnions.Contains(rhinoStringFromID(propMap.entries[i].nameID)) {
+			for i := 0; i < len(propMap.entries()); i++ {
+				if r.propertiesOfSupertypesInUnions.Contains(rhinoStringFromID(propMap.entries()[i].nameID)) {
 					return JSTypeRegistry_PropDefinitionKind_LOOSE
 				}
 			}

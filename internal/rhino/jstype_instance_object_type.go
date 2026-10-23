@@ -57,7 +57,7 @@ func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectT
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
 	t.constructor = jutil.CheckNotNull(builder.constructor).GetFunctionTypeBase()
 
-	t.registry.GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
+	t.GetRegistry().GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
 	return t
 }
 
@@ -88,7 +88,7 @@ func (b *InstanceObjectType_Builder) Build() *InstanceObjectType {
 
 // Java: InstanceObjectType.builderForCtor(FunctionType)
 func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Builder {
-	return NewInstanceObjectType_Builder(ctor.GetJSTypeBase().registry).
+	return NewInstanceObjectType_Builder(ctor.GetJSTypeBase().GetRegistry()).
 		SetName(ctor.GetReferenceName()).
 		SetImplicitPrototype(nil). // This isn't shared by a function and it's instances.
 		SetNative(ctor.IsNativeObjectType()).

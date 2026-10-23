@@ -83,7 +83,10 @@ type PrototypeObjectTypeBase struct {
 	// NOTE(nicksantos): The implicit prototype can change over time.
 	// Modeling this is a bear. Always call getImplicitPrototype(), because
 	// some subclasses override this to do special resolution handling.
-	implicitPrototypeFallback ObjectType
+	//
+	// Go-only: performance — the type's base (8 bytes) rather than an
+	// ObjectType interface (16).
+	implicitPrototypeFallback *JSTypeBase
 
 	// If this is a function prototype, then this is the owner. A
 	// PrototypeObjectType can only be the prototype of one function. If we
@@ -139,7 +142,7 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	if p.nativeType || builder.implicitPrototype != nil {
 		p.SetImplicitPrototype(builder.implicitPrototype)
 	} else {
-		p.SetImplicitPrototype(p.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
+		p.SetImplicitPrototype(p.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
 	}
 
 	if p.anonymousType {
@@ -149,7 +152,7 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	// Also guarantees `templateParamCount >= 0`.
 	jutil.CheckState(p.templateTypeMap.Size() >= int(p.templateParamCount))
 
-	p.registry.GetResolver().ResolveIfClosed(self, PrototypeObjectType_TYPE_CLASS)
+	p.GetRegistry().GetResolver().ResolveIfClosed(self, PrototypeObjectType_TYPE_CLASS)
 }
 
 // GetPrototypeObjectTypeBase gives access to the base through the interface.
@@ -321,29 +324,29 @@ func (p *PrototypeObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key
 // Java: PrototypeObjectType.matchesNumberContext()
 func (p *PrototypeObjectTypeBase) MatchesNumberContext() bool {
 	// BigInt is intentionally left out here. It cannot be coerced to a Number.
-	return p.self.IsNumberObjectType() ||
-		p.self.IsDateType() ||
-		p.self.IsBooleanObjectType() ||
-		p.self.IsStringObjectType() ||
+	return p.self().IsNumberObjectType() ||
+		p.self().IsDateType() ||
+		p.self().IsBooleanObjectType() ||
+		p.self().IsStringObjectType() ||
 		p.HasOverriddenNativeProperty("valueOf")
 }
 
 // Java: PrototypeObjectType.matchesStringContext()
 func (p *PrototypeObjectTypeBase) MatchesStringContext() bool {
-	return p.self.IsTheObjectType() ||
-		p.self.IsStringObjectType() ||
-		p.self.IsDateType() ||
-		p.self.IsRegexpType() ||
-		p.self.IsArrayType() ||
-		p.self.IsNumberObjectType() ||
-		p.self.IsBigIntObjectType() ||
-		p.self.IsBooleanObjectType() ||
+	return p.self().IsTheObjectType() ||
+		p.self().IsStringObjectType() ||
+		p.self().IsDateType() ||
+		p.self().IsRegexpType() ||
+		p.self().IsArrayType() ||
+		p.self().IsNumberObjectType() ||
+		p.self().IsBigIntObjectType() ||
+		p.self().IsBooleanObjectType() ||
 		p.HasOverriddenNativeProperty("toString")
 }
 
 // Java: PrototypeObjectType.matchesSymbolContext()
 func (p *PrototypeObjectTypeBase) MatchesSymbolContext() bool {
-	return p.self.IsSymbolObjectType()
+	return p.self().IsSymbolObjectType()
 }
 
 // hasOverriddenNativeProperty: given the name of a native object property,
@@ -352,16 +355,16 @@ func (p *PrototypeObjectTypeBase) MatchesSymbolContext() bool {
 //
 // Java: PrototypeObjectType.HasOverriddenNativeProperty(String)
 func (p *PrototypeObjectTypeBase) HasOverriddenNativeProperty(propertyName string) bool {
-	if p.self.IsNativeObjectType() {
+	if p.self().IsNativeObjectType() {
 		return false
 	}
 
 	propertyType := p.selfObj().GetPropertyType(propertyName)
 	var nativeType ObjectType
-	if p.self.IsFunctionType() {
-		nativeType = p.registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE)
+	if p.self().IsFunctionType() {
+		nativeType = p.GetRegistry().GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE)
 	} else {
-		nativeType = p.registry.GetNativeObjectType(JSTypeNative_OBJECT_PROTOTYPE)
+		nativeType = p.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_PROTOTYPE)
 	}
 	nativePropertyType := nativeType.GetPropertyType(propertyName)
 	return propertyType != nativePropertyType
@@ -509,7 +512,7 @@ func (p *PrototypeObjectTypeBase) GetConstructor() FunctionType {
 
 // Java: PrototypeObjectType.getImplicitPrototype()
 func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
-	return p.implicitPrototypeFallback
+	return objectTypeOf(p.implicitPrototypeFallback)
 }
 
 // SetImplicitPrototype: this should only be reset on the
@@ -520,12 +523,12 @@ func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
 // Java: PrototypeObjectType.setImplicitPrototype(ObjectType)
 func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectType) {
 	jutil.CheckState(!p.selfObj().HasCachedValues())
-	p.implicitPrototypeFallback = implicitPrototype
-	if p.registry != nil {
-		p.registry.leastSupertypeGen++
+	p.implicitPrototypeFallback = jsTypeBase(implicitPrototype)
+	if p.GetRegistry() != nil {
+		p.GetRegistry().leastSupertypeGen++
 	}
 	if implicitPrototype != nil {
-		p.self.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(implicitPrototype)
+		p.self().MaybeLoosenTypecheckingDueToForwardReferencedSupertype(implicitPrototype)
 	}
 }
 
@@ -583,7 +586,7 @@ func (p *PrototypeObjectTypeBase) GetOwnerFunction() FunctionType {
 
 // Java: PrototypeObjectType.getCtorImplementedInterfaces()
 func (p *PrototypeObjectTypeBase) GetCtorImplementedInterfaces() []ObjectType {
-	if p.self.IsFunctionPrototypeType() {
+	if p.self().IsFunctionPrototypeType() {
 		return p.selfObj().GetOwnerFunction().GetImplementedInterfaces()
 	}
 	return []ObjectType{}
@@ -591,7 +594,7 @@ func (p *PrototypeObjectTypeBase) GetCtorImplementedInterfaces() []ObjectType {
 
 // Java: PrototypeObjectType.getCtorExtendedInterfaces()
 func (p *PrototypeObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
-	if p.self.IsFunctionPrototypeType() {
+	if p.self().IsFunctionPrototypeType() {
 		return p.selfObj().GetOwnerFunction().GetExtendedInterfaces()
 	}
 	return []ObjectType{}
@@ -601,14 +604,14 @@ func (p *PrototypeObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 	implicitPrototype := p.selfObj().GetImplicitPrototype()
 	if implicitPrototype != nil {
-		p.implicitPrototypeFallback = implicitPrototype.Resolve(reporter).(ObjectType)
+		p.implicitPrototypeFallback = implicitPrototype.Resolve(reporter).(ObjectType).GetJSTypeBase()
 	}
 	p.properties.ensureSorted()
-	for i := 0; i < len(p.properties.entries); i++ {
-		prop := p.properties.entries[i]
+	for i := 0; i < len(p.properties.entries()); i++ {
+		prop := p.properties.entries()[i]
 		prop.SetType(JSType_SafeResolve(prop.GetType(), reporter))
 	}
-	return p.self
+	return p.self()
 }
 
 // Java: PrototypeObjectType.matchConstraint(JSType)
@@ -645,7 +648,7 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 		propType := constraintObj.GetPropertyType(prop)
 		if !self.IsPropertyTypeDeclared(prop) {
 			typeToInfer := propType
-			if !p.self.HasProperty(prop) {
+			if !p.self().HasProperty(prop) {
 				typeToInfer = p.GetNativeType(JSTypeNative_VOID_TYPE).GetLeastSupertype(propType)
 			}
 			self.DefineInferredProperty(prop, typeToInfer, nil)
@@ -655,14 +658,14 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 
 // Java: PrototypeObjectType.recursionUnsafeHashCode()
 func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode() int32 {
-	if p.self.IsStructuralType() {
+	if p.self().IsStructuralType() {
 		var classHash int32
 		if p.className != nil {
 			classHash = jutil.StringHashCode(*p.className)
 		}
 		return 31*(31+classHash) + p.properties.HashCode()
 	} else {
-		return jutil.IdentityHashCode(p.self)
+		return jutil.IdentityHashCode(p.self())
 	}
 }
 

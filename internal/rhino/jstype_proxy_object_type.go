@@ -446,7 +446,7 @@ func (p *ProxyObjectTypeBase) VisitReferenceType(visitor Visitor) any {
 
 // Java: ProxyObjectType.visit(Visitor<T>)
 func (p *ProxyObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseProxyObjectType(p.self.(ProxyObjectType))
+	return visitor.CaseProxyObjectType(p.self().(ProxyObjectType))
 }
 
 // Java: ProxyObjectType.visit(RelationshipVisitor<T>, JSType)
@@ -457,7 +457,7 @@ func (p *ProxyObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, tha
 // Java: ProxyObjectType.resolveInternal(ErrorReporter)
 func (p *ProxyObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 	p.SetReferencedType(p.referencedType.Resolve(reporter))
-	return p.self
+	return p.self()
 }
 
 // Java: ProxyObjectType.getTypeOfThis()
@@ -473,7 +473,7 @@ func (p *ProxyObjectTypeBase) CollapseUnion() JSType {
 	if p.referencedType.IsUnionType() {
 		return p.referencedType.CollapseUnion()
 	}
-	return p.self
+	return p.self()
 }
 
 // Java: ProxyObjectType.matchConstraint(JSType)

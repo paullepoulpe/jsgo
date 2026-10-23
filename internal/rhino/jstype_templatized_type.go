@@ -109,7 +109,7 @@ func (t *TemplatizedType) GetTypeClass() JSTypeClass {
 // Java: TemplatizedType.getCtorImplementedInterfaces()
 func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 	resolvedImplementedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorImplementedInterfaces() {
 		resolvedImplementedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
@@ -119,7 +119,7 @@ func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 // Java: TemplatizedType.getCtorExtendedInterfaces()
 func (t *TemplatizedType) GetCtorExtendedInterfaces() []ObjectType {
 	resolvedExtendedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorExtendedInterfaces() {
 		resolvedExtendedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
@@ -181,7 +181,7 @@ func (t *TemplatizedType) GetPropertyTypeByKey(propertyName Property_Key) JSType
 	if result == nil {
 		return nil
 	}
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	return replacer.VisitJSType(result)
 }
 
@@ -269,7 +269,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 		if builder == nil {
 			builder = t.templateTypes
 		}
-		return t.registry.CreateTemplatizedTypeOfList(t.GetReferencedType(), builder)
+		return t.GetRegistry().CreateTemplatizedTypeOfList(t.GetReferencedType(), builder)
 	} else {
 		return t
 	}

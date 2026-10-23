@@ -55,12 +55,17 @@ type propMapExt struct {
 // PropertyMap is the representation for a collection of properties on an
 // object.
 type PropertyMap struct {
-	// Own string properties. Small maps (<=24 entries) scan entries directly
-	// by 32-bit rhinoStringID; larger maps maintain ext.byID for O(1) lookup and
-	// sort entries by StringCompareTo lazily when key-ordered iteration is
-	// requested.
-	entries []*Property
-	ext     *propMapExt
+	// Own string properties, the slice entries(). Small maps (<=24 entries)
+	// scan entries directly by 32-bit rhinoStringID; larger maps maintain
+	// ext.byID for O(1) lookup and sort entries by StringCompareTo lazily when
+	// key-ordered iteration is requested.
+	//
+	// Go-only: performance — the slice is held as its data pointer and two
+	// 32-bit lengths (16 bytes instead of 24), which keeps the prototype
+	// object types, which embed a PropertyMap, a size class smaller.
+	entryData          **Property
+	entryLen, entryCap uint32
+	ext                *propMapExt
 
 	// A "timestamp" for map mutations to validate cachedKeySet and
 	// cachedKnownSymbolsKeySet.
@@ -77,6 +82,24 @@ type PropertyMap struct {
 	sorted          bool
 	hasNonASCII     bool
 	embeddedInProto bool
+}
+
+// entries is the slice of own string properties.
+func (m *PropertyMap) entries() []*Property {
+	if m.entryData == nil {
+		return nil
+	}
+	return unsafe.Slice(m.entryData, m.entryCap)[:m.entryLen]
+}
+
+func (m *PropertyMap) setEntries(entries []*Property) {
+	if cap(entries) == 0 {
+		m.entryData, m.entryLen, m.entryCap = nil, 0, 0
+		return
+	}
+	m.entryData = unsafe.SliceData(entries)
+	m.entryLen = uint32(len(entries))
+	m.entryCap = uint32(cap(entries))
 }
 
 func (m *PropertyMap) getParentSource() ObjectType {
@@ -121,11 +144,11 @@ func NewPropertyMap() *PropertyMap {
 }
 
 func (m *PropertyMap) ensureSorted() {
-	if m.sorted || len(m.entries) <= 1 {
+	if m.sorted || len(m.entries()) <= 1 {
 		m.sorted = true
 		return
 	}
-	slices.SortFunc(m.entries, func(a, b *Property) int {
+	slices.SortFunc(m.entries(), func(a, b *Property) int {
 		return jutil.StringCompareTo(rhinoStringFromID(a.nameID), rhinoStringFromID(b.nameID))
 	})
 	m.sorted = true
@@ -169,7 +192,7 @@ func (m *PropertyMap) GetPrimaryParent() *PropertyMap {
 		var iProto ObjectType
 		switch p.objFlags & objKindMask {
 		case objKindPrototype, objKindFunction:
-			iProto = p.implicitPrototypeFallback
+			iProto = objectTypeOf(p.implicitPrototypeFallback)
 		case objKindInstance:
 			iProto = (*InstanceObjectType)(unsafe.Pointer(p)).GetImplicitPrototype()
 		default:
@@ -217,8 +240,8 @@ func (m *PropertyMap) FindClosest(name string) *Property_OwnedProperty {
 func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Property) {
 	if name.Kind() == Property_KeyKind_STRING {
 		str := name.String_()
-		if len(m.entries) == 1 && !m.hasNonASCII {
-			if p := m.entries[0]; rhinoStringFromID(p.nameID) == str {
+		if len(m.entries()) == 1 && !m.hasNonASCII {
+			if p := m.entries()[0]; rhinoStringFromID(p.nameID) == str {
 				return m.getParentSource(), p
 			}
 		}
@@ -277,7 +300,7 @@ func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedPropert
 }
 
 func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) *Property {
-	if len(m.entries) == 0 {
+	if len(m.entries()) == 0 {
 		return nil
 	}
 	if !m.hasNonASCII {
@@ -287,14 +310,14 @@ func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) 
 		if m.ext != nil && m.ext.byID != nil {
 			return m.ext.byID[id]
 		}
-		for _, p := range m.entries {
+		for _, p := range m.entries() {
 			if p.nameID == id {
 				return p
 			}
 		}
 		return nil
 	}
-	for _, p := range m.entries {
+	for _, p := range m.entries() {
 		if (id != 0 && p.nameID == id) || jutil.StringCompareTo(rhinoStringFromID(p.nameID), propertyName) == 0 {
 			return p
 		}
@@ -304,11 +327,11 @@ func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) 
 
 // Java: PropertyMap.getOwnProperty(String)
 func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
-	if len(m.entries) == 0 {
+	if len(m.entries()) == 0 {
 		return nil
 	}
-	if len(m.entries) == 1 && !m.hasNonASCII {
-		if p := m.entries[0]; rhinoStringFromID(p.nameID) == propertyName {
+	if len(m.entries()) == 1 && !m.hasNonASCII {
+		if p := m.entries()[0]; rhinoStringFromID(p.nameID) == propertyName {
 			return p
 		}
 		return nil
@@ -332,7 +355,7 @@ func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
 func (m *PropertyMap) GetPropertiesCount() int {
 	primaryParent := m.GetPrimaryParent()
 	if primaryParent == nil {
-		return len(m.entries)
+		return len(m.entries())
 	}
 
 	return len(m.GetAllKeys().StringKeys())
@@ -345,8 +368,8 @@ func (m *PropertyMap) GetPropertiesCount() int {
 // Java: PropertyMap.getOwnPropertyNames()
 func (m *PropertyMap) GetOwnPropertyNames() []string {
 	m.ensureSorted()
-	out := make([]string, len(m.entries))
-	for i, p := range m.entries {
+	out := make([]string, len(m.entries()))
+	for i, p := range m.entries() {
 		out[i] = rhinoStringFromID(p.nameID)
 	}
 	return out
@@ -391,7 +414,7 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			}
 
 			ancestor.ensureSorted()
-			for _, p := range ancestor.entries {
+			for _, p := range ancestor.entries() {
 				keys.Add(rhinoStringFromID(p.nameID))
 			}
 			if ancestor.ext != nil && ancestor.ext.knownSymbols != nil {
@@ -504,7 +527,7 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	if m.ext != nil && m.ext.byID != nil && isASCII {
 		oldProp = m.ext.byID[nameID]
 	} else if !m.hasNonASCII && isASCII {
-		for i, p := range m.entries {
+		for i, p := range m.entries() {
 			if p.nameID == nameID {
 				oldProp = p
 				oldIdx = i
@@ -512,7 +535,7 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 			}
 		}
 	} else {
-		for i, p := range m.entries {
+		for i, p := range m.entries() {
 			if p.nameID == nameID || jutil.StringCompareTo(rhinoStringFromID(p.nameID), name) == 0 {
 				oldProp = p
 				oldIdx = i
@@ -535,12 +558,12 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	}
 	if oldProp != nil {
 		if oldIdx >= 0 {
-			m.entries[oldIdx] = newProp
+			m.entries()[oldIdx] = newProp
 		} else {
 			m.ext.byID[nameID] = newProp
-			for i, p := range m.entries {
+			for i, p := range m.entries() {
 				if p.nameID == nameID {
-					m.entries[i] = newProp
+					m.entries()[i] = newProp
 					break
 				}
 			}
@@ -553,19 +576,19 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 			m.ext.byID = nil
 		}
 	}
-	if len(m.entries) == 0 {
+	if len(m.entries()) == 0 {
 		m.sorted = true
-	} else if m.sorted && jutil.StringCompareTo(rhinoStringFromID(m.entries[len(m.entries)-1].nameID), name) >= 0 {
+	} else if m.sorted && jutil.StringCompareTo(rhinoStringFromID(m.entries()[len(m.entries())-1].nameID), name) >= 0 {
 		m.sorted = false
 	}
-	m.entries = append(m.entries, newProp)
+	m.setEntries(append(m.entries(), newProp))
 	if !m.hasNonASCII {
 		if m.ext != nil && m.ext.byID != nil {
 			m.ext.byID[nameID] = newProp
-		} else if len(m.entries) > 24 {
+		} else if len(m.entries()) > 24 {
 			ext := m.ensureExt()
 			ext.byID = make(map[rhinoStringID]*Property, 32)
-			for _, p := range m.entries {
+			for _, p := range m.entries() {
 				ext.byID[p.nameID] = p
 			}
 		}
@@ -608,8 +631,8 @@ func (m *PropertyMap) PutPropertyByKey(name Property_Key, newProp *Property) {
 func (m *PropertyMap) Values() func(yield func(*Property) bool) {
 	m.ensureSorted()
 	return func(yield func(*Property) bool) {
-		for i := 0; i < len(m.entries); i++ {
-			if !yield(m.entries[i]) {
+		for i := 0; i < len(m.entries()); i++ {
+			if !yield(m.entries()[i]) {
 				return
 			}
 		}
@@ -626,7 +649,7 @@ func (m *PropertyMap) HashCode() int32 {
 	// Otherwise we can get into an infinite loop because the ObjectType
 	// hashCode method calls this one.
 	var propHash int32
-	for _, p := range m.entries {
+	for _, p := range m.entries() {
 		propHash += jutil.StringHashCode(rhinoStringFromID(p.nameID))
 	}
 	if m.ext == nil || m.ext.knownSymbols == nil {
