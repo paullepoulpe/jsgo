@@ -60,7 +60,12 @@ func NewNodeIterators_FunctionlessLocalScope(ancestors ...*rhino.Node) *NodeIter
 }
 
 func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c *rhino.Node) {
-	s.ancestors = s.ancestorsBuf[:0]
+	if s.ancestors == nil {
+		s.ancestors = s.ancestorsBuf[:0]
+	} else {
+		clear(s.ancestors)
+		s.ancestors = s.ancestors[:0]
+	}
 	if a.IsFunction() {
 		return
 	}

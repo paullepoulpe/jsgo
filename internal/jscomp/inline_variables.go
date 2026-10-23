@@ -344,6 +344,7 @@ type InlineVariables_InliningBehavior struct {
 	retryHandlerChunks   [][]InlineVariables_InliningBehavior_AliasInlineRetryHandler
 	retryHandlerChunkIdx int
 	retryHandlerBuf      [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	motionScratch        NodeIterators_LocalVarMotion
 }
 
 var inliningBehaviorPool = sync.Pool{
@@ -404,6 +405,11 @@ func (b *InlineVariables_InliningBehavior) release() {
 	}
 	b.retryHandlerChunkIdx = 0
 	b.retryHandlerSlab = b.retryHandlerBuf[:0]
+	b.motionScratch.compiler = nil
+	b.motionScratch.varName = ""
+	b.motionScratch.lookAhead = nil
+	clear(b.motionScratch.iteratorStorage.ancestors)
+	b.motionScratch.iteratorStorage.ancestors = b.motionScratch.iteratorStorage.ancestors[:0]
 	inliningBehaviorPool.Put(b)
 }
 
@@ -1568,7 +1574,7 @@ func (b *InlineVariables_InliningBehavior) CanMoveAggressively(value *rhino.Node
 func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Reference, reference *Reference) bool {
 	// Check if declaration can be inlined without passing
 	// any side-effect causing nodes.
-	var it NodeIterators_LocalVarMotion
+	it := &b.motionScratch
 	if NodeUtil_IsNameDeclaration(initialization.GetParent()) {
 		it.initForVar(
 			b.outer.compiler,

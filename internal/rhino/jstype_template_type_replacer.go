@@ -467,15 +467,15 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 				changed = true
 				paramsChanged = true
 				paramBuilder.registry = r.registry
-				paramBuilder.parameters = make([]*FunctionType_Parameter, i, numParams)
+				paramBuilder.parameters = r.registry.allocFunctionParamPtrSlice(numParams)[:i]
 				copy(paramBuilder.parameters, parameters[:i])
 			}
 			if parameter.IsOptional() {
-				paramBuilder.AddOptionalParams(afterParamType)
+				paramBuilder.AddOptionalParam(afterParamType)
 			} else if parameter.IsVariadic() {
 				paramBuilder.AddVarArgs(afterParamType)
 			} else {
-				paramBuilder.AddRequiredParams(afterParamType)
+				paramBuilder.AddRequiredParam(afterParamType)
 			}
 		} else if paramsChanged {
 			paramBuilder.parameters = append(paramBuilder.parameters, parameter)

@@ -343,10 +343,12 @@ func (r *protoReader) skipGroup(number int) {
 func (r *protoReader) readRepeated(tag int, scalarWireType int, read func(*protoReader)) {
 	if tag&7 == protoWireBytes && scalarWireType != protoWireBytes {
 		data := r.readBytesView()
-		sub := &protoReader{b: data}
-		for !sub.atEnd() {
-			read(sub)
+		origB, origPos := r.b, r.pos
+		r.b, r.pos = data, 0
+		for !r.atEnd() {
+			read(r)
 		}
+		r.b, r.pos = origB, origPos
 		return
 	}
 	read(r)

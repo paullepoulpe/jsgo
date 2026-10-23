@@ -60,6 +60,7 @@ type TypedAstSerializer struct {
 	jsdocKindSlabs   [][]int32
 	jsdocKindSlabIdx int
 	jsdocKindSlabPos int
+	jsdocKindScratch []int32
 	templateSlabs    [][]TemplateStringValue
 	templateSlabIdx  int
 	templateSlabPos  int
@@ -366,8 +367,12 @@ func (s *TypedAstSerializer) visitArena(n *rhino.Node) *AstNode {
 
 	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
 		var doc OptimizationJsdoc
-		var kindBuf [8]int32
-		if jsDocSerializer_fillJsdocProto(jsdoc, s.stringPool, &doc, kindBuf[:0]) {
+		if s.jsdocKindScratch == nil {
+			s.jsdocKindScratch = make([]int32, 0, 8)
+		}
+		hasOptJsdoc := jsDocSerializer_fillJsdocProto(jsdoc, s.stringPool, &doc, s.jsdocKindScratch[:0])
+		s.jsdocKindScratch = doc.kind_[:0]
+		if hasOptJsdoc {
 			m.jsdoc_ = s.allocJsdoc(doc)
 		}
 	}

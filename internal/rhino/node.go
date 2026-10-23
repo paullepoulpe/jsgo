@@ -403,7 +403,7 @@ const (
 	kindFlagNoBlockDecl    uint8 = 1 << 4
 	kindFlagHasExtra       uint8 = 1 << 5
 	kindFlagHasTypeOrColor uint8 = 1 << 6
-	kindFlagHasColdProp    uint8 = 1 << 7
+	kindFlagHasExtBox      uint8 = 1 << 7
 )
 
 const (
@@ -593,9 +593,11 @@ var nodeBitToProp = [propBitCount]Node_Prop{
 	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 }
 
-type nodeTypeAndProps struct {
-	typeOrColor  unsafe.Pointer
-	propListHead *Node_PropListItem
+type nodeExtBox struct {
+	typeOrColor    unsafe.Pointer     // *JSTypeBase or *colors.Color (valid iff kindFlagHasTypeOrColor != 0)
+	jsDocInfo      *JSDocInfo         // canonical *JSDocInfo (valid iff propFlagHasJSDoc != 0 && jsDocInfo != nil)
+	typeBeforeCast *JSTypeBase        // canonical TYPE_BEFORE_CAST (non-nil iff present as JSType)
+	propListHead   *Node_PropListItem // remaining cold properties
 }
 
 var (
@@ -651,53 +653,76 @@ func allocSourceFilePropID(file any) (uint32, bool) {
 	return id, true
 }
 
+func (n *Node) ensureExtBox() *nodeExtBox {
+	if (n.kindFlags & kindFlagHasExtBox) != 0 {
+		return (*nodeExtBox)(n.typeOrColor)
+	}
+	box := &nodeExtBox{}
+	if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
+		box.typeOrColor = n.typeOrColor
+	} else if (n.propFlags & propFlagHasJSDoc) != 0 {
+		box.jsDocInfo = (*JSDocInfo)(n.typeOrColor)
+	}
+	n.kindFlags |= kindFlagHasExtBox
+	n.typeOrColor = unsafe.Pointer(box)
+	return box
+}
+
+func (n *Node) maybeCollapseExtBox(box *nodeExtBox) {
+	if box.typeBeforeCast != nil || box.propListHead != nil {
+		return
+	}
+	hasTOC := (n.kindFlags & kindFlagHasTypeOrColor) != 0
+	hasJSDoc := (n.propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo != nil
+	if hasTOC && hasJSDoc {
+		return
+	}
+	n.kindFlags &^= kindFlagHasExtBox
+	if hasTOC {
+		n.typeOrColor = box.typeOrColor
+	} else if hasJSDoc {
+		n.typeOrColor = unsafe.Pointer(box.jsDocInfo)
+	} else {
+		n.typeOrColor = nil
+	}
+}
+
 func (n *Node) coldPropListHead() *Node_PropListItem {
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		return nil
 	}
-	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
-		return (*Node_PropListItem)(n.typeOrColor)
-	}
-	return (*nodeTypeAndProps)(n.typeOrColor).propListHead
+	return (*nodeExtBox)(n.typeOrColor).propListHead
 }
 
 func (n *Node) setColdPropListHead(head *Node_PropListItem) {
 	if head == nil {
-		if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
 			return
 		}
-		n.kindFlags &^= kindFlagHasColdProp
-		if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
-			n.typeOrColor = nil
-		} else {
-			n.typeOrColor = (*nodeTypeAndProps)(n.typeOrColor).typeOrColor
-		}
+		box := (*nodeExtBox)(n.typeOrColor)
+		box.propListHead = nil
+		n.maybeCollapseExtBox(box)
 		return
 	}
-	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
-		n.kindFlags |= kindFlagHasColdProp
-		n.typeOrColor = unsafe.Pointer(head)
-		return
+	box := n.ensureExtBox()
+	box.propListHead = head
+}
+
+func (n *Node) typeBeforeCastBase() *JSTypeBase {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
+		return nil
 	}
-	if (n.kindFlags & kindFlagHasColdProp) != 0 {
-		(*nodeTypeAndProps)(n.typeOrColor).propListHead = head
-		return
-	}
-	n.kindFlags |= kindFlagHasColdProp
-	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
-		typeOrColor:  n.typeOrColor,
-		propListHead: head,
-	})
+	return (*nodeExtBox)(n.typeOrColor).typeBeforeCast
 }
 
 func (n *Node) rawTypeOrColorPtr() unsafe.Pointer {
 	if (n.kindFlags & kindFlagHasTypeOrColor) == 0 {
 		return nil
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		return n.typeOrColor
 	}
-	return (*nodeTypeAndProps)(n.typeOrColor).typeOrColor
+	return (*nodeExtBox)(n.typeOrColor).typeOrColor
 }
 
 func (n *Node) setRawTypeOrColorPtr(ptr unsafe.Pointer, isColor bool) {
@@ -707,37 +732,58 @@ func (n *Node) setRawTypeOrColorPtr(ptr unsafe.Pointer, isColor bool) {
 			return
 		}
 		n.kindFlags &^= kindFlagHasTypeOrColor | kindFlagTypeIsColor
-		if (n.kindFlags & kindFlagHasColdProp) == 0 {
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
 			n.typeOrColor = nil
 		} else {
-			n.typeOrColor = unsafe.Pointer((*nodeTypeAndProps)(n.typeOrColor).propListHead)
+			box := (*nodeExtBox)(n.typeOrColor)
+			box.typeOrColor = nil
+			n.maybeCollapseExtBox(box)
 		}
 		return
 	}
-	alreadyHadTypeOrColor := (n.kindFlags & kindFlagHasTypeOrColor) != 0
+	if (n.kindFlags&kindFlagHasExtBox) == 0 && (n.propFlags&propFlagHasJSDoc) != 0 {
+		box := n.ensureExtBox()
+		if isColor {
+			n.kindFlags |= kindFlagHasTypeOrColor | kindFlagTypeIsColor
+		} else {
+			n.kindFlags = (n.kindFlags &^ kindFlagTypeIsColor) | kindFlagHasTypeOrColor
+		}
+		box.typeOrColor = ptr
+		return
+	}
 	if isColor {
 		n.kindFlags |= kindFlagHasTypeOrColor | kindFlagTypeIsColor
 	} else {
 		n.kindFlags = (n.kindFlags &^ kindFlagTypeIsColor) | kindFlagHasTypeOrColor
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		n.typeOrColor = ptr
 		return
 	}
-	if alreadyHadTypeOrColor {
-		(*nodeTypeAndProps)(n.typeOrColor).typeOrColor = ptr
-		return
-	}
-	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
-		typeOrColor:  ptr,
-		propListHead: (*Node_PropListItem)(n.typeOrColor),
-	})
+	(*nodeExtBox)(n.typeOrColor).typeOrColor = ptr
 }
 
 func (n *Node) copyTemplateColdProps(template *Node) {
-	head := template.coldPropListHead()
-	head.markShared()
-	n.setColdPropListHead(head)
+	if (template.kindFlags & kindFlagHasExtBox) != 0 {
+		tbox := (*nodeExtBox)(template.typeOrColor)
+		if tbox.propListHead != nil {
+			tbox.propListHead.markShared()
+		}
+		if tbox.jsDocInfo != nil && tbox.typeBeforeCast == nil && tbox.propListHead == nil {
+			n.typeOrColor = unsafe.Pointer(tbox.jsDocInfo)
+			return
+		}
+		if tbox.jsDocInfo != nil || tbox.typeBeforeCast != nil || tbox.propListHead != nil {
+			box := n.ensureExtBox()
+			box.jsDocInfo = tbox.jsDocInfo
+			box.typeBeforeCast = tbox.typeBeforeCast
+			box.propListHead = tbox.propListHead
+		}
+		return
+	}
+	if (template.propFlags & propFlagHasJSDoc) != 0 {
+		n.typeOrColor = template.typeOrColor
+	}
 }
 
 func (n *Node) nodeKind() node_kind {
@@ -994,7 +1040,7 @@ func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	return n
@@ -1005,7 +1051,7 @@ func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Nod
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.first = child
@@ -1021,7 +1067,7 @@ func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Nod
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.first = left
@@ -1042,7 +1088,7 @@ func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node,
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.first = left
@@ -1069,7 +1115,7 @@ func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindString)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.payload = uint64(rhinoStringPoolIntern(str))
@@ -1082,7 +1128,7 @@ func (n *Node) InitStringFromStringPool(token Token, stringPool *RhinoStringPool
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindString)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.payload = uint64(stringPool.GetID(offset))
@@ -1100,7 +1146,7 @@ func (n *Node) InitTemplateLitStringFromStringPool(
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -1118,7 +1164,7 @@ func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindNumber)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.SetDouble(number)
@@ -1131,7 +1177,7 @@ func (n *Node) InitBigIntFromTemplate(bigint *big.Int, template *Node) *Node {
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindBigInt)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	n.SetBigInt(bigint)
@@ -1144,7 +1190,7 @@ func (n *Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, tem
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	n.propFlags = template.propFlags
-	if (template.kindFlags & kindFlagHasColdProp) != 0 {
+	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -1319,7 +1365,7 @@ func (n *Node) SetClosureUnawareShadow(shadowRoot *Node) {
 
 // Java: Node.getClosureUnawareShadow()
 func (n *Node) GetClosureUnawareShadow() *Node {
-	if n.token != Token_NAME || (n.kindFlags&kindFlagHasColdProp) == 0 {
+	if n.token != Token_NAME || (n.kindFlags&kindFlagHasExtBox) == 0 {
 		// As checked in setClosureUnawareShadow, only NAME nodes can have shadow
 		// content. We short-circuit the getProp call here because that can be
 		// very expensive for nodes that have long proplists (and we know it
@@ -1334,6 +1380,7 @@ func (n *Node) SetIsInClosureUnawareSubtree(value bool) {
 	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
 	cold := n.coldPropListHead()
 	hasOnlySourceFile := (n.propFlags&nodePropAllNonSourceFileMask) == 0 &&
+		n.typeBeforeCastBase() == nil &&
 		(n.nodeKind() != node_kindNode || uint32(n.payload) == 0) &&
 		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
 			(sfID == nodePropSourceFileOverflow && cold != nil && int(cold.propType) == Node_Prop_SOURCE_FILE.Ordinal() && cold.next == nil))
@@ -1742,6 +1789,34 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if (n.propFlags & propFlagHasJSDoc) == 0 {
 			return nil
 		}
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return &Node_PropListItem{
+				propType:    int8(Node_Prop_JSDOC_INFO),
+				objectValue: (*JSDocInfo)(n.typeOrColor),
+				isObject:    true,
+				shared:      true,
+			}
+		}
+		if jsdoc := (*nodeExtBox)(n.typeOrColor).jsDocInfo; jsdoc != nil {
+			return &Node_PropListItem{
+				propType:    int8(Node_Prop_JSDOC_INFO),
+				objectValue: jsdoc,
+				isObject:    true,
+				shared:      true,
+			}
+		}
+	case Node_Prop_TYPE_BEFORE_CAST:
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return nil
+		}
+		if tbc := (*nodeExtBox)(n.typeOrColor).typeBeforeCast; tbc != nil {
+			return &Node_PropListItem{
+				propType:    int8(Node_Prop_TYPE_BEFORE_CAST),
+				objectValue: tbc.self,
+				isObject:    true,
+				shared:      true,
+			}
+		}
 	case Node_Prop_CHANGE_TIME:
 		if n.nodeKind() == node_kindNode {
 			if v := int32(uint32(n.payload)); v != 0 {
@@ -1766,10 +1841,27 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 // Java: Node.clonePropsFrom(Node)
 func (n *Node) ClonePropsFrom(other *Node) *Node {
 	jutil.CheckStateMsg(
-		n.coldPropListHead() == nil && n.propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0),
+		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0),
 		"Node has existing properties.")
-	if (other.kindFlags & kindFlagHasColdProp) != 0 {
-		n.copyTemplateColdProps(other)
+	if (other.kindFlags & kindFlagHasExtBox) != 0 {
+		otherBox := (*nodeExtBox)(other.typeOrColor)
+		if otherBox.propListHead != nil {
+			otherBox.propListHead.markShared()
+		}
+		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == nil && otherBox.propListHead == nil && (n.kindFlags&(kindFlagHasExtBox|kindFlagHasTypeOrColor)) == 0 {
+			n.typeOrColor = unsafe.Pointer(otherBox.jsDocInfo)
+		} else if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != nil || otherBox.propListHead != nil {
+			box := n.ensureExtBox()
+			box.jsDocInfo = otherBox.jsDocInfo
+			box.typeBeforeCast = otherBox.typeBeforeCast
+			box.propListHead = otherBox.propListHead
+		}
+	} else if (other.propFlags & propFlagHasJSDoc) != 0 {
+		if (n.kindFlags & (kindFlagHasExtBox | kindFlagHasTypeOrColor)) == 0 {
+			n.typeOrColor = other.typeOrColor
+		} else {
+			n.ensureExtBox().jsDocInfo = (*JSDocInfo)(other.typeOrColor)
+		}
 	}
 	n.propFlags = other.propFlags
 	if (other.kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
@@ -1779,7 +1871,7 @@ func (n *Node) ClonePropsFrom(other *Node) *Node {
 		if ct := int32(uint32(other.payload)); ct != 0 {
 			n.SetChangeTime(ct)
 		}
-	} else if n.nodeKind() == node_kindNode && (other.kindFlags&kindFlagHasColdProp) != 0 {
+	} else if n.nodeKind() == node_kindNode && other.coldPropListHead() != nil {
 		if x := n.lookupPropListHead(Node_Prop_CHANGE_TIME); x != nil && !x.isObject {
 			n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(x.intValue))
 			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_CHANGE_TIME))
@@ -1805,7 +1897,7 @@ const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
 		return
 	}
 
@@ -1842,7 +1934,7 @@ func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
 				"Expected all synthetic unfulfilled declarations to be `var <name>`")
 		}
 	}
-	if (n.kindFlags & kindFlagHasColdProp) != 0 {
+	if (n.kindFlags & kindFlagHasExtBox) != 0 {
 		for x := n.coldPropListHead(); x != nil; x = x.next {
 			switch Node_Prop(x.propType) {
 			case Node_Prop_CONSTANT_VAR_FLAGS:
@@ -1894,6 +1986,19 @@ func (n *Node) GetProp(propType Node_Prop) any {
 	} else if propType == Node_Prop_JSDOC_INFO {
 		if (n.propFlags & propFlagHasJSDoc) == 0 {
 			return nil
+		}
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return (*JSDocInfo)(n.typeOrColor)
+		}
+		if jsdoc := (*nodeExtBox)(n.typeOrColor).jsDocInfo; jsdoc != nil {
+			return jsdoc
+		}
+	} else if propType == Node_Prop_TYPE_BEFORE_CAST {
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return nil
+		}
+		if tbc := (*nodeExtBox)(n.typeOrColor).typeBeforeCast; tbc != nil {
+			return tbc.self
 		}
 	} else if mask := nodePropBitMask[propType]; mask != 0 {
 		if (n.propFlags & mask) == 0 {
@@ -1972,6 +2077,20 @@ func (n *Node) GetIntProp(propType Node_Prop) int32 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
+	} else if propType == Node_Prop_JSDOC_INFO {
+		if (n.propFlags & propFlagHasJSDoc) == 0 {
+			return 0
+		}
+		if (n.kindFlags&kindFlagHasExtBox) == 0 || (*nodeExtBox)(n.typeOrColor).jsDocInfo != nil {
+			panic(jutil.NewUnsupportedOperationException())
+		}
+	} else if propType == Node_Prop_TYPE_BEFORE_CAST {
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return 0
+		}
+		if (*nodeExtBox)(n.typeOrColor).typeBeforeCast != nil {
+			panic(jutil.NewUnsupportedOperationException())
+		}
 	}
 	if x := n.lookupPropListHead(propType); x != nil {
 		return x.GetIntValue()
@@ -2000,7 +2119,20 @@ func (n *Node) PutProp(prop Node_Prop, value any) {
 		}
 		n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	} else if prop == Node_Prop_JSDOC_INFO {
+		if info, ok := value.(*JSDocInfo); ok {
+			n.SetJSDocInfo(info)
+			return
+		}
+		box := n.ensureExtBox()
+		box.jsDocInfo = nil
 		n.propFlags |= propFlagHasJSDoc
+	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
+		if t, ok := value.(JSType); ok {
+			n.SetJSTypeBeforeCast(t)
+			return
+		}
+		box := n.ensureExtBox()
+		box.typeBeforeCast = nil
 	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
 		n.payload &= 0xFFFFFFFF00000000
 		n.kindFlags |= kindFlagHasExtra
@@ -2129,11 +2261,20 @@ func (n *Node) PutIntProp(prop Node_Prop, value int32) {
 			n.propFlags |= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
 		}
 	} else if prop == Node_Prop_JSDOC_INFO {
-		if value != 0 {
-			n.propFlags |= propFlagHasJSDoc
-		} else {
-			n.propFlags &^= propFlagHasJSDoc
+		if value == 0 {
+			n.RemoveProp(prop)
+			return
 		}
+		box := n.ensureExtBox()
+		box.jsDocInfo = nil
+		n.propFlags |= propFlagHasJSDoc
+	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
+		if value == 0 {
+			n.RemoveProp(prop)
+			return
+		}
+		box := n.ensureExtBox()
+		box.typeBeforeCast = nil
 	}
 	head := n.coldPropListHead()
 	if value != 0 && head != nil && !head.shared && int(head.propType) == prop.Ordinal() && !head.isObject {
@@ -2193,6 +2334,26 @@ func (n *Node) RemoveProp(prop Node_Prop) {
 			return
 		}
 		n.propFlags &^= propFlagHasJSDoc
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			n.typeOrColor = nil
+			return
+		}
+		box := (*nodeExtBox)(n.typeOrColor)
+		if box.jsDocInfo != nil {
+			box.jsDocInfo = nil
+			n.maybeCollapseExtBox(box)
+			return
+		}
+	case Node_Prop_TYPE_BEFORE_CAST:
+		if (n.kindFlags & kindFlagHasExtBox) == 0 {
+			return
+		}
+		box := (*nodeExtBox)(n.typeOrColor)
+		if box.typeBeforeCast != nil {
+			box.typeBeforeCast = nil
+			n.maybeCollapseExtBox(box)
+			return
+		}
 	}
 	if head := n.coldPropListHead(); head != nil {
 		n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2200,7 +2361,7 @@ func (n *Node) RemoveProp(prop Node_Prop) {
 }
 
 func (n *Node) presentNodePropsMask() uint64 {
-	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
 		return 0
 	}
 	var mask uint64
@@ -2225,8 +2386,14 @@ func (n *Node) presentNodePropsMask() uint64 {
 	if n.nodeKind() == node_kindNode && uint32(n.payload) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_CHANGE_TIME)
 	}
-	for x := n.coldPropListHead(); x != nil; x = x.next {
-		mask |= uint64(1) << uint(x.propType)
+	if (n.kindFlags & kindFlagHasExtBox) != 0 {
+		box := (*nodeExtBox)(n.typeOrColor)
+		if box.typeBeforeCast != nil {
+			mask |= uint64(1) << uint(Node_Prop_TYPE_BEFORE_CAST)
+		}
+		for x := box.propListHead; x != nil; x = x.next {
+			mask |= uint64(1) << uint(x.propType)
+		}
 	}
 	return mask
 }
@@ -2270,7 +2437,7 @@ const nodePropNonSerializedMask = (uint64(1) << uint(Node_Prop_SOURCE_FILE)) |
 
 // Java: Node.serializeProperties()
 func (n *Node) SerializeProperties() int64 {
-	if (n.propFlags&nodePropAllNonSourceFileMask) == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
+	if (n.propFlags&nodePropAllNonSourceFileMask) == 0 && (n.kindFlags&kindFlagHasExtBox) == 0 {
 		return 0
 	}
 	bitsMask := n.presentNodePropsMask() &^ nodePropNonSerializedMask
@@ -2460,7 +2627,15 @@ func (n *Node) GetDeclaredTypeExpression() *Node {
 //
 // Java: Node.setJSTypeBeforeCast(JSType)
 func (n *Node) SetJSTypeBeforeCast(type_ JSType) {
-	n.PutProp(Node_Prop_TYPE_BEFORE_CAST, type_)
+	if type_ == nil {
+		n.RemoveProp(Node_Prop_TYPE_BEFORE_CAST)
+		return
+	}
+	box := n.ensureExtBox()
+	if box.typeBeforeCast == nil && box.propListHead != nil {
+		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_TYPE_BEFORE_CAST)
+	}
+	box.typeBeforeCast = jsTypeBase(type_)
 }
 
 // GetJSTypeBeforeCast returns the type of this node before casting. This
@@ -2469,7 +2644,22 @@ func (n *Node) SetJSTypeBeforeCast(type_ JSType) {
 //
 // Java: Node.getJSTypeBeforeCast()
 func (n *Node) GetJSTypeBeforeCast() JSType {
-	return node_cast[JSType](n.GetProp(Node_Prop_TYPE_BEFORE_CAST))
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
+		return nil
+	}
+	return n.getJSTypeBeforeCastBoxed()
+}
+
+//go:noinline
+func (n *Node) getJSTypeBeforeCastBoxed() JSType {
+	box := (*nodeExtBox)(n.typeOrColor)
+	if box.typeBeforeCast != nil {
+		return box.typeBeforeCast.self
+	}
+	if box.propListHead != nil {
+		return node_cast[JSType](n.GetProp(Node_Prop_TYPE_BEFORE_CAST))
+	}
+	return nil
 }
 
 // SetColorFromTypeCast indicates that this node's color comes from a type
@@ -2856,20 +3046,20 @@ func Node_ToJsonTreeHelper(n *Node, appendable io.StringWriter) {
 // CONSTANT_VAR_FLAGS + SIDE_EFFECT_FLAGS + 17-bit SourceFileID live in
 // `propFlags uint64` without heap allocations. Cold object properties
 // (~2% of nodes, e.g. JSDocInfo) multiplex the `typeOrColor` slot via
-// `kindFlagHasColdProp` / `nodeTypeAndProps`.
+// `kindFlagHasExtBox` / `nodeExtBox`.
 type Node struct {
 	next        *Node          // next sibling, a linked list
 	first       *Node          // first element of a linked list of children
 	parent      *Node          // parent node
 	previous    *Node          // previous sibling, a circular linked list
-	typeOrColor unsafe.Pointer // *JSTypeBase, *colors.Color, *Node_PropListItem, or *nodeTypeAndProps
+	typeOrColor unsafe.Pointer // *JSTypeBase, *colors.Color, *JSDocInfo, or *nodeExtBox
 
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
 	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
 	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
 	length16     uint16 // code length (0..65534 inline; 65535 = overflow)
 	token        Token  // token kind (uint8)
-	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: hasTypeOrColor; bit 7: hasColdProp
+	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: hasTypeOrColor; bit 7: hasExtBox
 }
 
 var (
@@ -3323,6 +3513,14 @@ func (n *Node) GetPropListHeadForTesting() NodePropListHandleForTesting {
 
 // Java: Node.setPropListHead(PropListItem)
 func (n *Node) SetPropListHead(propListHead *Node_PropListItem) {
+	if (n.kindFlags & kindFlagHasExtBox) != 0 {
+		box := (*nodeExtBox)(n.typeOrColor)
+		box.jsDocInfo = nil
+		box.typeBeforeCast = nil
+	} else if (n.propFlags & propFlagHasJSDoc) != 0 {
+		n.typeOrColor = nil
+	}
+	n.propFlags = 0
 	propListHead.markShared()
 	n.setColdPropListHead(propListHead)
 	var flags uint64
@@ -4383,22 +4581,20 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
 func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.linenoCharno = source.linenoCharno
-	dest.copyLengthFrom(source)
-	source.coldPropListHead().markShared()
-	if (source.kindFlags & (kindFlagHasTypeOrColor | kindFlagHasColdProp)) == (kindFlagHasTypeOrColor | kindFlagHasColdProp) {
-		srcPair := (*nodeTypeAndProps)(source.typeOrColor)
-		dest.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
-			typeOrColor:  srcPair.typeOrColor,
-			propListHead: srcPair.propListHead,
-		})
+	if (source.kindFlags & kindFlagHasExtBox) != 0 {
+		srcBox := (*nodeExtBox)(source.typeOrColor)
+		srcBox.propListHead.markShared()
+		boxCopy := *srcBox
+		dest.typeOrColor = unsafe.Pointer(&boxCopy)
 	} else {
 		dest.typeOrColor = source.typeOrColor
 	}
-	dest.kindFlags = (dest.kindFlags &^ (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp | kindFlagHasExtra)) |
-		(source.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp))
+	dest.kindFlags = (dest.kindFlags &^ (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasExtBox | kindFlagHasExtra)) |
+		(source.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasExtBox))
 	if source.kindFlags&kindFlagHasExtra != 0 && source.coldPropListHead() != nil {
 		dest.kindFlags |= kindFlagHasExtra
 	}
+	dest.copyLengthFrom(source)
 	dest.node_setOriginalNameID(source.node_originalNameID())
 	dest.propFlags = source.propFlags
 
@@ -4559,10 +4755,10 @@ func (n *Node) GetJSType() JSType {
 	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != kindFlagHasTypeOrColor {
 		return nil
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		return (*JSTypeBase)(n.typeOrColor).self
 	}
-	return (*JSTypeBase)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor).self
+	return (*JSTypeBase)((*nodeExtBox)(n.typeOrColor).typeOrColor).self
 }
 
 // GetJSTypeBase returns the JSTypeBase on this node without constructing the
@@ -4571,10 +4767,10 @@ func (n *Node) GetJSTypeBase() *JSTypeBase {
 	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != kindFlagHasTypeOrColor {
 		return nil
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		return (*JSTypeBase)(n.typeOrColor)
 	}
-	return (*JSTypeBase)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor)
+	return (*JSTypeBase)((*nodeExtBox)(n.typeOrColor).typeOrColor)
 }
 
 // GetJSTypeRequired returns the compiled inferred type on this node, or
@@ -4601,10 +4797,10 @@ func (n *Node) GetColor() *colors.Color {
 	if (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor)) != (kindFlagHasTypeOrColor | kindFlagTypeIsColor) {
 		return nil
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
 		return (*colors.Color)(n.typeOrColor)
 	}
-	return (*colors.Color)((*nodeTypeAndProps)(n.typeOrColor).typeOrColor)
+	return (*colors.Color)((*nodeExtBox)(n.typeOrColor).typeOrColor)
 }
 
 // Java: Node.setColor(Color)
@@ -4631,6 +4827,17 @@ func (n *Node) GetJSDocInfo() *JSDocInfo {
 	if (n.propFlags & propFlagHasJSDoc) == 0 {
 		return nil
 	}
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
+		return (*JSDocInfo)(n.typeOrColor)
+	}
+	return n.getJSDocInfoBoxed()
+}
+
+//go:noinline
+func (n *Node) getJSDocInfoBoxed() *JSDocInfo {
+	if jsdoc := (*nodeExtBox)(n.typeOrColor).jsDocInfo; jsdoc != nil {
+		return jsdoc
+	}
 	return node_cast[*JSDocInfo](n.GetProp(Node_Prop_JSDOC_INFO))
 }
 
@@ -4638,7 +4845,21 @@ func (n *Node) GetJSDocInfo() *JSDocInfo {
 //
 // Java: Node.setJSDocInfo(JSDocInfo)
 func (n *Node) SetJSDocInfo(info *JSDocInfo) *Node {
-	n.PutProp(Node_Prop_JSDOC_INFO, info)
+	if info == nil {
+		n.RemoveProp(Node_Prop_JSDOC_INFO)
+		return n
+	}
+	if (n.kindFlags & (kindFlagHasExtBox | kindFlagHasTypeOrColor)) == 0 {
+		n.propFlags |= propFlagHasJSDoc
+		n.typeOrColor = unsafe.Pointer(info)
+		return n
+	}
+	box := n.ensureExtBox()
+	if (n.propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo == nil && box.propListHead != nil {
+		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_JSDOC_INFO)
+	}
+	n.propFlags |= propFlagHasJSDoc
+	box.jsDocInfo = info
 	return n
 }
 
@@ -4694,34 +4915,57 @@ func (n *Node) GetTypedefTypeProp() JSType {
 // pass over propListHead, returning the old JSTypeBase, whether TYPE_BEFORE_CAST
 // was present, and the node's JSDocInfo if any.
 func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBeforeCast bool, jsdoc *JSDocInfo) {
+	if (n.kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
+			if (n.kindFlags & kindFlagTypeIsColor) != 0 {
+				jutil.CheckStateMsg1(false, "%s", n)
+			}
+			oldType = (*JSTypeBase)(n.typeOrColor)
+			n.kindFlags &^= kindFlagHasTypeOrColor
+			n.typeOrColor = nil
+			return oldType, false, nil
+		}
+		if (n.propFlags & propFlagHasJSDoc) != 0 {
+			return nil, false, (*JSDocInfo)(n.typeOrColor)
+		}
+		return nil, false, nil
+	}
+	box := (*nodeExtBox)(n.typeOrColor)
 	if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
 		if (n.kindFlags & kindFlagTypeIsColor) != 0 {
 			jutil.CheckStateMsg1(false, "%s", n)
 		}
-		oldType = (*JSTypeBase)(n.rawTypeOrColorPtr())
-		n.setRawTypeOrColorPtr(nil, false)
+		oldType = (*JSTypeBase)(box.typeOrColor)
+		box.typeOrColor = nil
+		n.kindFlags &^= kindFlagHasTypeOrColor
 	}
-	if (n.kindFlags & kindFlagHasColdProp) == 0 {
-		return oldType, false, nil
+	if box.typeBeforeCast != nil {
+		hadBeforeCast = true
+		box.typeBeforeCast = nil
 	}
-	head := n.coldPropListHead()
-	if head == nil {
-		return oldType, false, nil
-	}
-	var removeNeedsRebuild bool
-	for x := head; x != nil; x = x.next {
-		switch Node_Prop(x.propType) {
-		case Node_Prop_JSDOC_INFO:
-			jsdoc = node_cast[*JSDocInfo](x.objectValue)
-		case Node_Prop_TYPE_BEFORE_CAST:
-			hadBeforeCast = true
-			removeNeedsRebuild = true
-		case Node_Prop_DECLARED_TYPE_EXPR, Node_Prop_TYPEDEF_TYPE:
-			removeNeedsRebuild = true
+	jsdoc = box.jsDocInfo
+	if head := box.propListHead; head != nil {
+		var removeNeedsRebuild bool
+		for x := head; x != nil; x = x.next {
+			switch Node_Prop(x.propType) {
+			case Node_Prop_JSDOC_INFO:
+				if jsdoc == nil {
+					jsdoc = node_cast[*JSDocInfo](x.objectValue)
+				}
+			case Node_Prop_TYPE_BEFORE_CAST:
+				hadBeforeCast = true
+				removeNeedsRebuild = true
+			case Node_Prop_DECLARED_TYPE_EXPR, Node_Prop_TYPEDEF_TYPE:
+				removeNeedsRebuild = true
+			}
+		}
+		if removeNeedsRebuild {
+			box.propListHead = node_rebuildListWithoutColorConversionProps(head)
 		}
 	}
-	if removeNeedsRebuild {
-		n.setColdPropListHead(node_rebuildListWithoutColorConversionProps(head))
+	if box.jsDocInfo == nil && box.propListHead == nil {
+		n.kindFlags &^= kindFlagHasExtBox
+		n.typeOrColor = nil
 	}
 	return oldType, hadBeforeCast, jsdoc
 }

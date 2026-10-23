@@ -2400,20 +2400,24 @@ func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) *rhino.Node {
 	startCharno := p.stream.GetCharno()
 	startOffset := p.stream.GetCursor() - jutil.StringLength(p.stream.GetString())
 
-	var typeName strings.Builder
-	typeName.WriteString(p.stream.GetString())
+	name := p.stream.GetString()
 	endOffset := p.stream.GetCursor()
-	for p.Match(JsDocToken_EOL) && strings.HasSuffix(typeName.String(), ".") {
-		p.SkipEOLs()
-		if p.Match(JsDocToken_STRING) {
-			p.Next()
-			endOffset = p.stream.GetCursor()
-			typeName.WriteString(p.stream.GetString())
+	if p.Match(JsDocToken_EOL) && strings.HasSuffix(name, ".") {
+		var typeName strings.Builder
+		typeName.WriteString(name)
+		for p.Match(JsDocToken_EOL) && strings.HasSuffix(typeName.String(), ".") {
+			p.SkipEOLs()
+			if p.Match(JsDocToken_STRING) {
+				p.Next()
+				endOffset = p.stream.GetCursor()
+				typeName.WriteString(p.stream.GetString())
+			}
 		}
+		name = typeName.String()
 	}
 
 	// What we're doing by concatenating these tokens is really hacky. We want that to be obvious.
-	str := p.NewStringNode(typeName.String())
+	str := p.NewStringNode(name)
 	str.SetLinenoCharno(startLineno, startCharno)
 	str.SetLength(endOffset - startOffset)
 	return str

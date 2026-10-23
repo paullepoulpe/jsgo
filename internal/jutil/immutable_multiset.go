@@ -12,13 +12,21 @@ import (
 
 // ImmutableMultiset is com.google.common.collect.ImmutableMultiset.
 type ImmutableMultiset[T comparable] struct {
-	counts *LinkedHashMap[T, int]
+	counts LinkedHashMap[T, int]
 	size   int
 }
 
+var emptyStringImmutableMultiset ImmutableMultiset[string]
+
 // ImmutableMultiset_Of is ImmutableMultiset.of(E...).
 func ImmutableMultiset_Of[T comparable](elems ...T) *ImmutableMultiset[T] {
-	b := NewImmutableMultiset_Builder[T]()
+	if len(elems) == 0 {
+		if empty, ok := any(&emptyStringImmutableMultiset).(*ImmutableMultiset[T]); ok {
+			return empty
+		}
+		return &ImmutableMultiset[T]{}
+	}
+	var b ImmutableMultiset_Builder[T]
 	for _, e := range elems {
 		b.Add(e)
 	}
@@ -27,19 +35,24 @@ func ImmutableMultiset_Of[T comparable](elems ...T) *ImmutableMultiset[T] {
 
 // ImmutableMultiset_Builder is ImmutableMultiset.Builder.
 type ImmutableMultiset_Builder[T comparable] struct {
-	counts *LinkedHashMap[T, int]
+	counts LinkedHashMap[T, int]
 	size   int
+	built  bool
 }
 
 // NewImmutableMultiset_Builder is ImmutableMultiset.builder().
 func NewImmutableMultiset_Builder[T comparable]() *ImmutableMultiset_Builder[T] {
-	return &ImmutableMultiset_Builder[T]{counts: NewLinkedHashMap[T, int]()}
+	return &ImmutableMultiset_Builder[T]{}
 }
 
 // Add is ImmutableMultiset.Builder.add(E).
 func (b *ImmutableMultiset_Builder[T]) Add(e T) *ImmutableMultiset_Builder[T] {
 	if IsNil(any(e)) {
 		panic(NewNullPointerException())
+	}
+	if b.built {
+		b.counts = *NewLinkedHashMapFrom(&b.counts)
+		b.built = false
 	}
 	b.counts.Put(e, b.counts.Get(e)+1)
 	b.size++
@@ -56,7 +69,11 @@ func (b *ImmutableMultiset_Builder[T]) AddAll(es iter.Seq[T]) *ImmutableMultiset
 
 // Build is ImmutableMultiset.Builder.build().
 func (b *ImmutableMultiset_Builder[T]) Build() *ImmutableMultiset[T] {
-	return &ImmutableMultiset[T]{counts: NewLinkedHashMapFrom(b.counts), size: b.size}
+	if b.size == 0 {
+		return ImmutableMultiset_Of[T]()
+	}
+	b.built = true
+	return &ImmutableMultiset[T]{counts: b.counts, size: b.size}
 }
 
 // Size is Multiset.size(): the total number of occurrences.

@@ -82,6 +82,8 @@ type FunctionTypeBuilder struct {
 	constructorTemplateTypeNames []*rhino.TemplateType
 	declarationScope             *TypedScope
 	templateScope                rhino.StaticTypedScope
+	paramBuilderScratch          rhino.FunctionParamBuilder
+	paramScratchBuf              [8]*rhino.FunctionType_Parameter
 }
 
 var FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF = DiagnosticType_Warning(
@@ -401,12 +403,12 @@ func (f *FunctionTypeBuilder) InferFromOverriddenFunction(oldType rhino.Function
 		// Not a function literal.
 		f.parameters = oldType.GetParameters()
 		if f.parameters == nil {
-			f.parameters = rhino.NewFunctionParamBuilder(f.typeRegistry).Build()
+			f.parameters = emptyFunctionParametersSlice
 		}
 	} else {
 		// We're overriding with a function literal. Apply type information
 		// to each parameter of the literal.
-		paramBuilder := rhino.NewFunctionParamBuilder(f.typeRegistry)
+		paramBuilder := f.paramBuilderScratch.InitWithBuf(f.typeRegistry, f.paramScratchBuf[:0])
 		oldParams := oldType.GetParameters()
 		oldParamsIndex := 0
 		warnedAboutArgList := false
@@ -770,9 +772,7 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 		}
 	}
 
-	var builderVal rhino.FunctionParamBuilder
-	var paramBuf [8]*rhino.FunctionType_Parameter
-	builder := builderVal.InitWithBuf(f.typeRegistry, paramBuf[:0])
+	builder := f.paramBuilderScratch.InitWithBuf(f.typeRegistry, f.paramScratchBuf[:0])
 	warnedAboutArgList := false
 	hasJsDocParams := info != nil && info.GetParameterCount() > 0
 	var seenBuf [8]string

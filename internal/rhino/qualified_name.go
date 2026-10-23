@@ -99,7 +99,7 @@ func (q *QualifiedNameBase) GetQualifiedNameBase() *QualifiedNameBase { return q
 func QualifiedName_Of(s string) QualifiedName {
 	n := 1 + strings.Count(s, ".")
 	terms := make([]string, 0, n)
-	q := &QualifiedName_StringListQname{}
+	q := &QualifiedName_StringListQname{joinedDot: s}
 	q.InitQualifiedNameBase(q)
 	var ids []rhinoStringID
 	if n <= len(q.termIDsBuf) {
@@ -107,18 +107,19 @@ func QualifiedName_Of(s string) QualifiedName {
 	} else {
 		ids = make([]rhinoStringID, 0, n)
 	}
+	rem := s
 	for {
-		i := strings.IndexByte(s, '.')
+		i := strings.IndexByte(rem, '.')
 		if i < 0 {
-			id := rhinoStringPoolIntern(s)
+			id := rhinoStringPoolIntern(rem)
 			ids = append(ids, id)
 			terms = append(terms, rhinoStringFromID(id))
 			break
 		}
-		id := rhinoStringPoolIntern(s[:i])
+		id := rhinoStringPoolIntern(rem[:i])
 		ids = append(ids, id)
 		terms = append(terms, rhinoStringFromID(id))
-		s = s[i+1:]
+		rem = rem[i+1:]
 	}
 	q.terms = terms
 	q.termIDs = ids
@@ -169,6 +170,9 @@ func (q *QualifiedNameBase) Join() string {
 //
 // Java: QualifiedName.join(Character)
 func (q *QualifiedNameBase) JoinWithSeparator(separator uint16) string {
+	if q.self.IsSimple() {
+		return q.self.GetComponent()
+	}
 	var sb strings.Builder
 	q.self.AppendTo(&sb, separator)
 	return sb.String()
@@ -199,6 +203,7 @@ func (q *QualifiedNameBase) Getprop(propertyName string) QualifiedName {
 type QualifiedName_StringListQname struct {
 	QualifiedNameBase
 	terms      []string
+	joinedDot  string
 	termIDs    []rhinoStringID
 	termIDsBuf [4]rhinoStringID
 	size       int
@@ -246,8 +251,28 @@ func (q *QualifiedName_StringListQname) IsSimple() bool {
 	return q.size == 1
 }
 
+// Java: QualifiedName.StringListQname.join(Character)
+func (q *QualifiedName_StringListQname) JoinWithSeparator(separator uint16) string {
+	if q.size == 1 {
+		return q.terms[0]
+	}
+	if separator == '.' && q.joinedDot != "" {
+		return q.joinedDot
+	}
+	var sb strings.Builder
+	q.AppendTo(&sb, separator)
+	return sb.String()
+}
+
 // Java: QualifiedName.StringListQname.appendTo(StringBuilder, Character)
 func (q *QualifiedName_StringListQname) AppendTo(sb *strings.Builder, separator uint16) {
+	if q.size > 1 && separator < 0x80 && sb.Cap() == 0 {
+		totalLen := q.size - 1
+		for i := 0; i < q.size; i++ {
+			totalLen += len(q.terms[i])
+		}
+		sb.Grow(totalLen)
+	}
 	for i := 0; i < q.size; i++ {
 		if i > 0 {
 			qualifiedName_appendSeparator(sb, separator)
