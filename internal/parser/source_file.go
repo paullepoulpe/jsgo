@@ -48,18 +48,3 @@ func NewSourceFile(name, contents string) *SourceFile {
 		asciiPrefix:   asciiPrefix,
 	}
 }
-
-// NewSourceFileInArena constructs a SourceFile using arena's reusable UTF-16
-// buffer.
-func NewSourceFileInArena(name, contents string, arena *ParseArena) *SourceFile {
-	if arena == nil {
-		return NewSourceFile(name, contents)
-	}
-	utf16, asciiPrefix := arena.decodeUTF16(contents)
-	return &SourceFile{
-		Name:          name,
-		Contents:      contents,
-		ContentsUTF16: utf16,
-		asciiPrefix:   asciiPrefix,
-	}
-}

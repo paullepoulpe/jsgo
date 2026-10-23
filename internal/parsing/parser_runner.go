@@ -136,19 +136,12 @@ func ParserRunner_ParseWithSlabs(
 	sourceName := sourceFile.GetName()
 	var result *ParserRunner_ParseResult
 	jutil.Try(func() {
-		arena := parser.AcquireParseArena()
-		arena.TransientComments = !config.JsDocParsingMode().ShouldParseDescriptions() &&
-			config.JsDocParsingMode() != Config_JsDocParsing_INCLUDE_ALL_COMMENTS
-		file := parser.NewSourceFileInArena(sourceName, sourceString, arena)
-		defer func() {
-			file.ContentsUTF16 = nil
-			arena.Release()
-		}()
+		file := parser.NewSourceFile(sourceName, sourceString)
 		keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
 		es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
 		es6ErrorReporter.sourceName = sourceName
 		es6config := ParserRunner_NewParserConfig(config)
-		p := parser.NewParserInArena(es6config, es6ErrorReporter, file, arena)
+		p := parser.NewParser(es6config, es6ErrorReporter, file)
 		tree := p.ParseProgram()
 		var root *rhino.Node
 		comments := []*parser.Comment{}
