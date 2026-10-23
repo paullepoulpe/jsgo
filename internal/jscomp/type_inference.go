@@ -72,11 +72,8 @@ type TypeInference struct {
 	branchConditionFlowScope FlowScope
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 
-	outcomePairBuf  [16]TypeInference_BooleanOutcomePair
-	outcomePairSlab []TypeInference_BooleanOutcomePair
-
-	optChainInfoBuf  [4]TypeInference_OptChainInfo
-	optChainInfoSlab []TypeInference_OptChainInfo
+	outcomePairs  reuseSlab[TypeInference_BooleanOutcomePair]
+	optChainInfos reuseSlab[TypeInference_OptChainInfo]
 
 	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
 	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
@@ -120,12 +117,6 @@ func NewTypeInference(
 func (ti *TypeInference) ReleaseLargeBuffers() {
 	ti.flowScopeArena.trimLargeChunks()
 	ti.releaseLargeStorage()
-	if cap(ti.outcomePairSlab) > 1024 {
-		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
-	}
-	if cap(ti.optChainInfoSlab) > 1024 {
-		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
-	}
 }
 
 func (ti *TypeInference) initTypeInference(
@@ -137,18 +128,8 @@ func (ti *TypeInference) initTypeInference(
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
 	ti.InitDataFlowAnalysisBase(ti, cfg)
 	ti.flowScopeArena.reset()
-	if cap(ti.outcomePairSlab) == 0 {
-		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
-	} else {
-		clear(ti.outcomePairSlab)
-		ti.outcomePairSlab = ti.outcomePairSlab[:0]
-	}
-	if cap(ti.optChainInfoSlab) == 0 {
-		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
-	} else {
-		clear(ti.optChainInfoSlab)
-		ti.optChainInfoSlab = ti.optChainInfoSlab[:0]
-	}
+	ti.outcomePairs.reset(nil)
+	ti.optChainInfos.reset(nil)
 	// Field initializers.
 	ti.lastScopeRoot = nil
 	ti.lastModule = nil
@@ -2998,13 +2979,7 @@ func NewTypeInference_OptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.N
 }
 
 func (ti *TypeInference) allocOptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.Node) *TypeInference_OptChainInfo {
-	if len(ti.optChainInfoSlab) == cap(ti.optChainInfoSlab) {
-		nextCap := max(cap(ti.optChainInfoSlab)*2, 8)
-		ti.optChainInfoSlab = make([]TypeInference_OptChainInfo, 0, nextCap)
-	}
-	idx := len(ti.optChainInfoSlab)
-	ti.optChainInfoSlab = ti.optChainInfoSlab[:idx+1]
-	o := &ti.optChainInfoSlab[idx]
+	o := ti.optChainInfos.alloc()
 	o.endOfChain = endOfChain
 	o.startOfChain = startOfChain
 	o.unconditionalScope = nil
@@ -3645,13 +3620,7 @@ func NewTypeInference_BooleanOutcomePair(
 	rightScope FlowScope) *TypeInference_BooleanOutcomePair {
 	var p *TypeInference_BooleanOutcomePair
 	if outer != nil {
-		if len(outer.outcomePairSlab) == cap(outer.outcomePairSlab) {
-			nextCap := max(cap(outer.outcomePairSlab)*2, 32)
-			outer.outcomePairSlab = make([]TypeInference_BooleanOutcomePair, 0, nextCap)
-		}
-		idx := len(outer.outcomePairSlab)
-		outer.outcomePairSlab = outer.outcomePairSlab[:idx+1]
-		p = &outer.outcomePairSlab[idx]
+		p = outer.outcomePairs.alloc()
 		p.outer = outer
 		p.joinedScope = nil
 	} else {
