@@ -721,7 +721,7 @@ func (g *GlobalNamespace) estimateNameCapacity() int {
 			}
 		}
 	}
-	return stmtCount * 4
+	return stmtCount * 5
 }
 
 // GlobalNamespace_GetTopVarName gets the top variable name from a possibly

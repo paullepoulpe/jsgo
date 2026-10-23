@@ -211,6 +211,19 @@ func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
 	}
 }
 
+// optimizeCalls_refList is a reference list with room for its first nodes in
+// the same allocation.
+type optimizeCalls_refList struct {
+	list jutil.ArrayList[*rhino.Node]
+	buf  [4]*rhino.Node
+}
+
+func newOptimizeCallsRefList() *jutil.ArrayList[*rhino.Node] {
+	l := &optimizeCalls_refList{}
+	l.list.InitWithBuffer(l.buf[:])
+	return &l.list
+}
+
 // listAddDoubling adds e to l, doubling l's capacity when it is full.
 //
 // Go-only: performance — append grows a large slice by only 1.25x, which
@@ -227,7 +240,7 @@ func listAddDoubling[T any](l *jutil.ArrayList[T], e T) {
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]], name string, n *rhino.Node) {
 	refs := data.Get(name)
 	if refs == nil {
-		refs = jutil.NewArrayList[*rhino.Node]()
+		refs = newOptimizeCallsRefList()
 		data.PutNew(name, refs)
 	}
 	listAddDoubling(refs, n)
@@ -241,7 +254,7 @@ func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node
 	}
 	refs := m.names.Get(name)
 	if refs == nil {
-		refs = jutil.NewArrayList[*rhino.Node]()
+		refs = newOptimizeCallsRefList()
 		m.names.PutNew(name, refs)
 	}
 	m.lastNameKey = name
@@ -258,7 +271,7 @@ func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node
 	}
 	refs := m.props.Get(name)
 	if refs == nil {
-		refs = jutil.NewArrayList[*rhino.Node]()
+		refs = newOptimizeCallsRefList()
 		m.props.PutNew(name, refs)
 	}
 	m.lastPropKey = name
@@ -793,6 +806,15 @@ func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
 	c.globalScope = s
 	c.references.globalScope = s
+	// Go-only: performance — presize the maps of a large program, whose
+	// growth otherwise allocates about twice their final size.
+	varCount := s.GetVarCount()
+	if varCount > 4096 && c.references.names.IsEmpty() {
+		c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
+	}
+	if varCount > 1024 && c.references.props.IsEmpty() {
+		c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount*4, 16384))
+	}
 }
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node) {
@@ -1112,8 +1134,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) ShouldTraverse(t *NodeTrave
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.enterScope(NodeTraversal)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) EnterScope(t *NodeTraversal) {
 	if t.InGlobalScope() {
-		c.globalScope = t.GetScope()
-		c.references.globalScope = c.globalScope
+		c.initGlobalScope(t.GetScope())
 	}
 }
 

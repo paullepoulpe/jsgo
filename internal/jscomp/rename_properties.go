@@ -81,8 +81,6 @@ type RenameProperties struct {
 	// Property names that should not be renamed, based on the propertyNameFilter. Unlike
 	// externedNames, this set is dynamically constructed during the pass.
 	filteredOutNames *jutil.LinkedHashSet[string]
-
-	propertySlab []RenameProperties_Property
 }
 
 // renameProperties_DOT_SPLITTER is Splitter.on('.').split: every piece,
@@ -518,18 +516,7 @@ func (p *RenameProperties_ProcessProperties) CountPropertyOccurrence(name string
 }
 
 func (r *RenameProperties) allocProperty(name string) *RenameProperties_Property {
-	if len(r.propertySlab) == cap(r.propertySlab) {
-		newCap := 256
-		if cap(r.propertySlab) >= 256 {
-			newCap = min(cap(r.propertySlab)*2, 4096)
-		}
-		r.propertySlab = make([]RenameProperties_Property, 0, newCap)
-	}
-	idx := len(r.propertySlab)
-	r.propertySlab = r.propertySlab[:idx+1]
-	prop := &r.propertySlab[idx]
-	prop.oldName = name
-	return prop
+	return &RenameProperties_Property{oldName: name}
 }
 
 // -------------------------------------------------------------------------
