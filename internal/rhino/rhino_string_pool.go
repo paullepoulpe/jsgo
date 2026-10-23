@@ -60,7 +60,7 @@ type rhinoStringID uint32
 const (
 	rhinoStringPool_SHARDS         = 64
 	rhinoStringPool_MAX_SHARD_SIZE = 56000
-	rhinoStringPageSize            = 65536
+	rhinoStringPageSize            = 32768
 	rhinoSpanChunkSize             = 4096
 )
 
@@ -73,7 +73,7 @@ type rhinoStringPoolShard struct {
 	curPageOff   uint32
 	hasCurPage   bool
 	spanChunks   [1024]*[rhinoSpanChunkSize]uint64
-	pages        [2048]*[rhinoStringPageSize]byte
+	pages        [4096]*[rhinoStringPageSize]byte
 	largeStrings []string
 }
 

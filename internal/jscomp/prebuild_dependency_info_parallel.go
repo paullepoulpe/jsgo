@@ -10,20 +10,39 @@ import (
 // parallelPrebuild runs every submitted task, retaining failures in input order.
 // Each slot is written by one worker and consumed only after the join.
 func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
+	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		for {
+			index, ok := claim()
+			if !ok {
+				return
+			}
+			jutil.Try(func() { run(index) }, func(t jutil.Throwable) { recordFailure(index, t) })
+		}
+	})
+}
+
+func parallelPrebuildWorkers(
+	count, workers int,
+	workerFn func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
+) []jutil.Throwable {
 	failures := make([]jutil.Throwable, count)
 	var next atomic.Int64
+	claim := func() (int, bool) {
+		index := int(next.Add(1) - 1)
+		if index >= count {
+			return 0, false
+		}
+		return index, true
+	}
+	recordFailure := func(index int, t jutil.Throwable) {
+		failures[index] = t
+	}
 	var wg sync.WaitGroup
 	for range min(workers, count) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for {
-				index := int(next.Add(1) - 1)
-				if index >= count {
-					return
-				}
-				jutil.Try(func() { run(index) }, func(t jutil.Throwable) { failures[index] = t })
-			}
+			workerFn(claim, recordFailure)
 		}()
 	}
 	wg.Wait()

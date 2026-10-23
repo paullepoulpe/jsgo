@@ -32,6 +32,25 @@ func (s *arenaSlab[T]) New() *T {
 	return p
 }
 
+func (s *arenaSlab[T]) allocSlice(src []T, empty []T) []T {
+	n := len(src)
+	if n == 0 {
+		return empty
+	}
+	if n > 1024 {
+		dst := make([]T, n)
+		copy(dst, src)
+		return dst
+	}
+	for len(s.chunk)-s.used < n {
+		s.grow()
+	}
+	dst := s.chunk[s.used : s.used+n : s.used+n]
+	s.used += n
+	copy(dst, src)
+	return dst
+}
+
 func (s *arenaSlab[T]) grow() {
 	if s.chunk != nil {
 		s.chunkIdx++
@@ -129,6 +148,47 @@ type ParseArena struct {
 	throwStatements             arenaSlab[ThrowStatementTree]
 	tryStatements               arenaSlab[TryStatementTree]
 	catchTrees                  arenaSlab[CatchTree]
+
+	// Transient slice and comment slabs.
+	treeStack         []ParseTree
+	treeSlices        arenaSlab[ParseTree]
+	posStack          []*SourcePosition
+	posSlices         arenaSlab[*SourcePosition]
+	varDeclStack      []*VariableDeclarationTree
+	varDeclSlices     arenaSlab[*VariableDeclarationTree]
+	comments          arenaSlab[Comment]
+	commentBuf        []*Comment
+	TransientComments bool
+}
+
+var (
+	emptyParseTrees   = []ParseTree{}
+	emptySourcePos    = []*SourcePosition{}
+	emptyVarDeclTrees = []*VariableDeclarationTree{}
+)
+
+func (a *ParseArena) finishTrees(base int) []ParseTree {
+	s := a.treeStack[base:]
+	res := a.treeSlices.allocSlice(s, emptyParseTrees)
+	clear(s)
+	a.treeStack = a.treeStack[:base]
+	return res
+}
+
+func (a *ParseArena) finishPositions(base int) []*SourcePosition {
+	s := a.posStack[base:]
+	res := a.posSlices.allocSlice(s, emptySourcePos)
+	clear(s)
+	a.posStack = a.posStack[:base]
+	return res
+}
+
+func (a *ParseArena) finishVarDecls(base int) []*VariableDeclarationTree {
+	s := a.varDeclStack[base:]
+	res := a.varDeclSlices.allocSlice(s, emptyVarDeclTrees)
+	clear(s)
+	a.varDeclStack = a.varDeclStack[:base]
+	return res
 }
 
 var (
@@ -228,6 +288,30 @@ func (a *ParseArena) reset() {
 	a.throwStatements.reset()
 	a.tryStatements.reset()
 	a.catchTrees.reset()
+
+	if len(a.treeStack) > 0 {
+		clear(a.treeStack)
+		a.treeStack = a.treeStack[:0]
+	}
+	a.treeSlices.reset()
+	if len(a.posStack) > 0 {
+		clear(a.posStack)
+		a.posStack = a.posStack[:0]
+	}
+	a.posSlices.reset()
+	if len(a.varDeclStack) > 0 {
+		clear(a.varDeclStack)
+		a.varDeclStack = a.varDeclStack[:0]
+	}
+	a.varDeclSlices.reset()
+	a.comments.reset()
+	if cap(a.commentBuf) <= 65536 {
+		clear(a.commentBuf)
+		a.commentBuf = a.commentBuf[:0]
+	} else {
+		a.commentBuf = nil
+	}
+	a.TransientComments = false
 }
 
 func (a *ParseArena) decodeUTF16(s string) ([]uint16, int) {

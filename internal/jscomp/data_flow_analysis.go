@@ -143,8 +143,10 @@ type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 	queueHead int
 	queueBuf  [16]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
-	flowStateSlab []DataFlowAnalysis_LinearFlowState[L]
-	flowStateBuf  [8]DataFlowAnalysis_LinearFlowState[L]
+	flowStateSlab     []DataFlowAnalysis_LinearFlowState[L]
+	flowStateChunks   [][]DataFlowAnalysis_LinearFlowState[L]
+	flowStateChunkIdx int
+	flowStateBuf      [8]DataFlowAnalysis_LinearFlowState[L]
 }
 
 // DataFlowAnalysis_MAX_STEPS_PER_NODE is the maximum number of steps per
@@ -178,6 +180,7 @@ func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnaly
 	b.isBranched = b.self.IsBranched()
 	b.priority = cfg.GetOptionalNodeComparator(b.isForward)
 	b.queue = b.queueBuf[:0:len(b.queueBuf)]
+	b.flowStateChunkIdx = -1
 	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
 
 	if b.isBranched {
@@ -202,15 +205,38 @@ func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnal
 		b.queue = b.queue[:0]
 	}
 	b.queueHead = 0
-	if cap(b.flowStateSlab) == 0 {
-		b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
-	} else {
-		clear(b.flowStateSlab)
-		b.flowStateSlab = b.flowStateSlab[:0]
-	}
+	b.resetFlowStateSlabs()
 
 	if b.isBranched {
 		jutil.CheckState(b.isForward)
+	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) resetFlowStateSlabs() {
+	if b.flowStateChunkIdx >= 0 && b.flowStateChunkIdx < len(b.flowStateChunks) && len(b.flowStateSlab) > len(b.flowStateChunks[b.flowStateChunkIdx]) {
+		b.flowStateChunks[b.flowStateChunkIdx] = b.flowStateSlab
+	}
+	clear(b.flowStateBuf[:])
+	for i := 0; i <= b.flowStateChunkIdx && i < len(b.flowStateChunks); i++ {
+		if len(b.flowStateChunks[i]) > 0 {
+			clear(b.flowStateChunks[i])
+			b.flowStateChunks[i] = b.flowStateChunks[i][:0]
+		}
+	}
+	if len(b.flowStateChunks) > 0 {
+		b.flowStateChunkIdx = 0
+		b.flowStateSlab = b.flowStateChunks[0][:0]
+	} else {
+		b.flowStateChunkIdx = -1
+		b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
+	}
+}
+
+func (b *DataFlowAnalysisBase[N, L]) trimLargeFlowStateChunks(maxChunks int) {
+	b.resetFlowStateSlabs()
+	if len(b.flowStateChunks) > maxChunks {
+		clear(b.flowStateChunks[maxChunks:])
+		b.flowStateChunks = b.flowStateChunks[:maxChunks]
 	}
 }
 
@@ -218,8 +244,17 @@ func (b *DataFlowAnalysisBase[N, L]) allocFlowState(in L, out L) *DataFlowAnalys
 	jutil.CheckNotNull(in)
 	jutil.CheckNotNull(out)
 	if len(b.flowStateSlab) == cap(b.flowStateSlab) {
-		nextCap := min(max(cap(b.flowStateSlab)*2, 16), 2048)
-		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, nextCap)
+		if b.flowStateChunkIdx >= 0 && b.flowStateChunkIdx < len(b.flowStateChunks) {
+			b.flowStateChunks[b.flowStateChunkIdx] = b.flowStateSlab
+		}
+		b.flowStateChunkIdx++
+		if b.flowStateChunkIdx < len(b.flowStateChunks) {
+			b.flowStateSlab = b.flowStateChunks[b.flowStateChunkIdx][:0]
+		} else {
+			nextCap := min(max(cap(b.flowStateSlab)*2, 16), 512)
+			b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, nextCap)
+			b.flowStateChunks = append(b.flowStateChunks, b.flowStateSlab)
+		}
 	}
 	idx := len(b.flowStateSlab)
 	b.flowStateSlab = b.flowStateSlab[:idx+1]
@@ -319,6 +354,7 @@ func (b *DataFlowAnalysisBase[N, L]) enqueueNode(node *LinkedDirectedGraph_Linke
 		panic(jutil.NewNullPointerException())
 	}
 	state.inQueue = true
+	node.dfaInQueue = true
 	b.queue = append(b.queue, node)
 	if b.priority != nil {
 		b.dfaSiftUp(len(b.queue)-1, node)
@@ -345,6 +381,7 @@ func (b *DataFlowAnalysisBase[N, L]) dequeueNode() (*LinkedDirectedGraph_LinkedD
 			b.queueHead = 0
 		}
 	}
+	curNode.dfaInQueue = false
 	curState := curNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
 	curState.inQueue = false
 	return curNode, curState
@@ -439,21 +476,15 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 			if isForward {
 				for _, edge := range curNode.outEdgeList.Slice() {
 					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).destNode
-					if nextNode != implicitReturn {
-						nextState := nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
-						if !nextState.inQueue {
-							b.enqueueNode(nextNode, nextState)
-						}
+					if !nextNode.dfaInQueue && nextNode != implicitReturn {
+						b.enqueueNode(nextNode, nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L]))
 					}
 				}
 			} else {
 				for _, edge := range curNode.inEdgeList.Slice() {
 					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).sourceNode
-					if nextNode != implicitReturn {
-						nextState := nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L])
-						if !nextState.inQueue {
-							b.enqueueNode(nextNode, nextState)
-						}
+					if !nextNode.dfaInQueue && nextNode != implicitReturn {
+						b.enqueueNode(nextNode, nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L]))
 					}
 				}
 			}
@@ -505,16 +536,13 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 	implicitReturn, _ := cfgBase.implicitReturn.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
 	cfgNodes := &cfgBase.nodes
 	numNodes := cfgNodes.Size()
-	if cap(b.queue) < numNodes {
-		b.queue = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], 0, max(numNodes, 16))
+	wantQueueCap := min(max(numNodes, 16), 4096)
+	if cap(b.queue) < wantQueueCap {
+		b.queue = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], 0, wantQueueCap)
 	}
-	if cap(b.flowStateSlab) < numNodes {
-		b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, max(numNodes, 16))
-	} else {
-		clear(b.flowStateSlab)
-		b.flowStateSlab = b.flowStateSlab[:0]
-	}
+	b.resetFlowStateSlabs()
 	for node := range cfgNodes.Values() {
+		node.dfaInQueue = false
 		state := b.allocFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice())
 		node.SetAnnotation(state)
 		if node != implicitReturn {

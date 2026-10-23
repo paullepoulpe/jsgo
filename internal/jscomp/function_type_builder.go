@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"slices"
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -769,11 +768,14 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 		}
 	}
 
-	builder := rhino.NewFunctionParamBuilder(f.typeRegistry)
+	var builderVal rhino.FunctionParamBuilder
+	var paramBuf [8]*rhino.FunctionType_Parameter
+	builder := builderVal.InitWithBuf(f.typeRegistry, paramBuf[:0])
 	warnedAboutArgList := false
 	hasJsDocParams := info != nil && info.GetParameterCount() > 0
-	var seenParamNamesBuf [8]string
-	seenParamNames := seenParamNamesBuf[:0]
+	var seenBuf [8]string
+	var seenOverflow []string
+	seenCount := 0
 	isVarArgs := false
 	paramIndex := 0
 	for param := paramsParent.GetFirstChild(); param != nil; param = param.GetNext() {
@@ -811,7 +813,12 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 			}
 		}
 		if hasParamName && hasJsDocParams {
-			seenParamNames = append(seenParamNames, paramName)
+			if seenCount < len(seenBuf) {
+				seenBuf[seenCount] = paramName
+			} else {
+				seenOverflow = append(seenOverflow, paramName)
+			}
+			seenCount++
 		}
 
 		// type from JSDocInfo
@@ -860,8 +867,26 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent *
 	}
 
 	if hasJsDocParams {
-		for jsDocParam := range info.ParameterNames() {
-			if !slices.Contains(seenParamNames, jsDocParam) {
+		paramCount := info.GetParameterCount()
+		nInline := min(seenCount, len(seenBuf))
+		for i := 0; i < paramCount; i++ {
+			jsDocParam := *info.GetParameterNameAt(i)
+			found := false
+			for j := 0; j < nInline; j++ {
+				if seenBuf[j] == jsDocParam {
+					found = true
+					break
+				}
+			}
+			if !found {
+				for _, s := range seenOverflow {
+					if s == jsDocParam {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
 				f.ReportWarning(FunctionTypeBuilder_INEXISTENT_PARAM, jsDocParam, f.FormatFnName())
 			}
 		}

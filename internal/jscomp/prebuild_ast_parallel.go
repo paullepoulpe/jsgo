@@ -26,12 +26,13 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	var normal, extern *parsing.Config
 	needParserConfig := compiler.typedAstFilesystem == nil
 	type outcome struct {
-		deserializer     func() *rhino.Node
-		deserializedRoot *rhino.Node
-		parsed           *parsing.ParserRunner_ParseResult
-		errors           parseBufferedErrors
-		failure          jutil.Throwable
-		wasDeserialized  bool
+		scriptDeserializer *ScriptNodeDeserializer
+		deserializer       func() *rhino.Node
+		deserializedRoot   *rhino.Node
+		parsed             *parsing.ParserRunner_ParseResult
+		errors             parseBufferedErrors
+		failure            jutil.Throwable
+		wasDeserialized    bool
 	}
 	outcomes := make([]outcome, len(inputs))
 	if compiler.typedAstFilesystem != nil {
@@ -40,9 +41,13 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				continue
 			}
 			jutil.Try(func() {
-				fn := compiler.GetTypedAstDeserializer(input.sourceFile)
+				sd, fn := compiler.takeTypedAstDeserializer(input.sourceFile)
 				if fn != nil {
-					outcomes[index].deserializer = fn
+					if sd != nil {
+						outcomes[index].scriptDeserializer = sd
+					} else {
+						outcomes[index].deserializer = fn
+					}
 					outcomes[index].wasDeserialized = true
 				} else {
 					needParserConfig = true
@@ -56,23 +61,44 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		normal = compiler.GetParserConfig(AbstractCompiler_ConfigContext_DEFAULT)
 		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
 	}
-	failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(index int) {
-		input, result := inputs[index], &outcomes[index]
-		if input.ast.isParsed() || result.failure != nil {
-			result.deserializer = nil
-			return
+	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		astSlab := jutil.NewFixedSlab[rhino.Node](512)
+		jsdocSlab := jutil.NewFixedSlab[rhino.Node](512)
+		for {
+			index, ok := claim()
+			if !ok {
+				return
+			}
+			jutil.Try(func() {
+				input, result := inputs[index], &outcomes[index]
+				if input.ast.isParsed() || result.failure != nil {
+					result.scriptDeserializer = nil
+					result.deserializer = nil
+					return
+				}
+				if result.wasDeserialized {
+					if sd := result.scriptDeserializer; sd != nil {
+						result.scriptDeserializer = nil
+						result.deserializedRoot = sd.DeserializeNewWithSlab(&astSlab)
+						return
+					}
+					fn := result.deserializer
+					result.deserializer = nil
+					result.deserializedRoot = fn()
+					return
+				}
+				config := normal
+				if input.sourceFile.IsExtern() {
+					config = extern
+				}
+				result.parsed = parsing.ParserRunner_ParseWithSlabs(
+					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors, &astSlab, &jsdocSlab)
+			}, func(t jutil.Throwable) {
+				outcomes[index].scriptDeserializer = nil
+				outcomes[index].deserializer = nil
+				recordFailure(index, t)
+			})
 		}
-		if result.wasDeserialized {
-			fn := result.deserializer
-			result.deserializer = nil
-			result.deserializedRoot = fn()
-			return
-		}
-		config := normal
-		if input.sourceFile.IsExtern() {
-			config = extern
-		}
-		result.parsed = parsing.ParserRunner_Parse(input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
 	})
 	for i, f := range failures {
 		if f != nil && outcomes[i].failure == nil {

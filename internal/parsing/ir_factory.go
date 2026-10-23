@@ -50,7 +50,8 @@ type IRFactory struct {
 	// If non-null, use this set of keywords instead of TokenStream.isKeyword().
 	reservedKeywords *jutil.LinkedHashSet[string]
 
-	parsedComments *jutil.LinkedHashSet[*parser.Comment]
+	parsedCommentBits    []uint64
+	parsedCommentBitsBuf [4]uint64
 
 	licenseBuilder    *jutil.LinkedHashSet[string]
 	firstFileoverview *rhino.JSDocInfo
@@ -69,10 +70,13 @@ type IRFactory struct {
 	templateNode               *rhino.Node
 	defaultTemplateNode        *rhino.Node
 	closureUnawareTemplateNode *rhino.Node
+	defaultTemplateNodeVal     rhino.Node
 
-	jsdocTracker    *IRFactory_CommentTracker
-	nonJsdocTracker *IRFactory_CommentTracker
-	jsDocSourceKind JsDocInfoParser_JsDocSourceKind
+	jsdocTracker       *IRFactory_CommentTracker
+	nonJsdocTracker    *IRFactory_CommentTracker
+	jsdocTrackerVal    IRFactory_CommentTracker
+	nonJsdocTrackerVal IRFactory_CommentTracker
+	jsDocSourceKind    JsDocInfoParser_JsDocSourceKind
 
 	currentFileIsExterns bool
 
@@ -81,10 +85,15 @@ type IRFactory struct {
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
-	nodes       jutil.Slab[rhino.Node]
-	jsdocNodes  jutil.Slab[rhino.Node]
-	jsdocStream JsDocTokenStream
-	jsdocParser JsDocInfoParser
+	nodes                    jutil.Slab[rhino.Node]
+	jsdocNodes               jutil.Slab[rhino.Node]
+	nodeSlab                 *jutil.Slab[rhino.Node]
+	jsdocNodeSlab            *jutil.Slab[rhino.Node]
+	jsdocStream              JsDocTokenStream
+	jsdocParser              JsDocInfoParser
+	transformDispatcherVal   IRFactory_TransformDispatcher
+	classScopeVal            IRFactory_TransformDispatcher_ScopeTracker
+	privateIdLhsOfInScopeVal IRFactory_TransformDispatcher_ScopeTracker
 }
 
 const IRFactory_GETTER_ERROR_MESSAGE = "getters are not supported in older versions of JavaScript. " +
@@ -226,22 +235,52 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
+	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil, nil)
+}
+
+// NewIRFactoryWithSlabs constructs an IRFactory using optional external AST and JSDoc node slabs.
+func NewIRFactoryWithSlabs(
+	sourceFile rhino.StaticSourceFile,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	comments []*parser.Comment,
+	fileWithContent *parser.SourceFile,
+	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
+	nodeSlab *jutil.Slab[rhino.Node],
+	jsdocNodeSlab *jutil.Slab[rhino.Node]) *IRFactory {
 	f := &IRFactory{}
-	f.parsedComments = jutil.NewLinkedHashSet[*parser.Comment]()
-	f.licenseBuilder = jutil.NewLinkedHashSet[string]()
+	if nodeSlab != nil {
+		f.nodeSlab = nodeSlab
+	} else {
+		f.nodeSlab = &f.nodes
+	}
+	if jsdocNodeSlab != nil {
+		f.jsdocNodeSlab = jsdocNodeSlab
+	} else {
+		f.jsdocNodeSlab = &f.jsdocNodes
+	}
+	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {
+		f.parsedCommentBits = f.parsedCommentBitsBuf[:nWords]
+	} else {
+		f.parsedCommentBits = make([]uint64, nWords)
+	}
 	f.firstFileoverview = nil
 	f.currentFileIsExterns = false
 	f.features = parser.FeatureSet_BARE_MINIMUM
-	f.closureUnawareCodeRanges = jutil.NewTreeRangeSet(irFactory_LineAndColumn_compare)
 
-	f.jsdocTracker = NewIRFactory_CommentTracker(comments, irFactory_isJsdocComment)
-	f.nonJsdocTracker = NewIRFactory_CommentTracker(comments, irFactory_isNonJsdocComment)
+	f.jsdocTrackerVal = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, filter: irFactory_isJsdocComment}
+	f.jsdocTrackerVal.Advance()
+	f.jsdocTracker = &f.jsdocTrackerVal
+
+	f.nonJsdocTrackerVal = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, filter: irFactory_isNonJsdocComment}
+	f.nonJsdocTrackerVal.Advance()
+	f.nonJsdocTracker = &f.nonJsdocTrackerVal
+
 	f.sourceFile = sourceFile
 	f.fileWithContent = fileWithContent
 	// The template node properties are applied to all nodes in this transform.
 	f.defaultTemplateNode = f.CreateTemplateNode()
 	f.templateNode = f.defaultTemplateNode
-	f.closureUnawareTemplateNode = f.CreateClosureUnawareTemplateNode()
 
 	// Sometimes this will be null in tests.
 	if sourceFile == nil {
@@ -252,7 +291,12 @@ func NewIRFactory(
 
 	f.config = config
 	f.errorReporter = errorReporter
-	f.transformDispatcher = NewIRFactory_TransformDispatcher(f)
+	f.transformDispatcherVal = IRFactory_TransformDispatcher{
+		IRFactory:             f,
+		classScope:            &f.classScopeVal,
+		privateIdLhsOfInScope: &f.privateIdLhsOfInScopeVal,
+	}
+	f.transformDispatcher = &f.transformDispatcherVal
 
 	if config.StrictMode().IsStrict() {
 		f.reservedKeywords = IRFactory_ES5_STRICT_RESERVED_KEYWORDS
@@ -263,6 +307,29 @@ func NewIRFactory(
 	}
 	f.jsDocSourceKind = jsDocSourceKind
 	return f
+}
+
+func (f *IRFactory) markCommentParsed(idx int) {
+	if uint(idx) < uint(len(f.parsedCommentBits)*64) {
+		f.parsedCommentBits[idx>>6] |= 1 << (uint(idx) & 63)
+	}
+}
+
+func (f *IRFactory) markCommentPtrParsed(comment *parser.Comment) {
+	if idx := f.jsdocTracker.previousIndex; idx >= 0 && idx < len(f.jsdocTracker.source) && f.jsdocTracker.source[idx] == comment {
+		f.markCommentParsed(idx)
+		return
+	}
+	for i, c := range f.jsdocTracker.source {
+		if c == comment {
+			f.markCommentParsed(i)
+			return
+		}
+	}
+}
+
+func (f *IRFactory) isCommentParsed(idx int) bool {
+	return uint(idx) < uint(len(f.parsedCommentBits)*64) && (f.parsedCommentBits[idx>>6]&(1<<(uint(idx)&63))) != 0
 }
 
 // The CommentTracker filters of the IRFactory constructor (the lambdas
@@ -331,7 +398,7 @@ func (t *IRFactory_CommentTracker) HasPendingCommentBefore(pos *parser.SourcePos
 // Java: IRFactory.createTemplateNode()
 func (f *IRFactory) CreateTemplateNode() *rhino.Node {
 	// The Node type choice is arbitrary.
-	templateNode := rhino.NewNode(rhino.Token_SCRIPT)
+	templateNode := f.defaultTemplateNodeVal.Init(rhino.Token_SCRIPT)
 	templateNode.SetStaticSourceFile(f.sourceFile)
 	return templateNode
 }
@@ -355,23 +422,36 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
+	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil, nil)
+}
+
+// IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external slabs.
+func IRFactory_TransformTreeWithSlabs(
+	tree *parser.ProgramTree,
+	sourceFile rhino.StaticSourceFile,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	file *parser.SourceFile,
+	nodeSlab *jutil.Slab[rhino.Node],
+	jsdocNodeSlab *jutil.Slab[rhino.Node]) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
-	irFactory := NewIRFactory(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind)
+	irFactory := NewIRFactoryWithSlabs(
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, nodeSlab, jsdocNodeSlab)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
 	irFactory.SetSourceInfo(n, tree)
 
 	if tree.SourceComments != nil {
-		for _, comment := range tree.SourceComments {
+		for i, comment := range tree.SourceComments {
 			if (comment.Type == parser.Comment_Type_JSDOC || comment.Type == parser.Comment_Type_IMPORTANT) &&
-				!irFactory.parsedComments.Contains(comment) {
+				!irFactory.isCommentParsed(i) {
 				useLicensesOnlyConfig := irFactory.WithinClosureUnawareCodeRange(
 					comment.Location.Start.Line, comment.Location.Start.Column)
+				irFactory.markCommentParsed(i)
 				irFactory.HandlePossibleFileOverviewJsDocComment(comment, useLicensesOnlyConfig)
 			}
 		}
@@ -781,7 +861,7 @@ func (f *IRFactory) SetFileOverviewJsDoc(irNode *rhino.Node) {
 		fileoverview = f.firstFileoverview.ToBuilder()
 	}
 
-	if !f.licenseBuilder.IsEmpty() {
+	if f.licenseBuilder != nil && !f.licenseBuilder.IsEmpty() {
 		var sb strings.Builder
 		for license := range f.licenseBuilder.All() {
 			sb.WriteString(license)
@@ -817,6 +897,9 @@ func (f *IRFactory) TransformBlock(node parser.ParseTree) *rhino.Node {
 // Java: IRFactory.handlePossibleFileOverviewJsDoc(JsDocInfoParser)
 func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser) bool {
 	if jsDocParser.GetLicenseText() != nil {
+		if f.licenseBuilder == nil {
+			f.licenseBuilder = jutil.NewLinkedHashSet[string]()
+		}
 		f.licenseBuilder.Add(*jsDocParser.GetLicenseText())
 	}
 
@@ -852,7 +935,7 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 // Java: IRFactory.handlePossibleFileOverviewJsDoc(Comment, boolean)
 func (f *IRFactory) HandlePossibleFileOverviewJsDocComment(comment *parser.Comment, useLicensesOnlyConfig bool) {
 	jsDocParser := f.CreateJsDocInfoParserWithLicensesOnlyConfig(comment, useLicensesOnlyConfig)
-	f.parsedComments.Add(comment)
+	f.markCommentPtrParsed(comment)
 	f.HandlePossibleFileOverviewJsDoc(jsDocParser)
 }
 
@@ -885,7 +968,7 @@ func (f *IRFactory) ParseJSDocInfoFrom(comment *parser.Comment) *rhino.JSDocInfo
 	}
 
 	jsDocParser := f.CreateJsDocInfoParser(comment)
-	f.parsedComments.Add(comment)
+	f.markCommentPtrParsed(comment)
 	if f.HandlePossibleFileOverviewJsDoc(jsDocParser) {
 		// Returning null here means that the comment was treated as a
 		// fileoverview comment, and JSDocInfo should not then be attached to a
@@ -972,6 +1055,10 @@ func (f *IRFactory) HasAnyPendingCommentBefore(pos *parser.SourcePosition, withi
 // Java: IRFactory.parseNonJSDocCommentAt(SourcePosition, boolean)
 func (f *IRFactory) ParseNonJSDocCommentAt(pos *parser.SourcePosition, isInline bool) *rhino.NonJSDocComment {
 	withinClosureUnawareCodeRange := f.WithinClosureUnawareCodeRange(pos.Line, pos.Column)
+	if !f.HasAnyPendingCommentBefore(pos, withinClosureUnawareCodeRange) {
+		return nil
+	}
+	includeAll := f.config.JsDocParsingMode() == Config_JsDocParsing_INCLUDE_ALL_COMMENTS
 
 	var result strings.Builder
 	var firstComment *parser.Comment
@@ -1004,28 +1091,26 @@ func (f *IRFactory) ParseNonJSDocCommentAt(pos *parser.SourcePosition, isInline 
 			firstComment = currentComment
 		}
 
-		if lastComment != nil {
-			for blankCount := currentComment.Location.Start.Line - lastComment.Location.End.Line; blankCount > 0; blankCount-- {
-				result.WriteString("\n")
+		if includeAll {
+			if lastComment != nil {
+				for blankCount := currentComment.Location.Start.Line - lastComment.Location.End.Line; blankCount > 0; blankCount-- {
+					result.WriteString("\n")
+				}
 			}
+			result.WriteString(currentComment.Value)
 		}
-		result.WriteString(currentComment.Value)
 
 		lastComment = currentComment
 		if commentFromJsdocTracker {
-			f.parsedComments.Add(currentComment)
+			f.markCommentParsed(f.jsdocTracker.index)
 			f.jsdocTracker.Advance()
 		} else {
 			f.nonJsdocTracker.Advance()
 		}
 	}
 
-	if firstComment == nil {
+	if firstComment == nil || !includeAll {
 		return nil // We didn't find any relevant comments.
-	}
-
-	if f.config.JsDocParsingMode() != Config_JsDocParsing_INCLUDE_ALL_COMMENTS {
-		return nil
 	}
 
 	contents := result.String()
@@ -1127,6 +1212,12 @@ func (f *IRFactory) Transform(tree parser.ParseTree) *rhino.Node {
 	isRootOfClosureUnawareSubTree := info != nil && info.IsClosureUnawareCode()
 
 	if isRootOfClosureUnawareSubTree {
+		if f.closureUnawareTemplateNode == nil {
+			f.closureUnawareTemplateNode = f.CreateClosureUnawareTemplateNode()
+		}
+		if f.closureUnawareCodeRanges == nil {
+			f.closureUnawareCodeRanges = jutil.NewTreeRangeSet(irFactory_LineAndColumn_compare)
+		}
 		f.templateNode = f.closureUnawareTemplateNode
 		nextClosureUnawareRange := tree.GetParseTreeBase().Location
 		nextClosureUnawareRangeStart := IRFactory_LineAndColumn_FromSourcePosition(nextClosureUnawareRange.Start)
@@ -1185,7 +1276,7 @@ func (f *IRFactory) HideClosureUnawareCodeRoot(fn *rhino.Node) *rhino.Node {
 
 // Java: IRFactory.withinClosureUnawareCodeRange(int, int)
 func (f *IRFactory) WithinClosureUnawareCodeRange(line int, lineColumnNo int) bool {
-	if f.closureUnawareCodeRanges.IsEmpty() {
+	if f.closureUnawareCodeRanges == nil || f.closureUnawareCodeRanges.IsEmpty() {
 		return false
 	}
 
@@ -1399,7 +1490,7 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 		config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		&f.jsdocNodes)
+		f.jsdocNodeSlab)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
 		jsdocParser.ParseImportantComment()
@@ -1436,7 +1527,7 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 		f.config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		&f.jsdocNodes)
+		f.jsdocNodeSlab)
 	return parser_.ParseInlineTypeDoc()
 }
 
@@ -4799,32 +4890,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
-	return f.nodes.New().InitFromTemplate(type_, f.templateNode)
+	return f.nodeSlab.New().InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
-	return f.nodes.New().InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return f.nodeSlab.New().InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
-	return f.nodes.New().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return f.nodeSlab.New().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
-	return f.nodes.New().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return f.nodeSlab.New().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
-	return f.nodes.New().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return f.nodeSlab.New().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
-	return f.nodes.New().InitStringFromTemplate(type_, value, f.templateNode)
+	return f.nodeSlab.New().InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -4841,17 +4932,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.Sour
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
-	return f.nodes.New().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
+	return f.nodeSlab.New().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return f.nodes.New().InitNumberFromTemplate(value, f.templateNode)
+	return f.nodeSlab.New().InitNumberFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
-	return f.nodes.New().InitBigIntFromTemplate(value, f.templateNode)
+	return f.nodeSlab.New().InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)

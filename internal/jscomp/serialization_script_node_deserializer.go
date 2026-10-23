@@ -74,16 +74,25 @@ var scriptNodeDeserializerRunnerPool = sync.Pool{
 
 // Java: ScriptNodeDeserializer.deserializeNew()
 func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
+	return d.DeserializeNewWithSlab(nil)
+}
+
+// DeserializeNewWithSlab deserializes the script into rhino.Nodes allocated from slab (when non-nil).
+func (d *ScriptNodeDeserializer) DeserializeNewWithSlab(slab *jutil.Slab[rhino.Node]) *rhino.Node {
 	r := scriptNodeDeserializerRunnerPool.Get().(*scriptNodeDeserializer_Runner)
 	r.owner_ = d
-	r.featureCollector = parsing.NewFeatureCollector()
+	r.featureCollectorVal.Reset()
+	r.featureCollector = &r.featureCollectorVal
+	r.extNodeSlab = slab
 	r.previousLine = 0
 	r.previousColumn = 0
 	r.childBytes = r.childBytes[:0]
 	defer func() {
 		r.owner_ = nil
 		r.featureCollector = nil
+		r.extNodeSlab = nil
 		r.nodeSlab = jutil.Slab[rhino.Node]{}
+		r.templateNodeVal = rhino.Node{}
 		clear(r.childBytes)
 		r.childBytes = r.childBytes[:0]
 		r.jsdoc = OptimizationJsdoc{}
@@ -94,15 +103,18 @@ func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
 
 // Java: ScriptNodeDeserializer.Runner
 type scriptNodeDeserializer_Runner struct {
-	owner_           *ScriptNodeDeserializer
-	featureCollector *parsing.FeatureCollector
-	nodeSlab         jutil.Slab[rhino.Node]
-	previousLine     int
-	previousColumn   int
-	childBytes       [][]byte
-	contextStack     *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
-	jsdoc            OptimizationJsdoc
-	jsdocKindBuf     [16]int32
+	owner_              *ScriptNodeDeserializer
+	featureCollector    *parsing.FeatureCollector
+	featureCollectorVal parsing.FeatureCollector
+	extNodeSlab         *jutil.Slab[rhino.Node]
+	nodeSlab            jutil.Slab[rhino.Node]
+	templateNodeVal     rhino.Node
+	previousLine        int
+	previousColumn      int
+	childBytes          [][]byte
+	contextStack        *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
+	jsdoc               OptimizationJsdoc
+	jsdocKindBuf        [16]int32
 }
 
 func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNodeDeserializer_Runner {
@@ -110,6 +122,9 @@ func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNode
 }
 
 func (r *scriptNodeDeserializer_Runner) allocNode() *rhino.Node {
+	if r.extNodeSlab != nil {
+		return r.extNodeSlab.New()
+	}
 	return r.nodeSlab.New()
 }
 
@@ -124,11 +139,15 @@ func (r *scriptNodeDeserializer_Runner) Run() (result *rhino.Node) {
 		}
 		contextStack.Add(parsing.FeatureCollector_FeatureContext_NONE)
 
+		r.templateNodeVal = rhino.Node{}
+		tmpl := r.templateNodeVal.Init(rhino.Token_SCRIPT)
+		tmpl.SetStaticSourceFile(r.Owner().sourceFile)
+
 		scriptNode, _ := r.visitBytes(
 			r.Owner().scriptBytes,
 			0,
 			contextStack,
-			r.Owner().CreateSourceInfoTemplate(r.Owner().sourceFile))
+			tmpl)
 		scriptNode.PutProp(rhino.Node_FEATURE_SET, r.featureCollector.AllFeatures())
 		result = scriptNode
 	}, func(ex jutil.IIOException) {

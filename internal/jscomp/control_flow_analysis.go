@@ -189,13 +189,13 @@ func (rc *ReusableCfg) TrimAfterLargeScope() {
 	rc.cfg.nodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
 	rc.cfg.pendingRootNodes = jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]{}
 	rc.cfg.ClearSlabsForPool()
-	if len(rc.cfg.nodeChunks) > 8 {
-		clear(rc.cfg.nodeChunks[8:])
-		rc.cfg.nodeChunks = rc.cfg.nodeChunks[:8]
+	if len(rc.cfg.nodeChunks) > 16 {
+		clear(rc.cfg.nodeChunks[16:])
+		rc.cfg.nodeChunks = rc.cfg.nodeChunks[:16]
 	}
-	if len(rc.cfg.edgeChunks) > 8 {
-		clear(rc.cfg.edgeChunks[8:])
-		rc.cfg.edgeChunks = rc.cfg.edgeChunks[:8]
+	if len(rc.cfg.edgeChunks) > 16 {
+		clear(rc.cfg.edgeChunks[16:])
+		rc.cfg.edgeChunks = rc.cfg.edgeChunks[:16]
 	}
 	if len(rc.cfa.posTable) > 8192 {
 		rc.cfa.posTable = nil

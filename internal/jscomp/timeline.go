@@ -170,6 +170,30 @@ func (tl *Timeline[T]) Mark(timeName string) {
 	tl.headEvent = id
 }
 
+// Unmark removes a named time point from the timeline if present.
+func (tl *Timeline[T]) Unmark(timeName string) {
+	id := tl.eventsByTime[timeName]
+	if id == 0 {
+		return
+	}
+	delete(tl.eventsByTime, timeName)
+	e := tl.event(id)
+	prevId := e.prev()
+	nextId := e.next
+	if nextId != 0 {
+		tl.event(nextId).setPrev(prevId)
+	} else {
+		tl.headEvent = prevId
+	}
+	tl.event(prevId).next = nextId
+
+	var zero T
+	e.value = zero
+	e.prevAndTime = 0
+	e.next = tl.freeEvent
+	tl.freeEvent = id
+}
+
 // GetSince returns the values added since the named time, or nil (Java
 // null) if the time was never marked.
 //

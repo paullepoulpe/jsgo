@@ -969,6 +969,13 @@ func NewNode(token Token) *Node {
 	return &Node{token: token, linenoCharno: -1}
 }
 
+// Init initializes a zero Node with token and default source position.
+func (n *Node) Init(token Token) *Node {
+	n.token = token
+	n.linenoCharno = -1
+	return n
+}
+
 // InitFromTemplate initializes a zero Node from a slab with token and template properties.
 func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 	n.token = token

@@ -413,10 +413,20 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 	state := PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER
 	var lastIterMadeChanges bool
 	count := 1
+	const astSizeTimelineKey = "__phaseOptAstSize__"
 	trackAstSize := p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop
 	var astSize int
+	var scriptSizes map[*rhino.Node]int
 	if trackAstSize {
-		astSize = NodeUtil_CountAstSize(root)
+		numScripts := root.GetChildCount()
+		scriptSizes = make(map[*rhino.Node]int, numScripts)
+		astSize = 1
+		for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+			sz := NodeUtil_CountAstSize(script)
+			scriptSizes[script] = sz
+			astSize += sz
+		}
+		p.changeTracker.changeTimeline.Mark(astSizeTimelineKey)
 	}
 	previousAstSize := astSize
 
@@ -433,6 +443,9 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 	defer func() {
 		p.inLoop = false
 		p.changeTracker.RemoveChangeHandler(l.scopeHandler)
+		if trackAstSize {
+			p.changeTracker.changeTimeline.Unmark(astSizeTimelineKey)
+		}
 		evictOptimizeCallsLoopCache()
 	}()
 	for {
@@ -472,7 +485,44 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 
 		if trackAstSize && lastIterMadeChanges {
 			previousAstSize = astSize
-			astSize = NodeUtil_CountAstSize(root)
+			changedScopes := p.changeTracker.GetChangedScopeNodesForPass(astSizeTimelineKey)
+			if changedScopes == nil {
+				astSize = NodeUtil_CountAstSize(root)
+			} else {
+				recounted := make(map[*rhino.Node]struct{}, len(changedScopes))
+				for _, scopeNode := range changedScopes {
+					cur := scopeNode
+					for cur != nil && cur.GetParent() != root {
+						cur = cur.GetParent()
+					}
+					if cur != nil && cur.GetParent() == root {
+						if _, done := recounted[cur]; !done {
+							recounted[cur] = struct{}{}
+							newSz := NodeUtil_CountAstSize(cur)
+							oldSz := scriptSizes[cur]
+							scriptSizes[cur] = newSz
+							astSize += newSz - oldSz
+						}
+					}
+				}
+				liveScripts := 0
+				for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+					liveScripts++
+					if _, known := scriptSizes[script]; !known {
+						sz := NodeUtil_CountAstSize(script)
+						scriptSizes[script] = sz
+						astSize += sz
+					}
+				}
+				if liveScripts != len(scriptSizes) {
+					for script, oldSz := range scriptSizes {
+						if script.GetParent() != root {
+							delete(scriptSizes, script)
+							astSize -= oldSz
+						}
+					}
+				}
+			}
 		}
 		if state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER {
 			if lastIterMadeChanges && l.IsAstSufficientlyChanging(previousAstSize, astSize) {

@@ -548,7 +548,7 @@ func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
 	}
-	range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+	range_ := s.lineNumberScanner.getCommentSourceRange(startOffset, s.index)
 	value := s.sliceString(startOffset, s.index)
 	s.RecordComment(type_, range_, value)
 }
@@ -577,7 +577,7 @@ func (s *Scanner) SkipMultiLineComment() {
 				type_ = Comment_Type_IMPORTANT
 			}
 		}
-		range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+		range_ := s.lineNumberScanner.getCommentSourceRange(startOffset, s.index)
 		value := s.sliceString(startOffset, s.index)
 		s.RecordComment(type_, range_, value)
 	} else {

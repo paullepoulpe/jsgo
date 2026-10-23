@@ -216,6 +216,7 @@ func (g *LinkedDirectedGraph[N, E]) ClearSlabsForPool() {
 		clear(n.outEdgeBuffer[:])
 		n.value = zeroN
 		n.inWorkSet = false
+		n.dfaInQueue = false
 		n.annotation = nil
 	}
 	clear(g.edgeBuf[:])
@@ -244,6 +245,7 @@ func (g *LinkedDirectedGraph[N, E]) ClearSlabsForPool() {
 			clear(n.outEdgeBuffer[:])
 			n.value = zeroN
 			n.inWorkSet = false
+			n.dfaInQueue = false
 			n.annotation = nil
 		}
 		g.nodeChunks[i] = chunk[:0]
@@ -295,7 +297,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 		if g.nodeChunkIdx < len(g.nodeChunks) {
 			g.nodeSlab = g.nodeChunks[g.nodeChunkIdx][:0]
 		} else {
-			nextCap := min(max(cap(g.nodeSlab)*2, 16), 4096)
+			nextCap := min(max(cap(g.nodeSlab)*2, 16), 256)
 			g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
 			g.nodeChunks = append(g.nodeChunks, g.nodeSlab)
 		}
@@ -307,6 +309,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 	n.priority = -1
 	n.annotated = g.useNodeAnnotations
 	n.inWorkSet = false
+	n.dfaInQueue = false
 	n.annotation = nil
 	if cap(n.inEdgeList.Slice()) == 0 {
 		n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])
@@ -332,7 +335,7 @@ func (g *LinkedDirectedGraph[N, E]) newEdge(
 		if g.edgeChunkIdx < len(g.edgeChunks) {
 			g.edgeSlab = g.edgeChunks[g.edgeChunkIdx][:0]
 		} else {
-			nextCap := min(max(cap(g.edgeSlab)*2, 16), 4096)
+			nextCap := min(max(cap(g.edgeSlab)*2, 16), 512)
 			g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
 			g.edgeChunks = append(g.edgeChunks, g.edgeSlab)
 		}
@@ -859,9 +862,10 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 
 	outEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
 
-	priority  int32
-	annotated bool
-	inWorkSet bool
+	priority   int32
+	annotated  bool
+	inWorkSet  bool
+	dfaInQueue bool
 }
 
 // newLinkedDirectedGraph_LinkedDiGraphNode is the constructor; nodeValue is

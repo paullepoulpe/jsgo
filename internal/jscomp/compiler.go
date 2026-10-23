@@ -193,7 +193,8 @@ type Compiler struct {
 	// as a cache of size one.
 	resolvedSourceMap compiler_ResolvedSourceMap
 
-	typedAstFilesystem *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	typedAstFilesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	typedAstScriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
 
 	validityCheck *PassFactory
 
@@ -762,6 +763,7 @@ func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node 
 		return nil
 	}
 
+	delete(c.typedAstScriptDeserializers, file)
 	ast := c.typedAstFilesystem.Remove(file)
 	jutil.CheckStateMsg1(
 		ast != nil ||
@@ -770,6 +772,22 @@ func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node 
 		"TypedAST filesystem initialized, but missing requested file: %s",
 		file)
 	return ast
+}
+
+func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeserializer, func() *rhino.Node) {
+	if c.typedAstFilesystem == nil {
+		return nil, nil
+	}
+	sd := c.typedAstScriptDeserializers[file]
+	delete(c.typedAstScriptDeserializers, file)
+	ast := c.typedAstFilesystem.Remove(file)
+	jutil.CheckStateMsg1(
+		ast != nil ||
+			strings.HasPrefix(file.GetName(), compiler_SYNTHETIC_FILE_NAME_PREFIX) ||
+			AbstractCompiler_IsFillFileName(file.GetName()),
+		"TypedAST filesystem initialized, but missing requested file: %s",
+		file)
+	return sd, ast
 }
 
 // InitWithTypedAstFilesystem initializes a compiler with deserialized state
@@ -856,6 +874,7 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 		})
 
 	c.typedAstFilesystem = astData.GetFilesystem()
+	c.typedAstScriptDeserializers = astData.scriptDeserializers
 	c.externProperties = astData.GetExternProperties()
 	c.colorRegistry = astData.GetColorRegistry()
 	c.SetTypeCheckingHasRun(deserializeTypes)
@@ -5254,6 +5273,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 
 	// Tells CompilerInput::getRoot to deserialize an AST rather than re-parsing the file
 	c.typedAstFilesystem = deserializedAst.GetFilesystem()
+	c.typedAstScriptDeserializers = deserializedAst.scriptDeserializers
 	deserializedAst = nil
 
 	// overwrite any existing CompilerInput instances. Reuse the SourceFiles created by
@@ -5340,6 +5360,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	}
 
 	c.typedAstFilesystem = nil // allow garbage collection
+	c.typedAstScriptDeserializers = nil
 
 	if stateProto.GetLastInjectedLibraryIndexInFirstScript() != -1 {
 		lastInjectedLibrary := c.jsRoot.

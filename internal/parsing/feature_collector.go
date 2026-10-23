@@ -45,6 +45,11 @@ func NewFeatureCollector() *FeatureCollector {
 	return c
 }
 
+// Reset resets the collector to FeatureSet_BARE_MINIMUM for reuse.
+func (c *FeatureCollector) Reset() {
+	c.scriptFeatures = parser.FeatureSet_BARE_MINIMUM
+}
+
 // Java: FeatureCollector.allFeatures()
 func (c *FeatureCollector) AllFeatures() *parser.FeatureSet {
 	return c.scriptFeatures

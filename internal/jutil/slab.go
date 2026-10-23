@@ -11,8 +11,14 @@ package jutil
 // pointer; Go's malloc costs far more per object, and in a line-for-line
 // port one allocation per token or position dominates the parser's profile.
 type Slab[T any] struct {
-	chunk []T
-	used  int
+	chunk      []T
+	used       int
+	fixedChunk int
+}
+
+// NewFixedSlab returns a Slab that allocates chunks of fixedChunk elements.
+func NewFixedSlab[T any](fixedChunk int) Slab[T] {
+	return Slab[T]{fixedChunk: fixedChunk}
 }
 
 const (
@@ -34,6 +40,11 @@ func (s *Slab[T]) New() *T {
 // grow starts a new chunk, twice the size of the last one up to
 // slabMaxChunk elements, so that a slab that serves few objects stays small.
 func (s *Slab[T]) grow() {
+	if s.fixedChunk > 0 {
+		s.chunk = make([]T, s.fixedChunk)
+		s.used = 0
+		return
+	}
 	n := 2 * len(s.chunk)
 	if n < slabMinChunk {
 		n = slabMinChunk

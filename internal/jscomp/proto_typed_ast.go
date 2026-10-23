@@ -1480,7 +1480,34 @@ func (m *TypedAst) writeAsListItemTo(out io.Writer) error {
 	if m.typePool_ != nil {
 		buf = protoAppendTag(buf, 1, 2)
 		buf = protoAppendVarint(buf, uint64(m.typePool_.serializedSize()))
-		buf = m.typePool_.appendTo(buf)
+		for _, x := range m.typePool_.type_ {
+			buf = protoAppendTag(buf, 1, 2)
+			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
+			buf = x.appendTo(buf)
+			if len(buf) >= 64*1024 {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+		}
+		for _, x := range m.typePool_.disambiguationEdges_ {
+			buf = protoAppendTag(buf, 2, 2)
+			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
+			buf = x.appendTo(buf)
+			if len(buf) >= 64*1024 {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+		}
+		if m.typePool_.debugInfo_ != nil {
+			buf = protoAppendTag(buf, 3, 2)
+			buf = protoAppendVarint(buf, uint64(m.typePool_.debugInfo_.serializedSize()))
+			buf = m.typePool_.debugInfo_.appendTo(buf)
+		}
+		if len(m.typePool_.unknownFields) > 0 {
+			buf = append(buf, protoCanonicalUnknownFields(m.typePool_.unknownFields)...)
+		}
 		if err := flush(); err != nil {
 			return err
 		}
@@ -1531,7 +1558,19 @@ func (m *TypedAst) writeAsListItemTo(out io.Writer) error {
 	if m.sourceFilePool_ != nil {
 		buf = protoAppendTag(buf, 5, 2)
 		buf = protoAppendVarint(buf, uint64(m.sourceFilePool_.serializedSize()))
-		buf = m.sourceFilePool_.appendTo(buf)
+		for _, x := range m.sourceFilePool_.sourceFile_ {
+			buf = protoAppendTag(buf, 1, 2)
+			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
+			buf = x.appendTo(buf)
+			if len(buf) >= 64*1024 {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+		}
+		if len(m.sourceFilePool_.unknownFields) > 0 {
+			buf = append(buf, protoCanonicalUnknownFields(m.sourceFilePool_.unknownFields)...)
+		}
 	}
 	if m.externsSummary_ != nil {
 		buf = protoAppendTag(buf, 6, 2)

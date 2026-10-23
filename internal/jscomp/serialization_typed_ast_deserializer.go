@@ -21,11 +21,13 @@ package jscomp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"math"
 	"runtime"
 	"strconv"
 	"sync"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -68,6 +70,7 @@ type TypedAstDeserializer struct {
 	filePoolBuilder               *jutil.LinkedHashMap[string, *SourceFile]
 	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
@@ -84,6 +87,7 @@ func newTypedAstDeserializer(
 		filePoolBuilder:               jutil.NewLinkedHashMap[string, *SourceFile](),
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
+		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
 		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
@@ -278,16 +282,26 @@ func (d *TypedAstDeserializer) toDeserializedAst() *TypedAstDeserializer_Deseria
 	} else {
 		registry = d.colorPoolBuilder.Build().GetRegistry()
 	}
-	return typedAstDeserializer_DeserializedAst_create(
+	out := typedAstDeserializer_DeserializedAst_create(
 		d.typedAstFilesystem, registry,
 		jutil.NewLinkedHashSet(d.externProperties.ToSlice()...),
 		jutil.NewLinkedHashSet(d.runtimeLibraries.ToSlice()...))
+	out.scriptDeserializers = d.scriptDeserializers
+	return out
 }
 
-// typedAstDeserializer_lazyAsts is Iterables.concat(typedAstProto.getExternAstList(),
-// typedAstProto.getCodeAstList()).
-func typedAstDeserializer_lazyAsts(typedAstProto *TypedAst) []*LazyAst {
-	return append(append([]*LazyAst(nil), typedAstProto.GetExternAstList()...), typedAstProto.GetCodeAstList()...)
+// typedAstDeserializer_forEachLazyAst visits externAst followed by codeAst without allocating a concatenated slice.
+func typedAstDeserializer_forEachLazyAst(typedAstProto *TypedAst, visit func(*LazyAst) bool) {
+	for _, a := range typedAstProto.GetExternAstList() {
+		if !visit(a) {
+			return
+		}
+	}
+	for _, a := range typedAstProto.GetCodeAstList() {
+		if !visit(a) {
+			return
+		}
+	}
 }
 
 // Java: TypedAstDeserializer.deserializeTypedAst(TypedAst, AbstractCompiler, boolean, boolean)
@@ -314,13 +328,15 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 		// TypedAST only containing ["c.js", "synthetic:externs"], it's a drain on performance to
 		// include it.
 		containsRequiredInput := false
-		for _, lazyAst := range typedAstDeserializer_lazyAsts(typedAstProto) {
+		req := jutil.CheckNotNull(d.requiredInputFiles)
+		typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
 			file := fileShard[lazyAst.GetSourceFile()-1]
-			if jutil.CheckNotNull(d.requiredInputFiles).Contains(file) {
+			if req.Contains(file) {
 				containsRequiredInput = true
-				break
+				return false
 			}
-		}
+			return true
+		})
 		if !containsRequiredInput {
 			return
 		}
@@ -344,7 +360,7 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 		d.externProperties.Add(stringShard.Get(int(x)))
 	}
 
-	for _, lazyAst := range typedAstDeserializer_lazyAsts(typedAstProto) {
+	typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
 		d.initLazyAstDeserializer(
 			lazyAst,
 			fileShard,
@@ -353,7 +369,8 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 			compiler,
 			resolveSourceMapAnnotations,
 			parseInlineSourceMaps)
-	}
+		return true
+	})
 }
 
 // Java: TypedAstDeserializer.addToFilePool(String, SourceFile)
@@ -381,8 +398,8 @@ func (d *TypedAstDeserializer) findExistingFile(filename string) *SourceFile {
 
 // Java: TypedAstDeserializer.toFileShard(TypedAst)
 func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFile {
-	var fileShardBuilder []*SourceFile
 	protos := typedAstProto.GetSourceFilePool().GetSourceFileList()
+	fileShardBuilder := make([]*SourceFile, 0, len(protos))
 	for i := 0; i < len(protos); i++ {
 		p := protos[i]
 
@@ -430,7 +447,10 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 	if d.syntheticExterns == file {
 		d.syntheticExternsDeserializers.Add(deserializer)
 	} else {
-		d.typedAstFilesystem.ComputeIfAbsent(file, func(f *SourceFile) func() *rhino.Node { return deserializer.DeserializeNew })
+		if !d.typedAstFilesystem.ContainsKey(file) {
+			d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
+			d.scriptDeserializers[file] = deserializer
+		}
 	}
 
 	typedAstDeserializer_addInputSourceMap(deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
@@ -555,19 +575,23 @@ func typedAstDeserializer_deserializeTypedAsts(
 				}
 			}
 			protos := typedAstProto.GetSourceFilePool().GetSourceFileList()
-			for _, lazyAst := range typedAstDeserializer_lazyAsts(typedAstProto) {
+			found := false
+			typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
 				idx := int(lazyAst.GetSourceFile()) - 1
 				if idx >= 0 && idx < len(protos) {
 					fn := protos[idx].GetFilename()
 					if _, ok := requiredNames[fn]; ok {
-						return true
+						found = true
+						return false
 					}
 					if _, ok := requiredNames[SourceFile_CanonicalizePathForMatching(fn)]; ok {
-						return true
+						found = true
+						return false
 					}
 				}
-			}
-			return false
+				return true
+			})
+			return found
 		}
 
 		processShardBatch := func(batch [][]byte) {
@@ -699,12 +723,15 @@ func typedAstDeserializer_deserializeTypedAsts(
 			}
 			panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
 		}
-		const probeSize = 64 * 1024
+		const (
+			probeSize          = 32 * 1024
+			streamLargeShardAt = 1 << 20
+		)
 		var probe [probeSize]byte
-		readNextFromStream := func() ([]byte, bool) {
+		readNextTagAndLen := func() (int, bool) {
 			first, ok := readByte(true)
 			if !ok {
-				return nil, false
+				return 0, false
 			}
 			uTag := readVarint64(first)
 			if uTag>>3 == 0 || uTag > math.MaxUint32 {
@@ -724,6 +751,9 @@ func typedAstDeserializer_deserializeTypedAsts(
 			if msgLen < 0 {
 				panic(protoNegativeSize())
 			}
+			return msgLen, true
+		}
+		readBodyBytes := func(msgLen int) []byte {
 			// Do not pool messageBytes buffers because LazyAst.script uses zero-copy readBytesView().
 			var messageBytes []byte
 			if msgLen <= probeSize {
@@ -750,24 +780,25 @@ func typedAstDeserializer_deserializeTypedAsts(
 					panic(jutil.NewIOException(err.Error()))
 				}
 			}
-			return messageBytes, true
+			return messageBytes
 		}
 
-		firstMsg, ok := readNextFromStream()
-		if !ok {
-			return
-		}
 		const batchSize = 32
 		batch := make([][]byte, 0, batchSize)
-		batch = append(batch, firstMsg)
 		for {
 			var readErr jutil.Throwable
 			var reachedEOF bool
+			var largeMsgLen int
+			hasLarge := false
 			for len(batch) < batchSize {
-				var msg []byte
+				var msgLen int
 				var hasMore bool
+				var msg []byte
 				jutil.Try(func() {
-					msg, hasMore = readNextFromStream()
+					msgLen, hasMore = readNextTagAndLen()
+					if hasMore && msgLen <= streamLargeShardAt {
+						msg = readBodyBytes(msgLen)
+					}
 				}, func(t jutil.Throwable) {
 					readErr = t
 				})
@@ -778,6 +809,11 @@ func typedAstDeserializer_deserializeTypedAsts(
 					reachedEOF = true
 					break
 				}
+				if msgLen > streamLargeShardAt {
+					largeMsgLen = msgLen
+					hasLarge = true
+					break
+				}
 				batch = append(batch, msg)
 			}
 			if len(batch) > 0 {
@@ -786,6 +822,11 @@ func typedAstDeserializer_deserializeTypedAsts(
 			}
 			if readErr != nil {
 				panic(readErr)
+			}
+			if hasLarge {
+				typedAst, stringShard := typedAstDeserializer_streamLargeShard(typedAstsStream, largeMsgLen, buildStringPool)
+				deserializer.deserializeTypedAstWithStringShard(
+					typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 			}
 			if reachedEOF {
 				break
@@ -803,6 +844,386 @@ func typedAstDeserializer_deserializeTypedAsts(
 // WireFormat.WIRETYPE_LENGTH_DELIMITED.
 const typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
 
+type typedAstStreamReader struct {
+	r         io.Reader
+	win       []byte
+	rpos      int
+	wpos      int
+	remaining int
+	scratch   []byte
+}
+
+func (s *typedAstStreamReader) totalLeft() int {
+	return (s.wpos - s.rpos) + s.remaining
+}
+
+func (s *typedAstStreamReader) fill(need int) {
+	if s.rpos > 0 {
+		copy(s.win, s.win[s.rpos:s.wpos])
+		s.wpos -= s.rpos
+		s.rpos = 0
+	}
+	for s.wpos < need {
+		toRead := min(len(s.win)-s.wpos, s.remaining)
+		if toRead <= 0 {
+			panic(protoTruncatedMessage())
+		}
+		n, err := s.r.Read(s.win[s.wpos : s.wpos+toRead])
+		s.wpos += n
+		s.remaining -= n
+		if n == 0 && err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				panic(protoTruncatedMessage())
+			}
+			panic(jutil.NewIOException(err.Error()))
+		}
+	}
+}
+
+func (s *typedAstStreamReader) readByte(minLeft int) byte {
+	if s.totalLeft() <= minLeft {
+		panic(protoTruncatedMessage())
+	}
+	if s.rpos == s.wpos {
+		s.fill(1)
+	}
+	b := s.win[s.rpos]
+	s.rpos++
+	return b
+}
+
+func (s *typedAstStreamReader) readVarint64(minLeft int) uint64 {
+	b := s.readByte(minLeft)
+	x := uint64(b & 0x7f)
+	if b < 0x80 {
+		return x
+	}
+	for shift := uint(7); shift < 64; shift += 7 {
+		b = s.readByte(minLeft)
+		x |= uint64(b&0x7f) << shift
+		if b < 0x80 {
+			return x
+		}
+	}
+	panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
+}
+
+func (s *typedAstStreamReader) readTag(minLeft int) int {
+	if s.totalLeft() <= minLeft {
+		return 0
+	}
+	tag := int32(s.readVarint64(minLeft))
+	if uint32(tag)>>3 == 0 {
+		panic(protoInvalidTag())
+	}
+	return int(tag)
+}
+
+func (s *typedAstStreamReader) readLength(minLeft int) int {
+	n := int(int32(s.readVarint64(minLeft)))
+	if n < 0 {
+		panic(protoNegativeSize())
+	}
+	if s.totalLeft()-n < minLeft {
+		panic(protoTruncatedMessage())
+	}
+	return n
+}
+
+func (s *typedAstStreamReader) readSliceView(n int, minLeft int) []byte {
+	if s.totalLeft()-n < minLeft {
+		panic(protoTruncatedMessage())
+	}
+	if n == 0 {
+		return nil
+	}
+	if n <= s.wpos-s.rpos {
+		v := s.win[s.rpos : s.rpos+n : s.rpos+n]
+		s.rpos += n
+		return v
+	}
+	if n <= len(s.win) {
+		s.fill(n)
+		v := s.win[0:n:n]
+		s.rpos = n
+		return v
+	}
+	if cap(s.scratch) < n {
+		s.scratch = make([]byte, n)
+	} else {
+		s.scratch = s.scratch[:n]
+	}
+	avail := s.wpos - s.rpos
+	if avail > 0 {
+		copy(s.scratch[:avail], s.win[s.rpos:s.wpos])
+		s.rpos = 0
+		s.wpos = 0
+	}
+	need := n - avail
+	if _, err := io.ReadFull(s.r, s.scratch[avail:n]); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			panic(protoTruncatedMessage())
+		}
+		panic(jutil.NewIOException(err.Error()))
+	}
+	s.remaining -= need
+	return s.scratch[:n:n]
+}
+
+func (s *typedAstStreamReader) appendUnknownField(dst []byte, tag int, minLeft int) []byte {
+	dst = protoAppendVarint(dst, uint64(uint32(tag)))
+	switch tag & 7 {
+	case protoWireVarint:
+		dst = protoAppendVarint(dst, s.readVarint64(minLeft))
+	case protoWireFixed64:
+		raw := s.readSliceView(8, minLeft)
+		var tmp [8]byte
+		copy(tmp[:], raw)
+		dst = binary.LittleEndian.AppendUint64(dst, binary.LittleEndian.Uint64(tmp[:]))
+	case protoWireBytes:
+		raw := s.readSliceView(s.readLength(minLeft), minLeft)
+		dst = protoAppendBytes(dst, raw)
+	case protoWireStartGroup:
+		groupNum := tag >> 3
+		for {
+			gt := s.readTag(minLeft)
+			if gt == 0 {
+				panic(protoTruncatedMessage())
+			}
+			if gt&7 == protoWireEndGroup {
+				if gt>>3 != groupNum {
+					panic(protoInvalidEndTag())
+				}
+				dst = protoAppendVarint(dst, uint64(uint32(gt)))
+				break
+			}
+			dst = s.appendUnknownField(dst, gt, minLeft)
+		}
+	case protoWireEndGroup:
+		panic(protoInvalidEndTag())
+	case protoWireFixed32:
+		raw := s.readSliceView(4, minLeft)
+		var tmp [4]byte
+		copy(tmp[:], raw)
+		dst = binary.LittleEndian.AppendUint32(dst, binary.LittleEndian.Uint32(tmp[:]))
+	default:
+		panic(protoInvalidWireType())
+	}
+	return dst
+}
+
+func typedAstDeserializer_streamLargeShard(
+	r io.Reader,
+	msgLen int,
+	buildStringPool func(*TypedAst) bool,
+) (*TypedAst, *StringPool) {
+	sr := typedAstStreamReader{
+		r:         r,
+		win:       make([]byte, 32768),
+		remaining: msgLen,
+	}
+	m := &TypedAst{memoizedSize: -1}
+	typeProtoSlab := jutil.NewFixedSlab[TypeProto](512)
+	edgeSlab := jutil.NewFixedSlab[SubtypingEdge](512)
+	lazyAstSlab := jutil.NewFixedSlab[LazyAst](256)
+	sourceFileSlab := jutil.NewFixedSlab[SourceFileProto](256)
+
+	var scriptSlab []byte
+	allocScriptBytes := func(src []byte) []byte {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 16384 {
+			return bytes.Clone(src)
+		}
+		if len(scriptSlab) < n {
+			scriptSlab = make([]byte, 32768)
+		}
+		dst := scriptSlab[:n:n]
+		scriptSlab = scriptSlab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	type deferredWtf8 struct {
+		idx  int
+		data []byte
+	}
+	var (
+		hasStringPool bool
+		stringIDs     []uint32
+		maxAsciiLen   int
+		maxLength     int32
+		deferred      []deferredWtf8
+	)
+
+	for sr.totalLeft() > 0 {
+		tag := sr.readTag(0)
+		switch tag {
+		case 0:
+		case 10:
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			var x *TypePool
+			if m.typePool_ != nil {
+				x = m.typePool_.mutableCopy()
+			} else {
+				x = &TypePool{memoizedSize: -1}
+			}
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					tp := typeProtoSlab.New()
+					tp.memoizedSize = -1
+					tp.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					tp.frozen = true
+					x.type_ = append(x.type_, tp)
+				case 18:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					ed := edgeSlab.New()
+					ed.memoizedSize = -1
+					ed.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					ed.frozen = true
+					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
+				case 26:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					var dbg *TypePool_DebugInfo
+					if x.debugInfo_ != nil {
+						dbg = x.debugInfo_.mutableCopy()
+					} else {
+						dbg = &TypePool_DebugInfo{memoizedSize: -1}
+					}
+					dbg.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					dbg.frozen = true
+					x.debugInfo_ = dbg
+				default:
+					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+				}
+			}
+			x.frozen = true
+			m.typePool_ = x
+		case 18:
+			hasStringPool = true
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			if stringIDs == nil {
+				stringIDs = make([]uint32, 1, min(subLen/12+2, 4_000_000))
+				stringIDs[0] = rhino.RhinoStringPool_InternID("")
+			}
+			var spUnknown []byte
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					raw := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					if wtf8_isASCIIBytes(raw) {
+						if len(raw) > maxAsciiLen {
+							maxAsciiLen = len(raw)
+						}
+						var str string
+						if len(raw) > 0 {
+							str = unsafe.String(unsafe.SliceData(raw), len(raw))
+						}
+						stringIDs = append(stringIDs, rhino.RhinoStringPool_InternID(str))
+					} else {
+						stringIDs = append(stringIDs, 0)
+						deferred = append(deferred, deferredWtf8{idx: len(stringIDs) - 1, data: bytes.Clone(raw)})
+					}
+				case 16:
+					maxLength = int32(sr.readVarint64(endLeft))
+				default:
+					spUnknown = sr.appendUnknownField(spUnknown, subTag, endLeft)
+				}
+			}
+		case 26, 34:
+			data := sr.readSliceView(sr.readLength(0), 0)
+			la := lazyAstSlab.New()
+			la.memoizedSize = -1
+			la.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+			la.script_ = allocScriptBytes(la.script_)
+			la.frozen = true
+			if tag == 26 {
+				m.externAst_ = append(m.externAst_, la)
+			} else {
+				m.codeAst_ = append(m.codeAst_, la)
+			}
+		case 42:
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			var x *SourceFilePool
+			if m.sourceFilePool_ != nil {
+				x = m.sourceFilePool_.mutableCopy()
+			} else {
+				x = &SourceFilePool{memoizedSize: -1}
+			}
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					sf := sourceFileSlab.New()
+					sf.memoizedSize = -1
+					sf.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					sf.frozen = true
+					x.sourceFile_ = append(x.sourceFile_, sf)
+				default:
+					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+				}
+			}
+			x.frozen = true
+			m.sourceFilePool_ = x
+		case 50:
+			data := sr.readSliceView(sr.readLength(0), 0)
+			var x *ExternsSummary
+			if m.externsSummary_ != nil {
+				x = m.externsSummary_.mutableCopy()
+			} else {
+				x = &ExternsSummary{memoizedSize: -1}
+			}
+			x.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+			x.frozen = true
+			m.externsSummary_ = x
+		case 58:
+			raw := sr.readSliceView(sr.readLength(0), 0)
+			if !utf8Valid(raw) {
+				panic(protoInvalidUtf8())
+			}
+			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, string(raw))
+		default:
+			m.unknownFields = sr.appendUnknownField(m.unknownFields, tag, 0)
+		}
+	}
+	m.frozen = true
+
+	var stringShard *StringPool
+	if buildStringPool == nil || buildStringPool(m) {
+		if !hasStringPool {
+			stringShard = StringPool_FromProto(m.GetStringPool())
+		} else {
+			if maxLength < 0 {
+				_ = Wtf8_Decoder_(int(maxLength))
+			}
+			if maxAsciiLen > int(maxLength) {
+				panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(int(maxLength), int(maxLength)))
+			}
+			if len(deferred) > 0 {
+				decoder := Wtf8_Decoder_(int(maxLength))
+				for _, d := range deferred {
+					stringIDs[d.idx] = rhino.RhinoStringPool_InternID(decoder.DecodeView(d.data))
+				}
+			}
+			stringShard = &StringPool{
+				maxLength: int(maxLength),
+				pool:      rhino.NewRhinoStringPool_LazyInternedStringListFromIDs(stringIDs),
+			}
+		}
+	}
+	return m, stringShard
+}
+
 // TypedAstDeserializer_DeserializedAst is the result of deserializing a
 // TypedAst.List
 //
@@ -812,10 +1233,11 @@ const typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
 //
 // Java: public abstract static class TypedAstDeserializer.DeserializedAst
 type TypedAstDeserializer_DeserializedAst struct {
-	filesystem       *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
-	colorRegistry    *colors.ColorRegistry // Optional: nil when absent
-	externProperties *jutil.LinkedHashSet[string]
-	runtimeLibraries *jutil.LinkedHashSet[string]
+	filesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	scriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
+	colorRegistry       *colors.ColorRegistry // Optional: nil when absent
+	externProperties    *jutil.LinkedHashSet[string]
+	runtimeLibraries    *jutil.LinkedHashSet[string]
 }
 
 // GetFilesystem maps from SourceFile to a lazy deserializer of the SCRIPT

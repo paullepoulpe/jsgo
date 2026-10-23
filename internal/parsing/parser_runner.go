@@ -119,12 +119,25 @@ func ParserRunner_Parse(
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
+	return ParserRunner_ParseWithSlabs(sourceFile, sourceString, config, errorReporter, nil, nil)
+}
+
+// ParserRunner_ParseWithSlabs parses sourceString using optional worker-scoped AST and JSDoc node slabs.
+func ParserRunner_ParseWithSlabs(
+	sourceFile rhino.StaticSourceFile,
+	sourceString string,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	nodeSlab *jutil.Slab[rhino.Node],
+	jsdocNodeSlab *jutil.Slab[rhino.Node]) *ParserRunner_ParseResult {
 	// TODO(johnlenz): unify "SourceFile", "Es6ErrorReporter" and "Config"
 
 	sourceName := sourceFile.GetName()
 	var result *ParserRunner_ParseResult
 	jutil.Try(func() {
 		arena := parser.AcquireParseArena()
+		arena.TransientComments = !config.JsDocParsingMode().ShouldParseDescriptions() &&
+			config.JsDocParsingMode() != Config_JsDocParsing_INCLUDE_ALL_COMMENTS
 		file := parser.NewSourceFileInArena(sourceName, sourceString, arena)
 		defer func() {
 			file.ContentsUTF16 = nil
@@ -140,7 +153,7 @@ func ParserRunner_Parse(
 		topLevelStatementRanges := []*parser.SourceRange{}
 		features := p.GetFeatures()
 		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
-			factory := IRFactory_TransformTree(tree, sourceFile, config, errorReporter, file)
+			factory := IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nodeSlab, jsdocNodeSlab)
 			root = factory.GetResultNode()
 			features = features.Union(factory.GetFeatures())
 			root.PutProp(rhino.Node_FEATURE_SET, features)

@@ -243,7 +243,16 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ *Sourc
 			sourceMapURL := value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
 			c.this.sourceMapURL = &sourceMapURL
 		}
-		c.comments = append(c.comments, NewComment(value, range_, type_))
+		arena := c.this.arena
+		if arena != nil && arena.TransientComments {
+			comment := arena.comments.New()
+			comment.Value = value
+			comment.Location = range_
+			comment.Type = type_
+			arena.commentBuf = append(arena.commentBuf, comment)
+		} else {
+			c.comments = append(c.comments, NewComment(value, range_, type_))
+		}
 		c.lastCommentEndPosition = range_.End
 	}
 }
@@ -252,6 +261,10 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ *Sourc
 //
 // Java: Parser.CommentRecorder.getComments()
 func (c *Parser_CommentRecorder) GetComments() []*Comment {
+	arena := c.this.arena
+	if arena != nil && arena.TransientComments {
+		return arena.commentBuf
+	}
 	return append([]*Comment{}, c.comments...)
 }
 
@@ -300,13 +313,15 @@ func (p *Parser) ParseProgram() *ProgramTree {
 
 // Java: Parser.parseGlobalSourceElements()
 func (p *Parser) ParseGlobalSourceElements() []ParseTree {
-	result := []ParseTree{}
+	arena := p.arena
+	base := len(arena.treeStack)
 
 	for !p.Peek(TokenType_END_OF_FILE) {
-		result = append(result, p.ParseScriptElement())
+		elem := p.ParseScriptElement()
+		arena.treeStack = append(arena.treeStack, elem)
 	}
 
-	return result
+	return arena.finishTrees(base)
 }
 
 // ParseScriptElement parses an ImportDeclaration, ExportDeclaration or
@@ -1022,20 +1037,22 @@ func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
 	listStart := p.GetTreeStartLocation()
 	p.Eat(TokenType_OPEN_PAREN)
 
-	result := []ParseTree{}
+	arena := p.arena
+	treeBase := len(arena.treeStack)
 	trailingComma := false
-	commaPositions := []*SourcePosition{}
+	posBase := len(arena.posStack)
 
 	for p.PeekParameter() {
-		result = append(result, p.ParseParameter())
+		param := p.ParseParameter()
+		arena.treeStack = append(arena.treeStack, param)
 
 		if !p.Peek(TokenType_CLOSE_PAREN) {
 			comma := p.Eat(TokenType_COMMA)
 			if comma != nil {
-				commaPositions = append(commaPositions, comma.GetStart())
+				arena.posStack = append(arena.posStack, comma.GetStart())
 			} else {
 				// semi-arbitrary comma position in case the code is syntactially invalid & missing one
-				commaPositions = append(commaPositions, p.GetTreeEndLocation())
+				arena.posStack = append(arena.posStack, p.GetTreeEndLocation())
 			}
 			if p.Peek(TokenType_CLOSE_PAREN) {
 				if !p.config.atLeast8 {
@@ -1047,6 +1064,8 @@ func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
 	}
 
 	p.Eat(TokenType_CLOSE_PAREN)
+	result := arena.finishTrees(treeBase)
+	commaPositions := arena.finishPositions(posBase)
 	return p.newFormalParameterListTree(
 		p.GetTreeLocation(listStart), result, trailingComma, commaPositions)
 }
@@ -1083,13 +1102,15 @@ func (p *Parser) ParseFunctionBody() *BlockTree {
 
 // Java: Parser.parseSourceElementList()
 func (p *Parser) ParseSourceElementList() []ParseTree {
-	result := []ParseTree{}
+	arena := p.arena
+	base := len(arena.treeStack)
 
 	for p.PeekSourceElement() {
-		result = append(result, p.ParseSourceElement())
+		elem := p.ParseSourceElement()
+		arena.treeStack = append(arena.treeStack, elem)
 	}
 
-	return result
+	return arena.finishTrees(base)
 }
 
 // Java: Parser.parseIterSpread()
@@ -1236,11 +1257,13 @@ func (p *Parser) ParseBlock() *BlockTree {
 
 // Java: Parser.parseStatementList()
 func (p *Parser) ParseStatementList() []ParseTree {
-	result := []ParseTree{}
+	arena := p.arena
+	base := len(arena.treeStack)
 	for p.PeekStatement() {
-		result = append(result, p.ParseStatement())
+		stmt := p.ParseStatement()
+		arena.treeStack = append(arena.treeStack, stmt)
 	}
-	return result
+	return arena.finishTrees(base)
 }
 
 // 12.2 Variable Statement
@@ -1279,13 +1302,17 @@ func (p *Parser) ParseVariableDeclarationListWithExpression(expressionIn Parser_
 		return nil
 	}
 
-	declarations := []*VariableDeclarationTree{}
+	arena := p.arena
+	base := len(arena.varDeclStack)
 
-	declarations = append(declarations, p.ParseVariableDeclaration(token, expressionIn))
+	decl := p.ParseVariableDeclaration(token, expressionIn)
+	arena.varDeclStack = append(arena.varDeclStack, decl)
 	for p.Peek(TokenType_COMMA) {
 		p.Eat(TokenType_COMMA)
-		declarations = append(declarations, p.ParseVariableDeclaration(token, expressionIn))
+		decl = p.ParseVariableDeclaration(token, expressionIn)
+		arena.varDeclStack = append(arena.varDeclStack, decl)
 	}
+	declarations := arena.finishVarDecls(base)
 	return p.newVariableDeclarationListTree(p.GetTreeLocation(start), token, declarations)
 }
 
@@ -1655,7 +1682,8 @@ func (p *Parser) ParseSwitchStatement() ParseTree {
 // Java: Parser.parseCaseClauses()
 func (p *Parser) ParseCaseClauses() []ParseTree {
 	foundDefaultClause := false
-	result := []ParseTree{}
+	arena := p.arena
+	base := len(arena.treeStack)
 
 	for {
 		start := p.GetTreeStartLocation()
@@ -1665,7 +1693,8 @@ func (p *Parser) ParseCaseClauses() []ParseTree {
 			expression := p.ParseExpression()
 			p.Eat(TokenType_COLON)
 			statements := p.ParseCaseStatementsOpt()
-			result = append(result, p.newCaseClauseTree(p.GetTreeLocation(start), expression, statements))
+			clause := p.newCaseClauseTree(p.GetTreeLocation(start), expression, statements)
+			arena.treeStack = append(arena.treeStack, clause)
 		case TokenType_DEFAULT:
 			if foundDefaultClause {
 				p.ReportError("Switch statements may have at most one default clause")
@@ -1674,9 +1703,10 @@ func (p *Parser) ParseCaseClauses() []ParseTree {
 			}
 			p.Eat(TokenType_DEFAULT)
 			p.Eat(TokenType_COLON)
-			result = append(result, NewDefaultClauseTree(p.GetTreeLocation(start), p.ParseCaseStatementsOpt()))
+			clause := NewDefaultClauseTree(p.GetTreeLocation(start), p.ParseCaseStatementsOpt())
+			arena.treeStack = append(arena.treeStack, clause)
 		default:
-			return result
+			return arena.finishTrees(base)
 		}
 	}
 }
@@ -2070,12 +2100,14 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 // Java: Parser.parseObjectLiteral()
 func (p *Parser) ParseObjectLiteral() ParseTree {
 	start := p.GetTreeStartLocation()
-	result := []ParseTree{}
+	arena := p.arena
+	base := len(arena.treeStack)
 
 	p.Eat(TokenType_OPEN_CURLY)
 	var commaToken Token
 	for p.Peek(TokenType_ELLIPSIS) || p.PeekPropertyNameOrComputedProp(0) || p.Peek(TokenType_STAR) {
-		result = append(result, p.ParseObjectLiteralPropertyAssignment())
+		prop := p.ParseObjectLiteralPropertyAssignment()
+		arena.treeStack = append(arena.treeStack, prop)
 		commaToken = p.EatOpt(TokenType_COMMA)
 		if commaToken == nil {
 			break
@@ -2085,6 +2117,7 @@ func (p *Parser) ParseObjectLiteral() ParseTree {
 
 	p.MaybeReportTrailingComma(commaToken)
 
+	result := arena.finishTrees(base)
 	return p.newObjectLiteralExpressionTree(
 		p.GetTreeLocation(start), result, commaToken != nil)
 }
@@ -3428,18 +3461,20 @@ func (p *Parser) ParseArguments() *ArgumentListTree {
 	//   AssignmentExpression
 
 	start := p.GetTreeStartLocation()
-	arguments := []ParseTree{}
+	arena := p.arena
+	treeBase := len(arena.treeStack)
 	trailingComma := false
-	commaPositions := []*SourcePosition{}
+	posBase := len(arena.posStack)
 
 	p.Eat(TokenType_OPEN_PAREN)
 	for p.PeekAssignmentOrSpread() {
-		arguments = append(arguments, p.ParseAssignmentOrSpread())
+		arg := p.ParseAssignmentOrSpread()
+		arena.treeStack = append(arena.treeStack, arg)
 
 		if !p.Peek(TokenType_CLOSE_PAREN) {
 			comma := p.Eat(TokenType_COMMA)
 			if comma != nil {
-				commaPositions = append(commaPositions, comma.GetStart())
+				arena.posStack = append(arena.posStack, comma.GetStart())
 			}
 			if p.Peek(TokenType_CLOSE_PAREN) {
 				if !p.config.atLeast8 {
@@ -3450,6 +3485,8 @@ func (p *Parser) ParseArguments() *ArgumentListTree {
 		}
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
+	arguments := arena.finishTrees(treeBase)
+	commaPositions := arena.finishPositions(posBase)
 	return p.newArgumentListTree(
 		p.GetTreeLocation(start), arguments, trailingComma, commaPositions)
 }

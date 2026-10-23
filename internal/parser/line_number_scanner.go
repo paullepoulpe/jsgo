@@ -105,6 +105,50 @@ func (l *LineNumberScanner) GetSourceRange(startOffset, endOffset int) *SourceRa
 	return NewSourceRange(l.GetSourcePosition(startOffset), l.GetSourcePosition(endOffset))
 }
 
+func (l *LineNumberScanner) getCommentSourcePosition(offset int) *SourcePosition {
+	if offset < l.lastLineStart {
+		jutil.CheckArgumentMsg2(
+			false,
+			"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
+			offset,
+			l.lastLineStart)
+	}
+	for offset >= l.nextLineStart {
+		l.AdvanceLine()
+	}
+	p := l.arena.positions.New()
+	p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
+	return p
+}
+
+func (l *LineNumberScanner) getCommentSourceRange(startOffset, endOffset int) *SourceRange {
+	arena := l.arena
+	if arena == nil || !arena.TransientComments {
+		return l.GetSourceRange(startOffset, endOffset)
+	}
+	if startOffset >= l.lastLineStart && endOffset >= startOffset && endOffset < l.nextLineStart {
+		line := l.lastLine
+		lineStart := l.lastLineStart
+		start := arena.positions.New()
+		start.Source, start.Offset, start.Line, start.Column = l.sourceFile, startOffset, line, startOffset-lineStart
+		var end *SourcePosition
+		if endOffset == startOffset {
+			end = start
+		} else {
+			end = arena.positions.New()
+			end.Source, end.Offset, end.Line, end.Column = l.sourceFile, endOffset, line, endOffset-lineStart
+		}
+		r := arena.ranges.New()
+		r.Start, r.End = start, end
+		return r
+	}
+	start := l.getCommentSourcePosition(startOffset)
+	end := l.getCommentSourcePosition(endOffset)
+	r := arena.ranges.New()
+	r.Start, r.End = start, end
+	return r
+}
+
 // getTokenSourcePosition is GetSourcePosition for the Scanner's tokens and
 // for the positions it hands the Parser.
 //

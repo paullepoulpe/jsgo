@@ -119,12 +119,7 @@ func NewTypeInference(
 
 func (ti *TypeInference) ReleaseLargeBuffers() {
 	ti.flowScopeArena.trimLargeChunks()
-	if cap(ti.flowStateSlab) > 4096 {
-		ti.flowStateSlab = nil
-	} else if len(ti.flowStateSlab) > 0 {
-		clear(ti.flowStateSlab)
-		ti.flowStateSlab = ti.flowStateSlab[:0]
-	}
+	ti.trimLargeFlowStateChunks(16)
 	if cap(ti.queue) > 4096 {
 		ti.queue = nil
 		ti.queueHead = 0
