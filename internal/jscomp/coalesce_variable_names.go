@@ -159,17 +159,8 @@ func cvnCollectTopFunctions(n *rhino.Node, out *[]*rhino.Node) {
 	}
 }
 
-func (c *CoalesceVariableNames) releaseReusableCFAs() {
-	for i, rc := range c.reusableCFAs {
-		if rc != nil {
-			releaseReusableCfg(rc)
-			c.reusableCFAs[i] = nil
-		}
-	}
-	c.reusableCFAs = c.reusableCFAs[:0]
-	for i := range c.cfgs {
-		c.cfgs[i] = nil
-	}
+func (c *CoalesceVariableNames) clearCfgs() {
+	clear(c.cfgs)
 	c.cfgs = c.cfgs[:0]
 }
 
@@ -223,7 +214,7 @@ func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 
 	if numThreads <= 1 || len(topFns) <= 1 {
 		c.cfgs = append(c.cfgs, root)
-		defer c.releaseReusableCFAs()
+		defer c.clearCfgs()
 		for _, topFn := range topFns {
 			c.processTopFunction(topFn, dummyGlobal)
 		}
@@ -244,7 +235,7 @@ func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 			wc.deferChanges = true
 			wc.cfgs = append(wc.cfgs, root)
 			defer func() {
-				wc.releaseReusableCFAs()
+				wc.clearCfgs()
 				wc.scopeCreator.ReleaseArena()
 			}()
 			for {

@@ -105,16 +105,6 @@ func daeScanNode(n *rhino.Node, compiler AbstractCompiler, candidates *[]*rhino.
 	return hasFn, hasAssign
 }
 
-func (d *DeadAssignmentsElimination) releaseReusableCFAs() {
-	for i, rc := range d.reusableCFAs {
-		if rc != nil {
-			releaseReusableCfg(rc)
-			d.reusableCFAs[i] = nil
-		}
-	}
-	d.reusableCFAs = d.reusableCFAs[:0]
-}
-
 func (d *DeadAssignmentsElimination) eliminateFunction(fn *rhino.Node, dummyGlobal *Scope) {
 	fnBody := fn.GetLastChild()
 	scopeCreator := d.scopeCreator
@@ -176,7 +166,6 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 		sc.EnableArenaPool()
 		d.scopeCreator = sc
 		defer func() {
-			d.releaseReusableCFAs()
 			d.scopeCreator = nil
 			sc.ReleaseArena()
 		}()
@@ -201,7 +190,6 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 			sc.EnableArenaPool()
 			wd.scopeCreator = sc
 			defer func() {
-				wd.releaseReusableCFAs()
 				wd.scopeCreator = nil
 				sc.ReleaseArena()
 			}()
