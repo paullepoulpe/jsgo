@@ -8,8 +8,8 @@ import (
 )
 
 func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
-	if unsafe.Sizeof(Node{}) != 64 {
-		t.Fatalf("node occupies %d bytes, expected 64", unsafe.Sizeof(Node{}))
+	if unsafe.Sizeof(Node{}) != 56 {
+		t.Fatalf("node occupies %d bytes, expected 56", unsafe.Sizeof(Node{}))
 	}
 	registry := NewJSTypeRegistry(nil)
 	typ := registry.GetNativeType(JSTypeNative_NUMBER_TYPE)

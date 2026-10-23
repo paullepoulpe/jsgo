@@ -301,7 +301,7 @@ func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
 				return false
 			}
 			pos--
-			n = n.first
+			n = n.firstNode()
 		}
 		if pos > 0 {
 			return false
@@ -401,7 +401,7 @@ func (q *QualifiedName_GetpropQname) Matches(n *Node) bool {
 		}
 		n.node_castKind(node_kindString)
 		return rhinoStringID(n.payload) == q.propID &&
-			q.owner.Matches(n.first)
+			q.owner.Matches(n.firstNode())
 	}
 	return n.IsGetProp() &&
 		RhinoStringPool_UncheckedEquals(n.GetString(), q.prop) &&

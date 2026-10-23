@@ -46,8 +46,8 @@ type FunctionToBlockMutator struct {
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
 	paramReplacementsScratch jutil.LinkedHashMap[string, *rhino.Node]
 	newAliasesToAddScratch   jutil.ArrayList[*rhino.Node]
-	scratchRoot              rhino.Node
-	scratchScript            rhino.Node
+	scratchRoot              *rhino.Node
+	scratchScript            *rhino.Node
 	scratchReady             bool
 }
 
@@ -146,9 +146,9 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
 	usedScratch := false
 	if !m.scratchReady {
-		m.scratchRoot.Init(rhino.Token_ROOT)
-		m.scratchScript.Init(rhino.Token_SCRIPT)
-		m.scratchRoot.AddChildToBack(&m.scratchScript)
+		m.scratchRoot = rhino.NewNode(rhino.Token_ROOT)
+		m.scratchScript = rhino.NewNode(rhino.Token_SCRIPT)
+		m.scratchRoot.AddChildToBack(m.scratchScript)
 		m.scratchReady = true
 	}
 	if !m.scratchScript.HasChildren() {
@@ -187,7 +187,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	newBlock := NodeUtil_GetFunctionBody(newFnNode)
 	// Make the newBlock insertable .
 	newBlock.Detach()
-	if usedScratch && newFnNode.GetParent() == &m.scratchScript {
+	if usedScratch && newFnNode.GetParent() == m.scratchScript {
 		newFnNode.Detach()
 	}
 

@@ -1040,7 +1040,16 @@ func (p *Node_PropListItem) Chain(next *Node_PropListItem) *Node_PropListItem {
 
 // Java: Node(Token)
 func NewNode(token Token) *Node {
-	return &Node{token: token, linenoCharno: -1}
+	n := allocNode()
+	n.token = token
+	n.linenoCharno = -1
+	return n
+}
+
+// AllocNode returns a fresh zeroed node (to be initialized with one of the
+// Init methods).
+func AllocNode() *Node {
+	return allocNode()
 }
 
 // Init initializes a zero Node with token and default source position.
@@ -1063,15 +1072,15 @@ func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 
 // InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
 func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Node) *Node {
-	if child.parent != nil || child.next != nil || child.previous != nil || template.typeOrColor != nil {
+	if child.parent != 0 || child.next != 0 || child.previous != 0 || template.typeOrColor != nil {
 		return n.initWithChildFromTemplateSlow(token, child, template)
 	}
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
-	n.first = child
-	child.previous = child
-	child.parent = n
+	n.first = idOf(child)
+	child.previous = idOf(child)
+	child.parent = idOf(n)
 	return n
 }
 
@@ -1083,10 +1092,10 @@ func (n *Node) initWithChildFromTemplateSlow(token Token, child *Node, template 
 	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
-	n.first = child
+	n.first = idOf(child)
 	child.CheckDetached()
-	child.previous = child
-	child.parent = n
+	child.previous = idOf(child)
+	child.parent = idOf(n)
 	return n
 }
 
@@ -1098,16 +1107,16 @@ func (n *Node) InitWith2ChildrenFromTemplate(token Token, left *Node, right *Nod
 	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
-	n.first = left
+	n.first = idOf(left)
 
 	left.CheckDetached()
-	left.next = right
-	left.previous = right
-	left.parent = n
+	left.next = idOf(right)
+	left.previous = idOf(right)
+	left.parent = idOf(n)
 
 	right.CheckDetached()
-	right.previous = left
-	right.parent = n
+	right.previous = idOf(left)
+	right.parent = idOf(n)
 	return n
 }
 
@@ -1119,21 +1128,21 @@ func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node,
 	if template.typeOrColor != nil {
 		n.copyTemplateColdProps(template)
 	}
-	n.first = left
+	n.first = idOf(left)
 
 	left.CheckDetached()
-	left.next = mid
-	left.previous = right
-	left.parent = n
+	left.next = idOf(mid)
+	left.previous = idOf(right)
+	left.parent = idOf(n)
 
 	mid.CheckDetached()
-	mid.next = right
-	mid.previous = left
-	mid.parent = n
+	mid.next = idOf(right)
+	mid.previous = idOf(left)
+	mid.parent = idOf(n)
 
 	right.CheckDetached()
-	right.previous = mid
-	right.parent = n
+	right.previous = idOf(mid)
+	right.parent = idOf(n)
 	return n
 }
 
@@ -1240,51 +1249,51 @@ func (n *Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, tem
 // Java: Node(Token, Node)
 func NewNodeWithChild(token Token, child *Node) *Node {
 	n := NewNode(token)
-	n.first = child
+	n.first = idOf(child)
 
 	child.CheckDetached()
 	// child.next remains null;
-	child.previous = child
-	child.parent = n
+	child.previous = idOf(child)
+	child.parent = idOf(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node)
 func NewNodeWith2Children(token Token, left *Node, right *Node) *Node {
 	n := NewNode(token)
-	n.first = left
+	n.first = idOf(left)
 
 	left.CheckDetached()
-	left.next = right
-	left.previous = right
-	left.parent = n
+	left.next = idOf(right)
+	left.previous = idOf(right)
+	left.parent = idOf(n)
 
 	right.CheckDetached()
 	// right.next remains null;
-	right.previous = left
-	right.parent = n
+	right.previous = idOf(left)
+	right.parent = idOf(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node, Node)
 func NewNodeWith3Children(token Token, left *Node, mid *Node, right *Node) *Node {
 	n := NewNode(token)
-	n.first = left
+	n.first = idOf(left)
 
 	left.CheckDetached()
-	left.next = mid
-	left.previous = right
-	left.parent = n
+	left.next = idOf(mid)
+	left.previous = idOf(right)
+	left.parent = idOf(n)
 
 	mid.CheckDetached()
-	mid.next = right
-	mid.previous = left
-	mid.parent = n
+	mid.next = idOf(right)
+	mid.previous = idOf(left)
+	mid.parent = idOf(n)
 
 	right.CheckDetached()
 	// right.next remains null;
-	right.previous = mid
-	right.parent = n
+	right.previous = idOf(mid)
+	right.parent = idOf(n)
 	return n
 }
 
@@ -1336,25 +1345,25 @@ func (n *Node) GetToken() Token {
 func (n *Node) SetToken(token Token) {
 	n.token = token
 	n.kindFlags &^= kindFlagNoBlockDecl
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 }
 
 // Java: Node.hasChildren()
 func (n *Node) HasChildren() bool {
-	return n.first != nil
+	return n.first != 0
 }
 
 // Java: Node.getOnlyChild()
 func (n *Node) GetOnlyChild() *Node {
 	jutil.CheckState(n.HasOneChild())
-	return n.first
+	return n.firstNode()
 }
 
 // Java: Node.getFirstChild()
 func (n *Node) GetFirstChild() *Node {
-	return n.first
+	return n.firstNode()
 }
 
 // GetFirstFirstChild gets the first child of the first child. This method
@@ -1362,38 +1371,38 @@ func (n *Node) GetFirstChild() *Node {
 //
 // Java: Node.getFirstFirstChild()
 func (n *Node) GetFirstFirstChild() *Node {
-	return n.first.first
+	return n.firstNode().firstNode()
 }
 
 // Java: Node.getSecondChild()
 func (n *Node) GetSecondChild() *Node {
-	return n.first.next
+	return n.firstNode().nextNode()
 }
 
 // Java: Node.getLastChild()
 func (n *Node) GetLastChild() *Node {
-	if n.first != nil {
-		return n.first.previous
+	if n.first != 0 {
+		return n.firstNode().prevNode()
 	}
 	return nil
 }
 
 // Java: Node.getNext()
 func (n *Node) GetNext() *Node {
-	return n.next
+	return n.nextNode()
 }
 
 // Java: Node.getPrevious()
 func (n *Node) GetPrevious() *Node {
-	if n == n.parent.first {
+	if n.self == n.parentNode().first {
 		return nil
 	}
-	return n.previous
+	return n.prevNode()
 }
 
 // Java: Node.setClosureUnawareShadow(Node)
 func (n *Node) SetClosureUnawareShadow(shadowRoot *Node) {
-	jutil.CheckStateMsg(n.first == nil, "Cannot set shadow root on a node with children")
+	jutil.CheckStateMsg(n.first == 0, "Cannot set shadow root on a node with children")
 	jutil.CheckStateMsg(n.token == Token_NAME, "Only NAME nodes can be used as shadows")
 	n.PutProp(Node_Prop_CLOSURE_UNAWARE_SHADOW, shadowRoot)
 }
@@ -1439,9 +1448,9 @@ func (n *Node) GetIsInClosureUnawareSubtree() bool {
 //
 // Java: Node.getChildAtIndex(int)
 func (n *Node) GetChildAtIndex(i int) *Node {
-	c := n.first
+	c := n.firstNode()
 	for i > 0 {
-		c = c.next
+		c = c.nextNode()
 		i--
 	}
 	return c
@@ -1452,14 +1461,14 @@ func (n *Node) GetChildAtIndex(i int) *Node {
 //
 // Java: Node.getIndexOfChild(Node)
 func (n *Node) GetIndexOfChild(child *Node) int {
-	c := n.first
+	c := n.firstNode()
 	i := 0
 	for c != nil {
 		if child == c {
 			return i
 		}
 
-		c = c.next
+		c = c.nextNode()
 		i++
 	}
 	return -1
@@ -1467,51 +1476,51 @@ func (n *Node) GetIndexOfChild(child *Node) int {
 
 // Java: Node.addChildToFront(Node)
 func (n *Node) AddChildToFront(child *Node) {
-	jutil.CheckArgument(child.parent == nil)
-	jutil.CheckArgument(child.next == nil)
-	jutil.CheckArgument(child.previous == nil)
+	jutil.CheckArgument(child.parent == 0)
+	jutil.CheckArgument(child.next == 0)
+	jutil.CheckArgument(child.previous == 0)
 	n.kindFlags &^= kindFlagNoBlockDecl
-	child.parent = n
+	child.parent = idOf(n)
 	child.next = n.first
-	if n.first == nil {
+	if n.first == 0 {
 		// NOTE: child.next remains null
-		child.previous = child
+		child.previous = idOf(child)
 	} else {
-		last := n.first.previous
+		last := n.firstNode().prevNode()
 		// NOTE: last.next remains null
-		child.previous = last
+		child.previous = idOf(last)
 		child.next = n.first
-		n.first.previous = child
+		n.firstNode().previous = idOf(child)
 	}
-	n.first = child
+	n.first = idOf(child)
 }
 
 // Java: Node.addChildToBack(Node)
 func (n *Node) AddChildToBack(child *Node) {
 	jutil.CheckArgumentMsg3(
-		child.parent == nil,
+		child.parent == 0,
 		"Cannot add already-owned child node.\nChild: %s\nExisting parent: %s\nNew parent: %s",
 		child,
-		child.parent,
+		child.parentNode(),
 		n)
 
-	jutil.CheckArgument(child.next == nil)
-	jutil.CheckArgument(child.previous == nil)
+	jutil.CheckArgument(child.next == 0)
+	jutil.CheckArgument(child.previous == 0)
 	n.kindFlags &^= kindFlagNoBlockDecl
 
-	if n.first == nil {
+	if n.first == 0 {
 		// NOTE: child.next remains null
-		child.previous = child
-		n.first = child
+		child.previous = idOf(child)
+		n.first = idOf(child)
 	} else {
-		last := n.first.previous
-		last.next = child
+		last := n.firstNode().prevNode()
+		last.next = idOf(child)
 		// NOTE: child.next remains null
-		child.previous = last
-		n.first.previous = child
+		child.previous = idOf(last)
+		n.firstNode().previous = idOf(child)
 	}
 
-	child.parent = n
+	child.parent = idOf(n)
 }
 
 // AddChildrenToFront adds all children to the front of this node.
@@ -1528,22 +1537,22 @@ func (n *Node) AddChildrenToFront(children *Node) {
 	}
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
-	jutil.CheckNotNullMsg1(children.previous, "%s", children)
+	jutil.CheckNotNullMsg1(children.prevNode(), "%s", children)
 	n.kindFlags &^= kindFlagNoBlockDecl
-	for child := children; child != nil; child = child.next {
-		jutil.CheckArgument(child.parent == nil)
-		child.parent = n
+	for child := children; child != nil; child = child.nextNode() {
+		jutil.CheckArgument(child.parent == 0)
+		child.parent = idOf(n)
 	}
 
-	lastSib := children.previous
-	if n.first != nil {
-		last := n.first.previous
+	lastSib := children.prevNode()
+	if n.first != 0 {
+		last := n.firstNode().prevNode()
 		// NOTE: last.next remains null
-		children.previous = last
+		children.previous = idOf(last)
 		lastSib.next = n.first
-		n.first.previous = lastSib
+		n.firstNode().previous = idOf(lastSib)
 	}
-	n.first = children
+	n.first = idOf(children)
 }
 
 // Java: Node.addChildrenToBack(Node)
@@ -1557,21 +1566,21 @@ func (n *Node) InsertAfter(existing *Node) {
 	existing.CheckAttached()
 	n.CheckDetached()
 
-	existingParent := existing.parent
-	existingNext := existing.next
+	existingParent := existing.parentNode()
+	existingNext := existing.nextNode()
 	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
-	n.parent = existingParent
+	n.parent = idOf(existingParent)
 
-	existing.next = n
-	n.previous = existing
+	existing.next = idOf(n)
+	n.previous = idOf(existing)
 
 	if existingNext == nil {
-		existingParent.first.previous = n
+		existingParent.firstNode().previous = idOf(n)
 		// this.next remains null
 	} else {
-		existingNext.previous = n
-		n.next = existingNext
+		existingNext.previous = idOf(n)
+		n.next = idOf(existingNext)
 	}
 }
 
@@ -1580,22 +1589,22 @@ func (n *Node) InsertBefore(existing *Node) {
 	existing.CheckAttached()
 	n.CheckDetached()
 
-	existingParent := existing.parent
-	existingPrevious := existing.previous
+	existingParent := existing.parentNode()
+	existingPrevious := existing.prevNode()
 	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
-	n.parent = existingParent
+	n.parent = idOf(existingParent)
 
-	n.next = existing
-	existing.previous = n
+	n.next = idOf(existing)
+	existing.previous = idOf(n)
 
-	n.previous = existingPrevious
-	if existingPrevious.next == nil {
-		existingParent.first = n
+	n.previous = idOf(existingPrevious)
+	if existingPrevious.next == 0 {
+		existingParent.first = idOf(n)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first remains existing
-		existingPrevious.next = n
+		existingPrevious.next = idOf(n)
 	}
 }
 
@@ -1612,31 +1621,31 @@ func (n *Node) AddChildrenAfter(children *Node, node *Node) {
 	if children == nil {
 		return // removeChildren() returns null when there are none
 	}
-	jutil.CheckArgument(node == nil || node.parent == n)
+	jutil.CheckArgument(node == nil || node.parentNode() == n)
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
-	jutil.CheckNotNullMsg1(children.previous, "%s", children)
+	jutil.CheckNotNullMsg1(children.prevNode(), "%s", children)
 	if node == nil {
 		n.AddChildrenToFront(children)
 		return
 	}
 	n.kindFlags &^= kindFlagNoBlockDecl
 
-	for child := children; child != nil; child = child.next {
-		jutil.CheckArgument(child.parent == nil)
-		child.parent = n
+	for child := children; child != nil; child = child.nextNode() {
+		jutil.CheckArgument(child.parent == 0)
+		child.parent = idOf(n)
 	}
 
-	lastSibling := children.previous
-	nodeAfter := node.next
-	lastSibling.next = nodeAfter
+	lastSibling := children.prevNode()
+	nodeAfter := node.nextNode()
+	lastSibling.next = idOf(nodeAfter)
 	if nodeAfter == nil {
-		n.first.previous = lastSibling
+		n.firstNode().previous = idOf(lastSibling)
 	} else {
-		nodeAfter.previous = lastSibling
+		nodeAfter.previous = idOf(lastSibling)
 	}
-	node.next = children
-	children.previous = node
+	node.next = idOf(children)
+	children.previous = idOf(node)
 }
 
 // ReplaceWith swaps `replacement` and its subtree into the position of
@@ -1647,9 +1656,9 @@ func (n *Node) ReplaceWith(replacement *Node) {
 	n.CheckAttached()
 	replacement.CheckDetached()
 
-	existingParent := n.parent
-	existingNext := n.next
-	existingPrevious := n.previous
+	existingParent := n.parentNode()
+	existingNext := n.nextNode()
+	existingPrevious := n.prevNode()
 	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	// Copy over important information.
@@ -1659,27 +1668,27 @@ func (n *Node) ReplaceWith(replacement *Node) {
 	// The sequence below also has to work when `this` is an only child, ehich
 	// can cause many of the variables to point to the same object.
 
-	n.parent = nil
-	replacement.parent = existingParent
+	n.parent = 0
+	replacement.parent = idOf(existingParent)
 
-	n.previous = nil
-	replacement.previous = existingPrevious
-	if existingPrevious.next == nil {
-		existingParent.first = replacement
+	n.previous = 0
+	replacement.previous = idOf(existingPrevious)
+	if existingPrevious.next == 0 {
+		existingParent.first = idOf(replacement)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first is unchanged;
-		existingPrevious.next = replacement
+		existingPrevious.next = idOf(replacement)
 	}
 
 	if existingNext == nil {
 		// this.next remains null;
-		existingParent.first.previous = replacement
+		existingParent.firstNode().previous = idOf(replacement)
 		// replacement.next remains null
 	} else {
-		n.next = nil
-		existingNext.previous = replacement
-		replacement.next = existingNext
+		n.next = 0
+		existingNext.previous = idOf(replacement)
+		replacement.next = idOf(existingNext)
 	}
 }
 
@@ -1689,32 +1698,32 @@ func (n *Node) ReplaceWith(replacement *Node) {
 func (n *Node) Detach() *Node {
 	n.CheckAttached()
 
-	existingParent := n.parent
-	existingNext := n.next
-	existingPrevious := n.previous
+	existingParent := n.parentNode()
+	existingNext := n.nextNode()
+	existingPrevious := n.prevNode()
 	existingParent.kindFlags &^= kindFlagNoBlockDecl
 
 	// The sequence below also has to work when `this` is an only child or has
 	// a single sibling, which can cause many of the variables to point to the
 	// same object.
 
-	n.parent = nil
+	n.parent = 0
 
 	if existingNext == nil {
 		// this.next remains null;
-		existingParent.first.previous = existingPrevious
+		existingParent.firstNode().previous = idOf(existingPrevious)
 	} else {
-		n.next = nil
-		existingNext.previous = existingPrevious
+		n.next = 0
+		existingNext.previous = idOf(existingPrevious)
 	}
 
-	n.previous = nil
-	if existingPrevious.next == nil {
-		existingParent.first = existingNext
+	n.previous = 0
+	if existingPrevious.next == 0 {
+		existingParent.first = idOf(existingNext)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first is unchanged;
-		existingPrevious.next = existingNext
+		existingPrevious.next = idOf(existingNext)
 	}
 
 	return n
@@ -1722,14 +1731,14 @@ func (n *Node) Detach() *Node {
 
 // Java: Node.CheckAttached()
 func (n *Node) CheckAttached() {
-	jutil.CheckStateMsg1(n.parent != nil, "Has no parent: %s", n)
+	jutil.CheckStateMsg1(n.parent != 0, "Has no parent: %s", n)
 }
 
 // Java: Node.CheckDetached()
 func (n *Node) CheckDetached() {
-	jutil.CheckStateMsg1(n.parent == nil, "Has parent: %s", n)
-	jutil.CheckStateMsg1(n.next == nil, "Has next: %s", n)
-	jutil.CheckStateMsg1(n.previous == nil, "Has previous: %s", n)
+	jutil.CheckStateMsg1(n.parent == 0, "Has parent: %s", n)
+	jutil.CheckStateMsg1(n.next == 0, "Has next: %s", n)
+	jutil.CheckStateMsg1(n.previous == 0, "Has previous: %s", n)
 }
 
 // RemoveFirstChild removes the first child of Node. Equivalent to:
@@ -1737,7 +1746,7 @@ func (n *Node) CheckDetached() {
 //
 // Java: Node.removeFirstChild()
 func (n *Node) RemoveFirstChild() *Node {
-	child := n.first
+	child := n.firstNode()
 	if child != nil {
 		child.Detach()
 	}
@@ -1750,11 +1759,11 @@ func (n *Node) RemoveFirstChild() *Node {
 // Java: Node.removeChildren()
 func (n *Node) RemoveChildren() *Node {
 	n.kindFlags &^= kindFlagNoBlockDecl
-	children := n.first
-	for child := n.first; child != nil; child = child.next {
-		child.parent = nil
+	children := n.firstNode()
+	for child := n.firstNode(); child != nil; child = child.nextNode() {
+		child.parent = 0
 	}
-	n.first = nil
+	n.first = 0
 	return children
 }
 
@@ -1764,14 +1773,14 @@ func (n *Node) RemoveChildren() *Node {
 // Java: Node.detachChildren()
 func (n *Node) DetachChildren() {
 	n.kindFlags &^= kindFlagNoBlockDecl
-	for child := n.first; child != nil; {
-		nextChild := child.next
-		child.parent = nil
-		child.next = nil
-		child.previous = nil
+	for child := n.firstNode(); child != nil; {
+		nextChild := child.nextNode()
+		child.parent = 0
+		child.next = 0
+		child.previous = 0
 		child = nextChild
 	}
-	n.first = nil
+	n.first = 0
 }
 
 func (n *Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
@@ -2880,10 +2889,10 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 		// In the case of JsDoc trees, the first child is often not a string
 		// which causes exceptions to be thrown when calling toString or
 		// toStringTree.
-		if n.first == nil || n.first.token != Token_NAME {
+		if n.first == 0 || n.firstNode().token != Token_NAME {
 			sb.WriteString("<invalid>")
 		} else {
-			sb.WriteString(n.first.GetString())
+			sb.WriteString(n.firstNode().GetString())
 		}
 	} else if n.token == Token_NUMBER {
 		sb.WriteByte(' ')
@@ -2969,10 +2978,10 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		// In the case of JsDoc trees, the first child is often not a string
 		// which causes exceptions to be thrown when calling toString or
 		// toStringTree.
-		if n.first == nil || n.first.token != Token_NAME {
+		if n.first == 0 || n.firstNode().token != Token_NAME {
 			sb.append(Node_CreateJsonPair("functionName", "<invalid>"))
 		} else {
-			sb.append(Node_CreateJsonPair("functionName", n.first.GetString()))
+			sb.append(Node_CreateJsonPair("functionName", n.firstNode().GetString()))
 		}
 	} else if n.token == Token_NUMBER {
 		sb.append(",")
@@ -3021,12 +3030,12 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
 	}
 
-	if n.first != nil {
+	if n.first != 0 {
 		sb.append(",")
 		sb.append("\"children\":[")
-		for child := n.first; child != nil; child = child.next {
+		for child := n.firstNode(); child != nil; child = child.nextNode() {
 			child.ToJson(appendable)
-			if child.next != nil {
+			if child.next != 0 {
 				sb.append(",")
 			}
 		}
@@ -3066,7 +3075,7 @@ func Node_ToStringTreeHelper(n *Node, level int, appendable io.StringWriter) {
 	}
 	sb.append(n.String())
 	sb.append("\n")
-	for cursor := n.first; cursor != nil; cursor = cursor.next {
+	for cursor := n.firstNode(); cursor != nil; cursor = cursor.nextNode() {
 		Node_ToStringTreeHelper(cursor, level+1, appendable)
 	}
 	shadow := n.GetClosureUnawareShadow()
@@ -3097,10 +3106,11 @@ func Node_ToJsonTreeHelper(n *Node, appendable io.StringWriter) {
 // (~2% of nodes, e.g. JSDocInfo) multiplex the `typeOrColor` slot via
 // `kindFlagHasExtBox` / `nodeExtBox`.
 type Node struct {
-	next        *Node          // next sibling, a linked list
-	first       *Node          // first element of a linked list of children
-	parent      *Node          // parent node
-	previous    *Node          // previous sibling, a circular linked list
+	next        nodeID         // next sibling, a linked list (0 = none; see node_store.go)
+	first       nodeID         // first element of a linked list of children
+	parent      nodeID         // parent node
+	previous    nodeID         // previous sibling, a circular linked list
+	self        nodeID         // this node's own id (0: a by-value template node outside any chunk)
 	typeOrColor unsafe.Pointer // *JSTypeBase, *colors.Color, *JSDocInfo, or *nodeExtBox
 
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
@@ -3112,8 +3122,8 @@ type Node struct {
 }
 
 var (
-	_ [64 - unsafe.Sizeof(Node{})]byte
-	_ [unsafe.Sizeof(Node{}) - 64]byte
+	_ [56 - unsafe.Sizeof(Node{})]byte
+	_ [unsafe.Sizeof(Node{}) - 56]byte
 )
 
 func (n *Node) HasNoBlockScopeDecls() bool {
@@ -3332,7 +3342,7 @@ func (n *Node) MakeNonIndexable() {
 // Java: Node.makeNonIndexableRecursive()
 func (n *Node) MakeNonIndexableRecursive() {
 	n.MakeNonIndexable()
-	for child := n.first; child != nil; child = child.GetNext() {
+	for child := n.firstNode(); child != nil; child = child.GetNext() {
 		child.MakeNonIndexableRecursive()
 	}
 }
@@ -3477,10 +3487,10 @@ func (n *Node) SetLinenoCharno(lineno int, charno int) *Node {
 //
 // Java: Node.children()
 func (n *Node) Children() iter.Seq[*Node] {
-	if n.first == nil {
+	if n.first == 0 {
 		return func(yield func(*Node) bool) {}
 	}
-	start := n.first
+	start := n.firstNode()
 	return func(yield func(*Node) bool) {
 		current := start
 		for current != nil {
@@ -3559,20 +3569,20 @@ func (n *Node) SetPropListHead(propListHead *Node_PropListItem) {
 
 // Java: Node.getParent()
 func (n *Node) GetParent() *Node {
-	return n.parent
+	return n.parentNode()
 }
 
 // Java: Node.hasParent()
 func (n *Node) HasParent() bool {
-	return n.parent != nil
+	return n.parent != 0
 }
 
 // Java: Node.getGrandparent()
 func (n *Node) GetGrandparent() *Node {
-	if n.parent == nil {
+	if n.parent == 0 {
 		return nil
 	}
-	return n.parent.parent
+	return n.parentNode().parentNode()
 }
 
 // GetAncestor gets the ancestor node relative to this.
@@ -3599,7 +3609,7 @@ func (n *Node) GetAncestor(level int) *Node {
 //
 // Java: Node.isDescendantOf(Node)
 func (n *Node) IsDescendantOf(node *Node) bool {
-	for c := n; c != nil; c = c.parent {
+	for c := n; c != nil; c = c.parentNode() {
 		if c == node {
 			return true
 		}
@@ -3664,7 +3674,7 @@ func (a *Node_AncestorIterable) All() iter.Seq[*Node] {
 //
 // Java: Node.hasOneChild()
 func (n *Node) HasOneChild() bool {
-	return n.first != nil && n.first.next == nil
+	return n.first != 0 && n.firstNode().next == 0
 }
 
 // HasTwoChildren checks for two children more efficiently than
@@ -3672,7 +3682,7 @@ func (n *Node) HasOneChild() bool {
 //
 // Java: Node.hasTwoChildren()
 func (n *Node) HasTwoChildren() bool {
-	return n.first != nil && n.first.next != nil && n.first.next == n.GetLastChild()
+	return n.first != 0 && n.firstNode().next != 0 && n.firstNode().nextNode() == n.GetLastChild()
 }
 
 // HasZeroOrOneChild checks for zero or one child more efficiently than by
@@ -3680,7 +3690,7 @@ func (n *Node) HasTwoChildren() bool {
 //
 // Java: Node.hasZeroOrOneChild()
 func (n *Node) HasZeroOrOneChild() bool {
-	return n.first == n.GetLastChild()
+	return n.firstNode() == n.GetLastChild()
 }
 
 // HasMoreThanOneChild checks for more than one child more efficiently than
@@ -3688,7 +3698,7 @@ func (n *Node) HasZeroOrOneChild() bool {
 //
 // Java: Node.hasMoreThanOneChild()
 func (n *Node) HasMoreThanOneChild() bool {
-	return n.first != nil && n.first.next != nil
+	return n.first != 0 && n.firstNode().next != 0
 }
 
 // HasXChildren checks for has exactly the number of specified children.
@@ -3696,7 +3706,7 @@ func (n *Node) HasMoreThanOneChild() bool {
 // Java: Node.hasXChildren(int)
 func (n *Node) HasXChildren(x int) bool {
 	c := 0
-	for c2 := n.first; c2 != nil && c <= x; c2 = c2.next {
+	for c2 := n.firstNode(); c2 != nil && c <= x; c2 = c2.nextNode() {
 		c++
 	}
 	return c == x
@@ -3705,7 +3715,7 @@ func (n *Node) HasXChildren(x int) bool {
 // Java: Node.getChildCount()
 func (n *Node) GetChildCount() int {
 	c := 0
-	for c2 := n.first; c2 != nil; c2 = c2.next {
+	for c2 := n.firstNode(); c2 != nil; c2 = c2.nextNode() {
 		c++
 	}
 	return c
@@ -3715,7 +3725,7 @@ func (n *Node) GetChildCount() int {
 //
 // Java: Node.hasChild(Node)
 func (n *Node) HasChild(child *Node) bool {
-	for c := n.first; c != nil; c = c.next {
+	for c := n.firstNode(); c != nil; c = c.nextNode() {
 		if child == c {
 			return true
 		}
@@ -4142,7 +4152,7 @@ func (n *Node) isEquivalentToBase(
 	}
 
 	if recursion.RecurseChildren() {
-		for c, c2 := n.first, node.first; c != nil; c, c2 = c.next, c2.next {
+		for c, c2 := n.firstNode(), node.firstNode(); c != nil; c, c2 = c.nextNode(), c2.nextNode() {
 			if !c.IsEquivalentToWithModes(c2, recursion, typeConfig, jsDocConfig, sideEffectConfig) {
 				return false
 			}
@@ -4285,13 +4295,13 @@ func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 	propName := n.GetString()
 	reserve += 1 + len(propName) // +1 for the '.'
 	var builder []byte
-	if n.first.IsGetProp() {
-		builder = n.first.GetQualifiedNameForGetProp(reserve)
+	if n.firstNode().IsGetProp() {
+		builder = n.firstNode().GetQualifiedNameForGetProp(reserve)
 		if builder == nil {
 			return nil
 		}
 	} else {
-		left, ok := n.first.getQualifiedNameString()
+		left, ok := n.firstNode().getQualifiedNameString()
 		if !ok {
 			return nil
 		}
@@ -4362,7 +4372,7 @@ func (n *Node) IsQualifiedName() bool {
 		case Token_THIS, Token_SUPER:
 			return true
 		case Token_GETPROP:
-			n = n.first
+			n = n.firstNode()
 		default:
 			return false
 		}
@@ -4418,7 +4428,7 @@ func (n *Node) MatchesQualifiedName(qname string) bool {
 				return false
 			}
 			qname = qname[:dot]
-			n = n.first
+			n = n.firstNode()
 		default:
 			return false
 		}
@@ -4492,7 +4502,7 @@ func (n *Node) IsUnscopedQualifiedName() bool {
 		case Token_NAME:
 			return n.GetStringID() > 1
 		case Token_GETPROP:
-			n = n.first
+			n = n.firstNode()
 		default:
 			return false
 		}
@@ -4532,7 +4542,10 @@ func (n *Node) CloneNode() *Node {
 //
 // Java: Node.cloneNode(boolean)
 func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
-	clone := &Node{token: n.token, kindFlags: n.kindFlags & kindMask, payload: n.payload}
+	clone := allocNode()
+	clone.token = n.token
+	clone.kindFlags = n.kindFlags & kindMask
+	clone.payload = n.payload
 	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 	return clone
 }
@@ -4576,24 +4589,24 @@ func (n *Node) CloneTree() *Node {
 // Java: Node.cloneTree(boolean)
 func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
 	result := n.CloneNodeWithTypeExprs(cloneTypeExprs)
-	if n.first != nil {
+	if n.first != 0 {
 		var firstChild *Node
 		var lastChild *Node
-		for n2 := n.first; n2 != nil; n2 = n2.next {
+		for n2 := n.firstNode(); n2 != nil; n2 = n2.nextNode() {
 			n2clone := n2.CloneTreeWithTypeExprs(cloneTypeExprs)
-			n2clone.parent = result
+			n2clone.parent = idOf(result)
 			if firstChild == nil {
 				firstChild = n2clone
 				lastChild = firstChild
 			} else {
-				lastChild.next = n2clone
-				n2clone.previous = lastChild
+				lastChild.next = idOf(n2clone)
+				n2clone.previous = idOf(lastChild)
 				lastChild = n2clone
 			}
 		}
-		firstChild.previous = lastChild
-		lastChild.next = nil
-		result.first = firstChild
+		firstChild.previous = idOf(lastChild)
+		lastChild.next = 0
+		result.first = idOf(firstChild)
 	}
 
 	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
@@ -4620,7 +4633,7 @@ func (n *Node) Srcref(other *Node) *Node {
 // Java: Node.srcrefTree(Node)
 func (n *Node) SrcrefTree(other *Node) *Node {
 	n.Srcref(other)
-	for child := n.first; child != nil; child = child.next {
+	for child := n.firstNode(); child != nil; child = child.nextNode() {
 		child.SrcrefTree(other)
 	}
 	return n
@@ -4653,7 +4666,7 @@ func (n *Node) SrcrefIfMissing(other *Node) *Node {
 // Java: Node.srcrefTreeIfMissing(Node)
 func (n *Node) SrcrefTreeIfMissing(other *Node) *Node {
 	n.SrcrefIfMissing(other)
-	for child := n.first; child != nil; child = child.next {
+	for child := n.firstNode(); child != nil; child = child.nextNode() {
 		child.SrcrefTreeIfMissing(other)
 	}
 	return n
@@ -6150,8 +6163,8 @@ func (n *Node) MutateGetPropToNameInPlace(name string, originalName string, isCo
 		return false
 	}
 	n.DetachChildren()
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	nameID := rhinoStringPoolIntern(name)
 	origID := rhinoStringPoolIntern(originalName)
@@ -6198,11 +6211,11 @@ func (n *Node) MutateCallTargetGetPropToNameInPlace(call *Node, receiver *Node, 
 // MutateThisToNameIDInPlace rewrites an attached leaf THIS node into
 // NAME(nameID) in-place, preserving Srcref(n) and CopyTypeFrom(n).
 func (n *Node) MutateThisToNameIDInPlace(nameID uint32) bool {
-	if !n.CanResetInPlace() || n.first != nil {
+	if !n.CanResetInPlace() || n.first != 0 {
 		return false
 	}
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	if (n.propFlags & propFlagHasJSDoc) != 0 {
 		n.typeOrColor = nil
@@ -6231,8 +6244,8 @@ func (n *Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) 
 // MutateAttachedStmtToVarFromSrcref resets an attached childless statement node
 // (CanResetInPlace) into IR_Var(nameChild).SrcrefIfMissing(srcref) in-place.
 func (n *Node) MutateAttachedStmtToVarFromSrcref(nameChild *Node, srcref *Node, jsdoc *JSDocInfo) {
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	n.typeOrColor = nil
 	n.token = Token_VAR
@@ -6264,7 +6277,7 @@ func (n *Node) ResetDetachedToFreshNameID(nameID uint32) *Node {
 // extBox/extra metadata or overflow source file, allowing zero-allocation
 // in-place leaf cloning via OverwriteLeafFromClone.
 func (n *Node) CanCloneLeafInPlace() bool {
-	return n.first == nil && n.CanResetInPlace()
+	return n.first == 0 && n.CanResetInPlace()
 }
 
 // OverwriteLeafFromClone overwrites an attached childless leaf node (which must
@@ -6272,8 +6285,8 @@ func (n *Node) CanCloneLeafInPlace() bool {
 // CanCloneLeafInPlace), matching src.CloneTree() + n.ReplaceWith(clone) with
 // zero allocations.
 func (n *Node) OverwriteLeafFromClone(src *Node) {
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	oldSF := n.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	oldOrigID := n.node_originalNameID()
@@ -6298,7 +6311,7 @@ func (n *Node) OverwriteLeafFromClone(src *Node) {
 // the template or src has cold/overflow metadata so the caller can allocate a
 // fresh template.
 func (n *Node) ResetTemplateUndefinedSrcref(src *Node) bool {
-	num := n.first
+	num := n.firstNode()
 	if num == nil || !n.CanResetInPlace() || !num.CanResetInPlace() {
 		return false
 	}
@@ -6341,8 +6354,8 @@ func (n *Node) ResetTemplateUndefinedSrcref(src *Node) bool {
 // (preserving n's Srcref), with optional single child nameChild and optional JSDocInfo.
 func (n *Node) MutateAttachedToFreshVarInPlace(nameChild *Node, jsdoc *JSDocInfo) {
 	n.DetachChildren()
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	origID := n.node_originalNameID()
 	n.typeOrColor = nil
@@ -6385,8 +6398,8 @@ func (n *Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalN
 // satisfy CanResetInPlace).
 func (n *Node) MutateAttachedToExprResultInPlace(exprChild *Node) *Node {
 	n.DetachChildren()
-	if n.parent != nil {
-		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	if n.parent != 0 {
+		n.parentNode().kindFlags &^= kindFlagNoBlockDecl
 	}
 	origID := exprChild.node_originalNameID()
 	if origID == 0 {
