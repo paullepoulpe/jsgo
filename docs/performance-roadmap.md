@@ -1177,8 +1177,8 @@ All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Roun
 Slabs, arenas, pools and cross-pass caches from the earlier rounds were the
 main source of excess heap: removing them (plus fixing several retention
 leaks and shrinking the type structs) cut the peak live heap by 34–62 % on
-all 11 benchmarks, byte-identical with Java, at the cost of more allocation
-(wall time +8–13 % on the large tasks with Go 1.27.3). Details, numbers and
+all 11 benchmarks (peak RSS −26 to −53 %), byte-identical with Java, at the
+cost of more allocation (wall time +9 to +19 % with Go 1.27.3). Details, numbers and
 the round-2 plan: [memory-research/round1-results.md](memory-research/round1-results.md).
 
 ## Smaller open items

@@ -38,16 +38,30 @@ identically at the base commit.
 
 ### Default GOGC: RSS and wall time
 
-_Pending: interleaved default-GOGC runs of base (Go 1.24.7), base rebuilt with Go 1.27.3, and final._
+Mean of 2 interleaved runs on an otherwise idle machine; all outputs MATCH.
+
+| Task | Peak RSS base (Go 1.24.7) | base rebuilt with Go 1.27.3 | final | RSS change | Wall base | Wall final | Wall change |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bundle | 592 MB | 562 MB | 281 MB | **−53 %** | 11.9 s | 13.7 s | +15 % |
+| bundle-advanced-ts | 604 MB | 548 MB | 286 MB | **−53 %** | 18.4 s | 20.4 s | +11 % |
+| typed-full | 949 MB | 905 MB | 531 MB | **−44 %** | 30.2 s | 35.9 s | +19 % |
+| typed-mega | 1,487 MB | 1,413 MB | 862 MB | **−42 %** | 52.7 s | 60.3 s | +15 % |
+| bundle-mega | 1,408 MB | 1,362 MB | 856 MB | **−39 %** | 64.2 s | 73.4 s | +14 % |
+| typed-app | 230 MB | 225 MB | 144 MB | **−37 %** | 3.9 s | 4.3 s | +12 % |
+| checks-only | 424 MB | 412 MB | 314 MB | **−26 %** | 6.6 s | 7.2 s | +9 % |
+
+The Go 1.27.3 toolchain alone (same code) gives −3 to −9 % RSS and −2 to −6 %
+wall.
 
 ### Cost
 
-- Allocation volume rose (typed-full 1.46 → 2.33 GB, objects 4.7 M → 32 M):
+- Allocation volume rose (typed-full 1.38 → 2.33 GB, objects 4.7 M → 32 M):
   slabs, arenas and pools were replaced by plain allocation, as Java does.
-  More but cheaper GC cycles: GC CPU rose, total CPU much less.
-- Wall time: see the table above; on Go 1.24 the same code was +15–20 %, Go
-  1.27's GC/allocator (Green Tea, cheaper small allocations) recovers about
-  half of it.
+  GC CPU roughly tripled (typed-full 1.3 → 4.7 s, bundle-mega 2.2 → 9.7 s)
+  and total CPU rose 21–29 %.
+- Wall time +9 to +19 % (table above). The same code on Go 1.24 was slower
+  still; most of the remaining cost is allocation volume, which is round-2
+  item 1 below. A higher default GOGC is a cheap dial: see below.
 - Code: 49 commits, **net −6,991 lines** (+3,777 / −10,768 over 231 files);
   `sync.Pool` uses 33 → 10.
 
