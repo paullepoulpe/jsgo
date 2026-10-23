@@ -856,7 +856,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 	f.globalScopeCreator = nil
 
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
 	rc := acquireReusableCfg()
 	f.reusableCfg = rc
 	f.scopeCreator = sc
@@ -866,7 +865,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 			f.reusableCfg = nil
 		}
 		if f.globalScopeCreator != nil {
-			f.globalScopeCreator.ReleaseArena()
 			f.globalScopeCreator = nil
 		}
 		f.realGlobalScope = nil
@@ -874,7 +872,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 		f.dummyGlobalScope = nil
 		f.globalRoot = nil
 		f.escapedSet.Clear()
-		sc.ReleaseArena()
 	}()
 
 	const parallelThreshold = 8
@@ -951,7 +948,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 				worker := newFlowSensitiveInlineVariablesWorker(
 					f, f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
 				wsc := NewSyntacticScopeCreator(f.compiler)
-				wsc.EnableArenaPool()
 				wrc := acquireReusableCfg()
 				worker.reusableCfg = wrc
 				worker.scopeCreator = wsc
@@ -960,7 +956,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 					worker.reusableCfg = nil
 					worker.scopeCreator = nil
 					worker.escapedSet.Clear()
-					wsc.ReleaseArena()
 				}()
 
 				for {
@@ -1593,7 +1588,6 @@ func (f *FlowSensitiveInlineVariables) getRealGlobalScope(root *rhino.Node) *Sco
 	if f.globalRoot != nil && root == f.globalRoot {
 		f.globalScopeOnce.Do(func() {
 			gsc := NewSyntacticScopeCreator(f.compiler)
-			gsc.EnableArenaPool()
 			f.globalScopeCreator = gsc
 			f.realGlobalScope = gsc.CreateScopeOfScope(f.globalRoot, nil)
 		})

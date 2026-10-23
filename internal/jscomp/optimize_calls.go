@@ -133,15 +133,11 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 
 	references := NewOptimizeCalls_ReferenceMap()
 	sc := NewSyntacticScopeCreator(o.compiler)
-	sc.EnableArenaPool()
 	releaseEarly := len(o.passes) == 1
 	if releaseEarly {
 		if _, isPFI := o.passes[0].(*PureFunctionIdentifier); !isPFI {
 			releaseEarly = false
 		}
-	}
-	if !releaseEarly {
-		defer sc.ReleaseArena()
 	}
 	cb := NewOptimizeCalls_ReferenceMapBuildingCallback(o, references)
 	scopeRoot := externs.GetParent()
@@ -154,7 +150,6 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	cb.traverseNode(root)
 	if releaseEarly {
 		references.globalScope = nil
-		sc.ReleaseArena()
 	}
 	o.EliminateAccessorsFrom(references)
 

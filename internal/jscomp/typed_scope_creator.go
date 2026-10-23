@@ -22,33 +22,9 @@ import (
 	"iter"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-)
-
-var (
-	tscReservedNamesPool = sync.Pool{
-		New: func() any {
-			return make(map[*rhino.Node][]string, 64)
-		},
-	}
-	tscNonEmptyReturnsPool = sync.Pool{
-		New: func() any {
-			return make(map[*rhino.Node]struct{}, 64)
-		},
-	}
-	tscVarFlagsPool = sync.Pool{
-		New: func() any {
-			return make(map[typedScopeCreator_ScopedNameKey]uint8, 64)
-		},
-	}
-	tscUnresolvedNodesPool = sync.Pool{
-		New: func() any {
-			return make([]*rhino.Node, 0, 128)
-		},
-	}
 )
 
 // TypedScopeCreator creates the symbol table of variables available in the
@@ -87,7 +63,6 @@ type TypedScopeCreator struct {
 	// reserve names before the TypedScope is populated.
 	reservedNamesForScope map[*rhino.Node][]string
 
-	arena      typedScopeArena
 	scopeCount int
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
@@ -439,7 +414,7 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 			}
 		}
 
-		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module, &c.arena)
+		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module)
 	}
 
 	var pooledNormalBuilder *TypedScopeCreator_NormalScopeBuilder
@@ -592,8 +567,6 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 
 	// Gather global information used in typed scope creation.
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
-	scopeCreator.EnableLocalScopeReclamation()
-	defer scopeCreator.ReleaseArena()
 
 	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
 	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
@@ -608,7 +581,6 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 
 	globalVarCap := 48 + analyzer.globalDeclEstimate + c.providedNamesFromCall.Size()
 	s := newGlobalTypedScopeWithCapacity(root, globalVarCap)
-	s.arena = &c.arena
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_ARRAY_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE)
@@ -734,28 +706,11 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	}
 
 	// free up memory. we no longer need this state now that all scopes have been visited
-	if c.reservedNamesForScope != nil && len(c.reservedNamesForScope) <= 524288 {
-		clear(c.reservedNamesForScope)
-		tscReservedNamesPool.Put(c.reservedNamesForScope)
-	}
 	c.reservedNamesForScope = nil
-	c.arena = typedScopeArena{}
 	c.scopeCount = 0
-	if c.functionsWithNonEmptyReturns != nil && len(c.functionsWithNonEmptyReturns) <= 262144 {
-		clear(c.functionsWithNonEmptyReturns)
-		tscNonEmptyReturnsPool.Put(c.functionsWithNonEmptyReturns)
-	}
 	c.functionsWithNonEmptyReturns = nil
-	if c.varFlags != nil && len(c.varFlags) <= 262144 {
-		clear(c.varFlags)
-		tscVarFlagsPool.Put(c.varFlags)
-	}
 	c.varFlags = nil
 	c.weakImports = nil
-	if c.unresolvedNodes != nil && cap(c.unresolvedNodes) <= 262144 {
-		clear(c.unresolvedNodes)
-		tscUnresolvedNodesPool.Put(c.unresolvedNodes[:0])
-	}
 	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = nil
 	c.providedNamesFromCall = nil
@@ -768,30 +723,12 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	if c.reservedNamesForScope != nil {
-		clear(c.reservedNamesForScope)
-	} else {
-		c.reservedNamesForScope = tscReservedNamesPool.Get().(map[*rhino.Node][]string)
-	}
-	c.arena.names = nil
+	c.reservedNamesForScope = make(map[*rhino.Node][]string)
 	c.scopeCount = 0
-	if c.functionsWithNonEmptyReturns != nil {
-		clear(c.functionsWithNonEmptyReturns)
-	} else {
-		c.functionsWithNonEmptyReturns = tscNonEmptyReturnsPool.Get().(map[*rhino.Node]struct{})
-	}
-	if c.varFlags != nil {
-		clear(c.varFlags)
-	} else {
-		c.varFlags = tscVarFlagsPool.Get().(map[typedScopeCreator_ScopedNameKey]uint8)
-	}
+	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
+	c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
 	c.weakImports = nil
-	if c.unresolvedNodes != nil {
-		clear(c.unresolvedNodes)
-		c.unresolvedNodes = c.unresolvedNodes[:0]
-	} else {
-		c.unresolvedNodes = tscUnresolvedNodesPool.Get().([]*rhino.Node)[:0]
-	}
+	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = make(map[*rhino.Node]struct{})
 	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
 	c.normalScopeBuilderPool = nil
@@ -4302,7 +4239,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 			if (h & 3) == 1 {
 				list := a.outer.reservedNamesForScope[root]
 				if list == nil {
-					list = a.outer.arena.allocNames(scope.GetVarCount() + 1)
+					list = make([]string, 0, scope.GetVarCount()+1)
 				}
 				list = append(list, "exports")
 				a.outer.reservedNamesForScope[root] = list
@@ -4315,7 +4252,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 	}
 	list := a.outer.reservedNamesForScope[root]
 	if list == nil {
-		list = a.outer.arena.allocNames(varCount)
+		list = make([]string, 0, varCount)
 	}
 	for _, symbol := range scope.varList {
 		if symbol == nil {

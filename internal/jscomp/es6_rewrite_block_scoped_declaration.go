@@ -81,8 +81,6 @@ func (e *Es6RewriteBlockScopedDeclaration) Process(externs *rhino.Node, root *rh
 	if !e.letConsts.IsEmpty() {
 		if len(e.loopLetConstNames) > 0 {
 			sc := NewSyntacticScopeCreator(e.compiler)
-			sc.EnableArenaPool()
-			defer sc.ReleaseArena()
 			transformer := newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(e)
 			NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
 			transformer.TransformLoopClosure()

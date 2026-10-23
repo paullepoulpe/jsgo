@@ -129,7 +129,6 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	c.usePseudoNames = usePseudoNames
 	c.astFactory = compiler.CreateAstFactory()
 	c.scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
-	c.scopeCreator.EnableArenaPool()
 	return c
 }
 
@@ -195,7 +194,6 @@ func (c *CoalesceVariableNames) reportChange(n *rhino.Node) {
 func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckNotNull(externs)
 	jutil.CheckNotNull(root)
-	defer c.scopeCreator.ReleaseArena()
 
 	if c.usePseudoNames {
 		b := NodeTraversal_Builder{
@@ -245,7 +243,6 @@ func (c *CoalesceVariableNames) Process(externs *rhino.Node, root *rhino.Node) {
 			wc.cfgs = append(wc.cfgs, root)
 			defer func() {
 				wc.releaseReusableCFAs()
-				wc.scopeCreator.ReleaseArena()
 			}()
 			for {
 				idx := int(next.Add(1) - 1)

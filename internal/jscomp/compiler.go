@@ -3021,19 +3021,8 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // ------------------------------------------------------------------------
 
 func (c *Compiler) evictPassArenaCaches() {
-	for i := range cachedRCArenas {
-		if a := cachedRCArenas[i].Swap(nil); a != nil {
-			referenceCollectorArenaPool.Put(a)
-		}
-	}
 	if a := cachedCCAArena.Swap(nil); a != nil {
 		crossChunkArenaPool.Put(a)
-	}
-	for i := range cachedScopeArenas {
-		if a := cachedScopeArenas[i].Swap(nil); a != nil {
-			a.trimSmall()
-			scopeArenaPool.Put(a)
-		}
 	}
 }
 

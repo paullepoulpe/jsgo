@@ -39,6 +39,7 @@ import (
 type TypedVar struct {
 	AbstractVarBase[*TypedScope, *TypedVar]
 
+	name  string
 	type_ rhino.JSType
 }
 
@@ -61,8 +62,8 @@ var typedVar_NAME_NODE_TYPES = jutil.NewEnumSet(
 // Java: TypedVar(boolean, String, Node, JSType, TypedScope, int, CompilerInput)
 func NewTypedVar(inferred bool, name string, nameNode *rhino.Node, type_ rhino.JSType,
 	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
-	v := &TypedVar{}
-	v.InitAbstractVarBase(name, nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
+	v := &TypedVar{name: name}
+	v.initAbstractVarBase(nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
 	if nameNode != nil {
 		jutil.CheckArgumentMsg1(
 			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
@@ -74,6 +75,11 @@ func NewTypedVar(inferred bool, name string, nameNode *rhino.Node, type_ rhino.J
 		v.indexAndFlags |= varFlagTypeInferred
 	}
 	return v
+}
+
+// Java: AbstractVar.getName()
+func (v *TypedVar) GetName() string {
+	return v.name
 }
 
 // Java: AbstractVar.getSymbol()

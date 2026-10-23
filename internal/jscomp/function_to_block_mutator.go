@@ -29,7 +29,6 @@ type FunctionToBlockMutator struct {
 	compiler                 AbstractCompiler
 	safeNameIdSupplier       func() string
 	functionArgumentInjector *FunctionArgumentInjector
-	localArena               scopeArena
 	localScopeCreator        SyntacticScopeCreator
 	allowMoveCallArgs        bool
 	currentCallNode          *rhino.Node
@@ -360,10 +359,8 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 		m.localScopeCreator = SyntacticScopeCreator{
 			compiler:             m.compiler,
 			redeclarationHandler: SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER,
-			arena:                &m.localArena,
 		}
 	} else {
-		m.localScopeCreator.arena = &m.localArena
 		m.localScopeCreator.lastInputId = nil
 		m.localScopeCreator.lastInput = nil
 	}
@@ -375,7 +372,6 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 	t := acquireNodeTraversal(&b)
 	t.TraverseScopeRoot(fnNode)
 	releaseNodeTraversal(t)
-	m.resetLocalArena()
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
@@ -394,79 +390,6 @@ func hasLabelNode(n *rhino.Node) bool {
 		}
 	}
 	return false
-}
-
-func (m *FunctionToBlockMutator) resetLocalArena() {
-	a := &m.localArena
-	if gs := a.globalScope; gs != nil {
-		a.globalScope = nil
-		if cap(gs.varList) <= 32768 {
-			clear(gs.varList)
-			a.globalVarList = gs.varList[:0]
-		} else {
-			a.globalVarList = nil
-		}
-		if len(gs.varHash) <= 65536 {
-			clear(gs.varHash)
-			a.globalVarHash = gs.varHash
-		} else {
-			a.globalVarHash = nil
-		}
-	}
-	for i := 0; i < a.scopeChunkIdx; i++ {
-		if i == a.scopeChunkIdx-1 {
-			clear(a.scopeChunks[i][:a.scopeUsed])
-		} else {
-			clear(a.scopeChunks[i])
-		}
-	}
-	a.scopeChunk = nil
-	a.scopeUsed = 0
-	a.scopeChunkIdx = 0
-
-	for i := 0; i < a.varChunkIdx; i++ {
-		if i == a.varChunkIdx-1 {
-			clear(a.varChunks[i][:a.varUsed])
-		} else {
-			clear(a.varChunks[i])
-		}
-	}
-	a.varChunk = nil
-	a.varUsed = 0
-	a.varChunkIdx = 0
-
-	for i := 0; i < a.slotChunkIdx; i++ {
-		if i == a.slotChunkIdx-1 {
-			clear(a.slotChunks[i][:a.slotUsed])
-		} else {
-			clear(a.slotChunks[i])
-		}
-	}
-	a.slotChunk = nil
-	a.slotUsed = 0
-	a.slotChunkIdx = 0
-
-	for i := 0; i < a.hashChunkIdx; i++ {
-		if i == a.hashChunkIdx-1 {
-			clear(a.hashChunks[i][:a.hashUsed])
-		} else {
-			clear(a.hashChunks[i])
-		}
-	}
-	a.hashChunk = nil
-	a.hashUsed = 0
-	a.hashChunkIdx = 0
-
-	for i := 0; i < a.implicitChunkIdx; i++ {
-		if i == a.implicitChunkIdx-1 {
-			clear(a.implicitChunks[i][:a.implicitUsed])
-		} else {
-			clear(a.implicitChunks[i])
-		}
-	}
-	a.implicitChunk = nil
-	a.implicitUsed = 0
-	a.implicitChunkIdx = 0
 }
 
 // FunctionToBlockMutator_LabelNameSupplier is a Supplier<String>.

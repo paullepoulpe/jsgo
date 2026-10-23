@@ -34,6 +34,8 @@ import (
 // use the jutil.Object* collections.
 type Var struct {
 	AbstractVarBase[*Scope, *Var]
+
+	nameID uint32
 }
 
 const (
@@ -49,38 +51,19 @@ func NewVar(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) *Var {
-	v := &Var{}
-	initVar(v, name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
-	return v
+	return newVarWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 }
 
-func initVar(
-	v *Var,
-	name string,
-	nameNode *rhino.Node,
-	scope *Scope,
-	index int,
-	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
-	v.InitAbstractVarBase(name, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
-	if nameNode != nil {
-		switch nameNode.GetToken() {
-		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
-		default:
-			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
-		}
-	}
-}
-
-func initVarWithID(
-	v *Var,
+// newVarWithID is NewVar for an interned name.
+func newVarWithID(
 	nameID uint32,
 	nameNode *rhino.Node,
 	scope *Scope,
 	index int,
 	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
-	v.InitAbstractVarBaseWithID(nameID, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	implicitGoogNamespaceDefinition *rhino.Node) *Var {
+	v := &Var{nameID: nameID}
+	v.initAbstractVarBase(nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 	if nameNode != nil {
 		switch nameNode.GetToken() {
 		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
@@ -88,6 +71,20 @@ func initVarWithID(
 			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
 		}
 	}
+	return v
+}
+
+// Java: AbstractVar.getName()
+func (v *Var) GetName() string {
+	return rhino.RhinoStringPool_StringFromID(v.nameID)
+}
+
+// Java: ScopedName.equals(Object)
+func (v *Var) Equals(other any) bool {
+	if o, ok := other.(*Var); ok {
+		return o != nil && v.nameID == o.nameID && scopedName_nodeEquals(v.GetScopeRoot(), o.GetScopeRoot())
+	}
+	return v.AbstractVarBase.Equals(other)
 }
 
 // Java: AbstractVar.getSymbol()

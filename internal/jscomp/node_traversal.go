@@ -1013,11 +1013,10 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	}
 	t.scopeCreator = builder.scopeCreator
 	if builder.scopeCreator == nil {
-		t.defaultScopeCreator.compiler = builder.compiler
-		t.defaultScopeCreator.redeclarationHandler = SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER
-		t.defaultScopeCreator.treatProvidesAsRedeclarations = false
-		t.defaultScopeCreator.lastInputId = nil
-		t.defaultScopeCreator.lastInput = nil
+		t.defaultScopeCreator = SyntacticScopeCreator{
+			compiler:             builder.compiler,
+			redeclarationHandler: SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER,
+		}
 		t.syntacticScopeCreator = &t.defaultScopeCreator
 	} else if ssc, ok := builder.scopeCreator.(*SyntacticScopeCreator); ok {
 		t.syntacticScopeCreator = ssc
@@ -1980,9 +1979,6 @@ func (t *NodeTraversal) PopScopeWithQuietly(quietly bool) {
 	}
 	t.scopes[len(t.scopes)-1] = scopeStackEntry{}
 	t.scopes = t.scopes[:len(t.scopes)-1]
-	if len(t.scopes) == 1 && t.syntacticScopeCreator != nil && t.syntacticScopeCreator.reclaimLocalScopes {
-		t.syntacticScopeCreator.ResetLocalArena()
-	}
 }
 
 // GetNodeRootFromScopeObj: scopes are stored in a list of objects. These

@@ -27,98 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-type typedScopeArena struct {
-	scopes   []TypedScope
-	vars     []TypedVar
-	varSlots []jutil.LhmSlot[string, *TypedVar]
-	names    []string
-}
-
-func (a *typedScopeArena) allocScope() *TypedScope {
-	if len(a.scopes) == cap(a.scopes) {
-		newCap := cap(a.scopes) * 2
-		if newCap < 64 {
-			newCap = 64
-		} else if newCap > 1024 {
-			newCap = 1024
-		}
-		a.scopes = make([]TypedScope, 0, newCap)
-	}
-	idx := len(a.scopes)
-	a.scopes = a.scopes[:idx+1]
-	return &a.scopes[idx]
-}
-
-func (a *typedScopeArena) allocVar(
-	inferred bool,
-	name string,
-	nameNode *rhino.Node,
-	type_ rhino.JSType,
-	scope *TypedScope,
-	index int,
-	input *CompilerInput) *TypedVar {
-	if len(a.vars) == cap(a.vars) {
-		newCap := cap(a.vars) * 2
-		if newCap < 128 {
-			newCap = 128
-		} else if newCap > 2048 {
-			newCap = 2048
-		}
-		a.vars = make([]TypedVar, 0, newCap)
-	}
-	idx := len(a.vars)
-	a.vars = a.vars[:idx+1]
-	v := &a.vars[idx]
-	v.InitAbstractVarBase(name, nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
-	if nameNode != nil {
-		jutil.CheckArgumentMsg1(
-			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
-			"Invalid name node token %s",
-			nameNode.GetToken())
-	}
-	v.type_ = type_
-	if inferred {
-		v.indexAndFlags |= varFlagTypeInferred
-	}
-	return v
-}
-
-func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar] {
-	if n > 256 {
-		return make([]jutil.LhmSlot[string, *TypedVar], n)
-	}
-	if len(a.varSlots)+n > cap(a.varSlots) {
-		newCap := cap(a.varSlots) * 2
-		if newCap < 256 {
-			newCap = 256
-		} else if newCap > 4096 {
-			newCap = 4096
-		}
-		a.varSlots = make([]jutil.LhmSlot[string, *TypedVar], 0, newCap)
-	}
-	start := len(a.varSlots)
-	a.varSlots = a.varSlots[:start+n]
-	return a.varSlots[start : start+n : start+n]
-}
-
-func (a *typedScopeArena) allocNames(n int) []string {
-	if n > 256 {
-		return make([]string, 0, n)
-	}
-	if len(a.names)+n > cap(a.names) {
-		newCap := cap(a.names) * 2
-		if newCap < 256 {
-			newCap = 256
-		} else if newCap > 4096 {
-			newCap = 4096
-		}
-		a.names = make([]string, 0, newCap)
-	}
-	start := len(a.names)
-	a.names = a.names[:start+n]
-	return a.names[start : start : start+n]
-}
-
 // TypedScope contains information about variables and their types. Scopes
 // can be nested; a scope points back to its parent scope.
 //
@@ -146,7 +54,6 @@ type TypedScope struct {
 
 	parent *TypedScope
 	module *Module
-	arena  *typedScopeArena
 
 	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
 	// elements from an empty set)
@@ -154,11 +61,16 @@ type TypedScope struct {
 	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
 	reservedNames []string
 
-	// Go-only: performance — held by value so declaring the first variable
-	// in a scope does not allocate a separate LinkedHashMap header; placed
-	// before varBloom so trailing scalar fields lie past GC ptrdata.
-	vars jutil.LinkedHashMap[string, *TypedVar]
-
+	// Go-only: performance — the Java LinkedHashMap<String, TypedVar> is vars,
+	// in declaration order (a var is keyed by its name), plus varIndex once
+	// there are more than typedScopeSmallVars vars, plus varBloom, a filter
+	// that lets lookups skip scopes without the name. varIndex is an
+	// open-addressed table, at most half full, of 1-based positions in vars
+	// tagged with the top bits of the name's hash: 8 pointer-free bytes per
+	// var, where a Go map keyed by the name takes about 40 that the
+	// collector scans.
+	vars     []*TypedVar
+	varIndex []uint32
 	varBloom uint64
 
 	// Scope.java contains an arguments field.
@@ -181,7 +93,7 @@ func (s *TypedScope) HashCode() int32 {
 
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
-	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil, nil)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
 // NewTypedScopeWithReservedNames creates a new global or local TypedScope.
@@ -197,30 +109,16 @@ func NewTypedScopeWithReservedNames(
 	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
 		copied = reservedNames.ToSlice()
 	}
-	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module, nil)
+	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module)
 }
 
 func newTypedScopeOwnedReservedNames(
-	parent *TypedScope, rootNode *rhino.Node, reservedNames []string, module *Module, arena *typedScopeArena) *TypedScope {
-	var s *TypedScope
-	if arena != nil {
-		s = arena.allocScope()
-	} else {
-		s = &TypedScope{}
-	}
+	parent *TypedScope, rootNode *rhino.Node, reservedNames []string, module *Module) *TypedScope {
+	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
-	if arena != nil {
-		slotCap := len(reservedNames)
-		if module != nil {
-			slotCap += 4
-		}
-		if slotCap > 0 {
-			s.vars.InitWithBuffer(arena.allocVarSlots(slotCap))
-		} else {
-			s.vars.InitWithBuffer(nil)
-		}
-	} else {
-		s.vars.InitWithBuffer(nil)
+	// Go-only: performance — the reserved names will all be declared.
+	if len(reservedNames) > 0 {
+		s.vars = make([]*TypedVar, 0, len(reservedNames))
 	}
 	s.CheckChildScope(parent)
 	s.parent = parent
@@ -230,7 +128,6 @@ func newTypedScopeOwnedReservedNames(
 		s.reservedNames = reservedNames
 	}
 	s.module = module
-	s.arena = arena
 	return s
 }
 
@@ -244,7 +141,6 @@ func newTypedScopeOwnedReservedNames(
 func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
-	s.vars.InitWithBuffer(nil)
 	s.CheckRootScope()
 	s.parent = nil
 	s.depth = 0
@@ -258,9 +154,7 @@ func newGlobalTypedScopeWithCapacity(rootNode *rhino.Node, varCap int) *TypedSco
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	if varCap > 0 {
-		s.vars = *jutil.NewLinkedHashMapWithCapacity[string, *TypedVar](varCap)
-	} else {
-		s.vars.InitWithBuffer(nil)
+		s.vars = make([]*TypedVar, 0, varCap)
 	}
 	s.CheckRootScope()
 	s.parent = nil
@@ -302,7 +196,6 @@ func (s *TypedScope) ValidateCompletelyBuilt() {
 	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
 	// singleton)
 	s.reservedNames = nil
-	s.arena = nil
 }
 
 // IsBottom reports whether this is the bottom of the lattice.
@@ -399,12 +292,7 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 			}
 		}
 	}
-	var var_ *TypedVar
-	if s.arena != nil {
-		var_ = s.arena.allocVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
-	} else {
-		var_ = NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
-	}
+	var_ := NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
 	s.DeclareInternal(name, var_)
 	return var_, wasReserved
 }
@@ -412,7 +300,7 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 // Java: AbstractScope.undeclare(V)
 func (s *TypedScope) Undeclare(var_ *TypedVar) {
 	jutil.CheckState(var_.getScopeS() == s)
-	current := s.vars.Get(var_.GetName())
+	current := s.getOwnTypedSlot(var_.GetName())
 	if current == nil {
 		panic(jutil.NewNullPointerException())
 	}
@@ -425,7 +313,13 @@ func (s *TypedScope) UndeclareInteral(var_ *TypedVar) {
 	if !s.varsInitialized {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	s.vars.Remove(var_.GetName())
+	name := var_.GetName()
+	if i := s.findVar(name, scopeNameHash(name)); i >= 0 {
+		s.vars = slices.Delete(s.vars, i, i+1)
+		if s.varIndex != nil {
+			s.rebuildVarIndex()
+		}
+	}
 }
 
 // Java: AbstractScope.declareInternal(String, V)
@@ -433,40 +327,121 @@ func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
 	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
-	s.varBloom |= scopeBloomMask(name)
+	jutil.CheckState(name == var_.GetName())
+	h := scopeNameHash(name)
+	s.varBloom |= scopeBloomFromHash(h)
 	s.varsInitialized = true
-	s.vars.Put(name, var_)
+	if i := s.findVar(name, h); i >= 0 {
+		s.vars[i] = var_
+		return
+	}
+	s.vars = append(s.vars, var_)
+	if len(s.vars)*2 <= len(s.varIndex) {
+		s.indexVar(len(s.vars)-1, h)
+	} else if len(s.vars) > typedScopeSmallVars {
+		s.rebuildVarIndex()
+	}
+}
+
+const (
+	typedScopeSmallVars    = 8
+	typedVarIndexTagMask   = 0xFF000000
+	typedVarIndexPosMask   = 0x00FFFFFF
+	typedVarIndexMinLength = 32
+)
+
+// findVar returns the position in vars of the var named name, whose
+// scopeNameHash is h, or -1.
+func (s *TypedScope) findVar(name string, h uint32) int {
+	if s.varIndex == nil {
+		for i, v := range s.vars {
+			if v.name == name {
+				return i
+			}
+		}
+		return -1
+	}
+	mask := uint32(len(s.varIndex) - 1)
+	for slot := h & mask; ; slot = (slot + 1) & mask {
+		e := s.varIndex[slot]
+		if e == 0 {
+			return -1
+		}
+		if e&typedVarIndexTagMask == h&typedVarIndexTagMask {
+			if i := int(e&typedVarIndexPosMask) - 1; s.vars[i].name == name {
+				return i
+			}
+		}
+	}
+}
+
+// indexVar adds vars[i], whose name has scopeNameHash h, to varIndex.
+func (s *TypedScope) indexVar(i int, h uint32) {
+	mask := uint32(len(s.varIndex) - 1)
+	slot := h & mask
+	for s.varIndex[slot] != 0 {
+		slot = (slot + 1) & mask
+	}
+	s.varIndex[slot] = h&typedVarIndexTagMask | uint32(i+1)
+}
+
+func (s *TypedScope) rebuildVarIndex() {
+	if len(s.vars) <= typedScopeSmallVars {
+		s.varIndex = nil
+		return
+	}
+	n := typedVarIndexMinLength
+	for n < 4*len(s.vars) {
+		n *= 2
+	}
+	s.varIndex = make([]uint32, n)
+	for i, v := range s.vars {
+		s.indexVar(i, scopeNameHash(v.name))
+	}
 }
 
 // Java: AbstractScope.clearVarsInternal()
 func (s *TypedScope) ClearVarsInternal() {
 	s.varBloom = 0
-	if !s.vars.IsEmpty() {
-		s.vars.Clear()
-	}
+	clear(s.vars)
+	s.vars = s.vars[:0]
+	s.varIndex = nil
 }
 
 // Java: AbstractScope.getVarIterable()
 func (s *TypedScope) GetVarIterable() iter.Seq[*TypedVar] {
-	return s.vars.Values()
+	return func(yield func(*TypedVar) bool) {
+		for i := 0; i < len(s.vars); i++ {
+			if !yield(s.vars[i]) {
+				return
+			}
+		}
+	}
 }
 
 // Java: AbstractScope.getAllSymbols()
 func (s *TypedScope) GetAllSymbols() iter.Seq[*TypedVar] {
-	return s.vars.Values()
+	return s.GetVarIterable()
 }
 
 // Java: AbstractScope.getVarCount()
 func (s *TypedScope) GetVarCount() int {
-	return s.vars.Size()
+	return len(s.vars)
 }
 
 func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
-	bloom := scopeBloomMask(name)
-	if (s.varBloom&bloom) != bloom || s.vars.IsEmpty() {
+	return s.ownVar(name, scopeNameHash(name))
+}
+
+// ownVar is getOwnTypedSlot for a name whose scopeNameHash is h.
+func (s *TypedScope) ownVar(name string, h uint32) *TypedVar {
+	if bloom := scopeBloomFromHash(h); s.varBloom&bloom != bloom {
 		return nil
 	}
-	return s.vars.Get(name)
+	if i := s.findVar(name, h); i >= 0 {
+		return s.vars[i]
+	}
+	return nil
 }
 
 func (s *TypedScope) getOwnSlotV(name string) *TypedVar {
@@ -506,9 +481,6 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 		// Instead of using the implicit 'exports' var, we want to pretend that the var is actually
 		// declared.
 		return nil
-	}
-	if s.arena != nil {
-		return s.arena.allocVar(false, var_.name(), nil, s.GetImplicitVarType(var_), s, -1, nil)
 	}
 	return NewTypedVar(false, var_.name(), nil, s.GetImplicitVarType(var_), s, -1, nil)
 }
@@ -576,7 +548,7 @@ func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JS
 // Java: TypedScope.getDeclarativelyUnboundVarsWithoutTypes()
 func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() iter.Seq[*TypedVar] {
 	return func(yield func(*TypedVar) bool) {
-		for v := range s.vars.Values() {
+		for v := range s.GetVarIterable() {
 			if s.IsDeclarativelyUnboundVarWithoutType(v) && !yield(v) {
 				return
 			}
@@ -591,6 +563,23 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 		// TODO(bradfordcsmith): update this for destructuring
 		var_.GetParentNode().IsVar() && // NOTE: explicitly excludes let/const
 		!var_.IsExtern()
+}
+
+// lookupRootVar is AbstractScope.getVar, for a name without dots.
+func (s *TypedScope) lookupRootVar(name string) *TypedVar {
+	h := scopeNameHash(name)
+	implicit := AbstractScope_ImplicitVar_Of(name)
+	for cur := s; cur != nil; cur = cur.parent {
+		if v := cur.ownVar(name, h); v != nil {
+			return v
+		}
+		if implicit != nil {
+			if v := cur.GetOwnImplicitSlot(implicit); v != nil {
+				return v
+			}
+		}
+	}
+	return nil
 }
 
 // GetVar returns the slot for name, considering shadowing of qualified
@@ -611,32 +600,6 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 // function scope, AbstractScope::getVar returns "a.b". This method returns
 // null because the global "a" is shadowed.
 //
-func (s *TypedScope) lookupRootVar(name string) *TypedVar {
-	bloom := scopeBloomMask(name)
-	implicit := AbstractScope_ImplicitVar_Of(name)
-	if implicit == nil {
-		for cur := s; cur != nil; cur = cur.parent {
-			if (cur.varBloom&bloom) == bloom && !cur.vars.IsEmpty() {
-				if v := cur.vars.Get(name); v != nil {
-					return v
-				}
-			}
-		}
-		return nil
-	}
-	for cur := s; cur != nil; cur = cur.parent {
-		if (cur.varBloom&bloom) == bloom && !cur.vars.IsEmpty() {
-			if v := cur.vars.Get(name); v != nil {
-				return v
-			}
-		}
-		if v := cur.GetOwnImplicitSlot(implicit); v != nil {
-			return v
-		}
-	}
-	return nil
-}
-
 // Java: TypedScope.getVar(String)
 func (s *TypedScope) GetVar(name string) *TypedVar {
 	dot := strings.IndexByte(name, '.')

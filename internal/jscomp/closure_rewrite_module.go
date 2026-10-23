@@ -965,10 +965,8 @@ func (m *ClosureRewriteModule) Process(externs *rhino.Node, root *rhino.Node) {
 	// scriptDescriptions for later use in ScriptUpdater runs.
 
 	sc := NewSyntacticScopeCreator(m.compiler)
-	sc.EnableArenaPool()
 	defer func() {
 		m.globalScope = nil
-		sc.ReleaseArena()
 	}()
 	unwrap := ClosureRewriteModule_UnwrapGoogLoadModule{outer: m}
 	preprocessor := ClosureRewriteModule_ScriptPreprocessor{outer: m}
