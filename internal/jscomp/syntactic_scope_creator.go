@@ -749,7 +749,8 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
 		}
 		var_ := s.creator.vars.New()
-		var_.InitAbstractVarBaseWithID(id, n, sc, len(sc.varList), input, nil)
+		var_.nameID = id
+		var_.initAbstractVarBase(n, sc, len(sc.varList), input, nil)
 		sc.addVar(var_)
 	}
 }

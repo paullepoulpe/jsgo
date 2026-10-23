@@ -34,6 +34,8 @@ import (
 // use the jutil.Object* collections.
 type Var struct {
 	AbstractVarBase[*Scope, *Var]
+
+	nameID uint32
 }
 
 const (
@@ -60,8 +62,8 @@ func newVarWithID(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) *Var {
-	v := &Var{}
-	v.InitAbstractVarBaseWithID(nameID, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	v := &Var{nameID: nameID}
+	v.initAbstractVarBase(nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 	if nameNode != nil {
 		switch nameNode.GetToken() {
 		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
@@ -70,6 +72,19 @@ func newVarWithID(
 		}
 	}
 	return v
+}
+
+// Java: AbstractVar.getName()
+func (v *Var) GetName() string {
+	return rhino.RhinoStringPool_StringFromID(v.nameID)
+}
+
+// Java: ScopedName.equals(Object)
+func (v *Var) Equals(other any) bool {
+	if o, ok := other.(*Var); ok {
+		return o != nil && v.nameID == o.nameID && scopedName_nodeEquals(v.GetScopeRoot(), o.GetScopeRoot())
+	}
+	return v.AbstractVarBase.Equals(other)
 }
 
 // Java: AbstractVar.getSymbol()

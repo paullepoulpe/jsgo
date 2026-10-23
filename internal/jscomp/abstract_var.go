@@ -19,9 +19,11 @@
 package jscomp
 
 import (
+	"sync/atomic"
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"sync/atomic"
 )
 
 // AbstractVar is used by Scope to store information about variables.
@@ -150,7 +152,11 @@ const (
 )
 
 // AbstractVarBase holds the fields and the implementations of AbstractVar;
-// Var and TypedVar embed it and call InitAbstractVarBase.
+// Var and TypedVar embed it at offset 0 and call initAbstractVarBase.
+//
+// Go-only: performance — the name is not here: a Var holds it as an interned
+// string ID (scopes look vars up by ID), a TypedVar as a string (most typed
+// names are qualified names that nothing else interns).
 type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
 	nameNode *rhino.Node
 
@@ -159,8 +165,6 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 
 	scope S
 
-	nameID uint32
-
 	// Lower 24 bits: uint32(index + 1); bits 24..25: implicit goog namespace
 	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..28: TypedVar flags.
 	indexAndFlags uint32
@@ -168,36 +172,35 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 	nameHash int32
 }
 
-// InitAbstractVarBase is the AbstractVar constructor.
-//
-// name is the name of this var. Does not have to be semantically valid JS
-// identifier. nameNode is the node representing this variables declaration
-// or null. scope is the scope containing this var. index is the index at
-// which the var is declared in the scope. Must be either positive, or -1 for
-// implicit variables. input is the compiler input containing the given
-// nameNode, if any. May be null to allow for declaring the native types in
-// the type system.
-//
-// Java: AbstractVar(String, Node, S, int, CompilerInput, Node)
-func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
-	name string,
-	nameNode *rhino.Node,
-	scope S,
-	index int,
-	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
-	b.InitAbstractVarBaseWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+var (
+	_ [0]struct{} = [unsafe.Offsetof(Var{}.AbstractVarBase)]struct{}{}
+	_ [0]struct{} = [unsafe.Offsetof(TypedVar{}.AbstractVarBase)]struct{}{}
+)
+
+// self is this var as a V.
+func (b *AbstractVarBase[S, V]) self() V {
+	p := unsafe.Pointer(b)
+	return *(*V)(unsafe.Pointer(&p))
 }
 
-func (b *AbstractVarBase[S, V]) InitAbstractVarBaseWithID(
-	nameID uint32,
+// initAbstractVarBase is the AbstractVar constructor, but for the name,
+// which Var and TypedVar set.
+//
+// nameNode is the node representing this variables declaration or null.
+// scope is the scope containing this var. index is the index at which the
+// var is declared in the scope. Must be either positive, or -1 for implicit
+// variables. input is the compiler input containing the given nameNode, if
+// any. May be null to allow for declaring the native types in the type
+// system.
+//
+// Java: AbstractVar(String, Node, S, int, CompilerInput, Node)
+func (b *AbstractVarBase[S, V]) initAbstractVarBase(
 	nameNode *rhino.Node,
 	scope S,
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) {
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
-	b.nameID = nameID
 	flags := uint32(index+1) & varIndexMask
 	if implicitGoogNamespaceDefinition != nil {
 		b.nameNode = nil
@@ -210,16 +213,6 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBaseWithID(
 	b.indexAndFlags = flags
 	b.nameHash = 0
 	b.input = input
-}
-
-// Java: AbstractVar.getName()
-func (b *AbstractVarBase[S, V]) GetName() string {
-	return rhino.RhinoStringPool_StringFromID(b.nameID)
-}
-
-// GetNameID returns the 32-bit interned string ID of this variable's name.
-func (b *AbstractVarBase[S, V]) GetNameID() uint32 {
-	return b.nameID
 }
 
 // Java: AbstractVar.getScopeRoot()
@@ -245,7 +238,7 @@ func (b *AbstractVarBase[S, V]) computeHashCode() int32 {
 	if root == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	h := 31*(31+jutil.StringHashCode(b.GetName())) + jutil.IdentityHashCodeOfPointer(root)
+	h := 31*(31+jutil.StringHashCode(b.self().GetName())) + jutil.IdentityHashCodeOfPointer(root)
 	atomic.StoreInt32(&b.nameHash, h)
 	return h
 }
@@ -425,17 +418,17 @@ func (b *AbstractVarBase[S, V]) IsImport() bool {
 
 // Java: AbstractVar.isArguments()
 func (b *AbstractVarBase[S, V]) IsArguments() bool {
-	return b.nameID == implicitArgumentsID && b.scope.IsFunctionScope()
+	return b.self().GetName() == Var_ARGUMENTS && b.scope.IsFunctionScope()
 }
 
 // Java: AbstractVar.isGoogModuleExports()
 func (b *AbstractVarBase[S, V]) IsGoogModuleExports() bool {
-	return b.nameID == implicitExportsID && b.scope.IsModuleScope() && b.IsImplicit()
+	return b.self().GetName() == Var_EXPORTS && b.scope.IsModuleScope() && b.IsImplicit()
 }
 
 // Java: AbstractVar.isThis()
 func (b *AbstractVarBase[S, V]) IsThis() bool {
-	return b.nameID == implicitThisID && b.scope.IsFunctionScope()
+	return b.self().GetName() == "this" && b.scope.IsFunctionScope()
 }
 
 // Java: AbstractVar.isImplicit()
@@ -443,7 +436,7 @@ func (b *AbstractVarBase[S, V]) IsImplicit() bool {
 	if b.IsImplicitGoogNamespace() {
 		return true
 	}
-	var_ := AbstractScope_ImplicitVar_OfID(b.nameID)
+	var_ := AbstractScope_ImplicitVar_Of(b.self().GetName())
 	return var_ != nil && var_.IsMadeByScope(abstractScope_of(b.scope))
 }
 
@@ -474,13 +467,8 @@ func (b *AbstractVarBase[S, V]) DeclarationType() *rhino.Token {
 	}
 	jutil.CheckStateMsg2(
 		b.IsImplicit(),
-		"The nameNode for %s must be a descendant of one of: %s", b, abstractVar_DECLARATION_TYPES)
+		"The nameNode for %s must be a descendant of one of: %s", b.self(), abstractVar_DECLARATION_TYPES)
 	return nil
-}
-
-// Java: Var.toString()
-func (b *AbstractVarBase[S, V]) String() string {
-	return "Var " + b.GetName() + " @ " + jutil.ToJavaString(b.GetNameNode())
 }
 
 // IsImplicitGoogNamespace reports whether this name comes from a
@@ -498,7 +486,7 @@ func (b *AbstractVarBase[S, V]) IsImplicitGoogNamespace() bool {
 //
 // Java: AbstractVar.addImplicitGoogNamespaceDefinition(Node)
 func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition *rhino.Node) {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b)
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self())
 	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
 	b.indexAndFlags = (b.indexAndFlags &^ varImplicitStrengthMask) | ((uint32(strength) + 1) << varImplicitStrengthShift)
@@ -509,7 +497,7 @@ func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition *r
 //
 // Java: AbstractVar.getImplicitGoogNamespaceStrength()
 func (b *AbstractVarBase[S, V]) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b)
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self())
 	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 }
 
@@ -534,21 +522,13 @@ func abstractVar_strongerOf(left, right rhino.StaticSourceFile_SourceKind) rhino
 	return rhino.StaticSourceFile_SourceKind_WEAK
 }
 
-// Equals is ScopedName's final equality applied to Var and TypedVar. They
-// already have a concrete self pointer; embedding a second interface-valued
-// self just to dispatch these final methods costs 16 bytes per variable.
-// Go-only: language-adapter — preserve name/root equality without that header.
+// Equals is ScopedName's final equality.
+//
 // Java: ScopedName.equals(Object)
 func (b *AbstractVarBase[S, V]) Equals(other any) bool {
-	if ov, ok := other.(*Var); ok {
-		return ov != nil && b.nameID == ov.nameID && scopedName_nodeEquals(b.GetScopeRoot(), ov.GetScopeRoot())
-	}
-	if otv, ok := other.(*TypedVar); ok {
-		return otv != nil && b.nameID == otv.nameID && scopedName_nodeEquals(b.GetScopeRoot(), otv.GetScopeRoot())
-	}
 	scoped, ok := other.(ScopedName)
 	if !ok || jutil.IsNil(scoped) {
 		return false
 	}
-	return b.GetName() == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
+	return b.self().GetName() == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
 }
