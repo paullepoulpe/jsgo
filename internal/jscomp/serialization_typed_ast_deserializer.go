@@ -497,7 +497,8 @@ func typedAstDeserializer_addInputSourceMap(
 // Java: TypedAstDeserializer.createStubWeakScriptNode(SourceFile)
 func typedAstDeserializer_createStubWeakScriptNode(file *SourceFile) func() *rhino.Node {
 	return func() *rhino.Node {
-		stubScript := rhino.IR_Script().SetStaticSourceFile(file)
+		stubScript := rhino.IR_Script()
+		stubScript.SetStaticSourceFileFrom(file.getOrCreateSourceInfoTemplate())
 		stubScript.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
 		return stubScript
 	}
@@ -1034,7 +1035,7 @@ func typedAstDeserializer_streamLargeShard(
 		if n == 0 {
 			return nil
 		}
-		if n > 16384 {
+		if n > 32768 {
 			return bytes.Clone(src)
 		}
 		if len(scriptSlab) < n {

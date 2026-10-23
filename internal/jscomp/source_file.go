@@ -73,9 +73,29 @@ type SourceFile struct {
 	// Go-only: language-adapter — synchronizes lazy code loading in
 	// getCode and getCodeReader.
 	mu sync.Mutex
+
+	sourceInfoTemplate atomic.Pointer[rhino.Node]
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
+var _ rhino.StaticSourceFileFast = (*SourceFile)(nil)
+
+func (f *SourceFile) GetNamePtr() *string { return &f.fileName }
+
+func (f *SourceFile) getOrCreateSourceInfoTemplate() *rhino.Node {
+	if f == nil {
+		return rhino.NewNode(rhino.Token_SCRIPT)
+	}
+	if tmpl := f.sourceInfoTemplate.Load(); tmpl != nil {
+		return tmpl
+	}
+	tmpl := rhino.NewNode(rhino.Token_SCRIPT)
+	tmpl.SetStaticSourceFile(f)
+	if f.sourceInfoTemplate.CompareAndSwap(nil, tmpl) {
+		return tmpl
+	}
+	return f.sourceInfoTemplate.Load()
+}
 
 const sourceFile_UTF8_BOM = "\uFEFF"
 

@@ -35,7 +35,8 @@ type NodeIterators struct{}
 type NodeIterators_FunctionlessLocalScope struct {
 	// Go-only: language-adapter — the ArrayDeque, first element at index 0
 	// and last element at the end of the slice.
-	ancestors []*rhino.Node
+	ancestors    []*rhino.Node
+	ancestorsBuf [16]*rhino.Node
 }
 
 // NewNodeIterators_FunctionlessLocalScope: ancestors are the ancestors of
@@ -46,6 +47,7 @@ type NodeIterators_FunctionlessLocalScope struct {
 func NewNodeIterators_FunctionlessLocalScope(ancestors ...*rhino.Node) *NodeIterators_FunctionlessLocalScope {
 	jutil.CheckArgument(len(ancestors) > 0)
 	s := &NodeIterators_FunctionlessLocalScope{}
+	s.ancestors = s.ancestorsBuf[:0]
 
 	for _, n := range ancestors {
 		if n.IsFunction() {
@@ -55,6 +57,25 @@ func NewNodeIterators_FunctionlessLocalScope(ancestors ...*rhino.Node) *NodeIter
 		s.addFirst(n)
 	}
 	return s
+}
+
+func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c *rhino.Node) {
+	s.ancestors = s.ancestorsBuf[:0]
+	if a.IsFunction() {
+		return
+	}
+	jutil.CheckNotNull(a)
+	if b.IsFunction() {
+		s.ancestors = append(s.ancestors, a)
+		return
+	}
+	jutil.CheckNotNull(b)
+	if c.IsFunction() {
+		s.ancestors = append(s.ancestors, b, a)
+		return
+	}
+	jutil.CheckNotNull(c)
+	s.ancestors = append(s.ancestors, c, b, a)
 }
 
 // Go-only: language-adapter — ArrayDeque.addFirst(E) (null-hostile).
@@ -189,6 +210,7 @@ type NodeIterators_LocalVarMotion struct {
 	compiler            AbstractCompiler
 	valueHasSideEffects bool
 	iterator            *NodeIterators_FunctionlessLocalScope
+	iteratorStorage     NodeIterators_FunctionlessLocalScope
 	varName             string
 	lookAhead           *rhino.Node
 }
@@ -201,13 +223,20 @@ type NodeIterators_LocalVarMotion struct {
 //
 // Java: NodeIterators.LocalVarMotion.forVar(AbstractCompiler, Node, Node, Node)
 func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name *rhino.Node, var_ *rhino.Node, block *rhino.Node) *NodeIterators_LocalVarMotion {
+	m := &NodeIterators_LocalVarMotion{}
+	m.initForVar(compiler, name, var_, block)
+	return m
+}
+
+func (m *NodeIterators_LocalVarMotion) initForVar(compiler AbstractCompiler, name *rhino.Node, var_ *rhino.Node, block *rhino.Node) {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(var_))
 	jutil.CheckArgument(NodeUtil_IsStatement(var_))
 	// The FunctionlessLocalScope must start at "name" as this may be used
 	// before the Normalize pass, and thus the VAR node may define multiple
 	// names and the "name" node may have siblings. The actual assigned value
 	// is skipped as it is a child of name.
-	return newNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope(name, var_, block))
+	m.iteratorStorage.init3(name, var_, block)
+	m.init(compiler, name, &m.iteratorStorage)
 }
 
 // NodeIterators_LocalVarMotion_ForAssign returns a LocalVarMotion for use
@@ -217,11 +246,19 @@ func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name *rhino.
 // Java: NodeIterators.LocalVarMotion.forAssign(AbstractCompiler, Node, Node, Node, Node)
 func NodeIterators_LocalVarMotion_ForAssign(
 	compiler AbstractCompiler, name *rhino.Node, assign *rhino.Node, expr *rhino.Node, block *rhino.Node) *NodeIterators_LocalVarMotion {
+	m := &NodeIterators_LocalVarMotion{}
+	m.initForAssign(compiler, name, assign, expr, block)
+	return m
+}
+
+func (m *NodeIterators_LocalVarMotion) initForAssign(
+	compiler AbstractCompiler, name *rhino.Node, assign *rhino.Node, expr *rhino.Node, block *rhino.Node) {
 	jutil.CheckArgument(assign.IsAssign())
 	jutil.CheckArgument(expr.IsExprResult())
 	// The FunctionlessLocalScope must start at "assign", to skip the value
 	// assigned to "name" (which would be its sibling).
-	return newNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope(assign, expr, block))
+	m.iteratorStorage.init3(assign, expr, block)
+	m.init(compiler, name, &m.iteratorStorage)
 }
 
 // newNodeIterators_LocalVarMotion: iterator is the iterator to use while
@@ -230,15 +267,21 @@ func NodeIterators_LocalVarMotion_ForAssign(
 // Java: NodeIterators.LocalVarMotion(AbstractCompiler, Node, FunctionlessLocalScope)
 func newNodeIterators_LocalVarMotion(
 	compiler AbstractCompiler, nameNode *rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) *NodeIterators_LocalVarMotion {
+	m := &NodeIterators_LocalVarMotion{}
+	m.init(compiler, nameNode, iterator)
+	return m
+}
+
+func (m *NodeIterators_LocalVarMotion) init(
+	compiler AbstractCompiler, nameNode *rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) {
 	jutil.CheckArgument(nameNode.IsName())
 	valueNode := NodeUtil_GetAssignedValue(nameNode)
-	m := &NodeIterators_LocalVarMotion{}
 	m.compiler = jutil.CheckNotNull(compiler)
 	m.varName = nameNode.GetString()
 	m.valueHasSideEffects = valueNode != nil && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode)
 	m.iterator = iterator
+	m.lookAhead = nil
 	m.AdvanceLookAhead(true)
-	return m
 }
 
 // Java: NodeIterators.LocalVarMotion.hasNext()

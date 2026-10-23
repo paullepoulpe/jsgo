@@ -817,7 +817,7 @@ func (c *CheckJSDoc) ValidateJsDocTypeNames(info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
-	for _, typeNode := range info.GetTypeNodes() {
+	for typeNode := range info.TypeNodes() {
 		NodeUtil_VisitPreOrder(typeNode, c.checkJsDocTypesVisitor)
 	}
 }

@@ -2464,7 +2464,7 @@ func (c *SymbolTable_JSDocInfoCollector) Visit(t *NodeTraversal, n *rhino.Node, 
 	}
 	c.outer.docInfos.Add(n)
 
-	for _, typeAst := range info.GetTypeNodes() {
+	for typeAst := range info.TypeNodes() {
 		scope := c.outer.scopes.Get(t.GetScopeRoot())
 		if scope == nil {
 			scope = c.outer.globalScope

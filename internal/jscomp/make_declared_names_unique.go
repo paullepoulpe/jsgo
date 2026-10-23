@@ -163,13 +163,13 @@ func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n *rhi
 	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
 		return
 	}
-	newName := m.GetReplacementName(n.GetString())
-	if newName == nil {
+	newName, ok := m.GetReplacementNameValue(n.GetString())
+	if !ok {
 		return
 	}
 	if m.assertOnChange {
 		panic(jutil.NewIllegalStateExceptionMsg(
-			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + *newName + " for " + n.String()))
+			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + newName + " for " + n.String()))
 	}
 
 	renamer := m.renamerStack[len(m.renamerStack)-1]
@@ -182,7 +182,7 @@ func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n *rhi
 			jsDocInfoNode.SetJSDocInfo(builder.Build())
 		}
 	}
-	n.SetString(*newName)
+	n.SetString(newName)
 	if m.markChanges {
 		t.ReportCodeChange()
 		// If we are renaming a function declaration, make sure the containing scope
@@ -198,14 +198,21 @@ func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n *rhi
 //
 // Java: MakeDeclaredNamesUnique.getReplacementName(String)
 func (m *MakeDeclaredNamesUnique) GetReplacementName(oldName string) *string {
-	for i := len(m.renamerStack) - 1; i >= 0; i-- {
-		renamer := m.renamerStack[i]
-		newName := renamer.GetReplacementName(oldName)
-		if newName != nil {
-			return newName
-		}
+	if v, ok := m.GetReplacementNameValue(oldName); ok {
+		return &v
 	}
 	return nil
+}
+
+// GetReplacementNameValue walks the stack of name maps and returns the replacement
+// name without heap-allocating a *string wrapper.
+func (m *MakeDeclaredNamesUnique) GetReplacementNameValue(oldName string) (string, bool) {
+	for i := len(m.renamerStack) - 1; i >= 0; i-- {
+		if newName, ok := m.renamerStack[i].GetReplacementNameValue(oldName); ok {
+			return newName, true
+		}
+	}
+	return "", false
 }
 
 // FindDeclaredNames traverses the current scope and collects declared
@@ -242,6 +249,8 @@ type MakeDeclaredNamesUnique_Renamer interface {
 	//
 	// Java: MakeDeclaredNamesUnique.Renamer.getReplacementName(String)
 	GetReplacementName(oldName string) *string
+
+	GetReplacementNameValue(oldName string) (string, bool)
 
 	// StripConstIfReplaced returns whether the constant-ness of a name
 	// should be removed.
@@ -995,6 +1004,13 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) GetReplacementName(oldNa
 	return c.declarations.Get(oldName)
 }
 
+func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) GetReplacementNameValue(oldName string) (string, bool) {
+	if p := c.declarations.Get(oldName); p != nil {
+		return *p, true
+	}
+	return "", false
+}
+
 // MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName: given a name
 // and the associated id, create a new unique name.
 //
@@ -1174,6 +1190,10 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementName(oldName strin
 	return nil
 }
 
+func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName string) (string, bool) {
+	return r.declarations.Lookup(oldName)
+}
+
 // Java: MakeDeclaredNamesUnique.InlineRenamer.createForChildScope(Node, boolean)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) CreateForChildScope(
 	scopeRoot *rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
@@ -1244,6 +1264,13 @@ func (r *MakeDeclaredNamesUnique_TargettedRenamer) GetReplacementName(oldName st
 		return r.delegate.GetReplacementName(oldName)
 	}
 	return nil
+}
+
+func (r *MakeDeclaredNamesUnique_TargettedRenamer) GetReplacementNameValue(oldName string) (string, bool) {
+	if r.targets.Contains(oldName) {
+		return r.delegate.GetReplacementNameValue(oldName)
+	}
+	return "", false
 }
 
 // Java: MakeDeclaredNamesUnique.TargettedRenamer.stripConstIfReplaced()

@@ -933,7 +933,7 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent 
 	// we only process that jsdoc once.
 	info := n.GetJSDocInfo()
 	if info != nil && !v.injectedDecls.Contains(n) {
-		for _, node := range info.GetTypeNodes() {
+		for node := range info.TypeNodes() {
 			v.FixTypeNode(node)
 		}
 	}

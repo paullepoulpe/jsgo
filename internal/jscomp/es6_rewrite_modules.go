@@ -732,7 +732,7 @@ func (e *Es6RewriteModules) RewriteRequires(script *rhino.Node) {
 			func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 				info := n.GetJSDocInfo()
 				if info != nil {
-					for _, typeNode := range info.GetTypeNodes() {
+					for typeNode := range info.TypeNodes() {
 						e.InlineAliasedTypes(t, typeNode)
 					}
 				}
@@ -918,7 +918,7 @@ func NewEs6RewriteModules_RenameGlobalVars(outer *Es6RewriteModules, thisModule 
 func (r *Es6RewriteModules_RenameGlobalVars) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
-		for _, typeNode := range info.GetTypeNodes() {
+		for typeNode := range info.TypeNodes() {
 			r.FixTypeNode(t, typeNode)
 		}
 	}

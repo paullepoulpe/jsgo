@@ -115,7 +115,7 @@ func (s *SourceInfoCheck) Visit(unused *NodeTraversal, n *rhino.Node, parent *rh
 //
 // Java: SourceInfoCheck.checkJSDoc(JSDocInfo)
 func (s *SourceInfoCheck) CheckJSDoc(info *rhino.JSDocInfo) {
-	for _, expression := range info.GetTypeExpressions() {
+	for expression := range info.TypeExpressions() {
 		// Go-only: language-adapter — rhino.JSTypeExpression stores a Java
 		// null source name as "".
 		if expression.GetSourceName() == "" {

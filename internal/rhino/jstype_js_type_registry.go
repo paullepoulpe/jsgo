@@ -247,6 +247,8 @@ type JSTypeRegistry struct {
 	unionTypeSlab           []UnionType
 	propertySlab            []Property
 	jsTypeSliceSlab         []JSType
+	functionParamSlab       []FunctionType_Parameter
+	functionParamPtrSlab    []*FunctionType_Parameter
 	unionBuilderStack       [16]UnionType_Builder
 	unionBuilderDepth       int
 	fnBuilderStack          [8]FunctionType_Builder
@@ -479,6 +481,37 @@ func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {
 	}
 	s := r.jsTypeSliceSlab[:n:n]
 	r.jsTypeSliceSlab = r.jsTypeSliceSlab[n:]
+	return s
+}
+
+func (r *JSTypeRegistry) allocFunctionParam(type_ JSType, isOptional bool, isVariadic bool) *FunctionType_Parameter {
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Null JSType"))
+	}
+	if r == nil {
+		return &FunctionType_Parameter{jSType: type_, optional: isOptional, variadic: isVariadic}
+	}
+	if len(r.functionParamSlab) == 0 {
+		r.functionParamSlab = make([]FunctionType_Parameter, 1024)
+	}
+	p := &r.functionParamSlab[0]
+	r.functionParamSlab = r.functionParamSlab[1:]
+	*p = FunctionType_Parameter{jSType: type_, optional: isOptional, variadic: isVariadic}
+	return p
+}
+
+func (r *JSTypeRegistry) allocFunctionParamPtrSlice(n int) []*FunctionType_Parameter {
+	if n == 0 {
+		return emptyFunctionTypeParameterSlice
+	}
+	if r == nil || n > 64 {
+		return make([]*FunctionType_Parameter, n)
+	}
+	if len(r.functionParamPtrSlab) < n {
+		r.functionParamPtrSlab = make([]*FunctionType_Parameter, 1024)
+	}
+	s := r.functionParamPtrSlab[:n:n]
+	r.functionParamPtrSlab = r.functionParamPtrSlab[n:]
 	return s
 }
 
@@ -2124,9 +2157,7 @@ func (r *JSTypeRegistry) GetType(scope StaticScope, jsTypeName string) JSType {
 // the string argument is not one of the known types, otherwise the
 // corresponding JSType object.
 //
-// Java: JSTypeRegistry.getType(StaticTypedScope, String, String, int, int)
-func (r *JSTypeRegistry) GetTypeWithLocation(
-	scope StaticTypedScope, jsTypeName string, sourceName *string, lineno int, charno int) JSType {
+func (r *JSTypeRegistry) getTypeResolvedOrNil(scope StaticTypedScope, jsTypeName string) JSType {
 	switch jsTypeName {
 	case "boolean":
 		return r.GetNativeType(JSTypeNative_BOOLEAN_TYPE)
@@ -2140,7 +2171,6 @@ func (r *JSTypeRegistry) GetTypeWithLocation(
 		return r.GetNativeType(JSTypeNative_VOID_TYPE)
 	}
 	// Resolve template type names
-	var type_ JSType
 	var thisType JSType
 	if scope != nil && scope.GetTypeOfThis() != nil {
 		thisType = jsTypeOrNil(scope.GetTypeOfThis().ToObjectType())
@@ -2151,7 +2181,7 @@ func (r *JSTypeRegistry) GetTypeWithLocation(
 		// subclass key is guaranteed to be last.
 		key := thisType.GetTemplateTypeMap().GetLastTemplateTypeKeyByName(jsTypeName)
 		if key != nil {
-			type_ = key
+			type_ := JSType(key)
 			jutil.CheckStateMsg1(type_.IsTemplateType(), "expected:%s", type_)
 			return type_
 		}
@@ -2168,13 +2198,27 @@ func (r *JSTypeRegistry) GetTypeWithLocation(
 	if scope != nil {
 		untypedScope = scope
 	}
-	type_ = r.GetType(untypedScope, jsTypeName)
-	if type_ == nil {
-		// TODO(user): Each instance should support named type creation using
-		// interning.
-		return r.CreateNamedType(scope, jsTypeName, sourceName, lineno, charno)
+	return r.GetType(untypedScope, jsTypeName)
+}
+
+func (r *JSTypeRegistry) getTypeWithLocationString(
+	scope StaticTypedScope, jsTypeName string, sourceName string, lineno int, charno int) JSType {
+	if type_ := r.getTypeResolvedOrNil(scope, jsTypeName); type_ != nil {
+		return type_
 	}
-	return type_
+	src := sourceName
+	return r.CreateNamedType(scope, jsTypeName, &src, lineno, charno)
+}
+
+// Java: JSTypeRegistry.getType(StaticTypedScope, String, String, int, int)
+func (r *JSTypeRegistry) GetTypeWithLocation(
+	scope StaticTypedScope, jsTypeName string, sourceName *string, lineno int, charno int) JSType {
+	if type_ := r.getTypeResolvedOrNil(scope, jsTypeName); type_ != nil {
+		return type_
+	}
+	// TODO(user): Each instance should support named type creation using
+	// interning.
+	return r.CreateNamedType(scope, jsTypeName, sourceName, lineno, charno)
 }
 
 // Java: JSTypeRegistry.getNativeType(JSTypeNative)
@@ -2368,13 +2412,15 @@ func (r *JSTypeRegistry) CreateParameters(parameterTypes ...JSType) []*FunctionT
 //
 // Java: JSTypeRegistry.createParameters(boolean, JSType...)
 func (r *JSTypeRegistry) CreateParametersWithLastVarArgs(lastVarArgs bool, parameterTypes ...JSType) []*FunctionType_Parameter {
-	builder := NewFunctionParamBuilder(r)
+	var paramBuf [8]*FunctionType_Parameter
+	var builder FunctionParamBuilder
+	builder.InitWithBuf(r, paramBuf[:0])
 	max := len(parameterTypes) - 1
 	for i := 0; i <= max; i++ {
 		if lastVarArgs && i == max {
 			builder.AddVarArgs(parameterTypes[i])
 		} else {
-			builder.AddRequiredParams(parameterTypes[i])
+			builder.AddRequiredParam(parameterTypes[i])
 		}
 	}
 	return builder.Build()
@@ -2394,7 +2440,9 @@ func (r *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes ...JSType) [
 //
 // Java: JSTypeRegistry.createOptionalParameters(JSType...)
 func (r *JSTypeRegistry) CreateOptionalParameters(parameterTypes ...JSType) []*FunctionType_Parameter {
-	builder := NewFunctionParamBuilder(r)
+	var paramBuf [8]*FunctionType_Parameter
+	var builder FunctionParamBuilder
+	builder.InitWithBuf(r, paramBuf[:0])
 	builder.AddOptionalParams(parameterTypes...)
 	return builder.Build()
 }
@@ -2722,7 +2770,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 		}
 		return type_
 	case Token_STRINGLIT:
-		nominalType := r.GetTypeWithLocation(scope, n.GetString(), &sourceName, n.GetLineno(), n.GetCharno())
+		nominalType := r.getTypeWithLocationString(scope, n.GetString(), sourceName, n.GetLineno(), n.GetCharno())
 		templateArgs := r.ParseTemplateArgs(nominalType, n, sourceName, scope)
 
 		// Handle forward declared types
@@ -2778,7 +2826,9 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 			current = current.GetNext()
 		}
 
-		paramBuilder := NewFunctionParamBuilder(r)
+		var paramBuf [8]*FunctionType_Parameter
+		var paramBuilder FunctionParamBuilder
+		paramBuilder.InitWithBuf(r, paramBuf[:0])
 
 		if current.GetToken() == Token_PARAM_LIST {
 			for arg := current.GetFirstChild(); arg != nil; arg = arg.GetNext() {
@@ -2792,7 +2842,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 				} else {
 					type_ := r.CreateTypeFromCommentNodeWithScope(arg, sourceName, scope)
 					if arg.GetToken() == Token_EQUALS {
-						addSuccess := paramBuilder.AddOptionalParams(type_)
+						addSuccess := paramBuilder.AddOptionalParam(type_)
 						if !addSuccess {
 							r.reporter.Warning(
 								Msg_JSDOC_FUNCTION_VARARGS.Format(),
@@ -2801,7 +2851,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 								arg.GetCharno())
 						}
 					} else {
-						paramBuilder.AddRequiredParams(type_)
+						paramBuilder.AddRequiredParam(type_)
 					}
 				}
 			}
@@ -2815,7 +2865,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 			kind = FunctionType_Kind_CONSTRUCTOR
 		}
 		return FunctionType_Builder_(r).
-			WithParametersOfList(paramBuilder.Build()).
+			WithParams(&paramBuilder).
 			WithReturnType(returnType).
 			WithTypeOfThis(thisType).
 			WithKind(kind).

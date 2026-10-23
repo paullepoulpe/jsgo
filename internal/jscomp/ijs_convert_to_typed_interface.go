@@ -454,7 +454,7 @@ func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl PotentialDecl
 	if jsdoc == nil {
 		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
 	}
-	if len(jsdoc.GetTypeNodes()) == 0 {
+	if !jsdoc.HasTypeNodes() {
 		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION
 	}
 	return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION

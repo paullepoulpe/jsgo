@@ -599,9 +599,10 @@ type nodeTypeAndProps struct {
 }
 
 var (
-	sourceFilePropMu     sync.Mutex
-	sourceFilePropCount  atomic.Uint32
-	sourceFilePropChunks [128]atomic.Pointer[[1024]Node_PropListItem]
+	sourceFilePropMu        sync.Mutex
+	sourceFilePropCount     atomic.Uint32
+	sourceFilePropChunks    [128]atomic.Pointer[[1024]Node_PropListItem]
+	sourceFileNamePtrChunks [128]atomic.Pointer[[1024]*string]
 )
 
 func sourceFilePropItem(id uint32) *Node_PropListItem {
@@ -626,6 +627,19 @@ func allocSourceFilePropID(file any) (uint32, bool) {
 		chunk = new([1024]Node_PropListItem)
 		sourceFilePropChunks[chunkIdx].Store(chunk)
 	}
+	nameChunk := sourceFileNamePtrChunks[chunkIdx].Load()
+	if nameChunk == nil {
+		nameChunk = new([1024]*string)
+		sourceFileNamePtrChunks[chunkIdx].Store(nameChunk)
+	}
+	var namePtr *string
+	if fast, ok := file.(StaticSourceFileFast); ok {
+		namePtr = fast.GetNamePtr()
+	} else if sf, ok := file.(StaticSourceFile); ok {
+		s := sf.GetName()
+		namePtr = &s
+	}
+	nameChunk[idx&1023] = namePtr
 	chunk[idx&1023] = Node_PropListItem{
 		objectValue: file,
 		propType:    int8(Node_Prop_SOURCE_FILE),
@@ -665,14 +679,13 @@ func (n *Node) setColdPropListHead(head *Node_PropListItem) {
 		n.typeOrColor = unsafe.Pointer(head)
 		return
 	}
-	rawTypeOrColor := n.typeOrColor
 	if (n.kindFlags & kindFlagHasColdProp) != 0 {
-		rawTypeOrColor = (*nodeTypeAndProps)(rawTypeOrColor).typeOrColor
-	} else {
-		n.kindFlags |= kindFlagHasColdProp
+		(*nodeTypeAndProps)(n.typeOrColor).propListHead = head
+		return
 	}
+	n.kindFlags |= kindFlagHasColdProp
 	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
-		typeOrColor:  rawTypeOrColor,
+		typeOrColor:  n.typeOrColor,
 		propListHead: head,
 	})
 }
@@ -711,13 +724,13 @@ func (n *Node) setRawTypeOrColorPtr(ptr unsafe.Pointer, isColor bool) {
 		n.typeOrColor = ptr
 		return
 	}
-	coldHead := (*Node_PropListItem)(n.typeOrColor)
 	if alreadyHadTypeOrColor {
-		coldHead = (*nodeTypeAndProps)(n.typeOrColor).propListHead
+		(*nodeTypeAndProps)(n.typeOrColor).typeOrColor = ptr
+		return
 	}
 	n.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
 		typeOrColor:  ptr,
-		propListHead: coldHead,
+		propListHead: (*Node_PropListItem)(n.typeOrColor),
 	})
 }
 
@@ -1321,6 +1334,7 @@ func (n *Node) SetIsInClosureUnawareSubtree(value bool) {
 	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
 	cold := n.coldPropListHead()
 	hasOnlySourceFile := (n.propFlags&nodePropAllNonSourceFileMask) == 0 &&
+		(n.nodeKind() != node_kindNode || uint32(n.payload) == 0) &&
 		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
 			(sfID == nodePropSourceFileOverflow && cold != nil && int(cold.propType) == Node_Prop_SOURCE_FILE.Ordinal() && cold.next == nil))
 	if !hasOnlySourceFile {
@@ -1728,6 +1742,19 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if (n.propFlags & propFlagHasJSDoc) == 0 {
 			return nil
 		}
+	case Node_Prop_CHANGE_TIME:
+		if n.nodeKind() == node_kindNode {
+			if v := int32(uint32(n.payload)); v != 0 {
+				return &Node_PropListItem{
+					propType: int8(Node_Prop_CHANGE_TIME),
+					intValue: v,
+					shared:   true,
+				}
+			}
+			if (n.kindFlags & kindFlagHasExtra) == 0 {
+				return nil
+			}
+		}
 	}
 	return n.lookupPropListHead(prop)
 }
@@ -1738,13 +1765,25 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 //
 // Java: Node.clonePropsFrom(Node)
 func (n *Node) ClonePropsFrom(other *Node) *Node {
-	jutil.CheckStateMsg(n.coldPropListHead() == nil && n.propFlags == 0, "Node has existing properties.")
+	jutil.CheckStateMsg(
+		n.coldPropListHead() == nil && n.propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0),
+		"Node has existing properties.")
 	if (other.kindFlags & kindFlagHasColdProp) != 0 {
 		n.copyTemplateColdProps(other)
 	}
 	n.propFlags = other.propFlags
 	if (other.kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
 		n.kindFlags |= kindFlagHasExtra
+	}
+	if other.nodeKind() == node_kindNode {
+		if ct := int32(uint32(other.payload)); ct != 0 {
+			n.SetChangeTime(ct)
+		}
+	} else if n.nodeKind() == node_kindNode && (other.kindFlags&kindFlagHasColdProp) != 0 {
+		if x := n.lookupPropListHead(Node_Prop_CHANGE_TIME); x != nil && !x.isObject {
+			n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(x.intValue))
+			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_CHANGE_TIME))
+		}
 	}
 	return n
 }
@@ -1766,7 +1805,7 @@ const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
 		return
 	}
 
@@ -1874,6 +1913,8 @@ func (n *Node) GetProp(propType Node_Prop) any {
 		if (n.propFlags & nodePropSideEffectMask) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
+	} else if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode && uint32(n.payload) != 0 {
+		panic(jutil.NewUnsupportedOperationException())
 	}
 	if x := n.lookupPropListHead(propType); x != nil {
 		return x.GetObjectValue()
@@ -1905,7 +1946,14 @@ func (n *Node) GetIntProp(propType Node_Prop) int32 {
 		}
 		return 1
 	}
-	if propType == Node_Prop_CONSTANT_VAR_FLAGS {
+	if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
+		if v := int32(uint32(n.payload)); v != 0 {
+			return v
+		}
+		if (n.kindFlags & kindFlagHasExtra) == 0 {
+			return 0
+		}
+	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
 		if v := int32((n.propFlags >> nodePropConstVarShift) & 3); v != 0 {
 			return v
 		}
@@ -1953,6 +2001,9 @@ func (n *Node) PutProp(prop Node_Prop, value any) {
 		n.propFlags = (n.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	} else if prop == Node_Prop_JSDOC_INFO {
 		n.propFlags |= propFlagHasJSDoc
+	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
+		n.payload &= 0xFFFFFFFF00000000
+		n.kindFlags |= kindFlagHasExtra
 	} else if mask := nodePropBitMask[prop]; mask != 0 {
 		n.propFlags |= mask
 		n.kindFlags |= kindFlagHasExtra
@@ -2022,6 +2073,14 @@ func (n *Node) PutIntProp(prop Node_Prop, value int32) {
 		}
 		n.propFlags |= mask
 		n.kindFlags |= kindFlagHasExtra
+	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
+		n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(value))
+		if (n.kindFlags & kindFlagHasExtra) != 0 {
+			if head := n.coldPropListHead(); head != nil {
+				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+			}
+		}
+		return
 	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 		if value == 0 {
 			n.propFlags &^= nodePropConstVarMask
@@ -2112,6 +2171,13 @@ func (n *Node) RemoveProp(prop Node_Prop) {
 		if sfID != nodePropSourceFileOverflow {
 			return
 		}
+	case Node_Prop_CHANGE_TIME:
+		if n.nodeKind() == node_kindNode {
+			n.payload &= 0xFFFFFFFF00000000
+			if (n.kindFlags & kindFlagHasExtra) == 0 {
+				return
+			}
+		}
 	case Node_Prop_CONSTANT_VAR_FLAGS:
 		n.propFlags &^= nodePropConstVarMask
 		if (n.kindFlags & kindFlagHasExtra) == 0 {
@@ -2134,7 +2200,7 @@ func (n *Node) RemoveProp(prop Node_Prop) {
 }
 
 func (n *Node) presentNodePropsMask() uint64 {
-	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 {
+	if n.propFlags == 0 && (n.kindFlags&kindFlagHasColdProp) == 0 && (n.nodeKind() != node_kindNode || uint32(n.payload) == 0) {
 		return 0
 	}
 	var mask uint64
@@ -2155,6 +2221,9 @@ func (n *Node) presentNodePropsMask() uint64 {
 	}
 	if (n.propFlags >> nodePropSourceFileShift) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SOURCE_FILE)
+	}
+	if n.nodeKind() == node_kindNode && uint32(n.payload) != 0 {
+		mask |= uint64(1) << uint(Node_Prop_CHANGE_TIME)
 	}
 	for x := n.coldPropListHead(); x != nil; x = x.next {
 		mask |= uint64(1) << uint(x.propType)
@@ -2305,7 +2374,7 @@ func (n *Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n *Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.propFlags == 0, "%s", n.coldPropListHead())
+		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.propFlags == 0 && uint32(n.payload) == 0, "%s", n.coldPropListHead())
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
@@ -2906,12 +2975,7 @@ func (n *Node) node_number() float64 {
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n *Node) node_cooked() *string {
-	id := rhinoStringID(n.payload >> 32)
-	if id == 0 {
-		return nil
-	}
-	s := rhinoStringFromID(id)
-	return &s
+	return rhinoStringPtrFromID(rhinoStringID(n.payload >> 32))
 }
 
 // ==========================================================================
@@ -2967,7 +3031,19 @@ func (n *Node) SetSourceFileForTesting(name string) {
 //
 // Java: Node.getSourceFileName()
 func (n *Node) GetSourceFileName() *string {
-	file := n.GetStaticSourceFile()
+	sfID := uint32(n.propFlags >> nodePropSourceFileShift)
+	if sfID == 0 {
+		return nil
+	}
+	if sfID != nodePropSourceFileOverflow {
+		idx := sfID - 1
+		if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
+			return p
+		}
+		_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+		return nil
+	}
+	file := node_cast[StaticSourceFile](n.GetProp(Node_Prop_SOURCE_FILE))
 	if file == nil {
 		return nil
 	}
@@ -3010,11 +3086,7 @@ func (n *Node) GetInputId() *InputId {
 //
 // Java: Node.getOriginalName()
 func (n *Node) GetOriginalName() *string {
-	s, ok := n.getOriginalNameString()
-	if !ok {
-		return nil
-	}
-	return &s
+	return rhinoStringPtrFromID(n.node_originalNameID())
 }
 
 // GetOriginalNameID returns the 32-bit interned originalName ID of n, or 0 if unset.
@@ -3107,9 +3179,6 @@ func (n *Node) GetLength() int {
 	if n.length16 != 0xFFFF {
 		return int(n.length16)
 	}
-	if n.nodeKind() == node_kindNode {
-		return int(int32(uint32(n.payload)))
-	}
 	if n.kindFlags&kindFlagHasExtra != 0 {
 		if e, ok := n.getExtraEntry(); ok && e.hasLength {
 			return int(e.length)
@@ -3125,10 +3194,6 @@ func (n *Node) SetLength(length int) {
 		return
 	}
 	n.length16 = 0xFFFF
-	if n.nodeKind() == node_kindNode {
-		n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(int32(length)))
-		return
-	}
 	n.setExtraLength(int32(length))
 }
 
@@ -4320,7 +4385,15 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.linenoCharno = source.linenoCharno
 	dest.copyLengthFrom(source)
 	source.coldPropListHead().markShared()
-	dest.typeOrColor = source.typeOrColor
+	if (source.kindFlags & (kindFlagHasTypeOrColor | kindFlagHasColdProp)) == (kindFlagHasTypeOrColor | kindFlagHasColdProp) {
+		srcPair := (*nodeTypeAndProps)(source.typeOrColor)
+		dest.typeOrColor = unsafe.Pointer(&nodeTypeAndProps{
+			typeOrColor:  srcPair.typeOrColor,
+			propListHead: srcPair.propListHead,
+		})
+	} else {
+		dest.typeOrColor = source.typeOrColor
+	}
 	dest.kindFlags = (dest.kindFlags &^ (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp | kindFlagHasExtra)) |
 		(source.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor | kindFlagHasColdProp))
 	if source.kindFlags&kindFlagHasExtra != 0 && source.coldPropListHead() != nil {
@@ -4573,6 +4646,10 @@ func (n *Node) SetJSDocInfo(info *JSDocInfo) *Node {
 //
 // Java: Node.setChangeTime(int)
 func (n *Node) SetChangeTime(time int32) {
+	if n.nodeKind() == node_kindNode && (n.kindFlags&kindFlagHasExtra) == 0 {
+		n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(uint32(time))
+		return
+	}
 	n.PutIntProp(Node_Prop_CHANGE_TIME, time)
 }
 
@@ -4580,6 +4657,9 @@ func (n *Node) SetChangeTime(time int32) {
 //
 // Java: Node.getChangeTime()
 func (n *Node) GetChangeTime() int32 {
+	if n.nodeKind() == node_kindNode && (n.kindFlags&kindFlagHasExtra) == 0 {
+		return int32(uint32(n.payload))
+	}
 	return n.GetIntProp(Node_Prop_CHANGE_TIME)
 }
 

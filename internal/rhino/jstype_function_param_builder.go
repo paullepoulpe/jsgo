@@ -64,6 +64,15 @@ func NewFunctionParamBuilderWithCapacity(registry *JSTypeRegistry, initialParame
 	}
 }
 
+// AddRequiredParam adds a single required parameter without variadic slice allocation.
+func (b *FunctionParamBuilder) AddRequiredParam(type_ JSType) bool {
+	if b.HasOptionalOrVarArgs() {
+		return false
+	}
+	b.NewParameter(type_ /* isOptional= */, false /* isVariadic= */, false)
+	return true
+}
+
 // AddRequiredParams adds parameters of the given type to the end of the
 // param list. Returns false if this is called after optional params are
 // added.
@@ -76,6 +85,16 @@ func (b *FunctionParamBuilder) AddRequiredParams(types ...JSType) bool {
 	for _, type_ := range types {
 		b.NewParameter(type_ /* isOptional= */, false /* isVariadic= */, false)
 	}
+	return true
+}
+
+// AddOptionalParam adds a single optional parameter without variadic slice allocation.
+func (b *FunctionParamBuilder) AddOptionalParam(type_ JSType) bool {
+	if b.HasVarArgs() {
+		return false
+	}
+	b.NewParameter(
+		b.registry.CreateOptionalType(type_) /* isOptional= */, true /* isVariadic= */, false)
 	return true
 }
 
@@ -131,7 +150,7 @@ func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Paramete
 //
 // Java: FunctionParamBuilder.NewParameter(JSType, boolean, boolean)
 func (b *FunctionParamBuilder) NewParameter(type_ JSType, isOptional bool, isVariadic bool) {
-	parameter := FunctionType_Parameter_Create(type_, isOptional, isVariadic)
+	parameter := b.registry.allocFunctionParam(type_, isOptional, isVariadic)
 	b.parameters = append(b.parameters, parameter)
 }
 
@@ -154,7 +173,7 @@ func (b *FunctionParamBuilder) Build() []*FunctionType_Parameter {
 	if len(b.parameters) == 0 {
 		return emptyFunctionTypeParams
 	}
-	out := make([]*FunctionType_Parameter, len(b.parameters))
+	out := b.registry.allocFunctionParamPtrSlice(len(b.parameters))
 	copy(out, b.parameters)
 	return out
 }

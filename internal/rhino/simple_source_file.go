@@ -58,6 +58,8 @@ func (f *SimpleSourceFile) GetName() string {
 	return f.name
 }
 
+func (f *SimpleSourceFile) GetNamePtr() *string { return &f.name }
+
 // Java: SimpleSourceFile.getKind()
 func (f *SimpleSourceFile) GetKind() StaticSourceFile_SourceKind {
 	return f.kind

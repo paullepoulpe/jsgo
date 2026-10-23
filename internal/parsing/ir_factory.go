@@ -87,8 +87,10 @@ type IRFactory struct {
 
 	nodes                    jutil.Slab[rhino.Node]
 	jsdocNodes               jutil.Slab[rhino.Node]
+	jsdocSlabsVal            rhino.JSDocBuilderSlabs
 	nodeSlab                 *jutil.Slab[rhino.Node]
 	jsdocNodeSlab            *jutil.Slab[rhino.Node]
+	jsdocSlabs               *rhino.JSDocBuilderSlabs
 	jsdocStream              JsDocTokenStream
 	jsdocParser              JsDocInfoParser
 	transformDispatcherVal   IRFactory_TransformDispatcher
@@ -235,7 +237,7 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
-	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil, nil)
+	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil, nil, nil)
 }
 
 // NewIRFactoryWithSlabs constructs an IRFactory using optional external AST and JSDoc node slabs.
@@ -247,7 +249,8 @@ func NewIRFactoryWithSlabs(
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
 	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node]) *IRFactory {
+	jsdocNodeSlab *jutil.Slab[rhino.Node],
+	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	f := &IRFactory{}
 	if nodeSlab != nil {
 		f.nodeSlab = nodeSlab
@@ -258,6 +261,11 @@ func NewIRFactoryWithSlabs(
 		f.jsdocNodeSlab = jsdocNodeSlab
 	} else {
 		f.jsdocNodeSlab = &f.jsdocNodes
+	}
+	if jsdocSlabs != nil {
+		f.jsdocSlabs = jsdocSlabs
+	} else {
+		f.jsdocSlabs = &f.jsdocSlabsVal
 	}
 	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {
 		f.parsedCommentBits = f.parsedCommentBitsBuf[:nWords]
@@ -422,7 +430,7 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
-	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil, nil)
+	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil, nil, nil)
 }
 
 // IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external slabs.
@@ -433,13 +441,14 @@ func IRFactory_TransformTreeWithSlabs(
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile,
 	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node]) *IRFactory {
+	jsdocNodeSlab *jutil.Slab[rhino.Node],
+	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
 	irFactory := NewIRFactoryWithSlabs(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, nodeSlab, jsdocNodeSlab)
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, nodeSlab, jsdocNodeSlab, jsdocSlabs)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
@@ -1490,7 +1499,8 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 		config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		f.jsdocNodeSlab)
+		f.jsdocNodeSlab,
+		f.jsdocSlabs)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
 		jsdocParser.ParseImportantComment()
@@ -1527,7 +1537,8 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 		f.config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		f.jsdocNodeSlab)
+		f.jsdocNodeSlab,
+		f.jsdocSlabs)
 	return parser_.ParseInlineTypeDoc()
 }
 
@@ -2165,19 +2176,16 @@ func (d *IRFactory_TransformDispatcher) ProcessFunctionCall(callNode *parser.Cal
 	node := d.NewNodeWithChild(rhino.Token_CALL, d.Transform(callNode.Operand))
 	node.SetTrailingComma(callNode.Arguments.HasTrailingComma)
 	argumentsTree := callNode.Arguments
-	// For each arg, represents a location (end SourcePosition) such that all
-	// trailing comments before this location correspond to that arg.
-	zones := d.GetEndOfArgCommentZones(
-		argumentsTree.Arguments, argumentsTree.CommaPositions, argumentsTree.Location.End)
 	argCount := 0
-	for _, child := range callNode.Arguments.Arguments {
+	for _, child := range argumentsTree.Arguments {
 		childNode := d.Transform(child)
 		node.AddChildToBack(childNode)
 		// The non-trailing comments are already attached to `childNode` in
 		// `transform(child)` call. Now we must attach possible trailing
 		// comments to `childNode`.
 
-		d.AttachPossibleTrailingCommentsForArg(childNode, zones[argCount])
+		d.attachPossibleTrailingCommentsForArgAt(
+			childNode, argumentsTree.Arguments, argCount, argumentsTree.CommaPositions, argumentsTree.Location.End)
 	}
 	d.AnnotateCalls(node)
 	return node
@@ -2296,6 +2304,32 @@ func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(par
 		return
 	}
 	paramNode.SetTrailingNonJSDocComment(trailingComment)
+}
+
+func (d *IRFactory_TransformDispatcher) attachPossibleTrailingCommentsForArgAt(
+	paramNode *rhino.Node,
+	args []parser.ParseTree,
+	commaCount int,
+	commaPositions []*parser.SourcePosition,
+	argListEndPosition *parser.SourcePosition,
+) {
+	if len(args) > commaCount+1 {
+		arg := args[commaCount]
+		nextParam := args[commaCount+1]
+		if nextParam.GetParseTreeBase().Location.Start.Line > arg.GetParseTreeBase().Location.End.Line {
+			tempSourcePos := parser.SourcePosition{
+				Source: nil,
+				Offset: math.MaxInt32,
+				Line:   arg.GetParseTreeBase().Location.End.Line,
+				Column: math.MaxInt32,
+			}
+			d.AttachPossibleTrailingCommentsForArg(paramNode, &tempSourcePos)
+			return
+		}
+		d.AttachPossibleTrailingCommentsForArg(paramNode, commaPositions[commaCount])
+		return
+	}
+	d.AttachPossibleTrailingCommentsForArg(paramNode, argListEndPosition)
 }
 
 // AttachPossibleTrailingComment attaches trailing comments associated with
@@ -2534,10 +2568,9 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 	}
 
 	parameters := tree.Parameters
-	zones := d.GetEndOfArgCommentZones(parameters, tree.CommaPositions, tree.Location.End)
 	argCount := 0
 
-	for _, param := range tree.Parameters {
+	for _, param := range parameters {
 		var paramNode *rhino.Node
 		switch param.GetParseTreeBase().Type {
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
@@ -2551,7 +2584,8 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 			paramNode = d.TransformNodeWithInlineComments(param)
 			// Reusing the logic to attach trailing comments used from
 			// call-site argsList
-			d.AttachPossibleTrailingCommentsForArg(paramNode, zones[argCount])
+			d.attachPossibleTrailingCommentsForArgAt(
+				paramNode, parameters, argCount, tree.CommaPositions, tree.Location.End)
 		}
 
 		// Children must be simple names, default parameters, rest

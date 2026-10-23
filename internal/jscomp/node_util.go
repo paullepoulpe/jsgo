@@ -1209,7 +1209,7 @@ func NodeUtil_IsSimpleOperatorType(type_ rhino.Token) bool {
 // Java: NodeUtil.isNamespaceDecl(Node)
 func NodeUtil_IsNamespaceDecl(n *rhino.Node) bool {
 	jsdoc := NodeUtil_GetBestJSDocInfo(n)
-	if jsdoc != nil && len(jsdoc.GetTypeNodes()) != 0 && !jsdoc.HasTypedefType() {
+	if jsdoc != nil && jsdoc.HasTypeNodes() && !jsdoc.HasTypedefType() {
 		return false
 	}
 	// In externs, we allow namespace definitions without @const.

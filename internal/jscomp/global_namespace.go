@@ -3699,17 +3699,23 @@ func (n *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_I
 		n.LogChildNamesDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "getter/setter")
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.globalSets != 1 {
-		n.LogChildNamesDecisionSupplier(
-			GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.globalSets)) + " times globally" })
+		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+			n.LogChildNamesDecisionSupplier(
+				GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.globalSets)) + " times globally" })
+		}
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.localSets != 0 {
-		n.LogChildNamesDecisionSupplier(
-			GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.localSets)) + " times locally" })
+		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+			n.LogChildNamesDecisionSupplier(
+				GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.localSets)) + " times locally" })
+		}
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.deleteProps != 0 {
-		n.LogChildNamesDecisionSupplier(
-			GlobalNamespace_Inlinability_DO_NOT_INLINE,
-			func() string { return "properties are deleted " + strconv.Itoa(int(n.deleteProps)) + " times" })
+		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+			n.LogChildNamesDecisionSupplier(
+				GlobalNamespace_Inlinability_DO_NOT_INLINE,
+				func() string { return "properties are deleted " + strconv.Itoa(int(n.deleteProps)) + " times" })
+		}
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	}
 
@@ -3760,8 +3766,10 @@ func (n *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_I
 	// condition (b)
 	if n.aliasingGets > 0 {
 		unsafeInlinability := n.GetUnsafeInlinabilityBasedOnDeclaredType()
-		n.LogChildNamesDecisionSupplier(
-			unsafeInlinability, func() string { return strconv.Itoa(int(n.aliasingGets)) + " aliasing gets exist" })
+		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+			n.LogChildNamesDecisionSupplier(
+				unsafeInlinability, func() string { return strconv.Itoa(int(n.aliasingGets)) + " aliasing gets exist" })
+		}
 		return unsafeInlinability
 	}
 

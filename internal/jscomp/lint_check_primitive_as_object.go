@@ -66,7 +66,7 @@ func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectDeclaration(t *NodeTrave
 	jsDocInfo := n.GetJSDocInfo()
 
 	if jsDocInfo != nil {
-		for _, typeRoot := range jsDocInfo.GetTypeNodes() {
+		for typeRoot := range jsDocInfo.TypeNodes() {
 			c.CheckTypeNodeForPrimitiveObjectDeclaration(t, typeRoot)
 		}
 	}

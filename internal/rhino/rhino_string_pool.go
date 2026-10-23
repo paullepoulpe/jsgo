@@ -75,11 +75,14 @@ type rhinoStringPoolShard struct {
 	spanChunks   [1024]*[rhinoSpanChunkSize]uint64
 	pages        [4096]*[rhinoStringPageSize]byte
 	largeStrings []string
+	ptrMap       map[uint32]*string
+	ptrSlab      []string
 }
 
 var (
 	rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
 	rhinoStringPoolCleared bool
+	rhinoEmptyString       = ""
 )
 
 func rhinoStringPoolHash(s string) uint64 {
@@ -270,6 +273,42 @@ func rhinoStringFromID(id rhinoStringID) string {
 	length := uint32((desc >> 20) & 0xFFFFF)
 	pageIdx := uint32((desc >> 40) & 0xFFFFF)
 	return unsafe.String(&s.pages[pageIdx][pageOff], length)
+}
+
+func rhinoStringPtrFromID(id rhinoStringID) *string {
+	if id == 0 {
+		return nil
+	}
+	if id == 1 {
+		return &rhinoEmptyString
+	}
+	idx := uint32(id - 2)
+	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
+	localIdx := idx >> 6
+
+	s.mu.RLock()
+	p := s.ptrMap[localIdx]
+	s.mu.RUnlock()
+	if p != nil {
+		return p
+	}
+
+	s.mu.Lock()
+	if s.ptrMap == nil {
+		s.ptrMap = make(map[uint32]*string, 64)
+	} else if p = s.ptrMap[localIdx]; p != nil {
+		s.mu.Unlock()
+		return p
+	}
+	if len(s.ptrSlab) == 0 {
+		s.ptrSlab = make([]string, 1024)
+	}
+	p = &s.ptrSlab[0]
+	s.ptrSlab = s.ptrSlab[1:]
+	*p = s.stringAtLocked(localIdx)
+	s.ptrMap[localIdx] = p
+	s.mu.Unlock()
+	return p
 }
 
 func rhinoStringPoolClearForTest() {

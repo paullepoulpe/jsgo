@@ -39,6 +39,7 @@ import (
 	"iter"
 	"math/bits"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -93,6 +94,7 @@ type JSDocInfo_Property interface {
 	IsDefault(value any) bool
 	EqualValues(left any, right any) bool
 	GetTypeExpressions(unusedValue any) []*JSTypeExpression
+	forEachTypeExpression(value any, yield func(*JSTypeExpression) bool) bool
 	CompareTo(that JSDocInfo_Property) int
 	GetJSDocInfo_PropertyBase() *JSDocInfo_PropertyBase
 }
@@ -109,6 +111,8 @@ var JSDocInfo_Property_bitCounter = 0
 
 // Java: JSDocInfo.Property.values
 var JSDocInfo_Property_values = make([]JSDocInfo_Property, 64)
+
+var jsDocInfo_typePropertiesMask int64
 
 // InitJSDocInfo_PropertyBase is the Property(String) constructor; self is
 // the object being constructed (stored in Property.values).
@@ -179,6 +183,10 @@ func (p *JSDocInfo_PropertyBase) GetTypeExpressions(unusedValue any) []*JSTypeEx
 	return nil
 }
 
+func (p *JSDocInfo_PropertyBase) forEachTypeExpression(unusedValue any, yield func(*JSTypeExpression) bool) bool {
+	return true
+}
+
 // CompareTo orders properties by bit. NOTE: These need to be comparable so
 // that we can iterate over them to build the list.
 //
@@ -227,6 +235,7 @@ type JSDocInfo_TypeProperty struct {
 func NewJSDocInfo_TypeProperty(name string) *JSDocInfo_TypeProperty {
 	p := &JSDocInfo_TypeProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
+	jsDocInfo_typePropertiesMask |= p.mask
 	return p
 }
 
@@ -249,6 +258,13 @@ func (p *JSDocInfo_TypeProperty) GetTypeExpressions(type_ any) []*JSTypeExpressi
 	return []*JSTypeExpression{jsdocGet[*JSTypeExpression](type_)}
 }
 
+func (p *JSDocInfo_TypeProperty) forEachTypeExpression(type_ any, yield func(*JSTypeExpression) bool) bool {
+	if e := jsdocGet[*JSTypeExpression](type_); e != nil {
+		return yield(e)
+	}
+	return true
+}
+
 // JSDocInfo_TypeListProperty is a Property<ArrayList<JSTypeExpression>>.
 type JSDocInfo_TypeListProperty struct {
 	JSDocInfo_PropertyBase
@@ -258,6 +274,7 @@ type JSDocInfo_TypeListProperty struct {
 func NewJSDocInfo_TypeListProperty(name string) *JSDocInfo_TypeListProperty {
 	p := &JSDocInfo_TypeListProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
+	jsDocInfo_typePropertiesMask |= p.mask
 	return p
 }
 
@@ -311,6 +328,19 @@ func (p *JSDocInfo_TypeListProperty) GetTypeExpressions(types any) []*JSTypeExpr
 	return jsdocGet[*jutil.ArrayList[*JSTypeExpression]](types).Slice()
 }
 
+func (p *JSDocInfo_TypeListProperty) forEachTypeExpression(types any, yield func(*JSTypeExpression) bool) bool {
+	list := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](types)
+	if list == nil {
+		return true
+	}
+	for i := 0; i < list.Size(); i++ {
+		if e := list.Get(i); e != nil && !yield(e) {
+			return false
+		}
+	}
+	return true
+}
+
 // JSDocInfo_TypeMapProperty is a Property<LinkedHashMap<String,
 // JSTypeExpression>>.
 type JSDocInfo_TypeMapProperty struct {
@@ -321,6 +351,7 @@ type JSDocInfo_TypeMapProperty struct {
 func NewJSDocInfo_TypeMapProperty(name string) *JSDocInfo_TypeMapProperty {
 	p := &JSDocInfo_TypeMapProperty{}
 	p.InitJSDocInfo_PropertyBase(p, name)
+	jsDocInfo_typePropertiesMask |= p.mask
 	return p
 }
 
@@ -368,6 +399,19 @@ func (p *JSDocInfo_TypeMapProperty) GetTypeExpressions(m any) []*JSTypeExpressio
 		out = append(out, v)
 	}
 	return out
+}
+
+func (p *JSDocInfo_TypeMapProperty) forEachTypeExpression(m any, yield func(*JSTypeExpression) bool) bool {
+	mp := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](m)
+	if mp == nil {
+		return true
+	}
+	for v := range mp.Values() {
+		if v != nil && !yield(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // JSDocInfo_NodeMapProperty is a Property<LinkedHashMap<String, Node>>.
@@ -544,7 +588,34 @@ func newJSDocInfo(bits_ int64, props *jutil.TreeMap[JSDocInfo_Property, any]) *J
 	}
 }
 
-func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocInfo {
+// JSDocBuilderSlabs holds worker-scoped slab allocators for JSDocInfo,
+// JSTypeExpression, and multi-property JSDocInfo value slices (all <= 32 KiB).
+type JSDocBuilderSlabs struct {
+	InfoSlab     jutil.Slab[JSDocInfo]
+	TypeExprSlab jutil.Slab[JSTypeExpression]
+	AnySliceSlab []any
+}
+
+func NewJSDocBuilderSlabs() JSDocBuilderSlabs {
+	return JSDocBuilderSlabs{
+		InfoSlab:     jutil.NewFixedSlab[JSDocInfo](1024),        // 32 KiB
+		TypeExprSlab: jutil.NewFixedSlab[JSTypeExpression](1024), // 24 KiB
+	}
+}
+
+func (s *JSDocBuilderSlabs) allocAnySlice(n int) []any {
+	if s == nil || n > 64 {
+		return make([]any, n)
+	}
+	if len(s.AnySliceSlab) < n {
+		s.AnySliceSlab = make([]any, 2048) // 32 KiB
+	}
+	out := s.AnySliceSlab[:n:n]
+	s.AnySliceSlab = s.AnySliceSlab[n:]
+	return out
+}
+
+func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any, slabs *JSDocBuilderSlabs) *JSDocInfo {
 	var keys int64 = 0
 	var valsBuf [8]any
 	values := valsBuf[:0]
@@ -562,11 +633,16 @@ func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocI
 			values = append(values, value)
 		}
 	}
-	return &JSDocInfo{
-		propertyBits:       bits_,
-		propertyKeysBitset: keys,
-		propertyValues:     JSDocInfo_PackPropertyValues(values),
+	var info *JSDocInfo
+	if slabs != nil {
+		info = slabs.InfoSlab.New()
+	} else {
+		info = &JSDocInfo{}
 	}
+	info.propertyBits = bits_
+	info.propertyKeysBitset = keys
+	info.propertyValues = jsdocPackPropertyValuesWithSlabs(values, slabs)
+	return info
 }
 
 // Java: JSDocInfo.checkBit(Bit)
@@ -2179,21 +2255,56 @@ func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, *Node]
 // Any future type specific JSDoc should make sure to add the appropriate
 // nodes here.
 //
+// TypeExpressions iterates over all non-nil JSTypeExpressions in this JSDocInfo
+// without allocating intermediate slices.
+func (i *JSDocInfo) TypeExpressions() iter.Seq[*JSTypeExpression] {
+	return func(yield func(*JSTypeExpression) bool) {
+		if i == nil {
+			return
+		}
+		typeBits := i.propertyKeysBitset & jsDocInfo_typePropertiesMask
+		for typeBits != 0 {
+			low := bits.TrailingZeros64(uint64(typeBits))
+			propMask := int64(1) << low
+			typeBits &^= propMask
+			index := bits.OnesCount64(uint64(i.propertyKeysBitset & (propMask - 1)))
+			prop := JSDocInfo_Property_values[low]
+			if !prop.forEachTypeExpression(i.GetPropertyValueByIndex(index), yield) {
+				return
+			}
+		}
+	}
+}
+
+// TypeNodes iterates over all type AST root nodes in this JSDocInfo without
+// allocating intermediate slices.
+func (i *JSDocInfo) TypeNodes() iter.Seq[*Node] {
+	return func(yield func(*Node) bool) {
+		for expr := range i.TypeExpressions() {
+			if !yield(expr.GetRoot()) {
+				return
+			}
+		}
+	}
+}
+
+// HasTypeNodes reports whether this JSDocInfo contains at least one type node,
+// without allocating slices.
+func (i *JSDocInfo) HasTypeNodes() bool {
+	if i == nil || (i.propertyKeysBitset&jsDocInfo_typePropertiesMask) == 0 {
+		return false
+	}
+	for range i.TypeExpressions() {
+		return true
+	}
+	return false
+}
+
 // Java: JSDocInfo.getTypeExpressions()
 func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
 	builder := []*JSTypeExpression{}
-	bits_ := i.propertyKeysBitset
-	index := 0
-	for bits_ > 0 {
-		low := bits.TrailingZeros64(uint64(bits_))
-		bits_ &^= jutil.Shl64(1, int64(low))
-		prop := JSDocInfo_Property_values[low]
-		for _, type_ := range prop.GetTypeExpressions(i.GetPropertyValueByIndex(index)) {
-			if type_ != nil {
-				builder = append(builder, type_)
-			}
-		}
-		index++
+	for type_ := range i.TypeExpressions() {
+		builder = append(builder, type_)
 	}
 	return builder
 }
@@ -2220,8 +2331,8 @@ func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
 func (i *JSDocInfo) GetTypeNodes() []*Node {
 	nodes := []*Node{}
 
-	for _, type_ := range i.GetTypeExpressions() {
-		nodes = append(nodes, type_.GetRoot())
+	for node := range i.TypeNodes() {
+		nodes = append(nodes, node)
 	}
 
 	return nodes
@@ -2287,11 +2398,12 @@ func (i *JSDocInfo) GetPropertyValueByIndex(index int) any {
 		panic(jutil.NewIllegalArgumentExceptionMsg("no property value"))
 	}
 
-	if array, ok := i.propertyValues.([]any); ok {
-		if index < 0 || index >= len(array) {
-			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, len(array)))
+	if (i.propertyKeysBitset & (i.propertyKeysBitset - 1)) != 0 {
+		n := bits.OnesCount64(uint64(i.propertyKeysBitset))
+		if index < 0 || index >= n {
+			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, n))
 		}
-		return array[index]
+		return unsafe.Slice(i.propertyValues.(*any), n)[index]
 	}
 
 	if index != 0 {
@@ -2303,13 +2415,19 @@ func (i *JSDocInfo) GetPropertyValueByIndex(index int) any {
 
 // Java: JSDocInfo.packPropertyValues(List<Object>)
 func JSDocInfo_PackPropertyValues(values []any) any {
+	return jsdocPackPropertyValuesWithSlabs(values, nil)
+}
+
+func jsdocPackPropertyValuesWithSlabs(values []any, slabs *JSDocBuilderSlabs) any {
 	if len(values) == 0 {
 		return nil
 	}
 	if len(values) == 1 {
 		return values[0]
 	}
-	return append([]any(nil), values...)
+	out := slabs.allocAnySlice(len(values))
+	copy(out, values)
+	return &out[0]
 }
 
 // JSDocInfo_Builder is a builder for JSDocInfo objects. This builder is
@@ -2321,6 +2439,7 @@ type JSDocInfo_Builder struct {
 	entries    []any
 	entriesBuf [4]any
 	bits       int64
+	slabs      *JSDocBuilderSlabs
 
 	// whether the current JSDocInfo has valuable information
 	populated bool
@@ -2328,6 +2447,11 @@ type JSDocInfo_Builder struct {
 	currentMarker *JSDocInfo_Marker
 	// the set of unique license texts
 	licenseTexts *jutil.LinkedHashSet[string]
+}
+
+// SetSlabs attaches optional worker-scoped JSDoc slabs to b.
+func (b *JSDocInfo_Builder) SetSlabs(slabs *JSDocBuilderSlabs) {
+	b.slabs = slabs
 }
 
 // NewJSDocInfo_Builder is the implicit Builder constructor.
@@ -2503,7 +2627,7 @@ func (b *JSDocInfo_Builder) Build() *JSDocInfo {
 // Java: JSDocInfo.Builder.build(boolean)
 func (b *JSDocInfo_Builder) BuildWithAlways(always bool) *JSDocInfo {
 	if b.populated || always {
-		info := newJSDocInfoFromBuilder(b.bits, b.propMask, b.entries)
+		info := newJSDocInfoFromBuilder(b.bits, b.propMask, b.entries, b.slabs)
 		b.populated = false
 		return info
 	}

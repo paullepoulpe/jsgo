@@ -1935,11 +1935,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 	childNameInlinability := n.CanCollapseOrInlineChildNames()
 	var canCollapseChildNames bool
 	if !childNameInlinability.CanCollapse() {
-		c.LogDecisionForNameSupplier(
-			n,
-			func() string {
-				return "child name inlinability: " + childNameInlinability.String() + ": will not collapse child names"
-			})
+		if c.outer.decisionsLog.IsLogging() {
+			c.LogDecisionForNameSupplier(
+				n,
+				func() string {
+					return "child name inlinability: " + childNameInlinability.String() + ": will not collapse child names"
+				})
+		}
 		canCollapseChildNames = false
 	} else if escaped.Contains(n) {
 		c.LogDecisionForName(n, "escapes: will not collapse child names")
@@ -2074,7 +2076,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 // Java: InlineAndCollapseProperties.CollapseProperties.logDeclarationAction(Name, Node, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDeclarationAction(name *GlobalNamespace_Name, declarationNode *rhino.Node, message string) {
-	c.LogDecisionForNameSupplier(name, func() string { return declarationNode.String() + ": " + message })
+	if c.outer.decisionsLog.IsLogging() {
+		c.LogDecisionForNameSupplier(name, func() string { return declarationNode.String() + ": " + message })
+	}
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.moveDeclarationIntoHigherChunk(Ref, JSChunk)

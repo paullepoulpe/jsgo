@@ -258,7 +258,7 @@ func (c *CheckExtraRequires) MaybeAddJsDocUsages(n *rhino.Node) {
 	if info == nil {
 		return
 	}
-	for _, e := range info.GetTypeExpressions() {
+	for e := range info.TypeExpressions() {
 		for typeName := range e.GetAllTypeNames().All() {
 			c.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(typeName))
 		}

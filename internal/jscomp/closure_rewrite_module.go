@@ -561,10 +561,12 @@ func (u *ClosureRewriteModule_ScriptUpdater) ShouldTraverse(t *NodeTraversal, n 
 	default:
 	}
 
-	if info := n.GetJSDocInfo(); info != nil {
-		if typeNodes := info.GetTypeNodes(); len(typeNodes) > 0 {
-			m.rewriteJsdocWithTraversal(typeNodes, t)
-		}
+	if info := n.GetJSDocInfo(); info != nil &&
+		(m.currentScript.isModule ||
+			!m.currentScript.namesToInlineByAlias.IsEmpty() ||
+			!m.rewriteState.scriptDescriptionsByGoogModuleNamespace.IsEmpty()) &&
+		info.HasTypeNodes() {
+		m.rewriteJsdocInfoWithTraversal(info, t)
 	}
 
 	return true
@@ -597,16 +599,26 @@ func (u *ClosureRewriteModule_ScriptUpdater) Visit(t *NodeTraversal, n *rhino.No
 //
 // Java: ClosureRewriteModule.rewriteJsdoc(JSDocInfo, Scope)
 func (m *ClosureRewriteModule) RewriteJsdoc(info *rhino.JSDocInfo, scope *Scope) {
-	replacer := m.NewReplaceJsDocRefs(scope)
-	for _, typeNode := range info.GetTypeNodes() {
-		NodeUtil_VisitPreOrder(typeNode, replacer)
+	if !info.HasTypeNodes() {
+		return
+	}
+	replacer := ClosureRewriteModule_ReplaceJsDocRefs{outer: m, scope: scope}
+	for typeNode := range info.TypeNodes() {
+		replacer.visitPreOrder(typeNode)
 	}
 }
 
-func (m *ClosureRewriteModule) rewriteJsdocWithTraversal(typeNodes []*rhino.Node, t *NodeTraversal) {
+func (m *ClosureRewriteModule) rewriteJsdocInfoWithTraversal(info *rhino.JSDocInfo, t *NodeTraversal) {
 	replacer := ClosureRewriteModule_ReplaceJsDocRefs{outer: m, t: t}
-	for _, typeNode := range typeNodes {
-		NodeUtil_VisitPreOrder(typeNode, &replacer)
+	for typeNode := range info.TypeNodes() {
+		replacer.visitPreOrder(typeNode)
+	}
+}
+
+func (r *ClosureRewriteModule_ReplaceJsDocRefs) visitPreOrder(n *rhino.Node) {
+	r.Visit(n)
+	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		r.visitPreOrder(child)
 	}
 }
 

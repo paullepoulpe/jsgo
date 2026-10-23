@@ -72,7 +72,7 @@ func (t *ArrowType) init(
 	if parameters == nil {
 		t.parameterList = registry.CreateParametersWithVarArgs(registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	} else {
-		t.parameterList = arrowTypeCopyParameters(parameters)
+		t.parameterList = arrowTypeCopyParametersWithRegistry(registry, parameters)
 	}
 	if returnType == nil {
 		t.returnType = registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
@@ -85,10 +85,14 @@ func (t *ArrowType) init(
 // arrowTypeCopyParameters is ImmutableList.copyOf(parameters), which
 // rejects null elements.
 func arrowTypeCopyParameters(parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
+	return arrowTypeCopyParametersWithRegistry(nil, parameters)
+}
+
+func arrowTypeCopyParametersWithRegistry(registry *JSTypeRegistry, parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
 	if len(parameters) == 0 {
 		return emptyFunctionTypeParameterSlice
 	}
-	out := make([]*FunctionType_Parameter, len(parameters))
+	out := registry.allocFunctionParamPtrSlice(len(parameters))
 	for i, p := range parameters {
 		out[i] = jutil.CheckNotNull(p)
 	}

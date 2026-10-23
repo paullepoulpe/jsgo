@@ -142,7 +142,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 	}
 
 	builder := []*ImplicitNullabilityCheck_Result{}
-	for _, typeRoot := range info.GetTypeNodes() {
+	for typeRoot := range info.TypeNodes() {
 		NodeUtil_VisitPreOrderWithPred(
 			typeRoot,
 			NodeUtil_VisitorFunc(func(node *rhino.Node) {

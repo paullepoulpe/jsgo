@@ -92,6 +92,13 @@ type StaticSourceFile interface {
 	GetColumnOfOffset(offset int) int
 }
 
+// StaticSourceFileFast is an optional Go-only fast-path interface implemented
+// by SourceFile and SimpleSourceFile so Node.GetSourceFileName avoids *string
+// heap boxing.
+type StaticSourceFileFast interface {
+	GetNamePtr() *string
+}
+
 // StaticSourceFile_SourceKind enumerates source kinds.
 //
 // Java: StaticSourceFile.SourceKind

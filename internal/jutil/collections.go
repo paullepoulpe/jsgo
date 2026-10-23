@@ -803,7 +803,7 @@ func (l *ArrayList[T]) Equals(o any) bool {
 func (l *ArrayList[T]) HashCode() int32 {
 	var h int32 = 1
 	for _, e := range l.elems {
-		h = 31*h + ObjectHashCode(e)
+		h = 31*h + ObjectHashCodeOf(e)
 	}
 	return h
 }
@@ -839,9 +839,19 @@ func (s *LinkedHashSet[T]) Equals(o any) bool {
 
 // HashCode is Set.hashCode(): the sum of the element hash codes.
 func (s *LinkedHashSet[T]) HashCode() int32 {
+	if s == nil || s.m.size == 0 {
+		return 0
+	}
 	var h int32
-	for e := range s.All() {
-		h += ObjectHashCode(e)
+	var removed []bool
+	if s.m.m != nil {
+		removed = s.m.m.removed
+	}
+	for i := int(s.m.first); i < len(s.m.slots); i++ {
+		if i < len(removed) && removed[i] {
+			continue
+		}
+		h += ObjectHashCodeOf(s.m.slots[i].key)
 	}
 	return h
 }
@@ -881,9 +891,19 @@ func (h *LinkedHashMap[K, V]) Equals(o any) bool {
 
 // HashCode is Map.hashCode(): the sum of key^value hash codes.
 func (h *LinkedHashMap[K, V]) HashCode() int32 {
+	if h == nil || h.size == 0 {
+		return 0
+	}
 	var sum int32
-	for k, v := range h.All() {
-		sum += ObjectHashCode(k) ^ ObjectHashCode(v)
+	var removed []bool
+	if h.m != nil {
+		removed = h.m.removed
+	}
+	for i := int(h.first); i < len(h.slots); i++ {
+		if i < len(removed) && removed[i] {
+			continue
+		}
+		sum += ObjectHashCodeOf(h.slots[i].key) ^ ObjectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }
@@ -1215,9 +1235,15 @@ func (h *ObjectLinkedHashMap[K, V]) Equals(o any) bool {
 
 // HashCode is Map.hashCode().
 func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
+	if h == nil || h.size == 0 {
+		return 0
+	}
 	var sum int32
-	for k, v := range h.All() {
-		sum += ObjectHashCode(k) ^ ObjectHashCode(v)
+	for i := int(h.first); i < len(h.slots); i++ {
+		if h.slots[i].hnext == olhmRemoved {
+			continue
+		}
+		sum += ObjectHashCodeOf(h.slots[i].key) ^ ObjectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }
@@ -1351,9 +1377,15 @@ func (s *ObjectLinkedHashSet[T]) Equals(o any) bool {
 
 // HashCode is Set.hashCode().
 func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
+	if s == nil || s.m.size == 0 {
+		return 0
+	}
 	var h int32
-	for e := range s.All() {
-		h += ObjectHashCode(e)
+	for i := int(s.m.first); i < len(s.m.slots); i++ {
+		if s.m.slots[i].hnext == olhmRemoved {
+			continue
+		}
+		h += ObjectHashCodeOf(s.m.slots[i].key)
 	}
 	return h
 }

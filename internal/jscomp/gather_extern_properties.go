@@ -130,7 +130,7 @@ func (g *GatherExternProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *
 
 // Java: GatherExternProperties.gatherPropertiesFromJSDocInfo(JSDocInfo)
 func (g *GatherExternProperties) GatherPropertiesFromJSDocInfo(jsDocInfo *rhino.JSDocInfo) {
-	for _, jsTypeExpressionNode := range jsDocInfo.GetTypeNodes() {
+	for jsTypeExpressionNode := range jsDocInfo.TypeNodes() {
 		g.GatherPropertiesFromJsTypeExpressionNode(jsTypeExpressionNode)
 	}
 }

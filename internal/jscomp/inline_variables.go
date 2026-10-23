@@ -1568,16 +1568,16 @@ func (b *InlineVariables_InliningBehavior) CanMoveAggressively(value *rhino.Node
 func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Reference, reference *Reference) bool {
 	// Check if declaration can be inlined without passing
 	// any side-effect causing nodes.
-	var it *NodeIterators_LocalVarMotion
+	var it NodeIterators_LocalVarMotion
 	if NodeUtil_IsNameDeclaration(initialization.GetParent()) {
-		it = NodeIterators_LocalVarMotion_ForVar(
+		it.initForVar(
 			b.outer.compiler,
 			initialization.GetNode(),        // NAME
 			initialization.GetParent(),      // VAR/LET/CONST
 			initialization.GetGrandparent()) // VAR/LET/CONST container
 	} else if initialization.GetParent().IsAssign() {
 		jutil.CheckState(initialization.GetGrandparent().IsExprResult())
-		it = NodeIterators_LocalVarMotion_ForAssign(
+		it.initForAssign(
 			b.outer.compiler,
 			initialization.GetNode(),                    // NAME
 			initialization.GetParent(),                  // ASSIGN

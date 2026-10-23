@@ -341,7 +341,7 @@ func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n *rhino.Node) {
 		return
 	}
 
-	for _, e_ := range info.GetTypeExpressions() {
+	for e_ := range info.TypeExpressions() {
 		for typeName := range e_.GetAllTypeNames().All() {
 			e.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(typeName))
 		}

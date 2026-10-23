@@ -75,6 +75,13 @@ func NewJSTypeExpression(root *Node, sourceName string) *JSTypeExpression {
 	return &JSTypeExpression{root: root, sourceName: sourceName}
 }
 
+// Init initializes e in-place for slab allocation.
+func (e *JSTypeExpression) Init(root *Node, sourceName string) *JSTypeExpression {
+	e.root = root
+	e.sourceName = sourceName
+	return e
+}
+
 // ReplaceNamesWithUnknownType replaces given names in this type expression
 // with unknown.
 //

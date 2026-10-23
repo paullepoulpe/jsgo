@@ -139,9 +139,7 @@ func (r *scriptNodeDeserializer_Runner) Run() (result *rhino.Node) {
 		}
 		contextStack.Add(parsing.FeatureCollector_FeatureContext_NONE)
 
-		r.templateNodeVal = rhino.Node{}
-		tmpl := r.templateNodeVal.Init(rhino.Token_SCRIPT)
-		tmpl.SetStaticSourceFile(r.Owner().sourceFile)
+		tmpl := r.Owner().sourceFile.getOrCreateSourceInfoTemplate()
 
 		scriptNode, _ := r.visitBytes(
 			r.Owner().scriptBytes,
@@ -746,10 +744,7 @@ func (d *ScriptNodeDeserializer) GetSourceFile() *SourceFile {
 //
 // Java: ScriptNodeDeserializer.createSourceInfoTemplate(SourceFile)
 func (d *ScriptNodeDeserializer) CreateSourceInfoTemplate(file *SourceFile) *rhino.Node {
-	// The Node type choice is arbitrary.
-	sourceInfoTemplate := rhino.NewNode(rhino.Token_SCRIPT)
-	sourceInfoTemplate.SetStaticSourceFile(file)
-	return sourceInfoTemplate
+	return file.getOrCreateSourceInfoTemplate()
 }
 
 // Java: ScriptNodeDeserializer.setOriginalNameIfPresent(AstNode, Node)

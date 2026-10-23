@@ -235,16 +235,25 @@ func (p NodeProperty) GetNumber() int32 {
 	return nodeProperty_numbers[p]
 }
 
+var nodePropertyByNumber = func() [64]*NodeProperty {
+	var out [64]*NodeProperty
+	var vals [len(nodeProperty_numbers)]NodeProperty
+	for i, n := range nodeProperty_numbers {
+		if n >= 0 && int(n) < len(out) && NodeProperty(i) != NodeProperty_UNRECOGNIZED {
+			vals[i] = NodeProperty(i)
+			out[n] = &vals[i]
+		}
+	}
+	return out
+}()
+
 // NodeProperty_ForNumber returns the constant with the given proto number, or
 // null.
 //
 // Java: NodeProperty.forNumber(int)
 func NodeProperty_ForNumber(value int32) *NodeProperty {
-	for i, n := range nodeProperty_numbers {
-		if n == value && NodeProperty(i) != NodeProperty_UNRECOGNIZED {
-			p := NodeProperty(i)
-			return &p
-		}
+	if uint32(value) < uint32(len(nodePropertyByNumber)) {
+		return nodePropertyByNumber[value]
 	}
 	return nil
 }

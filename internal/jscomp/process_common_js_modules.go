@@ -1492,7 +1492,7 @@ func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n *rhino.
 func (r *ProcessCommonJSModules_RewriteModule) FixTypeAnnotationsForNode(t *NodeTraversal, n *rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
-		for _, typeNode := range info.GetTypeNodes() {
+		for typeNode := range info.TypeNodes() {
 			r.FixTypeNode(t, typeNode)
 		}
 	}
