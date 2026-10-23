@@ -60,8 +60,20 @@ wall.
   GC CPU roughly tripled (typed-full 1.3 → 4.7 s, bundle-mega 2.2 → 9.7 s)
   and total CPU rose 21–29 %.
 - Wall time +9 to +19 % (table above). The same code on Go 1.24 was slower
-  still; most of the remaining cost is allocation volume, which is round-2
-  item 1 below. A higher default GOGC is a cheap dial: see below.
+  still.
+- **The cost is allocation itself, not GC.** Raising GOGC buys back almost no
+  wall time but gives back much of the RSS (final binary, single runs):
+
+  | Task | GOGC=100 | GOGC=150 | GOGC=200 |
+  |---|---|---|---|
+  | typed-full | 531 MB / 35.9 s | 630 MB / 35.8 s | 715 MB / 35.0 s |
+  | typed-mega | 862 MB / 60.3 s | 1,036 MB / 61.6 s | 1,244 MB / 60.7 s |
+  | bundle-mega | 856 MB / 73.4 s | 1,069 MB / 70.5 s | 1,124 MB / 75.3 s |
+
+  GC marking runs on otherwise idle cores; what the main thread pays for is
+  ~7× more allocated objects (as the GC lab found, allocation is 12–15 % of
+  CPU whatever the GC settings). So the default GOGC stays at 100, and the
+  lever for wall time is allocation volume: round-2 item 1.
 - Code: 49 commits, **net −6,991 lines** (+3,777 / −10,768 over 231 files);
   `sync.Pool` uses 33 → 10.
 
