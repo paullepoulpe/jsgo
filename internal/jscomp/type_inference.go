@@ -72,9 +72,6 @@ type TypeInference struct {
 	branchConditionFlowScope FlowScope
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 
-	outcomePairs  reuseSlab[TypeInference_BooleanOutcomePair]
-	optChainInfos reuseSlab[TypeInference_OptChainInfo]
-
 	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
 	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
 	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
@@ -128,8 +125,6 @@ func (ti *TypeInference) initTypeInference(
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
 	ti.InitDataFlowAnalysisBase(ti, cfg)
 	ti.flowScopeArena.reset()
-	ti.outcomePairs.reset(nil)
-	ti.optChainInfos.reset(nil)
 	// Field initializers.
 	ti.lastScopeRoot = nil
 	ti.lastModule = nil
@@ -2978,14 +2973,6 @@ func NewTypeInference_OptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.N
 	return o
 }
 
-func (ti *TypeInference) allocOptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.Node) *TypeInference_OptChainInfo {
-	o := ti.optChainInfos.alloc()
-	o.endOfChain = endOfChain
-	o.startOfChain = startOfChain
-	o.unconditionalScope = nil
-	return o
-}
-
 // TraverseOptChain: traversal requires holding scopes from the
 // unconditional start (lhs of the `?.`) and the conditional part (rhs of the
 // `?.`), and using the startType to determine the resulting scope.
@@ -2997,7 +2984,7 @@ func (ti *TypeInference) TraverseOptChain(n *rhino.Node, scope FlowScope) FlowSc
 	if NodeUtil_IsEndOfOptChainSegment(n) {
 		// Create new optional chain tracking object and push it onto the stack.
 		startOfChain := NodeUtil_GetStartOfOptChainSegment(n)
-		optChainInfo := ti.allocOptChainInfo(n, startOfChain)
+		optChainInfo := NewTypeInference_OptChainInfo(n, startOfChain)
 		// optChainArrayDeque.addFirst(optChainInfo)
 		ti.optChainArrayDeque = append(ti.optChainArrayDeque, optChainInfo)
 	}
@@ -3618,19 +3605,13 @@ func NewTypeInference_BooleanOutcomePair(
 	booleanValues rhino.BooleanLiteralSet,
 	leftScope FlowScope,
 	rightScope FlowScope) *TypeInference_BooleanOutcomePair {
-	var p *TypeInference_BooleanOutcomePair
-	if outer != nil {
-		p = outer.outcomePairs.alloc()
-		p.outer = outer
-		p.joinedScope = nil
-	} else {
-		p = &TypeInference_BooleanOutcomePair{outer: outer}
+	return &TypeInference_BooleanOutcomePair{
+		outer:             outer,
+		toBooleanOutcomes: toBooleanOutcomes,
+		booleanValues:     booleanValues,
+		leftScope:         leftScope,
+		rightScope:        rightScope,
 	}
-	p.toBooleanOutcomes = toBooleanOutcomes
-	p.booleanValues = booleanValues
-	p.leftScope = leftScope
-	p.rightScope = rightScope
-	return p
 }
 
 // GetJoinedFlowScope gets the safe estimated scope without knowing if all of

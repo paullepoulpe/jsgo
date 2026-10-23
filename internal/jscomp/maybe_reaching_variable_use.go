@@ -74,7 +74,6 @@ type MaybeReachingVariableUse struct {
 
 	emptyLattice MaybeReachingVariableUse_ReachingUses
 	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
-	lattices     reuseSlab[MaybeReachingVariableUse_ReachingUses]
 
 	varMapArena  rhino.HamtPMapArena[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
 	nodeMapArena rhino.HamtPMapArena[*rhino.Node, *rhino.Node]
@@ -132,7 +131,6 @@ func (u *MaybeReachingVariableUse) Reset(
 	}
 	u.emptyLattice.u = u
 	u.emptyLattice.mayUsePMap = maybeReachingUse_EMPTY_VARS
-	u.lattices.reset(nil)
 }
 
 func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
@@ -152,10 +150,7 @@ func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
 }
 
 func (u *MaybeReachingVariableUse) allocLattice(m *rhino.HamtPMap[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
-	lat := u.lattices.alloc()
-	lat.u = u
-	lat.mayUsePMap = m
-	return lat
+	return &MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: m}
 }
 
 // MaybeReachingVariableUse_ReachingUses is the may use definition lattice
