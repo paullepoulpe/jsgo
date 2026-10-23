@@ -294,6 +294,11 @@ type GlobalNamespace struct {
 	// references to one name share one string.
 	concatCache *[gnConcatCacheSize][2]string
 
+	// Go-only: performance — a namespace's Names and Refs are created
+	// together and die together with it (see jutil.Slab).
+	names jutil.Slab[GlobalNamespace_Name]
+	refs  jutil.Slab[GlobalNamespace_Ref]
+
 	scopeCreator           *SyntacticScopeCreator
 	forProcessDefines      bool
 	processDefinesCheck    bool
@@ -2370,7 +2375,15 @@ func NewGlobalNamespace_Name(outer *GlobalNamespace, name string, parent *Global
 
 // newGlobalNamespace_Name is the Name constructor given the full name.
 func newGlobalNamespace_Name(outer *GlobalNamespace, fullName string, parent *GlobalNamespace_Name, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
-	n := &GlobalNamespace_Name{outer: outer, fullName: fullName, parent: parent}
+	var n *GlobalNamespace_Name
+	if outer != nil {
+		n = outer.names.New()
+	} else {
+		n = new(GlobalNamespace_Name)
+	}
+	n.outer = outer
+	n.fullName = fullName
+	n.parent = parent
 	n.SetBooleanProperty(GlobalNamespace_NameProp_NOT_A_TYPE)
 	n.SetBooleanProperty(GlobalNamespace_NameProp_OTHER_OBJECT)
 	if sourceKind == GlobalNamespace_SourceKind_EXTERN {
@@ -2623,7 +2636,12 @@ func (n *GlobalNamespace_Name) CreateNewRef(chunk *JSChunk, scope *Scope, node *
 		jutil.CheckNotNull(scope)
 	}
 	jutil.CheckNotNull(node) // may be null later, but not on creation
-	return NewGlobalNamespace_Ref(chunk, scope, node, type_)
+	if n.outer == nil {
+		return NewGlobalNamespace_Ref(chunk, scope, node, type_)
+	}
+	ref := n.outer.refs.New()
+	*ref = GlobalNamespace_Ref{chunk: chunk, node: node, type_: type_, scope: scope}
+	return ref
 }
 
 func (n *GlobalNamespace_Name) putNewRef(node *rhino.Node, ref *GlobalNamespace_Ref) {

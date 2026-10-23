@@ -38,10 +38,14 @@ type IdentifierToken struct {
 // Java: IdentifierToken(SourceRange, String)
 func NewIdentifierToken(location SourceRange, value string) *IdentifierToken {
 	t := &IdentifierToken{}
+	t.initIdentifierToken(location, value)
+	return t
+}
+
+func (t *IdentifierToken) initIdentifierToken(location SourceRange, value string) {
 	t.InitTokenBase(TokenType_IDENTIFIER, location)
 	t.value = value
 	t.privateIdentifier = strings.HasPrefix(value, "#")
-	return t
 }
 
 // String returns the identifier's value.

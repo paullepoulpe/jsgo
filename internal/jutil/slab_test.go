@@ -49,8 +49,8 @@ func TestSlabChunkSizes(t *testing.T) {
 			got = append(got, len(s.chunk))
 		}
 	}
-	want := []int{17, 35, 75, 147}
-	for n := 17 + 35 + 75 + 147; n < 3000; n += 147 {
+	want := []int{4, 8, 17, 35, 75, 147}
+	for n := 4 + 8 + 17 + 35 + 75 + 147; n < 3000; n += 147 {
 		want = append(want, 147)
 	}
 	if !slices.Equal(got, want) {

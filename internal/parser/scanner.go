@@ -44,6 +44,70 @@ type Scanner struct {
 	index              int
 	commentRecorder    Scanner_CommentRecorder
 	typeParameterLevel int
+
+	// Go-only: performance — tokens are allocated in slabs (see jutil.Slab)
+	// rather than one by one (a third of the parser's allocations were
+	// 28-byte punctuator tokens). The tokens that parse trees keep (operators,
+	// literals, identifiers) live until the statement holding them is
+	// converted and share slabs; those the parser only looks at (brackets,
+	// separators, keywords: see tokenIsTransient) have their own, whose
+	// chunks are freed as soon as the parser has passed them, so that a
+	// large statement does not keep its whole token stream alive.
+	tokens          jutil.Slab[TokenBase]
+	transientTokens jutil.Slab[TokenBase]
+	identTokens     jutil.Slab[IdentifierToken]
+	literalTokens   jutil.Slab[LiteralTokenBase]
+	stringTokens    jutil.Slab[StringLiteralToken]
+}
+
+// tokenIsTransient reports whether no parse tree stores a token of this
+// type (a keyword used as an object-literal key is the rare exception,
+// which only keeps a chunk of transient tokens alive a little longer).
+func tokenIsTransient(t TokenType) bool {
+	switch t {
+	case TokenType_DELETE, TokenType_IN, TokenType_INSTANCEOF, TokenType_TYPEOF, TokenType_VOID:
+		return false // unary and binary operators
+	case TokenType_END_OF_FILE, TokenType_ERROR, TokenType_ARROW, TokenType_QUESTION, TokenType_QUESTION_DOT,
+		TokenType_COLON, TokenType_ELLIPSIS:
+		return true
+	}
+	return (t >= TokenType_BREAK && t <= TokenType_YIELD) ||
+		(t >= TokenType_OPEN_CURLY && t <= TokenType_COMMA) ||
+		t >= TokenType_TYPE
+}
+
+// newStringLiteralToken is NewStringLiteralToken from the scanner's slab.
+func (s *Scanner) newStringLiteralToken(value string, location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
+	t := s.stringTokens.New()
+	t.InitLiteralTokenBase(TokenType_STRING, value, location)
+	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
+	return t
+}
+
+// newToken is NewToken from the scanner's slabs.
+func (s *Scanner) newToken(type_ TokenType, location SourceRange) *TokenBase {
+	var t *TokenBase
+	if tokenIsTransient(type_) {
+		t = s.transientTokens.New()
+	} else {
+		t = s.tokens.New()
+	}
+	t.InitTokenBase(type_, location)
+	return t
+}
+
+// newIdentifierToken is NewIdentifierToken from the scanner's slab.
+func (s *Scanner) newIdentifierToken(location SourceRange, value string) *IdentifierToken {
+	t := s.identTokens.New()
+	t.initIdentifierToken(location, value)
+	return t
+}
+
+// newLiteralToken is NewLiteralToken from the scanner's slab.
+func (s *Scanner) newLiteralToken(type_ TokenType, value string, location SourceRange) *LiteralTokenBase {
+	t := s.literalTokens.New()
+	t.InitLiteralTokenBase(type_, value, location)
+	return t
 }
 
 // charAt is contents.charAt(index), for a valid index (SourceFile.CharAt).
@@ -188,14 +252,14 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 
 	// body
 	if !s.SkipRegularExpressionBody() {
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 
 	// separating '/'
 	if s.PeekChar() != '/' {
 		s.ReportError("Expected '/' in regular expression literal")
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 	s.NextChar()
@@ -205,7 +269,7 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 		s.NextChar()
 	}
 
-	return NewLiteralToken(
+	return s.newLiteralToken(
 		TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 }
 
@@ -778,7 +842,7 @@ func (s *Scanner) ScanPostDigit(beginToken int) Token {
 	s.SkipDecimalDigits()
 	if s.Peek('n') {
 		s.NextChar()
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 	return s.ScanFractionalNumericLiteral(beginToken)
@@ -799,7 +863,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -817,7 +881,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -831,7 +895,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			bigIntOrNumber(isBigInt),
 			s.GetTokenString(beginToken),
 			s.GetTokenRange(beginToken))
@@ -848,14 +912,14 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if s.Peek('n') {
 			s.ReportError("SyntaxError: nonzero BigInt can't have leading zero")
 		}
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	case 'n':
 		s.NextChar()
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	default:
-		return NewLiteralToken(
+		return s.newLiteralToken(
 			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 	}
 }
@@ -872,7 +936,7 @@ func bigIntOrNumber(isBigInt bool) TokenType {
 
 // Java: Scanner.createToken(TokenType, int)
 func (s *Scanner) CreateToken(type_ TokenType, beginToken int) Token {
-	return NewToken(type_, s.GetTokenRange(beginToken))
+	return s.newToken(type_, s.GetTokenRange(beginToken))
 }
 
 // Java: Scanner.scanIdentifierOrKeyword(int, char)
@@ -977,10 +1041,10 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	// Keywords containing unicode escape sequences are treated as
 	// IdentifierTokens rather than keyword Tokens (ECMA-262 11.6.2).
 	if k != nil && !containsUnicodeEscape {
-		return NewToken(k.Type(), s.GetTokenRange(beginToken))
+		return s.newToken(k.Type(), s.GetTokenRange(beginToken))
 	}
 
-	return NewIdentifierToken(s.GetTokenRange(beginToken), value)
+	return s.newIdentifierToken(s.GetTokenRange(beginToken), value)
 }
 
 // Scanner_ProcessUnicodeEscapes converts unicode escapes in the given
@@ -1083,7 +1147,7 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 		hasUnescapedUnicodeLineOrParagraphSeparator =
 			hasUnescapedUnicodeLineOrParagraphSeparator || c == 0x2028 || c == 0x2029
 		if !s.SkipStringLiteralChar() {
-			return NewStringLiteralToken(
+			return s.newStringLiteralToken(
 				s.GetTokenString(beginIndex),
 				s.GetTokenRangeFromPosition(startingPosition),
 				hasUnescapedUnicodeLineOrParagraphSeparator)
@@ -1094,7 +1158,7 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 	} else {
 		s.NextChar()
 	}
-	return NewStringLiteralToken(
+	return s.newStringLiteralToken(
 		s.GetTokenString(beginIndex),
 		s.GetTokenRangeFromPosition(startingPosition),
 		hasUnescapedUnicodeLineOrParagraphSeparator)
@@ -1362,7 +1426,7 @@ func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) LiteralToken {
 		s.SkipDecimalDigits()
 	default:
 	}
-	return NewLiteralToken(
+	return s.newLiteralToken(
 		TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
 }
 
