@@ -175,7 +175,98 @@ Old chunks are kept alive, their slots cleared (any id into them panics in
 
 ## 3. Measurements
 
-(filled in below)
+memgate on the six tasks, one binary per step, all MATCH (byte-identical
+with Java in default mode, fast mode and poison mode). "base" is the branch
+with the handles work only (0f0b036e: `tc`/`aux` handles, pointer links);
+"ids" is the merged tree with `JSGO_AST_COMPACT=0` (step 1 alone: ids, no
+reclamation); "compact" is the merged tree as shipped (compaction on). The
+machine ran three other agents' builds throughout, so wall and CPU are
+±10 % noisy; live heap, objects and GC CPU are the robust columns.
+
+### Default GOGC (RSS, wall, CPU, GC CPU)
+
+| task | step | wall s | cpu s | RSS MB | live MB | scan MB | M obj | GCs | GC cpu s |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| typed-app | base | 2.59 | 1.72 | 181 | 69 | 33 | 1.8 | 13 | 0.30 |
+| | ids | 2.24 | 1.70 | 184 | 72 | 45 | 1.3 | 13 | 0.13 |
+| | compact | 1.60 | 1.70 | 171 | 71 | 44 | 1.3 | 14 | 0.12 |
+| bundle | base | 4.64 | 5.52 | 302 | 127 | 78 | 3.5 | 19 | 1.03 |
+| | ids | 4.98 | 5.15 | 310 | 138 | 123 | 1.8 | 17 | 0.15 |
+| | compact | 5.40 | 5.58 | 280 | 124 | 99 | 1.9 | 22 | 0.19 |
+| checks-only | base | 2.30 | 2.88 | 324 | 157 | 89 | 4.8 | 15 | 0.60 |
+| | ids | 2.45 | 2.56 | 303 | 153 | 129 | 3.3 | 14 | 0.11 |
+| | compact | 2.65 | 2.76 | 303 | 156 | 127 | 3.3 | 14 | 0.11 |
+| typed-full | base | 11.42 | 12.77 | 575 | 261 | 161 | 9.9 | 23 | 2.31 |
+| | ids | 13.85 | 14.43 | 583 | 255 | 217 | 7.2 | 23 | 0.83 |
+| | compact | 12.68 | 13.16 | 475 | 230 | 196 | 7.2 | 26 | 0.53 |
+| typed-mega | base | 18.20 | 22.02 | 980 | 430 | 261 | 15.5 | 26 | 4.17 |
+| | ids | 22.80 | 23.84 | 944 | 454 | 368 | 10.7 | 25 | 1.24 |
+| | compact | 20.05 | 20.81 | 787 | 382 | 335 | 10.8 | 28 | 0.78 |
+| bundle-mega | base | 23.33 | 28.17 | 919 | 435 | 242 | 15.5 | 29 | 4.90 |
+| | ids | 30.63 | 31.37 | 956 | 449 | 413 | 10.2 | 29 | 0.81 |
+| | compact | 27.49 | 28.29 | 877 | 414 | 378 | 10.2 | 29 | 0.77 |
+
+- Step 1 (ids, no reclamation): bytes are a wash, as predicted by
+  `round2-design.md` (56-byte nodes in never-freed chunks vs 64-byte
+  GC-managed ones at an allocated/live ratio of 1.4–2); objects −27…−48 %;
+  **GC CPU −57…−84 %** (the collector no longer traces node links; a
+  chunk costs it one pointer); CPU +0…+13 % from the id translation on
+  every link read (a dependent table load) and the lost per-node freeing.
+- Step 3 (compaction): RSS −5…−20 % and peak live −3…−12 % vs base on the
+  optimizing tasks (dead nodes and the cold data of dead nodes are
+  reclaimed, and the pre-order copy restores locality); CPU back to base
+  (−6…+4 %), GC CPU −60…−84 %. checks-only has no optimization stage and
+  so no compaction. Compactions on the shipped binary: typed-app 314 k
+  nodes copied in 9 ms (152 extra roots / 666 nodes); bundle 1.20 M in
+  21 ms, then one loop compaction (1.18 M, 20 ms); typed-full 2.01 M in
+  49 ms (3,274 / 21,752); typed-mega 3.68 M in 87 ms (3,826 / 23,866);
+  bundle-mega 4.28 M in 73 ms (1 / 1). The copy runs at 23–27 ns per node.
+- "scan MB" does **not** drop, and rises with ids: Go accounts every
+  object above 512 bytes that contains a pointer at its full size
+  (`heapSetTypeSmallHeader`/`heapSetTypeLarge` return `span.elemsize`),
+  and a chunk holds one pointer (its generation). The mark loop still
+  stops at that pointer — the GC CPU column is the real cost — but the
+  pacer's `heapScan` and memgate's `peak_scan_bytes` count the whole AST.
+  Making chunks noscan would mean giving up the GC-driven lifetime
+  (section 4) for a Compiler-death release, or 512-byte chunks of 8 nodes
+  (+11 % AST bytes); neither is done here.
+
+### `--gogc 10` (stable peak live)
+
+| task | base live / scan / GC cpu | ids | compact |
+|---|---|---|---|
+| typed-app | 84 / 45 / 2.62 | 84 / 56 / 1.31 | 82 / 50 / 0.86 |
+| bundle | 164 / 107 / 10.09 | 154 / 133 / 1.82 | 159 / 144 / 1.74 |
+| checks-only | 188 / 118 / 5.01 | 175 / 150 / 1.34 | 177 / 151 / 1.26 |
+| typed-full | 270 / 167 / 24.91 | 268 / 229 / 7.49 | 290 / 258 / 4.47 |
+| typed-mega | 441 / 264 / 41.87 | 434 / 351 / 11.60 | 529 / 490 / 6.67 |
+| bundle-mega | 447 / 272 / 67.85 | 454 / 418 / 7.61 | 494 / 468 / 7.96 |
+
+At GOGC 10 the collector samples the live heap during the copy itself, so
+the compaction's transient (old and new AST both alive for 50–90 ms) shows
+up as a higher "peak live" (+7…+20 % on the mega tasks); at default GOGC it
+is absorbed by the heap goal and peak RSS still falls. A chunk-by-chunk
+release during the copy would remove it (nodes of one script are
+chunk-contiguous right after parsing, but not after optimization passes).
+
+### Step 4: GOGC trade-off with compaction (default GOGC = 100)
+
+| task | GOGC 100 RSS / cpu / GC cpu | GOGC 75 | GOGC 50 | base (GOGC 100) |
+|---|---|---|---|---|
+| typed-app | 171 / 1.70 / 0.12 | 155 / 1.89 / 0.14 | 140 / 1.66 / 0.18 | 181 / 1.72 / 0.30 |
+| bundle | 280 / 5.58 / 0.19 | 304 / 5.37 / 0.27 | 241 / 5.35 / 0.34 | 302 / 5.52 / 1.03 |
+| checks-only | 303 / 2.76 / 0.11 | 288 / 2.61 / 0.16 | 294 / 3.11 / 0.26 | 324 / 2.88 / 0.60 |
+| typed-full | 475 / 13.16 / 0.53 | 450 / 12.17 / 0.60 | 466 / 12.51 / 0.94 | 575 / 12.77 / 2.31 |
+| typed-mega | 787 / 20.81 / 0.78 | 765 / 20.68 / 0.86 | 781 / 21.14 / 1.45 | 980 / 22.02 / 4.17 |
+| bundle-mega | 877 / 28.29 / 0.77 | 853 / 28.70 / 1.08 | 689 / 29.38 / 1.40 | 919 / 28.17 / 4.90 |
+
+GOGC 50 with compaction costs 0.2–1.5 s of GC CPU — still below base at
+GOGC 100 on every task — for RSS −9…−25 % vs base (bundle-mega 689 vs
+919 MB, typed-mega 781 vs 980, typed-full 466 vs 575, bundle 241 vs 302,
+typed-app 140 vs 181). The default GOGC is left unchanged here (the runner
+can set `GOGC`); lowering it to 50 is the recommended follow-up once the
+other agents' allocation-volume work is in, since GC CPU scales with the
+remaining pointerful heap (types, scopes, strings), not with the AST.
 
 ## 4. Pointer-free, not noscan
 
