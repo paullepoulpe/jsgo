@@ -141,7 +141,7 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	normStmts.initFastContextualRenamer()
 	defer normStmts.releaseFastContextualRenamer()
 	sc1 := NewSyntacticScopeCreator(n.compiler)
-	sc1.EnableArenaPool()
+	sc1.EnableLocalScopeReclamation()
 	b1 := NodeTraversal_Builder{
 		compiler:     n.compiler,
 		callback:     normStmts,
@@ -151,7 +151,7 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	sc1.ReleaseArena()
 
 	sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
-	sc2.EnableArenaPool()
+	sc2.EnableLocalScopeReclamation()
 	defer sc2.ReleaseArena()
 	b2 := NodeTraversal_Builder{
 		compiler:     n.compiler,
@@ -219,13 +219,13 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	if !n.IsName() || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		return
 	}
-	name := n.GetString()
-	if name == "" {
+	id := n.GetStringID()
+	if id <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
 
 	// Find the JSDocInfo for a top-level variable
-	var_ := t.LookupVar(name)
+	var_ := t.LookupVarByID(id)
 	var shouldBeConstant bool
 	if var_ != nil {
 		switch var_.nameHash {
@@ -238,7 +238,7 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 				shouldBeConstant = true
 			} else if info := var_.GetJSDocInfo(); info != nil && info.IsConstant() {
 				shouldBeConstant = true
-			} else if p.convention.IsConstant(name) {
+			} else if p.convention.IsConstant(n.GetString()) {
 				shouldBeConstant = true
 			}
 			if shouldBeConstant {
@@ -248,14 +248,14 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 			}
 		}
 	} else {
-		shouldBeConstant = p.convention.IsConstant(name)
+		shouldBeConstant = p.convention.IsConstant(n.GetString())
 	}
 	if shouldBeConstant {
 		if p.assertOnChange {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Should be const but not marked as const.\n" +
 					"  name: " +
-					name +
+					n.GetString() +
 					"\n" +
 					"  parent:" +
 					n.GetParent().ToStringTree()))

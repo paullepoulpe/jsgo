@@ -4321,7 +4321,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 		if symbol == nil {
 			continue
 		}
-		name := symbol.name
+		name := symbol.GetName()
 		h := symbol.nameHash
 		symbol.nameHash = 0
 		if h != 1 {

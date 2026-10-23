@@ -143,7 +143,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 		b.varsInFunctionBody.Clear()
 		for _, v := range scope.varList {
 			if v != nil {
-				b.varsInFunctionBody.Add(v.name)
+				b.varsInFunctionBody.Add(v.GetName())
 			}
 		}
 	}

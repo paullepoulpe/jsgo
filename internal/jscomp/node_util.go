@@ -6740,7 +6740,7 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) appendScopeVars(currentSc
 		if v == nil {
 			continue
 		}
-		f.result.mapStorage.Put(v.name, v)
+		f.result.mapStorage.Put(v.GetName(), v)
 		f.result.orderedVars = append(f.result.orderedVars, v)
 	}
 }

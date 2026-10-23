@@ -134,7 +134,7 @@ type inferConstVarState struct {
 	v               *Var
 	firstBlock      *BasicBlock
 	assignBlock     *BasicBlock
-	assignScope     *Scope
+	assignHoistRoot *rhino.Node
 	assignCount     int32
 	firstIsInitDecl bool
 	firstIsDecl     bool
@@ -145,7 +145,7 @@ func (st *inferConstVarState) isAssignedOnceInLifetime() bool {
 	varScope := st.v.scope
 	for block := st.assignBlock; block != nil; block = block.parent {
 		if block.isFunction {
-			if varScope.GetClosestHoistScope() != st.assignScope.GetClosestHoistScope() {
+			if varScope.GetClosestHoistScope().GetRootNode() != st.assignHoistRoot {
 				return false
 			}
 			break
@@ -170,6 +170,7 @@ type inferConstsCollector struct {
 	outer               *InferConsts
 	compiler            AbstractCompiler
 	scopeCreator        ScopeCreator
+	sc                  *SyntacticScopeCreator
 	localStates         []inferConstVarState
 	globalStates        []inferConstVarState
 	blockStack          []basicBlockEntry
@@ -181,7 +182,6 @@ type inferConstsCollector struct {
 	lastHoisted         *rhino.Node
 	hoistedBuf          [16]*rhino.Node
 	hoistedCount        uint8
-	funcDepth           int
 	jumpDepth           int
 	blockStackBuf       [64]basicBlockEntry
 	blockBuf            [32]BasicBlock
@@ -191,24 +191,27 @@ var cachedInferConstsCollector atomic.Pointer[inferConstsCollector]
 
 var inferConstsCollectorPool sync.Pool
 
-func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, scopeCreator ScopeCreator) *inferConstsCollector {
+func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *SyntacticScopeCreator) *inferConstsCollector {
 	if c := cachedInferConstsCollector.Swap(nil); c != nil {
 		c.outer = outer
 		c.compiler = compiler
-		c.scopeCreator = scopeCreator
+		c.scopeCreator = sc
+		c.sc = sc
 		return c
 	}
 	if v := inferConstsCollectorPool.Get(); v != nil {
 		c := v.(*inferConstsCollector)
 		c.outer = outer
 		c.compiler = compiler
-		c.scopeCreator = scopeCreator
+		c.scopeCreator = sc
+		c.sc = sc
 		return c
 	}
 	c := &inferConstsCollector{
 		outer:         outer,
 		compiler:      compiler,
-		scopeCreator:  scopeCreator,
+		scopeCreator:  sc,
+		sc:            sc,
 		localStates:   make([]inferConstVarState, 1, 8192),
 		globalStates:  make([]inferConstVarState, 1, 16384),
 		blockChunkIdx: -1,
@@ -262,11 +265,11 @@ func releaseInferConstsCollector(c *inferConstsCollector) {
 			c.collectedHoistedMap = nil
 		}
 	}
-	c.funcDepth = 0
 	c.jumpDepth = 0
 	c.outer = nil
 	c.compiler = nil
 	c.scopeCreator = nil
+	c.sc = nil
 	if cachedInferConstsCollector.CompareAndSwap(nil, c) {
 		return
 	}
@@ -281,14 +284,6 @@ func (c *inferConstsCollector) flushLocalStates() {
 	}
 	clear(c.localStates[1:])
 	c.localStates = c.localStates[:1]
-}
-
-func isInferConstsFuncLocal(v *Var) bool {
-	if !v.IsLocal() {
-		return false
-	}
-	hs := v.scope.GetClosestHoistScope()
-	return hs.IsFunctionBlockScope() || hs.IsFunctionScope()
 }
 
 func (c *inferConstsCollector) builderVal() NodeTraversal_Builder {
@@ -443,9 +438,6 @@ func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 
 func (c *inferConstsCollector) EnterScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
-	if scopeRoot.IsFunction() {
-		c.funcDepth++
-	}
 	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
 		c.pushNewBlock(scopeRoot)
 	}
@@ -456,11 +448,9 @@ func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
 		c.popLastBlock(scopeRoot)
 	}
-	if scopeRoot.IsFunction() {
-		c.funcDepth--
-		if c.funcDepth == 0 && c.jumpDepth == 0 {
-			c.flushLocalStates()
-		}
+	if len(t.scopes) == 2 && c.jumpDepth == 0 {
+		c.flushLocalStates()
+		c.sc.ResetLocalArena()
 	}
 }
 
@@ -471,9 +461,9 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 			(parent.IsExportSpec() && n != parent.GetFirstChild()) {
 			return
 		}
-		name := n.GetString()
-		if name != "" {
-			v := t.LookupVar(name)
+		id := n.GetStringID()
+		if id > rhino.RhinoStringPool_EmptyID {
+			v := t.LookupVarByID(id)
 			if v != nil {
 				c.addReference(v, n, parent, t)
 				if v.nameNode != n {
@@ -540,8 +530,9 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	b := c.builderVal()
 	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 	c.jumpDepth--
-	if c.funcDepth == 0 && c.jumpDepth == 0 {
+	if len(t.scopes) == 1 && c.jumpDepth == 0 {
 		c.flushLocalStates()
+		c.sc.ResetLocalArena()
 	}
 
 	usedStack := c.blockStack
@@ -591,9 +582,9 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		if isAssign {
 			st.assignCount = 1
 			st.assignBlock = currentBlock
-			st.assignScope = t.GetScope()
+			_, st.assignHoistRoot = t.closestScopeHoistRoot()
 		}
-		if isInferConstsFuncLocal(v) {
+		if v.IsLocal() {
 			v.nameHash = int32(len(c.localStates))
 			if len(c.localStates) == cap(c.localStates) {
 				next := make([]inferConstVarState, len(c.localStates), max(cap(c.localStates)*4, 8192))
@@ -633,7 +624,7 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		st.assignCount++
 		if st.assignCount == 1 {
 			st.assignBlock = currentBlock
-			st.assignScope = t.GetScope()
+			_, st.assignHoistRoot = t.closestScopeHoistRoot()
 		}
 	}
 	if st.assignCount <= 1 && st.allAfterFirst {

@@ -353,6 +353,9 @@ func rhinoStringPoolLookup(str string) rhinoStringID {
 	return 0
 }
 
+// RhinoStringPool_EmptyID is the canonical 32-bit ID of the empty string "".
+const RhinoStringPool_EmptyID uint32 = 1
+
 // RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
 func RhinoStringPool_InternID(s string) uint32 {
 	return uint32(rhinoStringPoolIntern(s))

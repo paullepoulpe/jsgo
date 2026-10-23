@@ -219,7 +219,7 @@ func (m *MakeDeclaredNamesUnique) FindDeclaredNames(t *NodeTraversal, n *rhino.N
 	topRenamer := m.renamerStack[len(m.renamerStack)-1]
 	for _, v := range t.GetScope().varList {
 		if v != nil {
-			topRenamer.AddDeclaredName(v.name, false)
+			topRenamer.AddDeclaredName(v.GetName(), false)
 		}
 	}
 }

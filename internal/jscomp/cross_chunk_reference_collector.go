@@ -645,10 +645,11 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 		c.maxVarIndex = idx
 	}
 	if c.varsByName != nil {
-		if c.varsByName.ContainsKey(v.name) {
-			jutil.CheckState(jutil.ObjectsEquals(c.varsByName.Get(v.name), v))
+		name := v.GetName()
+		if c.varsByName.ContainsKey(name) {
+			jutil.CheckState(jutil.ObjectsEquals(c.varsByName.Get(name), v))
 		} else {
-			c.varsByName.Put(v.name, v)
+			c.varsByName.Put(name, v)
 		}
 	}
 	col := c.allocReferenceCollection()
@@ -725,7 +726,7 @@ func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollectio
 		return col
 	}
 	for i, kv := range c.vars {
-		if kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode() {
+		if kv.nameID == v.nameID && kv.scope.GetRootNode() == v.scope.GetRootNode() {
 			col := c.cols[i]
 			c.lastVar = v
 			c.lastCollection = col
@@ -745,7 +746,7 @@ func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.Linked
 	}
 	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
 	for _, v := range c.vars {
-		out.Put(v.name, v)
+		out.Put(v.GetName(), v)
 	}
 	return out
 }
@@ -760,10 +761,10 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(c.topLevelStatementDraft))
 			c.topLevelStatementDraft = nil
 		} else if n.IsName() {
-			name := n.GetString()
-			if name != "" {
+			id := n.GetStringID()
+			if id > rhino.RhinoStringPool_EmptyID {
 				scope := t.resolveLookupScope(len(t.scopes) - 1)
-				v := scope.GetVar(name)
+				v := scope.GetVarByID(id)
 
 				if v != nil && v.IsGlobal() {
 					var col *ReferenceCollection

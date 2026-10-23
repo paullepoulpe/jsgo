@@ -296,10 +296,10 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 		return
 	}
 
-	name := n.GetString()
+	id := n.GetStringID()
 
 	// Ignore anonymous functions and classes.
-	if name == "" {
+	if id <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
 
@@ -310,7 +310,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 	}
 
 	r := p.outer
-	var_ := t.LookupVar(name)
+	var_ := t.LookupVarByID(id)
 	if var_ != nil {
 		idx := var_.nameHash
 		if idx > 0 {
@@ -327,6 +327,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 			return
 		} else if idx < 0 {
 			if idx == -2 {
+				name := n.GetString()
 				newName := MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 				if newName != name {
 					n.SetString(newName)
@@ -334,6 +335,8 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 			}
 			return
 		}
+
+		name := n.GetString()
 
 		// First time seeing this var_.
 		varScope := var_.scope
@@ -411,6 +414,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *
 	}
 
 	// var_ == nil (undeclared or extern)
+	name := n.GetString()
 	if r.localRenamingOnly {
 		r.reservedNames.Add(name)
 		return

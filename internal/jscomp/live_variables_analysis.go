@@ -345,8 +345,12 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 
 func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
 	if l.useSmallVarScan {
+		id := rhino.RhinoStringPool_LookupID(name)
+		if id == 0 {
+			return 0, false
+		}
 		for i, v := range l.orderedVars {
-			if v.name == name {
+			if v.nameID == id {
 				return i, true
 			}
 		}

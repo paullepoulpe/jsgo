@@ -3940,7 +3940,7 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_COMPUTED_PROP_GETTER |
 	propFlag_COMPUTED_PROP_SETTER
 
-const rhinoByteSlabSize = 32768
+const rhinoByteSlabSize = 32764
 
 type rhinoByteSlab struct {
 	buf  [rhinoByteSlabSize]byte

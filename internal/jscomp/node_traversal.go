@@ -2037,6 +2037,18 @@ func (t *NodeTraversal) LookupVar(name string) *Var {
 	return t.resolveLookupScope(idx).GetVar(name)
 }
 
+func (t *NodeTraversal) LookupVarByID(id uint32) *Var {
+	idx := len(t.scopes) - 1
+	if s := t.scopes[idx].lookupScope; s != nil {
+		return s.GetVarByID(id)
+	}
+	return t.resolveLookupScope(idx).GetVarByID(id)
+}
+
+func (t *NodeTraversal) LookupVarByNode(n *rhino.Node) *Var {
+	return t.LookupVarByID(n.GetStringID())
+}
+
 func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
 	e := &t.scopes[rootDepth]
 	if e.lookupScope != nil {

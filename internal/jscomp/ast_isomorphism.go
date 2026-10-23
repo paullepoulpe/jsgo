@@ -396,7 +396,7 @@ func (v *astIsomorphismVerifier) verifyNameNode(nA, nB *rhino.Node) error {
 	if mappedB != varB || mappedA != varA {
 		expectedB := "<unmapped>"
 		if mappedB != nil {
-			expectedB = mappedB.name
+			expectedB = mappedB.GetName()
 		}
 		return fmt.Errorf(
 			"variable bijection violation at compat %d:%d (%q) vs fast %d:%d (%q): compat %q was already bound to fast %q",

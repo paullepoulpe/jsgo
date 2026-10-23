@@ -152,8 +152,6 @@ const (
 // AbstractVarBase holds the fields and the implementations of AbstractVar;
 // Var and TypedVar embed it and call InitAbstractVarBase.
 type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	name string
-
 	nameNode *rhino.Node
 
 	// Input source
@@ -161,10 +159,12 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 
 	scope S
 
+	nameID uint32
+
 	// Lower 24 bits: uint32(index + 1); bits 24..25: implicit goog namespace
 	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..28: TypedVar flags.
 	indexAndFlags uint32
-	// Go-only: performance — immutable name hash, sharing the 8-byte word with indexAndFlags.
+	// Go-only: performance — immutable name hash, or per-pass scratch index.
 	nameHash int32
 }
 
@@ -186,8 +186,18 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition *rhino.Node) {
+	b.InitAbstractVarBaseWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+}
+
+func (b *AbstractVarBase[S, V]) InitAbstractVarBaseWithID(
+	nameID uint32,
+	nameNode *rhino.Node,
+	scope S,
+	index int,
+	input *CompilerInput,
+	implicitGoogNamespaceDefinition *rhino.Node) {
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
-	b.name = name // Java: checkNotNull(name); a Go string is never null.
+	b.nameID = nameID
 	flags := uint32(index+1) & varIndexMask
 	if implicitGoogNamespaceDefinition != nil {
 		b.nameNode = nil
@@ -204,7 +214,12 @@ func (b *AbstractVarBase[S, V]) InitAbstractVarBase(
 
 // Java: AbstractVar.getName()
 func (b *AbstractVarBase[S, V]) GetName() string {
-	return b.name
+	return rhino.RhinoStringPool_StringFromID(b.nameID)
+}
+
+// GetNameID returns the 32-bit interned string ID of this variable's name.
+func (b *AbstractVarBase[S, V]) GetNameID() uint32 {
+	return b.nameID
 }
 
 // Java: AbstractVar.getScopeRoot()
@@ -230,7 +245,7 @@ func (b *AbstractVarBase[S, V]) computeHashCode() int32 {
 	if root == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	h := 31*(31+jutil.StringHashCode(b.name)) + jutil.IdentityHashCodeOfPointer(root)
+	h := 31*(31+jutil.StringHashCode(b.GetName())) + jutil.IdentityHashCodeOfPointer(root)
 	atomic.StoreInt32(&b.nameHash, h)
 	return h
 }
@@ -410,17 +425,17 @@ func (b *AbstractVarBase[S, V]) IsImport() bool {
 
 // Java: AbstractVar.isArguments()
 func (b *AbstractVarBase[S, V]) IsArguments() bool {
-	return Var_ARGUMENTS == b.name && b.scope.IsFunctionScope()
+	return b.nameID == implicitArgumentsID && b.scope.IsFunctionScope()
 }
 
 // Java: AbstractVar.isGoogModuleExports()
 func (b *AbstractVarBase[S, V]) IsGoogModuleExports() bool {
-	return b.scope.IsModuleScope() && "exports" == b.name && b.IsImplicit()
+	return b.nameID == implicitExportsID && b.scope.IsModuleScope() && b.IsImplicit()
 }
 
 // Java: AbstractVar.isThis()
 func (b *AbstractVarBase[S, V]) IsThis() bool {
-	return "this" == b.name && b.scope.IsFunctionScope()
+	return b.nameID == implicitThisID && b.scope.IsFunctionScope()
 }
 
 // Java: AbstractVar.isImplicit()
@@ -428,7 +443,7 @@ func (b *AbstractVarBase[S, V]) IsImplicit() bool {
 	if b.IsImplicitGoogNamespace() {
 		return true
 	}
-	var_ := AbstractScope_ImplicitVar_Of(b.name)
+	var_ := AbstractScope_ImplicitVar_OfID(b.nameID)
 	return var_ != nil && var_.IsMadeByScope(abstractScope_of(b.scope))
 }
 
@@ -525,9 +540,15 @@ func abstractVar_strongerOf(left, right rhino.StaticSourceFile_SourceKind) rhino
 // Go-only: language-adapter — preserve name/root equality without that header.
 // Java: ScopedName.equals(Object)
 func (b *AbstractVarBase[S, V]) Equals(other any) bool {
+	if ov, ok := other.(*Var); ok {
+		return ov != nil && b.nameID == ov.nameID && scopedName_nodeEquals(b.GetScopeRoot(), ov.GetScopeRoot())
+	}
+	if otv, ok := other.(*TypedVar); ok {
+		return otv != nil && b.nameID == otv.nameID && scopedName_nodeEquals(b.GetScopeRoot(), otv.GetScopeRoot())
+	}
 	scoped, ok := other.(ScopedName)
 	if !ok || jutil.IsNil(scoped) {
 		return false
 	}
-	return b.name == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
+	return b.GetName() == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
 }

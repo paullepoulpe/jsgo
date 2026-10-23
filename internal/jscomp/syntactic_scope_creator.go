@@ -154,9 +154,9 @@ func syntacticScopeChildHasBlockDecls(c *rhino.Node) bool {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_EXPORT:
 		return true
 	case rhino.Token_FUNCTION:
-		return !NodeUtil_IsFunctionExpression(c) && c.GetFirstChild().GetString() != ""
+		return !NodeUtil_IsFunctionExpression(c) && c.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
 	case rhino.Token_CLASS:
-		return !NodeUtil_IsClassExpression(c) && c.GetFirstChild().GetString() != ""
+		return !NodeUtil_IsClassExpression(c) && c.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
 	case rhino.Token_BLOCK:
 		if !c.IsSyntheticBlock() {
 			return false
@@ -343,7 +343,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) flushSmallVarsForMore() {
 	for i := 0; i < k; i++ {
 		v := s.smallVars[i]
 		sc.varList = append(sc.varList, v)
-		vh := scopeNameHash(v.name)
+		vh := scopeIDHash(v.nameID)
 		slot := vh & mask
 		for sc.varHash[slot] != 0 {
 			slot = (slot + 1) & mask
@@ -380,8 +380,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) populate() {
 
 		// Bleed the function name into the scope, if it hasn't been declared in the outer scope
 		// and the name isn't already in the scope via the param list.
-		fnName := fnNameNode.GetString()
-		if fnName != "" && NodeUtil_IsFunctionExpression(n) {
+		if fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID && NodeUtil_IsFunctionExpression(n) {
 			s.DeclareVar(s.scope, fnNameNode)
 		}
 
@@ -587,8 +586,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 			return
 		}
 
-		fnName := n.GetFirstChild().GetString()
-		if fnName == "" {
+		if n.GetFirstChild().GetStringID() <= rhino.RhinoStringPool_EmptyID {
 			// This is invalid, but allow it so the checks can catch it.
 			return
 		}
@@ -598,8 +596,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 		if NodeUtil_IsClassExpression(n) || blockScope == nil {
 			return
 		}
-		className := n.GetFirstChild().GetString()
-		if className == "" {
+		if n.GetFirstChild().GetStringID() <= rhino.RhinoStringPool_EmptyID {
 			// This is invalid, but allow it so the checks can catch it.
 			return
 		}
@@ -660,13 +657,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 					}
 				case rhino.Token_FUNCTION:
 					if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
-						if fnNameNode := child.GetFirstChild(); fnNameNode.GetString() != "" {
+						if fnNameNode := child.GetFirstChild(); fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
 							s.DeclareVar(blockScope, fnNameNode)
 						}
 					}
 				case rhino.Token_CLASS:
 					if blockScope != nil && !NodeUtil_IsClassExpression(child) {
-						if classNameNode := child.GetFirstChild(); classNameNode.GetString() != "" {
+						if classNameNode := child.GetFirstChild(); classNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
 							s.DeclareVar(blockScope, classNameNode)
 						}
 					}
@@ -754,13 +751,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 				}
 			case rhino.Token_FUNCTION:
 				if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
-					if fnNameNode := child.GetFirstChild(); fnNameNode.GetString() != "" {
+					if fnNameNode := child.GetFirstChild(); fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
 						s.DeclareVar(blockScope, fnNameNode)
 					}
 				}
 			case rhino.Token_CLASS:
 				if blockScope != nil && !NodeUtil_IsClassExpression(child) {
-					if classNameNode := child.GetFirstChild(); classNameNode.GetString() != "" {
+					if classNameNode := child.GetFirstChild(); classNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
 						s.DeclareVar(blockScope, classNameNode)
 					}
 				}
@@ -791,12 +788,12 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Invalid node for declareVar: %s", n)))
 	}
 
-	name := n.GetString()
+	id := n.GetStringID()
 	// Because of how we scan the variables, it is possible to encounter
 	// the same var declared name node twice. Bail out in this case.
 	// TODO(johnlenz): Hash lookups are not free and building scopes are already expensive.
 	// Restructure the scope building to avoid this check.
-	h := scopeNameHash(name)
+	h := scopeIDHash(id)
 	tag := h & varHashTagMask
 	bloom := scopeBloomFromHash(h)
 	alreadyMaybePresent := (sc.varBloom & bloom) == bloom
@@ -812,7 +809,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 					break
 				}
 				if (entry & varHashTagMask) == tag {
-					if cand := sc.varList[(entry&varHashIdxMask)-1]; scopeNameEq(cand.name, name) {
+					if cand := sc.varList[(entry&varHashIdxMask)-1]; cand.nameID == id {
 						v = cand
 						break
 					}
@@ -825,21 +822,21 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 			}
 		}
 		if v == nil && sc.hasImplicitVars {
-			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			if imp := AbstractScope_ImplicitVar_OfID(id); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}
 		}
 	} else {
 		if alreadyMaybePresent {
 			for i := 0; i < s.smallLen; i++ {
-				if scopeNameEq(s.smallVars[i].name, name) {
+				if s.smallVars[i].nameID == id {
 					v = s.smallVars[i]
 					break
 				}
 			}
 		}
 		if v == nil && sc.hasImplicitVars {
-			if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
+			if imp := AbstractScope_ImplicitVar_OfID(id); imp != nil {
 				v = sc.GetOwnImplicitSlot(imp)
 			}
 		}
@@ -864,23 +861,25 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 	isFnBlock := s.isFnBlock
 	var parentVar *Var
 	if v == nil && (s.parentBloom&bloom) == bloom {
-		parentVar = sc.parent.lookupOwnVarWithHash(name, h, bloom)
+		parentVar = sc.parent.lookupOwnVarWithIDHash(id, h, bloom)
 	}
 
 	input := s.getInput()
 	if v != nil ||
 		(parentVar != nil && parentVar.IsParam()) ||
-		(name == syntacticScopeCreator_ARGUMENTS &&
+		(id == implicitArgumentsID &&
 			(sc.rootNode.IsFunction() || isFnBlock)) {
-		if s.redeclarationHandler != SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER && sc.varHash == nil && s.smallLen > 0 {
-			s.flushSmallVarsForMore()
+		if s.redeclarationHandler != SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER {
+			if sc.varHash == nil && s.smallLen > 0 {
+				s.flushSmallVarsForMore()
+			}
+			s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
 		}
-		s.redeclarationHandler.OnRedeclaration(sc, name, n, input)
 	} else {
-		if name == "" {
+		if id <= rhino.RhinoStringPool_EmptyID {
 			panic(jutil.NewIllegalArgumentException())
 		}
-		if parentVar != nil && !sc.IsBleedingFunctionName(name) {
+		if parentVar != nil && !sc.isBleedingFunctionNameID(id) {
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
 		}
 		sc.varBloom |= bloom
@@ -889,10 +888,10 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 				var var_ *Var
 				if sc.arena != nil {
 					var_ = sc.arena.allocVar()
-					initVar(var_, name, n, sc, s.smallLen, input, nil)
 				} else {
-					var_ = NewVar(name, n, sc, s.smallLen, input, nil)
+					var_ = &Var{}
 				}
+				initVarWithID(var_, id, n, sc, s.smallLen, input, nil)
 				s.smallVars[s.smallLen] = var_
 				s.smallLen++
 				return
@@ -908,10 +907,10 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		idx := int(sc.varCount)
 		if sc.arena != nil {
 			var_ = sc.arena.allocVar()
-			initVar(var_, name, n, sc, idx, input, nil)
 		} else {
-			var_ = NewVar(name, n, sc, idx, input, nil)
+			var_ = &Var{}
 		}
+		initVarWithID(var_, id, n, sc, idx, input, nil)
 		sc.appendVarToInitialized(var_, probeSlot, tag)
 	}
 }

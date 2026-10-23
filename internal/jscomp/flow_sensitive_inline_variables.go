@@ -576,12 +576,12 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 		f.allVarsMap.Clear()
 		for _, v := range fnScope.varList {
 			if v != nil {
-				f.allVarsMap.Put(v.name, v)
+				f.allVarsMap.Put(v.GetName(), v)
 			}
 		}
 		for _, v := range scope.varList {
 			if v != nil {
-				f.allVarsMap.Put(v.name, v)
+				f.allVarsMap.Put(v.GetName(), v)
 			}
 		}
 		allVarsInFn = &f.allVarsMap

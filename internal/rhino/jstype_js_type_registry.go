@@ -412,7 +412,7 @@ func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
 		return &FunctionTypeBase{}
 	}
 	if len(r.functionTypeSlab) == 0 {
-		r.functionTypeSlab = make([]FunctionTypeBase, 256)
+		r.functionTypeSlab = make([]FunctionTypeBase, 192)
 	}
 	t := &r.functionTypeSlab[0]
 	r.functionTypeSlab = r.functionTypeSlab[1:]
@@ -436,7 +436,7 @@ func (r *JSTypeRegistry) allocPrototypeObjectType() *PrototypeObjectTypeBase {
 		return &PrototypeObjectTypeBase{}
 	}
 	if len(r.prototypeObjectTypeSlab) == 0 {
-		r.prototypeObjectTypeSlab = make([]PrototypeObjectTypeBase, 256)
+		r.prototypeObjectTypeSlab = make([]PrototypeObjectTypeBase, 192)
 	}
 	t := &r.prototypeObjectTypeSlab[0]
 	r.prototypeObjectTypeSlab = r.prototypeObjectTypeSlab[1:]

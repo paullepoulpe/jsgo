@@ -119,7 +119,7 @@ func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string,
 			l.ids[v] = id
 			l.vars = append(l.vars, v)
 			if useMap {
-				d.idByName[v.name] = id
+				d.idByName[v.GetName()] = id
 			}
 			if d.escaped != nil && d.escaped.Contains(v) {
 				escapedMask |= bit
@@ -147,7 +147,7 @@ func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string,
 			l.ids[v] = id
 			l.vars = append(l.vars, v)
 			if useMap {
-				d.idByName[v.name] = id
+				d.idByName[v.GetName()] = id
 			}
 			if d.escaped != nil && d.escaped.Contains(v) {
 				d.escapedWords[w] |= bit
@@ -168,8 +168,12 @@ func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string,
 func (d *MustBeReachingVariableDef) lookupLocalVar(name string) (uint16, *Var, bool) {
 	vars := d.layout.vars
 	if len(vars) <= 16 {
+		id := rhino.RhinoStringPool_LookupID(name)
+		if id == 0 {
+			return 0, nil, false
+		}
 		for i, v := range vars {
-			if v.name == name {
+			if v.nameID == id {
 				return uint16(i), v, true
 			}
 		}

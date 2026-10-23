@@ -162,27 +162,27 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		}
 	case rhino.Token_EQ:
 		if outcome.IsTruthy() {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Eq)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeEq)
 		} else {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Ne)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeNe)
 		}
 	case rhino.Token_NE:
 		if outcome.IsTruthy() {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Ne)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeNe)
 		} else {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Eq)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeEq)
 		}
 	case rhino.Token_SHEQ:
 		if outcome.IsTruthy() {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Sheq)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeSheq)
 		} else {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Shne)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeShne)
 		}
 	case rhino.Token_SHNE:
 		if outcome.IsTruthy() {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Shne)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeShne)
 		} else {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Sheq)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeSheq)
 		}
 	case rhino.Token_NAME, rhino.Token_GETPROP:
 		return s.CaseNameOrGetProp(condition, blindScope, outcome)
@@ -197,7 +197,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 			condition.GetFirstChild(), blindScope, outcome.Not())
 	case rhino.Token_LE, rhino.Token_LT, rhino.Token_GE, rhino.Token_GT:
 		if outcome.IsTruthy() {
-			return s.CaseEquality(condition, blindScope, SemanticReverseAbstractInterpreter_Ineq)
+			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeIneq)
 		}
 	case rhino.Token_INSTANCEOF:
 		return s.CaseInstanceOf(
@@ -211,9 +211,9 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		left := condition.GetParent().GetPrevious() // the switch condition
 		right := condition.GetFirstChild()
 		if outcome.IsTruthy() {
-			return s.CaseEqualityOfLeftAndRight(left, right, blindScope, SemanticReverseAbstractInterpreter_Sheq)
+			return s.caseEqualityMode(left, right, blindScope, sraiModeSheq)
 		} else {
-			return s.CaseEqualityOfLeftAndRight(left, right, blindScope, SemanticReverseAbstractInterpreter_Shne)
+			return s.caseEqualityMode(left, right, blindScope, sraiModeShne)
 		}
 	case rhino.Token_CALL:
 		left := condition.GetFirstChild()
@@ -238,6 +238,83 @@ func (s *SemanticReverseAbstractInterpreter) CaseIsArray(value *rhino.Node, blin
 			visitor = s.restrictToNotArrayVisitor
 		}
 		return s.MaybeRestrictName(blindScope, value, type_, rhino.JSType_VisitForJSType(type_, visitor))
+	}
+	return blindScope
+}
+
+type sraiEqualityMode uint8
+
+const (
+	sraiModeEq sraiEqualityMode = iota
+	sraiModeNe
+	sraiModeSheq
+	sraiModeShne
+	sraiModeIneq
+)
+
+func (s *SemanticReverseAbstractInterpreter) caseEqualityMode(
+	left *rhino.Node, right *rhino.Node, blindScope FlowScope, mode sraiEqualityMode) FlowScope {
+	leftType := s.GetTypeIfRefinable(left, blindScope)
+	leftIsRefineable := leftType != nil
+	if !leftIsRefineable {
+		leftType = left.GetJSType()
+	}
+
+	rightType := s.GetTypeIfRefinable(right, blindScope)
+	rightIsRefineable := rightType != nil
+	if !rightIsRefineable {
+		rightType = right.GetJSType()
+	}
+
+	var mergedA, mergedB rhino.JSType
+	var ok bool
+	switch mode {
+	case sraiModeEq:
+		if leftType != nil && rightType != nil {
+			mergedA, mergedB = leftType.GetTypesUnderEqualityPair(rightType)
+			ok = true
+		}
+	case sraiModeNe:
+		if leftType != nil && rightType != nil {
+			mergedA, mergedB = leftType.GetTypesUnderInequalityPair(rightType)
+			ok = true
+		}
+	case sraiModeSheq:
+		if leftType != nil && rightType != nil {
+			mergedA, mergedB = leftType.GetTypesUnderShallowEqualityPair(rightType)
+			ok = true
+		}
+	case sraiModeShne:
+		if leftType != nil && rightType != nil {
+			mergedA, mergedB = leftType.GetTypesUnderShallowInequalityPair(rightType)
+			ok = true
+		}
+	case sraiModeIneq:
+		if leftType != nil {
+			mergedA = leftType.RestrictByNotUndefined()
+		}
+		if rightType != nil {
+			mergedB = rightType.RestrictByNotUndefined()
+		}
+		ok = true
+	}
+
+	if ok {
+		var restrictedLeftType, restrictedRightType rhino.JSType
+		if leftIsRefineable {
+			restrictedLeftType = mergedA
+		}
+		if rightIsRefineable {
+			restrictedRightType = mergedB
+		}
+		return s.MaybeRestrictTwoNames(
+			blindScope,
+			left,
+			leftType,
+			restrictedLeftType,
+			right,
+			rightType,
+			restrictedRightType)
 	}
 	return blindScope
 }

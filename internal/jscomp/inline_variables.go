@@ -444,14 +444,14 @@ func (b *InlineVariables_InliningBehavior) getHandledVarAnalysis(scope *Scope, a
 	if idx := aliasedVar.GetIndex(); uint(idx) < uint(len(b.handledScopeVars)) && scope.varList[idx] == aliasedVar {
 		return b.handledScopeVars[idx]
 	}
-	if canon := scope.lookupOwnVar(aliasedVar.name); canon != nil {
+	if canon := scope.lookupOwnVarByID(aliasedVar.nameID); canon != nil {
 		if idx := canon.GetIndex(); uint(idx) < uint(len(b.handledScopeVars)) && scope.varList[idx] == canon {
 			return b.handledScopeVars[idx]
 		}
 	}
-	name := aliasedVar.name
+	nameID := aliasedVar.nameID
 	for _, entry := range b.handledFallbackVars {
-		if entry.v == aliasedVar || entry.v.name == name {
+		if entry.v == aliasedVar || entry.v.nameID == nameID {
 			return entry.analysis
 		}
 	}
@@ -1318,7 +1318,7 @@ func (b *InlineVariables_InliningBehavior) createVarExpertForScope(
 		b.codingConvention = cc
 	}
 
-	if cc.IsExportedWithLocal(v.name /* local= */, isLocal) {
+	if cc.IsExportedWithLocal(v.GetName() /* local= */, isLocal) {
 		// If the variable is exported, it might be assigned a new value by code we cannot see,
 		// so aliases to it are creating snapshots of its state.
 		// We cannot inline this variable or its aliases.

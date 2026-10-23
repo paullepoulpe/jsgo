@@ -72,6 +72,24 @@ func initVar(
 	}
 }
 
+func initVarWithID(
+	v *Var,
+	nameID uint32,
+	nameNode *rhino.Node,
+	scope *Scope,
+	index int,
+	input *CompilerInput,
+	implicitGoogNamespaceDefinition *rhino.Node) {
+	v.InitAbstractVarBaseWithID(nameID, nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	if nameNode != nil {
+		switch nameNode.GetToken() {
+		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
+		default:
+			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid name node " + jutil.ToJavaString(nameNode)))
+		}
+	}
+}
+
 // Java: AbstractVar.getSymbol()
 func (v *Var) GetSymbol() rhino.StaticSlot {
 	return v

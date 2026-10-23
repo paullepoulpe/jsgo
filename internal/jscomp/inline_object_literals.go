@@ -59,7 +59,7 @@ type iolCandidateScanner struct {
 	candFns              []*rhino.Node
 }
 
-func iolHasParamName(fn *rhino.Node, name string) bool {
+func iolHasParamName(fn *rhino.Node, nameID uint32) bool {
 	if fn == nil || !fn.IsFunction() {
 		return false
 	}
@@ -70,11 +70,11 @@ func iolHasParamName(fn *rhino.Node, name string) bool {
 	for a := args.GetFirstChild(); a != nil; a = a.GetNext() {
 		switch a.GetToken() {
 		case rhino.Token_NAME:
-			if a.GetString() == name {
+			if a.GetStringID() == nameID {
 				return true
 			}
 		case rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST:
-			if first := a.GetFirstChild(); first != nil && first.IsName() && first.GetString() == name {
+			if first := a.GetFirstChild(); first != nil && first.IsName() && first.GetStringID() == nameID {
 				return true
 			}
 		}
@@ -82,12 +82,12 @@ func iolHasParamName(fn *rhino.Node, name string) bool {
 	return false
 }
 
-func iolHasDirectNameDecl(block *rhino.Node, name string, includeVar bool) bool {
+func iolHasDirectNameDecl(block *rhino.Node, nameID uint32, includeVar bool) bool {
 	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
 		tok := c.GetToken()
 		if tok == rhino.Token_LET || tok == rhino.Token_CONST || (includeVar && tok == rhino.Token_VAR) {
 			for lhs := c.GetFirstChild(); lhs != nil; lhs = lhs.GetNext() {
-				if lhs.IsName() && lhs.GetString() == name {
+				if lhs.IsName() && lhs.GetStringID() == nameID {
 					return true
 				}
 			}
@@ -134,7 +134,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 	if parent == nil {
 		return
 	}
-	var varName string
+	var varNameID uint32
 	var isDecl bool
 	var gp *rhino.Node
 	if parent.IsName() && parent.GetFirstChild() == objLit {
@@ -146,7 +146,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 		if ggp == nil || NodeUtil_IsAnyFor(ggp) {
 			return
 		}
-		varName = parent.GetString()
+		varNameID = parent.GetStringID()
 		isDecl = true
 	} else if parent.IsAssign() && parent.GetLastChild() == objLit {
 		lhs := parent.GetFirstChild()
@@ -157,7 +157,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 		if gp == nil || !gp.IsExprResult() {
 			return
 		}
-		varName = lhs.GetString()
+		varNameID = lhs.GetStringID()
 	} else {
 		return
 	}
@@ -169,12 +169,12 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 		}
 	}
 
-	mask := scopeBloomMask(varName)
+	mask := scopeBloomFromID(varNameID)
 	if isDecl {
 		if gp.IsVar() {
 			for anc := gp.GetParent(); anc != nil && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 				if NodeUtil_IsFunctionBlock(anc) {
-					if !iolHasParamName(anc.GetParent(), varName) {
+					if !iolHasParamName(anc.GetParent(), varNameID) {
 						s.addScopeCandidate(anc, mask)
 					}
 					break
@@ -197,21 +197,21 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 	} else {
 		for anc := gp.GetParent(); anc != nil && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 			if NodeUtil_IsFunctionBlock(anc) {
-				if iolHasParamName(anc.GetParent(), varName) {
+				if iolHasParamName(anc.GetParent(), varNameID) {
 					break
 				}
 				s.addScopeCandidate(anc, mask)
-				if iolHasDirectNameDecl(anc, varName, true) {
+				if iolHasDirectNameDecl(anc, varNameID, true) {
 					break
 				}
 			} else if anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
 				s.addScopeCandidate(anc, mask)
-				if iolHasDirectNameDecl(anc, varName, true) {
+				if iolHasDirectNameDecl(anc, varNameID, true) {
 					break
 				}
 			} else if (anc.IsBlock() && scanVarsBlockCreatesScope(anc)) || anc.IsSwitchBody() || NodeUtil_IsAnyFor(anc) {
 				s.addScopeCandidate(anc, mask)
-				if anc.IsBlock() && iolHasDirectNameDecl(anc, varName, false) {
+				if anc.IsBlock() && iolHasDirectNameDecl(anc, varNameID, false) {
 					break
 				}
 			}
@@ -302,7 +302,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		if parent == nil || !NodeUtil_IsNameDeclaration(parent) {
 			return false
 		}
-		bloom := scopeBloomMask(v.name)
+		bloom := scopeBloomFromID(v.nameID)
 		if (s.candidateBloom & bloom) != bloom {
 			return false
 		}

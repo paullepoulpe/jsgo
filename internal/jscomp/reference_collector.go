@@ -45,7 +45,7 @@ type basicBlockEntry struct {
 
 type scopedVarKey struct {
 	scopeRoot *rhino.Node
-	name      string
+	nameID    uint32
 }
 
 type rcVarSlabs struct {
@@ -836,7 +836,7 @@ func (c *ReferenceCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
 }
 
 func (c *ReferenceCollector) recordNewVarCol(v *Var, col *ReferenceCollection) {
-	if v.name == Var_ARGUMENTS {
+	if v.nameID == implicitArgumentsID {
 		if c.argumentsRefs == nil {
 			if c.poolable {
 				a := c.getArena()
@@ -851,7 +851,7 @@ func (c *ReferenceCollector) recordNewVarCol(v *Var, col *ReferenceCollection) {
 		c.argumentsRefs[v.scope.GetRootNode()] = col
 	}
 	if c.refByKey != nil {
-		c.refByKey[scopedVarKey{scopeRoot: v.scope.GetRootNode(), name: v.name}] = col
+		c.refByKey[scopedVarKey{scopeRoot: v.scope.GetRootNode(), nameID: v.nameID}] = col
 	}
 	if c.referenceMap != nil {
 		c.referenceMap.Put(v, col)
@@ -871,7 +871,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) (*ReferenceCollection
 	}
 	if !c.poolable && len(slabs.vars) <= len(c.varsBuf) {
 		for i, kv := range slabs.vars {
-			if kv == v || (kv.name == v.name && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
+			if kv == v || (kv.nameID == v.nameID && kv.scope.GetRootNode() == v.scope.GetRootNode()) {
 				col := slabs.cols[i]
 				v.nameHash = int32(i + 1)
 				c.lastVar = v
@@ -897,7 +897,7 @@ func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
 	slabs := c.slabsForVar(v)
 	if s := v.scope; s != nil {
 		if s.implicitVars != nil {
-			if imp := AbstractScope_ImplicitVar_Of(v.name); imp != nil {
+			if imp := AbstractScope_ImplicitVar_OfID(v.nameID); imp != nil {
 				if canon := s.implicitVars[*imp]; canon != nil && canon != v {
 					if idx := int(canon.nameHash) - 1; idx >= 0 && idx < len(slabs.vars) && slabs.vars[idx] == canon {
 						col := slabs.cols[idx]
@@ -918,11 +918,11 @@ func (c *ReferenceCollector) getReferencesSlow(v *Var) *ReferenceCollection {
 			return nil
 		}
 	}
-	return c.getReferencesByScopedName(v.scope.GetRootNode(), v.name)
+	return c.getReferencesByScopedNameID(v.scope.GetRootNode(), v.nameID)
 }
 
-func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, name string) *ReferenceCollection {
-	if name == Var_ARGUMENTS {
+func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot *rhino.Node, nameID uint32) *ReferenceCollection {
+	if nameID == implicitArgumentsID {
 		if c.argumentsRefs != nil {
 			return c.argumentsRefs[scopeRoot]
 		}
@@ -940,12 +940,12 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 	}
 	if len(gVars)+len(lVars) <= len(c.varsBuf) {
 		for i, kv := range gVars {
-			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
+			if kv.nameID == nameID && kv.scope.GetRootNode() == scopeRoot {
 				return gCols[i]
 			}
 		}
 		for i, kv := range lVars {
-			if kv.name == name && kv.scope.GetRootNode() == scopeRoot {
+			if kv.nameID == nameID && kv.scope.GetRootNode() == scopeRoot {
 				return lCols[i]
 			}
 		}
@@ -953,19 +953,19 @@ func (c *ReferenceCollector) getReferencesByScopedName(scopeRoot *rhino.Node, na
 		if c.refByKey == nil {
 			c.refByKey = make(map[scopedVarKey]*ReferenceCollection, len(gVars)+len(lVars))
 			for i, kv := range gVars {
-				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = gCols[i]
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), nameID: kv.nameID}] = gCols[i]
 			}
 			for i, kv := range lVars {
-				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), name: kv.name}] = lCols[i]
+				c.refByKey[scopedVarKey{scopeRoot: kv.scope.GetRootNode(), nameID: kv.nameID}] = lCols[i]
 			}
 		}
-		if col := c.refByKey[scopedVarKey{scopeRoot: scopeRoot, name: name}]; col != nil {
+		if col := c.refByKey[scopedVarKey{scopeRoot: scopeRoot, nameID: nameID}]; col != nil {
 			return col
 		}
 	}
 	if c.referenceMap != nil {
 		for k, col := range c.referenceMap.All() {
-			if k != nil && k.name == name && k.scope.GetRootNode() == scopeRoot {
+			if k != nil && k.nameID == nameID && k.scope.GetRootNode() == scopeRoot {
 				return col
 			}
 		}
@@ -1361,14 +1361,14 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino
 			}
 		}
 
-		name := n.GetString()
+		id := n.GetStringID()
 		var v *Var
 		var scope *Scope
-		if name == Var_ARGUMENTS {
+		if id == implicitArgumentsID {
 			scope = t.GetScope()
-			v = scope.GetVar(name)
+			v = scope.GetVarByID(id)
 		} else {
-			v = t.LookupVar(name)
+			v = t.LookupVarByID(id)
 		}
 		if v != nil {
 			cb.c.addReferenceWithScope(v, n, t, scope)
@@ -1511,7 +1511,11 @@ func (w *ReferenceCollector_ReferenceMapWrapper) GetReferences(var_ *Var) *Refer
 
 func (w *ReferenceCollector_ReferenceMapWrapper) getReferencesByScopedName(scopeRoot *rhino.Node, name string) *ReferenceCollection {
 	if w.c != nil {
-		return w.c.getReferencesByScopedName(scopeRoot, name)
+		id := rhino.RhinoStringPool_LookupID(name)
+		if id == 0 {
+			return nil
+		}
+		return w.c.getReferencesByScopedNameID(scopeRoot, id)
 	}
 	return nil
 }

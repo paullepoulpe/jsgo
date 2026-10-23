@@ -126,7 +126,7 @@ func (u *MaybeReachingVariableUse) Reset(
 			}
 			for v := range allVarsInFn.Values() {
 				if escaped == nil || !escaped.Contains(v) {
-					u.unescapedByName[v.name] = v
+					u.unescapedByName[v.GetName()] = v
 				}
 			}
 		}
@@ -143,8 +143,12 @@ func (u *MaybeReachingVariableUse) Reset(
 
 func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
 	if !u.useUnescapedMap {
+		id := rhino.RhinoStringPool_LookupID(name)
+		if id == 0 {
+			return nil
+		}
 		for _, v := range u.unescapedVars {
-			if v.name == name {
+			if v.nameID == id {
 				return v
 			}
 		}

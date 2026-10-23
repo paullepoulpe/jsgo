@@ -201,9 +201,13 @@ type JSType interface {
 	GetRestrictedTypeGivenOutcome(outcome Outcome) JSType
 	GetPossibleToBooleanOutcomes() BooleanLiteralSet
 	GetTypesUnderEquality(that JSType) *JSType_TypePair
+	GetTypesUnderEqualityPair(that JSType) (JSType, JSType)
 	GetTypesUnderInequality(that JSType) *JSType_TypePair
+	GetTypesUnderInequalityPair(that JSType) (JSType, JSType)
 	GetTypesUnderShallowEquality(that JSType) *JSType_TypePair
+	GetTypesUnderShallowEqualityPair(that JSType) (JSType, JSType)
 	GetTypesUnderShallowInequality(that JSType) *JSType_TypePair
+	GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType)
 	GetUnionMembers() []JSType
 	RestrictByNotNullOrUndefined() JSType
 	RestrictByNotUndefined() JSType
@@ -1780,10 +1784,15 @@ func (t *JSTypeBase) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
 //
 // Java: JSType.getTypesUnderEquality(JSType)
 func (t *JSTypeBase) GetTypesUnderEquality(that JSType) *JSType_TypePair {
+	a, b := t.GetTypesUnderEqualityPair(that)
+	return NewJSType_TypePair(a, b)
+}
+
+func (t *JSTypeBase) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
-		p := that.ToMaybeUnionType().GetTypesUnderEquality(t.self)
-		return NewJSType_TypePair(p.TypeB, p.TypeA)
+		a, b := that.ToMaybeUnionType().GetTypesUnderEqualityPair(t.self)
+		return b, a
 	}
 
 	// other types
@@ -1791,9 +1800,9 @@ func (t *JSTypeBase) GetTypesUnderEquality(that JSType) *JSType_TypePair {
 	jsTypeCheckTriNotNull(r)
 	switch r {
 	case base.Tri_FALSE:
-		return NewJSType_TypePair(nil, nil)
+		return nil, nil
 	}
-	return NewJSType_TypePair(t.self, that) // TRUE, UNKNOWN
+	return t.self, that // TRUE, UNKNOWN
 }
 
 // GetTypesUnderInequality computes the subset of this and that types if
@@ -1803,19 +1812,24 @@ func (t *JSTypeBase) GetTypesUnderEquality(that JSType) *JSType_TypePair {
 //
 // Java: JSType.getTypesUnderInequality(JSType)
 func (t *JSTypeBase) GetTypesUnderInequality(that JSType) *JSType_TypePair {
+	a, b := t.GetTypesUnderInequalityPair(that)
+	return NewJSType_TypePair(a, b)
+}
+
+func (t *JSTypeBase) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
-		p := that.ToMaybeUnionType().GetTypesUnderInequality(t.self)
-		return NewJSType_TypePair(p.TypeB, p.TypeA)
+		a, b := that.ToMaybeUnionType().GetTypesUnderInequalityPair(t.self)
+		return b, a
 	}
 
 	// For the remaining types, the only way to restrict anything is if both
 	// types are null or void, in which case we're left with nothing.
 	if t.IsNullTypeOrVoidType() && jsTypeIsNullTypeOrVoidType(that) {
 		noType := t.registry.GetNativeType(JSTypeNative_NO_TYPE)
-		return NewJSType_TypePair(noType, noType)
+		return noType, noType
 	}
-	return NewJSType_TypePair(t.self, that)
+	return t.self, that
 }
 
 // GetTypesUnderShallowEquality computes the subset of this and that types
@@ -1823,8 +1837,13 @@ func (t *JSTypeBase) GetTypesUnderInequality(that JSType) *JSType_TypePair {
 //
 // Java: JSType.getTypesUnderShallowEquality(JSType)
 func (t *JSTypeBase) GetTypesUnderShallowEquality(that JSType) *JSType_TypePair {
+	a, b := t.GetTypesUnderShallowEqualityPair(that)
+	return NewJSType_TypePair(a, b)
+}
+
+func (t *JSTypeBase) GetTypesUnderShallowEqualityPair(that JSType) (JSType, JSType) {
 	commonType := t.self.GetGreatestSubtype(that)
-	return NewJSType_TypePair(commonType, commonType)
+	return commonType, commonType
 }
 
 // GetTypesUnderShallowInequality computes the subset of this and that types
@@ -1832,22 +1851,27 @@ func (t *JSTypeBase) GetTypesUnderShallowEquality(that JSType) *JSType_TypePair 
 //
 // Java: JSType.getTypesUnderShallowInequality(JSType)
 func (t *JSTypeBase) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair {
+	a, b := t.GetTypesUnderShallowInequalityPair(that)
+	return NewJSType_TypePair(a, b)
+}
+
+func (t *JSTypeBase) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	// union types
 	if that.IsUnionType() {
-		p := that.ToMaybeUnionType().GetTypesUnderShallowInequality(t.self)
-		return NewJSType_TypePair(p.TypeB, p.TypeA)
+		a, b := that.ToMaybeUnionType().GetTypesUnderShallowInequalityPair(t.self)
+		return b, a
 	}
 
 	// Other types. There are only two types whose shallow inequality is
 	// deterministically true -- null and undefined. We can just enumerate
 	// them.
 	if t.self == that && t.IsNullTypeOrVoidType() {
-		return NewJSType_TypePair(nil, nil)
+		return nil, nil
 	}
 	// Since unions have already been removed, if this and that don't have
 	// the same unit type then there is no further narrowing that can be done
 	// on them.
-	return NewJSType_TypePair(t.self, that)
+	return t.self, that
 }
 
 // Java: JSType.IsNullTypeOrVoidType()

@@ -788,6 +788,20 @@ var abstractScope_ImplicitVar_names = [...]string{"ARGUMENTS", "EXPORTS", "SUPER
 // abstractScope_ImplicitVar_name is the field ImplicitVar.name.
 var abstractScope_ImplicitVar_name = [...]string{"arguments", "exports", "super", "this"}
 
+var (
+	implicitArgumentsID = rhino.RhinoStringPool_InternID("arguments")
+	implicitExportsID   = rhino.RhinoStringPool_InternID("exports")
+	implicitSuperID     = rhino.RhinoStringPool_InternID("super")
+	implicitThisID      = rhino.RhinoStringPool_InternID("this")
+
+	abstractScope_ImplicitVar_id = [...]uint32{
+		implicitArgumentsID,
+		implicitExportsID,
+		implicitSuperID,
+		implicitThisID,
+	}
+)
+
 // Go-only: language-adapter — a Java ImplicitVar reference may be null; such
 // values are *AbstractScope_ImplicitVar here (nil is null), always pointing
 // into this table so that no call allocates.
@@ -812,6 +826,8 @@ func (v AbstractScope_ImplicitVar) Ordinal() int { return int(v) }
 
 // name is the field ImplicitVar.name.
 func (v AbstractScope_ImplicitVar) name() string { return abstractScope_ImplicitVar_name[v] }
+
+func (v AbstractScope_ImplicitVar) nameID() uint32 { return abstractScope_ImplicitVar_id[v] }
 
 // ptr returns the canonical non-null *AbstractScope_ImplicitVar for v.
 func (v AbstractScope_ImplicitVar) ptr() *AbstractScope_ImplicitVar {
@@ -857,6 +873,20 @@ func AbstractScope_ImplicitVar_Of(name string) *AbstractScope_ImplicitVar {
 		if name == "arguments" {
 			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_ARGUMENTS]
 		}
+	}
+	return nil
+}
+
+func AbstractScope_ImplicitVar_OfID(id uint32) *AbstractScope_ImplicitVar {
+	switch id {
+	case implicitArgumentsID:
+		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_ARGUMENTS]
+	case implicitThisID:
+		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_THIS]
+	case implicitExportsID:
+		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_EXPORTS]
+	case implicitSuperID:
+		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_SUPER]
 	}
 	return nil
 }

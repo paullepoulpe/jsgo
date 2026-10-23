@@ -1068,7 +1068,7 @@ func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) isSkipl
 		if node == v.GetNameNode() {
 			return true
 		}
-		if node.GetString() == v.name && node.GetParent().IsVar() && v.scope.IsHoistScope() {
+		if node.GetStringID() == v.nameID && node.GetParent().IsVar() && v.scope.IsHoistScope() {
 			return true
 		}
 	}

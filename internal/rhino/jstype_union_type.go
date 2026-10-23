@@ -725,65 +725,80 @@ func (t *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 
 // Java: UnionType.getTypesUnderEquality(JSType)
 func (t *UnionType) GetTypesUnderEquality(that JSType) *JSType_TypePair {
+	resA, resB := t.GetTypesUnderEqualityPair(that)
+	return NewJSType_TypePair(resA, resB)
+}
+
+func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
 	for i := 0; i < len(t.alternates); i++ {
 		element := t.alternates[i]
-		p := element.GetTypesUnderEquality(that)
-		if p.TypeA != nil {
-			thisRestricted.AddAlternate(p.TypeA)
+		typeA, typeB := element.GetTypesUnderEqualityPair(that)
+		if typeA != nil {
+			thisRestricted.AddAlternate(typeA)
 		}
-		if p.TypeB != nil {
-			thatRestricted.AddAlternate(p.TypeB)
+		if typeB != nil {
+			thatRestricted.AddAlternate(typeB)
 		}
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
 	t.registry.releaseUnionBuilder(thatRestricted)
 	t.registry.releaseUnionBuilder(thisRestricted)
-	return NewJSType_TypePair(resA, resB)
+	return resA, resB
 }
 
 // Java: UnionType.getTypesUnderInequality(JSType)
 func (t *UnionType) GetTypesUnderInequality(that JSType) *JSType_TypePair {
+	resA, resB := t.GetTypesUnderInequalityPair(that)
+	return NewJSType_TypePair(resA, resB)
+}
+
+func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
 	for i := 0; i < len(t.alternates); i++ {
 		element := t.alternates[i]
-		p := element.GetTypesUnderInequality(that)
-		if p.TypeA != nil {
-			thisRestricted.AddAlternate(p.TypeA)
+		typeA, typeB := element.GetTypesUnderInequalityPair(that)
+		if typeA != nil {
+			thisRestricted.AddAlternate(typeA)
 		}
-		if p.TypeB != nil {
-			thatRestricted.AddAlternate(p.TypeB)
+		if typeB != nil {
+			thatRestricted.AddAlternate(typeB)
 		}
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
 	t.registry.releaseUnionBuilder(thatRestricted)
 	t.registry.releaseUnionBuilder(thisRestricted)
-	return NewJSType_TypePair(resA, resB)
+	return resA, resB
 }
 
 // Java: UnionType.getTypesUnderShallowInequality(JSType)
 func (t *UnionType) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair {
+	resA, resB := t.GetTypesUnderShallowInequalityPair(that)
+	return NewJSType_TypePair(resA, resB)
+}
+
+func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
 	for i := 0; i < len(t.alternates); i++ {
 		element := t.alternates[i]
-		p := element.GetTypesUnderShallowInequality(that)
-		if p.TypeA != nil {
-			thisRestricted.AddAlternate(p.TypeA)
+		typeA, typeB := element.GetTypesUnderShallowInequalityPair(that)
+		if typeA != nil {
+			thisRestricted.AddAlternate(typeA)
 		}
-		if p.TypeB != nil {
-			thatRestricted.AddAlternate(p.TypeB)
+		if typeB != nil {
+			thatRestricted.AddAlternate(typeB)
 		}
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
 	t.registry.releaseUnionBuilder(thatRestricted)
 	t.registry.releaseUnionBuilder(thisRestricted)
-	return NewJSType_TypePair(resA, resB)
+	return resA, resB
 }
 
 // Java: UnionType.visit(Visitor<T>)
