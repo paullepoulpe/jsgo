@@ -86,10 +86,17 @@ default GOGC, 2 runs each, all byte-identical with Java:
 | typed-app | 234 → 176 MB (−25 %) | 1.7 → 1.5 s (−12 %) |
 | checks-only | 397 → 344 MB (−13 %) | 2.3 → 2.4 s (+4 %) |
 
-googleapis (single runs, chunk outputs identical): CHECKS 6,987 → 5,677 MB
-and 95 → 75 s; OPTIMIZATIONS 5,781 → 4,965 MB and 63 → 50 s; FINALIZATIONS
-1,742 → 1,392 MB and 8 → 11 s. At that scale the smaller heap wins wall time
-back despite the higher CPU.
+googleapis, single runs, all 7,483 chunk outputs and stage logs
+byte-identical across the three (peak RSS / wall):
+
+| Stage | Java (`-Xmx16g`) | main | merged |
+|---|---|---|---|
+| CHECKS | 9,182 MB / 248 s | 6,987 MB / 95 s | 5,677 MB / 75 s |
+| OPTIMIZATIONS | 10,569 MB / 165 s | 5,781 MB / 63 s | 4,965 MB / 50 s |
+| FINALIZATIONS | 5,772 MB / 49 s | 1,742 MB / 8 s | 1,392 MB / 11 s |
+
+At that scale the smaller heap wins wall time back despite the higher CPU:
+1.9× less memory and 3.4× faster than Java (main: 1.5× and 2.8×).
 
 ### Cost
 
