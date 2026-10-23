@@ -71,6 +71,26 @@ CPU in 262 s of wall, i.e. it stalled on memory at 8.5 GB RSS, and the
 smaller final heap removes that. OPTIMIZATIONS pays for the extra allocation
 (+27 s CPU), the round-2 target.
 
+### Against `main` after the merge (Rounds 2P–2U, commit c3830bd)
+
+The other optimization stream re-tuned its slabs in the meantime; the merged
+branch keeps plain allocation and main's algorithmic changes. Same machine,
+default GOGC, 2 runs each, all byte-identical with Java:
+
+| Task | Peak RSS main → merged | Wall main → merged |
+|---|---|---|
+| bundle | 616 → 307 MB (−50 %) | 4.2 → 4.7 s (+12 %) |
+| typed-full | 872 → 578 MB (−34 %) | 10.7 → 11.6 s (+9 %) |
+| typed-mega | 1,333 → 890 MB (−33 %) | 18.3 → 20.2 s (+10 %) |
+| bundle-mega | 1,300 → 912 MB (−30 %) | 23.0 → 26.4 s (+15 %) |
+| typed-app | 234 → 176 MB (−25 %) | 1.7 → 1.5 s (−12 %) |
+| checks-only | 397 → 344 MB (−13 %) | 2.3 → 2.4 s (+4 %) |
+
+googleapis (single runs, chunk outputs identical): CHECKS 6,987 → 5,677 MB
+and 95 → 75 s; OPTIMIZATIONS 5,781 → 4,965 MB and 63 → 50 s; FINALIZATIONS
+1,742 → 1,392 MB and 8 → 11 s. At that scale the smaller heap wins wall time
+back despite the higher CPU.
+
 ### Cost
 
 - Allocation volume rose (typed-full 1.38 → 2.33 GB, objects 4.7 M → 32 M):
