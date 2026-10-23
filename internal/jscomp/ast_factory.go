@@ -1936,7 +1936,7 @@ func NewAstFactory_TypeOnNode(n *rhino.Node) *AstFactory_TypeOnNode {
 }
 
 // Java: AstFactory.TypeOnNode.getJSType(JSTypeRegistry)
-func (t *AstFactory_TypeOnNode) GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType {
+func (t AstFactory_TypeOnNode) GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType {
 	jstype := t.n.GetJSType()
 	// TODO(b/149843534): crash instead of defaulting to unknown
 	if jstype != nil {
@@ -1946,7 +1946,7 @@ func (t *AstFactory_TypeOnNode) GetJSType(registry *rhino.JSTypeRegistry) rhino.
 }
 
 // Java: AstFactory.TypeOnNode.getColor(ColorRegistry)
-func (t *AstFactory_TypeOnNode) GetColor(registry *colors.ColorRegistry) *colors.Color {
+func (t AstFactory_TypeOnNode) GetColor(registry *colors.ColorRegistry) *colors.Color {
 	color := t.n.GetColor()
 	// TODO(b/149843534): crash instead of defaulting to unknown
 	if color != nil {
@@ -2026,12 +2026,24 @@ func (t *AstFactory_JSTypeOrColor) GetColor(registry *colors.ColorRegistry) *col
 	return registry.Get(*jutil.CheckNotNull(t.colorId))
 }
 
+var (
+	astFactory_noTypeInfo     AstFactory_Type = &AstFactory_JSTypeOrColor{}
+	astFactory_colorUnknown   AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_UNKNOWN}
+	astFactory_colorTopObject AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_TOP_OBJECT}
+	astFactory_colorString    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_STRING}
+	astFactory_colorNumber    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_NUMBER}
+	astFactory_colorBoolean   AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_BOOLEAN}
+	astFactory_colorNullVoid  AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_NULL_OR_VOID}
+	astFactory_colorBigint    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_BIGINT}
+	astFactory_colorSymbol    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_SYMBOL}
+)
+
 // AstFactory_Type_ uses the JSType or Color of the given node as a template
 // for adding type information
 //
 // Java: AstFactory.type(Node)
 func AstFactory_Type_(node *rhino.Node) AstFactory_Type {
-	return NewAstFactory_TypeOnNode(node)
+	return AstFactory_TypeOnNode{n: node}
 }
 
 // Java: AstFactory.type(JSType)
@@ -2046,6 +2058,24 @@ func AstFactory_Type_OfJSTypeNative(type_ rhino.JSTypeNative) AstFactory_Type {
 
 // Java: AstFactory.type(Color)
 func AstFactory_Type_OfColor(type_ *colors.Color) AstFactory_Type {
+	switch type_ {
+	case colors.StandardColors_UNKNOWN:
+		return astFactory_colorUnknown
+	case colors.StandardColors_TOP_OBJECT:
+		return astFactory_colorTopObject
+	case colors.StandardColors_STRING:
+		return astFactory_colorString
+	case colors.StandardColors_NUMBER:
+		return astFactory_colorNumber
+	case colors.StandardColors_BOOLEAN:
+		return astFactory_colorBoolean
+	case colors.StandardColors_NULL_OR_VOID:
+		return astFactory_colorNullVoid
+	case colors.StandardColors_BIGINT:
+		return astFactory_colorBigint
+	case colors.StandardColors_SYMBOL:
+		return astFactory_colorSymbol
+	}
 	return NewAstFactory_JSTypeOrColorOfJSTypeAndColor(nil, type_)
 }
 
@@ -2066,5 +2096,5 @@ func AstFactory_Type_OfJSTypeNativeAndColor(type_ rhino.JSTypeNative, color *col
 
 // Java: AstFactory.noTypeInformation()
 func AstFactory_NoTypeInformation() AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfJSTypeAndColor(nil, nil)
+	return astFactory_noTypeInfo
 }

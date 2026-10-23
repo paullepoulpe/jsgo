@@ -174,7 +174,7 @@ func (c *CheckJSDoc) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 
 // Java: CheckJSDoc.validateSuppress(Node, JSDocInfo)
 func (c *CheckJSDoc) ValidateSuppress(n *rhino.Node, info *rhino.JSDocInfo) {
-	if info == nil || info.GetSuppressions().IsEmpty() {
+	if info == nil || !info.HasAnySuppressions() {
 		return
 	}
 	switch n.GetToken() {
@@ -216,15 +216,17 @@ func (c *CheckJSDoc) ValidateSuppress(n *rhino.Node, info *rhino.JSDocInfo) {
 
 // Java: CheckJSDoc.containsOnlySuppressionFor(JSDocInfo, String)
 func CheckJSDoc_ContainsOnlySuppressionFor(jsdoc *rhino.JSDocInfo, allowedSuppression string) bool {
-	suppressions := jsdoc.GetSuppressions()
-	if suppressions.Size() != 1 {
-		return false
-	}
-	// Iterables.getOnlyElement(suppressions): the set holds exactly one element.
-	for only := range suppressions.All() {
-		return only == allowedSuppression
-	}
-	panic(jutil.NewNoSuchElementException())
+	found := false
+	onlyAllowed := true
+	jsdoc.ForEachSuppression(func(s string) bool {
+		if s != allowedSuppression {
+			onlyAllowed = false
+			return false
+		}
+		found = true
+		return true
+	})
+	return found && onlyAllowed
 }
 
 // Java: CheckJSDoc.validateTypedefs(Node, JSDocInfo)

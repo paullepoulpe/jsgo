@@ -126,6 +126,7 @@ type ObjectType interface {
 	HasOwnPropertyByKey(propertyName Property_Key) bool
 	GetOwnPropertyKnownSymbols() []*KnownSymbolType
 	GetOwnPropertyNames() []string
+	ForEachOwnPropertyName(fn func(string))
 	GetOwnPropertyKeys() []Property_Key
 	IsPropertyTypeInferred(propertyName string) bool
 	IsPropertyTypeInferredByKey(propertyName Property_Key) bool
@@ -824,18 +825,22 @@ func (o *ObjectTypeBase) GetOwnPropertyNames() []string {
 	return o.selfObj().GetPropertyMap().GetOwnPropertyNames()
 }
 
+// ForEachOwnPropertyName calls fn for each own property name directly on this type.
+func (o *ObjectTypeBase) ForEachOwnPropertyName(fn func(string)) {
+	o.selfObj().GetPropertyMap().ForEachOwnPropertyName(fn)
+}
+
 // GetOwnPropertyKeys returns the names of all the properties directly on
 // this type.
 //
 // Java: ObjectType.getOwnPropertyKeys()
 func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
 	self := o.selfObj()
-	ownPropertyNames := self.GetOwnPropertyNames()
 	ownSymbols := self.GetOwnPropertyKnownSymbols()
 	ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
-	for _, propertyName := range ownPropertyNames {
+	self.ForEachOwnPropertyName(func(propertyName string) {
 		ownPropertyKeys.Add(NewProperty_StringKey(propertyName))
-	}
+	})
 	for _, symbol := range ownSymbols {
 		ownPropertyKeys.Add(NewProperty_SymbolKey(symbol))
 	}

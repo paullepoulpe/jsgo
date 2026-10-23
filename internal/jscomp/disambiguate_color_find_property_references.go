@@ -336,6 +336,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 			ufNode.element = flatOwner
 			ufNode.size = 1
 			prop.clustersMap.PutNew(flatOwner, ufNode)
+			prop.clusters.numSets++
 		}
 	}
 	// Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
@@ -382,8 +383,8 @@ func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site *
 		n := len(r.useSiteBuf) * 2
 		if n < 256 {
 			n = 256
-		} else if n > 4096 {
-			n = 4096
+		} else if n > 2047 {
+			n = 2047 // 2047 * 16B = 32752B <= 32760B
 		}
 		r.useSiteBuf = make([]PropertyUseSite, n)
 		r.useSiteUsed = 0

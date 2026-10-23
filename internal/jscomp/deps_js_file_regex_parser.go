@@ -230,14 +230,18 @@ func (p *JsFileRegexParser) SetModuleLoader(loader *ModuleLoader) *JsFileRegexPa
 //
 // Java: JsFileRegexParser.parseFile(String, String, String)
 func (p *JsFileRegexParser) ParseFile(filePath string, closureRelativePath string, fileContents string) DependencyInfo {
-	return p.parseReader(filePath, closureRelativePath, jutil.NewStringReader(fileContents))
+	p.resetForFile(filePath)
+	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
+		jsFileRegexParser_logger.Log(jutil.Level_FINE, "Parsing Source: "+filePath)
+	}
+	p.doParseString(filePath, fileContents)
+	return p.finishDependencyInfo(filePath, closureRelativePath)
 }
 
-// Java: JsFileRegexParser.parseReader(String, String, Reader)
-func (p *JsFileRegexParser) parseReader(filePath string, closureRelativePath string, fileContents jutil.JavaReader) DependencyInfo {
-	p.provides = []string{}
-	p.requires = []*DependencyInfo_Require{}
-	p.typeRequires = []string{}
+func (p *JsFileRegexParser) resetForFile(filePath string) {
+	p.provides = p.provides[:0]
+	p.requires = p.requires[:0]
+	p.typeRequires = p.typeRequires[:0]
 	p.fileHasProvidesOrRequires = false
 	p.hasExternsAnnotation = false
 	p.hasNoCompileAnnotation = false
@@ -245,38 +249,47 @@ func (p *JsFileRegexParser) parseReader(filePath string, closureRelativePath str
 	p.moduleType = jsFileRegexParser_ModuleType_NON_MODULE
 	p.seenLoadModule = false
 	p.googMatcherBuffer = ""
+}
 
-	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
-		jsFileRegexParser_logger.Log(jutil.Level_FINE, "Parsing Source: "+filePath)
-	}
-	p.DoParse(filePath, fileContents)
-
+func (p *JsFileRegexParser) finishDependencyInfo(filePath string, closureRelativePath string) DependencyInfo {
 	if p.moduleType == jsFileRegexParser_ModuleType_ES6_MODULE {
 		p.provides = append(p.provides, p.file.ToModuleName())
 	}
 
-	loadFlags := jutil.NewLinkedHashMap[string, string]()
+	var loadFlags *jutil.LinkedHashMap[string, string]
 	switch p.moduleType {
 	case jsFileRegexParser_ModuleType_GOOG_MODULE:
-		loadFlags.Put("module", "goog")
+		loadFlags = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
 	case jsFileRegexParser_ModuleType_ES6_MODULE:
-		loadFlags.Put("module", "es6")
+		loadFlags = simpleDependencyInfo_ES6_FLAGS
 	default:
-		// Nothing to do here.
+		loadFlags = simpleDependencyInfo_EMPTY_FLAGS
 	}
 
-	dependencyInfo := SimpleDependencyInfo_Builder_(closureRelativePath, filePath).
-		SetProvides(p.provides).
-		SetRequires(p.requires).
-		SetTypeRequires(p.typeRequires).
-		SetLoadFlags(loadFlags).
-		SetHasExternsAnnotation(p.hasExternsAnnotation).
-		SetHasNoCompileAnnotation(p.hasNoCompileAnnotation).
-		Build()
+	dependencyInfo := newSimpleDependencyInfoDirect(
+		closureRelativePath,
+		filePath,
+		p.provides,
+		p.requires,
+		p.typeRequires,
+		loadFlags,
+		p.hasExternsAnnotation,
+		p.hasNoCompileAnnotation,
+	)
 	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
 		jsFileRegexParser_logger.Log(jutil.Level_FINE, "DepInfo: "+dependencyInfo.String())
 	}
 	return dependencyInfo
+}
+
+// Java: JsFileRegexParser.parseReader(String, String, Reader)
+func (p *JsFileRegexParser) parseReader(filePath string, closureRelativePath string, fileContents jutil.JavaReader) DependencyInfo {
+	p.resetForFile(filePath)
+	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
+		jsFileRegexParser_logger.Log(jutil.Level_FINE, "Parsing Source: "+filePath)
+	}
+	p.DoParse(filePath, fileContents)
+	return p.finishDependencyInfo(filePath, closureRelativePath)
 }
 
 // setModuleType returns true if the moduleType is successfully set and
@@ -338,56 +351,119 @@ func (p *JsFileRegexParser) ParseJsDocCommentLine(line string) bool {
 	return true
 }
 
+func jsFileRegexParser_tryFastGoogCall(line string) (methodName, args string, ok bool) {
+	i := 0
+	for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+		i++
+	}
+	if i+5 >= len(line) || line[i:i+5] != "goog." {
+		return "", "", false
+	}
+	rest := line[i+5:]
+	openIdx := strings.IndexByte(rest, '(')
+	if openIdx <= 0 {
+		return "", "", false
+	}
+	fnEnd := openIdx
+	for fnEnd > 0 && (rest[fnEnd-1] == ' ' || rest[fnEnd-1] == '\t') {
+		fnEnd--
+	}
+	fn := rest[:fnEnd]
+	switch fn {
+	case "provide", "module", "require", "requireType", "addDependency", "declareModuleId":
+	default:
+		return "", "", false
+	}
+	end := len(rest)
+	for end > openIdx+1 && (rest[end-1] == ' ' || rest[end-1] == '\t') {
+		end--
+	}
+	if end > openIdx+1 && rest[end-1] == ';' {
+		end--
+		for end > openIdx+1 && (rest[end-1] == ' ' || rest[end-1] == '\t') {
+			end--
+		}
+	}
+	if end <= openIdx || rest[end-1] != ')' {
+		return "", "", false
+	}
+	aStart := openIdx + 1
+	aEnd := end - 1
+	for aStart < aEnd && jsFileLineParser_isJavaSpace(rest[aStart]) {
+		aStart++
+	}
+	for aEnd > aStart && jsFileLineParser_isJavaSpace(rest[aEnd-1]) {
+		aEnd--
+	}
+	rawArgs := rest[aStart:aEnd]
+	for k := 0; k < len(rawArgs); k++ {
+		c := rawArgs[k]
+		if c == ')' || c == ';' || c == '\n' || c == '\r' || c >= 0x80 {
+			return "", "", false
+		}
+	}
+	return fn, rawArgs, true
+}
+
+func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) {
+	if p.includeGoogBase && !p.fileHasProvidesOrRequires {
+		p.fileHasProvidesOrRequires = true
+		p.requires = append(p.requires, DependencyInfo_Require_BASE)
+	}
+
+	firstChar := methodName[0]
+	isDeclareModuleNamespace := firstChar == 'd'
+	isModule := !isDeclareModuleNamespace && firstChar == 'm'
+	isProvide := firstChar == 'p'
+	providesNamespace := isProvide || isModule || isDeclareModuleNamespace
+	isRequire := firstChar == 'r'
+
+	if isModule && !p.seenLoadModule {
+		providesNamespace = p.setModuleType(jsFileRegexParser_ModuleType_GOOG_MODULE)
+	}
+
+	if isProvide {
+		providesNamespace = p.setModuleType(jsFileRegexParser_ModuleType_GOOG_PROVIDE)
+	}
+
+	if providesNamespace || isRequire {
+		// Parse the param.
+		//
+		// Go-only: performance — clone the name: a substring would keep
+		// the whole file text alive as long as the DependencyInfo.
+		arg := strings.Clone(p.ParseJsString(rawArgs))
+		// Add the dependency.
+		if isRequire {
+			if methodName == "requireType" {
+				p.typeRequires = append(p.typeRequires, arg)
+			} else if arg != "goog" {
+				require := DependencyInfo_Require_GoogRequireSymbol(arg)
+				p.requires = append(p.requires, require)
+			}
+		} else {
+			p.provides = append(p.provides, arg)
+		}
+	}
+}
+
 // applyGoogMatcher panics with *JsFileLineParser_ParseException.
 //
 // Java: JsFileRegexParser.applyGoogMatcher(String)
 func (p *JsFileRegexParser) applyGoogMatcher(line string) bool {
+	if fn, rawArgs, ok := jsFileRegexParser_tryFastGoogCall(line); ok {
+		p.recordGoogMatch(fn, rawArgs)
+		return true
+	}
+	if !strings.Contains(line, "goog.") {
+		return false
+	}
 	lineHasProvidesOrRequires := false
 	// Iterate over the provides/requires.
 	for _, m := range jsFileRegexParser_GOOG_PROVIDE_REQUIRE_PATTERN.FindAllStringSubmatchIndex(line, -1) {
 		lineHasProvidesOrRequires = true
-
-		if p.includeGoogBase && !p.fileHasProvidesOrRequires {
-			p.fileHasProvidesOrRequires = true
-			p.requires = append(p.requires, DependencyInfo_Require_BASE)
-		}
-
-		// See if it's a require or provide.
 		methodName := line[m[2*jsFileRegexParser_googFuncGroup]:m[2*jsFileRegexParser_googFuncGroup+1]]
-		firstChar := methodName[0]
-		isDeclareModuleNamespace := firstChar == 'd'
-		isModule := !isDeclareModuleNamespace && firstChar == 'm'
-		isProvide := firstChar == 'p'
-		providesNamespace := isProvide || isModule || isDeclareModuleNamespace
-		isRequire := firstChar == 'r'
-
-		if isModule && !p.seenLoadModule {
-			providesNamespace = p.setModuleType(jsFileRegexParser_ModuleType_GOOG_MODULE)
-		}
-
-		if isProvide {
-			providesNamespace = p.setModuleType(jsFileRegexParser_ModuleType_GOOG_PROVIDE)
-		}
-
-		if providesNamespace || isRequire {
-			// Parse the param.
-			//
-			// Go-only: performance — clone the name: a substring would keep
-			// the whole file text alive as long as the DependencyInfo.
-			arg := strings.Clone(p.ParseJsString(line[m[2*jsFileRegexParser_googArgsGroup]:m[2*jsFileRegexParser_googArgsGroup+1]]))
-			// Add the dependency.
-			if isRequire {
-				if methodName == "requireType" {
-					p.typeRequires = append(p.typeRequires, arg)
-				} else if arg != "goog" {
-					// goog is always implicit.
-					require := DependencyInfo_Require_GoogRequireSymbol(arg)
-					p.requires = append(p.requires, require)
-				}
-			} else {
-				p.provides = append(p.provides, arg)
-			}
-		}
+		rawArgs := line[m[2*jsFileRegexParser_googArgsGroup]:m[2*jsFileRegexParser_googArgsGroup+1]]
+		p.recordGoogMatch(methodName, rawArgs)
 	}
 	return lineHasProvidesOrRequires
 }
@@ -471,8 +547,17 @@ func (p *JsFileRegexParser) ParseLine(line string) bool {
 
 // jsFileRegexParser_isAllWhitespace is CharMatcher.whitespace().matchesAllOf(line).
 func jsFileRegexParser_isAllWhitespace(line string) bool {
-	for _, c := range jutil.StringToUTF16(line) {
-		if !jutil.CharMatcher_Whitespace_Matches(c) {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if c >= 0x80 {
+			for _, u := range jutil.StringToUTF16(line[i:]) {
+				if !jutil.CharMatcher_Whitespace_Matches(u) {
+					return false
+				}
+			}
+			return true
+		}
+		if c != ' ' && (c < 0x09 || c > 0x0D) {
 			return false
 		}
 	}

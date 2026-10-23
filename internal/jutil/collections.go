@@ -194,6 +194,12 @@ type LhmSlot[K comparable, V any] struct {
 	key   K
 }
 
+// Key returns the slot's key.
+func (s *LhmSlot[K, V]) Key() K { return s.key }
+
+// Value returns the slot's value.
+func (s *LhmSlot[K, V]) Value() V { return s.value }
+
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
 // Guava ImmutableMap and any Java map whose iteration order is insertion
 // order. Keys use Go equality, which matches Java equals() for strings,
@@ -331,6 +337,23 @@ func (h *LinkedHashMap[K, V]) InitWithBuffer(buf []LhmSlot[K, V]) {
 	h.slots = buf[:0:len(buf)]
 	h.size = 0
 	h.first = 0
+}
+
+// CompactLen returns len(h.slots) when every slot is live (no entry was
+// removed), or -1 otherwise.
+func (h *LinkedHashMap[K, V]) CompactLen() int {
+	if h == nil {
+		return 0
+	}
+	if int(h.size) == len(h.slots) {
+		return len(h.slots)
+	}
+	return -1
+}
+
+// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
+func (h *LinkedHashMap[K, V]) ValueAtSlot(i int) V {
+	return h.slots[i].value
 }
 
 // find returns k's slot index in h.slots, or -1 if absent.
@@ -612,6 +635,31 @@ func (h *LinkedHashMap[K, V]) Clear() {
 	h.first = 0
 }
 
+// ForEachValue calls fn for each value in insertion order without allocating an iterator closure.
+func (h *LinkedHashMap[K, V]) ForEachValue(fn func(V)) {
+	if h == nil || h.size == 0 {
+		return
+	}
+	for i := int(h.first); i < len(h.slots); i++ {
+		if i < int(h.first) || (h.m != nil && i < len(h.m.removed) && h.m.removed[i]) {
+			continue
+		}
+		fn(h.slots[i].value)
+	}
+}
+
+// CompactSlots returns h's contiguous slot slice and true when h has no removed
+// entries (including when h is nil or empty), enabling zero-allocation loops.
+func (h *LinkedHashMap[K, V]) CompactSlots() ([]LhmSlot[K, V], bool) {
+	if h == nil {
+		return nil, true
+	}
+	if int(h.size) == len(h.slots) {
+		return h.slots, true
+	}
+	return nil, false
+}
+
 // All iterates entries in insertion order. Entries removed during iteration
 // are skipped; entries added during iteration are visited.
 func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
@@ -876,6 +924,74 @@ func (s *LinkedHashSet[T]) ToSlice() []T {
 	return s.m.KeySlice()
 }
 
+// First returns the first element in insertion order, if any, without closures.
+func (s *LinkedHashSet[T]) First() (T, bool) {
+	if s != nil && s.m.size > 0 {
+		h := &s.m
+		if h.m == nil || len(h.m.removed) == 0 {
+			return h.slots[h.first].key, true
+		}
+		for i := int(h.first); i < len(h.slots); i++ {
+			if i >= len(h.m.removed) || !h.m.removed[i] {
+				return h.slots[i].key, true
+			}
+		}
+	}
+	var zero T
+	return zero, false
+}
+
+// FirstTwo returns the first two elements in insertion order when Size() >= 2.
+func (s *LinkedHashSet[T]) FirstTwo() (T, T, bool) {
+	if s != nil && s.m.size >= 2 {
+		h := &s.m
+		if h.m == nil || len(h.m.removed) == 0 {
+			f := int(h.first)
+			return h.slots[f].key, h.slots[f+1].key, true
+		}
+		var a T
+		gotFirst := false
+		for i := int(h.first); i < len(h.slots); i++ {
+			if i < len(h.m.removed) && h.m.removed[i] {
+				continue
+			}
+			if !gotFirst {
+				a = h.slots[i].key
+				gotFirst = true
+			} else {
+				return a, h.slots[i].key, true
+			}
+		}
+	}
+	var zero T
+	return zero, zero, false
+}
+
+// CopyTo copies up to len(dst) elements in insertion order into dst without
+// allocating an iterator closure, returning the number of elements copied.
+func (s *LinkedHashSet[T]) CopyTo(dst []T) int {
+	if s == nil || s.m.size == 0 || len(dst) == 0 {
+		return 0
+	}
+	h := &s.m
+	n := 0
+	if h.m == nil || len(h.m.removed) == 0 {
+		for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
+			dst[n] = h.slots[i].key
+			n++
+		}
+		return n
+	}
+	for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
+		if i < len(h.m.removed) && h.m.removed[i] {
+			continue
+		}
+		dst[n] = h.slots[i].key
+		n++
+	}
+	return n
+}
+
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
 
@@ -1097,9 +1213,22 @@ type ObjectLinkedHashMap[K any, V any] struct {
 	first int32
 }
 
+// OlhmSlot is an entry slot of ObjectLinkedHashMap / ObjectLinkedHashSet for
+// callers that provide an inline or slab-allocated initial buffer via InitWithBuffer.
+type OlhmSlot[K any, V any] = olhmSlot[K, V]
+
 // NewObjectLinkedHashMap returns an empty map.
 func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 	return &ObjectLinkedHashMap[K, V]{}
+}
+
+// InitWithBuffer makes h an empty map that stores its first len(buf) entries
+// in buf; it grows into a new slice past that.
+func (h *ObjectLinkedHashMap[K, V]) InitWithBuffer(buf []OlhmSlot[K, V]) {
+	h.m = nil
+	h.slots = buf[:0:len(buf)]
+	h.size = 0
+	h.first = 0
 }
 
 // find returns k's slot index (or -1) and its hash code.
@@ -1342,6 +1471,22 @@ func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K {
 	return out
 }
 
+// CompactLen returns len(h.slots) when h has no tombstones, or -1 otherwise.
+func (h *ObjectLinkedHashMap[K, V]) CompactLen() int {
+	if h == nil {
+		return 0
+	}
+	if int(h.size) == len(h.slots) {
+		return len(h.slots)
+	}
+	return -1
+}
+
+// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
+func (h *ObjectLinkedHashMap[K, V]) ValueAtSlot(i int) V {
+	return h.slots[i].value
+}
+
 func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
 	key, ok := k.(K)
 	if !ok {
@@ -1415,6 +1560,12 @@ func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
 		s.Add(e)
 	}
 	return s
+}
+
+// InitWithBuffer makes s an empty set that stores its first len(buf) elements
+// in buf; it grows into a new slice past that.
+func (s *ObjectLinkedHashSet[T]) InitWithBuffer(buf []OlhmSlot[T, struct{}]) {
+	s.m.InitWithBuffer(buf)
 }
 
 func (s *ObjectLinkedHashSet[T]) Size() int {

@@ -22,7 +22,12 @@ grep -vE '^\s*(#|$)' "$manifest" | while read -r name version; do
   got=$(openssl dgst -sha512 -binary "$tgz" | base64 -w0)
   if [[ "$want" != "$got" ]]; then echo "integrity mismatch for $name@$version" >&2; exit 1; fi
   mkdir -p "$dest.tmp"
-  tar -xzf "$tgz" -C "$dest.tmp" --no-same-owner --no-same-permissions --wildcards '*.js' '*.mjs' '*.cjs' 2>/dev/null || true
+  # One pattern per call: GNU tar needs --wildcards for patterns and BSD tar
+  # (macOS) rejects that option, but both match a lone pattern argument and
+  # both fail when a pattern matches nothing.
+  for pat in '*.js' '*.mjs' '*.cjs'; do
+    tar -xzf "$tgz" -C "$dest.tmp" --no-same-owner --no-same-permissions "$pat" 2>/dev/null || true
+  done
   mv "$dest.tmp" "$dest"
   echo "$name@$version: $(find "$dest" -type f | wc -l) files"
 done

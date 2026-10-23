@@ -71,9 +71,14 @@ type TypedAstDeserializer struct {
 	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
+	sourceFileSlab                jutil.Slab[SourceFile]
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
+}
+
+func typedAstDeserializer_scriptSentinel() *rhino.Node {
+	panic(jutil.NewAssertionError("unexpected direct call to sentinel script supplier"))
 }
 
 // Java: TypedAstDeserializer(SourceFile, Optional<ColorPool.Builder>, Optional<ImmutableSet<SourceFile>>, Mode, boolean)
@@ -88,6 +93,7 @@ func newTypedAstDeserializer(
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
+		sourceFileSlab:                jutil.NewMaxSlab[SourceFile](64),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
 		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
@@ -409,7 +415,7 @@ func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFil
 			existingFile.RestoreCachedStateFrom(p)
 			fileShardBuilder = append(fileShardBuilder, existingFile)
 		} else {
-			protoFile := SourceFile_FromProto(p)
+			protoFile := sourceFileFromProtoWithSlab(p, &d.sourceFileSlab)
 			d.addToFilePool(p.GetFilename(), protoFile)
 			fileShardBuilder = append(fileShardBuilder, protoFile)
 		}
@@ -448,7 +454,11 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 		d.syntheticExternsDeserializers.Add(deserializer)
 	} else {
 		if !d.typedAstFilesystem.ContainsKey(file) {
-			d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
+			if d.mode == typedAstDeserializer_Mode_FULL_AST {
+				d.typedAstFilesystem.Put(file, typedAstDeserializer_scriptSentinel)
+			} else {
+				d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
+			}
 			d.scriptDeserializers[file] = deserializer
 		}
 	}
@@ -1025,9 +1035,49 @@ func typedAstDeserializer_streamLargeShard(
 	}
 	m := &TypedAst{memoizedSize: -1}
 	typeProtoSlab := jutil.NewFixedSlab[TypeProto](512)
+	objectTypeSlab := jutil.NewFixedSlab[ObjectTypeProto](240)
+	unionTypeSlab := jutil.NewFixedSlab[UnionTypeProto](480)
 	edgeSlab := jutil.NewFixedSlab[SubtypingEdge](512)
 	lazyAstSlab := jutil.NewFixedSlab[LazyAst](256)
 	sourceFileSlab := jutil.NewFixedSlab[SourceFileProto](256)
+
+	var int32Slab []int32
+	allocInt32Slice := func(src []int32) []int32 {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 4096 {
+			return append([]int32(nil), src...)
+		}
+		if len(int32Slab) < n {
+			int32Slab = make([]int32, 4096) // 16 KiB noscan
+		}
+		dst := int32Slab[:n:n]
+		int32Slab = int32Slab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	var uuidSlab []byte
+	allocUuidBytes := func(src []byte) []byte {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 16384 {
+			return bytes.Clone(src)
+		}
+		if len(uuidSlab) < n {
+			uuidSlab = make([]byte, 16384) // 16 KiB noscan
+		}
+		dst := uuidSlab[:n:n]
+		uuidSlab = uuidSlab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	var instScratch, protoScratch, ownScratch, unionScratch []int32
 
 	var scriptSlab []byte
 	allocScriptBytes := func(src []byte) []byte {
@@ -1035,11 +1085,11 @@ func typedAstDeserializer_streamLargeShard(
 		if n == 0 {
 			return nil
 		}
-		if n > 32768 {
+		if n > 32760 {
 			return bytes.Clone(src)
 		}
 		if len(scriptSlab) < n {
-			scriptSlab = make([]byte, 32768)
+			scriptSlab = make([]byte, 32760)
 		}
 		dst := scriptSlab[:n:n]
 		scriptSlab = scriptSlab[n:]
@@ -1079,14 +1129,156 @@ func typedAstDeserializer_streamLargeShard(
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					tp := typeProtoSlab.New()
 					tp.memoizedSize = -1
-					tp.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					for {
+						tStart := pr.pos
+						tTag := pr.readTag()
+						if tTag == 0 {
+							break
+						}
+						switch tTag {
+						case 18:
+							objBytes := pr.readMessageBytes()
+							var op *ObjectTypeProto
+							if tp.kindCase_ == 2 && tp.object_ != nil {
+								op = tp.object_
+								instScratch = append(instScratch[:0], op.instanceType_...)
+								protoScratch = append(protoScratch[:0], op.prototype_...)
+								ownScratch = append(ownScratch[:0], op.ownProperty_...)
+							} else {
+								op = objectTypeSlab.New()
+								op.memoizedSize = -1
+								op.frozen = true
+								instScratch = instScratch[:0]
+								protoScratch = protoScratch[:0]
+								ownScratch = ownScratch[:0]
+							}
+							opr := protoReader{b: objBytes, depth: 3, limit: math.MaxInt32}
+							for {
+								oStart := opr.pos
+								oTag := opr.readTag()
+								if oTag == 0 {
+									break
+								}
+								switch oTag {
+								case 16:
+									op.isInvalidating_ = opr.readBool()
+								case 26:
+									op.uuid_ = allocUuidBytes(opr.readBytesView())
+								case 32:
+									op.propertiesKeepOriginalName_ = opr.readBool()
+								case 40:
+									instScratch = append(instScratch, opr.readInt32())
+								case 42:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										instScratch = append(instScratch, sub.readInt32())
+									}
+								case 48:
+									protoScratch = append(protoScratch, opr.readInt32())
+								case 50:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										protoScratch = append(protoScratch, sub.readInt32())
+									}
+								case 56:
+									op.markedConstructor_ = opr.readBool()
+								case 64:
+									ownScratch = append(ownScratch, opr.readInt32())
+								case 66:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										ownScratch = append(ownScratch, sub.readInt32())
+									}
+								case 72:
+									op.closureAssert_ = opr.readBool()
+								case 122:
+									dbgBytes := opr.readMessageBytes()
+									var dbg *ObjectTypeProto_DebugInfo
+									if op.debugInfo_ != nil {
+										dbg = op.debugInfo_.mutableCopy()
+									} else {
+										dbg = &ObjectTypeProto_DebugInfo{memoizedSize: -1}
+									}
+									dpr := protoReader{b: dbgBytes, depth: 4, limit: math.MaxInt32}
+									dbg.mergeFromReader(&dpr)
+									dbg.frozen = true
+									op.debugInfo_ = dbg
+								default:
+									opr.skipField(oTag)
+									op.unknownFields = append(op.unknownFields, opr.b[oStart:opr.pos]...)
+								}
+							}
+							op.instanceType_ = allocInt32Slice(instScratch)
+							op.prototype_ = allocInt32Slice(protoScratch)
+							op.ownProperty_ = allocInt32Slice(ownScratch)
+							tp.object_ = op
+							tp.union_ = nil
+							tp.kindCase_ = 2
+						case 34:
+							uBytes := pr.readMessageBytes()
+							var up *UnionTypeProto
+							if tp.kindCase_ == 4 && tp.union_ != nil {
+								up = tp.union_
+								unionScratch = append(unionScratch[:0], up.unionMember_...)
+							} else {
+								up = unionTypeSlab.New()
+								up.memoizedSize = -1
+								up.frozen = true
+								unionScratch = unionScratch[:0]
+							}
+							upr := protoReader{b: uBytes, depth: 3, limit: math.MaxInt32}
+							for {
+								uStart := upr.pos
+								uTag := upr.readTag()
+								if uTag == 0 {
+									break
+								}
+								switch uTag {
+								case 8:
+									unionScratch = append(unionScratch, upr.readInt32())
+								case 10:
+									sub := protoReader{b: upr.readBytesView()}
+									for !sub.atEnd() {
+										unionScratch = append(unionScratch, sub.readInt32())
+									}
+								default:
+									upr.skipField(uTag)
+									up.unknownFields = append(up.unknownFields, upr.b[uStart:upr.pos]...)
+								}
+							}
+							up.unionMember_ = allocInt32Slice(unionScratch)
+							tp.union_ = up
+							tp.object_ = nil
+							tp.kindCase_ = 4
+						default:
+							pr.skipField(tTag)
+							tp.unknownFields = append(tp.unknownFields, pr.b[tStart:pr.pos]...)
+						}
+					}
 					tp.frozen = true
 					x.type_ = append(x.type_, tp)
 				case 18:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					ed := edgeSlab.New()
 					ed.memoizedSize = -1
-					ed.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					for {
+						eStart := pr.pos
+						eTag := pr.readTag()
+						if eTag == 0 {
+							break
+						}
+						switch eTag {
+						case 8:
+							ed.subtype_ = pr.readInt32()
+						case 16:
+							ed.supertype_ = pr.readInt32()
+						default:
+							pr.skipField(eTag)
+							ed.unknownFields = append(ed.unknownFields, pr.b[eStart:pr.pos]...)
+						}
+					}
 					ed.frozen = true
 					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
 				case 26:
@@ -1143,7 +1335,25 @@ func typedAstDeserializer_streamLargeShard(
 			data := sr.readSliceView(sr.readLength(0), 0)
 			la := lazyAstSlab.New()
 			la.memoizedSize = -1
-			la.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+			for {
+				lStart := pr.pos
+				lTag := pr.readTag()
+				if lTag == 0 {
+					break
+				}
+				switch lTag {
+				case 10:
+					la.script_ = pr.readBytesView()
+				case 16:
+					la.sourceFile_ = pr.readUint32()
+				case 26:
+					la.sourceMappingUrl_ = pr.readStringRequireUtf8()
+				default:
+					pr.skipField(lTag)
+					la.unknownFields = append(la.unknownFields, pr.b[lStart:pr.pos]...)
+				}
+			}
 			la.script_ = allocScriptBytes(la.script_)
 			la.frozen = true
 			if tag == 26 {
@@ -1236,9 +1446,14 @@ func typedAstDeserializer_streamLargeShard(
 type TypedAstDeserializer_DeserializedAst struct {
 	filesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	scriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
+	suppliersBound      bool
 	colorRegistry       *colors.ColorRegistry // Optional: nil when absent
 	externProperties    *jutil.LinkedHashSet[string]
 	runtimeLibraries    *jutil.LinkedHashSet[string]
+}
+
+func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+	return a.filesystem
 }
 
 // GetFilesystem maps from SourceFile to a lazy deserializer of the SCRIPT
@@ -1249,6 +1464,14 @@ type TypedAstDeserializer_DeserializedAst struct {
 //
 // Java: TypedAstDeserializer.DeserializedAst.getFilesystem()
 func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+	if !a.suppliersBound && len(a.scriptDeserializers) > 0 && a.filesystem != nil {
+		a.suppliersBound = true
+		for file, sd := range a.scriptDeserializers {
+			if a.filesystem.ContainsKey(file) {
+				a.filesystem.Put(file, sd.DeserializeNew)
+			}
+		}
+	}
 	return a.filesystem
 }
 

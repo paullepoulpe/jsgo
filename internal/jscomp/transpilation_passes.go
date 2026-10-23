@@ -531,11 +531,11 @@ func TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler A
 	// features modules, importMeta and Dynamic module import may exist in the output even though
 	// unsupported
 	if compiler.GetOptions().GetChunkOutputType() == CompilerOptions_ChunkOutputType_ES_MODULES {
-		currentFeatures =
-			currentFeatures.
-				WithoutFeatures(parser.FeatureSet_Feature_MODULES).
-				WithoutFeatures(parser.FeatureSet_Feature_IMPORT_META).
-				WithoutFeatures(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
+		currentFeatures = currentFeatures.WithoutFeatures(
+			parser.FeatureSet_Feature_MODULES,
+			parser.FeatureSet_Feature_IMPORT_META,
+			parser.FeatureSet_Feature_DYNAMIC_IMPORT,
+		)
 	}
 
 	if outputFeatures.GetFeatures().IsEmpty() {

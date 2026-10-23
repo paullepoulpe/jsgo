@@ -125,6 +125,23 @@ type PolyfillUsageFinder_Polyfills struct {
 	methodsEndMask  [256]uint64
 	anyPropMask     [256]uint64
 	anyPropEndMask  [256]uint64
+	staticIDBloom   [32]uint64
+	propIDBloom     [32]uint64
+}
+
+func polyfillBloomAdd(bloom *[32]uint64, id uint32) {
+	h := uint64(id) * 0x9e3779b97f4a7c15
+	b1 := (h >> 53) & 2047
+	b2 := (h >> 42) & 2047
+	bloom[b1>>6] |= uint64(1) << (b1 & 63)
+	bloom[b2>>6] |= uint64(1) << (b2 & 63)
+}
+
+func polyfillBloomMayContain(bloom *[32]uint64, id uint32) bool {
+	h := uint64(id) * 0x9e3779b97f4a7c15
+	b1 := (h >> 53) & 2047
+	b2 := (h >> 42) & 2047
+	return (bloom[b1>>6]&(uint64(1)<<(b1&63))) != 0 && (bloom[b2>>6]&(uint64(1)<<(b2&63))) != 0
 }
 
 // Java: PolyfillUsageFinder.Polyfills(ImmutableMultimap<String, Polyfill>, ImmutableMap<String, Polyfill>, ImmutableMultimap<String, Polyfill>)
@@ -141,6 +158,7 @@ func newPolyfillUsageFinder_Polyfills(
 	p.suffixesMap = make(map[string]struct{}, statics.Size())
 	for arg := range statics.Keys() {
 		p.staticsMap[arg] = statics.Get(arg)
+		polyfillBloomAdd(&p.staticIDBloom, rhino.RhinoStringPool_InternID(arg))
 		if n := len(arg); n > 0 && n < 64 {
 			mask := uint64(1) << n
 			p.staticsMask[arg[0]] |= mask
@@ -149,6 +167,7 @@ func newPolyfillUsageFinder_Polyfills(
 		suffix := jutil.StringSubstringFrom(arg, jutil.StringLastIndexOf(arg, ".")+1)
 		suffixes.Add(suffix)
 		p.suffixesMap[suffix] = struct{}{}
+		polyfillBloomAdd(&p.propIDBloom, rhino.RhinoStringPool_InternID(suffix))
 		if n := len(suffix); n > 0 && n < 64 {
 			mask := uint64(1) << n
 			p.suffixesMask[suffix[0]] |= mask
@@ -161,6 +180,7 @@ func newPolyfillUsageFinder_Polyfills(
 	p.methodsMap = make(map[string][]*PolyfillUsageFinder_Polyfill, methods.Size())
 	for methodName := range methods.KeySet() {
 		p.methodsMap[methodName] = methods.Get(methodName)
+		polyfillBloomAdd(&p.propIDBloom, rhino.RhinoStringPool_InternID(methodName))
 		if n := len(methodName); n > 0 && n < 64 {
 			mask := uint64(1) << n
 			p.methodsMask[methodName[0]] |= mask
@@ -170,6 +190,22 @@ func newPolyfillUsageFinder_Polyfills(
 		}
 	}
 	return p
+}
+
+func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n *rhino.Node) bool {
+	id := n.GetStringID()
+	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.staticIDBloom, id) {
+		return false
+	}
+	return p.getStatic(rhino.RhinoStringPool_StringFromID(id)) != nil
+}
+
+func (p *PolyfillUsageFinder_Polyfills) mightHavePropNode(n *rhino.Node) bool {
+	id := n.GetStringID()
+	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.propIDBloom, id) {
+		return false
+	}
+	return p.mightHavePropPolyfill(rhino.RhinoStringPool_StringFromID(id))
 }
 
 func (p *PolyfillUsageFinder_Polyfills) getStatic(name string) *PolyfillUsageFinder_Polyfill {

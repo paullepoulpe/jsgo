@@ -19,8 +19,15 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	nonEsEmptyBindingMap = jutil.NewLinkedHashMap[string, *Binding]()
+	nonEsEmptyExportMap  = jutil.NewLinkedHashMap[string, *Export]()
 )
 
 // NonEsModuleProcessor is the catch all module processor for non-ES and
@@ -33,8 +40,8 @@ import (
 // and figure out their exported keys. At least, assuming we're rigid with
 // what we allow (no dynamic exports).
 type NonEsModuleProcessor struct {
-	// Go-only: language-adapter — distinct identity.
-	_ byte
+	nonEsSlab  []NonEsModuleProcessor_NonEsModule
+	moduleSlab []Module
 }
 
 var _ ModuleMapCreator_ModuleProcessor = (*NonEsModuleProcessor)(nil)
@@ -48,6 +55,7 @@ func NewNonEsModuleProcessor() *NonEsModuleProcessor {
 type NonEsModuleProcessor_NonEsModule struct {
 	UnresolvedModuleBase
 
+	processor  *NonEsModuleProcessor
 	metadata   *ModuleMetadataMap_ModuleMetadata
 	path       *ModuleLoader_ModulePath
 	scriptNode *rhino.Node
@@ -114,14 +122,31 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveWithModuleSpecifier(
 		ns := GoogEsImports_GetClosureIdFromGoogImportSpecifier(*moduleSpecifier)
 		namespace = &ns
 	}
-	return Module_Builder_().
-		Path(m.path).
-		Metadata(m.metadata).
-		Namespace(jutil.NewLinkedHashMap[string, *Binding]()).
-		BoundNames(jutil.NewLinkedHashMap[string, *Binding]()).
-		LocalNameToLocalExport(jutil.NewLinkedHashMap[string, *Export]()).
-		ClosureNamespace(namespace).
-		Build()
+	jutil.CheckNotNullMsg(m.metadata, "Null metadata")
+	if m.processor != nil {
+		if len(m.processor.moduleSlab) == cap(m.processor.moduleSlab) {
+			newCap := max(16, min(max(cap(m.processor.moduleSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(Module{}))))
+			m.processor.moduleSlab = make([]Module, 0, newCap)
+		}
+		idx := len(m.processor.moduleSlab)
+		m.processor.moduleSlab = m.processor.moduleSlab[:idx+1]
+		mod := &m.processor.moduleSlab[idx]
+		mod.metadata = m.metadata
+		mod.path = m.path
+		mod.namespace = nonEsEmptyBindingMap
+		mod.boundNames = nonEsEmptyBindingMap
+		mod.localNameToLocalExport = nonEsEmptyExportMap
+		mod.closureNamespace = namespace
+		return mod
+	}
+	return &Module{
+		metadata:               m.metadata,
+		path:                   m.path,
+		namespace:              nonEsEmptyBindingMap,
+		boundNames:             nonEsEmptyBindingMap,
+		localNameToLocalExport: nonEsEmptyExportMap,
+		closureNamespace:       namespace,
+	}
 }
 
 // Java: NonEsModuleProcessor.NonEsModule.metadata()
@@ -143,5 +168,17 @@ func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
 	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script *rhino.Node) UnresolvedModule {
-	return NewNonEsModuleProcessor_NonEsModule(metadata, path, script)
+	if len(p.nonEsSlab) == cap(p.nonEsSlab) {
+		newCap := max(16, min(max(cap(p.nonEsSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(NonEsModuleProcessor_NonEsModule{}))))
+		p.nonEsSlab = make([]NonEsModuleProcessor_NonEsModule, 0, newCap)
+	}
+	idx := len(p.nonEsSlab)
+	p.nonEsSlab = p.nonEsSlab[:idx+1]
+	m := &p.nonEsSlab[idx]
+	m.InitUnresolvedModuleBase(m)
+	m.processor = p
+	m.metadata = metadata
+	m.path = path
+	m.scriptNode = script
+	return m
 }

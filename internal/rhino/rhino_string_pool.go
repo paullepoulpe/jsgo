@@ -60,8 +60,8 @@ type rhinoStringID uint32
 const (
 	rhinoStringPool_SHARDS         = 64
 	rhinoStringPool_MAX_SHARD_SIZE = 56000
-	rhinoStringPageSize            = 32768
-	rhinoSpanChunkSize             = 4096
+	rhinoStringPageSize            = 32760 // <= maxSmallSize - gc.MallocHeaderSize
+	rhinoSpanChunkSize             = 2048  // 16384B <= 32760B (power of 2)
 )
 
 type rhinoStringPoolShard struct {
@@ -72,7 +72,7 @@ type rhinoStringPoolShard struct {
 	curPageIdx   uint32
 	curPageOff   uint32
 	hasCurPage   bool
-	spanChunks   [1024]*[rhinoSpanChunkSize]uint64
+	spanChunks   [2048]*[rhinoSpanChunkSize]uint64
 	pages        [4096]*[rhinoStringPageSize]byte
 	largeStrings []string
 	ptrMap       map[uint32]*string
@@ -119,7 +119,7 @@ func rhinoStringPoolHash(s string) uint64 {
 }
 
 func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
-	desc := s.spanChunks[localIdx>>12][localIdx&4095]
+	desc := s.spanChunks[localIdx>>11][localIdx&2047]
 	if int64(desc) < 0 {
 		return s.largeStrings[uint32(desc)]
 	}
@@ -132,7 +132,7 @@ func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
 func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	localIdx := s.nextLocalIdx
 	s.nextLocalIdx = localIdx + 1
-	chunkIdx := localIdx >> 12
+	chunkIdx := localIdx >> 11
 	if s.spanChunks[chunkIdx] == nil {
 		s.spanChunks[chunkIdx] = new([rhinoSpanChunkSize]uint64)
 	}
@@ -143,7 +143,7 @@ func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 		b := make([]byte, n)
 		copy(b, str)
 		s.largeStrings = append(s.largeStrings, unsafe.String(unsafe.SliceData(b), n))
-		s.spanChunks[chunkIdx][localIdx&4095] = (uint64(1) << 63) | uint64(largeIdx)
+		s.spanChunks[chunkIdx][localIdx&2047] = (uint64(1) << 63) | uint64(largeIdx)
 		return localIdx
 	}
 	if !s.hasCurPage || int(s.curPageOff)+n > rhinoStringPageSize {
@@ -159,7 +159,7 @@ func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	s.curPageOff = off + uint32(n)
 	copy(s.pages[s.curPageIdx][off:off+uint32(n)], str)
 	desc := uint64(off) | (uint64(n) << 20) | (uint64(s.curPageIdx) << 40)
-	s.spanChunks[chunkIdx][localIdx&4095] = desc
+	s.spanChunks[chunkIdx][localIdx&2047] = desc
 	return localIdx
 }
 
@@ -265,7 +265,7 @@ func rhinoStringFromID(id rhinoStringID) string {
 	idx := uint32(id - 2)
 	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
 	localIdx := idx >> 6
-	desc := s.spanChunks[localIdx>>12][localIdx&4095]
+	desc := s.spanChunks[localIdx>>11][localIdx&2047]
 	if int64(desc) < 0 {
 		return s.largeStringAt(uint32(desc))
 	}
@@ -409,6 +409,11 @@ func RhinoStringPool_LookupID(s string) uint32 {
 // RhinoStringPool_StringFromID returns the interned string for a 32-bit ID.
 func RhinoStringPool_StringFromID(id uint32) string {
 	return rhinoStringFromID(rhinoStringID(id))
+}
+
+// RhinoStringPool_WasClearedForTest reports whether rhinoStringPoolClearForTest has been called.
+func RhinoStringPool_WasClearedForTest() bool {
+	return rhinoStringPoolCleared
 }
 
 // Java: RhinoStringPool()

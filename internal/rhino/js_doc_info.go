@@ -1889,6 +1889,58 @@ func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 	return names
 }
 
+// HasAnySuppressions reports whether i has at least one @suppress warning name
+// without allocating a merged set when multiple @suppress tags are present.
+func (i *JSDocInfo) HasAnySuppressions() bool {
+	suppressions := i.suppressions()
+	if suppressions == nil {
+		return false
+	}
+	for nameSet := range suppressions.Keys() {
+		if !nameSet.IsEmpty() {
+			return true
+		}
+	}
+	return false
+}
+
+// HasSuppression reports whether warning name is in i's @suppress set without
+// allocating a merged set when multiple @suppress tags are present.
+func (i *JSDocInfo) HasSuppression(name string) bool {
+	suppressions := i.suppressions()
+	if suppressions == nil {
+		return false
+	}
+	if suppressions.Size() == 1 {
+		if nameSet, ok := suppressions.FirstKey(); ok {
+			return nameSet.Contains(name)
+		}
+		return false
+	}
+	for nameSet := range suppressions.Keys() {
+		if nameSet.Contains(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// ForEachSuppression visits each suppressed warning name on i (may visit a
+// duplicate name across multiple @suppress tags if the caller is idempotent).
+func (i *JSDocInfo) ForEachSuppression(visit func(string) bool) {
+	suppressions := i.suppressions()
+	if suppressions == nil {
+		return
+	}
+	for nameSet := range suppressions.Keys() {
+		for name := range nameSet.All() {
+			if !visit(name) {
+				return
+			}
+		}
+	}
+}
+
 // jsDocInfo_noSuppressions is GetSuppressions' result for a JSDocInfo
 // without suppressions (ImmutableSet.of()). Never modified.
 var jsDocInfo_noSuppressions = jutil.NewLinkedHashSet[string]()

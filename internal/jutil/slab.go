@@ -20,11 +20,17 @@ type Slab[T any] struct {
 	chunk      []T
 	used       int
 	fixedChunk int
+	maxChunk   int
 }
 
 // NewFixedSlab returns a Slab that allocates chunks of fixedChunk elements.
 func NewFixedSlab[T any](fixedChunk int) Slab[T] {
 	return Slab[T]{fixedChunk: fixedChunk}
+}
+
+// NewMaxSlab returns a Slab that ramps exponentially from 16 up to maxChunk elements.
+func NewMaxSlab[T any](maxChunk int) Slab[T] {
+	return Slab[T]{maxChunk: maxChunk}
 }
 
 const (
@@ -44,15 +50,19 @@ func (s *Slab[T]) New() *T {
 }
 
 // grow starts a new chunk, twice the size of the last one up to
-// slabMaxChunk elements, so that a slab that serves few objects stays small.
-// The chunk gets every element its allocation's size class holds: Go rounds
-// an allocation up to a size class (after putting an 8-byte header in front
-// of a pointerful one over 512 bytes), so make([]T, n) would leave up to 15%
-// of the chunk's memory unused.
+// slabMaxChunk (or s.maxChunk) elements, so that a slab that serves few
+// objects stays small. The chunk gets every element its allocation's size
+// class holds: Go rounds an allocation up to a size class (after putting an
+// 8-byte header in front of a pointerful one over 512 bytes), so make([]T, n)
+// would leave up to 15% of the chunk's memory unused.
 func (s *Slab[T]) grow() {
 	n := s.fixedChunk
 	if n == 0 {
-		n = min(max(2*len(s.chunk), slabMinChunk), slabMaxChunk)
+		maxC := slabMaxChunk
+		if s.maxChunk > 0 {
+			maxC = s.maxChunk
+		}
+		n = min(max(2*len(s.chunk), slabMinChunk), maxC)
 	}
 	s.chunk = slices.Grow([]T(nil), n)
 	s.chunk = s.chunk[:cap(s.chunk)]

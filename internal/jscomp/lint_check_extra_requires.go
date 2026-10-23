@@ -149,7 +149,7 @@ func (c *CheckExtraRequires) ReportExtraRequireWarning(call *rhino.Node, require
 		return
 	}
 	jsDoc := NodeUtil_GetBestJSDocInfo(call)
-	if jsDoc != nil && jsDoc.GetSuppressions().Contains("extraRequire") {
+	if jsDoc != nil && jsDoc.HasSuppression("extraRequire") {
 		// There is a @suppress {extraRequire} on the call node or its enclosing statement.
 		// This is one of the acceptable places for a @suppress, per
 		// https://github.com/google/closure-compiler/wiki/@suppress-annotations

@@ -194,9 +194,9 @@ func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot *rhino.Node, 
 
 func (c *ReferenceCollector) builderVal() NodeTraversal_Builder {
 	return NodeTraversal_Builder{
-		compiler:                                       c.compiler,
-		callback:                                       &c.callback,
-		scopeCreator:                                   c.scopeCreator,
+		compiler:     c.compiler,
+		callback:     &c.callback,
+		scopeCreator: c.scopeCreator,
 		obeyDestructuringAndDefaultValueExecutionOrder: true,
 	}
 }

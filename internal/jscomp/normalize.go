@@ -1172,8 +1172,13 @@ func (h *Normalize_DuplicateDeclarationHandler) ReplaceVarWithAssignment(
 		replacement := h.outer.astFactory.CreateAssign(n, value)
 		replacement.SetJSDocInfo(parent.GetJSDocInfo())
 		replacement.SrcrefIfMissing(parent)
-		statement := NodeUtil_NewExpr(replacement)
-		parent.ReplaceWith(statement)
+		var statement *rhino.Node
+		if parent.CanResetInPlace() && replacement.CanResetInPlace() {
+			statement = parent.MutateAttachedToExprResultInPlace(replacement)
+		} else {
+			statement = NodeUtil_NewExpr(replacement)
+			parent.ReplaceWith(statement)
+		}
 		h.outer.ReportCodeChange("Duplicate VAR declaration", statement)
 	} else {
 		// It is an empty reference. Remove it.

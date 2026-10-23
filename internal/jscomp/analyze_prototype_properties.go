@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -67,8 +69,38 @@ type AnalyzePrototypeProperties struct {
 
 	scopeCreator *SyntacticScopeCreator
 
-	nameInfoChunks [][]AnalyzePrototypeProperties_NameInfo
-	nameInfoIdx    int
+	nameInfoChunks   [][]AnalyzePrototypeProperties_NameInfo
+	nameInfoIdx      int
+	globalFuncSlab   []AnalyzePrototypeProperties_GlobalFunction
+	assignPropSlab   []AnalyzePrototypeProperties_AssignmentPrototypeProperty
+	edgeSlab         []analyzeProtoPropEdge
+}
+
+func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode *rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_GlobalFunction {
+	parent := nameNode.GetParent()
+	jutil.CheckState(
+		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
+			NodeUtil_IsFunctionDeclaration(parent))
+	if len(a.globalFuncSlab) == 0 {
+		a.globalFuncSlab = make([]AnalyzePrototypeProperties_GlobalFunction, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_GlobalFunction{})))
+	}
+	g := &a.globalFuncSlab[0]
+	a.globalFuncSlab = a.globalFuncSlab[1:]
+	g.var_ = var_
+	g.chunk = chunk
+	return g
+}
+
+func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node *rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
+	if len(a.assignPropSlab) == 0 {
+		a.assignPropSlab = make([]AnalyzePrototypeProperties_AssignmentPrototypeProperty, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_AssignmentPrototypeProperty{})))
+	}
+	p := &a.assignPropSlab[0]
+	a.assignPropSlab = a.assignPropSlab[1:]
+	p.exprNode = node
+	p.rootVar = rootVar
+	p.chunk = chunk
+	return p
 }
 
 func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
@@ -76,8 +108,8 @@ func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototyp
 		nextCap := 64
 		if len(a.nameInfoChunks) > 0 {
 			nextCap = len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) * 2
-			if nextCap > 2048 {
-				nextCap = 2048
+			if nextCap > 112 {
+				nextCap = 112
 			}
 		}
 		a.nameInfoChunks = append(a.nameInfoChunks, make([]AnalyzePrototypeProperties_NameInfo, nextCap))
@@ -128,6 +160,18 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 	}
 	dest.lastSrc = src
 	dest.lastChunk = chunk
+	if len(src.outEdges) == cap(src.outEdges) {
+		newCap := max(cap(src.outEdges)*2, 8)
+		if newCap <= 256 {
+			if len(a.edgeSlab) < newCap {
+				a.edgeSlab = make([]analyzeProtoPropEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(analyzeProtoPropEdge{})))
+			}
+			newBuf := a.edgeSlab[:len(src.outEdges):newCap]
+			a.edgeSlab = a.edgeSlab[newCap:]
+			copy(newBuf, src.outEdges)
+			src.outEdges = newBuf
+		}
+	}
 	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 
@@ -341,10 +385,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTravers
 	root := t.GetScopeRoot()
 	if root.IsFunction() {
 		n := t.GetCurrentNode()
-		propName := p.GetPrototypePropertyNameFromRValue(n)
-		if propName != nil {
+		if propName, ok := p.getPrototypePropertyNameFromRValueString(n); ok {
 			p.push(AnalyzePrototypeProperties_NameContext{
-				name:      a.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY),
+				name:      a.GetNameInfoForName(propName, AnalyzePrototypeProperties_PROPERTY),
 				scopeRoot: root,
 			})
 		} else if p.IsGlobalFunctionDeclaration(t, n) {
@@ -393,10 +436,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ExitScope(t *NodeTraversa
 func (p *AnalyzePrototypeProperties_ProcessProperties) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
 	if !p.outer.rootScopeUsesAreGlobal {
 		// Process assignment of a non-function expression to a prototype property.
-		propName := p.ProcessNonFunctionPrototypeAssign(n, parent)
-		if propName != nil {
+		if propName, ok := p.processNonFunctionPrototypeAssignString(n, parent); ok {
 			p.push(AnalyzePrototypeProperties_NameContext{
-				name: p.outer.GetNameInfoForName(*propName, AnalyzePrototypeProperties_PROPERTY),
+				name: p.outer.GetNameInfoForName(propName, AnalyzePrototypeProperties_PROPERTY),
 			})
 		}
 	}
@@ -446,8 +488,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 				return
 			} else {
 				if parent.IsAssign() && n == parent.GetFirstChild() {
-					rValueName := p.GetPrototypePropertyNameFromRValue(n)
-					if rValueName != nil {
+					if _, ok := p.getPrototypePropertyNameFromRValueString(n); ok {
 						// e.g. `Foo.prototype.bar = something`
 						// We record the declaration of `bar` when we look at the `Foo.prototype`
 						// Node via the call to handlePossibleAssignmentToPrototype() above.
@@ -574,10 +615,17 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) AddSymbolUse(name string,
 //
 // Java: AnalyzePrototypeProperties.ProcessProperties.processNonFunctionPrototypeAssign(Node, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessNonFunctionPrototypeAssign(n *rhino.Node, parent *rhino.Node) *string {
-	if p.IsAssignRValue(n, parent) && !n.IsFunction() {
-		return p.GetPrototypePropertyNameFromRValue(n)
+	if s, ok := p.processNonFunctionPrototypeAssignString(n, parent); ok {
+		return &s
 	}
 	return nil
+}
+
+func (p *AnalyzePrototypeProperties_ProcessProperties) processNonFunctionPrototypeAssignString(n *rhino.Node, parent *rhino.Node) (string, bool) {
+	if p.IsAssignRValue(n, parent) && !n.IsFunction() {
+		return p.getPrototypePropertyNameFromRValueString(n)
+	}
+	return "", false
 }
 
 // IsGlobalFunctionDeclaration determines whether n is the FUNCTION node in a
@@ -640,50 +688,55 @@ func bestLValueEndsWithPrototype(lv *rhino.Node) bool {
 //
 // Java: AnalyzePrototypeProperties.ProcessProperties.getPrototypePropertyNameFromRValue(Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) GetPrototypePropertyNameFromRValue(rValue *rhino.Node) *string {
+	if s, ok := p.getPrototypePropertyNameFromRValueString(rValue); ok {
+		return &s
+	}
+	return nil
+}
+
+func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameFromRValueString(rValue *rhino.Node) (string, bool) {
 	lValue := NodeUtil_GetBestLValue(rValue)
 	if lValue == nil ||
 		lValue.GetParent() == nil ||
 		!((NodeUtil_MayBeObjectLitKey(lValue) && !lValue.IsQuotedStringKey()) ||
 			NodeUtil_IsExprAssign(lValue.GetGrandparent())) {
-		return nil
+		return "", false
 	}
 
 	if lValue.GetParent().IsClassMembers() && !lValue.IsComputedProp() {
 		nameNode := NodeUtil_GetNameNode(lValue.GetGrandparent())
 		if nameNode == nil {
-			return nil
+			return "", false
 		}
 		if !lValue.IsStaticMember() {
 			if !nameNode.IsQualifiedName() {
-				return nil
+				return "", false
 			}
 		} else {
 			if !bestLValueEndsWithPrototype(nameNode) {
-				return nil
+				return "", false
 			}
 		}
-		result := lValue.GetString()
-		return &result
+		return lValue.GetString(), true
 	}
 	if NodeUtil_MayBeObjectLitKey(lValue) {
 		owner := NodeUtil_GetBestLValue(lValue.GetParent())
 		if !bestLValueEndsWithPrototype(owner) {
-			return nil
+			return "", false
 		}
 		key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
 		if !rhino.TokenStream_IsJSIdentifier(key) {
-			return nil
+			return "", false
 		}
-		return &key
+		return key, true
 	}
 	if lValue.IsGetProp() {
 		if !bestLValueEndsWithPrototype(lValue.GetFirstChild()) {
-			return nil
+			return "", false
 		}
-		result := lValue.GetString()
-		return &result
+		return lValue.GetString(), true
 	}
-	return nil
+	return "", false
 }
 
 // ProcessGlobalFunctionDeclaration processes a NAME node to see if it's a
@@ -703,7 +756,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDecl
 		name := nameNode.GetString()
 		a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR).
 			GetDeclarations().
-			Add(NewAnalyzePrototypeProperties_GlobalFunction(nameNode, v, t.GetChunk()))
+			Add(a.allocGlobalFunction(nameNode, v, t.GetChunk()))
 
 		// If the function name is exported, we should create an edge here
 		// so that it's never removed.
@@ -741,7 +794,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 
 		if NodeUtil_IsExprAssign(grandParent) &&
 			NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-			var prop AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_AssignmentPrototypeProperty(grandParent, p.MaybeGetVar(t, root), t.GetChunk())
+			var prop AnalyzePrototypeProperties_PrototypeProperty = a.allocAssignmentPrototypeProperty(grandParent, p.MaybeGetVar(t, root), t.GetChunk())
 			a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY).GetDeclarations().Add(prop)
 			return true
 		}
@@ -1119,7 +1172,7 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	deepestCommonChunkRef *JSChunk
 
 	outEdges        []analyzeProtoPropEdge
-	outEdgesBuf     [2]analyzeProtoPropEdge
+	outEdgesBuf     [4]analyzeProtoPropEdge
 	lastSrc         *AnalyzePrototypeProperties_NameInfo
 	lastChunk       *JSChunk
 	globalEdgeChunk *JSChunk

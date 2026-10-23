@@ -28,6 +28,7 @@ package jscomp
 import (
 	"encoding/binary"
 	"math"
+	"math/bits"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -100,11 +101,32 @@ const (
 // Encoding
 
 func protoAppendVarint(b []byte, v uint64) []byte {
+	if v < 0x80 {
+		return append(b, byte(v))
+	}
+	if v < 0x4000 {
+		return append(b, byte(v)|0x80, byte(v>>7))
+	}
+	return protoAppendVarintSlow(b, v)
+}
+
+func protoAppendVarintSlow(b []byte, v uint64) []byte {
 	for v >= 0x80 {
 		b = append(b, byte(v)|0x80)
 		v >>= 7
 	}
 	return append(b, byte(v))
+}
+
+func protoPutVarint(dst []byte, v uint64) int {
+	i := 0
+	for v >= 0x80 {
+		dst[i] = byte(v) | 0x80
+		v >>= 7
+		i++
+	}
+	dst[i] = byte(v)
+	return i + 1
 }
 
 func protoAppendTag(b []byte, number int, wireType int) []byte {
@@ -147,6 +169,10 @@ func protoAppendBytes(b []byte, v []byte) []byte {
 // protoAppendString writes a string as UTF-8 (unpaired surrogates become
 // '?', as CodedOutputStream's fallback encoder does).
 func protoAppendString(b []byte, v string) []byte {
+	if utf8.ValidString(v) {
+		b = protoAppendVarint(b, uint64(len(v)))
+		return append(b, v...)
+	}
 	return protoAppendBytes(b, jutil.StringGetBytesUTF8(v))
 }
 
@@ -646,12 +672,7 @@ func protoHashInt64(h int32, v int64) int32 { return 31*h + int32(v^int64(uint64
 func protoDoubleBits(v float64) int64 { return jutil.DoubleToLongBits(v) }
 
 func protoVarintLen(v uint64) int {
-	n := 1
-	for v >= 0x80 {
-		v >>= 7
-		n++
-	}
-	return n
+	return int(9*uint32(bits.Len64(v))+64) >> 6
 }
 
 // protoCheckIndex is the bounds check of the primitive protobuf lists

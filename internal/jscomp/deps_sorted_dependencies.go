@@ -394,27 +394,64 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 	d.weakDeps = make([][]int32, uCount)
 	d.visited = make([]uint32, uCount)
 
-	for i, userOrderedInput := range userSlice {
-		u := d.userOrderedIDs[i]
-		reqs := userOrderedInput.GetRequires()
-		if len(reqs) > 0 {
-			deps := d.strongDeps[u]
-			for _, req := range reqs {
-				if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && !slices.Contains(deps, depID) {
-					deps = append(deps, depID)
+	if !d.hasDuplicateUserInputs {
+		var depsArena []int32
+		for i, userOrderedInput := range userSlice {
+			u := d.userOrderedIDs[i]
+			reqs := userOrderedInput.GetRequires()
+			if len(reqs) > 0 {
+				if cap(depsArena)-len(depsArena) < len(reqs) {
+					depsArena = make([]int32, 0, max(4096, len(reqs)))
+				}
+				start := len(depsArena)
+				for _, req := range reqs {
+					if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && !slices.Contains(depsArena[start:], depID) {
+						depsArena = append(depsArena, depID)
+					}
+				}
+				if len(depsArena) > start {
+					d.strongDeps[u] = depsArena[start:len(depsArena):len(depsArena)]
 				}
 			}
-			d.strongDeps[u] = deps
+			typeReqs := userOrderedInput.GetTypeRequires()
+			if len(typeReqs) > 0 {
+				if cap(depsArena)-len(depsArena) < len(typeReqs) {
+					depsArena = make([]int32, 0, max(4096, len(typeReqs)))
+				}
+				start := len(depsArena)
+				for _, symbolName := range typeReqs {
+					if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && !slices.Contains(depsArena[start:], depID) {
+						depsArena = append(depsArena, depID)
+					}
+				}
+				if len(depsArena) > start {
+					d.weakDeps[u] = depsArena[start:len(depsArena):len(depsArena)]
+				}
+			}
 		}
-		typeReqs := userOrderedInput.GetTypeRequires()
-		if len(typeReqs) > 0 {
-			wdeps := d.weakDeps[u]
-			for _, symbolName := range typeReqs {
-				if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && !slices.Contains(wdeps, depID) {
-					wdeps = append(wdeps, depID)
+	} else {
+		for i, userOrderedInput := range userSlice {
+			u := d.userOrderedIDs[i]
+			reqs := userOrderedInput.GetRequires()
+			if len(reqs) > 0 {
+				deps := d.strongDeps[u]
+				for _, req := range reqs {
+					if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && !slices.Contains(deps, depID) {
+						deps = append(deps, depID)
+					}
 				}
+				d.strongDeps[u] = deps
 			}
-			d.weakDeps[u] = wdeps
+			typeReqs := userOrderedInput.GetTypeRequires()
+			if len(typeReqs) > 0 {
+				wdeps := d.weakDeps[u]
+				for _, symbolName := range typeReqs {
+					if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && !slices.Contains(wdeps, depID) {
+						wdeps = append(wdeps, depID)
+					}
+				}
+				d.weakDeps[u] = wdeps
+			}
 		}
 	}
 

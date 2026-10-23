@@ -71,6 +71,17 @@ func (s *EnumSet[E]) Contains(e E) bool {
 	return w < len(s.words) && s.words[w]&(1<<(uint(e)%64)) != 0
 }
 
+// Intersects reports whether s and other have at least one element in common.
+func (s *EnumSet[E]) Intersects(other *EnumSet[E]) bool {
+	n := min(len(s.words), len(other.words))
+	for i := 0; i < n; i++ {
+		if s.words[i]&other.words[i] != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // ContainsAll is Set.containsAll.
 func (s *EnumSet[E]) ContainsAll(other *EnumSet[E]) bool {
 	for i, w := range other.words {

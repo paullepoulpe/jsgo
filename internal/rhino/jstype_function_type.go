@@ -560,9 +560,25 @@ func (f *FunctionTypeBase) GetOwnPropertyNames() []string {
 	} else {
 		names := jutil.NewLinkedHashSet[string]()
 		names.Add("prototype")
-		names.AddAll(f.PrototypeObjectTypeBase.GetOwnPropertyNames()...)
+		f.PrototypeObjectTypeBase.ForEachOwnPropertyName(func(name string) {
+			names.Add(name)
+		})
 		return names.ToSlice()
 	}
+}
+
+// ForEachOwnPropertyName calls fn for each own property name in sorted order (with "prototype" first when present).
+func (f *FunctionTypeBase) ForEachOwnPropertyName(fn func(string)) {
+	if f.prototypeSlot() == nil {
+		f.PrototypeObjectTypeBase.ForEachOwnPropertyName(fn)
+		return
+	}
+	fn("prototype")
+	f.PrototypeObjectTypeBase.ForEachOwnPropertyName(func(name string) {
+		if name != "prototype" {
+			fn(name)
+		}
+	})
 }
 
 // Java: FunctionType.getPrototypeProperty()
@@ -584,7 +600,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// then it would propagate to all structural functions.
 			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
 		} else {
-			name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
+			name := jutil.ToJavaString(refName) + ".prototype"
 			fields := PrototypeObjectType_BuilderFields{
 				registry:          f.GetRegistry(),
 				className:         &name,
@@ -1454,7 +1470,7 @@ func (f *FunctionTypeBase) HasAnyTemplateTypesInternal() bool {
 
 // Java: FunctionType.hasProperties()
 func (f *FunctionTypeBase) HasProperties() bool {
-	return len(f.PrototypeObjectTypeBase.GetOwnPropertyNames()) != 0
+	return f.GetPropertyMap().HasAnyOwnProperties()
 }
 
 // SetImplicitMatch sets the current interface type to support structural

@@ -282,7 +282,7 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 			if len(b.installedGuards) == 0 || (nt != rhino.Token_RETURN && nt != rhino.Token_THROW) {
 				return false
 			}
-		} else if b.polyfills != nil && b.polyfills.getStatic(n.GetString()) == nil {
+		} else if b.polyfills != nil && !b.polyfills.mightHaveStaticNode(n) {
 			return false
 		}
 	}
@@ -336,8 +336,8 @@ func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, 
 	// no longer relevant. This happens first because these were registered
 	// on a "parent", but now this is that parent (i.e. `n` here vs `parent`
 	// in isGuarded).
+	ntok := n.GetToken()
 	if len(b.installedGuards) > 0 {
-		ntok := n.GetToken()
 		if parent != nil && uint(ntok) < 256 && guardedCallback_tokenFlags[ntok]&guardedCallback_flagCanHaveGuards != 0 {
 			if resources, ok := b.installedGuards[n]; ok {
 				delete(b.installedGuards, n)
@@ -360,7 +360,17 @@ func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, 
 	}
 
 	// Finally continue on to whatever the traversal would normally do.
-	b.self.VisitGuarded(traversal, n, parent)
+	if b.polyfills == nil {
+		b.self.VisitGuarded(traversal, n, parent)
+	} else if ntok == rhino.Token_GETPROP || ntok == rhino.Token_OPTCHAIN_GETPROP {
+		if b.polyfills.mightHavePropNode(n) {
+			b.self.VisitGuarded(traversal, n, parent)
+		}
+	} else if ntok == rhino.Token_NAME {
+		if b.polyfills.mightHaveStaticNode(n) {
+			b.self.VisitGuarded(traversal, n, parent)
+		}
+	}
 
 	// After children have been traversed, pop the top of the conditional
 	// stack.

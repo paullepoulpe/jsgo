@@ -63,6 +63,7 @@ type TypeInference struct {
 	// Reusable per-analysis state to avoid allocations on every scope / CFG node.
 	flowScopeArena           linkedFlowScopeArena
 	bottomTypedScope         TypedScope
+	bottomImplicitVars       [4]*TypedVar
 	bottomFlowScope          LinkedFlowScope
 	flowJoiner               LinkedFlowScope_FlowScopeJoinOp
 	flowBrancher             DataFlowAnalysis_FlowBrancher[FlowScope]
@@ -169,8 +170,10 @@ func (ti *TypeInference) initTypeInference(
 	ti.assertionFunctionLookup = jutil.CheckNotNull(assertionFunctionLookup)
 
 	rootNode := syntacticScope.GetRootNode()
+	clear(ti.bottomImplicitVars[:])
 	ti.bottomTypedScope = TypedScope{}
 	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
+	ti.bottomTypedScope.implicitVars = &ti.bottomImplicitVars
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
 	ti.bottomFlowScope = LinkedFlowScope{

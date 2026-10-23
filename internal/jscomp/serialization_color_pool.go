@@ -212,9 +212,12 @@ type ColorPool_Builder struct {
 	built        bool
 
 	colorBuilder     colors.Color_Builder
+	colorSlab        jutil.Slab[colors.Color]
 	stringSetSlab    []jutil.LinkedHashSet[string]
 	stringSlotSlab   []jutil.LhmSlot[string, struct{}]
 	colorSetSlab     []jutil.ObjectLinkedHashSet[*colors.Color]
+	colorSlotSlab    []jutil.OlhmSlot[*colors.Color, struct{}]
+	allocColorSetFn  func(capHint int) *jutil.ObjectLinkedHashSet[*colors.Color]
 	singlePropSets   map[int32]*jutil.LinkedHashSet[string]
 	singlePropByName map[string]*jutil.LinkedHashSet[string]
 	propScratch      []string
@@ -226,7 +229,7 @@ type ColorPool_Builder struct {
 
 func (b *ColorPool_Builder) allocStringSet() *jutil.LinkedHashSet[string] {
 	if len(b.stringSetSlab) == 0 {
-		b.stringSetSlab = make([]jutil.LinkedHashSet[string], 1024)
+		b.stringSetSlab = make([]jutil.LinkedHashSet[string], 512) // 24 KiB <= 32 KiB
 	}
 	s := &b.stringSetSlab[0]
 	b.stringSetSlab = b.stringSetSlab[1:]
@@ -234,7 +237,7 @@ func (b *ColorPool_Builder) allocStringSet() *jutil.LinkedHashSet[string] {
 }
 
 func (b *ColorPool_Builder) allocStringSlots(n int) []jutil.LhmSlot[string, struct{}] {
-	const slotSlabSize = 4096
+	const slotSlabSize = 1024 // 24 KiB <= 32 KiB
 	if n > slotSlabSize {
 		return make([]jutil.LhmSlot[string, struct{}], n)
 	}
@@ -291,21 +294,46 @@ func (b *ColorPool_Builder) appendDedupProp(prop string, useMap bool) {
 	b.propScratch = append(b.propScratch, prop)
 }
 
-func (b *ColorPool_Builder) allocColorSet() *jutil.ObjectLinkedHashSet[*colors.Color] {
+func (b *ColorPool_Builder) allocColorSlots(n int) []jutil.OlhmSlot[*colors.Color, struct{}] {
+	const slotSlabSize = 1024 // 16 KiB <= 32 KiB
+	if n > slotSlabSize {
+		return make([]jutil.OlhmSlot[*colors.Color, struct{}], n)
+	}
+	if len(b.colorSlotSlab) < n {
+		b.colorSlotSlab = make([]jutil.OlhmSlot[*colors.Color, struct{}], slotSlabSize)
+	}
+	buf := b.colorSlotSlab[:n:n]
+	b.colorSlotSlab = b.colorSlotSlab[n:]
+	return buf
+}
+
+func (b *ColorPool_Builder) allocColorSetWithCap(capHint int) *jutil.ObjectLinkedHashSet[*colors.Color] {
 	if len(b.colorSetSlab) == 0 {
-		b.colorSetSlab = make([]jutil.ObjectLinkedHashSet[*colors.Color], 1024)
+		b.colorSetSlab = make([]jutil.ObjectLinkedHashSet[*colors.Color], 512) // 16 KiB <= 32 KiB
 	}
 	s := &b.colorSetSlab[0]
 	b.colorSetSlab = b.colorSetSlab[1:]
+	if capHint < 1 {
+		capHint = 2
+	}
+	s.InitWithBuffer(b.allocColorSlots(capHint))
 	return s
+}
+
+func (b *ColorPool_Builder) allocColorSet() *jutil.ObjectLinkedHashSet[*colors.Color] {
+	return b.allocColorSetWithCap(2)
 }
 
 // Java: ColorPool.Builder()
 func newColorPool_Builder() *ColorPool_Builder {
-	return &ColorPool_Builder{
+	b := &ColorPool_Builder{
 		protoToShard: base.NewLinkedIdentityHashMap[*TypePool, *ColorPool_ShardView](),
 		registry:     colors.ColorRegistry_Builder_(),
+		colorSlab:    jutil.NewFixedSlab[colors.Color](256), // 18.4 KiB <= 32 KiB
 	}
+	b.colorBuilder.SetSlab(&b.colorSlab)
+	b.allocColorSetFn = b.allocColorSetWithCap
+	return b
 }
 
 // Java: ColorPool.Builder.addShardAnd(TypePool, StringPool)
@@ -371,8 +399,10 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				b.idToColor[id] = colorPool_UNRECONCILED_COLOR
 			}
 			for id, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
-				MalformedTypedAstException_CheckWellFormedWithParam(
-					b.idToColor[id] == nil, "Found serialized definiton for axiomatic color", id)
+				if b.idToColor[id] != nil {
+					MalformedTypedAstException_CheckWellFormedWithParam(
+						false, "Found serialized definiton for axiomatic color", id)
+				}
 				b.idToColor[id] = v
 			}
 			singleShard.trimmedOffsetToColor = make([]*colors.Color, len(typeList))
@@ -428,8 +458,10 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 			})
 
 		for id := range colors.StandardColors_AXIOMATIC_COLORS.Keys() {
-			MalformedTypedAstException_CheckWellFormedWithParam(
-				!b.idToProto.ContainsKey(id), "Found serialized definiton for axiomatic color", id)
+			if b.idToProto.ContainsKey(id) {
+				MalformedTypedAstException_CheckWellFormedWithParam(
+					false, "Found serialized definiton for axiomatic color", id)
+			}
 		}
 
 		for id := range b.idToProto.Keys() {
@@ -535,19 +567,18 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 
 	proto := shard.typePool.GetTypeList()[trimmedIdx]
 	var result *colors.Color
-	switch proto.GetKindCase() {
-	case TypeProto_KindCase_OBJECT:
+	if proto.HasObject() {
 		objProto := proto.GetObject()
 		instanceColors := colorPool_emptyColorSet
 		if instanceTypeIds := objProto.GetInstanceTypeList(); len(instanceTypeIds) > 0 {
-			instanceColors = b.allocColorSet()
+			instanceColors = b.allocColorSetWithCap(len(instanceTypeIds))
 			for i := 0; i < len(instanceTypeIds); i++ {
 				instanceColors.Add(b.resolveSingleShardPointer(shard, int(instanceTypeIds[i])))
 			}
 		}
 		prototypes := colorPool_emptyColorSet
 		if prototypeIds := objProto.GetPrototypeList(); len(prototypeIds) > 0 {
-			prototypes = b.allocColorSet()
+			prototypes = b.allocColorSetWithCap(len(prototypeIds))
 			for i := 0; i < len(prototypeIds); i++ {
 				prototypes.Add(b.resolveSingleShardPointer(shard, int(prototypeIds[i])))
 			}
@@ -591,21 +622,27 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 			SetInvalidating(objProto.GetIsInvalidating()).
 			SetPropertiesKeepOriginalName(objProto.GetPropertiesKeepOriginalName()).
 			Build()
-	case TypeProto_KindCase_UNION:
-		union := b.allocColorSet()
+	} else if proto.HasUnion() {
 		unionMemberList := proto.GetUnion().GetUnionMemberList()
+		var unionBuf [8]jutil.OlhmSlot[*colors.Color, struct{}]
+		var union jutil.ObjectLinkedHashSet[*colors.Color]
+		union.InitWithBuffer(unionBuf[:])
 		for i := 0; i < len(unionMemberList); i++ {
 			member := b.resolveSingleShardPointer(shard, int(unionMemberList[i]))
 			MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", proto)
 			union.Add(member)
 		}
-		result = colors.Color_CreateUnion(union)
-		jutil.CheckStateMsg2(id.Equals(result.GetId()), "%s == %s", id, result)
-	default:
+		result = colors.Color_CreateUnionWithBuilder(&union, &b.colorBuilder, b.allocColorSetFn)
+		if !id.Equals(result.GetId()) {
+			jutil.CheckStateMsg2(false, "%s == %s", id, result)
+		}
+	} else {
 		panic(jutil.NewAssertionError(proto.String()))
 	}
 
-	jutil.CheckStateMsg1(result != nil, "%s", id)
+	if result == nil {
+		jutil.CheckStateMsg1(false, "%s", id)
+	}
 	shard.trimmedOffsetToColor[trimmedIdx] = result
 	b.idToColor[id] = result
 	return result
@@ -638,19 +675,22 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 
 	entry := b.idToProto.Get(id)
 	sample := entry.firstProto
-	jutil.CheckNotNullMsg1(sample, "%s", id)
+	if sample == nil {
+		jutil.CheckNotNullMsg1(sample, "%s", id)
+	}
 
 	var result *colors.Color
-	switch sample.GetKindCase() {
-	case TypeProto_KindCase_OBJECT:
+	if sample.HasObject() {
 		result = b.reconcileObjectProtos(id, entry)
-	case TypeProto_KindCase_UNION:
+	} else if sample.HasUnion() {
 		result = b.reconcileUnionProtos(id, entry)
-	default:
+	} else {
 		panic(jutil.NewAssertionError(sample.String()))
 	}
 
-	jutil.CheckStateMsg1(result != nil, "%s", id)
+	if result == nil {
+		jutil.CheckStateMsg1(false, "%s", id)
+	}
 	b.idToColor[id] = result
 	return result
 }
@@ -779,7 +819,9 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 }
 
 func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, entry colorPoolIdEntry) *colors.Color {
-	union := b.allocColorSet()
+	var unionBuf [8]jutil.OlhmSlot[*colors.Color, struct{}]
+	var union jutil.ObjectLinkedHashSet[*colors.Color]
+	union.InitWithBuffer(unionBuf[:])
 	for idx := -1; idx < len(entry.extra); idx++ {
 		var shard *ColorPool_ShardView
 		var proto *TypeProto
@@ -801,8 +843,10 @@ func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, entry colorP
 		}
 	}
 
-	result := colors.Color_CreateUnion(union)
-	jutil.CheckStateMsg2(id.Equals(result.GetId()), "%s == %s", id, result)
+	result := colors.Color_CreateUnionWithBuilder(&union, &b.colorBuilder, b.allocColorSetFn)
+	if !id.Equals(result.GetId()) {
+		jutil.CheckStateMsg2(false, "%s == %s", id, result)
+	}
 	return result
 }
 
@@ -817,12 +861,11 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	hasUnion := false
 
 	for i, proto := range typeList {
-		switch proto.GetKindCase() {
-		case TypeProto_KindCase_OBJECT:
+		if proto.HasObject() {
 			out[i] = colors.ColorId_FromBytes(proto.GetObject().GetUuid())
-		case TypeProto_KindCase_UNION:
+		} else if proto.HasUnion() {
 			hasUnion = true
-		default:
+		} else {
 			panic(NewMalformedTypedAstException(proto))
 		}
 	}
@@ -830,7 +873,7 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	if hasUnion {
 		scratchMembers := jutil.NewLinkedHashSet[colors.ColorId]()
 		for i, proto := range typeList {
-			if proto.GetKindCase() == TypeProto_KindCase_UNION {
+			if proto.HasUnion() {
 				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, scratchMembers)
 			}
 		}
@@ -856,7 +899,7 @@ func colorPool_createUnionColorId(
 		} else {
 			trimmed := TypePointers_TrimOffset(memberPointer)
 			MalformedTypedAstException_CheckWellFormedWithParam(
-				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].GetKindCase() == TypeProto_KindCase_OBJECT),
+				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].HasObject()),
 				"Union member not found",
 				proto)
 			scratchMembers.Add(allIds[trimmed])
@@ -867,10 +910,12 @@ func colorPool_createUnionColorId(
 
 // Java: ColorPool.validatePointer(int, ShardView)
 func colorPool_validatePointer(offset int, shard *ColorPool_ShardView) int {
-	MalformedTypedAstException_CheckWellFormedWithParam(
-		0 <= offset && offset < TypePointers_UntrimOffset(len(shard.trimmedOffsetToId)),
-		"Pointer offset outside of shard",
-		offset)
+	if offset < 0 || offset >= TypePointers_UntrimOffset(len(shard.trimmedOffsetToId)) {
+		MalformedTypedAstException_CheckWellFormedWithParam(
+			false,
+			"Pointer offset outside of shard",
+			offset)
+	}
 	return offset
 }
 

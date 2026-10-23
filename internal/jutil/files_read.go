@@ -13,9 +13,14 @@ import (
 // MalformedInputException on malformed input, and with an IOException
 // (NoSuchFileException, ...) when the file cannot be read.
 func Files_ReadString(path *Path, cs *Charset) string {
-	b, err := os.ReadFile(path.String())
+	return Files_ReadStringRaw(path.String(), cs)
+}
+
+// Files_ReadStringRaw is Files_ReadString for a pre-normalized path string.
+func Files_ReadStringRaw(pathStr string, cs *Charset) string {
+	b, err := os.ReadFile(pathStr)
 	if err != nil {
-		panic(IOExceptionFromError(err, path.String()))
+		panic(IOExceptionFromError(err, pathStr))
 	}
 	if (cs == nil || cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
 		return unsafe.String(unsafe.SliceData(b), len(b))
@@ -26,9 +31,14 @@ func Files_ReadString(path *Path, cs *Charset) string {
 // Files_NewBufferedReader is Files.newBufferedReader(Path, Charset): the
 // file is opened now, and malformed input is reported while reading.
 func Files_NewBufferedReader(path *Path, cs *Charset) JavaReader {
-	f, err := os.Open(path.String())
+	return Files_NewBufferedReaderRaw(path.String(), cs)
+}
+
+// Files_NewBufferedReaderRaw is Files_NewBufferedReader for a pre-normalized path string.
+func Files_NewBufferedReaderRaw(pathStr string, cs *Charset) JavaReader {
+	f, err := os.Open(pathStr)
 	if err != nil {
-		panic(IOExceptionFromError(err, path.String()))
+		panic(IOExceptionFromError(err, pathStr))
 	}
 	r := NewInputStreamReader(f, cs)
 	r.strict = true

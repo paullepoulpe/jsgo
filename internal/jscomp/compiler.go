@@ -146,7 +146,8 @@ type Compiler struct {
 	uniqueIdSupplier *UniqueIdSupplier
 
 	// Ids for function inlining so that each declared name remains unique.
-	uniqueNameId int
+	uniqueNameId         int
+	uniqueNameIdSupplier func() string
 
 	// Whether to assume there are references to the RegExp Global object properties.
 	hasRegExpGlobalReferences bool
@@ -769,8 +770,12 @@ func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node 
 		return nil
 	}
 
+	sd := c.typedAstScriptDeserializers[file]
 	delete(c.typedAstScriptDeserializers, file)
 	ast := c.typedAstFilesystem.Remove(file)
+	if sd != nil {
+		return sd.DeserializeNew
+	}
 	jutil.CheckStateMsg1(
 		ast != nil ||
 			strings.HasPrefix(file.GetName(), compiler_SYNTHETIC_FILE_NAME_PREFIX) ||
@@ -879,7 +884,7 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 				options.GetParseInlineSourceMaps())
 		})
 
-	c.typedAstFilesystem = astData.GetFilesystem()
+	c.typedAstFilesystem = astData.rawFilesystem()
 	c.typedAstScriptDeserializers = astData.scriptDeserializers
 	c.externProperties = astData.GetExternProperties()
 	c.colorRegistry = astData.GetColorRegistry()
@@ -950,8 +955,9 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 // Java: Compiler.init(List<SourceFile>, List<SourceFile>, CompilerOptions)
 func (c *Compiler) Init(externs []*SourceFile, sources []*SourceFile, options *CompilerOptions) {
 	chunk := NewJSChunk(JSChunk_STRONG_CHUNK_NAME)
+	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, source := range sources {
-		chunk.Add(NewCompilerInputWithIsExtern(source /* isExtern= */, false))
+		chunk.Add(newCompilerInputFromSlab(&inputSlab, source /* isExtern= */, false))
 	}
 
 	chunks := make([]*JSChunk, 0, 1)
@@ -970,8 +976,9 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	c.checkFirstChunk(chunks)
 
 	c.externs.Clear()
+	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, file := range externs {
-		c.externs.Add(NewCompilerInputWithIsExtern(file /* isExtern= */, true))
+		c.externs.Add(newCompilerInputFromSlab(&inputSlab, file /* isExtern= */, true))
 	}
 
 	// Generate the chunk graph, and report any errors in the chunk specification as errors.
@@ -2115,7 +2122,10 @@ func (c *Compiler) nextUniqueNameId() int {
 //
 // Java: Compiler.getUniqueNameIdSupplier()
 func (c *Compiler) GetUniqueNameIdSupplier() func() string {
-	return func() string { return strconv.Itoa(c.nextUniqueNameId()) }
+	if c.uniqueNameIdSupplier == nil {
+		c.uniqueNameIdSupplier = func() string { return nodeUtilFormatInt(c.nextUniqueNameId()) }
+	}
+	return c.uniqueNameIdSupplier
 }
 
 // Java: Compiler.areNodesEqualForInlining(Node, Node)
@@ -3258,8 +3268,10 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	code := sourceAndMappings.source
 
 	// Check whether there is any license information that should be emitted.
-	for license := range licenseTracker.EmitLicenses().All() {
-		cb.Append("/*\n").Append(license).Append("*/\n")
+	if emitted := licenseTracker.EmitLicenses(); emitted != nil && !emitted.IsEmpty() {
+		for license := range emitted.All() {
+			cb.Append("/*\n").Append(license).Append("*/\n")
+		}
 	}
 
 	// Check whether there's any actual code to emit.
@@ -3322,8 +3334,10 @@ func (c *Compiler) ToSourceOfNode(n *rhino.Node) string {
 	// about what licenses are included in the resulting JS.
 	lt := NewCompiler_ScriptNodeLicensesOnlyTracker(c)
 	code := c.toSourceWithoutMappings(n, false, lt)
-	for license := range lt.EmitLicenses().All() {
-		sb.Append("/*\n").Append(license).Append("*/\n")
+	if emitted := lt.EmitLicenses(); emitted != nil && !emitted.IsEmpty() {
+		for license := range emitted.All() {
+			sb.Append("/*\n").Append(license).Append("*/\n")
+		}
 	}
 	sb.Append(code)
 	return sb.String()
@@ -3387,7 +3401,7 @@ func (t *compiler_SeenSetLicenseTrackerBase) trackLicensesForFileName(file strin
 	} else {
 		t.lastSeenFile = file
 	}
-	license := Compiler_GetLicenseForFile(t.compiler, &file)
+	license := compiler_getLicenseForFileName(t.compiler, file)
 	if license == nil {
 		return
 	}
@@ -3397,10 +3411,16 @@ func (t *compiler_SeenSetLicenseTrackerBase) trackLicensesForFileName(file strin
 	t.currentlySeenLicenses.Add(*license)
 }
 
+var compiler_emptyLicenseSet = jutil.NewLinkedHashSet[string]()
+
 // Java: Compiler.SeenSetLicenseTracker.emitLicenses()
 func (t *compiler_SeenSetLicenseTrackerBase) EmitLicenses() *jutil.LinkedHashSet[string] {
-	rv := jutil.NewLinkedHashSet[string](t.currentlySeenLicenses.ToSlice()...)
-	t.globallyUniqueLicenses.AddAll(t.currentlySeenLicenses.ToSlice()...)
+	if t.currentlySeenLicenses.IsEmpty() {
+		return compiler_emptyLicenseSet
+	}
+	slice := t.currentlySeenLicenses.ToSlice()
+	rv := jutil.NewLinkedHashSet[string](slice...)
+	t.globallyUniqueLicenses.AddAll(slice...)
 	t.currentlySeenLicenses.Clear()
 	return rv
 }
@@ -3478,9 +3498,11 @@ func (t *Compiler_SingleBinaryLicenseTracker) ShouldUseLicenseInfo(node *rhino.N
 type Compiler_ChunkGraphAwareLicenseTracker struct {
 	compiler           AbstractCompiler
 	licensesFromChunks *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]
+	cumulativeLicenses map[*JSChunk]*jutil.LinkedHashSet[string]
 
 	haveInitializedCurrentChunkLicenses bool
 	currentChunkLicencesInTDeps         *jutil.LinkedHashSet[string]
+	currentChunkTDepsRef                *jutil.LinkedHashSet[string]
 
 	lastSeenFile             string
 	licensesNewInCurrentFile *jutil.LinkedHashSet[string]
@@ -3494,13 +3516,16 @@ type Compiler_ChunkGraphAwareLicenseTracker struct {
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker(AbstractCompiler)
 func NewCompiler_ChunkGraphAwareLicenseTracker(compiler AbstractCompiler) *Compiler_ChunkGraphAwareLicenseTracker {
+	tdeps := jutil.NewLinkedHashSet[string]()
 	return &Compiler_ChunkGraphAwareLicenseTracker{
 		licensesFromChunks:                  jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]](),
+		cumulativeLicenses:                  make(map[*JSChunk]*jutil.LinkedHashSet[string], 16),
 		haveInitializedCurrentChunkLicenses: false,
-		currentChunkLicencesInTDeps:         jutil.NewLinkedHashSet[string](),
+		currentChunkLicencesInTDeps:         tdeps,
+		currentChunkTDepsRef:                tdeps,
 		lastSeenFile:                        "",
 		licensesNewInCurrentFile:            jutil.NewLinkedHashSet[string](),
-		licensesNewInCurrentChunk:           jutil.NewLinkedHashSet[string](),
+		licensesNewInCurrentChunk:           compiler_emptyLicenseSet,
 		log:                                 diagnostic.LogFile_CreateNoOp(),
 		compiler:                            compiler,
 	}
@@ -3513,16 +3538,86 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) SetLogFile(file diagnostic.LogF
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.setCurrentChunkContext(JSChunk)
 func (t *Compiler_ChunkGraphAwareLicenseTracker) SetCurrentChunkContext(chunk *JSChunk) {
-	t.log.LogFormat("Initializing licenses from deps for chunk %s", chunk)
+	if t.log.IsLogging() {
+		t.log.LogFormat("Initializing licenses from deps for chunk %s", chunk)
+	}
 	t.currentChunk = chunk
-	t.currentChunkLicencesInTDeps.Clear()
-	t.licensesNewInCurrentFile.Clear()
+	if !t.currentChunkLicencesInTDeps.IsEmpty() {
+		t.currentChunkLicencesInTDeps.Clear()
+	}
+	t.currentChunkTDepsRef = compiler_emptyLicenseSet
+	if !t.licensesNewInCurrentFile.IsEmpty() {
+		t.licensesNewInCurrentFile.Clear()
+	}
 	t.haveInitializedCurrentChunkLicenses = false
 	if t.licensesFromChunks.ContainsKey(chunk) {
 		panic(jutil.NewIllegalStateExceptionMsg("Visiting a chunk more than once is not allowed."))
 	}
-	t.licensesNewInCurrentChunk = jutil.NewLinkedHashSet[string]()
-	t.licensesFromChunks.Put(chunk, t.licensesNewInCurrentChunk)
+	t.licensesNewInCurrentChunk = compiler_emptyLicenseSet
+	t.licensesFromChunks.Put(chunk, compiler_emptyLicenseSet)
+}
+
+func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *jutil.LinkedHashSet[string] {
+	if cum, ok := t.cumulativeLicenses[chunk]; ok {
+		return cum
+	}
+	chunkNew, visited := t.licensesFromChunks.Lookup(chunk)
+	if !visited {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Chunk aware license analysis error - analysis out of order."))
+	}
+	deps := chunk.deps
+	if len(deps) == 0 {
+		t.cumulativeLicenses[chunk] = chunkNew
+		return chunkNew
+	}
+	if len(deps) == 1 {
+		cum0 := t.ensureCumulativeLicenses(deps[0])
+		if chunkNew.IsEmpty() {
+			t.cumulativeLicenses[chunk] = cum0
+			return cum0
+		}
+		if cum0.IsEmpty() {
+			t.cumulativeLicenses[chunk] = chunkNew
+			return chunkNew
+		}
+		merged := jutil.NewLinkedHashSet[string](cum0.ToSlice()...)
+		merged.AddAll(chunkNew.ToSlice()...)
+		t.cumulativeLicenses[chunk] = merged
+		return merged
+	}
+	var shared *jutil.LinkedHashSet[string]
+	needMerge := false
+	for _, dep := range deps {
+		cumDep := t.ensureCumulativeLicenses(dep)
+		if cumDep.IsEmpty() {
+			continue
+		}
+		if shared == nil {
+			shared = cumDep
+		} else if shared != cumDep {
+			needMerge = true
+		}
+	}
+	if !needMerge && chunkNew.IsEmpty() {
+		if shared == nil {
+			shared = compiler_emptyLicenseSet
+		}
+		t.cumulativeLicenses[chunk] = shared
+		return shared
+	}
+	merged := jutil.NewLinkedHashSet[string]()
+	for _, dep := range deps {
+		cumDep := t.cumulativeLicenses[dep]
+		if !cumDep.IsEmpty() {
+			merged.AddAll(cumDep.ToSlice()...)
+		}
+	}
+	if !chunkNew.IsEmpty() {
+		merged.AddAll(chunkNew.ToSlice()...)
+	}
+	t.cumulativeLicenses[chunk] = merged
+	return merged
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.trackLicensesForNode(Node)
@@ -3549,21 +3644,62 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 	}
 	// Lazily initialize the set of licenses provided by the chunk's transitive dependencies
 	if !t.haveInitializedCurrentChunkLicenses {
-		for depChunk := range t.currentChunk.GetAllDependencies().All() {
-			t.log.LogFormat("Chunk %s depends on chunk %s", t.currentChunk, depChunk)
-			if !t.licensesFromChunks.ContainsKey(depChunk) {
-				panic(jutil.NewIllegalStateExceptionMsg(
-					"Chunk aware license analysis error - analysis out of order."))
+		if t.log.IsLogging() {
+			for depChunk := range t.currentChunk.GetAllDependencies().All() {
+				t.log.LogFormat("Chunk %s depends on chunk %s", t.currentChunk, depChunk)
+				if !t.licensesFromChunks.ContainsKey(depChunk) {
+					panic(jutil.NewIllegalStateExceptionMsg(
+						"Chunk aware license analysis error - analysis out of order."))
+				}
+				depSet := t.licensesFromChunks.Get(depChunk)
+				if !depSet.IsEmpty() {
+					t.currentChunkLicencesInTDeps.AddAll(depSet.ToSlice()...)
+				}
 			}
-			t.currentChunkLicencesInTDeps.AddAll(t.licensesFromChunks.Get(depChunk).ToSlice()...)
+			t.currentChunkTDepsRef = t.currentChunkLicencesInTDeps
+		} else {
+			deps := t.currentChunk.deps
+			if len(deps) == 0 {
+				t.currentChunkTDepsRef = compiler_emptyLicenseSet
+			} else if len(deps) == 1 {
+				t.currentChunkTDepsRef = t.ensureCumulativeLicenses(deps[0])
+			} else {
+				var shared *jutil.LinkedHashSet[string]
+				needMerge := false
+				for _, dep := range deps {
+					cumDep := t.ensureCumulativeLicenses(dep)
+					if cumDep.IsEmpty() {
+						continue
+					}
+					if shared == nil {
+						shared = cumDep
+					} else if shared != cumDep {
+						needMerge = true
+					}
+				}
+				if !needMerge {
+					if shared == nil {
+						shared = compiler_emptyLicenseSet
+					}
+					t.currentChunkTDepsRef = shared
+				} else {
+					for _, dep := range deps {
+						cumDep := t.cumulativeLicenses[dep]
+						if !cumDep.IsEmpty() {
+							t.currentChunkLicencesInTDeps.AddAll(cumDep.ToSlice()...)
+						}
+					}
+					t.currentChunkTDepsRef = t.currentChunkLicencesInTDeps
+				}
+			}
 		}
 		t.haveInitializedCurrentChunkLicenses = true
 	}
-	license := Compiler_GetLicenseForFile(t.compiler, &sourceFile)
+	license := compiler_getLicenseForFileName(t.compiler, sourceFile)
 	if license == nil {
 		return
 	}
-	if t.currentChunkLicencesInTDeps.Contains(*license) {
+	if t.currentChunkTDepsRef.Contains(*license) {
 		// This node's license is covered by one of its transitive dependencies - no need to
 		// duplicate it.
 		return
@@ -3573,14 +3709,16 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 		return
 	}
 	newlyAddedLicense := t.licensesNewInCurrentFile.Add(*license)
-	if !newlyAddedLicense {
-		t.log.LogFormat(
-			"Chunk %s already depends on license\n==================\n%s\n==================\n\n",
-			t.currentChunk, *license)
-	} else {
-		t.log.LogFormat(
-			"Chunk %s has new license:\n==================\n%s\n==================\n\n",
-			t.currentChunk, *license)
+	if t.log.IsLogging() {
+		if !newlyAddedLicense {
+			t.log.LogFormat(
+				"Chunk %s already depends on license\n==================\n%s\n==================\n\n",
+				t.currentChunk, *license)
+		} else {
+			t.log.LogFormat(
+				"Chunk %s has new license:\n==================\n%s\n==================\n\n",
+				t.currentChunk, *license)
+		}
 	}
 }
 
@@ -3637,8 +3775,17 @@ func compiler_licenseTrackerReplay(lt CodePrinter_LicenseTracker) (replay func(s
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.emitLicenses()
 func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() *jutil.LinkedHashSet[string] {
-	licensesNewInFile := jutil.NewLinkedHashSet[string](t.licensesNewInCurrentFile.ToSlice()...)
-	t.licensesNewInCurrentChunk.AddAll(licensesNewInFile.ToSlice()...)
+	if t.licensesNewInCurrentFile.IsEmpty() {
+		return compiler_emptyLicenseSet
+	}
+	slice := t.licensesNewInCurrentFile.ToSlice()
+	licensesNewInFile := jutil.NewLinkedHashSet[string](slice...)
+	if t.licensesNewInCurrentChunk == compiler_emptyLicenseSet {
+		t.licensesNewInCurrentChunk = jutil.NewLinkedHashSet[string](slice...)
+		t.licensesFromChunks.Put(t.currentChunk, t.licensesNewInCurrentChunk)
+	} else {
+		t.licensesNewInCurrentChunk.AddAll(slice...)
+	}
 	t.licensesNewInCurrentFile.Clear()
 	return licensesNewInFile
 }
@@ -3679,7 +3826,11 @@ func Compiler_GetLicenseForFile(compiler AbstractCompiler, fileName *string) *st
 	if fileName == nil {
 		return nil
 	}
-	licenseRoot := compiler.GetScriptNode(*fileName)
+	return compiler_getLicenseForFileName(compiler, *fileName)
+}
+
+func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) *string {
+	licenseRoot := compiler.GetScriptNode(fileName)
 	if licenseRoot == nil {
 		return nil
 	}
@@ -3687,8 +3838,7 @@ func Compiler_GetLicenseForFile(compiler AbstractCompiler, fileName *string) *st
 	if docInfo == nil {
 		return nil
 	}
-	license := docInfo.GetLicense()
-	return license
+	return docInfo.GetLicense()
 }
 
 // ToSourceArray converts the parse tree for each input in a chunk back to
@@ -5262,9 +5412,11 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	c.RestoreFromState(stateProto)
 
 	// Restore the chunk graph
-	chunks := []*JSChunk{}
-	for _, chunkProto := range stateProto.GetChunksList() {
-		chunk := NewJSChunk(chunkProto.GetName())
+	chunkProtos := stateProto.GetChunksList()
+	chunks := make([]*JSChunk, 0, len(chunkProtos))
+	chunkSlab := jutil.NewMaxSlab[JSChunk](64)
+	for _, chunkProto := range chunkProtos {
+		chunk := newJSChunkFromSlab(&chunkSlab, chunkProto.GetName())
 		chunks = append(chunks, chunk)
 	}
 	for i := 0; i < len(chunks); i++ {
@@ -5288,7 +5440,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	runtimeLibraries := deserializedAst.GetRuntimeLibraries()
 
 	// Tells CompilerInput::getRoot to deserialize an AST rather than re-parsing the file
-	c.typedAstFilesystem = deserializedAst.GetFilesystem()
+	c.typedAstFilesystem = deserializedAst.rawFilesystem()
 	c.typedAstScriptDeserializers = deserializedAst.scriptDeserializers
 	deserializedAst = nil
 
@@ -5298,6 +5450,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	codeFiles := codeFilesBuilder
 	externFilesBuilder = nil
 	codeFilesBuilder = nil
+	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, externName := range stateProto.GetExternsList() {
 		if externName == c.SYNTHETIC_EXTERNS_FILE.GetName() {
 			c.GetSynthesizedExternsInput()
@@ -5309,7 +5462,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 			// because they are annotated `@externs`.
 			externFile = jutil.CheckNotNullMsg1(codeFiles.Get(externName), "Missing %s", externName)
 		}
-		input := NewCompilerInputWithIsExtern(externFile /* isExtern= */, true)
+		input := newCompilerInputFromSlab(&inputSlab, externFile /* isExtern= */, true)
 		script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
 
 		c.externsRoot.AddChildToBack(script)
@@ -5340,7 +5493,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 				jutil.CheckStateMsg1(AbstractCompiler_IsFillFileName(inputId), "Missing %s", inputId)
 				continue
 			}
-			input := NewCompilerInput(src)
+			input := newCompilerInputFromSlab(&inputSlab, src, false)
 			if parallelRestore {
 				restoredInputs = append(restoredInputs, restoredChunkInput{chunkIdx: i, src: src, input: input})
 				prebuildInputs = append(prebuildInputs, input)

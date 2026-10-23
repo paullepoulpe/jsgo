@@ -35,10 +35,12 @@ type CompilerInput struct {
 	// Info about where the file lives.
 	chunk      *JSChunk
 	id         *rhino.InputId
+	inlineId   rhino.InputId
 	sourceFile *SourceFile
 
 	// The lazily constructed AST.
-	ast *CompilerInput_JsAst
+	ast       *CompilerInput_JsAst
+	inlineAst CompilerInput_JsAst
 
 	// DependencyInfo to delegate to.
 	dependencyInfo  DependencyInfo
@@ -100,23 +102,25 @@ func NewCompilerInputWithInputId(file *SourceFile, inputId *rhino.InputId) *Comp
 //
 // Java: CompilerInput(SourceFile, String, boolean)
 func NewCompilerInputWithStringIdAndIsExtern(sourceFile *SourceFile, inputId string, isExtern bool) *CompilerInput {
-	return NewCompilerInputWithInputIdAndIsExtern(sourceFile, rhino.NewInputId(inputId), isExtern)
+	c := &CompilerInput{}
+	c.inlineId.Init(inputId)
+	return initCompilerInputWithInputId(c, sourceFile, &c.inlineId, isExtern)
 }
 
-// Deprecated: the inputId is read from the SourceFile. Use
-// NewCompilerInputWithIsExtern(file, isExtern)
-//
-// Java: CompilerInput(SourceFile, InputId, boolean)
-func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
-	c := &CompilerInput{
-		extraRequires:         []*DependencyInfo_Require{},
-		extraProvides:         []string{},
-		orderedRequires:       []*DependencyInfo_Require{},
-		dynamicRequires:       []string{},
-		requireDynamicImports: []string{},
-		jsModuleType:          CompilerInput_ModuleType_NONE,
-	}
-	c.ast = newCompilerInput_JsAst(c)
+var (
+	compilerInputEmptyRequires = []*DependencyInfo_Require{}
+	compilerInputEmptyStrings  = []string{}
+)
+
+func initCompilerInputWithInputId(c *CompilerInput, sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
+	c.extraRequires = compilerInputEmptyRequires
+	c.extraProvides = compilerInputEmptyStrings
+	c.orderedRequires = compilerInputEmptyRequires
+	c.dynamicRequires = compilerInputEmptyStrings
+	c.requireDynamicImports = compilerInputEmptyStrings
+	c.jsModuleType = CompilerInput_ModuleType_NONE
+	c.inlineAst.outer = c
+	c.ast = &c.inlineAst
 	c.sourceFile = jutil.CheckNotNull(sourceFile)
 	c.id = jutil.CheckNotNull(inputId)
 	if isExtern {
@@ -125,14 +129,34 @@ func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhi
 	return c
 }
 
+func newCompilerInputFromSlab(slab *jutil.Slab[CompilerInput], file *SourceFile, isExtern bool) *CompilerInput {
+	jutil.CheckNotNull(file)
+	var c *CompilerInput
+	if slab != nil {
+		c = slab.New()
+	} else {
+		c = &CompilerInput{}
+	}
+	c.inlineId.Init(file.GetName())
+	return initCompilerInputWithInputId(c, file, &c.inlineId, isExtern)
+}
+
+// Deprecated: the inputId is read from the SourceFile. Use
+// NewCompilerInputWithIsExtern(file, isExtern)
+//
+// Java: CompilerInput(SourceFile, InputId, boolean)
+func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
+	return initCompilerInputWithInputId(&CompilerInput{}, sourceFile, inputId, isExtern)
+}
+
 // Java: CompilerInput(SourceFile)
 func NewCompilerInput(file *SourceFile) *CompilerInput {
-	return NewCompilerInputWithIsExtern(file, false)
+	return newCompilerInputFromSlab(nil, file, false)
 }
 
 // Java: CompilerInput(SourceFile, boolean)
 func NewCompilerInputWithIsExtern(file *SourceFile, isExtern bool) *CompilerInput {
-	return NewCompilerInputWithInputIdAndIsExtern(file, rhino.NewInputId(file.GetName()), isExtern)
+	return newCompilerInputFromSlab(nil, file, isExtern)
 }
 
 // GetInputId returns a name for this input. Must be unique across all
@@ -412,11 +436,17 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		return result
 	} else {
 		// Otherwise, just look at the AST.
-
-		finder := newCompilerInput_DepsFinder(c.GetPath())
 		root := c.GetAstRoot(c.compiler)
 		if root == nil {
 			return SimpleDependencyInfo_EMPTY
+		}
+
+		var providesBuf [4]string
+		var requiresBuf [16]*DependencyInfo_Require
+		finder := CompilerInput_DepsFinder{
+			provides:   providesBuf[:0],
+			requires:   requiresBuf[:0],
+			modulePath: c.GetPath(),
 		}
 
 		finder.VisitTree(root)
@@ -432,24 +462,23 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		// compilation scheme. The API needs to be fixed so callers aren't
 		// doing weird things like this, and then we should get rid of the
 		// multiple-scan strategy.
-		loadFlags := jutil.NewLinkedHashMap[string, string]()
-		for k, v := range finder.loadFlags.All() {
-			loadFlags.Put(k, v)
-		}
-		return SimpleDependencyInfo_Builder_("", "").
-			SetProvides(finder.provides).
-			SetRequires(finder.requires).
-			SetTypeRequires(finder.typeRequires).
-			SetLoadFlags(loadFlags).
-			SetHasExternsAnnotation(info != nil && info.IsExterns()).
-			SetHasNoCompileAnnotation(info != nil && info.IsNoCompile()).
-			Build()
+		return newSimpleDependencyInfoDirect(
+			"",
+			"",
+			finder.provides,
+			finder.requires,
+			finder.typeRequires,
+			simpleDependencyInfo_flagsForLangModule(finder.langFlag, finder.moduleFlag),
+			info != nil && info.IsExterns(),
+			info != nil && info.IsNoCompile(),
+		)
 	}
 }
 
 // CompilerInput_DepsFinder is CompilerInput.DepsFinder.
 type CompilerInput_DepsFinder struct {
-	loadFlags    *jutil.TreeMap[string, string]
+	langFlag     string
+	moduleFlag   string
 	provides     []string
 	requires     []*DependencyInfo_Require
 	typeRequires []string
@@ -459,7 +488,6 @@ type CompilerInput_DepsFinder struct {
 // Java: CompilerInput.DepsFinder(ModulePath)
 func newCompilerInput_DepsFinder(modulePath *ModuleLoader_ModulePath) *CompilerInput_DepsFinder {
 	return &CompilerInput_DepsFinder{
-		loadFlags:    jutil.NewTreeMap[string, string](jutil.StringCompareTo),
 		provides:     []string{},
 		requires:     []*DependencyInfo_Require{},
 		typeRequires: []string{},
@@ -480,7 +508,7 @@ func (f *CompilerInput_DepsFinder) VisitTree(n *rhino.Node) {
 		// legacy deps files will remain unchanged (i.e. load flags omitted).
 		version := features.Version()
 		if version != "es3" {
-			f.loadFlags.Put("lang", version)
+			f.langFlag = version
 		}
 	}
 }
@@ -514,7 +542,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Nod
 					// only mark as a goog.module if this is not bundled, e.g.
 					// goog.loadModule(function(exports) {"use strict";goog.module('Foo');
 					if parent.IsExprResult() && parent.GetParent().IsModuleBody() {
-						f.loadFlags.Put("module", "goog")
+						f.moduleFlag = "goog"
 					}
 				}
 				// Fall-through
@@ -560,7 +588,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Nod
 	case rhino.Token_MODULE_BODY:
 		if !parent.GetBooleanProp(rhino.Node_GOOG_MODULE) {
 			f.provides = append(f.provides, f.modulePath.ToModuleName())
-			f.loadFlags.Put("module", "es6")
+			f.moduleFlag = "es6"
 		}
 	case rhino.Token_IMPORT:
 		f.VisitEs6ModuleName(n.GetLastChild(), n)

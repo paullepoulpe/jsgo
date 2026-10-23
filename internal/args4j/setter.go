@@ -92,6 +92,12 @@ type Setter interface {
 	AsAnnotatedElement() AnnotatedElement
 }
 
+// StringSetter is an optional fast path implemented by Setters that accept
+// unboxed Go strings without interface boxing.
+type StringSetter interface {
+	AddStringValue(value string)
+}
+
 // AnnotatedElement is java.lang.reflect.AnnotatedElement: the field (a
 // *Field) that carried the Option or Argument annotation.
 //

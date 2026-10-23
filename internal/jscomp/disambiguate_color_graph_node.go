@@ -34,7 +34,8 @@ import (
 type ColorGraphNode struct {
 	color *colors.Color
 
-	associatedProps *jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation]
+	associatedProps jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation]
+	assocBuf        [8]jutil.LhmSlot[*PropertyClustering, ColorGraphNode_PropAssociation]
 
 	index int
 
@@ -104,10 +105,12 @@ func ColorGraphNode_CreateForTestingWithColor(single *colors.Color, index int) *
 // Java: ColorGraphNode(Color, int)
 func newColorGraphNode(single *colors.Color, index int) *ColorGraphNode {
 	jutil.CheckNotNull(single)
-	return &ColorGraphNode{
+	n := &ColorGraphNode{
 		index: index,
 		color: single,
 	}
+	n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
+	return n
 }
 
 // Java: ColorGraphNode.getColor()
@@ -128,10 +131,14 @@ func (n *ColorGraphNode) GetIndex() int {
 //
 // Java: ColorGraphNode.getAssociatedProps()
 func (n *ColorGraphNode) GetAssociatedProps() *jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation] {
-	if n.associatedProps == nil {
-		n.associatedProps = jutil.NewLinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation]()
+	if !n.associatedProps.HasBacking() {
+		n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
 	}
-	return n.associatedProps
+	return &n.associatedProps
+}
+
+func (n *ColorGraphNode) AssociatedPropsSize() int {
+	return n.associatedProps.Size()
 }
 
 // GetSubtypeIndices returns the IDs of other ColorGraphNodes that have been

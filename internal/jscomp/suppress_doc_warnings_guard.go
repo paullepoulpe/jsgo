@@ -145,18 +145,19 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, no
 //
 // Java: SuppressDocWarningsGuard.getCheckLevelFromInfo(JSError, JSDocInfo)
 func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *rhino.JSDocInfo) *CheckLevel {
-	for suppressor := range info.GetSuppressions().All() {
+	var matched *CheckLevel
+	info.ForEachSuppression(func(suppressor string) bool {
 		group := g.suppressors.Get(suppressor)
 		if group == nil {
-			continue // Some @suppress tags are for other tools, and may not have a group.
+			return true // Some @suppress tags are for other tools, and may not have a group.
 		}
-
 		if group.Matches(error) {
-			return CheckLevel_OFF.Ptr()
+			matched = CheckLevel_OFF.Ptr()
+			return false
 		}
-	}
-
-	return nil
+		return true
+	})
+	return matched
 }
 
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)

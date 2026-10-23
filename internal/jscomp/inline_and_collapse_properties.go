@@ -1820,7 +1820,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, nil, false)
 }
 
-func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
+func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
 	if extraDepth <= 0 {
 		return baseOriginalName
 	}
@@ -1861,17 +1861,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	descendantsVisited bool) {
 	var cachedOrig string
 	hasOrig := false
-	getOrig := func() string {
-		if !hasOrig {
-			cachedOrig = buildLazyPrefixOriginalName(baseOriginalName, n, extraDepth)
-			hasOrig = true
-		}
-		return cachedOrig
-	}
 
 	decl := n.getDeclarationRef()
 	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
-		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, getOrig(), isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
 	if descendantsVisited && c.willFlattenReferences(n) {
@@ -1882,7 +1875,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 		if r == decl {
 			continue
 		}
-		c.FlattenNameRefAtDepth(alias, r.GetNode(), depth, getOrig(), isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, r.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
 	if n.props != nil {
@@ -1892,6 +1885,34 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, escaped, nextDescendantsVisited)
 			}
 		}
+	}
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLazy(
+	alias string,
+	n *rhino.Node,
+	depth int,
+	baseOriginalName string,
+	nameObj *GlobalNamespace_Name,
+	extraDepth int,
+	cachedOrig *string,
+	hasOrig *bool,
+	isConstantName bool) {
+	nType := n.GetToken()
+	isQName := nType == rhino.Token_NAME || nType == rhino.Token_GETPROP
+	if !isQName {
+		jutil.CheckState(NodeUtil_MayBeObjectLitKey(n))
+		return
+	}
+	for i := 1; i < depth && n.HasChildren(); i++ {
+		n = n.GetFirstChild()
+	}
+	if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
+		if !*hasOrig {
+			*cachedOrig = c.buildLazyPrefixOriginalName(baseOriginalName, nameObj, extraDepth)
+			*hasOrig = true
+		}
+		c.FlattenNameRef(alias, n.GetFirstChild(), n, *cachedOrig, isConstantName)
 	}
 }
 
@@ -1944,17 +1965,22 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	//     string c
 	// AFTER:
 	//   name a$b$c
-	ref := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, n, originalName).CopyTypeFrom(n)
-	NodeUtil_CopyNameAnnotations(n, ref)
-	if isConstantName {
-		ref.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstantName)
-	}
+	isConst := isConstantName || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) || c.outer.compiler.GetCodingConvention().IsConstant(alias)
 	if NodeUtil_IsNormalOrOptChainCall(parent) && n.IsFirstChildOf(parent) {
 		// The node was a call target. We are deliberately flattening these as
 		// the "this" isn't provided by the namespace. Mark it as such:
 		parent.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	}
+	if n.MutateGetPropToNameInPlace(alias, originalName, isConst) {
+		c.outer.compiler.ReportChangeToEnclosingScope(n)
+		return
+	}
 
+	ref := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, n, originalName).CopyTypeFrom(n)
+	NodeUtil_CopyNameAnnotations(n, ref)
+	if isConstantName {
+		ref.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstantName)
+	}
 	n.ReplaceWith(ref)
 	c.outer.compiler.ReportChangeToEnclosingScope(ref)
 }
@@ -2169,20 +2195,28 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	// are being declared as VAR statements, but this is not incorrect because
 	// we are only collapsing for global names.
 	ref := n.getDeclarationRef()
-	rvalue := ref.GetNode().GetNext()
+	refNode := ref.GetNode()
+	rvalue := refNode.GetNext()
 	if ref.IsTwin() {
 		c.UpdateTwinnedDeclaration(alias, n, ref)
 		return
 	}
-	varNode := rhino.NewNode(rhino.Token_VAR)
-	varParent := ref.GetNode().GetAncestor(3)
-	grandparent := ref.GetNode().GetAncestor(2)
+	assignNode := refNode.GetParent()
+	grandparent := assignNode.GetParent()
+	varParent := grandparent.GetParent()
 	isObjLit := rvalue.IsObjectLit()
 	insertedVarNode := false
+	var varNode *rhino.Node
 
 	if isObjLit && c.CanEliminate(n, rvalue) {
 		// Eliminate the object literal altogether.
-		grandparent.ReplaceWith(varNode)
+		if grandparent.CanResetInPlace() {
+			grandparent.MutateAttachedToFreshVarInPlace(nil, nil)
+			varNode = grandparent
+		} else {
+			varNode = rhino.NewNode(rhino.Token_VAR)
+			grandparent.ReplaceWith(varNode)
+		}
 		n.UpdateRefNode(ref, nil)
 		insertedVarNode = true
 		c.outer.compiler.ReportChangeToEnclosingScope(varNode)
@@ -2195,22 +2229,33 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 		c.outer.compiler.ReportChangeToEnclosingScope(rvalue)
 		rvalue.Detach()
 
-		nameNode := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, ref.GetNode().GetAncestor(2), n.GetFullName())
-
-		nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, c.ShouldAddConstantName(ref.GetNode(), alias))
-
-		info := NodeUtil_GetBestJSDocInfo(ref.GetNode().GetParent())
-		if info != nil {
-			varNode.SetJSDocInfo(info)
+		isConstName := c.ShouldAddConstantName(refNode, alias)
+		info := NodeUtil_GetBestJSDocInfo(assignNode)
+		var nameNode *rhino.Node
+		if assignNode.CanResetInPlace() && grandparent.CanResetInPlace() {
+			assignNode.Detach()
+			nameNode = assignNode.ResetDetachedToNameWithOriginalNameInPlace(alias, n.GetFullName(), grandparent, isConstName)
+			nameNode.AddChildToFront(rvalue)
+			grandparent.MutateAttachedToFreshVarInPlace(nameNode, info)
+			varNode = grandparent
+		} else {
+			nameNode = NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, grandparent, n.GetFullName())
+			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstName)
+			varNode = rhino.NewNode(rhino.Token_VAR)
+			if info != nil {
+				varNode.SetJSDocInfo(info)
+			}
+			varNode.AddChildToBack(nameNode)
+			nameNode.AddChildToFront(rvalue)
+			grandparent.ReplaceWith(varNode)
 		}
-		varNode.AddChildToBack(nameNode)
-		nameNode.AddChildToFront(rvalue)
-		grandparent.ReplaceWith(varNode)
 
 		// Update the node ancestry stored in the reference.
 		n.UpdateRefNode(ref, nameNode)
 		insertedVarNode = true
 		c.outer.compiler.ReportChangeToEnclosingScope(varNode)
+	} else if canCollapseChildNames {
+		varNode = rhino.NewNode(rhino.Token_VAR)
 	}
 
 	if canCollapseChildNames {
@@ -2438,6 +2483,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		propAlias := c.AppendPropForAlias(alias, propName)
 		var refNode *rhino.Node
 		isConstantName := c.ShouldAddConstantName(key, propAlias)
+		keyDoc := key.GetJSDocInfo()
 		if discardKeys {
 			key.Detach()
 			value.Detach()
@@ -2459,7 +2505,14 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		if isConstantName {
 			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 		}
-		newVar := rhino.IR_Var(nameNode).SrcrefTreeIfMissing(key)
+		var newVar *rhino.Node
+		if discardKeys && key.CanResetInPlace() && (p == nil || p.getDeclarationRef() == nil || p.getDeclarationRef().GetNode() == key) {
+			nameNode.SrcrefTreeIfMissing(key)
+			key.MutateAttachedStmtToVarFromSrcref(nameNode, key, nil)
+			newVar = key
+		} else {
+			newVar = rhino.IR_Var(nameNode).SrcrefTreeIfMissing(key)
+		}
 		if nameToAddAfter != nil {
 			newVar.InsertAfter(nameToAddAfter)
 		} else {
@@ -2479,7 +2532,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 			p.UpdateRefNode(p.getDeclarationRef(), nameNode)
 
 			if value.IsFunction() {
-				c.CheckForReceiverAffectedByCollapse(value, key.GetJSDocInfo(), p)
+				c.CheckForReceiverAffectedByCollapse(value, keyDoc, p)
 			}
 		}
 	}

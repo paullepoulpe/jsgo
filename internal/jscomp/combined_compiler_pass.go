@@ -45,10 +45,17 @@ import (
 // compiler pass to give it context about what combined passes are doing.
 type CombinedCompilerPass struct {
 	// The callbacks that this pass combines.
-	callbacks     []*combinedCompilerPass_CallbackWrapper
-	compiler      AbstractCompiler
-	allNoVisit    bool
-	inactiveCount int
+	callbacks             []combinedCompilerPass_CallbackWrapper
+	shouldTraverseIndices []int
+	visitCallbacks        []NodeTraversal_Callback
+	scopedIndices         []int
+	compiler              AbstractCompiler
+	concreteCompiler      *Compiler
+	cachedErrorManager    ErrorManager
+	haltingErrorCount     *int
+	continueAfterErrors   bool
+	allNoVisit            bool
+	inactiveCount         int
 }
 
 // NewCombinedCompilerPass creates a combined compiler pass.
@@ -67,15 +74,58 @@ func NewCombinedCompilerPass(compiler AbstractCompiler, callbacks ...NodeTravers
 // Java: CombinedCompilerPass(AbstractCompiler, List<NodeTraversal.Callback>)
 func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTraversal_Callback) *CombinedCompilerPass {
 	p := &CombinedCompilerPass{compiler: compiler, allNoVisit: true}
-	p.callbacks = make([]*combinedCompilerPass_CallbackWrapper, len(callbacks))
+	p.callbacks = make([]combinedCompilerPass_CallbackWrapper, len(callbacks))
 	for i := 0; i < len(callbacks); i++ {
-		w := newCombinedCompilerPass_CallbackWrapper(callbacks[i])
+		w := initCombinedCompilerPass_CallbackWrapper(callbacks[i])
+		if !w.noShouldTraverse {
+			p.shouldTraverseIndices = append(p.shouldTraverseIndices, i)
+		}
 		if !w.noVisit {
 			p.allNoVisit = false
+			p.visitCallbacks = append(p.visitCallbacks, w.callback)
+		}
+		if w.scopedCallback != nil {
+			p.scopedIndices = append(p.scopedIndices, i)
 		}
 		p.callbacks[i] = w
 	}
+	p.refreshErrorState()
 	return p
+}
+
+func (p *CombinedCompilerPass) refreshErrorState() {
+	p.continueAfterErrors = false
+	p.cachedErrorManager = nil
+	p.haltingErrorCount = nil
+	c, ok := p.compiler.(*Compiler)
+	if !ok || c == nil {
+		return
+	}
+	p.concreteCompiler = c
+	if opts := c.GetOptions(); opts != nil && opts.CanContinueAfterErrors() {
+		p.continueAfterErrors = true
+		return
+	}
+	em := c.errorManager
+	p.cachedErrorManager = em
+	if ts, ok := em.(*ThreadSafeDelegatingErrorManager); ok {
+		em = ts.delegated
+	}
+	if sem, ok := em.(SortingErrorManager); ok {
+		p.haltingErrorCount = &sem.GetSortingErrorManagerBase().originalErrorCount
+	}
+}
+
+func (p *CombinedCompilerPass) hasHaltingErrors() bool {
+	if p.concreteCompiler != nil {
+		if p.continueAfterErrors {
+			return false
+		}
+		if p.haltingErrorCount != nil && p.concreteCompiler.errorManager == p.cachedErrorManager {
+			return *p.haltingErrorCount != 0
+		}
+	}
+	return p.compiler.HasHaltingErrors()
 }
 
 // Java: CombinedCompilerPass.traverse(AbstractCompiler, Node, List<NodeTraversal.Callback>)
@@ -111,12 +161,10 @@ type combinedCompilerPass_CallbackWrapper struct {
 }
 
 // Java: CombinedCompilerPass.CallbackWrapper(NodeTraversal.Callback)
-func newCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) *combinedCompilerPass_CallbackWrapper {
-	w := &combinedCompilerPass_CallbackWrapper{callback: callback}
+func initCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) combinedCompilerPass_CallbackWrapper {
+	w := combinedCompilerPass_CallbackWrapper{callback: callback}
 	if scopedCallback, ok := callback.(NodeTraversal_ScopedCallback); ok {
 		w.scopedCallback = scopedCallback
-	} else {
-		w.scopedCallback = nil
 	}
 	_, w.noShouldTraverse = callback.(nodeTraversal_noShouldTraverse)
 	if !w.noShouldTraverse {
@@ -169,19 +217,31 @@ func (w *combinedCompilerPass_CallbackWrapper) IsActive() bool {
 // Java: CombinedCompilerPass.process(Node, Node)
 func (p *CombinedCompilerPass) Process(externs *rhino.Node, root *rhino.Node) {
 	p.inactiveCount = 0
+	p.refreshErrorState()
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
 // Java: CombinedCompilerPass.shouldTraverse(NodeTraversal, Node, Node)
 func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if p.compiler.HasHaltingErrors() {
+	if p.hasHaltingErrors() {
 		return false
 	}
 
-	for _, callback := range p.callbacks {
-		if callback.waiting == nil && !callback.noShouldTraverse && !callback.callback.ShouldTraverse(t, n, parent) {
-			callback.waiting = n
-			p.inactiveCount++
+	if p.inactiveCount == 0 {
+		for _, idx := range p.shouldTraverseIndices {
+			w := &p.callbacks[idx]
+			if !w.callback.ShouldTraverse(t, n, parent) {
+				w.waiting = n
+				p.inactiveCount++
+			}
+		}
+	} else {
+		for _, idx := range p.shouldTraverseIndices {
+			w := &p.callbacks[idx]
+			if w.waiting == nil && !w.callback.ShouldTraverse(t, n, parent) {
+				w.waiting = n
+				p.inactiveCount++
+			}
 		}
 	}
 	if p.allNoVisit && t != nil {
@@ -201,11 +261,19 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 	if p.allNoVisit && p.inactiveCount == 0 {
 		return
 	}
-	if p.compiler.HasHaltingErrors() {
+	if p.hasHaltingErrors() {
 		return
 	}
 
-	for _, callback := range p.callbacks {
+	if p.inactiveCount == 0 {
+		for _, cb := range p.visitCallbacks {
+			cb.Visit(t, n, parent)
+		}
+		return
+	}
+
+	for i := range p.callbacks {
+		callback := &p.callbacks[i]
 		if callback.waiting == nil {
 			if !callback.noVisit {
 				callback.callback.Visit(t, n, parent)
@@ -222,33 +290,30 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 
 // Java: CombinedCompilerPass.enterScope(NodeTraversal)
 func (p *CombinedCompilerPass) EnterScope(t *NodeTraversal) {
-	for _, callback := range p.callbacks {
-		callback.EnterScopeIfActive(t)
+	for _, idx := range p.scopedIndices {
+		p.callbacks[idx].EnterScopeIfActive(t)
 	}
 	p.updateNoShouldTraverse(t)
 }
 
 // Java: CombinedCompilerPass.exitScope(NodeTraversal)
 func (p *CombinedCompilerPass) ExitScope(t *NodeTraversal) {
-	for _, callback := range p.callbacks {
-		callback.ExitScopeIfActive(t)
+	for _, idx := range p.scopedIndices {
+		p.callbacks[idx].ExitScopeIfActive(t)
 	}
 	p.updateNoShouldTraverse(t)
 }
 
 func (p *CombinedCompilerPass) updateNoShouldTraverse(t *NodeTraversal) {
-	if t == nil || p.compiler.HasHaltingErrors() {
+	if t == nil || p.hasHaltingErrors() {
 		return
 	}
 	if p.inactiveCount > 0 {
 		t.noShouldTraverse = false
 		return
 	}
-	for _, callback := range p.callbacks {
-		if callback.noShouldTraverse {
-			continue
-		}
-		if uc, ok := callback.callback.(*CheckUnreachableCode); ok && uc.CurrentScopeHasNoUnreachable() {
+	for _, idx := range p.shouldTraverseIndices {
+		if uc, ok := p.callbacks[idx].callback.(*CheckUnreachableCode); ok && uc.CurrentScopeHasNoUnreachable() {
 			continue
 		}
 		t.noShouldTraverse = false

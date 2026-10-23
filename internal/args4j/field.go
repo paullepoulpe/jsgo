@@ -17,6 +17,8 @@ type Field struct {
 	final          bool
 	get            func() any
 	set            func(value any)
+	setString      func(value string)
+	addString      func(value string)
 }
 
 // NewField is a Field of the class named declaringClass (its binary name),
@@ -132,12 +134,16 @@ func NullableIntegerField(declaringClass, name string, p **int32) *Field {
 
 // StringField is a field of Java type String that is never null.
 func StringField(declaringClass, name string, p *string) *Field {
-	return valueField(declaringClass, name, Class_String, p)
+	f := valueField(declaringClass, name, Class_String, p)
+	f.setString = func(v string) { *p = v }
+	return f
 }
 
 // NullableStringField is a field of Java type String.
 func NullableStringField(declaringClass, name string, p **string) *Field {
-	return nullableField(declaringClass, name, Class_String, p)
+	f := nullableField(declaringClass, name, Class_String, p)
+	f.setString = func(v string) { *p = &v }
+	return f
 }
 
 // EnumField is a field of the Java enum type enumClass (see NewEnumClass)
@@ -157,8 +163,9 @@ func NullableEnumField[E any](declaringClass, name string, enumClass *Class, p *
 // the slice. Setting the field replaces the slice with the elements of the
 // List it is given.
 func ListField[E any](declaringClass, name string, elementType *Class, p *[]E) *Field {
-	return NewField(declaringClass, name, Class_List, elementType, false,
-		func() any { return &sliceList[E]{p} },
+	sl := &sliceList[E]{p}
+	f := NewField(declaringClass, name, Class_List, elementType, false,
+		func() any { return sl },
 		func(v any) {
 			l := v.(List)
 			s := make([]E, l.Size())
@@ -167,6 +174,12 @@ func ListField[E any](declaringClass, name string, elementType *Class, p *[]E) *
 			}
 			*p = s
 		})
+	if sp, ok := any(p).(*[]string); ok {
+		f.addString = func(v string) {
+			*sp = append(*sp, v)
+		}
+	}
+	return f
 }
 
 // sliceList is the List view of a Go slice variable.

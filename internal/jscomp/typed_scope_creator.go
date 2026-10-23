@@ -861,6 +861,9 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 
 	lastOwnerNode *rhino.Node
 	lastOwnerName string
+
+	scratchSuperBuilder rhino.NominalTypeBuilder
+	scratchSubBuilder   rhino.NominalTypeBuilder
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -2621,7 +2624,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) Declare(
 		if (flags & typedScopeCreator_VarFlagEscaped) != 0 {
 			var_.MarkEscaped()
 		}
-		if wasReserved && (flags & typedScopeCreator_VarFlagNotSingleAssigned) == 0 {
+		if wasReserved && (flags&typedScopeCreator_VarFlagNotSingleAssigned) == 0 {
 			var_.MarkAssignedExactlyOnce()
 		}
 	}
@@ -3069,10 +3072,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 			superCtor := superClass.GetConstructor()
 			subCtor := subClass.GetConstructor()
 			if superCtor != nil && subCtor != nil {
+				b.scratchSuperBuilder = rhino.MakeNominalTypeBuilder(superCtor, superClass)
+				b.scratchSubBuilder = rhino.MakeNominalTypeBuilder(subCtor, subClass)
 				b.outer.codingConvention.ApplySubclassRelationship(
-					rhino.NewNominalTypeBuilder(superCtor, superClass),
-					rhino.NewNominalTypeBuilder(subCtor, subClass),
+					&b.scratchSuperBuilder,
+					&b.scratchSubBuilder,
 					relationship.type_)
+				b.scratchSuperBuilder = rhino.NominalTypeBuilder{}
+				b.scratchSubBuilder = rhino.NominalTypeBuilder{}
 			}
 		}
 	}
@@ -3086,8 +3093,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 
 			if functionType != nil {
 				getterType := b.outer.typeRegistry.CreateFunctionType(objectType)
-				b.outer.codingConvention.ApplySingletonGetter(
-					rhino.NewNominalTypeBuilder(functionType, objectType), getterType)
+				builder := rhino.MakeNominalTypeBuilder(functionType, objectType)
+				b.outer.codingConvention.ApplySingletonGetter(&builder, getterType)
 			}
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"math"
 	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -297,7 +298,11 @@ func NodeUtil_ArrayToString(literal *rhino.Node) *string {
 //
 // Java: NodeUtil.getNumberValue(Node)
 func NodeUtil_GetNumberValue(n *rhino.Node) *float64 {
-	return NodeUtil_DoGetNumberValue(n, true /* numberConversions */)
+	v, ok := nodeUtil_doGetNumberValue(n, true /* numberConversions */)
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 // NodeUtil_GetNumberValueNoConversions gets the value of a node as a Number,
@@ -309,7 +314,11 @@ func NodeUtil_GetNumberValue(n *rhino.Node) *float64 {
 //
 // Java: NodeUtil.getNumberValueNoConversions(Node)
 func NodeUtil_GetNumberValueNoConversions(n *rhino.Node) *float64 {
-	return NodeUtil_DoGetNumberValue(n, false /* numberConversions */)
+	v, ok := nodeUtil_doGetNumberValue(n, false /* numberConversions */)
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 // nodeUtil_double boxes a double (Java's autoboxing to Double).
@@ -319,101 +328,117 @@ func nodeUtil_double(d float64) *float64 {
 
 // Java: NodeUtil.doGetNumberValue(Node, boolean)
 func NodeUtil_DoGetNumberValue(n *rhino.Node, numberConversions bool) *float64 {
+	v, ok := nodeUtil_doGetNumberValue(n, numberConversions)
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+func nodeUtil_doGetNumberValue(n *rhino.Node, numberConversions bool) (float64, bool) {
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
-		return nodeUtil_double(n.GetDouble())
+		return n.GetDouble(), true
 	case rhino.Token_BIGINT:
 		// When this call returns non-null, it is an assertion that JavaScript automatic conversion
 		// to Number (e.g. during arithmetic operations) would produce the value returned here.
 		// The spec does not allow automatic conversion from BigInt to Number, since that would
 		// likely result in incorrect computation results.
-		return nil
+		return 0, false
 	case rhino.Token_VOID:
 		if !numberConversions {
-			return nil
+			return 0, false
 		}
-		return nodeUtil_double(math.NaN())
+		return math.NaN(), true
 	case rhino.Token_NAME:
 		switch n.GetString() {
 		case "undefined":
 			if numberConversions {
-				return nodeUtil_double(math.NaN())
+				return math.NaN(), true
 			}
-			return nil
+			return 0, false
 		case "NaN":
-			return nodeUtil_double(math.NaN())
+			return math.NaN(), true
 		case "Infinity":
-			return nodeUtil_double(math.Inf(1))
+			return math.Inf(1), true
 		default:
-			return nil
+			return 0, false
 		}
 	case rhino.Token_POS:
 		// unary plus triggers numeric conversions only when numberConversions is true
-		return NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
+		return nodeUtil_doGetNumberValue(n.GetOnlyChild(), numberConversions)
 	case rhino.Token_NEG:
-		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
-		if val == nil {
-			return nil
+		val, ok := nodeUtil_doGetNumberValue(n.GetOnlyChild(), numberConversions)
+		if !ok {
+			return 0, false
 		}
-		return nodeUtil_double(-*val)
+		return -val, true
 	case rhino.Token_BITNOT:
-		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
-		if val == nil {
-			return nil
+		val, ok := nodeUtil_doGetNumberValue(n.GetOnlyChild(), numberConversions)
+		if !ok {
+			return 0, false
 		}
-		return nodeUtil_double(float64(^base.JSCompDoubles_EcmascriptToInt32(*val)))
+		return float64(^base.JSCompDoubles_EcmascriptToInt32(val)), true
 	case rhino.Token_FALSE, rhino.Token_NOT, rhino.Token_NULL, rhino.Token_TRUE:
 		if !numberConversions {
-			return nil
+			return 0, false
 		}
 		switch NodeUtil_GetBooleanValue(n) {
 		case base.Tri_TRUE:
-			return nodeUtil_double(1.0)
+			return 1.0, true
 		case base.Tri_FALSE:
-			return nodeUtil_double(0.0)
+			return 0.0, true
 		default: // case UNKNOWN
-			return nil
+			return 0, false
 		}
 	case rhino.Token_TEMPLATELIT:
 		if !numberConversions {
-			return nil
+			return 0, false
 		}
 		string_ := NodeUtil_GetStringValue(n)
 		if string_ == nil {
-			return nil
+			return 0, false
 		}
-		return NodeUtil_GetStringNumberValue(*string_)
+		return nodeUtil_getStringNumberValue(*string_)
 	case rhino.Token_STRINGLIT:
 		if !numberConversions {
-			return nil
+			return 0, false
 		}
-		return NodeUtil_GetStringNumberValue(n.GetString())
+		return nodeUtil_getStringNumberValue(n.GetString())
 	case rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
 		if !numberConversions {
-			return nil
+			return 0, false
 		}
 		value := NodeUtil_GetStringValue(n)
 		if value != nil {
-			return NodeUtil_GetStringNumberValue(*value)
+			return nodeUtil_getStringNumberValue(*value)
 		}
-		return nil
+		return 0, false
 	default:
 	}
 
-	return nil
+	return 0, false
 }
 
 // Java: NodeUtil.getStringNumberValue(String)
 func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
+	v, ok := nodeUtil_getStringNumberValue(rawJsString)
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 	if strings.Contains(rawJsString, "\u000b") {
 		// vertical tab is not always whitespace
-		return nil
+		return 0, false
 	}
 
 	s := NodeUtil_TrimJsWhiteSpace(rawJsString)
 	// return ScriptRuntime.toNumber(s);
 	if s == "" {
-		return nodeUtil_double(0.0)
+		return 0.0, true
 	}
 
 	if jutil.StringLength(s) >= 2 && jutil.StringCharAt(s, 0) == '0' {
@@ -429,11 +454,11 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		if radix != 0 {
 			digits := jutil.StringSubstringFrom(s, 2)
 			if digits == "" {
-				return nodeUtil_double(math.NaN())
+				return math.NaN(), true
 			}
 			for i := 0; i < jutil.StringLength(digits); i++ {
 				if !nodeUtil_isValidDigit(jutil.StringCharAt(digits, i), radix) {
-					return nodeUtil_double(math.NaN())
+					return math.NaN(), true
 				}
 			}
 			var result float64
@@ -446,7 +471,7 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 			}, func(e jutil.INumberFormatException) {
 				result = math.NaN()
 			})
-			return nodeUtil_double(result)
+			return result, true
 		}
 	}
 
@@ -455,21 +480,21 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		jutil.StringCharAt(s, 1) == '0' &&
 		(jutil.StringCharAt(s, 2) == 'x' || jutil.StringCharAt(s, 2) == 'X') {
 		// hex numbers with explicit signs vary between browsers.
-		return nil
+		return 0, false
 	}
 
 	// Firefox and IE treat the "Infinity" differently. Firefox is case
 	// insensitive, but IE treats "infinity" as NaN.  So leave it alone.
 	if s == "infinity" || s == "-infinity" || s == "+infinity" {
-		return nil
+		return 0, false
 	}
 
 	if s == "Infinity" || s == "+Infinity" {
-		return nodeUtil_double(math.Inf(1))
+		return math.Inf(1), true
 	}
 
 	if s == "-Infinity" {
-		return nodeUtil_double(math.Inf(-1))
+		return math.Inf(-1), true
 	}
 
 	for i := 0; i < len(s); i++ {
@@ -479,7 +504,7 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		if ('0' <= c && c <= '9') || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-' {
 			continue
 		}
-		return nodeUtil_double(math.NaN())
+		return math.NaN(), true
 	}
 
 	var result float64
@@ -488,7 +513,7 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 	}, func(e jutil.INumberFormatException) {
 		result = math.NaN()
 	})
-	return nodeUtil_double(result)
+	return result, true
 }
 
 // Java: NodeUtil.isValidDigit(char, int)
@@ -519,6 +544,26 @@ func nodeUtil_bigIntegerDoubleValue(digits string, radix int) float64 {
 	return f
 }
 
+const (
+	nodeUtil_smallBigIntMin = -128
+	nodeUtil_smallBigIntMax = 383
+)
+
+var nodeUtil_smallBigInts = func() [nodeUtil_smallBigIntMax - nodeUtil_smallBigIntMin + 1]big.Int {
+	var arr [nodeUtil_smallBigIntMax - nodeUtil_smallBigIntMin + 1]big.Int
+	for i := range arr {
+		arr[i].SetInt64(int64(i + nodeUtil_smallBigIntMin))
+	}
+	return arr
+}()
+
+func nodeUtil_bigIntFromInt64(v int64) *big.Int {
+	if v >= nodeUtil_smallBigIntMin && v <= nodeUtil_smallBigIntMax {
+		return &nodeUtil_smallBigInts[v-nodeUtil_smallBigIntMin]
+	}
+	return big.NewInt(v)
+}
+
 // NodeUtil_GetBigIntValue gets the value of a node as a BigInt, or null if it
 // cannot be converted. When it returns a non-null BigInteger, this method
 // effectively emulates the BigInt() JavaScript cast function.
@@ -531,7 +576,7 @@ func NodeUtil_GetBigIntValue(n *rhino.Node) *big.Int {
 	case rhino.Token_NUMBER:
 		val := n.GetDouble()
 		if base.JSCompDoubles_IsAtLeastIntegerPrecision(val) && base.JSCompDoubles_IsExactInt64(val) {
-			return big.NewInt(jutil.D2L(val))
+			return nodeUtil_bigIntFromInt64(jutil.D2L(val))
 		}
 		return nil
 
@@ -541,9 +586,9 @@ func NodeUtil_GetBigIntValue(n *rhino.Node) *big.Int {
 	case rhino.Token_FALSE, rhino.Token_NOT, rhino.Token_TRUE:
 		switch NodeUtil_GetBooleanValue(n) {
 		case base.Tri_TRUE:
-			return big.NewInt(1)
+			return &nodeUtil_smallBigInts[1-nodeUtil_smallBigIntMin]
 		case base.Tri_FALSE:
-			return big.NewInt(0)
+			return &nodeUtil_smallBigInts[0-nodeUtil_smallBigIntMin]
 		default: // case UNKNOWN
 			return nil
 		}
@@ -6855,10 +6900,14 @@ func NodeUtil_AddFeatureToScript(scriptNode *rhino.Node, feature parser.FeatureS
 // Java: NodeUtil.removeFeatureFromScript(Node, Feature)
 func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.FeatureSet_Feature) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
-	if currentFeatures != nil {
-		currentFeatures = currentFeatures.WithoutFeatures(feature)
+	if currentFeatures == nil {
+		scriptNode.PutProp(rhino.Node_FEATURE_SET, nil)
+		return
 	}
-	scriptNode.PutProp(rhino.Node_FEATURE_SET, currentFeatures)
+	updated := currentFeatures.WithoutFeatures(feature)
+	if updated != currentFeatures {
+		scriptNode.PutProp(rhino.Node_FEATURE_SET, updated)
+	}
 }
 
 // NodeUtil_RemoveFeaturesFromScript removes the given featureSet from the
@@ -6875,8 +6924,10 @@ func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.Fea
 func NodeUtil_RemoveFeaturesFromScript(scriptNode *rhino.Node, featureSet *parser.FeatureSet) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
 	if currentFeatures != nil {
-		currentFeatures = currentFeatures.Without(featureSet)
-		scriptNode.PutProp(rhino.Node_FEATURE_SET, currentFeatures)
+		updated := currentFeatures.Without(featureSet)
+		if updated != currentFeatures {
+			scriptNode.PutProp(rhino.Node_FEATURE_SET, updated)
+		}
 	}
 }
 
@@ -7132,4 +7183,9 @@ func NodeUtil_GetOriginalName(name string) string {
 		}
 	}
 	return name
+}
+
+// nodeUtilFormatInt formats v in base 10 (the uniqueNameIdSupplier hot path).
+func nodeUtilFormatInt(v int) string {
+	return strconv.Itoa(v)
 }

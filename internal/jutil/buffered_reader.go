@@ -40,24 +40,37 @@ func (r *BufferedReader) load() {
 	r.loaded = true
 }
 
+// NextLineFromString scans the next line starting at pos in text, ending at
+// '\n', '\r' or "\r\n" (not included). Returns ok == false when pos >= len(text).
+func NextLineFromString(text string, pos int) (line string, nextPos int, ok bool) {
+	if pos >= len(text) {
+		return "", pos, false
+	}
+	rest := text[pos:]
+	nl := strings.IndexByte(rest, '\n')
+	if nl >= 0 {
+		cr := strings.IndexByte(rest[:nl], '\r')
+		if cr < 0 {
+			return rest[:nl], pos + nl + 1, true
+		}
+		if cr == nl-1 {
+			return rest[:cr], pos + nl + 1, true
+		}
+		return rest[:cr], pos + cr + 1, true
+	}
+	cr := strings.IndexByte(rest, '\r')
+	if cr < 0 {
+		return rest, len(text), true
+	}
+	return rest[:cr], pos + cr + 1, true
+}
+
 // ReadLine is BufferedReader.readLine(): a line ends at '\n', '\r' or
 // "\r\n" (not included); ok is false (Java null) at end of input.
 func (r *BufferedReader) ReadLine() (line string, ok bool) {
 	r.load()
-	if r.pos >= len(r.text) {
-		return "", false
-	}
-	rest := r.text[r.pos:]
-	i := strings.IndexAny(rest, "\r\n")
-	if i < 0 {
-		r.pos = len(r.text)
-		return rest, true
-	}
-	r.pos += i + 1
-	if rest[i] == '\r' && i+1 < len(rest) && rest[i+1] == '\n' {
-		r.pos++
-	}
-	return rest[:i], true
+	line, r.pos, ok = NextLineFromString(r.text, r.pos)
+	return line, ok
 }
 
 // Close is BufferedReader.close().

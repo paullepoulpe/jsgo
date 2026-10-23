@@ -20,10 +20,17 @@ package jscomp
 
 import (
 	"slices"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+const asciiByteTable = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f" +
+	"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f" +
+	" !\"#$%&'()*+,-./0123456789:;<=>?" +
+	"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_" +
+	"`abcdefghijklmnopqrstuvwxyz{|}~\x7f"
 
 // DefaultNameGenerator is a simple class for generating unique JavaScript
 // variable/property names.
@@ -43,6 +50,7 @@ type DefaultNameGenerator struct {
 
 	firstChars    []*defaultNameGenerator_CharPriority
 	nonFirstChars []*defaultNameGenerator_CharPriority
+	scratchBuf    [32]byte
 }
 
 // defaultNameGenerator_CharPriority represents a char that can be used in
@@ -305,10 +313,76 @@ func defaultNameGenerator_contains(arr []*defaultNameGenerator_CharPriority, c u
 //
 // Java: DefaultNameGenerator.generateNextName()
 func (g *DefaultNameGenerator) GenerateNextName() string {
-	var name string
+	buf := &g.scratchBuf
 	for {
-		sb := jutil.NewStringBuilder()
 		i := g.nameCount
+		n := 0
+		asciiOK := true
+		if g.prefix != "" {
+			if len(g.prefix) > 16 {
+				asciiOK = false
+			} else {
+				for k := 0; k < len(g.prefix); k++ {
+					if g.prefix[k] >= 0x80 {
+						asciiOK = false
+						break
+					}
+				}
+				if asciiOK {
+					n = copy(buf[:], g.prefix)
+				}
+			}
+		}
+
+		if asciiOK {
+			if n == 0 {
+				if len(g.firstChars) == 0 {
+					panic(jutil.NewArithmeticException("/ by zero"))
+				}
+				pos := i % len(g.firstChars)
+				ch := g.firstChars[pos].name
+				if ch >= 0x80 {
+					asciiOK = false
+				} else {
+					buf[0] = byte(ch)
+					n = 1
+					i /= len(g.firstChars)
+				}
+			}
+			for asciiOK && i > 0 {
+				i--
+				if len(g.nonFirstChars) == 0 {
+					panic(jutil.NewArithmeticException("/ by zero"))
+				}
+				pos := i % len(g.nonFirstChars)
+				ch := g.nonFirstChars[pos].name
+				if ch >= 0x80 || n >= len(buf) {
+					asciiOK = false
+					break
+				}
+				buf[n] = byte(ch)
+				n++
+				i /= len(g.nonFirstChars)
+			}
+		}
+
+		if asciiOK {
+			g.nameCount++
+			cand := unsafe.String(&buf[0], n)
+			if rhino.TokenStream_IsKeyword(cand) || g.reservedNames.Contains(cand) || DefaultNameGenerator_IsBadName(cand) {
+				continue
+			}
+			if n == 1 {
+				b := buf[0]
+				return asciiByteTable[b : b+1]
+			}
+			out := make([]byte, n)
+			copy(out, buf[:n])
+			return unsafe.String(&out[0], n)
+		}
+
+		sb := jutil.NewStringBuilder()
+		i = g.nameCount
 
 		if g.prefix != "" {
 			sb.Append(g.prefix)
@@ -334,12 +408,11 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 		}
 
 		g.nameCount++
-		name = sb.String()
+		name := sb.String()
 
 		// Make sure it's not a JS keyword or reserved name.
 		if !(rhino.TokenStream_IsKeyword(name) || g.reservedNames.Contains(name) || DefaultNameGenerator_IsBadName(name)) {
-			break
+			return name
 		}
 	}
-	return name
 }

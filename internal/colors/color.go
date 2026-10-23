@@ -98,8 +98,13 @@ func (c *Color) IsClosureAssert() bool { return c.closureAssert }
 // Java: Color.getUnionElements()
 func (c *Color) GetUnionElements() *jutil.ObjectLinkedHashSet[*Color] { return c.unionElements }
 
+var (
+	colorEmptyColorSet  = jutil.NewObjectLinkedHashSet[*Color]()
+	colorEmptyStringSet = jutil.NewLinkedHashSet[string]()
+)
+
 func colorImmutableSetOf() *jutil.ObjectLinkedHashSet[*Color] {
-	return jutil.NewObjectLinkedHashSet[*Color]()
+	return colorEmptyColorSet
 }
 
 // Java: Color.singleBuilder()
@@ -107,17 +112,29 @@ func Color_SingleBuilder() *Color_Builder {
 	return NewColor_Builder().
 		SetClosureAssert(false).
 		SetConstructor(false).
-		SetInstanceColors(colorImmutableSetOf()).
+		SetInstanceColors(colorEmptyColorSet).
 		SetInvalidating(false).
-		SetOwnProperties(jutil.NewLinkedHashSet[string]()).
+		SetOwnProperties(colorEmptyStringSet).
 		SetPropertiesKeepOriginalName(false).
-		SetPrototypes(colorImmutableSetOf()).
-		SetUnionElements(colorImmutableSetOf())
+		SetPrototypes(colorEmptyColorSet).
+		SetUnionElements(colorEmptyColorSet)
 }
 
 // Java: Color.createUnion(Set<Color>)
 func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
-	switch elements.Size() {
+	var builder Color_Builder
+	return Color_CreateUnionWithBuilder(elements, &builder, nil)
+}
+
+// Color_CreateUnionWithBuilder builds a union Color reusing builder (which may
+// carry a Color slab) and optional allocSet for the flattened unionElements set.
+func Color_CreateUnionWithBuilder(
+	elements *jutil.ObjectLinkedHashSet[*Color],
+	builder *Color_Builder,
+	allocSet func(capHint int) *jutil.ObjectLinkedHashSet[*Color],
+) *Color {
+	elemSize := elements.Size()
+	switch elemSize {
 	case 0:
 		panic(jutil.NewIllegalStateException())
 	case 1:
@@ -127,11 +144,23 @@ func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
 	default:
 	}
 
-	instanceColors := jutil.NewObjectLinkedHashSet[*Color]()
-	prototypes := jutil.NewObjectLinkedHashSet[*Color]()
-	newElements := jutil.NewObjectLinkedHashSet[*Color]()
-	ids := jutil.NewLinkedHashSet[ColorId]()
-	ownProperties := jutil.NewLinkedHashSet[string]()
+	var instanceColors *jutil.ObjectLinkedHashSet[*Color]
+	var singleInstanceColors *jutil.ObjectLinkedHashSet[*Color]
+	var prototypes *jutil.ObjectLinkedHashSet[*Color]
+	var singlePrototypes *jutil.ObjectLinkedHashSet[*Color]
+	var ownProperties *jutil.LinkedHashSet[string]
+	var singleOwnProps *jutil.LinkedHashSet[string]
+
+	var newElements *jutil.ObjectLinkedHashSet[*Color]
+	if allocSet != nil {
+		newElements = allocSet(elemSize)
+	} else {
+		newElements = jutil.NewObjectLinkedHashSet[*Color]()
+	}
+	var idsBuf [8]jutil.LhmSlot[ColorId, struct{}]
+	var ids jutil.LinkedHashSet[ColorId]
+	ids.InitWithBuffer(idsBuf[:])
+
 	isClosureAssert := true
 	isConstructor := true
 	isInvalidating := false
@@ -148,19 +177,93 @@ func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
 			ids.Add(element.GetId())
 		}
 
-		instanceColors.AddAll(element.GetInstanceColors().All())
+		if ic := element.GetInstanceColors(); !ic.IsEmpty() {
+			if instanceColors != nil {
+				instanceColors.AddAll(ic.All())
+			} else if singleInstanceColors == nil || singleInstanceColors == ic {
+				singleInstanceColors = ic
+			} else {
+				if allocSet != nil {
+					instanceColors = allocSet(singleInstanceColors.Size() + ic.Size())
+				} else {
+					instanceColors = jutil.NewObjectLinkedHashSet[*Color]()
+				}
+				instanceColors.AddAll(singleInstanceColors.All())
+				instanceColors.AddAll(ic.All())
+				singleInstanceColors = nil
+			}
+		}
+
 		isClosureAssert = isClosureAssert && element.IsClosureAssert()
 		isConstructor = isConstructor && element.IsConstructor()
 		isInvalidating = isInvalidating || element.IsInvalidating()
-		ownProperties.AddAll(element.GetOwnProperties().ToSlice()...)
+
+		if op := element.GetOwnProperties(); !op.IsEmpty() {
+			if ownProperties != nil {
+				for p := range op.All() {
+					ownProperties.Add(p)
+				}
+			} else if singleOwnProps == nil || singleOwnProps == op {
+				singleOwnProps = op
+			} else {
+				ownProperties = jutil.NewLinkedHashSet[string]()
+				for p := range singleOwnProps.All() {
+					ownProperties.Add(p)
+				}
+				for p := range op.All() {
+					ownProperties.Add(p)
+				}
+				singleOwnProps = nil
+			}
+		}
+
 		propertiesKeepOriginalName = propertiesKeepOriginalName || element.GetPropertiesKeepOriginalName()
-		prototypes.AddAll(element.GetPrototypes().All())
+
+		if pr := element.GetPrototypes(); !pr.IsEmpty() {
+			if prototypes != nil {
+				prototypes.AddAll(pr.All())
+			} else if singlePrototypes == nil || singlePrototypes == pr {
+				singlePrototypes = pr
+			} else {
+				if allocSet != nil {
+					prototypes = allocSet(singlePrototypes.Size() + pr.Size())
+				} else {
+					prototypes = jutil.NewObjectLinkedHashSet[*Color]()
+				}
+				prototypes.AddAll(singlePrototypes.All())
+				prototypes.AddAll(pr.All())
+				singlePrototypes = nil
+			}
+		}
 	}
 
-	return NewColor_Builder().
+	if instanceColors == nil {
+		if singleInstanceColors != nil {
+			instanceColors = singleInstanceColors
+		} else {
+			instanceColors = colorEmptyColorSet
+		}
+	}
+	if prototypes == nil {
+		if singlePrototypes != nil {
+			prototypes = singlePrototypes
+		} else {
+			prototypes = colorEmptyColorSet
+		}
+	}
+	if ownProperties == nil {
+		if singleOwnProps != nil {
+			ownProperties = singleOwnProps
+		} else {
+			ownProperties = colorEmptyStringSet
+		}
+	}
+
+	return builder.
+		SetBoxId(nil).
 		SetClosureAssert(isClosureAssert).
 		SetConstructor(isConstructor).
-		SetId(ColorId_Union(ids)).
+		SetId(ColorId_Union(&ids)).
 		SetInstanceColors(instanceColors).
 		SetInvalidating(isInvalidating).
 		SetOwnProperties(ownProperties).
@@ -175,6 +278,7 @@ func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
 //
 // Java: $AutoValue_Color(ColorId, ImmutableSet<Color>, ImmutableSet<Color>, boolean, boolean, boolean, ImmutableSet<String>, ColorId, boolean, ImmutableSet<Color>)
 func newColor(
+	slab *jutil.Slab[Color],
 	id ColorId,
 	prototypes *jutil.ObjectLinkedHashSet[*Color],
 	instanceColors *jutil.ObjectLinkedHashSet[*Color],
@@ -198,18 +302,23 @@ func newColor(
 	if unionElements == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null unionElements"))
 	}
-	return &Color{
-		id:                         id,
-		prototypes:                 prototypes,
-		instanceColors:             instanceColors,
-		invalidating:               invalidating,
-		propertiesKeepOriginalName: propertiesKeepOriginalName,
-		constructor:                constructor,
-		ownProperties:              ownProperties,
-		boxId:                      boxId,
-		closureAssert:              closureAssert,
-		unionElements:              unionElements,
+	var c *Color
+	if slab != nil {
+		c = slab.New()
+	} else {
+		c = &Color{}
 	}
+	c.id = id
+	c.prototypes = prototypes
+	c.instanceColors = instanceColors
+	c.invalidating = invalidating
+	c.propertiesKeepOriginalName = propertiesKeepOriginalName
+	c.constructor = constructor
+	c.ownProperties = ownProperties
+	c.boxId = boxId
+	c.closureAssert = closureAssert
+	c.unionElements = unionElements
+	return c
 }
 
 // IsPrimitive reports whether this corresponds to a single JavaScript
@@ -368,7 +477,7 @@ func (c *Color) computeHashCode() int32 {
 // Go-only: language-adapter — the abstract Color.Builder and the generated
 // $AutoValue_Color.Builder are one struct.
 type Color_Builder struct {
-	id                         *ColorId
+	id                         ColorId
 	prototypes                 *jutil.ObjectLinkedHashSet[*Color]
 	instanceColors             *jutil.ObjectLinkedHashSet[*Color]
 	invalidating               bool
@@ -378,18 +487,26 @@ type Color_Builder struct {
 	boxId                      *ColorId
 	closureAssert              bool
 	unionElements              *jutil.ObjectLinkedHashSet[*Color]
+	slab                       *jutil.Slab[Color]
 	set_0                      byte
 }
 
 // Java: $AutoValue_Color.Builder()
 func NewColor_Builder() *Color_Builder { return &Color_Builder{} }
 
+// SetSlab attaches an optional Color slab to b.
+func (b *Color_Builder) SetSlab(slab *jutil.Slab[Color]) *Color_Builder {
+	b.slab = slab
+	return b
+}
+
 // SetId sets the id. (The Java null check has no Go counterpart: ColorId is
 // a value type.)
 //
 // Java: Color.Builder.setId(ColorId)
 func (b *Color_Builder) SetId(id ColorId) *Color_Builder {
-	b.id = &id
+	b.id = id
+	b.set_0 |= 16
 	return b
 }
 
@@ -481,14 +598,13 @@ func (b *Color_Builder) SetInstanceColor(x *Color) *Color_Builder {
 
 // Java: $AutoValue_Color.Builder.buildInternal()
 func (b *Color_Builder) BuildInternal() *Color {
-	if b.set_0 != 0xf ||
-		b.id == nil ||
+	if b.set_0 != 0x1f ||
 		b.prototypes == nil ||
 		b.instanceColors == nil ||
 		b.ownProperties == nil ||
 		b.unionElements == nil {
 		var missing strings.Builder
-		if b.id == nil {
+		if (b.set_0 & 16) == 0 {
 			missing.WriteString(" id")
 		}
 		if b.prototypes == nil {
@@ -518,7 +634,8 @@ func (b *Color_Builder) BuildInternal() *Color {
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}
 	return newColor(
-		*b.id,
+		b.slab,
+		b.id,
 		b.prototypes,
 		b.instanceColors,
 		b.invalidating,

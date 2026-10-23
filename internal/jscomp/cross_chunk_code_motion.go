@@ -71,6 +71,7 @@ type CrossChunkCodeMotion struct {
 	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
 
 	scratchImmovableChunks jutil.BitSet
+	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
 
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 }
@@ -87,7 +88,7 @@ func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotio
 			} else {
 				newCap := 64
 				if cap(ca.symSlab) >= 64 {
-					newCap = min(cap(ca.symSlab)*2, 1024)
+					newCap = min(cap(ca.symSlab)*2, 192) // 192 * 168B = 31.5 KiB <= 32 KiB
 				}
 				ca.symSlab = make([]CrossChunkCodeMotion_GlobalSymbol, 0, newCap)
 				ca.symChunks = append(ca.symChunks, ca.symSlab)
@@ -120,7 +121,7 @@ func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMoti
 			} else {
 				newCap := 64
 				if cap(ca.dsgSlab) >= 64 {
-					newCap = min(cap(ca.dsgSlab)*2, 1024)
+					newCap = min(cap(ca.dsgSlab)*2, 128) // 128 * 232B = 29 KiB <= 32 KiB
 				}
 				ca.dsgSlab = make([]CrossChunkCodeMotion_DeclarationStatementGroup, 0, newCap)
 				ca.dsgChunks = append(ca.dsgChunks, ca.dsgSlab)
@@ -151,7 +152,7 @@ func (c *CrossChunkCodeMotion) allocCycle() *CrossChunkCodeMotion_GlobalSymbolCy
 			} else {
 				newCap := 64
 				if cap(ca.cycleSlab) >= 64 {
-					newCap = min(cap(ca.cycleSlab)*2, 1024)
+					newCap = min(cap(ca.cycleSlab)*2, 512) // <= 32 KiB
 				}
 				ca.cycleSlab = make([]CrossChunkCodeMotion_GlobalSymbolCycle, 0, newCap)
 				ca.cycleChunks = append(ca.cycleChunks, ca.cycleSlab)
@@ -439,7 +440,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	// As we traverse the statements in execution order the last element of
 	// dsgs represents the most recently seen DSG for the variable.
 	dsgs   []*CrossChunkCodeMotion_DeclarationStatementGroup
-	dsgBuf [1]*CrossChunkCodeMotion_DeclarationStatementGroup
+	dsgBuf [2]*CrossChunkCodeMotion_DeclarationStatementGroup
 
 	chunksWithImmovableReferences jutil.BitSet
 	singleImmovableChunk          int32
@@ -592,7 +593,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
 		if len(symbol.dsgs) == 1 {
 			dsg := symbol.dsgs[0]
-			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
+			dsgCycle := &y.outer.scratchDsgCycle
 			dsgCycle.outer = y.outer
 			dsgCycle.currentChunk = dsg.currentChunk
 			dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
@@ -615,13 +616,14 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 			} else {
 				dsgCycle.MoveToPreferredChunk(&symbol.chunksWithImmovableReferences)
 			}
+			dsgCycle.dsgsSlice[0] = nil
 			symbol.isMoveDeclarationStatementsDone = true
 			return
 		}
 		if len(symbol.dsgs) > 1 {
 			chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
 			chunksWithImmovableReferences.ClearAll()
-			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
+			dsgCycle := &y.outer.scratchDsgCycle
 			dsgCycle.outer = y.outer
 			for i := len(symbol.dsgs) - 1; i >= 0; i-- {
 				dsg := symbol.dsgs[i]
@@ -631,6 +633,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 				symbol.orImmovableChunksInto(chunksWithImmovableReferences)
 				dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
 			}
+			dsgCycle.dsgsSlice[0] = nil
 		}
 		symbol.isMoveDeclarationStatementsDone = true
 		return
@@ -734,7 +737,7 @@ func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode *rhin
 type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 	declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol
 	referencedSlice      []*CrossChunkCodeMotion_GlobalSymbol
-	referencedBuf        [4]*CrossChunkCodeMotion_GlobalSymbol
+	referencedBuf        [16]*CrossChunkCodeMotion_GlobalSymbol
 	referencedMap        map[*CrossChunkCodeMotion_GlobalSymbol]struct{}
 
 	// chunk containing the statements
@@ -797,8 +800,8 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSym
 	if slices.Contains(g.referencedSlice, refSymbol) {
 		return false
 	}
-	if len(g.referencedSlice) == 8 {
-		g.referencedMap = make(map[*CrossChunkCodeMotion_GlobalSymbol]struct{}, 16)
+	if len(g.referencedSlice) == 16 {
+		g.referencedMap = make(map[*CrossChunkCodeMotion_GlobalSymbol]struct{}, 32)
 		for _, existing := range g.referencedSlice {
 			g.referencedMap[existing] = struct{}{}
 		}

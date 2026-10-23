@@ -29,6 +29,9 @@ import (
 // computations. This interpreter expects the parse tree inputs to be typed.
 type SemanticReverseAbstractInterpreter struct {
 	ChainableReverseAbstractInterpreterBase
+	trackingUsed []*SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
+	trackingFree []*SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
+	trackingSlab jutil.Slab[SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope]
 }
 
 // SemanticReverseAbstractInterpreter_Eq is the merging function for
@@ -435,41 +438,41 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 	// both separate result flow scopes individually, but if they both refined the same slot, we
 	// can join the two refinements.  TODO(sdh): look into simplifying this.  If joining were
 	// more efficient, we should just be able to join the scopes unconditionally?
-	refinements := jutil.NewLinkedHashSet[string]()
-	blindScope = newSemanticReverseAbstractInterpreter_RefinementTrackingFlowScope(blindScope, refinements)
+	mark := len(s.trackingUsed)
+	rootTracking := s.acquireTrackingScope(blindScope, nil)
+	tracker := rootTracking.tracker
+	blindScope = rootTracking
 	leftScope := s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome.Not())
 	var leftVar rhino.StaticTypedSlot
-	if refinements.Size() == 1 {
-		leftVar, _ = leftScope.GetSlot(semanticReverseAbstractInterpreter_firstOf(refinements)).(rhino.StaticTypedSlot)
+	if tracker.count == 1 {
+		leftVar, _ = leftScope.GetSlot(tracker.first).(rhino.StaticTypedSlot)
 	}
 	if leftVar == nil {
 		// If we did create a more precise scope, blindScope has a child and
 		// it is frozen. We can't just throw it away to return it. So we
 		// must create a child instead.
-		return SemanticReverseAbstractInterpreter_Unwrap(blindScope)
+		res := SemanticReverseAbstractInterpreter_Unwrap(blindScope)
+		s.releaseTrackingScopes(mark)
+		return res
 	}
-	refinements.Clear()
+	*tracker = sraiRefinementTracker{}
 	// Note: re-wrap the scope, in case it was unwrapped by a nested call to this method.
-	var rightScope FlowScope = newSemanticReverseAbstractInterpreter_RefinementTrackingFlowScope(
-		s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome), refinements)
+	var rightScope FlowScope = s.acquireTrackingScope(
+		s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome), tracker)
 	rightScope = s.FirstPreciserScopeKnowingConditionOutcome(right, rightScope, outcome.Not())
 	var rightVar rhino.StaticTypedSlot
-	if refinements.Size() == 1 {
-		rightVar, _ = rightScope.GetSlot(semanticReverseAbstractInterpreter_firstOf(refinements)).(rhino.StaticTypedSlot)
+	if tracker.count == 1 {
+		rightVar, _ = rightScope.GetSlot(tracker.first).(rhino.StaticTypedSlot)
 	}
 	if rightVar == nil || leftVar.GetName() != rightVar.GetName() {
-		return SemanticReverseAbstractInterpreter_Unwrap(blindScope)
+		res := SemanticReverseAbstractInterpreter_Unwrap(blindScope)
+		s.releaseTrackingScopes(mark)
+		return res
 	}
 	type_ := leftVar.GetType().GetLeastSupertype(rightVar.GetType())
-	return SemanticReverseAbstractInterpreter_Unwrap(blindScope).InferSlotType(leftVar.GetName(), type_)
-}
-
-// semanticReverseAbstractInterpreter_firstOf is set.iterator().next().
-func semanticReverseAbstractInterpreter_firstOf(set *jutil.LinkedHashSet[string]) string {
-	for e := range set.All() {
-		return e
-	}
-	panic(jutil.NewNoSuchElementException())
+	unwrapped := SemanticReverseAbstractInterpreter_Unwrap(blindScope)
+	s.releaseTrackingScopes(mark)
+	return unwrapped.InferSlotType(leftVar.GetName(), type_)
 }
 
 // MaybeRestrictName: if the restrictedType differs from the originalType,
@@ -728,20 +731,63 @@ func SemanticReverseAbstractInterpreter_Unwrap(scope FlowScope) FlowScope {
 	return scope
 }
 
+type sraiRefinementTracker struct {
+	first string
+	count int
+}
+
+func (t *sraiRefinementTracker) add(symbol string) {
+	if t.count == 0 {
+		t.first = symbol
+		t.count = 1
+	} else if t.count == 1 && t.first != symbol {
+		t.count = 2
+	}
+}
+
 // SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope is a
 // wrapper around FlowScope that keeps track of which vars were refined.
 type SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope struct {
-	delegate    FlowScope
-	refinements *jutil.LinkedHashSet[string]
+	owner      *SemanticReverseAbstractInterpreter
+	delegate   FlowScope
+	tracker    *sraiRefinementTracker
+	ownTracker sraiRefinementTracker
 }
 
-// Java: RefinementTrackingFlowScope(FlowScope, Set<String>)
-func newSemanticReverseAbstractInterpreter_RefinementTrackingFlowScope(
-	delegate FlowScope, refinements *jutil.LinkedHashSet[string]) *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope {
-	r := &SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope{}
+func (s *SemanticReverseAbstractInterpreter) acquireTrackingScope(
+	delegate FlowScope, tracker *sraiRefinementTracker,
+) *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope {
+	var r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
+	if n := len(s.trackingFree); n > 0 {
+		r = s.trackingFree[n-1]
+		s.trackingFree[n-1] = nil
+		s.trackingFree = s.trackingFree[:n-1]
+	} else {
+		r = s.trackingSlab.New()
+	}
+	r.owner = s
 	r.delegate = delegate
-	r.refinements = refinements
+	if tracker == nil {
+		r.ownTracker = sraiRefinementTracker{}
+		r.tracker = &r.ownTracker
+	} else {
+		r.tracker = tracker
+	}
+	s.trackingUsed = append(s.trackingUsed, r)
 	return r
+}
+
+func (s *SemanticReverseAbstractInterpreter) releaseTrackingScopes(mark int) {
+	for i := len(s.trackingUsed) - 1; i >= mark; i-- {
+		r := s.trackingUsed[i]
+		s.trackingUsed[i] = nil
+		r.owner = nil
+		r.delegate = nil
+		r.tracker = nil
+		r.ownTracker = sraiRefinementTracker{}
+		s.trackingFree = append(s.trackingFree, r)
+	}
+	s.trackingUsed = s.trackingUsed[:mark]
 }
 
 // Java: RefinementTrackingFlowScope.withSyntacticScope(StaticTypedScope)
@@ -751,21 +797,21 @@ func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) WithSyn
 
 // Java: RefinementTrackingFlowScope.inferSlotType(String, JSType)
 func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScope {
-	r.refinements.Add(symbol)
+	r.tracker.add(symbol)
 	return r.Wrap(r.delegate.InferSlotType(symbol, type_))
 }
 
 // Java: RefinementTrackingFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferQualifiedSlot(
 	node *rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
-	r.refinements.Add(symbol)
+	r.tracker.add(symbol)
 	return r.Wrap(r.delegate.InferQualifiedSlot(node, symbol, bottomType, inferredType, declare))
 }
 
 // Java: RefinementTrackingFlowScope.wrap(FlowScope)
 func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) Wrap(scope FlowScope) FlowScope {
 	if scope != r.delegate {
-		return newSemanticReverseAbstractInterpreter_RefinementTrackingFlowScope(scope, r.refinements)
+		return r.owner.acquireTrackingScope(scope, r.tracker)
 	}
 	return r
 }

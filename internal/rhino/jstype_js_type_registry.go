@@ -1426,8 +1426,28 @@ func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope,
 		return nil
 	}
 	var componentNames []string
+	var componentBuf [16]string
 	if dotIdx != -1 {
-		componentNames = JSTypeRegistry_DOT_SPLITTER_Split(qualifiedName[dotIdx+1:])
+		rem := qualifiedName[dotIdx+1:]
+		dots := 0
+		for i := 0; i < len(rem); i++ {
+			if rem[i] == '.' {
+				dots++
+			}
+		}
+		if dots < len(componentBuf) {
+			componentNames = componentBuf[:0]
+			start := 0
+			for i := 0; i < len(rem); i++ {
+				if rem[i] == '.' {
+					componentNames = append(componentNames, rem[start:i])
+					start = i + 1
+				}
+			}
+			componentNames = append(componentNames, rem[start:])
+		} else {
+			componentNames = JSTypeRegistry_DOT_SPLITTER_Split(rem)
+		}
 	}
 	slotType := slot.GetType()
 	return r.ResolveViaPropertyGivenSlot(slotType, nil, componentNames)
@@ -1993,7 +2013,6 @@ func (r *JSTypeRegistry) GetType(scope StaticScope, jsTypeName string) JSType {
 // appears. lineno: the line number of the reference. Returns a NamedType if
 // the string argument is not one of the known types, otherwise the
 // corresponding JSType object.
-//
 func (r *JSTypeRegistry) getTypeResolvedOrNil(scope StaticTypedScope, jsTypeName string) JSType {
 	switch jsTypeName {
 	case "boolean":

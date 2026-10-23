@@ -53,7 +53,14 @@ type NominalTypeBuilder struct {
 
 // Java: NominalTypeBuilder(FunctionType, ObjectType)
 func NewNominalTypeBuilder(constructor FunctionType, instance ObjectType) *NominalTypeBuilder {
-	return &NominalTypeBuilder{
+	b := MakeNominalTypeBuilder(constructor, instance)
+	return &b
+}
+
+// MakeNominalTypeBuilder constructs a NominalTypeBuilder by value so short-lived
+// callers can keep it on the stack.
+func MakeNominalTypeBuilder(constructor FunctionType, instance ObjectType) NominalTypeBuilder {
+	return NominalTypeBuilder{
 		constructor: constructor,
 		instance:    instance,
 		prototype:   constructor.GetPrototypeProperty(),

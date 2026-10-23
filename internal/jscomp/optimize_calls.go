@@ -804,9 +804,9 @@ func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, referen
 	return c
 }
 
-func (*OptimizeCalls_ReferenceMapBuildingCallback) onlyNameLeaves()                  {}
-func (*OptimizeCalls_ReferenceMapBuildingCallback) noShouldTraverse()                {}
-func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse()   {}
+func (*OptimizeCalls_ReferenceMapBuildingCallback) onlyNameLeaves()                {}
+func (*OptimizeCalls_ReferenceMapBuildingCallback) noShouldTraverse()              {}
+func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse() {}
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
 	c.globalScope = s

@@ -76,7 +76,17 @@ func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraph
 	jutil.CheckNotNull(key)
 	id := f.typeIndex.Size()
 	jutil.CheckArgument(id >= 0)
-	return &ColorGraphNode{index: id, color: key}
+	n := &ColorGraphNode{index: id, color: key}
+	n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
+	return n
+}
+
+func (f *ColorGraphNodeFactory) KnownTypesCompactLen() int {
+	return f.typeIndex.CompactLen()
+}
+
+func (f *ColorGraphNodeFactory) KnownTypeAtSlot(i int) *ColorGraphNode {
+	return f.typeIndex.ValueAtSlot(i)
 }
 
 // simplifyColor merges different colors with the same ambiguation-behavior

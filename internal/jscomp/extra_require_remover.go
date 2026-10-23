@@ -178,7 +178,7 @@ func (e *ExtraRequireRemover) RemoveExtraRequire(call *rhino.Node, require strin
 	// suppression indicates that the goog.require is actually needed even though it does not appear
 	// to be referenced in the file, so don't prune it.
 	jsDoc := NodeUtil_GetBestJSDocInfo(call)
-	if jsDoc != nil && jsDoc.GetSuppressions().Contains("extraRequire") {
+	if jsDoc != nil && jsDoc.HasSuppression("extraRequire") {
 		return
 	}
 

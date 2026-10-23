@@ -41,11 +41,14 @@ type JSChunk struct {
 	// non-final for deserialization
 	// CompilerInputs must be explicitly added to the JSChunk again after deserialization
 	// A map keyed by the CompilerInput.getName() to speed up getByName and removeByName.
-	inputs       *jutil.LinkedHashMap[string, *CompilerInput]
-	cachedInputs []*CompilerInput
+	inputs        *jutil.LinkedHashMap[string, *CompilerInput]
+	inputsVal     jutil.LinkedHashMap[string, *CompilerInput]
+	inputsSlotBuf [4]jutil.LhmSlot[string, *CompilerInput]
+	cachedInputs  []*CompilerInput
 
 	// Chunks that this chunk depends on
-	deps []*JSChunk
+	deps    []*JSChunk
+	depsBuf [4]*JSChunk
 
 	// The length of the longest path starting from this chunk
 	depth int
@@ -82,15 +85,25 @@ const jsChunk_serialVersionUID int64 = 1
 //
 // Java: JSChunk(String)
 func NewJSChunk(name string) *JSChunk {
-	return &JSChunk{
-		name:   name,
-		inputs: jutil.NewLinkedHashMap[string, *CompilerInput](),
-		deps:   []*JSChunk{},
-		// Depth and index will be set to their correct values by the JSChunkGraph into which they
-		// are placed.
-		depth: -1,
-		index: -1,
+	return newJSChunkFromSlab(nil, name)
+}
+
+func newJSChunkFromSlab(slab *jutil.Slab[JSChunk], name string) *JSChunk {
+	var c *JSChunk
+	if slab != nil {
+		c = slab.New()
+	} else {
+		c = &JSChunk{}
 	}
+	c.name = name
+	c.inputsVal.InitWithBuffer(c.inputsSlotBuf[:])
+	c.inputs = &c.inputsVal
+	c.deps = c.depsBuf[:0]
+	// Depth and index will be set to their correct values by the JSChunkGraph into which they
+	// are placed.
+	c.depth = -1
+	c.index = -1
+	return c
 }
 
 // GetName gets the chunk name.
@@ -410,6 +423,7 @@ func (c *JSChunk) GetIndex() int {
 //
 // Java: JSChunk.readObject(ObjectInputStream)
 func (c *JSChunk) ReadObject() {
-	c.inputs = jutil.NewLinkedHashMap[string, *CompilerInput]()
+	c.inputsVal.InitWithBuffer(c.inputsSlotBuf[:])
+	c.inputs = &c.inputsVal
 	c.cachedInputs = nil
 }

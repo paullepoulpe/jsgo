@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -139,7 +141,7 @@ func colorSerializer_int32s(xs []int) []int32 {
 
 func (s *ColorSerializer) allocTypeProto() *TypeProto {
 	if len(s.typeProtoSlab) == 0 {
-		s.typeProtoSlab = make([]TypeProto, 1024)
+		s.typeProtoSlab = make([]TypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(TypeProto{})))
 	}
 	p := &s.typeProtoSlab[0]
 	s.typeProtoSlab = s.typeProtoSlab[1:]
@@ -148,7 +150,7 @@ func (s *ColorSerializer) allocTypeProto() *TypeProto {
 
 func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
 	if len(s.objProtoSlab) == 0 {
-		s.objProtoSlab = make([]ObjectTypeProto, 1024)
+		s.objProtoSlab = make([]ObjectTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(ObjectTypeProto{})))
 	}
 	p := &s.objProtoSlab[0]
 	s.objProtoSlab = s.objProtoSlab[1:]
@@ -157,7 +159,7 @@ func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
 
 func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
 	if len(s.unionProtoSlab) == 0 {
-		s.unionProtoSlab = make([]UnionTypeProto, 256)
+		s.unionProtoSlab = make([]UnionTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(UnionTypeProto{})))
 	}
 	p := &s.unionProtoSlab[0]
 	s.unionProtoSlab = s.unionProtoSlab[1:]
@@ -166,15 +168,22 @@ func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
 
 func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *SubtypingEdge {
 	if len(s.edgeSlab) == 0 {
-		s.edgeSlab = make([]SubtypingEdge, 1024)
+		s.edgeSlab = make([]SubtypingEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(SubtypingEdge{})))
 	}
 	e := &s.edgeSlab[0]
 	s.edgeSlab = s.edgeSlab[1:]
+	edgeSize := 0
+	if subtype != 0 {
+		edgeSize += 1 + protoVarintLen(uint64(int64(subtype)))
+	}
+	if supertype != 0 {
+		edgeSize += 1 + protoVarintLen(uint64(int64(supertype)))
+	}
 	*e = SubtypingEdge{
 		subtype_:     subtype,
 		supertype_:   supertype,
 		frozen:       true,
-		memoizedSize: -1,
+		memoizedSize: edgeSize,
 	}
 	return e
 }
@@ -306,36 +315,78 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 	tp := s.allocTypeProto()
 	if color.IsUnion() {
 		up := s.allocUnionTypeProto()
+		members := s.addColorSetInt32s(color.GetUnionElements())
+		uSize := 0
+		if len(members) > 0 {
+			p := protoPackedInt32PayloadSize(members)
+			uSize = 1 + protoVarintLen(uint64(p)) + p
+		}
 		*up = UnionTypeProto{
-			unionMember_: s.addColorSetInt32s(color.GetUnionElements()),
+			unionMember_: members,
 			frozen:       true,
-			memoizedSize: -1,
+			memoizedSize: uSize,
 		}
 		*tp = TypeProto{
 			union_:       up,
 			kindCase_:    TypeProto_UNION_FIELD_NUMBER,
 			frozen:       true,
-			memoizedSize: -1,
+			memoizedSize: 1 + protoVarintLen(uint64(uSize)) + uSize,
 		}
 	} else {
 		op := s.allocObjectTypeProto()
+		inst := s.addColorSetInt32s(color.GetInstanceColors())
+		own := s.ownPropertyInt32s(color)
+		protos := s.addColorSetInt32s(color.GetPrototypes())
+		closureAssert := color.IsClosureAssert()
+		isInvalidating := color.IsInvalidating()
+		markedCtor := color.IsConstructor()
+		keepOrig := color.GetPropertiesKeepOriginalName()
+		uuid := color.GetId().AsByteString()
+		oSize := 0
+		if isInvalidating {
+			oSize += 2
+		}
+		if len(uuid) != 0 {
+			oSize += 1 + protoVarintLen(uint64(len(uuid))) + len(uuid)
+		}
+		if keepOrig {
+			oSize += 2
+		}
+		if len(inst) > 0 {
+			p := protoPackedInt32PayloadSize(inst)
+			oSize += 1 + protoVarintLen(uint64(p)) + p
+		}
+		if len(protos) > 0 {
+			p := protoPackedInt32PayloadSize(protos)
+			oSize += 1 + protoVarintLen(uint64(p)) + p
+		}
+		if markedCtor {
+			oSize += 2
+		}
+		if len(own) > 0 {
+			p := protoPackedInt32PayloadSize(own)
+			oSize += 1 + protoVarintLen(uint64(p)) + p
+		}
+		if closureAssert {
+			oSize += 2
+		}
 		*op = ObjectTypeProto{
-			instanceType_:               s.addColorSetInt32s(color.GetInstanceColors()),
-			ownProperty_:                s.ownPropertyInt32s(color),
-			prototype_:                  s.addColorSetInt32s(color.GetPrototypes()),
-			closureAssert_:              color.IsClosureAssert(),
-			isInvalidating_:             color.IsInvalidating(),
-			markedConstructor_:          color.IsConstructor(),
-			propertiesKeepOriginalName_: color.GetPropertiesKeepOriginalName(),
-			uuid_:                       color.GetId().AsByteString(),
+			instanceType_:               inst,
+			ownProperty_:                own,
+			prototype_:                  protos,
+			closureAssert_:              closureAssert,
+			isInvalidating_:             isInvalidating,
+			markedConstructor_:          markedCtor,
+			propertiesKeepOriginalName_: keepOrig,
+			uuid_:                       uuid,
 			frozen:                      true,
-			memoizedSize:                -1,
+			memoizedSize:                oSize,
 		}
 		*tp = TypeProto{
 			object_:      op,
 			kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
 			frozen:       true,
-			memoizedSize: -1,
+			memoizedSize: 1 + protoVarintLen(uint64(oSize)) + oSize,
 		}
 	}
 	return tp

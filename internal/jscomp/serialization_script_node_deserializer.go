@@ -105,6 +105,7 @@ type scriptNodeDeserializer_Runner struct {
 	contextStack        *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
 	jsdoc               OptimizationJsdoc
 	jsdocKindBuf        [16]int32
+	jsdocBuilder        rhino.JSDocInfo_Builder
 }
 
 func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNodeDeserializer_Runner {
@@ -252,7 +253,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 			owner.FilterOutCastProp(booleanProperties), sourceFileTemplate.GetIsInClosureUnawareSubtree())
 	}
 	if hasJsdoc {
-		n.SetJSDocInfo(JSDocSerializer_DeserializeJsdoc(&r.jsdoc, owner.stringPool))
+		n.SetJSDocInfo(jsDocSerializer_deserializeJsdocWithBuilder(&r.jsdoc, owner.stringPool, &r.jsdocBuilder))
 	}
 	n.SetLinenoCharno(currentLine, currentColumn)
 	r.previousLine = currentLine
@@ -660,7 +661,7 @@ func (r *scriptNodeDeserializer_Runner) Visit(
 		n.DeserializeProperties(
 			r.Owner().FilterOutCastProp(properties), sourceFileTemplate.GetIsInClosureUnawareSubtree())
 	}
-	n.SetJSDocInfo(JSDocSerializer_DeserializeJsdoc(astNode.GetJsdoc(), r.Owner().stringPool))
+	n.SetJSDocInfo(jsDocSerializer_deserializeJsdocWithBuilder(astNode.GetJsdoc(), r.Owner().stringPool, &r.jsdocBuilder))
 	n.SetLinenoCharno(currentLine, currentColumn)
 	r.previousLine = currentLine
 	r.previousColumn = currentColumn

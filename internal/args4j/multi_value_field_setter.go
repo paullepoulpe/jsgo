@@ -79,6 +79,15 @@ func (s *MultiValueFieldSetter) AddValue(value any) {
 	s.doAddValue(s.bean, value)
 }
 
+// AddStringValue implements StringSetter without boxing value into any.
+func (s *MultiValueFieldSetter) AddStringValue(value string) {
+	if s.f.addString != nil {
+		s.f.addString(value)
+		return
+	}
+	s.doAddValue(s.bean, value)
+}
+
 // Java: MultiValueFieldSetter.doAddValue(Object, Object)
 func (s *MultiValueFieldSetter) doAddValue(bean any, value any) {
 	o := s.f.Get(bean)

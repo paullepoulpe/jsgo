@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -30,6 +32,9 @@ type FunctionToBlockMutator struct {
 	safeNameIdSupplier       func() string
 	functionArgumentInjector *FunctionArgumentInjector
 	localScopeCreator        SyntacticScopeCreator
+	localMakeUnique          MakeDeclaredNamesUnique
+	localRenamerStackBuf     [16]MakeDeclaredNamesUnique_Renamer
+	localScopeRootsCb        nodeTraversal_TraverseScopeRootsCallback
 	allowMoveCallArgs        bool
 	currentCallNode          *rhino.Node
 	onMovedArg               func(*rhino.Node)
@@ -41,6 +46,9 @@ type FunctionToBlockMutator struct {
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
 	paramReplacementsScratch jutil.LinkedHashMap[string, *rhino.Node]
 	newAliasesToAddScratch   jutil.ArrayList[*rhino.Node]
+	scratchRoot              rhino.Node
+	scratchScript            rhino.Node
+	scratchReady             bool
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -136,7 +144,19 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	renameLocals bool) *rhino.Node {
 	newFnNode := fnNode.CloneTree()
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
-	rhino.IR_Root(rhino.IR_ScriptOfNodes(newFnNode))
+	usedScratch := false
+	if !m.scratchReady {
+		m.scratchRoot.Init(rhino.Token_ROOT)
+		m.scratchScript.Init(rhino.Token_SCRIPT)
+		m.scratchRoot.AddChildToBack(&m.scratchScript)
+		m.scratchReady = true
+	}
+	if !m.scratchScript.HasChildren() {
+		m.scratchScript.AddChildToBack(newFnNode)
+		usedScratch = true
+	} else {
+		rhino.IR_Root(rhino.IR_ScriptOfNodes(newFnNode))
+	}
 
 	if renameLocals {
 		// Now that parameter names have been replaced, make sure all the local
@@ -167,6 +187,9 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	newBlock := NodeUtil_GetFunctionBody(newFnNode)
 	// Make the newBlock insertable .
 	newBlock.Detach()
+	if usedScratch && newFnNode.GetParent() == &m.scratchScript {
+		newFnNode.Detach()
+	}
 
 	if hasArgs {
 		inlineResult := m.AliasAndInlineArguments(newBlock, args, allNamesToAlias)
@@ -216,17 +239,19 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.No
 	// Keep track of any rewritten functions and hoist them to the top
 	// of the block they are defined in. This isn't fully compliant hoisting
 	// but it does address a large set of use cases.
-	functionsToHoist := jutil.NewArrayList[*rhino.Node]()
+	var hoistBuf [4]*rhino.Node
+	functionsToHoist := hoistBuf[:0]
 	var next *rhino.Node
 	for c := n.GetFirstChild(); c != nil; c = next {
 		next = c.GetNext() // We may rewrite "c"
 		fnVar := FunctionToBlockMutator_RewriteFunctionDeclarations(c)
 		if fnVar != nil {
-			functionsToHoist.AddAt(0, fnVar)
+			functionsToHoist = append(functionsToHoist, fnVar)
 		}
 	}
 
-	for fnVar := range functionsToHoist.All() {
+	for i := len(functionsToHoist) - 1; i >= 0; i-- {
+		fnVar := functionsToHoist[i]
 		if n.GetFirstChild() != fnVar {
 			n.AddChildToFront(fnVar.Detach())
 		}
@@ -330,6 +355,45 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	}
 }
 
+func (m *FunctionToBlockMutator) allocInlineRenamer(
+	convention CodingConvention,
+	uniqueIdSupplier func() string,
+	concreteCompiler *Compiler,
+	idPrefix string,
+	removeConstness bool,
+	hoistingTargetScope bool,
+	parent MakeDeclaredNamesUnique_Renamer,
+) *MakeDeclaredNamesUnique_InlineRenamer {
+	r := &MakeDeclaredNamesUnique_InlineRenamer{}
+	r.convention = convention
+	r.uniqueIdSupplier = uniqueIdSupplier
+	r.concreteCompiler = concreteCompiler
+	r.mutator = m
+	r.idPrefix = idPrefix
+	r.removeConstness = removeConstness
+	if hoistingTargetScope {
+		r.hoistRenamer = r
+	} else {
+		r.hoistRenamer = parent.GetHoistRenamer()
+	}
+	return r
+}
+
+// formatInlineUniqueName builds the unique name the InlineRenamer gives a
+// local when it can take the id straight from the concrete Compiler, which
+// skips the uniqueIdSupplier closure and its intermediate string.
+func (m *FunctionToBlockMutator) formatInlineUniqueName(exported bool, baseName string, idPrefix string, id int) string {
+	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+	name := baseName + sep + idPrefix + strconv.Itoa(id)
+	if exported {
+		// The google internal coding convention includes a naming convention
+		// to export names starting with "_".  Simply strip "_" those to avoid
+		// exporting names.
+		return "JSCompiler_" + name
+	}
+	return name
+}
+
 // MakeLocalNamesUnique fixes up all local names to be unique for this
 // subtree.
 //
@@ -337,24 +401,32 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 //
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
 func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCallInLoop bool) {
-	idSupplier := m.compiler.GetUniqueNameIdSupplier()
-	// Make variable names unique to this instance.
-	cb := NewMakeDeclaredNamesUnique(
-		NewMakeDeclaredNamesUnique_InlineRenamer(
-			m.compiler.GetCodingConvention(),
-			idSupplier,
-			"inline_",
-			isCallInLoop,
-			true,
-			nil),
-		false,
-		false)
-	scb := nodeTraversal_TraverseScopeRootsCallback{
-		cb:             cb,
-		scopedCb:       cb,
-		traverseNested: true,
-		scopeNode:      fnNode,
+	concreteCompiler, _ := m.compiler.(*Compiler)
+	var idSupplier func() string
+	if concreteCompiler == nil {
+		idSupplier = m.compiler.GetUniqueNameIdSupplier()
 	}
+	rootRenamer := m.allocInlineRenamer(
+		m.compiler.GetCodingConvention(),
+		idSupplier,
+		concreteCompiler,
+		"inline_",
+		isCallInLoop,
+		true,
+		nil,
+	)
+	cb := &m.localMakeUnique
+	cb.renamerStack = m.localRenamerStackBuf[:0]
+	cb.rootRenamer = rootRenamer
+	cb.markChanges = false
+	cb.assertOnChange = false
+
+	scb := &m.localScopeRootsCb
+	scb.cb = cb
+	scb.scopedCb = cb
+	scb.traverseNested = true
+	scb.scopeNode = fnNode
+
 	if m.localScopeCreator.compiler == nil {
 		m.localScopeCreator = SyntacticScopeCreator{
 			compiler:             m.compiler,
@@ -366,15 +438,22 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 	}
 	b := NodeTraversal_Builder{
 		compiler:     m.compiler,
-		callback:     &scb,
+		callback:     scb,
 		scopeCreator: &m.localScopeCreator,
 	}
 	t := acquireNodeTraversal(&b)
 	t.TraverseScopeRoot(fnNode)
 	releaseNodeTraversal(t)
+	clear(cb.renamerStack)
+	cb.renamerStack = nil
+	cb.rootRenamer = nil
+	scb.scopeNode = nil
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
+		if idSupplier == nil {
+			idSupplier = m.compiler.GetUniqueNameIdSupplier()
+		}
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
 			Process(nil, fnNode)
 	}

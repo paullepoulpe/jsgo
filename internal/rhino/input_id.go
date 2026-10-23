@@ -34,7 +34,9 @@
 
 package rhino
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // InputId is an id used uniquely identify a CompilerInput.
 type InputId struct {
@@ -44,6 +46,12 @@ type InputId struct {
 
 // Java: InputId.serialVersionUID
 const InputId_serialVersionUID int64 = 1
+
+// Init initializes i in-place with id.
+func (i *InputId) Init(id string) {
+	i.id = id
+	i.hash = jutil.StringHashCode(id)
+}
 
 // Java: InputId(String)
 func NewInputId(id string) *InputId {

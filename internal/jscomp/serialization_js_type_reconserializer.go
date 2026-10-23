@@ -62,9 +62,12 @@ type JSTypeReconserializer struct {
 	scratchAltRecords   *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]
 	scratchAlternateIds *jutil.LinkedHashSet[colors.ColorId]
 	scratchInt32s       []int32
+	singleOwnPropFn     func(string)
+	multiOwnPropFn      func(string)
 
-	recordSlab []JSTypeReconserializer_SeenTypeRecord
-	int32Slab  []int32
+	recordSlab   []JSTypeReconserializer_SeenTypeRecord
+	int32Slab    []int32
+	uuidByteSlab []byte
 
 	state JSTypeReconserializer_State
 }
@@ -155,6 +158,8 @@ func newJSTypeReconserializer(
 	s.stringPoolBuilder = stringPoolBuilder
 	s.shouldPropagatePropertyName = shouldPropagatePropertyName
 	s.serializationMode = serializationMode
+	s.singleOwnPropFn = s.onSingleOwnProp
+	s.multiOwnPropFn = s.onMultiOwnProp
 
 	s.SeedCachesWithAxiomaticTypes()
 
@@ -163,9 +168,21 @@ func newJSTypeReconserializer(
 	return s
 }
 
+func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
+	if s.shouldPropagate(ownProperty) {
+		s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.Put(ownProperty)))
+	}
+}
+
+func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
+	if s.shouldPropagate(ownProperty) {
+		s.scratchOwnProps.Add(s.stringPoolBuilder.Put(ownProperty))
+	}
+}
+
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
 	if len(s.recordSlab) == 0 {
-		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 1024)
+		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 192) // 30 KiB <= 32 KiB
 	}
 	r := &s.recordSlab[0]
 	s.recordSlab = s.recordSlab[1:]
@@ -196,6 +213,16 @@ func (s *JSTypeReconserializer) allocSingleInt32(v int32) []int32 {
 	out := s.int32Slab[:1:1]
 	s.int32Slab = s.int32Slab[1:]
 	out[0] = v
+	return out
+}
+
+func (s *JSTypeReconserializer) allocColorIdBytes(id colors.ColorId) []byte {
+	if len(s.uuidByteSlab) < 8 {
+		s.uuidByteSlab = make([]byte, 8192)
+	}
+	out := s.uuidByteSlab[:8:8]
+	s.uuidByteSlab = s.uuidByteSlab[8:]
+	id.PutBigEndian(out)
 	return out
 }
 
@@ -574,13 +601,9 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			isClosureAssert = JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
 		}
 
-		ownProps := s.scratchInt32s[:0]
-		for _, ownProperty := range objType.GetOwnPropertyNames() {
-			if s.shouldPropagate(ownProperty) {
-				ownProps = append(ownProps, int32(s.stringPoolBuilder.Put(ownProperty)))
-			}
-		}
-		s.scratchInt32s = ownProps
+		s.scratchInt32s = s.scratchInt32s[:0]
+		objType.ForEachOwnPropertyName(s.singleOwnPropFn)
+		ownProps := s.scratchInt32s
 
 		isInvalidating := s.invalidatingTypes.IsInvalidating(objType)
 		propertiesKeepOriginalName := objType.IsEnumType()
@@ -593,7 +616,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			isInvalidating_:             isInvalidating,
 			markedConstructor_:          isConstructor,
 			propertiesKeepOriginalName_: propertiesKeepOriginalName,
-			uuid_:                       seen.colorId.AsByteString(),
+			uuid_:                       s.allocColorIdBytes(seen.colorId),
 			frozen:                      true,
 			memoizedSize:                -1,
 		}
@@ -640,13 +663,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			isClosureAssert = isClosureAssert || JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
 		}
 
-		for _, ownProperty := range objType.GetOwnPropertyNames() {
-			// TODO(b/169899789): consider omitting common, well-known properties like "prototype" to
-			// save space.
-			if s.shouldPropagate(ownProperty) {
-				ownProperties.Add(s.stringPoolBuilder.Put(ownProperty))
-			}
-		}
+		objType.ForEachOwnPropertyName(s.multiOwnPropFn)
 
 		isInvalidating = isInvalidating || s.invalidatingTypes.IsInvalidating(objType)
 
@@ -666,7 +683,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		isInvalidating_:             isInvalidating,
 		markedConstructor_:          isConstructor,
 		propertiesKeepOriginalName_: propertiesKeepOriginalName,
-		uuid_:                       seen.colorId.AsByteString(),
+		uuid_:                       s.allocColorIdBytes(seen.colorId),
 		frozen:                      true,
 		memoizedSize:                -1,
 	}

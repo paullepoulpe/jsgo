@@ -229,22 +229,29 @@ func OptimizeReturns_IsCandidateFunction(n *rhino.Node) bool {
 func (o *OptimizeReturns) RewriteReturns(fnNode *rhino.Node) {
 	jutil.CheckState(fnNode.IsFunction())
 	body := fnNode.GetLastChild()
-	NodeUtil_VisitPostOrderWithPred(
-		body,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
-			if n.IsReturn() && n.HasOneChild() {
-				result := n.GetFirstChild()
-				keepValue := !o.IsRemovableValue(result)
-				result.Detach()
-				if keepValue {
-					rhino.IR_ExprResult(result).Srcref(result).InsertBefore(n)
-				} else {
-					NodeUtil_MarkFunctionsDeleted(result, o.compiler)
-				}
-				o.compiler.ReportChangeToEnclosingScope(body)
-			}
-		}),
-		NewNodeUtil_MatchShallowStatement().Apply)
+	o.rewriteReturnsInSubtree(body, body)
+}
+
+func (o *OptimizeReturns) rewriteReturnsInSubtree(n *rhino.Node, body *rhino.Node) {
+	parent := n.GetParent()
+	if n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent)) {
+		for c := n.GetFirstChild(); c != nil; {
+			next := c.GetNext()
+			o.rewriteReturnsInSubtree(c, body)
+			c = next
+		}
+	}
+	if n.IsReturn() && n.HasOneChild() {
+		result := n.GetFirstChild()
+		keepValue := !o.IsRemovableValue(result)
+		result.Detach()
+		if keepValue {
+			rhino.IR_ExprResult(result).Srcref(result).InsertBefore(n)
+		} else {
+			NodeUtil_MarkFunctionsDeleted(result, o.compiler)
+		}
+		o.compiler.ReportChangeToEnclosingScope(body)
+	}
 }
 
 // IsRemovableValue: just remove objects that don't reference properties

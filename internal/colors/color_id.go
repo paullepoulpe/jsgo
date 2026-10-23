@@ -20,7 +20,9 @@
 package colors
 
 import (
+	"encoding/binary"
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -68,12 +70,19 @@ func ColorId_FromUnsignedByte(x int8) ColorId {
 //
 // Java: ColorId.fromBytes(ByteString)
 func ColorId_FromBytes(bytes []byte) ColorId {
-	return ColorId_FromBytesAt(bytes, len(bytes), func(s []byte, i int) int8 { return int8(s[i]) })
+	if len(bytes) > 8 {
+		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(len(bytes))))
+	}
+	var rightAligned int64
+	for _, b := range bytes {
+		rightAligned = (rightAligned << 8) | int64(b)
+	}
+	return NewColorId(rightAligned)
 }
 
 // Java: ColorId.fromBytes(byte[])
 func ColorId_FromByteArray(bytes []byte) ColorId {
-	return ColorId_FromBytesAt(bytes, len(bytes), func(s []byte, i int) int8 { return int8(s[i]) })
+	return ColorId_FromBytes(bytes)
 }
 
 // Java: ColorId.fromAscii(String)
@@ -83,7 +92,9 @@ func ColorId_FromAscii(str string) ColorId {
 
 // Java: ColorId.fromBytesAt(T, int, ByteAt<T>)
 func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) ColorId {
-	jutil.CheckStateMsg1(length <= 8, "%s", length)
+	if length > 8 {
+		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(length)))
+	}
 
 	var rightAligned int64 = 0
 	for i := 0; i < length; i++ {
@@ -118,47 +129,45 @@ func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
 		return iterablesGetOnlyElement(ids)
 	}
 	if n == 2 {
-		var a, b int64
-		first := true
-		for id := range ids.All() {
-			if first {
-				a = id.rightAligned
-				first = false
-			} else {
-				b = id.rightAligned
-			}
-		}
+		c0, c1, _ := ids.FirstTwo()
+		a, b := c0.rightAligned, c1.rightAligned
 		if a > b {
 			a, b = b, a
 		}
-		var hasher jutil.FarmHashFingerprint64Hasher
-		hasher.Reset()
-		hasher.PutLong(a)
-		hasher.PutLong(b)
-		return NewColorId(hasher.HashAsLong())
+		var buf [16]byte
+		binary.LittleEndian.PutUint64(buf[0:8], uint64(a))
+		binary.LittleEndian.PutUint64(buf[8:16], uint64(b))
+		return NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
 	}
 
+	var stackCIDs [32]ColorId
 	var stackBuf [32]int64
+	var stackBytes [256]byte
 	var sorted []int64
+	var raw []byte
 	if n <= len(stackBuf) {
+		ids.CopyTo(stackCIDs[:n])
 		sorted = stackBuf[:n]
+		for i := 0; i < n; i++ {
+			sorted[i] = stackCIDs[i].rightAligned
+		}
+		raw = stackBytes[:n*8]
 	} else {
+		cids := make([]ColorId, n)
+		ids.CopyTo(cids)
 		sorted = make([]int64, n)
-	}
-	index := 0
-	for id := range ids.All() {
-		sorted[index] = id.rightAligned
-		index++
+		for i := 0; i < n; i++ {
+			sorted[i] = cids[i].rightAligned
+		}
+		raw = make([]byte, n*8)
 	}
 	slices.Sort(sorted)
 
-	var hasher jutil.FarmHashFingerprint64Hasher
-	hasher.Reset()
-	for i := 0; i < len(sorted); i++ {
-		hasher.PutLong(sorted[i])
+	for i := 0; i < n; i++ {
+		binary.LittleEndian.PutUint64(raw[i*8:], uint64(sorted[i]))
 	}
 
-	return NewColorId(hasher.HashAsLong())
+	return NewColorId(int64(jutil.FarmHashFingerprint64(raw)))
 }
 
 // iterablesGetOnlyElement is Guava's Iterables.getOnlyElement(Iterable).
@@ -169,7 +178,7 @@ func iterablesGetOnlyElement[T comparable](s *jutil.LinkedHashSet[T]) T {
 	if s.Size() > 1 {
 		panic(jutil.NewIllegalArgumentExceptionMsg("expected one element but was: " + s.String()))
 	}
-	for e := range s.All() {
+	if e, ok := s.First(); ok {
 		return e
 	}
 	panic(jutil.NewNoSuchElementException())
@@ -205,13 +214,14 @@ func (c ColorId) HashCode() int32 {
 //
 // Java: ColorId.asByteString()
 func (c ColorId) AsByteString() []byte {
-	cp := c.rightAligned
 	out := make([]byte, 8)
-	for i := 7; i >= 0; i-- {
-		out[i] = byte(cp)
-		cp = jutil.Ushr64(cp, 8)
-	}
+	binary.BigEndian.PutUint64(out, uint64(c.rightAligned))
 	return out
+}
+
+// PutBigEndian writes the eight big-endian bytes of the ID into dst[:8].
+func (c ColorId) PutBigEndian(dst []byte) {
+	binary.BigEndian.PutUint64(dst, uint64(c.rightAligned))
 }
 
 // Java: ColorId.toString()
