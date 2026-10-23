@@ -72,12 +72,6 @@ type TypeInference struct {
 	branchConditionFlowScope FlowScope
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 
-	outcomePairBuf  [16]TypeInference_BooleanOutcomePair
-	outcomePairSlab []TypeInference_BooleanOutcomePair
-
-	optChainInfoBuf  [4]TypeInference_OptChainInfo
-	optChainInfoSlab []TypeInference_OptChainInfo
-
 	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
 	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
 	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
@@ -119,21 +113,7 @@ func NewTypeInference(
 
 func (ti *TypeInference) ReleaseLargeBuffers() {
 	ti.flowScopeArena.trimLargeChunks()
-	ti.trimLargeFlowStateChunks(16)
-	if cap(ti.queue) > 4096 {
-		ti.queue = nil
-		ti.queueHead = 0
-	} else if len(ti.queue) > 0 {
-		clear(ti.queue)
-		ti.queue = ti.queue[:0]
-		ti.queueHead = 0
-	}
-	if cap(ti.outcomePairSlab) > 1024 {
-		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
-	}
-	if cap(ti.optChainInfoSlab) > 1024 {
-		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
-	}
+	ti.releaseLargeStorage()
 }
 
 func (ti *TypeInference) initTypeInference(
@@ -143,20 +123,8 @@ func (ti *TypeInference) initTypeInference(
 	syntacticScope *TypedScope,
 	scopeCreator *TypedScopeCreator,
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
-	ti.ResetDataFlowAnalysisBase(ti, cfg)
+	ti.InitDataFlowAnalysisBase(ti, cfg)
 	ti.flowScopeArena.reset()
-	if cap(ti.outcomePairSlab) == 0 {
-		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
-	} else {
-		clear(ti.outcomePairSlab)
-		ti.outcomePairSlab = ti.outcomePairSlab[:0]
-	}
-	if cap(ti.optChainInfoSlab) == 0 {
-		ti.optChainInfoSlab = ti.optChainInfoBuf[:0:len(ti.optChainInfoBuf)]
-	} else {
-		clear(ti.optChainInfoSlab)
-		ti.optChainInfoSlab = ti.optChainInfoSlab[:0]
-	}
 	// Field initializers.
 	ti.lastScopeRoot = nil
 	ti.lastModule = nil
@@ -3004,20 +2972,6 @@ func NewTypeInference_OptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.N
 	return o
 }
 
-func (ti *TypeInference) allocOptChainInfo(endOfChain *rhino.Node, startOfChain *rhino.Node) *TypeInference_OptChainInfo {
-	if len(ti.optChainInfoSlab) == cap(ti.optChainInfoSlab) {
-		nextCap := max(cap(ti.optChainInfoSlab)*2, 8)
-		ti.optChainInfoSlab = make([]TypeInference_OptChainInfo, 0, nextCap)
-	}
-	idx := len(ti.optChainInfoSlab)
-	ti.optChainInfoSlab = ti.optChainInfoSlab[:idx+1]
-	o := &ti.optChainInfoSlab[idx]
-	o.endOfChain = endOfChain
-	o.startOfChain = startOfChain
-	o.unconditionalScope = nil
-	return o
-}
-
 // TraverseOptChain: traversal requires holding scopes from the
 // unconditional start (lhs of the `?.`) and the conditional part (rhs of the
 // `?.`), and using the startType to determine the resulting scope.
@@ -3029,7 +2983,7 @@ func (ti *TypeInference) TraverseOptChain(n *rhino.Node, scope FlowScope) FlowSc
 	if NodeUtil_IsEndOfOptChainSegment(n) {
 		// Create new optional chain tracking object and push it onto the stack.
 		startOfChain := NodeUtil_GetStartOfOptChainSegment(n)
-		optChainInfo := ti.allocOptChainInfo(n, startOfChain)
+		optChainInfo := NewTypeInference_OptChainInfo(n, startOfChain)
 		// optChainArrayDeque.addFirst(optChainInfo)
 		ti.optChainArrayDeque = append(ti.optChainArrayDeque, optChainInfo)
 	}
@@ -3650,25 +3604,13 @@ func NewTypeInference_BooleanOutcomePair(
 	booleanValues rhino.BooleanLiteralSet,
 	leftScope FlowScope,
 	rightScope FlowScope) *TypeInference_BooleanOutcomePair {
-	var p *TypeInference_BooleanOutcomePair
-	if outer != nil {
-		if len(outer.outcomePairSlab) == cap(outer.outcomePairSlab) {
-			nextCap := max(cap(outer.outcomePairSlab)*2, 32)
-			outer.outcomePairSlab = make([]TypeInference_BooleanOutcomePair, 0, nextCap)
-		}
-		idx := len(outer.outcomePairSlab)
-		outer.outcomePairSlab = outer.outcomePairSlab[:idx+1]
-		p = &outer.outcomePairSlab[idx]
-		p.outer = outer
-		p.joinedScope = nil
-	} else {
-		p = &TypeInference_BooleanOutcomePair{outer: outer}
+	return &TypeInference_BooleanOutcomePair{
+		outer:             outer,
+		toBooleanOutcomes: toBooleanOutcomes,
+		booleanValues:     booleanValues,
+		leftScope:         leftScope,
+		rightScope:        rightScope,
 	}
-	p.toBooleanOutcomes = toBooleanOutcomes
-	p.booleanValues = booleanValues
-	p.leftScope = leftScope
-	p.rightScope = rightScope
-	return p
 }
 
 // GetJoinedFlowScope gets the safe estimated scope without knowing if all of

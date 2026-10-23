@@ -24,24 +24,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// linkedFlowScopeArena allocates the flow scopes of one TypeInference, which
+// resets it for each CFG.
+//
+// Go-only: performance — see reuseSlab.
 type linkedFlowScopeArena struct {
-	scopeBuf       [64]LinkedFlowScope
-	scopeInlineLen int
-	scopeChunks    []*[256]LinkedFlowScope
-	scopeChunkIdx  int
-	scopeOffset    int
-
-	overlayBuf       [32]LinkedFlowScope_OverlayScope
-	overlayInlineLen int
-	overlayChunks    []*[256]LinkedFlowScope_OverlayScope
-	overlayChunkIdx  int
-	overlayOffset    int
-
-	slotBuf       [64]LinkedFlowScope_OverlaySlot
-	slotInlineLen int
-	slotChunks    []*[256]LinkedFlowScope_OverlaySlot
-	slotChunkIdx  int
-	slotOffset    int
+	scopes   reuseSlab[LinkedFlowScope]
+	overlays reuseSlab[LinkedFlowScope_OverlayScope]
+	slots    reuseSlab[LinkedFlowScope_OverlaySlot]
 
 	scopeMapArena rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope]
 	slotMapArena  rhino.HamtPMapArena[string, *LinkedFlowScope_OverlaySlot]
@@ -64,138 +54,17 @@ func (a *linkedFlowScopeArena) slotMaps() *rhino.HamtPMapArena[string, *LinkedFl
 func (a *linkedFlowScopeArena) reset() {
 	a.scopeMapArena.Reset()
 	a.slotMapArena.Reset()
-	if a.scopeInlineLen > 0 {
-		clear(a.scopeBuf[:a.scopeInlineLen])
-		a.scopeInlineLen = 0
-	}
-	if a.scopeChunkIdx > 0 || a.scopeOffset > 0 {
-		for i := 0; i < a.scopeChunkIdx; i++ {
-			clear(a.scopeChunks[i][:])
-		}
-		if a.scopeOffset > 0 && a.scopeChunkIdx < len(a.scopeChunks) {
-			clear(a.scopeChunks[a.scopeChunkIdx][:a.scopeOffset])
-		}
-		a.scopeChunkIdx = 0
-		a.scopeOffset = 0
-	}
-
-	if a.overlayInlineLen > 0 {
-		clear(a.overlayBuf[:a.overlayInlineLen])
-		a.overlayInlineLen = 0
-	}
-	if a.overlayChunkIdx > 0 || a.overlayOffset > 0 {
-		for i := 0; i < a.overlayChunkIdx; i++ {
-			clear(a.overlayChunks[i][:])
-		}
-		if a.overlayOffset > 0 && a.overlayChunkIdx < len(a.overlayChunks) {
-			clear(a.overlayChunks[a.overlayChunkIdx][:a.overlayOffset])
-		}
-		a.overlayChunkIdx = 0
-		a.overlayOffset = 0
-	}
-
-	if a.slotInlineLen > 0 {
-		clear(a.slotBuf[:a.slotInlineLen])
-		a.slotInlineLen = 0
-	}
-	if a.slotChunkIdx > 0 || a.slotOffset > 0 {
-		for i := 0; i < a.slotChunkIdx; i++ {
-			clear(a.slotChunks[i][:])
-		}
-		if a.slotOffset > 0 && a.slotChunkIdx < len(a.slotChunks) {
-			clear(a.slotChunks[a.slotChunkIdx][:a.slotOffset])
-		}
-		a.slotChunkIdx = 0
-		a.slotOffset = 0
-	}
+	a.scopes.reset(nil)
+	a.overlays.reset(nil)
+	a.slots.reset(nil)
 }
 
+// trimLargeChunks resets a and drops the storage that a large CFG made the
+// map arenas grow.
 func (a *linkedFlowScopeArena) trimLargeChunks() {
 	a.reset()
-	const maxRetained = 8
-	if len(a.scopeChunks) > maxRetained {
-		clear(a.scopeChunks[maxRetained:])
-		a.scopeChunks = a.scopeChunks[:maxRetained]
-	}
-	if len(a.overlayChunks) > maxRetained {
-		clear(a.overlayChunks[maxRetained:])
-		a.overlayChunks = a.overlayChunks[:maxRetained]
-	}
-	if len(a.slotChunks) > maxRetained {
-		clear(a.slotChunks[maxRetained:])
-		a.slotChunks = a.slotChunks[:maxRetained]
-	}
 	a.scopeMapArena.TrimLargeChunks()
 	a.slotMapArena.TrimLargeChunks()
-}
-
-func (a *linkedFlowScopeArena) allocScope() *LinkedFlowScope {
-	if a.scopeInlineLen < len(a.scopeBuf) {
-		s := &a.scopeBuf[a.scopeInlineLen]
-		a.scopeInlineLen++
-		return s
-	}
-	return a.allocScopeChunk()
-}
-
-//go:noinline
-func (a *linkedFlowScopeArena) allocScopeChunk() *LinkedFlowScope {
-	if a.scopeOffset == 256 {
-		a.scopeChunkIdx++
-		a.scopeOffset = 0
-	}
-	if a.scopeChunkIdx == len(a.scopeChunks) {
-		a.scopeChunks = append(a.scopeChunks, new([256]LinkedFlowScope))
-	}
-	s := &a.scopeChunks[a.scopeChunkIdx][a.scopeOffset]
-	a.scopeOffset++
-	return s
-}
-
-func (a *linkedFlowScopeArena) allocOverlay() *LinkedFlowScope_OverlayScope {
-	if a.overlayInlineLen < len(a.overlayBuf) {
-		o := &a.overlayBuf[a.overlayInlineLen]
-		a.overlayInlineLen++
-		return o
-	}
-	return a.allocOverlayChunk()
-}
-
-//go:noinline
-func (a *linkedFlowScopeArena) allocOverlayChunk() *LinkedFlowScope_OverlayScope {
-	if a.overlayOffset == 256 {
-		a.overlayChunkIdx++
-		a.overlayOffset = 0
-	}
-	if a.overlayChunkIdx == len(a.overlayChunks) {
-		a.overlayChunks = append(a.overlayChunks, new([256]LinkedFlowScope_OverlayScope))
-	}
-	o := &a.overlayChunks[a.overlayChunkIdx][a.overlayOffset]
-	a.overlayOffset++
-	return o
-}
-
-func (a *linkedFlowScopeArena) allocSlot() *LinkedFlowScope_OverlaySlot {
-	if a.slotInlineLen < len(a.slotBuf) {
-		s := &a.slotBuf[a.slotInlineLen]
-		a.slotInlineLen++
-		return s
-	}
-	return a.allocSlotChunk()
-}
-
-//go:noinline
-func (a *linkedFlowScopeArena) allocSlotChunk() *LinkedFlowScope_OverlaySlot {
-	if a.slotOffset == 256 {
-		a.slotChunkIdx++
-		a.slotOffset = 0
-	}
-	if a.slotChunkIdx == len(a.slotChunks) {
-		a.slotChunks = append(a.slotChunks, new([256]LinkedFlowScope_OverlaySlot))
-	}
-	s := &a.slotChunks[a.slotChunkIdx][a.slotOffset]
-	a.slotOffset++
-	return s
 }
 
 // LinkedFlowScope is a flow scope that tries to store as little symbol
@@ -248,7 +117,7 @@ func newLinkedFlowScopeWithArena(
 	functionScope *TypedScope) *LinkedFlowScope {
 	var s *LinkedFlowScope
 	if arena != nil {
-		s = arena.allocScope()
+		s = arena.scopes.alloc()
 	} else {
 		s = &LinkedFlowScope{}
 	}
@@ -864,7 +733,7 @@ func newLinkedFlowScope_OverlayScopeWithArena(
 	jutil.CheckNotNull(scope)
 	var o *LinkedFlowScope_OverlayScope
 	if arena != nil {
-		o = arena.allocOverlay()
+		o = arena.overlays.alloc()
 	} else {
 		o = &LinkedFlowScope_OverlayScope{}
 	}
@@ -924,7 +793,7 @@ func newLinkedFlowScope_OverlaySlotWithArena(
 	arena *linkedFlowScopeArena, name string, type_ rhino.JSType) *LinkedFlowScope_OverlaySlot {
 	var s *LinkedFlowScope_OverlaySlot
 	if arena != nil {
-		s = arena.allocSlot()
+		s = arena.slots.alloc()
 	} else {
 		s = &LinkedFlowScope_OverlaySlot{}
 	}

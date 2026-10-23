@@ -74,8 +74,6 @@ type MaybeReachingVariableUse struct {
 
 	emptyLattice MaybeReachingVariableUse_ReachingUses
 	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
-	latticeSlab  []MaybeReachingVariableUse_ReachingUses
-	latticeBuf   [8]MaybeReachingVariableUse_ReachingUses
 
 	varMapArena  rhino.HamtPMapArena[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
 	nodeMapArena rhino.HamtPMapArena[*rhino.Node, *rhino.Node]
@@ -96,13 +94,13 @@ func NewMaybeReachingVariableUse(
 	return u
 }
 
-// Reset resets u for reuse on a new function scope while retaining latticeSlab
-// capacity.
+// Reset resets u for reuse on a new function scope while retaining its
+// storage.
 func (u *MaybeReachingVariableUse) Reset(
 	cfg ControlFlowGraph[*rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	u.ResetDataFlowAnalysisBase(u, cfg)
+	u.InitDataFlowAnalysisBase(u, cfg)
 	u.varMapArena.Reset()
 	u.nodeMapArena.Reset()
 	u.escaped = escaped
@@ -133,12 +131,6 @@ func (u *MaybeReachingVariableUse) Reset(
 	}
 	u.emptyLattice.u = u
 	u.emptyLattice.mayUsePMap = maybeReachingUse_EMPTY_VARS
-	if cap(u.latticeSlab) == 0 {
-		u.latticeSlab = u.latticeBuf[:0:len(u.latticeBuf)]
-	} else {
-		clear(u.latticeSlab)
-		u.latticeSlab = u.latticeSlab[:0]
-	}
 }
 
 func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
@@ -158,16 +150,7 @@ func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
 }
 
 func (u *MaybeReachingVariableUse) allocLattice(m *rhino.HamtPMap[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
-	if len(u.latticeSlab) == cap(u.latticeSlab) {
-		nextCap := min(max(cap(u.latticeSlab)*2, 16), 2048)
-		u.latticeSlab = make([]MaybeReachingVariableUse_ReachingUses, 0, nextCap)
-	}
-	idx := len(u.latticeSlab)
-	u.latticeSlab = u.latticeSlab[:idx+1]
-	lat := &u.latticeSlab[idx]
-	lat.u = u
-	lat.mayUsePMap = m
-	return lat
+	return &MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: m}
 }
 
 // MaybeReachingVariableUse_ReachingUses is the may use definition lattice

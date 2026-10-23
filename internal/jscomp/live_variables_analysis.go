@@ -68,8 +68,7 @@ type LiveVariablesAnalysis struct {
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
 	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
-	latticeSlab  []LiveVariablesAnalysis_LiveVariableLattice
-	latticeBuf   [8]LiveVariablesAnalysis_LiveVariableLattice
+	lattices     reuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
 }
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -196,7 +195,7 @@ func (l *LiveVariablesAnalysis) Reset(
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
-	l.ResetDataFlowAnalysisBase(l, cfg)
+	l.InitDataFlowAnalysisBase(l, cfg)
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
 	l.jsScope = jsScope
@@ -213,11 +212,7 @@ func (l *LiveVariablesAnalysis) Reset(
 	l.scopeVariables = &l.scopeVariablesMap
 	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
 	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
-	if cap(l.latticeSlab) == 0 {
-		l.latticeSlab = l.latticeBuf[:0:len(l.latticeBuf)]
-	} else {
-		l.latticeSlab = l.latticeSlab[:0]
-	}
+	l.lattices.reset(nil)
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
@@ -304,13 +299,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 }
 
 func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	if len(l.latticeSlab) == cap(l.latticeSlab) {
-		nextCap := min(max(cap(l.latticeSlab)*2, 16), 2048)
-		l.latticeSlab = make([]LiveVariablesAnalysis_LiveVariableLattice, 0, nextCap)
-	}
-	idx := len(l.latticeSlab)
-	l.latticeSlab = l.latticeSlab[:idx+1]
-	lat := &l.latticeSlab[idx]
+	lat := l.lattices.alloc()
 	lat.liveSet = &lat.liveBits
 	return lat
 }

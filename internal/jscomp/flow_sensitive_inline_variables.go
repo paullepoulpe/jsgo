@@ -80,7 +80,7 @@ type FlowSensitiveInlineVariables struct {
 	escaped      *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
 
-	reusableCfg         *ReusableCfg
+	reusableCfg         ReusableCfg
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
 	allVarsMap          jutil.LinkedHashMap[string, *Var]
@@ -627,20 +627,16 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 	defer func() {
 		f.curFn = nil
 		f.curFnEnclosingScope = nil
+		f.cfg = nil
+		f.reusableCfg.release()
 	}()
 
 	// Compute the forward reaching definition.
-	rc := f.reusableCfg
-	if rc == nil {
-		rc = acquireReusableCfg()
-		f.reusableCfg = rc
-	}
-	f.cfg = rc.cfa.ComputeReusableCfg(
+	f.cfg = f.reusableCfg.Compute(
 		f.compiler,
 		functionScopeRoot,
 		/* shouldTraverseFunctions= */ false,
-		/* edgeAnnotations= */ true,
-		&rc.cfg)
+		/* edgeAnnotations= */ true)
 
 	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
 	f.reachingDef = &f.reachingDefStorage
@@ -856,14 +852,8 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 	f.globalScopeCreator = nil
 
 	sc := NewSyntacticScopeCreator(f.compiler)
-	rc := acquireReusableCfg()
-	f.reusableCfg = rc
 	f.scopeCreator = sc
 	defer func() {
-		if f.reusableCfg != nil {
-			releaseReusableCfg(f.reusableCfg)
-			f.reusableCfg = nil
-		}
 		if f.globalScopeCreator != nil {
 			f.globalScopeCreator = nil
 		}
@@ -948,12 +938,8 @@ func (f *FlowSensitiveInlineVariables) Process(externs *rhino.Node, root *rhino.
 				worker := newFlowSensitiveInlineVariablesWorker(
 					f, f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
 				wsc := NewSyntacticScopeCreator(f.compiler)
-				wrc := acquireReusableCfg()
-				worker.reusableCfg = wrc
 				worker.scopeCreator = wsc
 				defer func() {
-					releaseReusableCfg(wrc)
-					worker.reusableCfg = nil
 					worker.scopeCreator = nil
 					worker.escapedSet.Clear()
 				}()

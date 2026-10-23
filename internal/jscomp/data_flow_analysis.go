@@ -139,14 +139,15 @@ type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 	curDiGraphNode DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 	curLinkedNode  *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
+	// The work queue: a binary heap ordered like Java's PriorityQueue when
+	// priority is non-nil, otherwise a FIFO whose head is queue[queueHead].
 	queue     []*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	queueHead int
-	queueBuf  [16]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
-	flowStateSlab     []DataFlowAnalysis_LinearFlowState[L]
-	flowStateChunks   [][]DataFlowAnalysis_LinearFlowState[L]
-	flowStateChunkIdx int
-	flowStateBuf      [8]DataFlowAnalysis_LinearFlowState[L]
+	// Go-only: performance — the LinearFlowStates that Initialize sets as node
+	// annotations are the elements of one slice, which an analysis object
+	// reused for the next CFG keeps (see dfaReuseMaxNodes).
+	flowStates []DataFlowAnalysis_LinearFlowState[L]
 }
 
 // DataFlowAnalysis_MAX_STEPS_PER_NODE is the maximum number of steps per
@@ -156,8 +157,13 @@ type DataFlowAnalysisBase[N comparable, L LatticeElement] struct {
 // heurisitc that reduces it.
 const DataFlowAnalysis_MAX_STEPS_PER_NODE = 20000
 
+// dfaReuseMaxNodes is the largest flow state slice or queue that an analysis
+// keeps for its next CFG.
+const dfaReuseMaxNodes = 1024
+
 // InitDataFlowAnalysisBase constructs a data flow analysis; self is the
-// analysis being constructed.
+// analysis being constructed. An analysis object may be constructed again
+// for another CFG; it then keeps its storage.
 //
 // Typical usage
 //
@@ -179,91 +185,23 @@ func (b *DataFlowAnalysisBase[N, L]) InitDataFlowAnalysisBase(self DataFlowAnaly
 	b.isForward = b.self.IsForward()
 	b.isBranched = b.self.IsBranched()
 	b.priority = cfg.GetOptionalNodeComparator(b.isForward)
-	b.queue = b.queueBuf[:0:len(b.queueBuf)]
-	b.flowStateChunkIdx = -1
-	b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
-
-	if b.isBranched {
-		jutil.CheckState(b.isForward)
-	}
-}
-
-// ResetDataFlowAnalysisBase resets b for reuse on a new CFG while retaining
-// queue and flowStateSlab backing capacities.
-func (b *DataFlowAnalysisBase[N, L]) ResetDataFlowAnalysisBase(self DataFlowAnalysis[N, L], cfg ControlFlowGraph[N]) {
-	b.self = self
-	b.cfg = cfg
-	b.isForward = b.self.IsForward()
-	b.isBranched = b.self.IsBranched()
-	b.priority = cfg.GetOptionalNodeComparator(b.isForward)
 	b.curDiGraphNode = nil
 	b.curLinkedNode = nil
-	if cap(b.queue) == 0 {
-		b.queue = b.queueBuf[:0:len(b.queueBuf)]
-	} else {
-		clear(b.queue)
-		b.queue = b.queue[:0]
-	}
-	b.queueHead = 0
-	b.resetFlowStateSlabs()
 
 	if b.isBranched {
 		jutil.CheckState(b.isForward)
 	}
 }
 
-func (b *DataFlowAnalysisBase[N, L]) resetFlowStateSlabs() {
-	if b.flowStateChunkIdx >= 0 && b.flowStateChunkIdx < len(b.flowStateChunks) && len(b.flowStateSlab) > len(b.flowStateChunks[b.flowStateChunkIdx]) {
-		b.flowStateChunks[b.flowStateChunkIdx] = b.flowStateSlab
+// releaseLargeStorage drops storage that is too large to keep for reuse.
+func (b *DataFlowAnalysisBase[N, L]) releaseLargeStorage() {
+	if cap(b.flowStates) > dfaReuseMaxNodes {
+		b.flowStates = nil
 	}
-	clear(b.flowStateBuf[:])
-	for i := 0; i <= b.flowStateChunkIdx && i < len(b.flowStateChunks); i++ {
-		if len(b.flowStateChunks[i]) > 0 {
-			clear(b.flowStateChunks[i])
-			b.flowStateChunks[i] = b.flowStateChunks[i][:0]
-		}
+	if cap(b.queue) > dfaReuseMaxNodes {
+		b.queue = nil
+		b.queueHead = 0
 	}
-	if len(b.flowStateChunks) > 0 {
-		b.flowStateChunkIdx = 0
-		b.flowStateSlab = b.flowStateChunks[0][:0]
-	} else {
-		b.flowStateChunkIdx = -1
-		b.flowStateSlab = b.flowStateBuf[:0:len(b.flowStateBuf)]
-	}
-}
-
-func (b *DataFlowAnalysisBase[N, L]) trimLargeFlowStateChunks(maxChunks int) {
-	b.resetFlowStateSlabs()
-	if len(b.flowStateChunks) > maxChunks {
-		clear(b.flowStateChunks[maxChunks:])
-		b.flowStateChunks = b.flowStateChunks[:maxChunks]
-	}
-}
-
-func (b *DataFlowAnalysisBase[N, L]) allocFlowState(in L, out L) *DataFlowAnalysis_LinearFlowState[L] {
-	jutil.CheckNotNull(in)
-	jutil.CheckNotNull(out)
-	if len(b.flowStateSlab) == cap(b.flowStateSlab) {
-		if b.flowStateChunkIdx >= 0 && b.flowStateChunkIdx < len(b.flowStateChunks) {
-			b.flowStateChunks[b.flowStateChunkIdx] = b.flowStateSlab
-		}
-		b.flowStateChunkIdx++
-		if b.flowStateChunkIdx < len(b.flowStateChunks) {
-			b.flowStateSlab = b.flowStateChunks[b.flowStateChunkIdx][:0]
-		} else {
-			nextCap := min(max(cap(b.flowStateSlab)*2, 16), 512)
-			b.flowStateSlab = make([]DataFlowAnalysis_LinearFlowState[L], 0, nextCap)
-			b.flowStateChunks = append(b.flowStateChunks, b.flowStateSlab)
-		}
-	}
-	idx := len(b.flowStateSlab)
-	b.flowStateSlab = b.flowStateSlab[:idx+1]
-	s := &b.flowStateSlab[idx]
-	s.stepCount = 0
-	s.in = in
-	s.out = out
-	s.inQueue = false
-	return s
 }
 
 func (b *DataFlowAnalysisBase[N, L]) dfaSiftUp(i int, x *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) {
@@ -536,14 +474,24 @@ func (b *DataFlowAnalysisBase[N, L]) Initialize() {
 	implicitReturn, _ := cfgBase.implicitReturn.(*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch])
 	cfgNodes := &cfgBase.nodes
 	numNodes := cfgNodes.Size()
-	wantQueueCap := min(max(numNodes, 16), 4096)
-	if cap(b.queue) < wantQueueCap {
-		b.queue = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], 0, wantQueueCap)
+	if cap(b.queue) < numNodes {
+		b.queue = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], 0, numNodes)
 	}
-	b.resetFlowStateSlabs()
+	if cap(b.flowStates) < numNodes {
+		b.flowStates = make([]DataFlowAnalysis_LinearFlowState[L], numNodes)
+	} else {
+		clear(b.flowStates)
+		b.flowStates = b.flowStates[:numNodes]
+	}
+	i := 0
 	for node := range cfgNodes.Values() {
 		node.dfaInQueue = false
-		state := b.allocFlowState(b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice())
+		// new LinearFlowState<>(createInitialEstimateLattice(), createInitialEstimateLattice())
+		in, out := b.self.CreateInitialEstimateLattice(), b.self.CreateInitialEstimateLattice()
+		state := &b.flowStates[i]
+		i++
+		state.in = jutil.CheckNotNull(in)
+		state.out = jutil.CheckNotNull(out)
 		node.SetAnnotation(state)
 		if node != implicitReturn {
 			b.enqueueNode(node, state)

@@ -191,7 +191,6 @@ func (p *PhaseOptimizer) SetPrintAstHashcodes(printAstHashcodes bool) {
 //
 // Java: PhaseOptimizer.process(Node, Node)
 func (p *PhaseOptimizer) Process(externs *rhino.Node, root *rhino.Node) {
-	defer evictCachedReusableCfgs()
 	// When looking at this code, one can mistakenly think that the instance of
 	// PhaseOptimizer keeps all compiler passes live. This would be undesirable. A pass can
 	// create large data structures that are only useful to the pass, and we shouldn't
