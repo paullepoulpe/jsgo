@@ -28,9 +28,9 @@ type ExpressionStatementTree struct {
 // NewExpressionStatementTree constructs a ExpressionStatementTree.
 //
 // Java: ExpressionStatementTree(SourceRange, ParseTree)
-func NewExpressionStatementTree(location *SourceRange, expression ParseTree) *ExpressionStatementTree {
+func NewExpressionStatementTree(location SourceRange, expression ParseTree) *ExpressionStatementTree {
 	t := &ExpressionStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_EXPRESSION_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_EXPRESSION_STATEMENT, location)
 	t.Expression = expression
 	return t
 }

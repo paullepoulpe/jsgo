@@ -29,9 +29,9 @@ type TemplateLiteralPortionTree struct {
 // NewTemplateLiteralPortionTree constructs a TemplateLiteralPortionTree.
 //
 // Java: TemplateLiteralPortionTree(SourceRange, Token)
-func NewTemplateLiteralPortionTree(location *SourceRange, value Token) *TemplateLiteralPortionTree {
+func NewTemplateLiteralPortionTree(location SourceRange, value Token) *TemplateLiteralPortionTree {
 	t := &TemplateLiteralPortionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_TEMPLATE_LITERAL_PORTION, location)
+	t.InitParseTreeBase(ParseTreeType_TEMPLATE_LITERAL_PORTION, location)
 	t.Value = value
 	return t
 }

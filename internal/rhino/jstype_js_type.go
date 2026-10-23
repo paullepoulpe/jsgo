@@ -246,13 +246,19 @@ type JSType interface {
 
 // JSTypeBase holds the fields and base method implementations of JSType.
 type JSTypeBase struct {
-	self            JSType
-	resolveResult   JSType
+	// selfTab is the itab word of the JSType interface of the concrete type
+	// that embeds this base; with the base's own address (the base is the
+	// first field of every type) it forms self(), the receiver of virtual
+	// calls (PORTING.md §4).
+	//
+	// Go-only: performance — half the size of a JSType field, and not a
+	// pointer for the GC (itabs are never freed).
+	selfTab uintptr
+	// The result of Resolve; nil until the type is resolved.
+	resolveResult *JSTypeBase
+	// The type's template type map, never nil; its registry is the type's
+	// registry (Java's JSType.registry field; see GetRegistry).
 	templateTypeMap *TemplateTypeMap
-	registry        *JSTypeRegistry
-
-	SerialGen     uint32
-	SerialPointer int32
 
 	loosenTypecheckingDueToForwardReferencedSupertype bool
 	hashCodeInProgress                                bool
@@ -346,6 +352,18 @@ const (
 	_ = -uint(unsafe.Offsetof(KnownSymbolType{}.JSTypeBase))
 )
 
+// Size guards for the most numerous parts of the type graph: each bound is a
+// Go size class, so growing one of these structs past it costs a whole class.
+const (
+	_ = uintptr(32) - unsafe.Sizeof(JSTypeBase{})
+	_ = uintptr(96) - unsafe.Sizeof(PrototypeObjectTypeBase{})
+	_ = uintptr(160) - unsafe.Sizeof(FunctionTypeBase{})
+	_ = uintptr(96) - unsafe.Sizeof(UnionType{})
+	_ = uintptr(96) - unsafe.Sizeof(TemplatizedType{})
+	_ = uintptr(32) - unsafe.Sizeof(Property{})
+	_ = uintptr(16) - unsafe.Sizeof(FunctionType_Parameter{})
+)
+
 type jsTypeIface struct {
 	tab  unsafe.Pointer
 	data *JSTypeBase
@@ -429,12 +447,16 @@ func (t *JSTypeBase) InitJSTypeBase(self JSType, registry *JSTypeRegistry) {
 // Java: JSType(JSTypeRegistry, TemplateTypeMap)
 func (t *JSTypeBase) InitJSTypeBaseWithTemplateTypeMap(
 	self JSType, registry *JSTypeRegistry, templateTypeMap *TemplateTypeMap) {
-	t.self = self
-	t.registry = registry
+	iface := (*jsTypeIface)(unsafe.Pointer(&self))
+	if iface.data != t {
+		panic("JSTypeBase must be the first field of " + jutil.ToJavaString(self))
+	}
+	t.selfTab = uintptr(iface.tab)
 
 	if templateTypeMap == nil {
 		t.templateTypeMap = registry.GetEmptyTemplateTypeMap()
 	} else {
+		jutil.CheckState(templateTypeMap.registry == registry)
 		t.templateTypeMap = templateTypeMap
 	}
 
@@ -446,20 +468,40 @@ func (t *JSTypeBase) InitJSTypeBaseWithTemplateTypeMap(
 // Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (t *JSTypeBase) GetJSTypeBase() *JSTypeBase { return t }
 
-// Self returns the concrete JSType embedding this base.
-func (t *JSTypeBase) Self() JSType { return t.self }
+// jsTypeOf returns the JSType whose base is b, or nil for nil.
+func jsTypeOf(b *JSTypeBase) JSType {
+	if b == nil {
+		return nil
+	}
+	return b.self()
+}
 
-// GetRegistry returns the registry field.
+// self returns the concrete JSType embedding this base.
+func (t *JSTypeBase) self() JSType {
+	var x JSType
+	*(*jsTypeIface)(unsafe.Pointer(&x)) = jsTypeIface{*(*unsafe.Pointer)(unsafe.Pointer(&t.selfTab)), t}
+	return x
+}
+
+// Self returns the concrete JSType embedding this base.
+func (t *JSTypeBase) Self() JSType { return t.self() }
+
+// GetRegistry returns the type's registry (Java's JSType.registry field).
 //
-// Go-only: language-adapter — the package-private field `registry`, read by
-// other classes of the package through the interface.
-func (t *JSTypeBase) GetRegistry() *JSTypeRegistry { return t.registry }
+// Go-only: performance — read from the template type map, which belongs to
+// the same registry, instead of a field of its own in every type.
+func (t *JSTypeBase) GetRegistry() *JSTypeRegistry {
+	if t.templateTypeMap == nil {
+		return nil
+	}
+	return t.templateTypeMap.registry
+}
 
 // GetNativeType is a utility method for less verbose code.
 //
 // Java: JSType.getNativeType(JSTypeNative)
 func (t *JSTypeBase) GetNativeType(typeId JSTypeNative) JSType {
-	return t.registry.GetNativeType(typeId)
+	return t.GetRegistry().GetNativeType(typeId)
 }
 
 // GetJSDocInfo gets the docInfo for this type. By default, documentation
@@ -488,7 +530,7 @@ func (t *JSTypeBase) GetDisplayName() *string {
 //
 // Java: JSType.hasDisplayName()
 func (t *JSTypeBase) HasDisplayName() bool {
-	displayName := t.self.GetDisplayName()
+	displayName := t.self().GetDisplayName()
 	return displayName != nil && *displayName != ""
 }
 
@@ -527,7 +569,7 @@ func JSType_HasPropertyKind_Of(has bool) JSType_HasPropertyKind {
 //
 // Java: JSType.getPropertyKind(Property.Key)
 func (t *JSTypeBase) GetPropertyKindByKey(pname Property_Key) JSType_HasPropertyKind {
-	return t.self.GetPropertyKindByKeyWithAutobox(pname, true)
+	return t.self().GetPropertyKindByKeyWithAutobox(pname, true)
 }
 
 // GetPropertyKindByKeyWithAutobox checks whether the property is present on
@@ -544,26 +586,26 @@ func (t *JSTypeBase) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox
 //
 // Java: JSType.getPropertyKind(String, boolean)
 func (t *JSTypeBase) GetPropertyKindWithAutobox(pname string, autobox bool) JSType_HasPropertyKind {
-	return t.self.GetPropertyKindByKeyWithAutobox(NewProperty_StringKey(pname), autobox)
+	return t.self().GetPropertyKindByKeyWithAutobox(NewProperty_StringKey(pname), autobox)
 }
 
 // GetPropertyKind checks whether the property is present on the object.
 //
 // Java: JSType.getPropertyKind(String)
 func (t *JSTypeBase) GetPropertyKind(pname string) JSType_HasPropertyKind {
-	return t.self.GetPropertyKindByKey(NewProperty_StringKey(pname))
+	return t.self().GetPropertyKindByKey(NewProperty_StringKey(pname))
 }
 
 // HasProperty checks whether the property is present on the object.
 //
 // Java: JSType.hasProperty(String)
 func (t *JSTypeBase) HasProperty(pname string) bool {
-	return t.self.HasPropertyByKey(NewProperty_StringKey(pname))
+	return t.self().HasPropertyByKey(NewProperty_StringKey(pname))
 }
 
 // Java: JSType.hasProperty(Property.Key)
 func (t *JSTypeBase) HasPropertyByKey(pname Property_Key) bool {
-	return t.self.GetPropertyKindByKeyWithAutobox(pname, false) != JSType_HasPropertyKind_ABSENT
+	return t.self().GetPropertyKindByKeyWithAutobox(pname, false) != JSType_HasPropertyKind_ABSENT
 }
 
 // Java: JSType.isNoType()
@@ -583,10 +625,10 @@ func (t *JSTypeBase) IsNoObjectType() bool {
 
 // Java: JSType.isEmptyType()
 func (t *JSTypeBase) IsEmptyType() bool {
-	return t.self.IsNoType() ||
-		t.self.IsNoObjectType() ||
-		t.self.IsNoResolvedType() ||
-		JSType(t.self) == JSType(t.registry.GetNativeFunctionType(JSTypeNative_LEAST_FUNCTION_TYPE))
+	return t.self().IsNoType() ||
+		t.self().IsNoObjectType() ||
+		t.self().IsNoResolvedType() ||
+		JSType(t.self()) == JSType(t.GetRegistry().GetNativeFunctionType(JSTypeNative_LEAST_FUNCTION_TYPE))
 }
 
 // Java: JSType.isNumberObjectType()
@@ -653,8 +695,8 @@ func (t *JSTypeBase) IsKnownSymbolValueType() bool {
 //
 // Java: JSType.isString()
 func (t *JSTypeBase) IsString() bool {
-	return t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_STRING_TYPE)) ||
-		t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_STRING_OBJECT_TYPE))
+	return t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_STRING_TYPE)) ||
+		t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_STRING_OBJECT_TYPE))
 }
 
 // IsNumber tests whether the type is a number (value or Object). Returns
@@ -662,14 +704,14 @@ func (t *JSTypeBase) IsString() bool {
 //
 // Java: JSType.isNumber()
 func (t *JSTypeBase) IsNumber() bool {
-	return t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_NUMBER_TYPE)) ||
-		t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_NUMBER_OBJECT_TYPE))
+	return t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_NUMBER_TYPE)) ||
+		t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_NUMBER_OBJECT_TYPE))
 }
 
 // Java: JSType.isSymbol()
 func (t *JSTypeBase) IsSymbol() bool {
-	return t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_SYMBOL_TYPE)) ||
-		t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_SYMBOL_OBJECT_TYPE))
+	return t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_SYMBOL_TYPE)) ||
+		t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_SYMBOL_OBJECT_TYPE))
 }
 
 // Java: JSType.isBigIntOrNumber()
@@ -681,8 +723,8 @@ func (t *JSTypeBase) IsBigIntOrNumber() bool {
 	// versions of numeric types are very rare in practice and shouldn't be
 	// used in general, and 3) a value that could be either the primitive or
 	// the object type seems likely to be the result of a coding error.
-	return t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_BIGINT_NUMBER)) ||
-		t.self.IsSubtypeOf(t.GetNativeType(JSTypeNative_BIGINT_NUMBER_OBJECT))
+	return t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_BIGINT_NUMBER)) ||
+		t.self().IsSubtypeOf(t.GetNativeType(JSTypeNative_BIGINT_NUMBER_OBJECT))
 }
 
 // IsOnlyBigInt checks whether the type is a bigint and *only* a bigint
@@ -690,7 +732,7 @@ func (t *JSTypeBase) IsBigIntOrNumber() bool {
 //
 // Java: JSType.isOnlyBigInt()
 func (t *JSTypeBase) IsOnlyBigInt() bool {
-	return t.self.IsBigIntValueType() || t.self.IsBigIntObjectType()
+	return t.self().IsBigIntValueType() || t.self().IsBigIntObjectType()
 }
 
 // Java: JSType.isArrayType()
@@ -747,7 +789,7 @@ func (t *JSTypeBase) IsUnknownType() bool {
 func (t *JSTypeBase) IsSomeUnknownType() bool {
 	// OTI's notion of isUnknownType already accounts for looseness (see
 	// override in ObjectType).
-	return t.self.IsUnknownType()
+	return t.self().IsUnknownType()
 }
 
 // Java: JSType.isCheckedUnknownType()
@@ -762,7 +804,7 @@ func (t *JSTypeBase) IsUnionType() bool {
 
 // Java: JSType.isRawTypeOfTemplatizedType()
 func (t *JSTypeBase) IsRawTypeOfTemplatizedType() bool {
-	return t.self.GetTemplateParamCount() > 0 && !t.self.IsTemplatizedType()
+	return t.self().GetTemplateParamCount() > 0 && !t.self().IsTemplatizedType()
 }
 
 // IsStruct returns true iff this can be a struct. UnionType overrides the
@@ -770,8 +812,8 @@ func (t *JSTypeBase) IsRawTypeOfTemplatizedType() bool {
 //
 // Java: JSType.isStruct()
 func (t *JSTypeBase) IsStruct() bool {
-	if t.self.IsObject() {
-		objType := t.self.ToObjectType()
+	if t.self().IsObject() {
+		objType := t.self().ToObjectType()
 		ctor := objType.GetConstructor()
 		// This test is true for object literals
 		if ctor == nil {
@@ -789,8 +831,8 @@ func (t *JSTypeBase) IsStruct() bool {
 //
 // Java: JSType.isDict()
 func (t *JSTypeBase) IsDict() bool {
-	if t.self.IsObject() {
-		objType := t.self.ToObjectType()
+	if t.self().IsObject() {
+		objType := t.self().ToObjectType()
 		ctor := objType.GetConstructor()
 		// This test is true for object literals
 		if ctor == nil {
@@ -809,12 +851,12 @@ func (t *JSTypeBase) IsDict() bool {
 // Java: JSType.containsReferenceAncestor(JSType)
 func (t *JSTypeBase) ContainsReferenceAncestor(target JSType) bool {
 	visitor := NewContainsUpperBoundSuperTypeVisitor(target)
-	return t.self.Visit(visitor) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+	return t.self().Visit(visitor) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 }
 
 // Java: JSType.isLiteralObject()
 func (t *JSTypeBase) IsLiteralObject() bool {
-	if prototypeObjectType, ok := t.self.(PrototypeObjectType); ok {
+	if prototypeObjectType, ok := t.self().(PrototypeObjectType); ok {
 		return prototypeObjectType.IsAnonymous()
 	}
 	return false
@@ -834,7 +876,7 @@ func (t *JSTypeBase) ToMaybeUnionType() *UnionType {
 //
 // Java: JSType.isGlobalThisType()
 func (t *JSTypeBase) IsGlobalThisType() bool {
-	return t.self == t.registry.GetNativeType(JSTypeNative_GLOBAL_THIS)
+	return t.self() == t.GetRegistry().GetNativeType(JSTypeNative_GLOBAL_THIS)
 }
 
 // IsFunctionType returns true if toMaybeFunctionType returns a non-null
@@ -866,9 +908,9 @@ func (t *JSTypeBase) ToMaybeFunctionType() FunctionType {
 //
 // Java: JSType.assertFunctionType()
 func (t *JSTypeBase) AssertFunctionType() FunctionType {
-	result := t.self.ToMaybeFunctionType()
+	result := t.self().ToMaybeFunctionType()
 	if result == nil {
-		jutil.CheckNotNullMsg1(result, "not a FunctionType: %s", t.self)
+		jutil.CheckNotNullMsg1(result, "not a FunctionType: %s", t.self())
 	}
 	return result
 }
@@ -878,9 +920,9 @@ func (t *JSTypeBase) AssertFunctionType() FunctionType {
 //
 // Java: JSType.assertObjectType()
 func (t *JSTypeBase) AssertObjectType() ObjectType {
-	result := t.self.ToMaybeObjectType()
+	result := t.self().ToMaybeObjectType()
 	if result == nil {
-		jutil.CheckNotNullMsg1(result, "Not an ObjectType: %s", t.self)
+		jutil.CheckNotNullMsg1(result, "Not an ObjectType: %s", t.self())
 	}
 	return result
 }
@@ -908,7 +950,7 @@ func (t *JSTypeBase) IsEnumElementType() bool {
 
 // Java: JSType.getEnumeratedTypeOfEnumElement()
 func (t *JSTypeBase) GetEnumeratedTypeOfEnumElement() JSType {
-	e := t.self.ToMaybeEnumElementType()
+	e := t.self().ToMaybeEnumElementType()
 	if e == nil {
 		return nil
 	}
@@ -1011,11 +1053,11 @@ func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 	}
 
 	t.inTemplatedCheckVisit = true
-	result := t.self.HasAnyTemplateTypesInternal()
+	result := t.self().HasAnyTemplateTypesInternal()
 	t.inTemplatedCheckVisit = false
 
 	// Cache the result if the type has been resolved.
-	if t.self.IsResolved() {
+	if t.self().IsResolved() {
 		if result {
 			t.templateCheckResult = 2
 		} else {
@@ -1027,7 +1069,7 @@ func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 
 // Java: JSType.hasAnyTemplateTypesInternal()
 func (t *JSTypeBase) HasAnyTemplateTypesInternal() bool {
-	return t.self.GetTemplateTypeMap().HasAnyTemplateTypesInternal()
+	return t.self().GetTemplateTypeMap().HasAnyTemplateTypesInternal()
 }
 
 // GetTemplateTypeMap returns the template type map associated with this
@@ -1047,8 +1089,8 @@ func (t *JSTypeBase) GetTemplateTypeMap() *TemplateTypeMap {
 //
 // Java: JSType.getTypeParameters()
 func (t *JSTypeBase) GetTypeParameters() []*TemplateType {
-	m := t.self.GetTemplateTypeMap()
-	return jsTypeSubList(m.GetTemplateKeys(), m.Size()-t.self.GetTemplateParamCount(), m.Size())
+	m := t.self().GetTemplateTypeMap()
+	return jsTypeSubList(m.GetTemplateKeys(), m.Size()-t.self().GetTemplateParamCount(), m.Size())
 }
 
 // GetTemplateParamCount returns the number of template parameters declared
@@ -1068,15 +1110,15 @@ func (t *JSTypeBase) GetTemplateParamCount() int {
 //
 // Java: JSType.mergeSupertypeTemplateTypes(ObjectType)
 func (t *JSTypeBase) MergeSupertypeTemplateTypes(other ObjectType) {
-	t.self.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(other)
+	t.self().MaybeLoosenTypecheckingDueToForwardReferencedSupertype(other)
 
 	if other.IsRawTypeOfTemplatizedType() {
 		// Before a type can be prepended it needs to be fully specialized. This
 		// can happen, for example, when type arguments are not specified in an
 		// `@extends` annotation.
-		other = t.registry.CreateTemplatizedTypeOfList(other, []JSType{})
+		other = t.GetRegistry().CreateTemplatizedTypeOfList(other, []JSType{})
 	}
-	t.templateTypeMap = other.GetTemplateTypeMap().CopyWithExtension(t.self.GetTemplateTypeMap())
+	t.templateTypeMap = other.GetTemplateTypeMap().CopyWithExtension(t.self().GetTemplateTypeMap())
 }
 
 // IsObject tests whether this type is an Object, or any subtype thereof.
@@ -1115,8 +1157,8 @@ func (t *JSTypeBase) IsNominalType() bool {
 //
 // Java: JSType.isNominalConstructorOrInterface()
 func (t *JSTypeBase) IsNominalConstructorOrInterface() bool {
-	if t.self.IsConstructor() || t.self.IsInterface() {
-		fn := t.self.ToMaybeFunctionType()
+	if t.self().IsConstructor() || t.self().IsInterface() {
+		fn := t.self().ToMaybeFunctionType()
 		if fn == nil {
 			return false
 		}
@@ -1195,7 +1237,7 @@ func (t *JSTypeBase) IsOrdinaryFunction() bool {
 // Java: JSType.equals(Object)
 func (t *JSTypeBase) Equals(other any) bool {
 	if (*(*anyEface)(unsafe.Pointer(&other))).data == unsafe.Pointer(t) {
-		return any(t.self) == other
+		return any(t.self()) == other
 	}
 	jSType, ok := other.(JSType)
 	if !ok {
@@ -1205,7 +1247,7 @@ func (t *JSTypeBase) Equals(other any) bool {
 	if otherBase == nil {
 		return false
 	}
-	return equalityChecker_AreIdentityEqualWithBases(t.self, t, jSType, otherBase)
+	return equalityChecker_AreIdentityEqualWithBases(t.self(), t, jSType, otherBase)
 }
 
 // DiffersFrom reports whether this type is meaningfully different from that
@@ -1223,7 +1265,7 @@ func (t *JSTypeBase) DiffersFrom(that JSType) bool {
 		eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_DATA_FLOW],
 		hasRun:   true,
 	}
-	return !c.AreEqualInternal(t.self, that)
+	return !c.AreEqualInternal(t.self(), that)
 }
 
 // JSType_AreSimilar reports whether the first type is meaningfully same as
@@ -1254,7 +1296,7 @@ func (t *JSTypeBase) HashCode() int32 {
 	}
 
 	t.hashCodeInProgress = true
-	hashCode := t.self.RecursionUnsafeHashCode()
+	hashCode := t.self().RecursionUnsafeHashCode()
 	t.hashCodeInProgress = false
 	return hashCode
 }
@@ -1310,19 +1352,19 @@ func (t *JSTypeBase) MatchesObjectContext() bool {
 //
 // Java: JSType.findPropertyType(Property.Key)
 func (t *JSTypeBase) FindPropertyTypeByKey(propertyName Property_Key) JSType {
-	propertyType := t.self.FindPropertyTypeWithoutConsideringTemplateTypes(propertyName)
+	propertyType := t.self().FindPropertyTypeWithoutConsideringTemplateTypes(propertyName)
 	if propertyType == nil {
 		return nil
 	}
 
 	// Do templatized type replacing logic here, and make this method final, to
 	// prevent a subclass from forgetting to replace template types
-	if t.self.GetTemplateTypeMap().IsEmpty() || !propertyType.HasAnyTemplateTypes() {
+	if t.self().GetTemplateTypeMap().IsEmpty() || !propertyType.HasAnyTemplateTypes() {
 		return propertyType
 	}
 
-	typeMap := t.self.GetTemplateTypeMap()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, typeMap)
+	typeMap := t.self().GetTemplateTypeMap()
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), typeMap)
 	return replacer.VisitJSType(propertyType)
 }
 
@@ -1331,7 +1373,7 @@ func (t *JSTypeBase) FindPropertyTypeByKey(propertyName Property_Key) JSType {
 //
 // Java: JSType.findPropertyType(String)
 func (t *JSTypeBase) FindPropertyType(propertyName string) JSType {
-	return t.self.FindPropertyTypeByKey(NewProperty_StringKey(propertyName))
+	return t.self().FindPropertyTypeByKey(NewProperty_StringKey(propertyName))
 }
 
 // FindPropertyTypeWithoutConsideringTemplateTypes looks up a property on
@@ -1345,7 +1387,7 @@ func (t *JSTypeBase) FindPropertyType(propertyName string) JSType {
 //
 // Java: JSType.findPropertyTypeWithoutConsideringTemplateTypes(Property.Key)
 func (t *JSTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
-	autoboxObjType := ObjectType_Cast(t.self.AutoboxesTo())
+	autoboxObjType := ObjectType_Cast(t.self().AutoboxesTo())
 	if autoboxObjType != nil {
 		return autoboxObjType.FindPropertyTypeByKey(propertyName)
 	}
@@ -1368,7 +1410,7 @@ func (t *JSTypeBase) CanBeCalled() bool {
 //
 // Java: JSType.canCastTo(JSType)
 func (t *JSTypeBase) CanCastTo(that JSType) bool {
-	return t.self.VisitRelationship(JSType_CAN_CAST_TO_VISITOR, that).(bool)
+	return t.self().VisitRelationship(JSType_CAN_CAST_TO_VISITOR, that).(bool)
 }
 
 // AutoboxesTo turns a scalar type to the corresponding object type. Returns
@@ -1381,7 +1423,7 @@ func (t *JSTypeBase) AutoboxesTo() JSType {
 
 // Java: JSType.isBoxableScalar()
 func (t *JSTypeBase) IsBoxableScalar() bool {
-	return t.self.AutoboxesTo() != nil
+	return t.self().AutoboxesTo() != nil
 }
 
 // ToObjectType casts this to an ObjectType, or returns null if this is not
@@ -1398,7 +1440,7 @@ func (t *JSTypeBase) ToObjectType() ObjectType {
 	if k >= objKindFunction && k <= objKindEnum {
 		return (*ObjectTypeBase)(unsafe.Pointer(t)).selfObj()
 	}
-	if objectType, ok := t.self.(ObjectType); ok {
+	if objectType, ok := t.self().(ObjectType); ok {
 		return objectType
 	}
 	return nil
@@ -1411,7 +1453,7 @@ func (t *JSTypeBase) ToObjectType() ObjectType {
 //
 // Java: JSType.autobox()
 func (t *JSTypeBase) Autobox() JSType {
-	restricted := t.self.RestrictByNotNullOrUndefined()
+	restricted := t.self().RestrictByNotNullOrUndefined()
 	autobox := restricted.AutoboxesTo()
 	if autobox == nil {
 		return restricted
@@ -1426,7 +1468,7 @@ func (t *JSTypeBase) Autobox() JSType {
 //
 // Java: JSType.dereference()
 func (t *JSTypeBase) Dereference() ObjectType {
-	return t.self.Autobox().ToObjectType()
+	return t.self().Autobox().ToObjectType()
 }
 
 // CanTestForEqualityWith tests whether this and that are meaningfully
@@ -1436,7 +1478,7 @@ func (t *JSTypeBase) Dereference() ObjectType {
 //
 // Java: JSType.canTestForEqualityWith(JSType)
 func (t *JSTypeBase) CanTestForEqualityWith(that JSType) bool {
-	result := t.self.TestForEquality(that)
+	result := t.self().TestForEquality(that)
 	jsTypeCheckTriNotNull(result)
 	return result == base.Tri_UNKNOWN
 }
@@ -1471,7 +1513,7 @@ func jsTypeCheckTriNotNull(t base.Tri) {
 //
 // Java: JSType.testForEquality(JSType)
 func (t *JSTypeBase) TestForEquality(that JSType) base.Tri {
-	return t.self.TestForEqualityHelper(t.self, that)
+	return t.self().TestForEqualityHelper(t.self(), that)
 }
 
 // Java: JSType.testForEqualityHelper(JSType, JSType)
@@ -1554,19 +1596,19 @@ func (t *JSTypeBase) TestForEqualityHelper(aType JSType, bType JSType) base.Tri 
 //
 // Java: JSType.canTestForShallowEqualityWith(JSType)
 func (t *JSTypeBase) CanTestForShallowEqualityWith(that JSType) bool {
-	if t.self.IsNoResolvedType() || that.IsNoResolvedType() {
+	if t.self().IsNoResolvedType() || that.IsNoResolvedType() {
 		return true
 	}
-	if t.self.IsEmptyType() || that.IsEmptyType() {
-		return t.self.IsSubtypeOf(that) || that.IsSubtypeOf(t.self)
+	if t.self().IsEmptyType() || that.IsEmptyType() {
+		return t.self().IsSubtypeOf(that) || that.IsSubtypeOf(t.self())
 	}
 
-	inf := t.self.GetGreatestSubtype(that)
+	inf := t.self().GetGreatestSubtype(that)
 	return !inf.IsEmptyType() ||
 		// Our getGreatestSubtype relation on functions is pretty bad. Let's
 		// just say it's always ok to compare two functions. Once the TODO in
 		// FunctionType is fixed, we should be able to remove this.
-		inf == t.registry.GetNativeType(JSTypeNative_LEAST_FUNCTION_TYPE)
+		inf == t.GetRegistry().GetNativeType(JSTypeNative_LEAST_FUNCTION_TYPE)
 }
 
 // IsNullable tests whether this type is nullable.
@@ -1595,7 +1637,7 @@ func (t *JSTypeBase) IsExplicitlyVoidable() bool {
 //
 // Java: JSType.collapseUnion()
 func (t *JSTypeBase) CollapseUnion() JSType {
-	return t.self
+	return t.self()
 }
 
 // GetLeastSupertype gets the least supertype of this and that. The least
@@ -1609,15 +1651,15 @@ func (t *JSTypeBase) CollapseUnion() JSType {
 //
 // Java: JSType.getLeastSupertype(JSType)
 func (t *JSTypeBase) GetLeastSupertype(that JSType) JSType {
-	if t.self == that {
-		return t.self
+	if t.self() == that {
+		return t.self()
 	}
 
 	if that.IsUnionType() {
 		// Union types have their own implementation of getLeastSupertype.
-		return that.ToMaybeUnionType().GetLeastSupertype(t.self)
+		return that.ToMaybeUnionType().GetLeastSupertype(t.self())
 	}
-	return JSType_GetLeastSupertype(t.self, that)
+	return JSType_GetLeastSupertype(t.self(), that)
 }
 
 // JSType_GetLeastSupertype is a generic implementation meant to be used as a
@@ -1630,7 +1672,7 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 	if thisTb == thatTb {
 		return thisType
 	}
-	registry := thisTb.registry
+	registry := thisTb.GetRegistry()
 	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.resolvedToSelf && thatTb != nil {
 		if thatTb.resolvedToSelf {
 			if cached := registry.lookupLeastSupertype(thisTb, thatTb); cached != nil {
@@ -1668,7 +1710,7 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 //
 // Java: JSType.getGreatestSubtype(JSType)
 func (t *JSTypeBase) GetGreatestSubtype(that JSType) JSType {
-	return JSType_GetGreatestSubtype(t.self, that)
+	return JSType_GetGreatestSubtype(t.self(), that)
 }
 
 // JSType_GetGreatestSubtype is a generic implementation meant to be used as
@@ -1749,7 +1791,7 @@ func JSType_GetGreatestSubtype(thisType JSType, thatType JSType) JSType {
 //
 // Java: JSType.getRestrictedTypeGivenOutcome(Outcome)
 func (t *JSTypeBase) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
-	if outcome.IsTruthy() && t.self == t.GetNativeType(JSTypeNative_UNKNOWN_TYPE) {
+	if outcome.IsTruthy() && t.self() == t.GetNativeType(JSTypeNative_UNKNOWN_TYPE) {
 		return t.GetNativeType(JSTypeNative_CHECKED_UNKNOWN_TYPE)
 	}
 
@@ -1757,17 +1799,17 @@ func (t *JSTypeBase) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
 	// for any other non-union type must be NO_TYPE. Note that the UnionType
 	// class is responsible for handling the union case.
 	if outcome.IsNullish().ToBoolean(false) {
-		if t.self == t.GetNativeType(JSTypeNative_VOID_TYPE) ||
-			t.self == t.GetNativeType(JSTypeNative_NULL_TYPE) {
-			return t.self
+		if t.self() == t.GetNativeType(JSTypeNative_VOID_TYPE) ||
+			t.self() == t.GetNativeType(JSTypeNative_NULL_TYPE) {
+			return t.self()
 		} else {
 			return t.GetNativeType(JSTypeNative_NO_TYPE)
 		}
 	}
 
-	literals := t.self.GetPossibleToBooleanOutcomes()
+	literals := t.self().GetPossibleToBooleanOutcomes()
 	if literals.Contains(outcome.IsTruthy()) {
-		return t.self
+		return t.self()
 	} else {
 		return t.GetNativeType(JSTypeNative_NO_TYPE)
 	}
@@ -1791,18 +1833,18 @@ func (t *JSTypeBase) GetTypesUnderEquality(that JSType) *JSType_TypePair {
 func (t *JSTypeBase) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
-		a, b := that.ToMaybeUnionType().GetTypesUnderEqualityPair(t.self)
+		a, b := that.ToMaybeUnionType().GetTypesUnderEqualityPair(t.self())
 		return b, a
 	}
 
 	// other types
-	r := t.self.TestForEquality(that)
+	r := t.self().TestForEquality(that)
 	jsTypeCheckTriNotNull(r)
 	switch r {
 	case base.Tri_FALSE:
 		return nil, nil
 	}
-	return t.self, that // TRUE, UNKNOWN
+	return t.self(), that // TRUE, UNKNOWN
 }
 
 // GetTypesUnderInequality computes the subset of this and that types if
@@ -1819,17 +1861,17 @@ func (t *JSTypeBase) GetTypesUnderInequality(that JSType) *JSType_TypePair {
 func (t *JSTypeBase) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
-		a, b := that.ToMaybeUnionType().GetTypesUnderInequalityPair(t.self)
+		a, b := that.ToMaybeUnionType().GetTypesUnderInequalityPair(t.self())
 		return b, a
 	}
 
 	// For the remaining types, the only way to restrict anything is if both
 	// types are null or void, in which case we're left with nothing.
 	if t.IsNullTypeOrVoidType() && jsTypeIsNullTypeOrVoidType(that) {
-		noType := t.registry.GetNativeType(JSTypeNative_NO_TYPE)
+		noType := t.GetRegistry().GetNativeType(JSTypeNative_NO_TYPE)
 		return noType, noType
 	}
-	return t.self, that
+	return t.self(), that
 }
 
 // GetTypesUnderShallowEquality computes the subset of this and that types
@@ -1842,7 +1884,7 @@ func (t *JSTypeBase) GetTypesUnderShallowEquality(that JSType) *JSType_TypePair 
 }
 
 func (t *JSTypeBase) GetTypesUnderShallowEqualityPair(that JSType) (JSType, JSType) {
-	commonType := t.self.GetGreatestSubtype(that)
+	commonType := t.self().GetGreatestSubtype(that)
 	return commonType, commonType
 }
 
@@ -1858,26 +1900,26 @@ func (t *JSTypeBase) GetTypesUnderShallowInequality(that JSType) *JSType_TypePai
 func (t *JSTypeBase) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	// union types
 	if that.IsUnionType() {
-		a, b := that.ToMaybeUnionType().GetTypesUnderShallowInequalityPair(t.self)
+		a, b := that.ToMaybeUnionType().GetTypesUnderShallowInequalityPair(t.self())
 		return b, a
 	}
 
 	// Other types. There are only two types whose shallow inequality is
 	// deterministically true -- null and undefined. We can just enumerate
 	// them.
-	if t.self == that && t.IsNullTypeOrVoidType() {
+	if t.self() == that && t.IsNullTypeOrVoidType() {
 		return nil, nil
 	}
 	// Since unions have already been removed, if this and that don't have
 	// the same unit type then there is no further narrowing that can be done
 	// on them.
-	return t.self, that
+	return t.self(), that
 }
 
 // Java: JSType.IsNullTypeOrVoidType()
 func (t *JSTypeBase) IsNullTypeOrVoidType() bool {
 	// TODO(sdh): Should this be exposed more publicly?
-	return t.self.IsNullType() || t.self.IsVoidType()
+	return t.self().IsNullType() || t.self().IsVoidType()
 }
 
 // jsTypeIsNullTypeOrVoidType is that.IsNullTypeOrVoidType() (a private
@@ -1888,8 +1930,8 @@ func jsTypeIsNullTypeOrVoidType(that JSType) bool {
 
 // Java: JSType.getUnionMembers()
 func (t *JSTypeBase) GetUnionMembers() []JSType {
-	if t.self.IsUnionType() {
-		return t.self.ToMaybeUnionType().GetAlternates()
+	if t.self().IsUnionType() {
+		return t.self().ToMaybeUnionType().GetAlternates()
 	}
 	return nil
 }
@@ -1899,7 +1941,7 @@ func (t *JSTypeBase) GetUnionMembers() []JSType {
 //
 // Java: JSType.restrictByNotNullOrUndefined()
 func (t *JSTypeBase) RestrictByNotNullOrUndefined() JSType {
-	return t.self
+	return t.self()
 }
 
 // RestrictByNotUndefined returns, if this is a union type, a union type
@@ -1907,7 +1949,7 @@ func (t *JSTypeBase) RestrictByNotNullOrUndefined() JSType {
 //
 // Java: JSType.restrictByNotUndefined()
 func (t *JSTypeBase) RestrictByNotUndefined() JSType {
-	return t.self
+	return t.self()
 }
 
 // RestrictByNotNull returns, if this is a union type, a union type that does
@@ -1915,7 +1957,7 @@ func (t *JSTypeBase) RestrictByNotUndefined() JSType {
 //
 // Java: JSType.restrictByNotNull()
 func (t *JSTypeBase) RestrictByNotNull() JSType {
-	return t.self
+	return t.self()
 }
 
 // IsSubtypeWithoutStructuralTyping: the logic of this method is similar to
@@ -1934,14 +1976,14 @@ func (t *JSTypeBase) IsSubtypeWithoutStructuralTyping(supertype JSType) bool {
 		return true
 	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self,
+		initialSubtype:          t.self(),
 		initialSupertype:        supertype,
-		registry:                t.registry,
+		registry:                t.GetRegistry(),
 		isUsingStructuralTyping: &subtypeChecker_booleans[0],
 		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
 		hasRun:                  true,
 	}
-	return c.IsSubtypeDispatching(t.self, supertype)
+	return c.IsSubtypeDispatching(t.self(), supertype)
 }
 
 // JSType_SubtypingMode: in files translated from Java, we typecheck null
@@ -2009,14 +2051,14 @@ func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
 		return true
 	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self,
+		initialSubtype:          t.self(),
 		initialSupertype:        supertype,
-		registry:                t.registry,
+		registry:                t.GetRegistry(),
 		isUsingStructuralTyping: &subtypeChecker_booleans[1],
 		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
 		hasRun:                  true,
 	}
-	return c.IsSubtypeDispatching(t.self, supertype)
+	return c.IsSubtypeDispatching(t.self(), supertype)
 }
 
 // Java: JSType.isSubtypeOf(JSType, SubtypingMode)
@@ -2036,14 +2078,14 @@ func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_Subtyping
 		modePtr = &other
 	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self,
+		initialSubtype:          t.self(),
 		initialSupertype:        supertype,
-		registry:                t.registry,
+		registry:                t.GetRegistry(),
 		isUsingStructuralTyping: &subtypeChecker_booleans[1],
 		subtypingMode:           modePtr,
 		hasRun:                  true,
 	}
-	return c.IsSubtypeDispatching(t.self, supertype)
+	return c.IsSubtypeDispatching(t.self(), supertype)
 }
 
 // JSType_VisitForJSType is type.visit(visitor) for a Visitor<JSType>: the
@@ -2071,7 +2113,7 @@ func JSType_VisitForJSType(type_ JSType, visitor Visitor) JSType {
 //
 // Java: JSType.resolve(ErrorReporter)
 func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
-	t.registry.GetResolver().AssertLegalToResolveTypes()
+	t.GetRegistry().GetResolver().AssertLegalToResolveTypes()
 	if t.resolveResult == nil {
 		// Prevent infinite recursion in cyclically defined types.
 		//
@@ -2080,15 +2122,19 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 		// return `this`. Doing so is safe because the resolve result *should*
 		// be equal to `this`, even though the different calls will return
 		// different objects.
-		t.resolveResult = t.self
-		res := t.self.ResolveInternal(reporter)
-		t.resolveResult = res
-		if res != nil && res.GetJSTypeBase() == t {
+		t.resolveResult = t
+		res := t.self().ResolveInternal(reporter)
+		if res != nil {
+			t.resolveResult = res.GetJSTypeBase()
+		} else {
+			t.resolveResult = nil
+		}
+		if t.resolveResult == t {
 			t.resolvedToSelf = true
 		}
 		jutil.CheckState(t.resolveResult != nil)
 	}
-	return t.resolveResult
+	return t.resolveResult.self()
 }
 
 // EagerlyResolveToSelf bypasses the normal call to resolve(ErrorReporter).
@@ -2096,10 +2142,10 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 //
 // Java: JSType.eagerlyResolveToSelf()
 func (t *JSTypeBase) EagerlyResolveToSelf() {
-	jutil.CheckStateMsg1(!t.self.IsResolved(), "%s", t.self)
-	t.resolveResult = t.self
+	jutil.CheckStateMsg1(!t.self().IsResolved(), "%s", t.self())
+	t.resolveResult = t
 	t.resolvedToSelf = true
-	t.registry.GetResolver().ResolveIfClosed(t.self, t.self.GetTypeClass())
+	t.GetRegistry().GetResolver().ResolveIfClosed(t.self(), t.self().GetTypeClass())
 }
 
 // IsResolved returns whether the type has undergone resolution.
@@ -2117,7 +2163,7 @@ func (t *JSTypeBase) IsResolved() bool {
 //
 // Java: JSType.isSuccessfullyResolved()
 func (t *JSTypeBase) IsSuccessfullyResolved() bool {
-	return t.self.IsResolved() && !t.self.IsNoResolvedType()
+	return t.self().IsResolved() && !t.self().IsNoResolvedType()
 }
 
 // IsUnsuccessfullyResolved returns whether the type has undergone
@@ -2125,7 +2171,7 @@ func (t *JSTypeBase) IsSuccessfullyResolved() bool {
 //
 // Java: JSType.isUnsuccessfullyResolved()
 func (t *JSTypeBase) IsUnsuccessfullyResolved() bool {
-	return t.self.IsResolved() && t.self.IsNoResolvedType()
+	return t.self().IsResolved() && t.self().IsNoResolvedType()
 }
 
 // JSType_SafeResolve is a null-safe resolve.
@@ -2145,7 +2191,7 @@ func JSType_SafeResolve(type_ JSType, reporter ErrorReporter) JSType {
 //
 // Java: JSType.setValidator(Predicate<JSType>)
 func (t *JSTypeBase) SetValidator(validator func(JSType) bool) bool {
-	return validator(t.self)
+	return validator(t.self())
 }
 
 // JSType_TypePair represents a pair of types.
@@ -2174,7 +2220,7 @@ type JSType_WithSourceRef interface {
 //
 // Java: JSType.toString()
 func (t *JSTypeBase) String() string {
-	return NewTypeStringBuilder(false).AppendType(t.self).Build()
+	return NewTypeStringBuilder(false).AppendType(t.self()).Build()
 }
 
 // ToAnnotationString: don't call from this package; use appendAsNonNull
@@ -2184,9 +2230,9 @@ func (t *JSTypeBase) String() string {
 func (t *JSTypeBase) ToAnnotationString(nullability JSType_Nullability) string {
 	builder := NewTypeStringBuilder(true)
 	if nullability == JSType_Nullability_EXPLICIT {
-		return builder.AppendNonNull(t.self).Build()
+		return builder.AppendNonNull(t.self()).Build()
 	}
-	return builder.AppendType(t.self).Build()
+	return builder.AppendType(t.self()).Build()
 }
 
 // MatchConstraint modifies this type so that it matches the specified type.
@@ -2200,7 +2246,7 @@ func (t *JSTypeBase) MatchConstraint(constraint JSType) {}
 
 // Java: JSType.toMaybeObjectType()
 func (t *JSTypeBase) ToMaybeObjectType() ObjectType {
-	return t.self.ToObjectType()
+	return t.self().ToObjectType()
 }
 
 // JSType_MatchStatus describes the status of checking that a function

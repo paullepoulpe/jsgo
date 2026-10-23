@@ -102,7 +102,7 @@ func (t *TemplateType) GetReferenceName() *string {
 
 // Java: TemplateType.appendTo(TypeStringBuilder)
 func (t *TemplateType) AppendTo(sb *TypeStringBuilder) {
-	if t.bound == JSType(t.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)) {
+	if t.bound == JSType(t.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)) {
 		// This is an unbound template, don't print it's bound
 		sb.Append(t.name)
 	} else {

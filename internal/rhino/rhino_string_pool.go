@@ -66,7 +66,7 @@ const (
 
 type rhinoStringPoolShard struct {
 	mu           sync.RWMutex
-	table        []uint64 // noscan open-addressed hash table: (hash32 << 32) | (localIdx + 1)
+	table        []uint64 // noscan open-addressed hash table, at most 3/4 full: (hash32 << 32) | (localIdx + 1)
 	count        uint32
 	nextLocalIdx uint32
 	curPageIdx   uint32
@@ -235,7 +235,7 @@ func rhinoStringPoolIntern(str string) rhinoStringID {
 			slot = (slot + 1) & mask
 		}
 	}
-	if int(shard.count+1)*2 > len(shard.table) {
+	if int(shard.count+1)*4 > len(shard.table)*3 {
 		shard.growTable()
 	}
 	localIdx := shard.allocSpan(str)
@@ -301,7 +301,8 @@ func rhinoStringPtrFromID(id rhinoStringID) *string {
 		return p
 	}
 	if len(s.ptrSlab) == 0 {
-		s.ptrSlab = make([]string, 1024)
+		// 1023 strings and the 8-byte malloc header fill the 16 KiB size class.
+		s.ptrSlab = make([]string, 1023)
 	}
 	p = &s.ptrSlab[0]
 	s.ptrSlab = s.ptrSlab[1:]

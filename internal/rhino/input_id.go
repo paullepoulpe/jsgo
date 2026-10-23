@@ -35,8 +35,6 @@
 package rhino
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -44,14 +42,6 @@ import (
 type InputId struct {
 	id   string
 	hash int32
-}
-
-type pooledInputIdSlab struct {
-	chunk []InputId
-}
-
-var inputIdSlabPool = sync.Pool{
-	New: func() any { return &pooledInputIdSlab{} },
 }
 
 // Java: InputId.serialVersionUID
@@ -65,20 +55,7 @@ func (i *InputId) Init(id string) {
 
 // Java: InputId(String)
 func NewInputId(id string) *InputId {
-	h := jutil.StringHashCode(id)
-	if !nodePoolingEnabled.Load() {
-		return &InputId{id: id, hash: h}
-	}
-	s := inputIdSlabPool.Get().(*pooledInputIdSlab)
-	if len(s.chunk) == 0 {
-		s.chunk = make([]InputId, 1024) // 24 KiB <= 32 KiB
-	}
-	out := &s.chunk[0]
-	s.chunk = s.chunk[1:]
-	inputIdSlabPool.Put(s)
-	out.id = id
-	out.hash = h
-	return out
+	return &InputId{id: id, hash: jutil.StringHashCode(id)}
 }
 
 // Java: InputId.getIdName()

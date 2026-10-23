@@ -376,7 +376,7 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 				b := buf[0]
 				return asciiByteTable[b : b+1]
 			}
-			out := nodeUtilAllocStringBytes(n)
+			out := make([]byte, n)
 			copy(out, buf[:n])
 			return unsafe.String(&out[0], n)
 		}

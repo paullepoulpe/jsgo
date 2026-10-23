@@ -1015,8 +1015,8 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 	// Gather and serialize all the types now.
 	serializeTypesToPointers.GatherTypesOnAst(compiler.GetRoot())
 	return &TypedAstSerializer_JSTypeSerializer{
-		serialGen: serializeTypesToPointers.jstypeReconserializer.serialGen,
-		typePool:  serializeTypesToPointers.GetTypePool(),
+		reconserializer: serializeTypesToPointers.jstypeReconserializer,
+		typePool:        serializeTypesToPointers.GetTypePool(),
 	}
 }
 
@@ -1027,7 +1027,7 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 type TypedAstSerializer_JSTypeSerializer struct {
 	// Everything is pre-calculated with this form of serialization.
 	typesToPointers *base.LinkedIdentityHashMap[rhino.JSType, int]
-	serialGen       uint32
+	reconserializer *JSTypeReconserializer
 	typePool        *TypePool
 }
 
@@ -1042,11 +1042,12 @@ func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node *rhino.Node, m 
 	if tb == nil {
 		return
 	}
-	if s.serialGen != 0 {
-		if tb.SerialGen != s.serialGen {
+	if s.reconserializer != nil {
+		pointer, ok := s.reconserializer.typePointers[tb]
+		if !ok {
 			jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", tb.Self())
 		}
-		m.type_ = tb.SerialPointer
+		m.type_ = pointer
 		m.bitField0_ |= 1 << 0
 		return
 	}

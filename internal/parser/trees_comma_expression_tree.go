@@ -28,9 +28,9 @@ type CommaExpressionTree struct {
 // NewCommaExpressionTree constructs a CommaExpressionTree.
 //
 // Java: CommaExpressionTree(SourceRange, ImmutableList)
-func NewCommaExpressionTree(location *SourceRange, expressions []ParseTree) *CommaExpressionTree {
+func NewCommaExpressionTree(location SourceRange, expressions []ParseTree) *CommaExpressionTree {
 	t := &CommaExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMMA_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_COMMA_EXPRESSION, location)
 	t.Expressions = expressions
 	return t
 }

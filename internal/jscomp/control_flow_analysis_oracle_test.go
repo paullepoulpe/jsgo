@@ -197,7 +197,7 @@ func (d *cfaDumper) dumpCfg(root *rhino.Node, mode string, traverseFunctions, ed
 	d.line("cfg " + d.id(root) + " " + mode)
 	cfa := newControlFlowAnalysis(d.compiler, traverseFunctions, edgeAnnotations)
 	var exception jutil.Throwable
-	jutil.Try(func() { cfa.computeCfg(root) }, func(e jutil.IRuntimeException) { exception = e })
+	jutil.Try(func() { cfa.computeCfg(root, nil) }, func(e jutil.IRuntimeException) { exception = e })
 	if exception != nil {
 		d.line("exception " + cfaJavaClass(exception) + ": " + cfaJavaMessage(exception))
 		if cause := exception.GetCause(); cause != nil {

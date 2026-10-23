@@ -29,9 +29,9 @@ type ComprehensionForTree struct {
 // NewComprehensionForTree constructs a ComprehensionForTree.
 //
 // Java: ComprehensionForTree(SourceRange, ParseTree, ParseTree)
-func NewComprehensionForTree(location *SourceRange, initializer ParseTree, collection ParseTree) *ComprehensionForTree {
+func NewComprehensionForTree(location SourceRange, initializer ParseTree, collection ParseTree) *ComprehensionForTree {
 	t := &ComprehensionForTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPREHENSION_FOR, location)
+	t.InitParseTreeBase(ParseTreeType_COMPREHENSION_FOR, location)
 	t.Initializer = initializer
 	t.Collection = collection
 	return t

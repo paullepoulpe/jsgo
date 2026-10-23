@@ -247,14 +247,12 @@ func (p *PureFunctionIdentifier) Process(externs *rhino.Node, root *rhino.Node, 
 
 	NodeTraversal_Traverse(p.compiler, externs, NewPureFunctionIdentifier_ExternFunctionAnnotationAnalyzer(p))
 	sc := NewSyntacticScopeCreator(p.compiler)
-	sc.EnableArenaPool()
 	b := NodeTraversal_Builder{
 		compiler:     p.compiler,
 		callback:     NewPureFunctionIdentifier_FunctionBodyAnalyzer(p),
 		scopeCreator: sc,
 	}
 	b.Traverse(root)
-	sc.ReleaseArena()
 
 	p.PropagateSideEffects()
 

@@ -62,8 +62,6 @@ func (d *Denormalize) Process(externs *rhino.Node, root *rhino.Node) {
 	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {
 		inliner := newDenormalizeVarInliner()
 		sc := NewSyntacticScopeCreator(d.compiler)
-		sc.EnableArenaPool()
-		defer sc.ReleaseArena()
 		b := NodeTraversal_Builder{
 			compiler:     d.compiler,
 			callback:     inliner,

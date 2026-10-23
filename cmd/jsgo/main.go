@@ -26,6 +26,11 @@ func main() {
 			defer stopCPU()
 		}
 	}
+	if statsPath := os.Getenv("JSGO_MEMSTATS"); statsPath != "" {
+		writeStats := memStatsWriter(statsPath)
+		jutil.System_AtExit(writeStats)
+		defer writeStats()
+	}
 	if memProf := os.Getenv("JSGO_MEM_PROFILE"); memProf != "" {
 		writeMem := func() {
 			runtime.GC()

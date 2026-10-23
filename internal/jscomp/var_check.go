@@ -145,8 +145,6 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 // Java: VarCheck.process(Node, Node)
 func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := v.CreateScopeCreator()
-	sc.EnableLocalScopeReclamation()
-	defer sc.ReleaseArena()
 	var scopeCreator ScopeCreator = sc
 
 	// Don't run externs-checking in sanity check mode. Normalization will
@@ -158,7 +156,6 @@ func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
 			SetCallback(NewVarCheck_NameRefInExternsCheck(v)).
 			SetScopeCreator(scopeCreator).
 			Traverse(externs)
-		sc.ReleaseArena()
 	}
 
 	NodeTraversal_Builder_().

@@ -136,8 +136,8 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(fileName *string) {
 				c.compiler.Report(
 					JSError_MakeWithSourceLocation(
 						fileName,
-						comment.Location.Start.Line+1,
-						comment.Location.Start.Column,
+						int(comment.Location.Start.Line)+1,
+						int(comment.Location.Start.Column),
 						CheckJSDoc_JSDOC_IN_BLOCK_COMMENT))
 			}
 		}

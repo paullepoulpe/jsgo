@@ -81,6 +81,9 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 			}
 
 			i.parsedSourceMap = consumer
+			// Go-only: performance — the parsed map holds all that is
+			// needed; do not also keep the map's text (read again on demand).
+			i.sourceFile.ClearCachedSource()
 		}, func(e jutil.IException) {
 			switch e.(type) {
 			case jutil.IIOException:

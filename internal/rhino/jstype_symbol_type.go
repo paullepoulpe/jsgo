@@ -141,5 +141,5 @@ func (t *SymbolTypeBase) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 
 // Java: SymbolType.visit(Visitor<T>)
 func (t *SymbolTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseSymbolType(t.self.(SymbolType))
+	return visitor.CaseSymbolType(t.self().(SymbolType))
 }

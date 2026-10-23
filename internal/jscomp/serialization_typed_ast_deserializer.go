@@ -72,8 +72,6 @@ type TypedAstDeserializer struct {
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
 	sourceFileSlab                jutil.Slab[SourceFile]
-	deserializerSlab              jutil.Slab[ScriptNodeDeserializer]
-	smallScriptByteSlab           []byte
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
@@ -96,7 +94,6 @@ func newTypedAstDeserializer(
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
 		sourceFileSlab:                jutil.NewMaxSlab[SourceFile](64),
-		deserializerSlab:              jutil.NewMaxSlab[ScriptNodeDeserializer](256),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
 		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
@@ -451,7 +448,7 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 	}
 
 	deserializer :=
-		newScriptNodeDeserializerFromSlab(&d.deserializerSlab, &d.smallScriptByteSlab, lazyAst, stringShard, colorShard, fileShard)
+		NewScriptNodeDeserializer(lazyAst, stringShard, colorShard, fileShard)
 
 	if d.syntheticExterns == file {
 		d.syntheticExternsDeserializers.Add(deserializer)

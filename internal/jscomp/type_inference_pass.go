@@ -36,7 +36,7 @@ type TypeInferencePass struct {
 	scopeCreator            *TypedScopeCreator
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup
 	reusableTypeInference   TypeInference
-	reusableCfg             *ReusableCfg
+	reusableCfg             ReusableCfg
 
 	// (stepCount, Token) -> populationCount
 	//
@@ -73,12 +73,6 @@ func NewTypeInferencePass(
 //
 // Java: TypeInferencePass.inferAllScopes(Node)
 func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScope {
-	rc := acquireReusableCfg()
-	p.reusableCfg = rc
-	defer func() {
-		p.reusableCfg = nil
-		releaseReusableCfg(rc)
-	}()
 	// Type analysis happens in two major phases.
 	// 1) Finding all the symbols.
 	// 2) Propagating all the inferred types.
@@ -199,10 +193,8 @@ func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
 	}
 	if n.IsRoot() {
 		typeInference.ReleaseLargeBuffers()
-		if p.reusableCfg != nil {
-			p.reusableCfg.TrimAfterLargeScope()
-		}
 	}
+	p.reusableCfg.release()
 }
 
 // TypeInferencePass_FirstScopeBuildingCallback creates every typed scope, in
@@ -256,19 +248,9 @@ func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, 
 
 // Java: TypeInferencePass.computeCfg(Node)
 func (p *TypeInferencePass) ComputeCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
-	rc := p.reusableCfg
-	if rc == nil {
-		return ControlFlowAnalysis_Builder_().
-			SetCompiler(p.compiler).
-			SetCfgRoot(n).
-			SetTraverseFunctions(false).
-			SetIncludeEdgeAnnotations(true).
-			ComputeCfg()
-	}
-	return rc.cfa.ComputeReusableCfg(
+	return p.reusableCfg.Compute(
 		p.compiler,
 		n,
 		/* shouldTraverseFunctions= */ false,
-		/* edgeAnnotations= */ true,
-		&rc.cfg)
+		/* edgeAnnotations= */ true)
 }

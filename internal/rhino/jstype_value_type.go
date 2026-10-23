@@ -52,7 +52,7 @@ type ValueType interface {
 }
 
 // ValueTypeBase holds ValueType's base method implementations; the virtual
-// calls go through JSTypeBase.self.
+// calls go through JSTypeBase.self().
 type ValueTypeBase struct {
 	JSTypeBase
 }
@@ -77,7 +77,7 @@ func (v *ValueTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 
 // Java: ValueType.appendTo(TypeStringBuilder)
 func (v *ValueTypeBase) AppendTo(sb *TypeStringBuilder) {
-	sb.Append(jutil.ToJavaString(v.self.GetDisplayName()))
+	sb.Append(jutil.ToJavaString(v.self().GetDisplayName()))
 }
 
 // Java: ValueType.hasDisplayName()
@@ -87,13 +87,13 @@ func (v *ValueTypeBase) HasDisplayName() bool {
 
 // Java: ValueType.visit(RelationshipVisitor<T>, JSType)
 func (v *ValueTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseValueType(v.self.(ValueType), that)
+	return visitor.CaseValueType(v.self().(ValueType), that)
 }
 
 // Java: ValueType.getPropertyKind(Property.Key, boolean)
 func (v *ValueTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
-	if autobox && v.self.IsBoxableScalar() {
-		return v.self.AutoboxesTo().GetPropertyKindByKeyWithAutobox(propertyName, autobox)
+	if autobox && v.self().IsBoxableScalar() {
+		return v.self().AutoboxesTo().GetPropertyKindByKeyWithAutobox(propertyName, autobox)
 	} else {
 		return v.JSTypeBase.GetPropertyKindByKeyWithAutobox(propertyName, autobox)
 	}
@@ -102,5 +102,5 @@ func (v *ValueTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Ke
 // Java: ValueType.recursionUnsafeHashCode()
 func (v *ValueTypeBase) RecursionUnsafeHashCode() int32 {
 	// Subclasses of this type are unique within a JSTypeRegistry.
-	return jutil.IdentityHashCode(v.self)
+	return jutil.IdentityHashCode(v.self())
 }

@@ -41,18 +41,11 @@ import (
 type LinkedDirectedGraph[N comparable, E any] struct {
 	DiGraphBase[N, E]
 
-	nodes      jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
-	savedNodes jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
-	nodeSlots  [8]jutil.LhmSlot[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	nodes jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
 
-	nodeSlab     []LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeSlab     []LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
-	nodeChunks   [][]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeChunks   [][]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
-	nodeChunkIdx int
-	edgeChunkIdx int
-	nodeBuf      [4]LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	edgeBuf      [4]LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
+	// Go-only: performance — see reuseSlab.
+	nodeSlab reuseSlab[LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	edgeSlab reuseSlab[LinkedDirectedGraph_LinkedDiGraphEdge[N, E]]
 
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
@@ -113,171 +106,30 @@ func NewLinkedDirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdg
 // is the object being constructed.
 func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
 	g.InitDiGraphBase(self)
-	g.nodes.InitWithBuffer(g.nodeSlots[:])
-	g.nodeChunkIdx = -1
-	g.edgeChunkIdx = -1
-	g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-	g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
 	g.useNodeAnnotations = useNodeAnnotations
 	g.useEdgeAnnotations = useEdgeAnnotations
 }
 
-// ResetLinkedDirectedGraph resets g for reuse while retaining backing slab and
-// map capacities.
-func (g *LinkedDirectedGraph[N, E]) ResetLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
-	g.InitDiGraphBase(self)
-	if g.nodeAnnotationStack != nil {
-		clear(g.nodeAnnotationStack.states)
-		g.nodeAnnotationStack.states = g.nodeAnnotationStack.states[:0]
-	}
-	if g.edgeAnnotationStack != nil {
-		clear(g.edgeAnnotationStack.states)
-		g.edgeAnnotationStack.states = g.edgeAnnotationStack.states[:0]
-	}
-	if !g.nodes.HasBacking() {
-		if g.savedNodes.HasBacking() {
-			g.nodes = g.savedNodes
-			g.nodes.Clear()
-			g.savedNodes = g.nodes
-		} else {
-			g.nodes.InitWithBuffer(g.nodeSlots[:])
-		}
-	} else if g.nodes.Size() > 1024 {
-		if g.savedNodes.HasBacking() && g.savedNodes.Size() <= 1024 {
-			g.nodes = g.savedNodes
-			g.nodes.Clear()
-			g.savedNodes = g.nodes
-		} else {
-			g.nodes = jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]{}
-			g.nodes.InitWithBuffer(g.nodeSlots[:])
-		}
+// linkedDirectedGraphReuseMaxNodes is the most nodes a graph may have had for
+// clearForReuse to keep its node map (clearing a Go map costs time in
+// proportion to its largest size).
+const linkedDirectedGraphReuseMaxNodes = 1024
+
+// clearForReuse removes all nodes and edges from g, keeping its slab chunks
+// and (when small) its node map for the next graph built in g, which must
+// then be initialized again.
+//
+// Go-only: performance — see ReusableCfg.
+func (g *LinkedDirectedGraph[N, E]) clearForReuse() {
+	g.nodeAnnotationStack = nil
+	g.edgeAnnotationStack = nil
+	if g.nodes.Size() > linkedDirectedGraphReuseMaxNodes {
+		g.nodes = jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]{}
 	} else {
 		g.nodes.Clear()
-		g.savedNodes = g.nodes
 	}
-	if g.nodeChunkIdx >= 0 && g.nodeChunkIdx < len(g.nodeChunks) && len(g.nodeSlab) > len(g.nodeChunks[g.nodeChunkIdx]) {
-		g.nodeChunks[g.nodeChunkIdx] = g.nodeSlab
-	}
-	if len(g.nodeChunks) > 0 {
-		g.nodeChunkIdx = 0
-		g.nodeSlab = g.nodeChunks[0][:0]
-	} else {
-		g.nodeChunkIdx = -1
-		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-	}
-	if g.edgeChunkIdx >= 0 && g.edgeChunkIdx < len(g.edgeChunks) && len(g.edgeSlab) > len(g.edgeChunks[g.edgeChunkIdx]) {
-		g.edgeChunks[g.edgeChunkIdx] = g.edgeSlab
-	}
-	if len(g.edgeChunks) > 0 {
-		g.edgeChunkIdx = 0
-		g.edgeSlab = g.edgeChunks[0][:0]
-	} else {
-		g.edgeChunkIdx = -1
-		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
-	}
-	g.useNodeAnnotations = useNodeAnnotations
-	g.useEdgeAnnotations = useEdgeAnnotations
-}
-
-// ClearSlabsForPool clears all references in the used portions of g's node and
-// edge slabs and maps while retaining their backing capacities for pool reuse.
-func (g *LinkedDirectedGraph[N, E]) ClearSlabsForPool() {
-	g.diSelf = nil
-	if g.nodeAnnotationStack != nil {
-		clear(g.nodeAnnotationStack.states)
-		g.nodeAnnotationStack.states = g.nodeAnnotationStack.states[:0]
-	}
-	if g.edgeAnnotationStack != nil {
-		clear(g.edgeAnnotationStack.states)
-		g.edgeAnnotationStack.states = g.edgeAnnotationStack.states[:0]
-	}
-	if g.nodes.HasBacking() {
-		g.nodes.Clear()
-	}
-	if g.savedNodes.HasBacking() {
-		g.savedNodes.Clear()
-	}
-	clear(g.nodeSlots[:])
-
-	var zeroN N
-	for i := range g.nodeBuf {
-		n := &g.nodeBuf[i]
-		if cap(n.inEdgeList.Slice()) > 64 {
-			n.inEdgeList = jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]{}
-		} else {
-			n.inEdgeList.Clear()
-		}
-		clear(n.inEdgeBuffer[:])
-		if cap(n.outEdgeList.Slice()) > 64 {
-			n.outEdgeList = jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]{}
-		} else {
-			n.outEdgeList.Clear()
-		}
-		clear(n.outEdgeBuffer[:])
-		n.value = zeroN
-		n.inWorkSet = false
-		n.dfaInQueue = false
-		n.annotation = nil
-	}
-	clear(g.edgeBuf[:])
-
-	if g.nodeChunkIdx >= 0 && g.nodeChunkIdx < len(g.nodeChunks) && len(g.nodeSlab) > len(g.nodeChunks[g.nodeChunkIdx]) {
-		g.nodeChunks[g.nodeChunkIdx] = g.nodeSlab
-	}
-	if len(g.nodeChunks) > 32 {
-		clear(g.nodeChunks[32:])
-		g.nodeChunks = g.nodeChunks[:32]
-	}
-	for i, chunk := range g.nodeChunks {
-		for j := range chunk {
-			n := &chunk[j]
-			if cap(n.inEdgeList.Slice()) > 64 {
-				n.inEdgeList = jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]{}
-			} else {
-				n.inEdgeList.Clear()
-			}
-			clear(n.inEdgeBuffer[:])
-			if cap(n.outEdgeList.Slice()) > 64 {
-				n.outEdgeList = jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]{}
-			} else {
-				n.outEdgeList.Clear()
-			}
-			clear(n.outEdgeBuffer[:])
-			n.value = zeroN
-			n.inWorkSet = false
-			n.dfaInQueue = false
-			n.annotation = nil
-		}
-		g.nodeChunks[i] = chunk[:0]
-	}
-	if len(g.nodeChunks) > 0 {
-		g.nodeChunkIdx = 0
-		g.nodeSlab = g.nodeChunks[0][:0]
-	} else {
-		g.nodeChunkIdx = -1
-		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-	}
-
-	if g.edgeChunkIdx >= 0 && g.edgeChunkIdx < len(g.edgeChunks) && len(g.edgeSlab) > len(g.edgeChunks[g.edgeChunkIdx]) {
-		g.edgeChunks[g.edgeChunkIdx] = g.edgeSlab
-	}
-	if len(g.edgeChunks) > 32 {
-		clear(g.edgeChunks[32:])
-		g.edgeChunks = g.edgeChunks[:32]
-	}
-	for i, chunk := range g.edgeChunks {
-		if len(chunk) > 0 {
-			clear(chunk)
-			g.edgeChunks[i] = chunk[:0]
-		}
-	}
-	if len(g.edgeChunks) > 0 {
-		g.edgeChunkIdx = 0
-		g.edgeSlab = g.edgeChunks[0][:0]
-	} else {
-		g.edgeChunkIdx = -1
-		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
-	}
+	g.nodeSlab.reset((*LinkedDirectedGraph_LinkedDiGraphNode[N, E]).recycle)
+	g.edgeSlab.reset(nil)
 }
 
 // getLinkedNodeOrFail is getNodeOrFail(N) with the LinkedDiGraphNode cast.
@@ -289,37 +141,15 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 }
 
 func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
-	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		if g.nodeChunkIdx >= 0 && g.nodeChunkIdx < len(g.nodeChunks) {
-			g.nodeChunks[g.nodeChunkIdx] = g.nodeSlab
-		}
-		g.nodeChunkIdx++
-		if g.nodeChunkIdx < len(g.nodeChunks) {
-			g.nodeSlab = g.nodeChunks[g.nodeChunkIdx][:0]
-		} else {
-			nextCap := min(max(cap(g.nodeSlab)*2, 16), 128)
-			g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
-			g.nodeChunks = append(g.nodeChunks, g.nodeSlab)
-		}
-	}
-	idx := len(g.nodeSlab)
-	g.nodeSlab = g.nodeSlab[:idx+1]
-	n := &g.nodeSlab[idx]
+	n := g.nodeSlab.alloc()
 	n.value = nodeValue
 	n.priority = -1
 	n.annotated = g.useNodeAnnotations
-	n.inWorkSet = false
-	n.dfaInQueue = false
-	n.annotation = nil
 	if cap(n.inEdgeList.Slice()) == 0 {
-		n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])
-	} else {
-		n.inEdgeList.Clear()
+		n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:]) // initialCapacity= 1
 	}
 	if cap(n.outEdgeList.Slice()) == 0 {
-		n.outEdgeList.InitWithBuffer(n.outEdgeBuffer[:])
-	} else {
-		n.outEdgeList.Clear()
+		n.outEdgeList.InitWithBuffer(n.outEdgeBuffer[:]) // initialCapacity= 1
 	}
 	return n
 }
@@ -327,27 +157,11 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 // newEdge is the conditional edge construction of connect().
 func (g *LinkedDirectedGraph[N, E]) newEdge(
 	src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
-	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		if g.edgeChunkIdx >= 0 && g.edgeChunkIdx < len(g.edgeChunks) {
-			g.edgeChunks[g.edgeChunkIdx] = g.edgeSlab
-		}
-		g.edgeChunkIdx++
-		if g.edgeChunkIdx < len(g.edgeChunks) {
-			g.edgeSlab = g.edgeChunks[g.edgeChunkIdx][:0]
-		} else {
-			nextCap := min(max(cap(g.edgeSlab)*2, 16), 512)
-			g.edgeSlab = make([]LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, nextCap)
-			g.edgeChunks = append(g.edgeChunks, g.edgeSlab)
-		}
-	}
-	idx := len(g.edgeSlab)
-	g.edgeSlab = g.edgeSlab[:idx+1]
-	e := &g.edgeSlab[idx]
+	e := g.edgeSlab.alloc()
 	e.sourceNode = src
 	e.destNode = dest
 	e.value = edgeValue
 	e.annotated = g.useEdgeAnnotations
-	e.annotation = nil
 	return e
 }
 
@@ -866,6 +680,21 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 	annotated  bool
 	inWorkSet  bool
 	dfaInQueue bool
+}
+
+// recycle zeroes n for allocNode to reuse, but keeps its edge lists' backing
+// arrays (emptied) unless they are large.
+func (n *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) recycle() {
+	in, out := n.inEdgeList, n.outEdgeList
+	*n = LinkedDirectedGraph_LinkedDiGraphNode[N, E]{}
+	if c := cap(in.Slice()); c > 1 && c <= 64 {
+		in.Clear()
+		n.inEdgeList = in
+	}
+	if c := cap(out.Slice()); c > 1 && c <= 64 {
+		out.Clear()
+		n.outEdgeList = out
+	}
 }
 
 // newLinkedDirectedGraph_LinkedDiGraphNode is the constructor; nodeValue is

@@ -188,6 +188,14 @@ func objTypeBase(x ObjectType) *ObjectTypeBase {
 	return (*(*objTypeIface)(unsafe.Pointer(&x))).data
 }
 
+// objectTypeOf returns the ObjectType whose base is b, or nil for nil.
+func objectTypeOf(b *JSTypeBase) ObjectType {
+	if b == nil {
+		return nil
+	}
+	return (*ObjectTypeBase)(unsafe.Pointer(b)).selfObj()
+}
+
 func (o *ObjectTypeBase) selfObj() ObjectType {
 	switch o.objFlags & objKindMask {
 	case objKindFunction:
@@ -205,7 +213,7 @@ func (o *ObjectTypeBase) selfObj() ObjectType {
 	case objKindEnum:
 		return (*EnumType)(unsafe.Pointer(o))
 	default:
-		return o.self.(ObjectType)
+		return o.self().(ObjectType)
 	}
 }
 
@@ -284,7 +292,7 @@ func (o *ObjectTypeBase) GetJSDocInfo() *JSDocInfo {
 	if o.objFlags&objHasDocFlag == 0 {
 		return nil
 	}
-	return o.registry.getObjectDocInfo(o)
+	return o.GetRegistry().getObjectDocInfo(o)
 }
 
 // SetJSDocInfo sets the docInfo for this type from the given JSDocInfo. The
@@ -295,12 +303,12 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 	if info == nil {
 		if o.objFlags&objHasDocFlag != 0 {
 			o.objFlags &^= objHasDocFlag
-			o.registry.deleteObjectDocInfo(o)
+			o.GetRegistry().deleteObjectDocInfo(o)
 		}
 		return
 	}
 	o.objFlags |= objHasDocFlag
-	o.registry.setObjectDocInfo(o, info)
+	o.GetRegistry().setObjectDocInfo(o, info)
 }
 
 // DetectImplicitPrototypeCycle detects a cycle in the implicit prototype
@@ -420,7 +428,7 @@ func ObjectType_CreateDelegateSuffix(suffix string) string {
 
 // Java: ObjectType.getRawType()
 func (o *ObjectTypeBase) GetRawType() ObjectType {
-	t := o.self.ToMaybeTemplatizedType()
+	t := o.self().ToMaybeTemplatizedType()
 	if t == nil {
 		return o.selfObj()
 	}
@@ -533,7 +541,7 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 		// defineInferredProperty. Because the properties defined an an object
 		// can affect subtyping, it's slightly more efficient to register this
 		// after defining the property.
-		o.registry.RegisterPropertyOnType(propertyName.String_(), self)
+		o.GetRegistry().RegisterPropertyOnType(propertyName.String_(), self)
 	}
 	return result
 }
@@ -569,7 +577,7 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 // Java: ObjectType.defineInferredProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
 	self := o.selfObj()
-	if o.self.HasProperty(propertyName) {
+	if o.self().HasProperty(propertyName) {
 		if self.IsPropertyTypeDeclared(propertyName) {
 			// We never want to hide a declared property with an inferred
 			// property.
@@ -588,7 +596,7 @@ func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSTyp
 	// defineDeclaredProperty. Because the properties defined an an object can
 	// affect subtyping, it's slightly more efficient to register this after
 	// defining the property.
-	o.registry.RegisterPropertyOnType(propertyName, self)
+	o.GetRegistry().RegisterPropertyOnType(propertyName, self)
 
 	return result
 }
@@ -720,7 +728,7 @@ func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite
 
 // Java: ObjectType.findPropertyTypeWithoutConsideringTemplateTypes(Property.Key)
 func (o *ObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
-	if o.self.HasPropertyByKey(propertyName) {
+	if o.self().HasPropertyByKey(propertyName) {
 		return o.selfObj().GetPropertyTypeByKey(propertyName)
 	}
 	return nil
@@ -751,9 +759,9 @@ func (o *ObjectTypeBase) GetPropertyTypeByKey(propertyName Property_Key) JSType 
 // Java: ObjectType.GetPropertyTypeFromSlot(StaticTypedSlot)
 func (o *ObjectTypeBase) GetPropertyTypeFromSlot(slot *Property) JSType {
 	if slot == nil {
-		if o.self.IsNoResolvedType() || o.self.IsCheckedUnknownType() {
+		if o.self().IsNoResolvedType() || o.self().IsCheckedUnknownType() {
 			return o.GetNativeType(JSTypeNative_CHECKED_UNKNOWN_TYPE)
-		} else if o.self.IsEmptyType() {
+		} else if o.self().IsEmptyType() {
 			return o.GetNativeType(JSTypeNative_NO_TYPE)
 		}
 		return o.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
@@ -764,7 +772,7 @@ func (o *ObjectTypeBase) GetPropertyTypeFromSlot(slot *Property) JSType {
 // Java: ObjectType.getPropertyKind(Property.Key, boolean)
 func (o *ObjectTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
 	// Unknown types have all properties.
-	return JSType_HasPropertyKind_Of(o.self.IsEmptyType() || o.self.IsUnknownType() || o.selfObj().GetSlotByKey(propertyName) != nil)
+	return JSType_HasPropertyKind_Of(o.self().IsEmptyType() || o.self().IsUnknownType() || o.selfObj().GetSlotByKey(propertyName) != nil)
 }
 
 // GetOwnPropertyKind checks whether the property whose name is given is
@@ -964,7 +972,7 @@ func (o *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
 		var next ObjectType
 		switch ob.objFlags & objKindMask {
 		case objKindPrototype, objKindFunction:
-			next = (*PrototypeObjectTypeBase)(unsafe.Pointer(ob)).implicitPrototypeFallback
+			next = objectTypeOf((*PrototypeObjectTypeBase)(unsafe.Pointer(ob)).implicitPrototypeFallback)
 		case objKindInstance:
 			next = (*InstanceObjectType)(unsafe.Pointer(ob)).GetImplicitPrototype()
 		default:

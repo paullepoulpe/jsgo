@@ -57,12 +57,12 @@ func (t *VoidType) GetTypeClass() JSTypeClass {
 
 // Java: VoidType.restrictByNotNullOrUndefined()
 func (t *VoidType) RestrictByNotNullOrUndefined() JSType {
-	return t.registry.GetNativeType(JSTypeNative_NO_TYPE)
+	return t.GetRegistry().GetNativeType(JSTypeNative_NO_TYPE)
 }
 
 // Java: VoidType.restrictByNotUndefined()
 func (t *VoidType) RestrictByNotUndefined() JSType {
-	return t.registry.GetNativeType(JSTypeNative_NO_TYPE)
+	return t.GetRegistry().GetNativeType(JSTypeNative_NO_TYPE)
 }
 
 // Java: VoidType.testForEquality(JSType)

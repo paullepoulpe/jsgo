@@ -82,12 +82,12 @@ func (t *NullType) MatchesStringContext() bool {
 
 // Java: NullType.restrictByNotNullOrUndefined()
 func (t *NullType) RestrictByNotNullOrUndefined() JSType {
-	return t.registry.GetNativeType(JSTypeNative_NO_TYPE)
+	return t.GetRegistry().GetNativeType(JSTypeNative_NO_TYPE)
 }
 
 // Java: NullType.restrictByNotNull()
 func (t *NullType) RestrictByNotNull() JSType {
-	return t.registry.GetNativeType(JSTypeNative_NO_TYPE)
+	return t.GetRegistry().GetNativeType(JSTypeNative_NO_TYPE)
 }
 
 // Java: NullType.testForEquality(JSType)

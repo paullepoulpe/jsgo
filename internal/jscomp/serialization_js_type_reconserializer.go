@@ -20,14 +20,11 @@ package jscomp
 
 import (
 	"slices"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-var nextReconserializerGen uint32
 
 // JSTypeReconserializer takes JSTypes produced by JSCompiler's typechecker
 // and deduplicates and serializes them into the TypedAST colors format.
@@ -49,7 +46,11 @@ type JSTypeReconserializer struct {
 	unknownRecord     *JSTypeReconserializer_SeenTypeRecord
 	topFunctionRecord *JSTypeReconserializer_SeenTypeRecord
 
-	serialGen              uint32
+	// The pointer of the record of each type recorded so far.
+	//
+	// Go-only: performance — an identity map from a type to its pointer,
+	// equivalent to searching the records' jstypes.
+	typePointers           map[*rhino.JSTypeBase]int32
 	recordsByPointer       []*JSTypeReconserializer_SeenTypeRecord
 	seenTypeRecords        *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
 	disambiguateEdges      *jutil.LinkedHashMap[int32, disambiguateEdgeSet]
@@ -145,10 +146,7 @@ func newJSTypeReconserializer(
 	serializationMode *SerializationOptions) *JSTypeReconserializer {
 	s := &JSTypeReconserializer{}
 	// Field initializers.
-	s.serialGen = atomic.AddUint32(&nextReconserializerGen, 1)
-	if s.serialGen == 0 {
-		s.serialGen = atomic.AddUint32(&nextReconserializerGen, 1)
-	}
+	s.typePointers = make(map[*rhino.JSTypeBase]int32, 4096)
 	s.recordsByPointer = make([]*JSTypeReconserializer_SeenTypeRecord, 0, 4096)
 	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](4096)
 	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, disambiguateEdgeSet](2048)
@@ -293,16 +291,18 @@ func JSTypeReconserializer_Create(
 
 // LookupTypePointer returns the cached pointer for type_ if it was serialized.
 func (s *JSTypeReconserializer) LookupTypePointer(type_ rhino.JSType) (int, bool) {
-	tb := type_.GetJSTypeBase()
-	if tb.SerialGen == s.serialGen {
-		return int(tb.SerialPointer), true
-	}
-	return 0, false
+	p, ok := s.typePointers[type_.GetJSTypeBase()]
+	return int(p), ok
+}
+
+// hasTypePointer reports whether the type of tb has been recorded.
+func (s *JSTypeReconserializer) hasTypePointer(tb *rhino.JSTypeBase) bool {
+	_, ok := s.typePointers[tb]
+	return ok
 }
 
 func (s *JSTypeReconserializer) cacheForwardedRecord(_ rhino.JSType, tb *rhino.JSTypeBase, rec *JSTypeReconserializer_SeenTypeRecord) *JSTypeReconserializer_SeenTypeRecord {
-	tb.SerialGen = s.serialGen
-	tb.SerialPointer = int32(rec.pointer)
+	s.typePointers[tb] = int32(rec.pointer)
 	return rec
 }
 
@@ -318,8 +318,8 @@ func (s *JSTypeReconserializer) SerializeType(type_ rhino.JSType) int {
 // Java: JSTypeReconserializer.recordType(JSType)
 func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
 	tb := type_.GetJSTypeBase()
-	if tb.SerialGen == s.serialGen {
-		return s.recordsByPointer[tb.SerialPointer]
+	if p, ok := s.typePointers[tb]; ok {
+		return s.recordsByPointer[p]
 	}
 
 	var forwardedType rhino.JSType
@@ -537,9 +537,8 @@ func (s *JSTypeReconserializer) GetOrCreateRecord(id colors.ColorId, jstype rhin
 		s.recordsByPointer = append(s.recordsByPointer, record)
 	}
 	tb := jstype.GetJSTypeBase()
-	if tb.SerialGen != s.serialGen {
-		tb.SerialGen = s.serialGen
-		tb.SerialPointer = int32(record.pointer)
+	if _, ok := s.typePointers[tb]; !ok {
+		s.typePointers[tb] = int32(record.pointer)
 		record.jstypes = append(record.jstypes, jstype)
 	}
 

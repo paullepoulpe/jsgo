@@ -101,7 +101,6 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 
 	var cfg ControlFlowGraph[*rhino.Node]
-	ownCfg := false
 	if c.sharedCfgSource != nil {
 		if shared := c.sharedCfgSource.PeekCurrentScopeCfg(); shared != nil &&
 			shared.GetEntry() != nil &&
@@ -111,12 +110,8 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 	if cfg == nil {
 		cfg = c.GetControlFlowGraph(c.compiler)
-		ownCfg = true
 	}
 	if c.FastAllPathsReturnCheck(cfg) {
-		if ownCfg {
-			c.ReleaseCurrentScopeCfg()
-		}
 		return
 	}
 
@@ -132,9 +127,6 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	if !test.AllPathsSatisfyPredicate() {
 		c.compiler.Report(
 			JSError_MakeWithNode(t.GetScopeRoot(), CheckMissingReturn_MISSING_RETURN_STATEMENT, returnType.String()))
-	}
-	if ownCfg {
-		c.ReleaseCurrentScopeCfg()
 	}
 }
 

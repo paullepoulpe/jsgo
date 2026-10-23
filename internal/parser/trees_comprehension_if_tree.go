@@ -28,9 +28,9 @@ type ComprehensionIfTree struct {
 // NewComprehensionIfTree constructs a ComprehensionIfTree.
 //
 // Java: ComprehensionIfTree(SourceRange, ParseTree)
-func NewComprehensionIfTree(location *SourceRange, expression ParseTree) *ComprehensionIfTree {
+func NewComprehensionIfTree(location SourceRange, expression ParseTree) *ComprehensionIfTree {
 	t := &ComprehensionIfTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPREHENSION_IF, location)
+	t.InitParseTreeBase(ParseTreeType_COMPREHENSION_IF, location)
 	t.Expression = expression
 	return t
 }

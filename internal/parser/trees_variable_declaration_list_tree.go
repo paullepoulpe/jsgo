@@ -29,9 +29,9 @@ type VariableDeclarationListTree struct {
 // NewVariableDeclarationListTree constructs a VariableDeclarationListTree.
 //
 // Java: VariableDeclarationListTree(SourceRange, TokenType, ImmutableList)
-func NewVariableDeclarationListTree(location *SourceRange, declarationType TokenType, declarations []*VariableDeclarationTree) *VariableDeclarationListTree {
+func NewVariableDeclarationListTree(location SourceRange, declarationType TokenType, declarations []*VariableDeclarationTree) *VariableDeclarationListTree {
 	t := &VariableDeclarationListTree{}
-	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_DECLARATION_LIST, location)
+	t.InitParseTreeBase(ParseTreeType_VARIABLE_DECLARATION_LIST, location)
 	t.DeclarationType = declarationType
 	t.Declarations = declarations
 	return t

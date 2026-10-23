@@ -29,9 +29,9 @@ type TemplateLiteralExpressionTree struct {
 // NewTemplateLiteralExpressionTree constructs a TemplateLiteralExpressionTree.
 //
 // Java: TemplateLiteralExpressionTree(SourceRange, ParseTree, ImmutableList)
-func NewTemplateLiteralExpressionTree(location *SourceRange, operand ParseTree, elements []ParseTree) *TemplateLiteralExpressionTree {
+func NewTemplateLiteralExpressionTree(location SourceRange, operand ParseTree, elements []ParseTree) *TemplateLiteralExpressionTree {
 	t := &TemplateLiteralExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_TEMPLATE_LITERAL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_TEMPLATE_LITERAL_EXPRESSION, location)
 	t.Operand = operand
 	t.Elements = elements
 	return t

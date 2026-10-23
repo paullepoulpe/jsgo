@@ -25,10 +25,12 @@ import (
 	"io"
 	"iter"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"unsafe"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -176,6 +178,10 @@ type Compiler struct {
 
 	typeCheckingHasRun bool
 
+	// Go-only: the registry that ClearJSTypeRegistry dropped, for
+	// typeRegistryReleased.
+	clearedTypeRegistry weak.Pointer[rhino.JSTypeRegistry]
+
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
 
@@ -265,7 +271,6 @@ type Compiler struct {
 	asErrorHandler      *compiler_errorHandler
 	asSourceFileMapping *compiler_sourceFileMapping
 	cachedAstAnalyzer   *AstAnalyzer
-	nodeArena           rhino.NodeArena
 
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods and blocks hold.
@@ -428,7 +433,6 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
-	rhino.EnableNodePooling()
 	c := &Compiler{}
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
@@ -1211,7 +1215,22 @@ func (c *Compiler) Compile(externs []*SourceFile, inputs []*SourceFile, options 
 func (c *Compiler) GenerateReport() {
 	t := c.NewTracer("generateReport")
 	c.errorManager.GenerateReport()
+	c.clearSourcesCachedForReport()
 	c.StopTracer(t, "generateReport")
+}
+
+// clearSourcesCachedForReport drops the code that the report read into the
+// SourceFiles to quote the lines of its warnings, so that it is not kept
+// through the output. A later reader loads it again.
+//
+// Go-only: performance — Java keeps it cached until the Compiler is gone.
+func (c *Compiler) clearSourcesCachedForReport() {
+	for input := range c.inputsById.Values() {
+		input.GetSourceFile().ClearCachedSource()
+	}
+	for f := range c.sourceMapOriginalSources.Values() {
+		f.ClearCachedSource()
+	}
 }
 
 // CompileChunks compiles a list of chunks.
@@ -1366,9 +1385,6 @@ func (c *Compiler) SetTimeout(timeout int) {
 //
 // Java: Compiler.runInCompilerThread(Callable<T>)
 func Compiler_RunInCompilerThread[T any](c *Compiler, callable func() T) T {
-	if rhino.EnterNodeArena(&c.nodeArena) {
-		defer rhino.ExitNodeArena(&c.nodeArena)
-	}
 	return CompilerExecutor_RunInCompilerThread(
 		c.compilerExecutor, callable, c.options != nil && c.options.GetTracerMode().IsOn())
 }
@@ -2173,9 +2189,26 @@ func (c *Compiler) GetChunks() []*JSChunk {
 
 // Java: Compiler.clearJSTypeRegistry()
 func (c *Compiler) ClearJSTypeRegistry() {
+	if c.typeRegistry != nil {
+		c.clearedTypeRegistry = weak.Make(c.typeRegistry)
+	}
 	c.typeRegistry = nil
 	c.typeValidator = nil
 	c.abstractInterpreter = nil
+}
+
+// typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
+// dropped has been garbage collected. Every JSType points to its registry,
+// so this is a strict check: it fails as long as any JSType at all is still
+// reachable (for example from a Node, live or detached, that still carries
+// it), even if the registry emptied its tables and the rest of the type
+// graph was freed.
+//
+// Go-only: debugging aid for tests.
+func (c *Compiler) typeRegistryReleased() bool {
+	runtime.GC()
+	runtime.GC()
+	return c.clearedTypeRegistry.Value() == nil
 }
 
 // Java: Compiler.isTypeRegistryCleared()
@@ -2414,7 +2447,6 @@ func (c *Compiler) InitializeModuleLoader() {
 //
 // Java: Compiler.parseInputs()
 func (c *Compiler) ParseInputs() (result *rhino.Node) {
-	defer parser.DrainParseArenaPool()
 	devMode := c.options.GetDevMode() != CompilerOptions_DevMode_OFF
 
 	// If old roots exist (we are parsing a second time), detach each of the
@@ -2999,29 +3031,8 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // ------------------------------------------------------------------------
 
 func (c *Compiler) evictPassArenaCaches() {
-	evictCachedGlobalNamespaceArenas()
-	if a := cachedRUCArena.Swap(nil); a != nil {
-		removeUnusedCodeArenaPool.Put(a)
-	}
-	for i := range cachedRCArenas {
-		if a := cachedRCArenas[i].Swap(nil); a != nil {
-			referenceCollectorArenaPool.Put(a)
-		}
-	}
 	if a := cachedCCAArena.Swap(nil); a != nil {
 		crossChunkArenaPool.Put(a)
-	}
-	for i := range cachedScopeArenas {
-		if a := cachedScopeArenas[i].Swap(nil); a != nil {
-			a.trimSmall()
-			scopeArenaPool.Put(a)
-		}
-	}
-	if ic := cachedInferConstsCollector.Swap(nil); ic != nil {
-		inferConstsCollectorPool.Put(ic)
-	}
-	if p := cachedIfPoolState.Swap(nil); p != nil && len(p.fnStateChunks) <= 64 {
-		ifPool.Put(p)
 	}
 }
 

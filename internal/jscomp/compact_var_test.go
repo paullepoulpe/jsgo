@@ -10,8 +10,8 @@ func TestCompactVarCrossClassEquality(t *testing.T) {
 	if unsafe.Sizeof(Var{}) != 40 {
 		t.Fatalf("Var has %d bytes, want 40", unsafe.Sizeof(Var{}))
 	}
-	if unsafe.Sizeof(TypedVar{}) != 56 {
-		t.Fatalf("TypedVar has %d bytes, want 56", unsafe.Sizeof(TypedVar{}))
+	if unsafe.Sizeof(TypedVar{}) != 64 {
+		t.Fatalf("TypedVar has %d bytes, want 64", unsafe.Sizeof(TypedVar{}))
 	}
 	root := rhino.IR_Root()
 	scope := Scope_CreateGlobalScope(root)

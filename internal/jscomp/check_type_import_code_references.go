@@ -86,8 +86,6 @@ func (c *CheckTypeImportCodeReferences) Process(externs *rhino.Node, root *rhino
 		return
 	}
 	sc := NewSyntacticScopeCreator(c.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
 		callback:     c,

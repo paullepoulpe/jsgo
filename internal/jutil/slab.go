@@ -1,17 +1,21 @@
 package jutil
 
-import "unsafe"
+import "slices"
 
 // Slab allocates values of T in chunks: New returns a pointer to a new zero
-// T, and only one call in a few hundred allocates. It suits many small
-// objects that are created together and become garbage together, such as
-// the tokens and source positions of one parse: a pointer to any element
-// keeps its whole chunk alive, so it must not be used for objects that may
-// outlive their neighbours. The zero Slab is ready to use.
+// T, and only one call in a few hundred allocates. The zero Slab is ready to
+// use.
+//
+// Use it only for objects that are created together and become garbage
+// together, such as one pass's Vars or union-find nodes: a pointer to any
+// element keeps its whole chunk alive (and everything the chunk's elements
+// point to). Never use it for long-lived objects with individual lifetimes
+// such as AST nodes or types: on typed-full, slab-allocated AST nodes kept
+// dead neighbours (and through them the whole type registry) alive, and
+// one allocation per node cut the peak live heap by 7 %.
 //
 // Go-only: performance — the JVM allocates small objects by bumping a
-// pointer; Go's malloc costs far more per object, and in a line-for-line
-// port one allocation per token or position dominates the parser's profile.
+// pointer; Go's malloc costs far more per object.
 type Slab[T any] struct {
 	chunk      []T
 	used       int
@@ -30,9 +34,8 @@ func NewMaxSlab[T any](maxChunk int) Slab[T] {
 }
 
 const (
-	slabMinChunk       = 16
-	slabMaxChunk       = 128
-	maxSmallAllocBytes = 32760 // Go runtime maxSmallSize (32768) - gc.MallocHeaderSize (8)
+	slabMinChunk = 16
+	slabMaxChunk = 128
 )
 
 // New returns a pointer to a new zero T, distinct from every other pointer
@@ -47,37 +50,21 @@ func (s *Slab[T]) New() *T {
 }
 
 // grow starts a new chunk, twice the size of the last one up to
-// slabMaxChunk (or s.maxChunk) elements, clamped to maxSmallAllocBytes so
-// chunks stay in P-local mcache small spans instead of mallocgcLarge.
+// slabMaxChunk (or s.maxChunk) elements, so that a slab that serves few
+// objects stays small. The chunk gets every element its allocation's size
+// class holds: Go rounds an allocation up to a size class (after putting an
+// 8-byte header in front of a pointerful one over 512 bytes), so make([]T, n)
+// would leave up to 15% of the chunk's memory unused.
 func (s *Slab[T]) grow() {
-	elemSize := unsafe.Sizeof(*new(T))
-	maxSmallElems := 0
-	if elemSize > 0 {
-		maxSmallElems = max(int(maxSmallAllocBytes/elemSize), 1)
-	}
-	if s.fixedChunk > 0 {
-		fc := s.fixedChunk
-		if maxSmallElems > 0 && fc > maxSmallElems {
-			fc = maxSmallElems
+	n := s.fixedChunk
+	if n == 0 {
+		maxC := slabMaxChunk
+		if s.maxChunk > 0 {
+			maxC = s.maxChunk
 		}
-		s.chunk = make([]T, fc)
-		s.used = 0
-		return
+		n = min(max(2*len(s.chunk), slabMinChunk), maxC)
 	}
-	maxC := slabMaxChunk
-	if s.maxChunk > 0 {
-		maxC = s.maxChunk
-	}
-	if maxSmallElems > 0 && maxC > maxSmallElems {
-		maxC = maxSmallElems
-	}
-	n := 2 * cap(s.chunk)
-	if n < slabMinChunk {
-		n = slabMinChunk
-	}
-	if n > maxC {
-		n = maxC
-	}
-	s.chunk = make([]T, n)
+	s.chunk = slices.Grow([]T(nil), n)
+	s.chunk = s.chunk[:cap(s.chunk)]
 	s.used = 0
 }

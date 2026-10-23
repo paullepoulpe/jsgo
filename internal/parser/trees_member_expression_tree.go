@@ -29,9 +29,9 @@ type MemberExpressionTree struct {
 // NewMemberExpressionTree constructs a MemberExpressionTree.
 //
 // Java: MemberExpressionTree(SourceRange, ParseTree, IdentifierToken)
-func NewMemberExpressionTree(location *SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
+func NewMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
 	t := &MemberExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_MEMBER_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_MEMBER_EXPRESSION, location)
 	t.Operand = operand
 	t.MemberName = memberName
 	return t

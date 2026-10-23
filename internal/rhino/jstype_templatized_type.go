@@ -53,7 +53,7 @@ const TemplatizedType_TYPE_CLASS = JSTypeClass_TEMPLATIZED
 
 // Java: TemplatizedType(JSTypeRegistry, ObjectType, ImmutableList<JSType>)
 func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templateTypes []JSType) *TemplatizedType {
-	t := registry.allocTemplatizedType()
+	t := &TemplatizedType{}
 	t.objFlags = objKindTemplatized
 	ttm := objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes)
 	t.InitProxyObjectTypeBaseWithTemplateTypeMap(t, registry, objectType, ttm)
@@ -76,7 +76,7 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 		unk := t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		t.isSpecializedOnlyWithUnknown = jsTypeEquals(unk, r0) && jsTypeEquals(unk, r1)
 	} else {
-		builder := registry.allocJSTypeSlice(nParams)[:0]
+		builder := make([]JSType, 0, nParams)
 		maybeIsSpecializedOnlyWithUnknown := true
 		for _, newlyFilledTemplateKey := range typeParams {
 			resolvedType := ttm.GetResolvedTemplateType(newlyFilledTemplateKey)
@@ -109,7 +109,7 @@ func (t *TemplatizedType) GetTypeClass() JSTypeClass {
 // Java: TemplatizedType.getCtorImplementedInterfaces()
 func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 	resolvedImplementedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorImplementedInterfaces() {
 		resolvedImplementedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
@@ -119,7 +119,7 @@ func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
 // Java: TemplatizedType.getCtorExtendedInterfaces()
 func (t *TemplatizedType) GetCtorExtendedInterfaces() []ObjectType {
 	resolvedExtendedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorExtendedInterfaces() {
 		resolvedExtendedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
 	}
@@ -181,7 +181,7 @@ func (t *TemplatizedType) GetPropertyTypeByKey(propertyName Property_Key) JSType
 	if result == nil {
 		return nil
 	}
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.registry, t.templateTypeMap)
+	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
 	return replacer.VisitJSType(result)
 }
 
@@ -258,7 +258,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 			if len(t.templateTypes) <= len(builderBuf) {
 				builder = builderBuf[:len(t.templateTypes)]
 			} else {
-				builder = t.registry.allocJSTypeSlice(len(t.templateTypes))
+				builder = make([]JSType, len(t.templateTypes))
 			}
 			copy(builder[:i], t.templateTypes[:i])
 			builder[i] = resolved
@@ -269,7 +269,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 		if builder == nil {
 			builder = t.templateTypes
 		}
-		return t.registry.CreateTemplatizedTypeOfList(t.GetReferencedType(), builder)
+		return t.GetRegistry().CreateTemplatizedTypeOfList(t.GetReferencedType(), builder)
 	} else {
 		return t
 	}

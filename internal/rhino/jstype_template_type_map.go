@@ -131,7 +131,7 @@ func NewTemplateTypeMap(
 	templateKeys []*TemplateType,
 	templateValues []JSType,
 	subMapStarts *jutil.BitSet) *TemplateTypeMap {
-	return initTemplateTypeMap(registry.allocTemplateTypeMap(), registry, templateKeys, templateValues, subMapStarts)
+	return initTemplateTypeMap(&TemplateTypeMap{}, registry, templateKeys, templateValues, subMapStarts)
 }
 
 func initTemplateTypeMap(
@@ -164,7 +164,7 @@ func initTemplateTypeMap(
 
 	var resolvedValues []JSType
 	if nValues < nKeys {
-		resolvedValues = registry.allocJSTypeSlice(nKeys)
+		resolvedValues = make([]JSType, nKeys)
 		for i := nValues; i < nKeys; i++ {
 			resolvedValues[i] = m.templateKeys[i].GetBound()
 		}
@@ -231,7 +231,7 @@ func initTemplateTypeMap(
 			if resolved == templateValue {
 				continue
 			}
-			resolvedValues = registry.allocJSTypeSlice(nKeys)
+			resolvedValues = make([]JSType, nKeys)
 			copy(resolvedValues[i+1:], m.templateValues[i+1:])
 		}
 		resolvedValues[i] = resolved
@@ -326,8 +326,8 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	}
 
 	nKeys := len(m.templateKeys)
-	out := m.registry.allocTemplateTypeMap()
-	extendedValues := m.registry.allocJSTypeSlice(nKeys)
+	out := &TemplateTypeMap{}
+	extendedValues := make([]JSType, nKeys)
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {
@@ -437,7 +437,7 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 	if nNewKeys == 0 {
 		extendedKeys = m.templateKeys
 	} else {
-		extendedKeys = m.registry.allocTemplateTypeSlice(nOldKeys + nNewKeys)
+		extendedKeys = make([]*TemplateType, nOldKeys+nNewKeys)
 		copy(extendedKeys, m.templateKeys)
 		for i, k := range keys {
 			if k == nil {
@@ -447,9 +447,9 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 		}
 	}
 
-	out := m.registry.allocTemplateTypeMap()
+	out := &TemplateTypeMap{}
 	nTotalValues := nOldKeys + len(values)
-	extendedValues := m.registry.allocJSTypeSlice(nTotalValues)
+	extendedValues := make([]JSType, nTotalValues)
 	idx := 0
 	for _, e := range m.templateValues {
 		if e == nil {

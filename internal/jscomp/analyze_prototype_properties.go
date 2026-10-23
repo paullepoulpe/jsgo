@@ -175,11 +175,9 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 
-// Release returns pooled Scope/Var arenas owned by this AnalyzePrototypeProperties
-// back to their sync.Pools.
+// Release drops the scope creator of this AnalyzePrototypeProperties.
 func (a *AnalyzePrototypeProperties) Release() {
 	if a != nil && a.scopeCreator != nil {
-		a.scopeCreator.ReleaseArena()
 		a.scopeCreator = nil
 	}
 }
@@ -250,7 +248,6 @@ func (a *AnalyzePrototypeProperties) Process(externRoot *rhino.Node, root *rhino
 
 	if a.scopeCreator == nil {
 		a.scopeCreator = NewSyntacticScopeCreator(a.compiler)
-		a.scopeCreator.EnableArenaPool()
 	}
 	var propProc AnalyzePrototypeProperties_ProcessProperties
 	propProc.outer = a

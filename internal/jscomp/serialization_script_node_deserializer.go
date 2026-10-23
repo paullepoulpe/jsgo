@@ -49,45 +49,18 @@ func NewScriptNodeDeserializer(
 	stringPool *StringPool,
 	colorPoolShard *ColorPool_ShardView,
 	filePool []*SourceFile) *ScriptNodeDeserializer {
-	return newScriptNodeDeserializerFromSlab(nil, nil, ast, stringPool, colorPoolShard, filePool)
-}
-
-func newScriptNodeDeserializerFromSlab(
-	slab *jutil.Slab[ScriptNodeDeserializer],
-	smallByteSlab *[]byte,
-	ast *LazyAst,
-	stringPool *StringPool,
-	colorPoolShard *ColorPool_ShardView,
-	filePool []*SourceFile,
-) *ScriptNodeDeserializer {
 	scriptBytes := ast.GetScript()
-	if n := len(scriptBytes); n <= 256 {
-		if smallByteSlab != nil && n > 0 {
-			buf := *smallByteSlab
-			if cap(buf)-len(buf) < n {
-				buf = make([]byte, 0, 32760)
-			}
-			off := len(buf)
-			buf = append(buf, scriptBytes...)
-			*smallByteSlab = buf
-			scriptBytes = buf[off : off+n : off+n]
-		} else {
-			scriptBytes = bytes.Clone(scriptBytes)
-		}
+	if len(scriptBytes) <= 256 {
+		scriptBytes = bytes.Clone(scriptBytes)
 	}
-	var d *ScriptNodeDeserializer
-	if slab != nil {
-		d = slab.New()
-	} else {
-		d = &ScriptNodeDeserializer{}
+	return &ScriptNodeDeserializer{
+		scriptBytes:      scriptBytes,
+		sourceFile:       filePool[ast.GetSourceFile()-1],
+		sourceMappingURL: ast.GetSourceMappingUrl(),
+		colorPoolShard:   colorPoolShard,
+		stringPool:       stringPool,
+		filePool:         filePool,
 	}
-	d.scriptBytes = scriptBytes
-	d.sourceFile = filePool[ast.GetSourceFile()-1]
-	d.sourceMappingURL = ast.GetSourceMappingUrl()
-	d.colorPoolShard = colorPoolShard
-	d.stringPool = stringPool
-	d.filePool = filePool
-	return d
 }
 
 var scriptNodeDeserializerRunnerPool = sync.Pool{
@@ -101,35 +74,20 @@ var scriptNodeDeserializerRunnerPool = sync.Pool{
 
 // Java: ScriptNodeDeserializer.deserializeNew()
 func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
-	return d.DeserializeNewWithSlab(nil)
-}
-
-// DeserializeNewWithSlab deserializes the script into rhino.Nodes allocated from slab (when non-nil).
-func (d *ScriptNodeDeserializer) DeserializeNewWithSlab(slab *jutil.Slab[rhino.Node]) *rhino.Node {
 	r := scriptNodeDeserializerRunnerPool.Get().(*scriptNodeDeserializer_Runner)
-	jsdocSlabs := rhino.AcquireJSDocBuilderSlabs()
-	r.jsdocBuilder.SetSlabs(jsdocSlabs)
 	r.owner_ = d
 	r.featureCollectorVal.Reset()
 	r.featureCollector = &r.featureCollectorVal
-	r.extNodeSlab = slab
-	if slab == nil {
-		r.nodeSlab = jutil.NewMaxSlab[rhino.Node](511)
-	}
 	r.previousLine = 0
 	r.previousColumn = 0
 	r.childBytes = r.childBytes[:0]
 	defer func() {
 		r.owner_ = nil
 		r.featureCollector = nil
-		r.extNodeSlab = nil
-		r.nodeSlab = jutil.Slab[rhino.Node]{}
 		r.templateNodeVal = rhino.Node{}
 		clear(r.childBytes)
 		r.childBytes = r.childBytes[:0]
 		r.jsdoc = OptimizationJsdoc{}
-		r.jsdocBuilder.SetSlabs(nil)
-		rhino.ReleaseJSDocBuilderSlabs(jsdocSlabs)
 		scriptNodeDeserializerRunnerPool.Put(r)
 	}()
 	return r.Run()
@@ -140,8 +98,6 @@ type scriptNodeDeserializer_Runner struct {
 	owner_              *ScriptNodeDeserializer
 	featureCollector    *parsing.FeatureCollector
 	featureCollectorVal parsing.FeatureCollector
-	extNodeSlab         *jutil.Slab[rhino.Node]
-	nodeSlab            jutil.Slab[rhino.Node]
 	templateNodeVal     rhino.Node
 	previousLine        int
 	previousColumn      int
@@ -153,20 +109,7 @@ type scriptNodeDeserializer_Runner struct {
 }
 
 func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNodeDeserializer_Runner {
-	jsdocSlabs := rhino.NewJSDocBuilderSlabs()
-	r := &scriptNodeDeserializer_Runner{
-		owner_:           owner,
-		featureCollector: parsing.NewFeatureCollector(),
-	}
-	r.jsdocBuilder.SetSlabs(&jsdocSlabs)
-	return r
-}
-
-func (r *scriptNodeDeserializer_Runner) allocNode() *rhino.Node {
-	if r.extNodeSlab != nil {
-		return r.extNodeSlab.New()
-	}
-	return r.nodeSlab.New()
+	return &scriptNodeDeserializer_Runner{owner_: owner, featureCollector: parsing.NewFeatureCollector()}
 }
 
 // Java: ScriptNodeDeserializer.Runner.run()
@@ -361,11 +304,11 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 
 func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode *rhino.Node) *rhino.Node {
 	id := r.owner_.stringPool.GetInternedStrings().GetID(int(stringValPtr))
-	return r.allocNode().InitFromTemplate(token, templateNode).SetStringID(id)
+	return new(rhino.Node).InitFromTemplate(token, templateNode).SetStringID(id)
 }
 
 func (r *scriptNodeDeserializer_Runner) newNodeFromTemplate(token rhino.Token, templateNode *rhino.Node) *rhino.Node {
-	return r.allocNode().InitFromTemplate(token, templateNode)
+	return new(rhino.Node).InitFromTemplate(token, templateNode)
 }
 
 func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
@@ -381,7 +324,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 		return (&rhino.Node{}).InitFromTemplate(rhino.Token_SCRIPT, templateNode)
 
 	case NodeKind_NUMBER_LITERAL:
-		return r.allocNode().InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
+		return new(rhino.Node).InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
 	case NodeKind_STRING_LITERAL:
 		return r.stringNode(rhino.Token_STRINGLIT, stringValPtr, templateNode)
 	case NodeKind_IDENTIFIER:
@@ -398,7 +341,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 		return r.newNodeFromTemplate(rhino.Token_VOID, templateNode)
 	case NodeKind_BIGINT_LITERAL:
 		bigintString := r.owner_.stringPool.Get(int(stringValPtr))
-		return r.allocNode().InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
+		return new(rhino.Node).InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
 	case NodeKind_REGEX_LITERAL:
 		return r.newNodeFromTemplate(rhino.Token_REGEXP, templateNode)
 	case NodeKind_ARRAY_LITERAL:
@@ -531,7 +474,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 	case NodeKind_TEMPLATELIT_SUB:
 		return r.newNodeFromTemplate(rhino.Token_TEMPLATELIT_SUB, templateNode)
 	case NodeKind_TEMPLATELIT_STRING:
-		return r.allocNode().InitTemplateLitStringFromStringPool(
+		return new(rhino.Node).InitTemplateLitStringFromStringPool(
 			r.owner_.stringPool.GetInternedStrings(),
 			int(templateCookedPtr),
 			int(templateRawPtr),

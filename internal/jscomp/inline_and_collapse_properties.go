@@ -23,7 +23,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -188,7 +187,6 @@ func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.N
 			p.namespace.Release()
 			p.namespace = nil
 		}
-		evictCachedGlobalNamespaceArenas()
 	}()
 	logFile := p.compiler.CreateOrReopenIndexedLog(reflect.TypeOf(p).Elem(), "decisions.log")
 	defer logFile.Close()
@@ -420,7 +418,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 	}
 	innerName := innerNameNode.GetString()
 	syntacticScopeCreator := NewSyntacticScopeCreator(a.outer.compiler)
-	syntacticScopeCreator.EnableArenaPool()
 	innerScope := syntacticScopeCreator.CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
 	innerNameVar := jutil.CheckNotNull(innerScope.GetVar(innerName))
 	collector := NewReferenceCollectorWithVarFilter(
@@ -428,8 +425,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
 		syntacticScopeCreator,
 		func(v *Var) bool { return jutil.ObjectsEquals(innerNameVar, v) })
-	collector.enableArenaPool()
-	defer collector.release()
 	collector.ProcessScope(innerScope)
 	innerNameRefs := collector.GetReferences(innerNameVar)
 
@@ -618,8 +613,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			ReferenceCollector_DO_NOTHING_BEHAVIOR,
 			NewSyntacticScopeCreator(a.outer.compiler),
 			func(v *Var) bool { return jutil.ObjectsEquals(aliasVar, v) })
-		collector.enableArenaPool()
-		defer collector.release()
 		aliasScope := aliasVar.GetScope().(*Scope)
 		collector.ProcessScope(aliasScope)
 
@@ -1230,7 +1223,7 @@ func inlineAndCollapseProperties_getProperty(
 	props := parent.props.Slice()
 	if len(props) <= 16 {
 		for _, p := range props {
-			if p.baseName == propName {
+			if p.GetBaseName() == propName {
 				return p
 			}
 		}
@@ -1400,19 +1393,6 @@ type InlineAndCollapseProperties_CollapseProperties struct {
 	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name]
 
 	dynamicallyImportedModules *jutil.LinkedHashSet[string]
-	aliasByteSlab              []byte
-}
-
-func (c *InlineAndCollapseProperties_CollapseProperties) allocSlabBytes(n int) []byte {
-	if n > 32760 {
-		return make([]byte, n)
-	}
-	if len(c.aliasByteSlab) < n {
-		c.aliasByteSlab = make([]byte, 32760)
-	}
-	b := c.aliasByteSlab[:n:n]
-	c.aliasByteSlab = c.aliasByteSlab[n:]
-	return b
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties()
@@ -1443,7 +1423,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs *rhino.
 		// invalidating the node ancestry stored with each reference.
 		c.CollapseDeclarationOfNameAndDescendants(name, name.GetBaseName(), escaped)
 	}
-	c.aliasByteSlab = nil
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.canCollapse(Name)
@@ -1846,14 +1825,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginal
 		return baseOriginalName
 	}
 	if extraDepth == 1 {
-		totalLen := len(baseOriginalName) + len(n.baseName)
-		if totalLen == 0 {
-			return ""
-		}
-		buf := c.allocSlabBytes(totalLen)
-		copy(buf, baseOriginalName)
-		copy(buf[len(baseOriginalName):], n.baseName)
-		return unsafe.String(&buf[0], totalLen)
+		return baseOriginalName + n.GetBaseName()
 	}
 	var stackBuf [16]string
 	var parts []string
@@ -1865,19 +1837,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginal
 	totalLen := len(baseOriginalName)
 	cur := n
 	for i := extraDepth - 1; i >= 0; i-- {
-		parts[i] = cur.baseName
-		totalLen += len(cur.baseName)
+		parts[i] = cur.GetBaseName()
+		totalLen += len(parts[i])
 		cur = cur.parent
 	}
-	if totalLen == 0 {
-		return ""
-	}
-	buf := c.allocSlabBytes(totalLen)
-	pos := copy(buf, baseOriginalName)
+	var sb strings.Builder
+	sb.Grow(totalLen)
+	sb.WriteString(baseOriginalName)
 	for _, s := range parts {
-		pos += copy(buf[pos:], s)
+		sb.WriteString(s)
 	}
-	return unsafe.String(&buf[0], totalLen)
+	return sb.String()
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
@@ -2616,47 +2586,16 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredPr
 
 // Java: InlineAndCollapseProperties.CollapseProperties.appendPropForAlias(String, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) AppendPropForAlias(root string, prop string) string {
-	dollars := 0
 	if strings.IndexByte(prop, '$') != -1 {
-		for i := 0; i < len(prop); i++ {
-			if prop[i] == '$' {
-				dollars++
-			}
-		}
-	}
-	baseLen := len(root) + 1 + len(prop) + dollars
-	buf := c.allocSlabBytes(baseLen)
-	pos := copy(buf, root)
-	buf[pos] = '$'
-	pos++
-	if dollars == 0 {
-		copy(buf[pos:], prop)
-	} else {
 		// Encode '$' in a property as '$0'. Because '0' cannot be the
 		// start of an identifier, this will never conflict with our
 		// encoding from '.' -> '$'.
-		for i := 0; i < len(prop); i++ {
-			ch := prop[i]
-			buf[pos] = ch
-			pos++
-			if ch == '$' {
-				buf[pos] = '0'
-				pos++
-			}
-		}
+		prop = strings.ReplaceAll(prop, "$", "$0")
 	}
-	baseStr := unsafe.String(&buf[0], baseLen)
-	result := baseStr
+	result := root + "$" + prop
 	id := 1
 	for c.nameMap.ContainsKey(result) {
-		var numBuf [20]byte
-		numBytes := strconv.AppendInt(numBuf[:0], int64(id), 10)
-		extLen := len(baseStr) + 1 + len(numBytes)
-		ext := c.allocSlabBytes(extLen)
-		copy(ext, baseStr)
-		ext[len(baseStr)] = '$'
-		copy(ext[len(baseStr)+1:], numBytes)
-		result = unsafe.String(&ext[0], extLen)
+		result = root + "$" + prop + "$" + strconv.Itoa(id)
 		id++
 	}
 	return result

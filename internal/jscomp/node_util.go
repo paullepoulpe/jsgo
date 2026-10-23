@@ -25,8 +25,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -5824,65 +5822,6 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 	return &s
 }
 
-const nodeUtilByteSlabSize = 32756 // +4B atomic.Uint32 == 32760B <= maxSmallSize - MallocHeaderSize
-
-type nodeUtilByteSlab struct {
-	buf  [nodeUtilByteSlabSize]byte
-	used atomic.Uint32
-}
-
-var currentNodeUtilByteSlab atomic.Pointer[nodeUtilByteSlab]
-
-func nodeUtilFormatInt(v int) string {
-	if uint(v) < 100 {
-		return strconv.Itoa(v)
-	}
-	var tmp [20]byte
-	s := strconv.AppendInt(tmp[:0], int64(v), 10)
-	b := nodeUtilAllocStringBytes(len(s))
-	copy(b, s)
-	return unsafe.String(&b[0], len(b))
-}
-
-func nodeUtilAllocStringBytes(n int) []byte {
-	if n <= 0 || n > nodeUtilByteSlabSize/4 {
-		return make([]byte, n)
-	}
-	for {
-		s := currentNodeUtilByteSlab.Load()
-		if s != nil {
-			end := s.used.Add(uint32(n))
-			if int(end) <= nodeUtilByteSlabSize {
-				start := int(end) - n
-				return s.buf[start:end:end]
-			}
-		}
-		newSlab := &nodeUtilByteSlab{}
-		newSlab.used.Store(uint32(n))
-		if currentNodeUtilByteSlab.CompareAndSwap(s, newSlab) {
-			return newSlab.buf[0:n:n]
-		}
-	}
-}
-
-func nodeUtilConcatDot(a, b string) string {
-	n := len(a) + 1 + len(b)
-	buf := nodeUtilAllocStringBytes(n)
-	copy(buf, a)
-	buf[len(a)] = '.'
-	copy(buf[len(a)+1:], b)
-	return unsafe.String(unsafe.SliceData(buf), n)
-}
-
-func nodeUtilConcat3(a, b, c string) string {
-	n := len(a) + len(b) + len(c)
-	buf := nodeUtilAllocStringBytes(n)
-	i := copy(buf, a)
-	i += copy(buf[i:], b)
-	copy(buf[i:], c)
-	return unsafe.String(unsafe.SliceData(buf), n)
-}
-
 // nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
 // false where Java returns null.
 func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
@@ -5896,9 +5835,9 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 		}
 		methodName := lValue.GetString()
 		if lValue.IsStaticMember() {
-			return nodeUtilConcatDot(*className, methodName), true
+			return *className + "." + methodName, true
 		}
-		return nodeUtilConcat3(*className, ".prototype.", methodName), true
+		return *className + ".prototype." + methodName, true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
@@ -5911,7 +5850,7 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 			}
 			ownerName, ok := nodeUtil_getBestLValueNameString(owner)
 			if ok {
-				return nodeUtilConcatDot(ownerName, key), true
+				return ownerName + "." + key, true
 			}
 		}
 		return "", false
@@ -6389,8 +6328,6 @@ func NodeUtil_CollectExternVariableNames(
 	compiler AbstractCompiler, externs *rhino.Node) *jutil.LinkedHashSet[string] {
 	externsRefs := NewReferenceCollector(
 		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
-	externsRefs.enableArenaPool()
-	defer externsRefs.release()
 	externsRefs.ProcessRoot(externs)
 	externsNames := jutil.NewLinkedHashSet[string]()
 	for v := range externsRefs.GetAllSymbols() {
@@ -7257,4 +7194,9 @@ func NodeUtil_GetOriginalName(name string) string {
 		}
 	}
 	return name
+}
+
+// nodeUtilFormatInt formats v in base 10 (the uniqueNameIdSupplier hot path).
+func nodeUtilFormatInt(v int) string {
+	return strconv.Itoa(v)
 }

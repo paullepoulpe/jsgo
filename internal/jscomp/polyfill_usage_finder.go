@@ -427,8 +427,6 @@ func NewPolyfillUsageFinder(compiler AbstractCompiler, polyfills *PolyfillUsageF
 // Java: PolyfillUsageFinder.traverseExcludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
 		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_UNGUARDED)).
@@ -445,8 +443,6 @@ func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfil
 // Java: PolyfillUsageFinder.traverseIncludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
 		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ALL)).
@@ -463,8 +459,6 @@ func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfil
 // Java: PolyfillUsageFinder.traverseOnlyGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseOnlyGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
 		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_GUARDED)).

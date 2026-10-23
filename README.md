@@ -17,6 +17,7 @@ make oracle-tools   # fetch the pinned Java jar/sources and build oracle tools (
 - [PORTING.md](PORTING.md) — the 1:1 translation contract every ported file follows.
 - [docs/benchmarks.md](docs/benchmarks.md) — benchmark methodology and full results.
 - [docs/performance-roadmap.md](docs/performance-roadmap.md) — round-by-round performance engineering log.
+- [docs/memory-research/](docs/memory-research/) — memory round 1 (peak live heap −34 to −62 %, peak RSS −26 to −53 %, byte-identical; wall time +9 to +19 %), research on other compilers, and the round-2 design.
 - [tools/oracle/](tools/oracle/) — tools that extract ground-truth behavior from the Java compiler ([pin.env](tools/oracle/pin.env)).
 - [testdata/](testdata/) — Closure type-checker acceptance fixtures and Java oracles.
 

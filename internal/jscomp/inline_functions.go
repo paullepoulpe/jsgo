@@ -21,194 +21,21 @@ package jscomp
 import (
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-const (
-	ifStateChunkSize   = 512
-	ifRefChunkSize     = 512
-	ifRefSlotChunkSize = 1024
-	ifFnChunkSize      = 512
-)
-
-type inlineFunctionsPoolState struct {
+// inlineFunctionsRunState is the state of one run of InlineFunctions.Process,
+// dropped when the run ends.
+type inlineFunctionsRunState struct {
 	fns          *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
 	anonFns      *jutil.LinkedHashMap[*rhino.Node, string]
 	fnNames      *jutil.LinkedHashSet[string]
 	calledNames  *jutil.LinkedHashSet[string]
 	refsScratch  []FunctionInjector_Reference
 	paramScratch []string
-
-	fnStateChunks [][]InlineFunctions_FunctionState
-	fnStateIdx    int
-	fnStateUsed   int
-
-	refChunks [][]InlineFunctions_Reference
-	refIdx    int
-	refUsed   int
-
-	refSlotChunks [][]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference]
-	refSlotIdx    int
-	refSlotUsed   int
-
-	namedFnChunks [][]InlineFunctions_NamedFunction
-	namedFnIdx    int
-	namedFnUsed   int
-
-	fnVarChunks [][]InlineFunctions_FunctionVar
-	fnVarIdx    int
-	fnVarUsed   int
-
-	fnExprChunks [][]InlineFunctions_FunctionExpression
-	fnExprIdx    int
-	fnExprUsed   int
-
 	movedArgs    map[*rhino.Node]struct{}
-	fnInfoCache  map[*rhino.Node]functionInjectorFnInfo
-	largeRefMaps [3][]jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
-}
-
-func ifRefMapTier(c int) int {
-	switch {
-	case c <= 4 || c > 262144:
-		return -1
-	case c <= 128:
-		return 0
-	case c <= 4096:
-		return 1
-	default:
-		return 2
-	}
-}
-
-func (p *inlineFunctionsPoolState) recycleRefMap(m *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]) {
-	t := ifRefMapTier(m.Cap())
-	if t < 0 {
-		return
-	}
-	maxKeep := 256
-	if t == 1 {
-		maxKeep = 64
-	} else if t == 2 {
-		maxKeep = 16
-	}
-	if len(p.largeRefMaps[t]) >= maxKeep {
-		return
-	}
-	m.Clear()
-	p.largeRefMaps[t] = append(p.largeRefMaps[t], *m)
-}
-
-var (
-	cachedIfPoolState atomic.Pointer[inlineFunctionsPoolState]
-	ifPool            sync.Pool
-)
-
-func acquireIfPoolState() *inlineFunctionsPoolState {
-	if p := cachedIfPoolState.Swap(nil); p != nil {
-		return p
-	}
-	if v := ifPool.Get(); v != nil {
-		return v.(*inlineFunctionsPoolState)
-	}
-	return &inlineFunctionsPoolState{
-		fns:         jutil.NewLinkedHashMapWithCapacity[string, *InlineFunctions_FunctionState](512),
-		anonFns:     jutil.NewLinkedHashMap[*rhino.Node, string](),
-		fnNames:     jutil.NewLinkedHashSet[string](),
-		calledNames: jutil.NewLinkedHashSet[string](),
-	}
-}
-
-func releaseIfPoolState(p *inlineFunctionsPoolState) {
-	p.fns.Clear()
-	p.anonFns.Clear()
-	p.fnNames.Clear()
-	p.calledNames.Clear()
-	clear(p.refsScratch)
-	p.refsScratch = p.refsScratch[:0]
-	clear(p.paramScratch)
-	p.paramScratch = p.paramScratch[:0]
-	clear(p.movedArgs)
-	clear(p.fnInfoCache)
-
-	for ci := 0; ci <= p.fnStateIdx && ci < len(p.fnStateChunks); ci++ {
-		chunk := p.fnStateChunks[ci]
-		limit := len(chunk)
-		if ci == p.fnStateIdx {
-			limit = p.fnStateUsed
-		}
-		for i := 0; i < limit; i++ {
-			if chunk[i].refMapVal.Cap() > 4 {
-				p.recycleRefMap(&chunk[i].refMapVal)
-			}
-		}
-		clear(chunk[:limit])
-	}
-	p.fnStateIdx = 0
-	p.fnStateUsed = 0
-
-	for ci := 0; ci <= p.refIdx && ci < len(p.refChunks); ci++ {
-		chunk := p.refChunks[ci]
-		limit := len(chunk)
-		if ci == p.refIdx {
-			limit = p.refUsed
-		}
-		clear(chunk[:limit])
-	}
-	p.refIdx = 0
-	p.refUsed = 0
-
-	for ci := 0; ci <= p.refSlotIdx && ci < len(p.refSlotChunks); ci++ {
-		chunk := p.refSlotChunks[ci]
-		limit := len(chunk)
-		if ci == p.refSlotIdx {
-			limit = p.refSlotUsed
-		}
-		clear(chunk[:limit])
-	}
-	p.refSlotIdx = 0
-	p.refSlotUsed = 0
-
-	for ci := 0; ci <= p.namedFnIdx && ci < len(p.namedFnChunks); ci++ {
-		chunk := p.namedFnChunks[ci]
-		limit := len(chunk)
-		if ci == p.namedFnIdx {
-			limit = p.namedFnUsed
-		}
-		clear(chunk[:limit])
-	}
-	p.namedFnIdx = 0
-	p.namedFnUsed = 0
-
-	for ci := 0; ci <= p.fnVarIdx && ci < len(p.fnVarChunks); ci++ {
-		chunk := p.fnVarChunks[ci]
-		limit := len(chunk)
-		if ci == p.fnVarIdx {
-			limit = p.fnVarUsed
-		}
-		clear(chunk[:limit])
-	}
-	p.fnVarIdx = 0
-	p.fnVarUsed = 0
-
-	for ci := 0; ci <= p.fnExprIdx && ci < len(p.fnExprChunks); ci++ {
-		chunk := p.fnExprChunks[ci]
-		limit := len(chunk)
-		if ci == p.fnExprIdx {
-			limit = p.fnExprUsed
-		}
-		clear(chunk[:limit])
-	}
-	p.fnExprIdx = 0
-	p.fnExprUsed = 0
-
-	if old := cachedIfPoolState.Swap(p); old != nil && len(old.fnStateChunks) <= 64 {
-		ifPool.Put(old)
-	}
 }
 
 // InlineFunctions inlines functions that are divided into two types: "direct
@@ -243,7 +70,7 @@ type InlineFunctions struct {
 	enforceMaxSizeAfterInlining bool
 	maxSizeAfterInlining        int
 
-	poolState *inlineFunctionsPoolState
+	runState *inlineFunctionsRunState
 
 	lastCheckedBlock              *rhino.Node
 	lastCheckedBlockHasLetOrConst bool
@@ -292,153 +119,44 @@ func NewInlineFunctions(
 		FunctionArgumentInjector(f.functionArgumentInjector).
 		Build()
 	f.injector.mutator.onMovedArg = func(arg *rhino.Node) {
-		if f.poolState != nil {
-			if f.poolState.movedArgs == nil {
-				f.poolState.movedArgs = make(map[*rhino.Node]struct{}, 16)
+		if f.runState != nil {
+			if f.runState.movedArgs == nil {
+				f.runState.movedArgs = make(map[*rhino.Node]struct{}, 16)
 			}
-			f.poolState.movedArgs[arg] = struct{}{}
+			f.runState.movedArgs[arg] = struct{}{}
 		}
 	}
 	return f
 }
 
-func (f *InlineFunctions) ensurePoolState() *inlineFunctionsPoolState {
-	if f.poolState == nil {
-		p := acquireIfPoolState()
-		f.poolState = p
+func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
+	if f.runState == nil {
+		p := &inlineFunctionsRunState{
+			fns:         jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
+			anonFns:     jutil.NewLinkedHashMap[*rhino.Node, string](),
+			fnNames:     jutil.NewLinkedHashSet[string](),
+			calledNames: jutil.NewLinkedHashSet[string](),
+		}
+		f.runState = p
 		f.fns = p.fns
 		f.anonFns = p.anonFns
-		if p.fnInfoCache == nil {
-			p.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, 256)
-		}
-		f.injector.fnInfoCache = p.fnInfoCache
 	}
-	return f.poolState
-}
-
-func (p *inlineFunctionsPoolState) allocRefSlots(n int) []jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference] {
-	if len(p.refSlotChunks) == 0 {
-		p.refSlotChunks = append(p.refSlotChunks, make([]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference], ifRefSlotChunkSize))
-		p.refSlotIdx = 0
-		p.refSlotUsed = 0
-	} else if p.refSlotUsed+n > len(p.refSlotChunks[p.refSlotIdx]) {
-		p.refSlotIdx++
-		if p.refSlotIdx == len(p.refSlotChunks) {
-			p.refSlotChunks = append(p.refSlotChunks, make([]jutil.LhmSlot[*rhino.Node, *InlineFunctions_Reference], ifRefSlotChunkSize))
-		}
-		p.refSlotUsed = 0
-	}
-	s := p.refSlotChunks[p.refSlotIdx][p.refSlotUsed : p.refSlotUsed+n : p.refSlotUsed+n]
-	p.refSlotUsed += n
-	return s
-}
-
-func (f *InlineFunctions) allocFunctionState() *InlineFunctions_FunctionState {
-	p := f.ensurePoolState()
-	if len(p.fnStateChunks) == 0 {
-		p.fnStateChunks = append(p.fnStateChunks, make([]InlineFunctions_FunctionState, ifStateChunkSize))
-		p.fnStateIdx = 0
-		p.fnStateUsed = 0
-	} else if p.fnStateUsed == len(p.fnStateChunks[p.fnStateIdx]) {
-		p.fnStateIdx++
-		if p.fnStateIdx == len(p.fnStateChunks) {
-			p.fnStateChunks = append(p.fnStateChunks, make([]InlineFunctions_FunctionState, ifStateChunkSize))
-		}
-		p.fnStateUsed = 0
-	}
-	fs := &p.fnStateChunks[p.fnStateIdx][p.fnStateUsed]
-	p.fnStateUsed++
-	fs.inline = true
-	fs.remove = true
-	return fs
+	return f.runState
 }
 
 func (f *InlineFunctions) allocReference(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
-	p := f.ensurePoolState()
-	if len(p.refChunks) == 0 {
-		p.refChunks = append(p.refChunks, make([]InlineFunctions_Reference, ifRefChunkSize))
-		p.refIdx = 0
-		p.refUsed = 0
-	} else if p.refUsed == len(p.refChunks[p.refIdx]) {
-		p.refIdx++
-		if p.refIdx == len(p.refChunks) {
-			p.refChunks = append(p.refChunks, make([]InlineFunctions_Reference, ifRefChunkSize))
-		}
-		p.refUsed = 0
-	}
-	r := &p.refChunks[p.refIdx][p.refUsed]
-	p.refUsed++
+	r := &InlineFunctions_Reference{}
 	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
 	return r
 }
 
-func (f *InlineFunctions) allocNamedFunction(fn *rhino.Node) *InlineFunctions_NamedFunction {
-	p := f.ensurePoolState()
-	if len(p.namedFnChunks) == 0 {
-		p.namedFnChunks = append(p.namedFnChunks, make([]InlineFunctions_NamedFunction, ifFnChunkSize))
-		p.namedFnIdx = 0
-		p.namedFnUsed = 0
-	} else if p.namedFnUsed == len(p.namedFnChunks[p.namedFnIdx]) {
-		p.namedFnIdx++
-		if p.namedFnIdx == len(p.namedFnChunks) {
-			p.namedFnChunks = append(p.namedFnChunks, make([]InlineFunctions_NamedFunction, ifFnChunkSize))
-		}
-		p.namedFnUsed = 0
-	}
-	nf := &p.namedFnChunks[p.namedFnIdx][p.namedFnUsed]
-	p.namedFnUsed++
-	nf.outer = f
-	nf.fn = fn
-	return nf
-}
-
-func (f *InlineFunctions) allocFunctionVar(var_ *rhino.Node) *InlineFunctions_FunctionVar {
-	p := f.ensurePoolState()
-	if len(p.fnVarChunks) == 0 {
-		p.fnVarChunks = append(p.fnVarChunks, make([]InlineFunctions_FunctionVar, ifFnChunkSize))
-		p.fnVarIdx = 0
-		p.fnVarUsed = 0
-	} else if p.fnVarUsed == len(p.fnVarChunks[p.fnVarIdx]) {
-		p.fnVarIdx++
-		if p.fnVarIdx == len(p.fnVarChunks) {
-			p.fnVarChunks = append(p.fnVarChunks, make([]InlineFunctions_FunctionVar, ifFnChunkSize))
-		}
-		p.fnVarUsed = 0
-	}
-	fv := &p.fnVarChunks[p.fnVarIdx][p.fnVarUsed]
-	p.fnVarUsed++
-	fv.outer = f
-	fv.var_ = var_
-	return fv
-}
-
-func (f *InlineFunctions) allocFunctionExpression(fn *rhino.Node, index int) *InlineFunctions_FunctionExpression {
-	p := f.ensurePoolState()
-	if len(p.fnExprChunks) == 0 {
-		p.fnExprChunks = append(p.fnExprChunks, make([]InlineFunctions_FunctionExpression, 64))
-		p.fnExprIdx = 0
-		p.fnExprUsed = 0
-	} else if p.fnExprUsed == len(p.fnExprChunks[p.fnExprIdx]) {
-		p.fnExprIdx++
-		if p.fnExprIdx == len(p.fnExprChunks) {
-			p.fnExprChunks = append(p.fnExprChunks, make([]InlineFunctions_FunctionExpression, 64))
-		}
-		p.fnExprUsed = 0
-	}
-	fe := &p.fnExprChunks[p.fnExprIdx][p.fnExprUsed]
-	p.fnExprUsed++
-	fe.fn = fn
-	fe.fakeName = nodeUtilFormatInt(index)
-	return fe
-}
-
 // Java: InlineFunctions.getOrCreateFunctionState(String)
 func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctions_FunctionState {
-	f.ensurePoolState()
+	f.ensureRunState()
 	if fs := f.fns.Get(fnName); fs != nil {
 		return fs
 	}
-	fs := f.allocFunctionState()
+	fs := &InlineFunctions_FunctionState{inline: true, remove: true}
 	f.fns.PutNew(fnName, fs)
 	return fs
 }
@@ -454,31 +172,15 @@ func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root *r
 func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
 
-	p := f.ensurePoolState()
+	p := f.ensureRunState()
 	defer func() {
-		p.fnInfoCache = f.injector.fnInfoCache
 		f.injector.fnInfoCache = nil
-		f.poolState = nil
+		f.runState = nil
 		f.fns = nil
 		f.anonFns = nil
 		f.lastCheckedBlock = nil
 		f.lastContainingFn = nil
-		releaseIfPoolState(p)
 	}()
-
-	if root != nil && f.fns.Cap() <= 512 {
-		stmtCount := 0
-		const maxStmts = 131072
-		for s := root.GetFirstChild(); s != nil && stmtCount < maxStmts; s = s.GetNext() {
-			for c := s.GetFirstChild(); c != nil && stmtCount < maxStmts; c = c.GetNext() {
-				stmtCount++
-			}
-		}
-		if stmtCount > 512 {
-			p.fns = jutil.NewLinkedHashMapWithCapacity[string, *InlineFunctions_FunctionState](stmtCount)
-			f.fns = p.fns
-		}
-	}
 
 	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
 	if root != nil {
@@ -488,8 +190,6 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		return // Nothing left to do.
 	}
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
 	findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
 	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
@@ -668,7 +368,7 @@ func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n *
 		if nameNode.IsName() &&
 			nameNode.HasChildren() &&
 			nameNode.GetFirstChild().IsFunction() {
-			c.outer.MaybeAddFunction(c.outer.allocFunctionVar(n), chunk)
+			c.outer.MaybeAddFunction(NewInlineFunctions_FunctionVar(c.outer, n), chunk)
 		}
 		// Named functions
 		// function Foo(x) { return ... }
@@ -678,7 +378,7 @@ func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n *
 		}
 		jutil.CheckState(NodeUtil_IsStatementBlock(parent) || parent.IsLabel())
 		if NodeUtil_IsFunctionDeclaration(n) {
-			c.outer.MaybeAddFunction(c.outer.allocNamedFunction(n), chunk)
+			c.outer.MaybeAddFunction(NewInlineFunctions_NamedFunction(c.outer, n), chunk)
 		}
 	default:
 	}
@@ -710,7 +410,7 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 		if fnNode != nil {
 			callsSeen := c.callsSeen
 			c.callsSeen++
-			fn := c.outer.allocFunctionExpression(fnNode, callsSeen)
+			fn := NewInlineFunctions_FunctionExpression(fnNode, callsSeen)
 			c.outer.MaybeAddFunction(fn, chunk)
 			c.outer.anonFns.Put(fnNode, fn.GetName())
 		}
@@ -860,7 +560,7 @@ type inlineFunctions_bodyAnalysis struct {
 }
 
 func (f *InlineFunctions) analyzeFunctionBody(fnNode *rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
-	p := f.ensurePoolState()
+	p := f.ensureRunState()
 	params := NodeUtil_GetFunctionParameters(fnNode)
 	p.paramScratch = p.paramScratch[:0]
 	var paramBloom uint64
@@ -1338,7 +1038,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		}
 		candidate := r.outer.allocReference(callNode, scope, chunk, mode)
 		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
-		functionState.addReference(candidate, r.outer.poolState)
+		functionState.AddReference(candidate)
 		return true
 	}
 
@@ -1516,7 +1216,7 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 	if functionState.RequireInlining() || functionState.EncourageInlining() {
 		return true
 	}
-	p := f.ensurePoolState()
+	p := f.ensureRunState()
 	p.refsScratch = p.refsScratch[:0]
 	if functionState.references != nil {
 		for ref := range functionState.references.Values() {
@@ -1591,7 +1291,7 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	}
 
 	fnNode := functionState.GetFn().GetFunctionNode()
-	p := f.ensurePoolState()
+	p := f.ensureRunState()
 	names := p.calledNames
 	names.Clear()
 	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
@@ -1760,10 +1460,10 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 			fn := functionState.GetFn()
 			jutil.CheckState(functionState.CanInline())
 			jutil.CheckState(fn != nil)
-			if f.poolState != nil && len(f.poolState.movedArgs) > 0 {
+			if f.runState != nil && len(f.runState.movedArgs) > 0 {
 				inMovedArg := false
 				for anc := fn.GetFunctionNode(); anc != nil; anc = anc.GetParent() {
-					if _, ok := f.poolState.movedArgs[anc]; ok {
+					if _, ok := f.runState.movedArgs[anc]; ok {
 						inMovedArg = true
 						break
 					}
@@ -2040,47 +1740,12 @@ func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHas
 	return s.references
 }
 
-func (s *InlineFunctions_FunctionState) addReference(ref *InlineFunctions_Reference, p *inlineFunctionsPoolState) {
-	if s.references == nil {
-		if p != nil {
-			s.refMapVal.InitWithBuffer(p.allocRefSlots(4))
-		}
-		s.references = &s.refMapVal
-	} else if p != nil && s.references == &s.refMapVal {
-		sz := s.refMapVal.Size()
-		cp := s.refMapVal.Cap()
-		if sz == cp {
-			wantTier := -1
-			if cp == 4 {
-				wantTier = 0
-			} else if cp == 128 {
-				wantTier = 1
-			} else if cp == 4096 {
-				wantTier = 2
-			}
-			if wantTier >= 0 && len(p.largeRefMaps[wantTier]) > 0 {
-				last := len(p.largeRefMaps[wantTier]) - 1
-				warm := p.largeRefMaps[wantTier][last]
-				p.largeRefMaps[wantTier][last] = jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]{}
-				p.largeRefMaps[wantTier] = p.largeRefMaps[wantTier][:last]
-				for k, v := range s.refMapVal.All() {
-					warm.PutNew(k, v)
-				}
-				if cp > 4 {
-					p.recycleRefMap(&s.refMapVal)
-				} else {
-					s.refMapVal.Clear()
-				}
-				s.refMapVal = warm
-			}
-		}
-	}
-	s.references.PutNew(ref.callNode, ref)
-}
-
 // Java: InlineFunctions.FunctionState.addReference(Reference)
 func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Reference) {
-	s.addReference(ref, nil)
+	if s.references == nil {
+		s.references = &s.refMapVal
+	}
+	s.references.PutNew(ref.callNode, ref)
 }
 
 var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()

@@ -23,7 +23,6 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -92,7 +91,6 @@ type CrossChunkReferenceCollector struct {
 	lastVar        *Var
 	lastCollection *ReferenceCollection
 	maxVarIndex    int
-	arena          *referenceCollectorArena
 	ccArena        *crossChunkArena
 	poolable       bool
 
@@ -114,12 +112,6 @@ type CrossChunkReferenceCollector struct {
 	draftRefsBuf           [16]*Reference
 	draftVarsBuf           [16]*Var
 
-	refSlab      []Reference
-	refBuf       [8]Reference
-	colSlab      []ReferenceCollection
-	colBuf       [2]ReferenceCollection
-	blockSlab    []BasicBlock
-	blockBuf     [8]BasicBlock
 	stmtSlab     []CrossChunkReferenceCollector_TopLevelStatement
 	stmtBuf      [4]CrossChunkReferenceCollector_TopLevelStatement
 	stmtRefsSlab []*Reference
@@ -140,29 +132,16 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 	c.blockStack = c.blockStackBuf[:0]
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
-	c.refSlab = c.refBuf[:0]
-	c.colSlab = c.colBuf[:0]
-	c.blockSlab = c.blockBuf[:0]
 	c.stmtSlab = c.stmtBuf[:0]
 	return c
 }
 
 func (c *CrossChunkReferenceCollector) enableArenaPool() {
 	c.poolable = true
-	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.EnableArenaPool()
-	}
 	ca := c.getCCArena()
 	if cap(ca.topLevelStatements) > 0 {
 		c.topLevelStatements = ca.topLevelStatements[:0]
 	}
-}
-
-func (c *CrossChunkReferenceCollector) getArena() *referenceCollectorArena {
-	if c.arena == nil {
-		c.arena = acquireRCArena()
-	}
-	return c.arena
 }
 
 func (c *CrossChunkReferenceCollector) getCCArena() *crossChunkArena {
@@ -176,69 +155,6 @@ func (c *CrossChunkReferenceCollector) release() {
 	for _, kv := range c.vars {
 		kv.nameHash = 0
 	}
-	if a := c.arena; a != nil {
-		c.arena = nil
-		if cap(c.vars) > len(c.varsBuf) {
-			if cap(c.vars) <= 1048576 {
-				clear(c.vars)
-				a.global.vars = c.vars[:0]
-				clear(c.cols)
-				a.global.cols = c.cols[:0]
-			} else {
-				a.global.vars = nil
-				a.global.cols = nil
-			}
-		}
-		c.vars = nil
-		c.cols = nil
-		const (
-			maxRetainedRefChunks = (512 * 4096) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(Reference{})))
-			maxRetainedColChunks = (256 * 2048) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(ReferenceCollection{})))
-			maxRetainedBlkChunks = 160
-		)
-		if a.global.refChunkIdx > 0 {
-			a.global.refChunks[a.global.refChunkIdx-1] = c.refSlab
-		}
-		for i := 0; i < a.global.refChunkIdx && i < maxRetainedRefChunks; i++ {
-			ch := a.global.refChunks[i]
-			clear(ch)
-			a.global.refChunks[i] = ch[:0]
-		}
-		if len(a.global.refChunks) > maxRetainedRefChunks {
-			clear(a.global.refChunks[maxRetainedRefChunks:])
-			a.global.refChunks = a.global.refChunks[:maxRetainedRefChunks]
-		}
-		if a.global.colChunkIdx > 0 {
-			a.global.colChunks[a.global.colChunkIdx-1] = c.colSlab
-		}
-		for i := 0; i < a.global.colChunkIdx && i < maxRetainedColChunks; i++ {
-			ch := a.global.colChunks[i]
-			clear(ch)
-			a.global.colChunks[i] = ch[:0]
-		}
-		if len(a.global.colChunks) > maxRetainedColChunks {
-			clear(a.global.colChunks[maxRetainedColChunks:])
-			a.global.colChunks = a.global.colChunks[:maxRetainedColChunks]
-		}
-		a.global.refPtrChunks, a.global.refPtrSlab, a.global.refPtrChunkIdx = resetRCSlabChunks(
-			a.global.refPtrChunks, a.global.refPtrSlab, a.global.refPtrChunkIdx, 0, 0, 256)
-		if a.blkChunkIdx > 0 {
-			a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
-		}
-		for i := 0; i < a.blkChunkIdx && i < maxRetainedBlkChunks; i++ {
-			ch := a.blkChunks[i]
-			clear(ch)
-			a.blkChunks[i] = ch[:0]
-		}
-		if len(a.blkChunks) > maxRetainedBlkChunks {
-			clear(a.blkChunks[maxRetainedBlkChunks:])
-			a.blkChunks = a.blkChunks[:maxRetainedBlkChunks]
-		}
-		a.global.refChunkIdx = 0
-		a.global.colChunkIdx = 0
-		a.blkChunkIdx = 0
-		releaseRCArena(a)
-	}
 	if ca := c.ccArena; ca != nil {
 		c.ccArena = nil
 		if cap(c.topLevelStatements) > 0 {
@@ -251,11 +167,11 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		c.topLevelStatements = nil
 		const (
-			maxRetainedStmtChunks     = (256 * 2048) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(CrossChunkReferenceCollector_TopLevelStatement{})))
+			maxRetainedStmtChunks     = 256
 			maxRetainedStmtRefsChunks = 128
-			maxRetainedSymChunks      = 640
-			maxRetainedDsgChunks      = 192
-			maxRetainedCycleChunks    = 128
+			maxRetainedSymChunks      = 128
+			maxRetainedDsgChunks      = 128
+			maxRetainedCycleChunks    = 64
 		)
 		if ca.stmtChunkIdx > 0 {
 			ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab
@@ -362,123 +278,9 @@ func (c *CrossChunkReferenceCollector) release() {
 		ca.cycleChunkIdx = 0
 		releaseCCArena(ca)
 	}
-	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.ReleaseArena()
-	}
-}
-
-func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
-	const maxRefCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(Reference{}))
-	if len(c.refSlab) == cap(c.refSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.global.refChunkIdx > 0 {
-				a.global.refChunks[a.global.refChunkIdx-1] = c.refSlab
-			}
-			if a.global.refChunkIdx < len(a.global.refChunks) {
-				c.refSlab = a.global.refChunks[a.global.refChunkIdx][:0]
-				a.global.refChunkIdx++
-			} else {
-				newCap := 256
-				if cap(c.refSlab) >= 256 {
-					newCap = min(cap(c.refSlab)*2, maxRefCap)
-				}
-				c.refSlab = make([]Reference, 0, newCap)
-				a.global.refChunks = append(a.global.refChunks, c.refSlab)
-				a.global.refChunkIdx++
-			}
-		} else {
-			newCap := 256
-			if cap(c.refSlab) >= 256 {
-				newCap = min(cap(c.refSlab)*2, maxRefCap)
-			}
-			c.refSlab = make([]Reference, 0, newCap)
-		}
-	}
-	idx := len(c.refSlab)
-	c.refSlab = c.refSlab[:idx+1]
-	r := &c.refSlab[idx]
-	r.nameNode = n
-	r.basicBlock = basicBlock
-	r.scope = scope
-	r.inputId = inputId
-	return r
-}
-
-func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceCollection {
-	const maxColCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(ReferenceCollection{}))
-	if len(c.colSlab) == cap(c.colSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.global.colChunkIdx > 0 {
-				a.global.colChunks[a.global.colChunkIdx-1] = c.colSlab
-			}
-			if a.global.colChunkIdx < len(a.global.colChunks) {
-				c.colSlab = a.global.colChunks[a.global.colChunkIdx][:0]
-				a.global.colChunkIdx++
-			} else {
-				newCap := 64
-				if cap(c.colSlab) >= 64 {
-					newCap = min(cap(c.colSlab)*2, maxColCap)
-				}
-				c.colSlab = make([]ReferenceCollection, 0, newCap)
-				a.global.colChunks = append(a.global.colChunks, c.colSlab)
-				a.global.colChunkIdx++
-			}
-		} else {
-			newCap := 64
-			if cap(c.colSlab) >= 64 {
-				newCap = min(cap(c.colSlab)*2, maxColCap)
-			}
-			c.colSlab = make([]ReferenceCollection, 0, newCap)
-		}
-	}
-	idx := len(c.colSlab)
-	c.colSlab = c.colSlab[:idx+1]
-	col := &c.colSlab[idx]
-	if c.poolable {
-		col.references.InitWithBuffer(c.getArena().global.allocRefPtrSlice(4))
-	} else {
-		col.references.Clear()
-	}
-	return col
-}
-
-func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
-	const maxBlkCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(BasicBlock{}))
-	if len(c.blockSlab) == cap(c.blockSlab) {
-		if c.poolable {
-			a := c.getArena()
-			if a.blkChunkIdx > 0 {
-				a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
-			}
-			if a.blkChunkIdx < len(a.blkChunks) {
-				c.blockSlab = a.blkChunks[a.blkChunkIdx][:0]
-				a.blkChunkIdx++
-			} else {
-				newCap := 64
-				if cap(c.blockSlab) >= 64 {
-					newCap = min(cap(c.blockSlab)*2, maxBlkCap)
-				}
-				c.blockSlab = make([]BasicBlock, 0, newCap)
-				a.blkChunks = append(a.blkChunks, c.blockSlab)
-				a.blkChunkIdx++
-			}
-		} else {
-			newCap := 64
-			if cap(c.blockSlab) >= 64 {
-				newCap = min(cap(c.blockSlab)*2, maxBlkCap)
-			}
-			c.blockSlab = make([]BasicBlock, 0, newCap)
-		}
-	}
-	idx := len(c.blockSlab)
-	c.blockSlab = c.blockSlab[:idx+1]
-	return initBasicBlock(&c.blockSlab[idx], parent, root)
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
-	const maxPtrCap = jscompMaxSmallAlloc / int(unsafe.Sizeof((*Reference)(nil)))
 	if cap(c.stmtRefsSlab)-len(c.stmtRefsSlab) < n {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -488,7 +290,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 			if ca.stmtRefsChunkIdx < len(ca.stmtRefsChunks) {
 				ch := ca.stmtRefsChunks[ca.stmtRefsChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(n, maxPtrCap))
+					ch = make([]*Reference, 0, max(n, 4096))
 					ca.stmtRefsChunks[ca.stmtRefsChunkIdx] = ch
 				}
 				c.stmtRefsSlab = ch[:0]
@@ -496,7 +298,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 			} else {
 				newCap := 256
 				if cap(c.stmtRefsSlab) >= 256 {
-					newCap = min(cap(c.stmtRefsSlab)*2, maxPtrCap)
+					newCap = min(cap(c.stmtRefsSlab)*2, 4096)
 				}
 				if newCap < n {
 					newCap = n
@@ -508,7 +310,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 		} else {
 			newCap := 256
 			if cap(c.stmtRefsSlab) >= 256 {
-				newCap = min(cap(c.stmtRefsSlab)*2, maxPtrCap)
+				newCap = min(cap(c.stmtRefsSlab)*2, 4096)
 			}
 			if newCap < n {
 				newCap = n
@@ -522,7 +324,6 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
-	const maxPtrCap = jscompMaxSmallAlloc / int(unsafe.Sizeof((*Var)(nil)))
 	if cap(c.stmtVarsSlab)-len(c.stmtVarsSlab) < n {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -532,7 +333,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 			if ca.stmtVarsChunkIdx < len(ca.stmtVarsChunks) {
 				ch := ca.stmtVarsChunks[ca.stmtVarsChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Var, 0, max(n, maxPtrCap))
+					ch = make([]*Var, 0, max(n, 4096))
 					ca.stmtVarsChunks[ca.stmtVarsChunkIdx] = ch
 				}
 				c.stmtVarsSlab = ch[:0]
@@ -540,7 +341,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 			} else {
 				newCap := 256
 				if cap(c.stmtVarsSlab) >= 256 {
-					newCap = min(cap(c.stmtVarsSlab)*2, maxPtrCap)
+					newCap = min(cap(c.stmtVarsSlab)*2, 4096)
 				}
 				if newCap < n {
 					newCap = n
@@ -552,7 +353,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 		} else {
 			newCap := 256
 			if cap(c.stmtVarsSlab) >= 256 {
-				newCap = min(cap(c.stmtVarsSlab)*2, maxPtrCap)
+				newCap = min(cap(c.stmtVarsSlab)*2, 4096)
 			}
 			if newCap < n {
 				newCap = n
@@ -566,7 +367,6 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 }
 
 func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
-	const maxStmtCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(CrossChunkReferenceCollector_TopLevelStatement{}))
 	if len(c.stmtSlab) == cap(c.stmtSlab) {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -579,7 +379,7 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 			} else {
 				newCap := 64
 				if cap(c.stmtSlab) >= 64 {
-					newCap = min(cap(c.stmtSlab)*2, maxStmtCap)
+					newCap = min(cap(c.stmtSlab)*2, 2048)
 				}
 				c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
 				ca.stmtChunks = append(ca.stmtChunks, c.stmtSlab)
@@ -588,7 +388,7 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 		} else {
 			newCap := 64
 			if cap(c.stmtSlab) >= 64 {
-				newCap = min(cap(c.stmtSlab)*2, maxStmtCap)
+				newCap = min(cap(c.stmtSlab)*2, 2048)
 			}
 			c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
 		}
@@ -619,14 +419,6 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 }
 
 func (c *CrossChunkReferenceCollector) growVarsCols() {
-	if c.poolable && cap(c.vars) == len(c.varsBuf) {
-		a := c.getArena()
-		if cap(a.global.vars) > len(c.vars) {
-			c.vars = append(a.global.vars[:0], c.vars...)
-			c.cols = append(a.global.cols[:0], c.cols...)
-			return
-		}
-	}
 	newCap := max(cap(c.vars)*2, 4096)
 	newVars := make([]*Var, len(c.vars), newCap)
 	copy(newVars, c.vars)
@@ -634,10 +426,6 @@ func (c *CrossChunkReferenceCollector) growVarsCols() {
 	newCols := make([]*ReferenceCollection, len(c.cols), newCap)
 	copy(newCols, c.cols)
 	c.cols = newCols
-	if c.arena != nil {
-		c.arena.global.vars = newVars[:0]
-		c.arena.global.cols = newCols[:0]
-	}
 }
 
 func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceCollection {
@@ -659,7 +447,7 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 			c.varsByName.Put(name, v)
 		}
 	}
-	col := c.allocReferenceCollection()
+	col := &ReferenceCollection{}
 	if len(c.vars) == cap(c.vars) {
 		c.growVarsCols()
 	}
@@ -789,19 +577,13 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 							c.lastCollection = col
 						}
 					}
-					reference := c.allocReference(n, scope, crossChunkReferenceCollector_peek(c.blockStack), t.GetInput().GetInputId())
+					reference := newReferenceWithScopeAndInputId(n, crossChunkReferenceCollector_peek(c.blockStack), scope, t.GetInput().GetInputId())
 					if n == c.topLevelStatementDraft.declaredNameNode {
 						c.topLevelStatementDraft.declaredNameReference = reference
 						c.topLevelStatementDraft.declaredVar = v
 					} else {
 						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
 						c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
-					}
-					if c.poolable {
-						s := col.references.Slice()
-						if len(s) == cap(s) {
-							c.getArena().global.growReferenceCollection(col, s)
-						}
 					}
 					col.references.Add(reference)
 				}
@@ -827,7 +609,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, c.allocBasicBlock(parent, n))
+		c.blockStack = append(c.blockStack, NewBasicBlock(parent, n))
 	}
 }
 
@@ -848,7 +630,7 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, c.allocBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
+		c.blockStack = append(c.blockStack, NewBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
 	}
 	return true
 }

@@ -26,8 +26,8 @@ type ThisExpressionTree struct {
 // NewThisExpressionTree constructs a ThisExpressionTree.
 //
 // Java: ThisExpressionTree(SourceRange)
-func NewThisExpressionTree(location *SourceRange) *ThisExpressionTree {
+func NewThisExpressionTree(location SourceRange) *ThisExpressionTree {
 	t := &ThisExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_THIS_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_THIS_EXPRESSION, location)
 	return t
 }

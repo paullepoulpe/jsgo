@@ -85,12 +85,6 @@ type IRFactory struct {
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
-	nodes                    jutil.Slab[rhino.Node]
-	jsdocNodes               jutil.Slab[rhino.Node]
-	jsdocSlabsVal            rhino.JSDocBuilderSlabs
-	nodeSlab                 *jutil.Slab[rhino.Node]
-	jsdocNodeSlab            *jutil.Slab[rhino.Node]
-	jsdocSlabs               *rhino.JSDocBuilderSlabs
 	jsdocStream              JsDocTokenStream
 	jsdocParser              JsDocInfoParser
 	transformDispatcherVal   IRFactory_TransformDispatcher
@@ -180,8 +174,8 @@ func (l IRFactory_LineAndColumn) LineNo() int { return l.lineNo }
 func (l IRFactory_LineAndColumn) Column() int { return l.column }
 
 // Java: IRFactory.LineAndColumn.fromSourcePosition(SourcePosition)
-func IRFactory_LineAndColumn_FromSourcePosition(pos *parser.SourcePosition) IRFactory_LineAndColumn {
-	return NewIRFactory_LineAndColumn(pos.Line, pos.Column)
+func IRFactory_LineAndColumn_FromSourcePosition(pos parser.SourcePosition) IRFactory_LineAndColumn {
+	return NewIRFactory_LineAndColumn(int(pos.Line), int(pos.Column))
 }
 
 // Java: IRFactory.LineAndColumn.compareTo(LineAndColumn)
@@ -237,39 +231,7 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
-	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil, nil, nil)
-}
-
-// NewIRFactoryWithSlabs constructs an IRFactory using optional external AST and JSDoc node slabs.
-func NewIRFactoryWithSlabs(
-	sourceFile rhino.StaticSourceFile,
-	config *Config,
-	errorReporter rhino.ErrorReporter,
-	comments []*parser.Comment,
-	fileWithContent *parser.SourceFile,
-	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
-	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node],
-	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	f := &IRFactory{}
-	if nodeSlab != nil {
-		f.nodeSlab = nodeSlab
-	} else {
-		f.nodes = jutil.NewMaxSlab[rhino.Node](511)
-		f.nodeSlab = &f.nodes
-	}
-	if jsdocNodeSlab != nil {
-		f.jsdocNodeSlab = jsdocNodeSlab
-	} else {
-		f.jsdocNodes = jutil.NewMaxSlab[rhino.Node](511)
-		f.jsdocNodeSlab = &f.jsdocNodes
-	}
-	if jsdocSlabs != nil {
-		f.jsdocSlabs = jsdocSlabs
-	} else {
-		f.jsdocSlabsVal = rhino.NewJSDocBuilderSlabs()
-		f.jsdocSlabs = &f.jsdocSlabsVal
-	}
 	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {
 		f.parsedCommentBits = f.parsedCommentBitsBuf[:nWords]
 	} else {
@@ -395,7 +357,7 @@ func (t *IRFactory_CommentTracker) Backtrack() {
 }
 
 // Java: IRFactory.CommentTracker.hasPendingCommentBefore(SourcePosition)
-func (t *IRFactory_CommentTracker) HasPendingCommentBefore(pos *parser.SourcePosition) bool {
+func (t *IRFactory_CommentTracker) HasPendingCommentBefore(pos parser.SourcePosition) bool {
 	c := t.Current()
 	// The line number matters for trailing comments
 	return c != nil && c.Location.End.Line <= pos.Line && c.Location.End.Offset <= pos.Offset
@@ -433,25 +395,12 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
-	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil, nil, nil)
-}
-
-// IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external slabs.
-func IRFactory_TransformTreeWithSlabs(
-	tree *parser.ProgramTree,
-	sourceFile rhino.StaticSourceFile,
-	config *Config,
-	errorReporter rhino.ErrorReporter,
-	file *parser.SourceFile,
-	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node],
-	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
-	irFactory := NewIRFactoryWithSlabs(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, nodeSlab, jsdocNodeSlab, jsdocSlabs)
+	irFactory := NewIRFactory(
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
@@ -462,7 +411,7 @@ func IRFactory_TransformTreeWithSlabs(
 			if (comment.Type == parser.Comment_Type_JSDOC || comment.Type == parser.Comment_Type_IMPORTANT) &&
 				!irFactory.isCommentParsed(i) {
 				useLicensesOnlyConfig := irFactory.WithinClosureUnawareCodeRange(
-					comment.Location.Start.Line, comment.Location.Start.Column)
+					int(comment.Location.Start.Line), int(comment.Location.Start.Column))
 				irFactory.markCommentParsed(i)
 				irFactory.HandlePossibleFileOverviewJsDocComment(comment, useLicensesOnlyConfig)
 			}
@@ -952,7 +901,7 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDocComment(comment *parser.Comme
 }
 
 // Java: IRFactory.getJSDocCommentAt(SourcePosition)
-func (f *IRFactory) GetJSDocCommentAt(pos *parser.SourcePosition) *parser.Comment {
+func (f *IRFactory) GetJSDocCommentAt(pos parser.SourcePosition) *parser.Comment {
 	var closestPreviousComment *parser.Comment
 	for f.jsdocTracker.HasPendingCommentBefore(pos) {
 		closestPreviousComment = f.jsdocTracker.Current()
@@ -968,7 +917,7 @@ func (f *IRFactory) ParseJSDocInfoFrom(comment *parser.Comment) *rhino.JSDocInfo
 		return nil
 	}
 
-	if f.WithinClosureUnawareCodeRange(comment.Location.Start.Line, comment.Location.Start.Column) {
+	if f.WithinClosureUnawareCodeRange(int(comment.Location.Start.Line), int(comment.Location.Start.Column)) {
 		// Within closure-unaware code, we don't parse jsdoc as if it is
 		// load-bearing. This early-return prevents the comments here from
 		// being recorded as being parsed, and this later allows all these
@@ -1021,8 +970,8 @@ func (f *IRFactory) ParseJSDocInfoOnToken(token parser.Token) *rhino.JSDocInfo {
 }
 
 // Java: IRFactory.parseInlineJSDocAt(SourcePosition)
-func (f *IRFactory) ParseInlineJSDocAt(pos *parser.SourcePosition) *rhino.JSDocInfo {
-	if f.WithinClosureUnawareCodeRange(pos.Line, pos.Column) {
+func (f *IRFactory) ParseInlineJSDocAt(pos parser.SourcePosition) *rhino.JSDocInfo {
+	if f.WithinClosureUnawareCodeRange(int(pos.Line), int(pos.Column)) {
 		// Within closure-unaware code, we don't parse jsdoc as if it is
 		// load-bearing. This early-return prevents the comments here from
 		// being recorded as being parsed, and this later allows all these
@@ -1046,14 +995,14 @@ func (f *IRFactory) ParseInlineJSDocAt(pos *parser.SourcePosition) *rhino.JSDocI
 //
 // Java: IRFactory.COMMENT_START_POSITION_COMPARATOR
 var IRFactory_COMMENT_START_POSITION_COMPARATOR = func(a, b *parser.Comment) int {
-	if c := irFactory_compareInt(a.Location.Start.Line, b.Location.Start.Line); c != 0 {
+	if c := irFactory_compareInt(int(a.Location.Start.Line), int(b.Location.Start.Line)); c != 0 {
 		return c
 	}
-	return irFactory_compareInt(a.Location.Start.Column, b.Location.Start.Column)
+	return irFactory_compareInt(int(a.Location.Start.Column), int(b.Location.Start.Column))
 }
 
 // Java: IRFactory.hasAnyPendingCommentBefore(SourcePosition, boolean)
-func (f *IRFactory) HasAnyPendingCommentBefore(pos *parser.SourcePosition, withinClosureUnawareCodeRange bool) bool {
+func (f *IRFactory) HasAnyPendingCommentBefore(pos parser.SourcePosition, withinClosureUnawareCodeRange bool) bool {
 	return f.nonJsdocTracker.HasPendingCommentBefore(pos) ||
 		(withinClosureUnawareCodeRange && f.jsdocTracker.HasPendingCommentBefore(pos))
 }
@@ -1065,8 +1014,8 @@ func (f *IRFactory) HasAnyPendingCommentBefore(pos *parser.SourcePosition, withi
 // that one string.
 //
 // Java: IRFactory.parseNonJSDocCommentAt(SourcePosition, boolean)
-func (f *IRFactory) ParseNonJSDocCommentAt(pos *parser.SourcePosition, isInline bool) *rhino.NonJSDocComment {
-	withinClosureUnawareCodeRange := f.WithinClosureUnawareCodeRange(pos.Line, pos.Column)
+func (f *IRFactory) ParseNonJSDocCommentAt(pos parser.SourcePosition, isInline bool) *rhino.NonJSDocComment {
+	withinClosureUnawareCodeRange := f.WithinClosureUnawareCodeRange(int(pos.Line), int(pos.Column))
 	if !f.HasAnyPendingCommentBefore(pos, withinClosureUnawareCodeRange) {
 		return nil
 	}
@@ -1143,7 +1092,7 @@ func (f *IRFactory) ParseNonJSDocCommentAt(pos *parser.SourcePosition, isInline 
 //
 // Java: IRFactory.parseTrailingNonJSDocCommentAt(SourcePosition, SourcePosition)
 func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
-	tokenEnd *parser.SourcePosition, possibleNextTokenStart *parser.SourcePosition) *rhino.NonJSDocComment {
+	tokenEnd parser.SourcePosition, possibleNextTokenStart parser.SourcePosition) *rhino.NonJSDocComment {
 	if f.config.JsDocParsingMode() != Config_JsDocParsing_INCLUDE_ALL_COMMENTS {
 		return nil
 	}
@@ -1167,8 +1116,7 @@ func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
 
 	// Check if there are only whitespace characters between the current token
 	// and the start of the comment.
-	preCommentText := irFactory_substring(
-		f.fileWithContent.ContentsUTF16, tokenEnd.Offset+1, comment.Location.Start.Offset)
+	preCommentText := f.fileWithContent.Substring(int(tokenEnd.Offset)+1, int(comment.Location.Start.Offset))
 
 	if jutil.StringTrim(preCommentText) != "" {
 		return nil
@@ -1188,28 +1136,28 @@ func IRFactory_FindNearestNode(tree parser.ParseTree) parser.ParseTree {
 	for {
 		switch tree.GetParseTreeBase().Type {
 		case parser.ParseTreeType_EXPRESSION_STATEMENT:
-			tree = tree.AsExpressionStatement().Expression
+			tree = tree.(*parser.ExpressionStatementTree).Expression
 			continue
 		case parser.ParseTreeType_CALL_EXPRESSION:
-			tree = tree.AsCallExpression().Operand
+			tree = tree.(*parser.CallExpressionTree).Operand
 			continue
 		case parser.ParseTreeType_BINARY_OPERATOR:
-			tree = tree.AsBinaryOperator().Left
+			tree = tree.(*parser.BinaryOperatorTree).Left
 			continue
 		case parser.ParseTreeType_CONDITIONAL_EXPRESSION:
-			tree = tree.AsConditionalExpression().Condition
+			tree = tree.(*parser.ConditionalExpressionTree).Condition
 			continue
 		case parser.ParseTreeType_MEMBER_EXPRESSION:
-			tree = tree.AsMemberExpression().Operand
+			tree = tree.(*parser.MemberExpressionTree).Operand
 			continue
 		case parser.ParseTreeType_MEMBER_LOOKUP_EXPRESSION:
-			tree = tree.AsMemberLookupExpression().Operand
+			tree = tree.(*parser.MemberLookupExpressionTree).Operand
 			continue
 		case parser.ParseTreeType_UPDATE_EXPRESSION:
-			tree = tree.AsUpdateExpression().Operand
+			tree = tree.(*parser.UpdateExpressionTree).Operand
 			continue
 		case parser.ParseTreeType_COMMA_EXPRESSION:
-			tree = tree.AsCommaExpression().Expressions[0]
+			tree = tree.(*parser.CommaExpressionTree).Expressions[0]
 			continue
 		default:
 			return tree
@@ -1342,9 +1290,9 @@ func IRFactory_LinenoOfToken(token parser.Token) int {
 }
 
 // Java: IRFactory.lineno(SourcePosition)
-func IRFactory_LinenoOfPosition(location *parser.SourcePosition) int {
+func IRFactory_LinenoOfPosition(location parser.SourcePosition) int {
 	// location lines start at zero, our AST starts at 1.
-	return location.Line + 1
+	return int(location.Line + 1)
 }
 
 // Java: IRFactory.charno(ParseTree)
@@ -1358,8 +1306,8 @@ func IRFactory_CharnoOfToken(token parser.Token) int {
 }
 
 // Java: IRFactory.charno(SourcePosition)
-func IRFactory_CharnoOfPosition(location *parser.SourcePosition) int {
-	return location.Column
+func IRFactory_CharnoOfPosition(location parser.SourcePosition) int {
+	return int(location.Column)
 }
 
 // Java: IRFactory.languageFeatureWarningMessage(Feature)
@@ -1380,7 +1328,7 @@ func IRFactory_LanguageFeatureWarningMessage(feature parser.FeatureSet_Feature) 
 func (f *IRFactory) MaybeWarnForFeature(node parser.ParseTree, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
 	location := node.GetParseTreeBase().Location
-	if f.WithinClosureUnawareCodeRange(location.Start.Line, location.Start.Column) {
+	if f.WithinClosureUnawareCodeRange(int(location.Start.Line), int(location.Start.Column)) {
 		return
 	}
 	// Externs should not produce warnings about the input language mode.
@@ -1397,7 +1345,7 @@ func (f *IRFactory) MaybeWarnForFeature(node parser.ParseTree, feature parser.Fe
 func (f *IRFactory) MaybeWarnForFeatureToken(token parser.Token, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
 	location := token.GetTokenBase().Location
-	if f.WithinClosureUnawareCodeRange(location.Start.Line, location.Start.Column) {
+	if f.WithinClosureUnawareCodeRange(int(location.Start.Line), int(location.Start.Column)) {
 		return
 	}
 	// Externs should not produce warnings about the input language mode.
@@ -1447,7 +1395,7 @@ func (f *IRFactory) SetSourceInfoFromToken(irNode *rhino.Node, token parser.Toke
 }
 
 // Java: IRFactory.setSourceInfo(Node, SourcePosition, SourcePosition)
-func (f *IRFactory) SetSourceInfoFromPositions(node *rhino.Node, start *parser.SourcePosition, end *parser.SourcePosition) {
+func (f *IRFactory) SetSourceInfoFromPositions(node *rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
 	if node.GetLineno() == -1 {
 		// If we didn't already set the line, then set it now. This avoids
 		// cases like ParenthesizedExpression where we just return a previous
@@ -1497,13 +1445,11 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 	jsdocParser.Init(
 		&f.jsdocStream,
 		comment,
-		position,
+		int(position),
 		f.templateNode,
 		config,
 		f.jsDocSourceKind,
-		f.errorReporter,
-		f.jsdocNodeSlab,
-		f.jsdocSlabs)
+		f.errorReporter)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
 		jsdocParser.ParseImportantComment()
@@ -1535,21 +1481,19 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 	parser_.Init(
 		&f.jsdocStream,
 		comment,
-		node.Location.Start.Offset,
+		int(node.Location.Start.Offset),
 		f.templateNode,
 		f.config,
 		f.jsDocSourceKind,
-		f.errorReporter,
-		f.jsdocNodeSlab,
-		f.jsdocSlabs)
+		f.errorReporter)
 	return parser_.ParseInlineTypeDoc()
 }
 
 // SetLength sets the length on the node if we're in IDE mode.
 //
 // Java: IRFactory.setLength(Node, SourcePosition, SourcePosition)
-func (f *IRFactory) SetLength(node *rhino.Node, start *parser.SourcePosition, end *parser.SourcePosition) {
-	node.SetLength(end.Offset - start.Offset)
+func (f *IRFactory) SetLength(node *rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
+	node.SetLength(int(end.Offset - start.Offset))
 }
 
 // Java: IRFactory.setLengthFrom(Node, Node)
@@ -1743,10 +1687,10 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 	}
 
 	if input.GetTokenBase().Type == parser.TokenType_IDENTIFIER {
-		return d.ProcessNameOfToken(input.AsIdentifier(), output, identifierType)
+		return d.ProcessNameOfToken(input.(*parser.IdentifierToken), output, identifierType)
 	}
 
-	literal := input.AsLiteral()
+	literal := input.(parser.LiteralToken)
 	jsDocInfo := d.ParseJSDocInfoOnToken(literal)
 	comment := d.ParseNonJSDocCommentAt(literal.GetStart(), true)
 
@@ -1809,7 +1753,7 @@ func (d *IRFactory_TransformDispatcher) ProcessArrayPattern(tree *parser.ArrayPa
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
 			// processDefaultParameter() knows how to find and apply inline
 			// JSDoc to the right node
-			elementNode = d.ProcessDefaultParameter(child.AsDefaultParameter())
+			elementNode = d.ProcessDefaultParameter(child.(*parser.DefaultParameterTree))
 		case parser.ParseTreeType_ITER_REST:
 			d.MaybeWarnForFeature(child, parser.FeatureSet_Feature_ARRAY_PATTERN_REST)
 			elementNode = d.TransformNodeWithInlineComments(child)
@@ -1839,17 +1783,17 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternElement(child parser
 	case parser.ParseTreeType_DEFAULT_PARAMETER:
 		// shorthand with a default value
 		// let { /** inlineType */ name = default } = something;
-		return d.ProcessObjectPatternShorthandWithDefault(child.AsDefaultParameter())
+		return d.ProcessObjectPatternShorthandWithDefault(child.(*parser.DefaultParameterTree))
 	case parser.ParseTreeType_PROPERTY_NAME_ASSIGNMENT:
-		return d.ProcessObjectPatternPropertyNameAssignment(child.AsPropertyNameAssignment())
+		return d.ProcessObjectPatternPropertyNameAssignment(child.(*parser.PropertyNameAssignmentTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_DEFINITION:
 		// let {[expression]: /** inlineType */ name} = something;
-		computedPropertyDefinition := child.AsComputedPropertyDefinition()
+		computedPropertyDefinition := child.(*parser.ComputedPropertyDefinitionTree)
 		return d.ProcessObjectPatternComputedPropertyDefinition(computedPropertyDefinition)
 	case parser.ParseTreeType_OBJECT_REST:
 		// let {...restObject} = someObject;
 		d.MaybeWarnForFeature(child, parser.FeatureSet_Feature_OBJECT_PATTERN_REST)
-		target := d.TransformNodeWithInlineComments(child.AsObjectRest().AssignmentTarget)
+		target := d.TransformNodeWithInlineComments(child.(*parser.ObjectRestTree).AssignmentTarget)
 		rest := d.NewNodeWithChild(rhino.Token_OBJECT_REST, target)
 		d.SetSourceInfo(rest, child)
 		return rest
@@ -1899,7 +1843,7 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternPropertyNameAssignme
 		// `let { /** inlineType */ key } = something;`
 		// The key is also the target name.
 		valueNode = d.ProcessNameWithInlineCommentsOfToken(
-			propertyNameAssignment.Name.AsIdentifier(), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+			propertyNameAssignment.Name.(*parser.IdentifierToken), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 		key.SetShorthandProperty(true)
 	} else {
 		valueNode = d.ProcessDestructuringElementTarget(targetTree)
@@ -1916,14 +1860,14 @@ func (d *IRFactory_TransformDispatcher) ProcessDestructuringElementTarget(target
 		// let [/** inlineType */ name = default] = something;
 		// processDefaultParameter() knows how to apply the inline JSDoc, if
 		// any, to the right node
-		valueNode = d.ProcessDefaultParameter(targetTree.AsDefaultParameter())
+		valueNode = d.ProcessDefaultParameter(targetTree.(*parser.DefaultParameterTree))
 	} else if targetTree.GetParseTreeBase().Type == parser.ParseTreeType_IDENTIFIER_EXPRESSION {
 		// let {key: /** inlineType */ name} = something
 		// let [/** inlineType */ name] = something
 		// Allow inline JSDoc on the name, since we may well be declaring it
 		// here.
 		valueNode = d.ProcessNameWithInlineComments(
-			targetTree.AsIdentifierExpression(), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+			targetTree.(*parser.IdentifierExpressionTree), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	} else {
 		// ({prop: /** string */ ns.a.b} = someObject);
 		// NOTE: CheckJSDoc will report an error for this case, since we want
@@ -2032,10 +1976,15 @@ func (d *IRFactory_TransformDispatcher) ParseDirectives(node *rhino.Node) {
 // Java: IRFactory.TransformDispatcher.processBlock(BlockTree)
 func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree) *rhino.Node {
 	node := d.NewNode(rhino.Token_BLOCK)
-	for _, child := range blockNode.Statements {
+	for i, child := range blockNode.Statements {
 		childNode := d.Transform(child)
 		node.AddChildToBack(childNode)
 		d.AttachPossibleTrailingComment(childNode, child.GetEnd())
+		// Go-only: performance — nothing reads a statement's parse tree once it
+		// is transformed: dropping it lets the GC free it while the rest of the
+		// file is transformed, instead of holding a large file's whole parse
+		// tree next to its whole AST.
+		blockNode.Statements[i] = nil
 	}
 
 	lastComment := d.ParseNonJSDocCommentAt(blockNode.GetEnd(), false)
@@ -2260,9 +2209,9 @@ func (d *IRFactory_TransformDispatcher) IsNormalOrOptChainGet(n *rhino.Node) boo
 // Java: IRFactory.TransformDispatcher.getEndOfArgCommentZones(ImmutableList<ParseTree>, ImmutableList<SourcePosition>, SourcePosition)
 func (d *IRFactory_TransformDispatcher) GetEndOfArgCommentZones(
 	args []parser.ParseTree,
-	commaPositions []*parser.SourcePosition,
-	argListEndPosition *parser.SourcePosition) []*parser.SourcePosition {
-	zones := make([]*parser.SourcePosition, 0, len(args))
+	commaPositions []parser.SourcePosition,
+	argListEndPosition parser.SourcePosition) []parser.SourcePosition {
+	zones := make([]parser.SourcePosition, 0, len(args))
 	commaCount := 0
 	for _, arg := range args {
 		if len(args) > commaCount+1 {
@@ -2272,11 +2221,11 @@ func (d *IRFactory_TransformDispatcher) GetEndOfArgCommentZones(
 				// Next arg is on a new line; all trailing comments on this line
 				// belong to this arg create a source position to represent the
 				// end of current line
-				tempSourcePos := parser.NewSourcePosition(
-					nil,
-					/* offset= */ math.MaxInt32,
-					arg.GetParseTreeBase().Location.End.Line,
-					math.MaxInt32 /*col */)
+				tempSourcePos := parser.SourcePosition{
+					Offset: math.MaxInt32,
+					Line:   arg.GetParseTreeBase().Location.End.Line,
+					Column: math.MaxInt32,
+				}
 				zones = append(zones, tempSourcePos)
 			} else {
 				// Next arg is on the same line; trailing comments before the
@@ -2301,7 +2250,7 @@ func (d *IRFactory_TransformDispatcher) GetEndOfArgCommentZones(
 // The end location until which we fetch pending comments for attachment.
 //
 // Java: IRFactory.TransformDispatcher.attachPossibleTrailingCommentsForArg(Node, SourcePosition)
-func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(paramNode *rhino.Node, endZone *parser.SourcePosition) {
+func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(paramNode *rhino.Node, endZone parser.SourcePosition) {
 	trailingComment := d.ParseNonJSDocCommentAt(endZone, true)
 	if trailingComment == nil {
 		return
@@ -2313,20 +2262,19 @@ func (d *IRFactory_TransformDispatcher) attachPossibleTrailingCommentsForArgAt(
 	paramNode *rhino.Node,
 	args []parser.ParseTree,
 	commaCount int,
-	commaPositions []*parser.SourcePosition,
-	argListEndPosition *parser.SourcePosition,
+	commaPositions []parser.SourcePosition,
+	argListEndPosition parser.SourcePosition,
 ) {
 	if len(args) > commaCount+1 {
 		arg := args[commaCount]
 		nextParam := args[commaCount+1]
 		if nextParam.GetParseTreeBase().Location.Start.Line > arg.GetParseTreeBase().Location.End.Line {
 			tempSourcePos := parser.SourcePosition{
-				Source: nil,
 				Offset: math.MaxInt32,
 				Line:   arg.GetParseTreeBase().Location.End.Line,
 				Column: math.MaxInt32,
 			}
-			d.AttachPossibleTrailingCommentsForArg(paramNode, &tempSourcePos)
+			d.AttachPossibleTrailingCommentsForArg(paramNode, tempSourcePos)
 			return
 		}
 		d.AttachPossibleTrailingCommentsForArg(paramNode, commaPositions[commaCount])
@@ -2342,10 +2290,10 @@ func (d *IRFactory_TransformDispatcher) attachPossibleTrailingCommentsForArgAt(
 // end location after which we're looking for a trailing comment.
 //
 // Java: IRFactory.TransformDispatcher.attachPossibleTrailingComment(Node, SourcePosition)
-func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node *rhino.Node, tokenEnd *parser.SourcePosition) {
+func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node *rhino.Node, tokenEnd parser.SourcePosition) {
 	// Check for pending comments on the rest of the current line.
-	nextLine := parser.SourcePosition{Source: nil, Offset: math.MaxInt32, Line: tokenEnd.Line + 1, Column: 0}
-	trailingComment := d.ParseTrailingNonJSDocCommentAt(tokenEnd, &nextLine)
+	nextLine := parser.SourcePosition{Offset: math.MaxInt32, Line: tokenEnd.Line + 1, Column: 0}
+	trailingComment := d.ParseTrailingNonJSDocCommentAt(tokenEnd, nextLine)
 	if trailingComment == nil {
 		return
 	}
@@ -2370,11 +2318,11 @@ func (d *IRFactory_TransformDispatcher) AddExtraTrailingComment(node *rhino.Node
 		// the same line as the last child.
 		// TODO(user): pass in proper child tree end position to get the number
 		// of line breaks right.
-		newStart := parser.NewSourcePosition(
-			/* file */ nil,
-			lastComment.GetEndPosition().Offset-1,
-			lastComment.GetEndPosition().Line-1,
-			0)
+		newStart := parser.SourcePosition{
+			Offset: lastComment.GetEndPosition().Offset - 1,
+			Line:   lastComment.GetEndPosition().Line - 1,
+			Column: 0,
+		}
 
 		contents := "\n" + lastComment.GetCommentString()
 		newlineComment := rhino.NewNonJSDocComment(newStart, lastComment.GetEndPosition(), &contents)
@@ -2382,10 +2330,10 @@ func (d *IRFactory_TransformDispatcher) AddExtraTrailingComment(node *rhino.Node
 		return
 	}
 
-	blankLines := lastComment.GetStartPosition().Line - currentComment.GetEndPosition().Line
+	blankLines := int(lastComment.GetStartPosition().Line - currentComment.GetEndPosition().Line)
 	numWhiteSpace := 0
 	if blankLines == 0 {
-		numWhiteSpace = lastComment.GetStartPosition().Column - currentComment.GetEndPosition().Column - 1
+		numWhiteSpace = int(lastComment.GetStartPosition().Column - currentComment.GetEndPosition().Column - 1)
 	}
 
 	var comment strings.Builder
@@ -2579,7 +2527,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
 			// processDefaultParameter() knows how to find and apply inline
 			// JSDoc to the right node
-			paramNode = d.ProcessDefaultParameter(param.AsDefaultParameter())
+			paramNode = d.ProcessDefaultParameter(param.(*parser.DefaultParameterTree))
 		case parser.ParseTreeType_ITER_REST:
 			d.MaybeWarnForFeature(param, parser.FeatureSet_Feature_REST_PARAMETERS)
 			paramNode = d.TransformNodeWithInlineComments(param)
@@ -2617,7 +2565,7 @@ func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.Def
 		// TODO(bradfordcsmith): Do we need to allow inline JSDoc for
 		// qualified names, too?
 		targetNode = d.ProcessNameWithInlineComments(
-			targetTree.AsIdentifierExpression(), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+			targetTree.(*parser.IdentifierExpressionTree), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	} else {
 		// ({prop: /** string */ ns.a.b = 'foo'} = someObject);
 		// NOTE: CheckJSDoc will report an error for this case, since we want
@@ -2745,7 +2693,7 @@ func (d *IRFactory_TransformDispatcher) TransformLhsOfBinaryTree(exprTree *parse
 	_, leftIsIdentifierExpression := exprTree.Left.(*parser.IdentifierExpressionTree)
 	lhsOfInIsPrivateId := exprTree.Operator.GetTokenBase().Type == parser.TokenType_IN &&
 		leftIsIdentifierExpression &&
-		exprTree.Left.AsIdentifierExpression().IdentifierToken.IsPrivateIdentifier()
+		exprTree.Left.(*parser.IdentifierExpressionTree).IdentifierToken.IsPrivateIdentifier()
 
 	ignored := d.privateIdLhsOfInScope.MaybeIncrement(lhsOfInIsPrivateId)
 	defer ignored.Close()
@@ -2918,7 +2866,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNewExpression(exprNode *parser.Ne
 
 // Java: IRFactory.TransformDispatcher.processNumberLiteral(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessNumberLiteral(literalNode *parser.LiteralExpressionTree) *rhino.Node {
-	value := d.NormalizeNumber(literalNode.LiteralToken.AsLiteral())
+	value := d.NormalizeNumber(literalNode.LiteralToken.(parser.LiteralToken))
 	number := d.NewNumberNode(value)
 	d.SetSourceInfo(number, literalNode)
 	return number
@@ -2927,7 +2875,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNumberLiteral(literalNode *parser
 // Java: IRFactory.TransformDispatcher.processBigIntLiteral(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessBigIntLiteral(literalNode *parser.LiteralExpressionTree) *rhino.Node {
 	d.MaybeWarnForFeature(literalNode, parser.FeatureSet_Feature_BIGINT)
-	value := d.NormalizeBigInt(literalNode.LiteralToken.AsLiteral())
+	value := d.NormalizeBigInt(literalNode.LiteralToken.(parser.LiteralToken))
 	bigint := d.NewBigIntNode(value)
 	d.SetSourceInfo(bigint, literalNode)
 	return bigint
@@ -2986,7 +2934,7 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyMethod(tree *pars
 
 	n := d.NewNodeWith2Children(rhino.Token_COMPUTED_PROP, d.Transform(tree.Property), d.Transform(tree.Method))
 	n.PutBooleanProp(rhino.Node_COMPUTED_PROP_METHOD, true)
-	if tree.Method.AsFunctionDeclaration().IsStatic {
+	if tree.Method.(*parser.FunctionDeclarationTree).IsStatic {
 		n.SetStaticMember(true)
 	}
 	return n
@@ -3087,7 +3035,7 @@ func (d *IRFactory_TransformDispatcher) ProcessPropertyNameAssignment(tree *pars
 // Java: IRFactory.TransformDispatcher.checkParenthesizedExpression(ParenExpressionTree)
 func (d *IRFactory_TransformDispatcher) CheckParenthesizedExpression(exprNode *parser.ParenExpressionTree) {
 	if exprNode.Expression.GetParseTreeBase().Type == parser.ParseTreeType_COMMA_EXPRESSION {
-		commaNodes := exprNode.Expression.AsCommaExpression().Expressions
+		commaNodes := exprNode.Expression.(*parser.CommaExpressionTree).Expressions
 		lastChild := commaNodes[len(commaNodes)-1]
 		if lastChild.GetParseTreeBase().Type == parser.ParseTreeType_ITER_REST {
 			d.errorReporter.Error(
@@ -3156,7 +3104,7 @@ func (d *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *pars
 
 // Java: IRFactory.TransformDispatcher.processRegExpLiteral(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessRegExpLiteral(literalTree *parser.LiteralExpressionTree) *rhino.Node {
-	token := literalTree.LiteralToken.AsLiteral()
+	token := literalTree.LiteralToken.(parser.LiteralToken)
 	literalStringNode := d.NewStringNode(d.NormalizeRegex(token))
 	// TODO(johnlenz): fix the source location.
 	d.SetSourceInfoFromToken(literalStringNode, token)
@@ -3214,7 +3162,7 @@ func (d *IRFactory_TransformDispatcher) ProcessReturnStatement(statementNode *pa
 
 // Java: IRFactory.TransformDispatcher.processStringLiteral(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessStringLiteral(literalTree *parser.LiteralExpressionTree) *rhino.Node {
-	token := literalTree.LiteralToken.AsLiteral()
+	token := literalTree.LiteralToken.(parser.LiteralToken)
 	return d.ProcessString(token)
 }
 
@@ -3240,7 +3188,7 @@ func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteral(tree *parser.Temp
 
 // Java: IRFactory.TransformDispatcher.processTemplateLiteralPortion(TemplateLiteralPortionTree)
 func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralPortion(tree *parser.TemplateLiteralPortionTree) *rhino.Node {
-	return d.ProcessTemplateLiteralToken(tree.Value.AsTemplateLiteral())
+	return d.ProcessTemplateLiteralToken(tree.Value.(*parser.TemplateLiteralToken))
 }
 
 // Java: IRFactory.TransformDispatcher.processTemplateSubstitution(TemplateSubstitutionTree)
@@ -3791,17 +3739,17 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 	var hasIllegalModifier bool
 	switch member.GetParseTreeBase().Type {
 	case parser.ParseTreeType_GET_ACCESSOR:
-		getter := member.AsGetAccessor()
+		getter := member.(*parser.GetAccessorTree)
 		memberName = getter.PropertyName
 		isStatic = getter.IsStatic
 		hasIllegalModifier = true
 	case parser.ParseTreeType_SET_ACCESSOR:
-		setter := member.AsSetAccessor()
+		setter := member.(*parser.SetAccessorTree)
 		memberName = setter.PropertyName
 		isStatic = setter.IsStatic
 		hasIllegalModifier = true
 	case parser.ParseTreeType_FUNCTION_DECLARATION:
-		method := member.AsFunctionDeclaration()
+		method := member.(*parser.FunctionDeclarationTree)
 		if method.Name != nil {
 			// Go-only: language-adapter — no typed nil in the interface.
 			memberName = method.Name
@@ -3820,7 +3768,7 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 	}
 
 	if memberName.GetTokenBase().Type != parser.TokenType_IDENTIFIER ||
-		!memberName.AsIdentifier().ValueEquals("constructor") {
+		!memberName.(*parser.IdentifierToken).ValueEquals("constructor") {
 		// There's only a potential issue if the member is named
 		// "constructor".
 		// TODO(b/123769080): Also check for quoted string literals with the
@@ -4062,178 +4010,178 @@ func irFactory_javaClassOf(token parser.Token) string {
 func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) *rhino.Node {
 	switch node.GetParseTreeBase().Type {
 	case parser.ParseTreeType_BINARY_OPERATOR:
-		return d.ProcessBinaryExpression(node.AsBinaryOperator())
+		return d.ProcessBinaryExpression(node.(*parser.BinaryOperatorTree))
 	case parser.ParseTreeType_ARRAY_LITERAL_EXPRESSION:
-		return d.ProcessArrayLiteral(node.AsArrayLiteralExpression())
+		return d.ProcessArrayLiteral(node.(*parser.ArrayLiteralExpressionTree))
 	case parser.ParseTreeType_TEMPLATE_LITERAL_EXPRESSION:
-		return d.ProcessTemplateLiteral(node.AsTemplateLiteralExpression())
+		return d.ProcessTemplateLiteral(node.(*parser.TemplateLiteralExpressionTree))
 	case parser.ParseTreeType_TEMPLATE_LITERAL_PORTION:
-		return d.ProcessTemplateLiteralPortion(node.AsTemplateLiteralPortion())
+		return d.ProcessTemplateLiteralPortion(node.(*parser.TemplateLiteralPortionTree))
 	case parser.ParseTreeType_TEMPLATE_SUBSTITUTION:
-		return d.ProcessTemplateSubstitution(node.AsTemplateSubstitution())
+		return d.ProcessTemplateSubstitution(node.(*parser.TemplateSubstitutionTree))
 	case parser.ParseTreeType_UNARY_EXPRESSION:
-		return d.ProcessUnaryExpression(node.AsUnaryExpression())
+		return d.ProcessUnaryExpression(node.(*parser.UnaryExpressionTree))
 	case parser.ParseTreeType_BLOCK:
-		return d.ProcessBlock(node.AsBlock())
+		return d.ProcessBlock(node.(*parser.BlockTree))
 	case parser.ParseTreeType_BREAK_STATEMENT:
-		return d.ProcessBreakStatement(node.AsBreakStatement())
+		return d.ProcessBreakStatement(node.(*parser.BreakStatementTree))
 	case parser.ParseTreeType_CALL_EXPRESSION:
-		return d.ProcessFunctionCall(node.AsCallExpression())
+		return d.ProcessFunctionCall(node.(*parser.CallExpressionTree))
 	case parser.ParseTreeType_OPT_CHAIN_CALL_EXPRESSION:
-		return d.ProcessOptChainFunctionCall(node.AsOptChainCallExpression())
+		return d.ProcessOptChainFunctionCall(node.(*parser.OptChainCallExpressionTree))
 	case parser.ParseTreeType_CASE_CLAUSE:
-		return d.ProcessSwitchCase(node.AsCaseClause())
+		return d.ProcessSwitchCase(node.(*parser.CaseClauseTree))
 	case parser.ParseTreeType_DEFAULT_CLAUSE:
-		return d.ProcessSwitchDefault(node.AsDefaultClause())
+		return d.ProcessSwitchDefault(node.(*parser.DefaultClauseTree))
 	case parser.ParseTreeType_CATCH:
-		return d.ProcessCatchClause(node.AsCatch())
+		return d.ProcessCatchClause(node.(*parser.CatchTree))
 	case parser.ParseTreeType_CONTINUE_STATEMENT:
-		return d.ProcessContinueStatement(node.AsContinueStatement())
+		return d.ProcessContinueStatement(node.(*parser.ContinueStatementTree))
 	case parser.ParseTreeType_DO_WHILE_STATEMENT:
-		return d.ProcessDoLoop(node.AsDoWhileStatement())
+		return d.ProcessDoLoop(node.(*parser.DoWhileStatementTree))
 	case parser.ParseTreeType_EMPTY_STATEMENT:
-		return d.ProcessEmptyStatement(node.AsEmptyStatement())
+		return d.ProcessEmptyStatement(node.(*parser.EmptyStatementTree))
 	case parser.ParseTreeType_EXPRESSION_STATEMENT:
-		return d.ProcessExpressionStatement(node.AsExpressionStatement())
+		return d.ProcessExpressionStatement(node.(*parser.ExpressionStatementTree))
 	case parser.ParseTreeType_DEBUGGER_STATEMENT:
-		return d.ProcessDebuggerStatement(node.AsDebuggerStatement())
+		return d.ProcessDebuggerStatement(node.(*parser.DebuggerStatementTree))
 	case parser.ParseTreeType_THIS_EXPRESSION:
-		return d.ProcessThisExpression(node.AsThisExpression())
+		return d.ProcessThisExpression(node.(*parser.ThisExpressionTree))
 	case parser.ParseTreeType_FOR_STATEMENT:
-		return d.ProcessForLoop(node.AsForStatement())
+		return d.ProcessForLoop(node.(*parser.ForStatementTree))
 	case parser.ParseTreeType_FOR_IN_STATEMENT:
-		return d.ProcessForInLoop(node.AsForInStatement())
+		return d.ProcessForInLoop(node.(*parser.ForInStatementTree))
 	case parser.ParseTreeType_FUNCTION_DECLARATION:
-		return d.ProcessFunction(node.AsFunctionDeclaration())
+		return d.ProcessFunction(node.(*parser.FunctionDeclarationTree))
 	case parser.ParseTreeType_MEMBER_LOOKUP_EXPRESSION:
-		return d.ProcessElementGet(node.AsMemberLookupExpression())
+		return d.ProcessElementGet(node.(*parser.MemberLookupExpressionTree))
 	case parser.ParseTreeType_OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION:
-		return d.ProcessOptChainElementGet(node.AsOptionalMemberLookupExpression())
+		return d.ProcessOptChainElementGet(node.(*parser.OptionalMemberLookupExpressionTree))
 	case parser.ParseTreeType_MEMBER_EXPRESSION:
-		return d.ProcessPropertyGet(node.AsMemberExpression())
+		return d.ProcessPropertyGet(node.(*parser.MemberExpressionTree))
 	case parser.ParseTreeType_OPT_CHAIN_MEMBER_EXPRESSION:
-		return d.ProcessOptChainPropertyGet(node.AsOptionalMemberExpression())
+		return d.ProcessOptChainPropertyGet(node.(*parser.OptionalMemberExpressionTree))
 	case parser.ParseTreeType_CONDITIONAL_EXPRESSION:
-		return d.ProcessConditionalExpression(node.AsConditionalExpression())
+		return d.ProcessConditionalExpression(node.(*parser.ConditionalExpressionTree))
 	case parser.ParseTreeType_IF_STATEMENT:
-		return d.ProcessIfStatement(node.AsIfStatement())
+		return d.ProcessIfStatement(node.(*parser.IfStatementTree))
 	case parser.ParseTreeType_LABELLED_STATEMENT:
-		return d.ProcessLabeledStatement(node.AsLabelledStatement())
+		return d.ProcessLabeledStatement(node.(*parser.LabelledStatementTree))
 	case parser.ParseTreeType_PAREN_EXPRESSION:
-		return d.ProcessParenthesizedExpression(node.AsParenExpression())
+		return d.ProcessParenthesizedExpression(node.(*parser.ParenExpressionTree))
 	case parser.ParseTreeType_IDENTIFIER_EXPRESSION:
 		identifierType := IRFactory_TransformDispatcher_IdentifierType_STANDARD
 		if d.privateIdLhsOfInScope.InScope() {
 			identifierType = IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE
 		}
-		return d.ProcessName(node.AsIdentifierExpression(), identifierType)
+		return d.ProcessName(node.(*parser.IdentifierExpressionTree), identifierType)
 	case parser.ParseTreeType_NEW_EXPRESSION:
-		return d.ProcessNewExpression(node.AsNewExpression())
+		return d.ProcessNewExpression(node.(*parser.NewExpressionTree))
 	case parser.ParseTreeType_OBJECT_LITERAL_EXPRESSION:
-		return d.ProcessObjectLiteral(node.AsObjectLiteralExpression())
+		return d.ProcessObjectLiteral(node.(*parser.ObjectLiteralExpressionTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_DEFINITION:
-		return d.ProcessComputedPropertyDefinition(node.AsComputedPropertyDefinition())
+		return d.ProcessComputedPropertyDefinition(node.(*parser.ComputedPropertyDefinitionTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_GETTER:
-		return d.ProcessComputedPropertyGetter(node.AsComputedPropertyGetter())
+		return d.ProcessComputedPropertyGetter(node.(*parser.ComputedPropertyGetterTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_METHOD:
-		return d.ProcessComputedPropertyMethod(node.AsComputedPropertyMethod())
+		return d.ProcessComputedPropertyMethod(node.(*parser.ComputedPropertyMethodTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_SETTER:
-		return d.ProcessComputedPropertySetter(node.AsComputedPropertySetter())
+		return d.ProcessComputedPropertySetter(node.(*parser.ComputedPropertySetterTree))
 	case parser.ParseTreeType_RETURN_STATEMENT:
-		return d.ProcessReturnStatement(node.AsReturnStatement())
+		return d.ProcessReturnStatement(node.(*parser.ReturnStatementTree))
 	case parser.ParseTreeType_UPDATE_EXPRESSION:
-		return d.ProcessUpdateExpression(node.AsUpdateExpression())
+		return d.ProcessUpdateExpression(node.(*parser.UpdateExpressionTree))
 	case parser.ParseTreeType_PROGRAM:
-		return d.ProcessAstRoot(node.AsProgram())
+		return d.ProcessAstRoot(node.(*parser.ProgramTree))
 	case parser.ParseTreeType_LITERAL_EXPRESSION:
 		// STRING, NUMBER, TRUE, FALSE, NULL, REGEXP
-		return d.ProcessLiteralExpression(node.AsLiteralExpression())
+		return d.ProcessLiteralExpression(node.(*parser.LiteralExpressionTree))
 	case parser.ParseTreeType_SWITCH_STATEMENT:
-		return d.ProcessSwitchStatement(node.AsSwitchStatement())
+		return d.ProcessSwitchStatement(node.(*parser.SwitchStatementTree))
 	case parser.ParseTreeType_THROW_STATEMENT:
-		return d.ProcessThrowStatement(node.AsThrowStatement())
+		return d.ProcessThrowStatement(node.(*parser.ThrowStatementTree))
 	case parser.ParseTreeType_TRY_STATEMENT:
-		return d.ProcessTryStatement(node.AsTryStatement())
+		return d.ProcessTryStatement(node.(*parser.TryStatementTree))
 	case parser.ParseTreeType_VARIABLE_STATEMENT:
 		// var const let
-		return d.ProcessVariableStatement(node.AsVariableStatement())
+		return d.ProcessVariableStatement(node.(*parser.VariableStatementTree))
 	case parser.ParseTreeType_VARIABLE_DECLARATION_LIST:
-		return d.ProcessVariableDeclarationList(node.AsVariableDeclarationList())
+		return d.ProcessVariableDeclarationList(node.(*parser.VariableDeclarationListTree))
 	case parser.ParseTreeType_VARIABLE_DECLARATION:
-		return d.ProcessVariableDeclaration(node.AsVariableDeclaration())
+		return d.ProcessVariableDeclaration(node.(*parser.VariableDeclarationTree))
 	case parser.ParseTreeType_WHILE_STATEMENT:
-		return d.ProcessWhileLoop(node.AsWhileStatement())
+		return d.ProcessWhileLoop(node.(*parser.WhileStatementTree))
 	case parser.ParseTreeType_WITH_STATEMENT:
-		return d.ProcessWithStatement(node.AsWithStatement())
+		return d.ProcessWithStatement(node.(*parser.WithStatementTree))
 	case parser.ParseTreeType_COMMA_EXPRESSION:
-		return d.ProcessCommaExpression(node.AsCommaExpression())
+		return d.ProcessCommaExpression(node.(*parser.CommaExpressionTree))
 	case parser.ParseTreeType_NULL:
 		// this is not the null literal
-		return d.ProcessNull(node.AsNull())
+		return d.ProcessNull(node.(*parser.NullTree))
 	case parser.ParseTreeType_FINALLY:
-		return d.ProcessFinally(node.AsFinally())
+		return d.ProcessFinally(node.(*parser.FinallyTree))
 	case parser.ParseTreeType_MISSING_PRIMARY_EXPRESSION:
-		return d.ProcessMissingExpression(node.AsMissingPrimaryExpression())
+		return d.ProcessMissingExpression(node.(*parser.MissingPrimaryExpressionTree))
 	case parser.ParseTreeType_PROPERTY_NAME_ASSIGNMENT:
-		return d.ProcessPropertyNameAssignment(node.AsPropertyNameAssignment())
+		return d.ProcessPropertyNameAssignment(node.(*parser.PropertyNameAssignmentTree))
 	case parser.ParseTreeType_GET_ACCESSOR:
-		return d.ProcessGetAccessor(node.AsGetAccessor())
+		return d.ProcessGetAccessor(node.(*parser.GetAccessorTree))
 	case parser.ParseTreeType_SET_ACCESSOR:
-		return d.ProcessSetAccessor(node.AsSetAccessor())
+		return d.ProcessSetAccessor(node.(*parser.SetAccessorTree))
 	case parser.ParseTreeType_FORMAL_PARAMETER_LIST:
-		return d.ProcessFormalParameterList(node.AsFormalParameterList())
+		return d.ProcessFormalParameterList(node.(*parser.FormalParameterListTree))
 	case parser.ParseTreeType_CLASS_DECLARATION:
-		return d.ProcessClassDeclaration(node.AsClassDeclaration())
+		return d.ProcessClassDeclaration(node.(*parser.ClassDeclarationTree))
 	case parser.ParseTreeType_SUPER_EXPRESSION:
-		return d.ProcessSuper(node.AsSuperExpression())
+		return d.ProcessSuper(node.(*parser.SuperExpressionTree))
 	case parser.ParseTreeType_NEW_TARGET_EXPRESSION:
-		return d.ProcessNewTarget(node.AsNewTargetExpression())
+		return d.ProcessNewTarget(node.(*parser.NewTargetExpressionTree))
 	case parser.ParseTreeType_YIELD_EXPRESSION:
-		return d.ProcessYield(node.AsYieldStatement())
+		return d.ProcessYield(node.(*parser.YieldExpressionTree))
 	case parser.ParseTreeType_AWAIT_EXPRESSION:
-		return d.ProcessAwait(node.AsAwaitExpression())
+		return d.ProcessAwait(node.(*parser.AwaitExpressionTree))
 	case parser.ParseTreeType_FOR_OF_STATEMENT:
-		return d.ProcessForOf(node.AsForOfStatement())
+		return d.ProcessForOf(node.(*parser.ForOfStatementTree))
 	case parser.ParseTreeType_FOR_AWAIT_OF_STATEMENT:
-		return d.ProcessForAwaitOf(node.AsForAwaitOfStatement())
+		return d.ProcessForAwaitOf(node.(*parser.ForAwaitOfStatementTree))
 	case parser.ParseTreeType_EXPORT_DECLARATION:
-		return d.ProcessExportDecl(node.AsExportDeclaration())
+		return d.ProcessExportDecl(node.(*parser.ExportDeclarationTree))
 	case parser.ParseTreeType_EXPORT_SPECIFIER:
-		return d.ProcessExportSpec(node.AsExportSpecifier())
+		return d.ProcessExportSpec(node.(*parser.ExportSpecifierTree))
 	case parser.ParseTreeType_IMPORT_DECLARATION:
-		return d.ProcessImportDecl(node.AsImportDeclaration())
+		return d.ProcessImportDecl(node.(*parser.ImportDeclarationTree))
 	case parser.ParseTreeType_IMPORT_SPECIFIER:
-		return d.ProcessImportSpec(node.AsImportSpecifier())
+		return d.ProcessImportSpec(node.(*parser.ImportSpecifierTree))
 	case parser.ParseTreeType_DYNAMIC_IMPORT_EXPRESSION:
-		return d.ProcessDynamicImport(node.AsDynamicImportExpression())
+		return d.ProcessDynamicImport(node.(*parser.DynamicImportTree))
 	case parser.ParseTreeType_IMPORT_META_EXPRESSION:
-		return d.ProcessImportMeta(node.AsImportMetaExpression())
+		return d.ProcessImportMeta(node.(*parser.ImportMetaExpressionTree))
 	case parser.ParseTreeType_ARRAY_PATTERN:
-		return d.ProcessArrayPattern(node.AsArrayPattern())
+		return d.ProcessArrayPattern(node.(*parser.ArrayPatternTree))
 	case parser.ParseTreeType_OBJECT_PATTERN:
-		return d.ProcessObjectPattern(node.AsObjectPattern())
+		return d.ProcessObjectPattern(node.(*parser.ObjectPatternTree))
 	case parser.ParseTreeType_COMPREHENSION:
-		return d.ProcessComprehension(node.AsComprehension())
+		return d.ProcessComprehension(node.(*parser.ComprehensionTree))
 	case parser.ParseTreeType_COMPREHENSION_FOR:
-		return d.ProcessComprehensionFor(node.AsComprehensionFor())
+		return d.ProcessComprehensionFor(node.(*parser.ComprehensionForTree))
 	case parser.ParseTreeType_COMPREHENSION_IF:
-		return d.ProcessComprehensionIf(node.AsComprehensionIf())
+		return d.ProcessComprehensionIf(node.(*parser.ComprehensionIfTree))
 	case parser.ParseTreeType_DEFAULT_PARAMETER:
-		return d.ProcessDefaultParameter(node.AsDefaultParameter())
+		return d.ProcessDefaultParameter(node.(*parser.DefaultParameterTree))
 	case parser.ParseTreeType_ITER_REST:
-		return d.ProcessIterRest(node.AsIterRest())
+		return d.ProcessIterRest(node.(*parser.IterRestTree))
 	case parser.ParseTreeType_ITER_SPREAD:
-		return d.ProcessIterSpread(node.AsIterSpread())
+		return d.ProcessIterSpread(node.(*parser.IterSpreadTree))
 		// ES2019
 	case parser.ParseTreeType_OBJECT_REST:
-		return d.ProcessObjectPatternElement(node.AsObjectRest())
+		return d.ProcessObjectPatternElement(node.(*parser.ObjectRestTree))
 	case parser.ParseTreeType_OBJECT_SPREAD:
-		return d.ProcessObjectSpread(node.AsObjectSpread())
+		return d.ProcessObjectSpread(node.(*parser.ObjectSpreadTree))
 		// ES2022
 	case parser.ParseTreeType_FIELD_DECLARATION:
-		return d.ProcessField(node.AsFieldDeclaration())
+		return d.ProcessField(node.(*parser.FieldDeclarationTree))
 	case parser.ParseTreeType_COMPUTED_PROPERTY_FIELD:
-		return d.ProcessComputedPropertyField(node.AsComputedPropertyField())
+		return d.ProcessComputedPropertyField(node.(*parser.ComputedPropertyFieldTree))
 	case parser.ParseTreeType_ARGUMENT_LIST:
 		// TODO(johnlenz): handle these or remove parser support
 	default:
@@ -4927,39 +4875,39 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
-	return f.nodeSlab.New().InitFromTemplate(type_, f.templateNode)
+	return new(rhino.Node).InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return new(rhino.Node).InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return new(rhino.Node).InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return new(rhino.Node).InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
-	return f.nodeSlab.New().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return new(rhino.Node).InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
-	return f.nodeSlab.New().InitStringFromTemplate(type_, value, f.templateNode)
+	return new(rhino.Node).InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
 // node.
 //
 // Java: IRFactory.maybeAddNonJsDocComment(Node, SourcePosition)
-func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.SourcePosition) *rhino.Node {
+func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start parser.SourcePosition) *rhino.Node {
 	comment := f.ParseNonJSDocCommentAt(start, false)
 	if comment != nil {
 		node.SetNonJSDocComment(comment)
@@ -4969,17 +4917,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.Sour
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
-	return f.nodeSlab.New().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
+	return new(rhino.Node).InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return f.nodeSlab.New().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
+	return new(rhino.Node).InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
-	return f.nodeSlab.New().InitBigIntFromTemplate(value, f.templateNode)
+	return new(rhino.Node).InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)

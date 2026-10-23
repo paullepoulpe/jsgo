@@ -28,9 +28,9 @@ type ArrayPatternTree struct {
 // NewArrayPatternTree constructs a ArrayPatternTree.
 //
 // Java: ArrayPatternTree(SourceRange, ImmutableList)
-func NewArrayPatternTree(location *SourceRange, elements []ParseTree) *ArrayPatternTree {
+func NewArrayPatternTree(location SourceRange, elements []ParseTree) *ArrayPatternTree {
 	t := &ArrayPatternTree{}
-	t.InitParseTreeBase(t, ParseTreeType_ARRAY_PATTERN, location)
+	t.InitParseTreeBase(ParseTreeType_ARRAY_PATTERN, location)
 	t.Elements = elements
 	return t
 }

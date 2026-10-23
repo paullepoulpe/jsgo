@@ -85,8 +85,6 @@ func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
 
 	sc := NewSyntacticScopeCreator(c.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
 		callback:     c,

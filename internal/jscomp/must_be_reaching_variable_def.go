@@ -64,14 +64,10 @@ type MustBeReachingVariableDef struct {
 	flowInput  *MustBeReachingVariableDef_MustDef
 	flowOutput *MustBeReachingVariableDef_MustDef
 
-	mustDefSlab     []MustBeReachingVariableDef_MustDef
-	mustDefChunks   [][]MustBeReachingVariableDef_MustDef
-	mustDefChunkIdx int
-	mustDefBuf      [8]MustBeReachingVariableDef_MustDef
-	defSlab         []MustBeReachingVariableDef_Definition
-	defChunks       [][]MustBeReachingVariableDef_Definition
-	defChunkIdx     int
-	defBuf          [8]MustBeReachingVariableDef_Definition
+	// Go-only: performance — rewound for each CFG: allocMustDef(Raw) and
+	// allocDefinition re-initialize what they hand out and reuse its storage.
+	mustDefs reuseSlab[MustBeReachingVariableDef_MustDef]
+	defs     reuseSlab[MustBeReachingVariableDef_Definition]
 }
 
 func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string, *Var]) {
@@ -302,7 +298,7 @@ func (d *MustBeReachingVariableDef) Reset(
 	compiler AbstractCompiler,
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	d.ResetDataFlowAnalysisBase(d, cfg)
+	d.InitDataFlowAnalysisBase(d, cfg)
 	d.compiler = compiler
 	d.escaped = escaped
 	d.allVarsInFn = allVarsInFn
@@ -312,29 +308,12 @@ func (d *MustBeReachingVariableDef) Reset(
 	d.depCallback.def = nil
 	d.flowInput = nil
 	d.flowOutput = nil
-	d.mustDefChunkIdx = 0
-	d.mustDefSlab = d.mustDefBuf[:0:len(d.mustDefBuf)]
-	d.defChunkIdx = 0
-	d.defSlab = d.defBuf[:0:len(d.defBuf)]
+	d.mustDefs.rewind()
+	d.defs.rewind()
 }
 
 func (d *MustBeReachingVariableDef) allocMustDefRaw() *MustBeReachingVariableDef_MustDef {
-	if len(d.mustDefSlab) == cap(d.mustDefSlab) {
-		if d.mustDefChunkIdx < len(d.mustDefChunks) {
-			ch := d.mustDefChunks[d.mustDefChunkIdx]
-			d.mustDefChunkIdx++
-			d.mustDefSlab = ch[:0:cap(ch)]
-		} else {
-			nextCap := min(max(cap(d.mustDefSlab)*2, 16), 2048)
-			ch := make([]MustBeReachingVariableDef_MustDef, 0, nextCap)
-			d.mustDefChunks = append(d.mustDefChunks, ch)
-			d.mustDefChunkIdx = len(d.mustDefChunks)
-			d.mustDefSlab = ch
-		}
-	}
-	idx := len(d.mustDefSlab)
-	d.mustDefSlab = d.mustDefSlab[:idx+1]
-	return &d.mustDefSlab[idx]
+	return d.mustDefs.alloc()
 }
 
 func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
@@ -344,22 +323,7 @@ func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_Mu
 }
 
 func (d *MustBeReachingVariableDef) allocDefinition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
-	if len(d.defSlab) == cap(d.defSlab) {
-		if d.defChunkIdx < len(d.defChunks) {
-			ch := d.defChunks[d.defChunkIdx]
-			d.defChunkIdx++
-			d.defSlab = ch[:0:cap(ch)]
-		} else {
-			nextCap := min(max(cap(d.defSlab)*2, 16), 2048)
-			ch := make([]MustBeReachingVariableDef_Definition, 0, nextCap)
-			d.defChunks = append(d.defChunks, ch)
-			d.defChunkIdx = len(d.defChunks)
-			d.defSlab = ch
-		}
-	}
-	idx := len(d.defSlab)
-	d.defSlab = d.defSlab[:idx+1]
-	def := &d.defSlab[idx]
+	def := d.defs.alloc()
 	def.node = node
 	def.unknownDependencies = false
 	def.depMask = 0

@@ -113,7 +113,7 @@ func (t *RecordType) IsSynthetic() bool {
 
 // Java: RecordType.getImplicitPrototype()
 func (t *RecordType) GetImplicitPrototype() ObjectType {
-	return t.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
+	return t.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
 }
 
 // Java: RecordType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -129,10 +129,10 @@ func (t *RecordType) DefinePropertyByKey(propertyName Property_Key, type_ JSType
 func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 	if that.IsRecordType() {
 		thatRecord := that.ToMaybeRecordType()
-		builder := NewRecordTypeBuilder(t.registry)
+		builder := NewRecordTypeBuilder(t.GetRegistry())
 		builder.SetSynthesized(true)
 
-		noType := t.registry.GetNativeObjectType(JSTypeNative_NO_TYPE)
+		noType := t.GetRegistry().GetNativeObjectType(JSTypeNative_NO_TYPE)
 
 		// The greatest subtype consists of those *unique* properties of both
 		// record types. If any property conflicts, then the NO_TYPE type is
@@ -161,8 +161,8 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 		return builder.Build()
 	}
 
-	greatestSubtype := t.registry.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
-	thatRestrictedToObj := t.registry.GetNativeType(JSTypeNative_OBJECT_TYPE).GetGreatestSubtype(that)
+	greatestSubtype := t.GetRegistry().GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
+	thatRestrictedToObj := t.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE).GetGreatestSubtype(that)
 	if !thatRestrictedToObj.IsEmptyType() {
 		// In this branch, the other type is some object type. We find the
 		// greatest subtype with the following algorithm:
@@ -172,8 +172,8 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 		// 2) Take the intersection of all of these unions.
 		for _, propName := range t.GetOwnPropertyNames() {
 			propType := t.GetPropertyType(propName)
-			builder := UnionType_Builder_(t.registry)
-			for _, alt := range t.registry.GetEachReferenceTypeWithProperty(propName) {
+			builder := UnionType_Builder_(t.GetRegistry())
+			for _, alt := range t.GetRegistry().GetEachReferenceTypeWithProperty(propName) {
 				altPropType := alt.GetPropertyType(propName)
 				if altPropType != nil &&
 					!alt.Equals(t) &&

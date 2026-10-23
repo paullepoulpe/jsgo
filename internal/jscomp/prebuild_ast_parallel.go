@@ -62,9 +62,6 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
 	}
 	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		astSlab := jutil.NewFixedSlab[rhino.Node](511)
-		jsdocSlab := jutil.NewFixedSlab[rhino.Node](511)
-		jsdocSlabs := rhino.NewJSDocBuilderSlabs()
 		for {
 			index, ok := claim()
 			if !ok {
@@ -80,7 +77,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				if result.wasDeserialized {
 					if sd := result.scriptDeserializer; sd != nil {
 						result.scriptDeserializer = nil
-						result.deserializedRoot = sd.DeserializeNewWithSlab(&astSlab)
+						result.deserializedRoot = sd.DeserializeNew()
 						return
 					}
 					fn := result.deserializer
@@ -92,8 +89,8 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				if input.sourceFile.IsExtern() {
 					config = extern
 				}
-				result.parsed = parsing.ParserRunner_ParseWithSlabs(
-					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors, &astSlab, &jsdocSlab, &jsdocSlabs)
+				result.parsed = parsing.ParserRunner_Parse(
+					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
 			}, func(t jutil.Throwable) {
 				outcomes[index].scriptDeserializer = nil
 				outcomes[index].deserializer = nil

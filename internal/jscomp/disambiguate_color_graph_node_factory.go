@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -31,7 +29,6 @@ type ColorGraphNodeFactory struct {
 	// Colors are keyed with their equals()/hashCode().
 	typeIndex *jutil.ObjectLinkedHashMap[*colors.Color, *ColorGraphNode]
 	registry  *colors.ColorRegistry
-	nodeSlab  []ColorGraphNode
 }
 
 // Java: ColorGraphNodeFactory(LinkedHashMap<Color, ColorGraphNode>, ColorRegistry)
@@ -79,18 +76,7 @@ func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraph
 	jutil.CheckNotNull(key)
 	id := f.typeIndex.Size()
 	jutil.CheckArgument(id >= 0)
-	if len(f.nodeSlab) == cap(f.nodeSlab) {
-		newCap := 256
-		if cap(f.nodeSlab) >= 256 {
-			newCap = min(cap(f.nodeSlab)*2, jscompMaxSmallAlloc/int(unsafe.Sizeof(ColorGraphNode{})))
-		}
-		f.nodeSlab = make([]ColorGraphNode, 0, newCap)
-	}
-	idx := len(f.nodeSlab)
-	f.nodeSlab = f.nodeSlab[:idx+1]
-	n := &f.nodeSlab[idx]
-	n.index = id
-	n.color = key
+	n := &ColorGraphNode{index: id, color: key}
 	n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
 	return n
 }

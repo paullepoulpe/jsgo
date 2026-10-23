@@ -2,3 +2,4 @@
 .claude/
 bin/
 __pycache__/
+.memgate/

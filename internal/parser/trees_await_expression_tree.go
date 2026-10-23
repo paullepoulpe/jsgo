@@ -30,9 +30,9 @@ type AwaitExpressionTree struct {
 // NewAwaitExpressionTree constructs a AwaitExpressionTree.
 //
 // Java: AwaitExpressionTree(SourceRange, ParseTree)
-func NewAwaitExpressionTree(location *SourceRange, expression ParseTree) *AwaitExpressionTree {
+func NewAwaitExpressionTree(location SourceRange, expression ParseTree) *AwaitExpressionTree {
 	t := &AwaitExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_AWAIT_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_AWAIT_EXPRESSION, location)
 	t.Expression = expression
 	return t
 }

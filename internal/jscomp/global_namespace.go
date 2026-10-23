@@ -22,8 +22,6 @@ import (
 	"iter"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
@@ -31,221 +29,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-const (
-	gnNameChunkSize     = jscompMaxSmallAlloc / int(unsafe.Sizeof(GlobalNamespace_Name{}))
-	gnRefChunkSize      = jscompMaxSmallAlloc / int(unsafe.Sizeof(GlobalNamespace_Ref{}))
-	gnPropsChunkSize    = jscompMaxSmallAlloc / int(unsafe.Sizeof(globalNamespace_propsSlot{}))
-	gnRefSliceChunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof((*GlobalNamespace_Ref)(nil)))
-
-	gnMaxNameChunks     = 2048
-	gnMaxRefChunks      = 4096
-	gnMaxPropsChunks    = 1024
-	gnMaxRefSliceChunks = 256
-
-	gnConcatCacheSize = 65536
-)
-
-type globalNamespaceArena struct {
-	nameChunks   []*[gnNameChunkSize]GlobalNamespace_Name
-	nameChunkIdx int
-	nameElemIdx  int
-
-	refChunks   []*[gnRefChunkSize]GlobalNamespace_Ref
-	refChunkIdx int
-	refElemIdx  int
-
-	propsChunks   []*[gnPropsChunkSize]globalNamespace_propsSlot
-	propsChunkIdx int
-	propsElemIdx  int
-
-	refSliceChunks   []*[gnRefSliceChunkSize]*GlobalNamespace_Ref
-	refSliceChunkIdx int
-	refSliceElemIdx  int
-
-	nameMap            *jutil.LinkedHashMap[string, *GlobalNamespace_Name]
-	nameMapCap         int
-	globalNames        *jutil.ArrayList[*GlobalNamespace_Name]
-	spreadSiblingCache map[*rhino.Node]bool
-	unpooled           bool
-
-	concatCache [gnConcatCacheSize][2]string
-}
-
-var cachedGNArenas [2]atomic.Pointer[globalNamespaceArena]
-
-var globalNamespaceArenaPool = sync.Pool{
-	New: func() any {
-		return &globalNamespaceArena{
-			nameMap:     jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](256),
-			nameMapCap:  256,
-			globalNames: jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](64),
-		}
-	},
-}
-
-func acquireGlobalNamespaceArena() *globalNamespaceArena {
-	for i := range cachedGNArenas {
-		if a := cachedGNArenas[i].Swap(nil); a != nil {
-			return a
-		}
-	}
-	return globalNamespaceArenaPool.Get().(*globalNamespaceArena)
-}
-
-func (a *globalNamespaceArena) allocName() *GlobalNamespace_Name {
-	if a.nameChunkIdx < len(a.nameChunks) {
-		p := &a.nameChunks[a.nameChunkIdx][a.nameElemIdx]
-		a.nameElemIdx++
-		if a.nameElemIdx == gnNameChunkSize {
-			a.nameChunkIdx++
-			a.nameElemIdx = 0
-		}
-		return p
-	}
-	ch := new([gnNameChunkSize]GlobalNamespace_Name)
-	a.nameChunks = append(a.nameChunks, ch)
-	a.nameElemIdx = 1
-	return &ch[0]
-}
-
-func (a *globalNamespaceArena) allocRef() *GlobalNamespace_Ref {
-	if a.refChunkIdx < len(a.refChunks) {
-		p := &a.refChunks[a.refChunkIdx][a.refElemIdx]
-		a.refElemIdx++
-		if a.refElemIdx == gnRefChunkSize {
-			a.refChunkIdx++
-			a.refElemIdx = 0
-		}
-		return p
-	}
-	ch := new([gnRefChunkSize]GlobalNamespace_Ref)
-	a.refChunks = append(a.refChunks, ch)
-	a.refElemIdx = 1
-	return &ch[0]
-}
-
-func (a *globalNamespaceArena) allocPropsSlot() *globalNamespace_propsSlot {
-	if a.propsChunkIdx < len(a.propsChunks) {
-		p := &a.propsChunks[a.propsChunkIdx][a.propsElemIdx]
-		a.propsElemIdx++
-		if a.propsElemIdx == gnPropsChunkSize {
-			a.propsChunkIdx++
-			a.propsElemIdx = 0
-		}
-		return p
-	}
-	ch := new([gnPropsChunkSize]globalNamespace_propsSlot)
-	a.propsChunks = append(a.propsChunks, ch)
-	a.propsElemIdx = 1
-	return &ch[0]
-}
-
-func (a *globalNamespaceArena) allocRefSlice(length, capacity int) []*GlobalNamespace_Ref {
-	if capacity > gnRefSliceChunkSize {
-		return make([]*GlobalNamespace_Ref, length, capacity)
-	}
-	if a.refSliceChunkIdx < len(a.refSliceChunks) && a.refSliceElemIdx+capacity > gnRefSliceChunkSize {
-		a.refSliceChunkIdx++
-		a.refSliceElemIdx = 0
-	}
-	if a.refSliceChunkIdx == len(a.refSliceChunks) {
-		ch := new([gnRefSliceChunkSize]*GlobalNamespace_Ref)
-		a.refSliceChunks = append(a.refSliceChunks, ch)
-	}
-	ch := a.refSliceChunks[a.refSliceChunkIdx]
-	off := a.refSliceElemIdx
-	a.refSliceElemIdx = off + capacity
-	return ch[off : off+length : off+capacity]
-}
-
-func (a *globalNamespaceArena) release() {
-	if a == nil {
-		return
-	}
-	for i := 0; i < a.nameChunkIdx; i++ {
-		clear(a.nameChunks[i][:])
-	}
-	if a.nameElemIdx > 0 && a.nameChunkIdx < len(a.nameChunks) {
-		clear(a.nameChunks[a.nameChunkIdx][:a.nameElemIdx])
-	}
-	if len(a.nameChunks) > gnMaxNameChunks {
-		clear(a.nameChunks[gnMaxNameChunks:])
-		a.nameChunks = a.nameChunks[:gnMaxNameChunks]
-	}
-	a.nameChunkIdx = 0
-	a.nameElemIdx = 0
-
-	for i := 0; i < a.refChunkIdx; i++ {
-		clear(a.refChunks[i][:])
-	}
-	if a.refElemIdx > 0 && a.refChunkIdx < len(a.refChunks) {
-		clear(a.refChunks[a.refChunkIdx][:a.refElemIdx])
-	}
-	if len(a.refChunks) > gnMaxRefChunks {
-		clear(a.refChunks[gnMaxRefChunks:])
-		a.refChunks = a.refChunks[:gnMaxRefChunks]
-	}
-	a.refChunkIdx = 0
-	a.refElemIdx = 0
-
-	for i := 0; i < a.propsChunkIdx; i++ {
-		clear(a.propsChunks[i][:])
-	}
-	if a.propsElemIdx > 0 && a.propsChunkIdx < len(a.propsChunks) {
-		clear(a.propsChunks[a.propsChunkIdx][:a.propsElemIdx])
-	}
-	if len(a.propsChunks) > gnMaxPropsChunks {
-		clear(a.propsChunks[gnMaxPropsChunks:])
-		a.propsChunks = a.propsChunks[:gnMaxPropsChunks]
-	}
-	a.propsChunkIdx = 0
-	a.propsElemIdx = 0
-
-	for i := 0; i < a.refSliceChunkIdx; i++ {
-		clear(a.refSliceChunks[i][:])
-	}
-	if a.refSliceElemIdx > 0 && a.refSliceChunkIdx < len(a.refSliceChunks) {
-		clear(a.refSliceChunks[a.refSliceChunkIdx][:a.refSliceElemIdx])
-	}
-	if len(a.refSliceChunks) > gnMaxRefSliceChunks {
-		clear(a.refSliceChunks[gnMaxRefSliceChunks:])
-		a.refSliceChunks = a.refSliceChunks[:gnMaxRefSliceChunks]
-	}
-	a.refSliceChunkIdx = 0
-	a.refSliceElemIdx = 0
-
-	if a.nameMap != nil {
-		if sz := a.nameMap.Size(); sz > a.nameMapCap {
-			a.nameMapCap = sz
-		}
-		a.nameMap.Clear()
-	}
-	if a.globalNames != nil {
-		a.globalNames.Clear()
-	}
-	if a.spreadSiblingCache != nil {
-		if len(a.spreadSiblingCache) <= 4096 {
-			clear(a.spreadSiblingCache)
-		} else {
-			a.spreadSiblingCache = nil
-		}
-	}
-
-	for i := range cachedGNArenas {
-		if cachedGNArenas[i].CompareAndSwap(nil, a) {
-			return
-		}
-	}
-	globalNamespaceArenaPool.Put(a)
-}
-
-func evictCachedGlobalNamespaceArenas() {
-	for i := range cachedGNArenas {
-		if a := cachedGNArenas[i].Swap(nil); a != nil {
-			globalNamespaceArenaPool.Put(a)
-		}
-	}
-}
+// gnConcatCacheSize is the number of slots of the qualified-name cache that a
+// GlobalNamespace keeps while it traverses the AST (see concatDotCached).
+const gnConcatCacheSize = 16384
 
 func gnHashStr(s string) uint64 {
 	n := len(s)
@@ -287,35 +73,6 @@ func gnConcatHash(a, b string) uint32 {
 	return uint32(h)
 }
 
-func gnConcatDot3(a, b, c string) string {
-	n := len(a) + 1 + len(b) + 1 + len(c)
-	buf := nodeUtilAllocStringBytes(n)
-	i := copy(buf, a)
-	buf[i] = '.'
-	i++
-	i += copy(buf[i:], b)
-	buf[i] = '.'
-	i++
-	copy(buf[i:], c)
-	return unsafe.String(unsafe.SliceData(buf), n)
-}
-
-func gnConcatDot4(a, b, c, d string) string {
-	n := len(a) + 1 + len(b) + 1 + len(c) + 1 + len(d)
-	buf := nodeUtilAllocStringBytes(n)
-	i := copy(buf, a)
-	buf[i] = '.'
-	i++
-	i += copy(buf[i:], b)
-	buf[i] = '.'
-	i++
-	i += copy(buf[i:], c)
-	buf[i] = '.'
-	i++
-	copy(buf[i:], d)
-	return unsafe.String(unsafe.SliceData(buf), n)
-}
-
 func gnConcatMatch(res, a, b string) bool {
 	la := len(a)
 	return len(res) == la+1+len(b) && res[la] == '.' &&
@@ -340,72 +97,72 @@ func gnConcatCachePut(slot *[2]string, res string) {
 }
 
 func (g *GlobalNamespace) concatDotCached(a, b string) string {
-	if g == nil || g.arena == nil || len(a) == 0 || len(b) == 0 {
-		return nodeUtilConcatDot(a, b)
+	if g == nil || g.concatCache == nil || len(a) == 0 || len(b) == 0 {
+		return a + "." + b
 	}
-	slot := &g.arena.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
+	slot := &g.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
 	if res, ok := gnConcatCacheLookup(slot, a, b); ok {
 		return res
 	}
-	res := nodeUtilConcatDot(a, b)
+	res := a + "." + b
 	gnConcatCachePut(slot, res)
 	return res
 }
 
 func (g *GlobalNamespace) concatDot3Cached(a, b, c string) string {
-	if g == nil || g.arena == nil || len(a) == 0 || len(b) == 0 || len(c) == 0 {
-		return gnConcatDot3(a, b, c)
+	if g == nil || g.concatCache == nil || len(a) == 0 || len(b) == 0 || len(c) == 0 {
+		return a + "." + b + "." + c
 	}
-	slotAB := &g.arena.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
+	slotAB := &g.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
 	if ab, ok := gnConcatCacheLookup(slotAB, a, b); ok {
-		slotABC := &g.arena.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
+		slotABC := &g.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
 		if res, ok := gnConcatCacheLookup(slotABC, ab, c); ok {
 			return res
 		}
-		res := nodeUtilConcatDot(ab, c)
+		res := ab + "." + c
 		gnConcatCachePut(slotABC, res)
 		return res
 	}
-	res := gnConcatDot3(a, b, c)
+	res := a + "." + b + "." + c
 	ab := res[:len(a)+1+len(b)]
 	gnConcatCachePut(slotAB, ab)
-	slotABC := &g.arena.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
+	slotABC := &g.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
 	gnConcatCachePut(slotABC, res)
 	return res
 }
 
 func (g *GlobalNamespace) concatDot4Cached(a, b, c, d string) string {
-	if g == nil || g.arena == nil || len(a) == 0 || len(b) == 0 || len(c) == 0 || len(d) == 0 {
-		return gnConcatDot4(a, b, c, d)
+	if g == nil || g.concatCache == nil || len(a) == 0 || len(b) == 0 || len(c) == 0 || len(d) == 0 {
+		return a + "." + b + "." + c + "." + d
 	}
-	slotAB := &g.arena.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
+	slotAB := &g.concatCache[gnConcatHash(a, b)&(gnConcatCacheSize-1)]
 	if ab, ok := gnConcatCacheLookup(slotAB, a, b); ok {
-		slotABC := &g.arena.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
+		slotABC := &g.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
 		if abc, ok := gnConcatCacheLookup(slotABC, ab, c); ok {
-			slotABCD := &g.arena.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
+			slotABCD := &g.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
 			if res, ok := gnConcatCacheLookup(slotABCD, abc, d); ok {
 				return res
 			}
-			res := nodeUtilConcatDot(abc, d)
+			res := abc + "." + d
 			gnConcatCachePut(slotABCD, res)
 			return res
 		}
-		res := gnConcatDot3(ab, c, d)
+		res := ab + "." + c + "." + d
 		abc := res[:len(ab)+1+len(c)]
 		gnConcatCachePut(slotABC, abc)
-		slotABCD := &g.arena.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
+		slotABCD := &g.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
 		gnConcatCachePut(slotABCD, res)
 		return res
 	}
-	res := gnConcatDot4(a, b, c, d)
+	res := a + "." + b + "." + c + "." + d
 	abLen := len(a) + 1 + len(b)
 	abcLen := abLen + 1 + len(c)
 	ab := res[:abLen]
 	abc := res[:abcLen]
 	gnConcatCachePut(slotAB, ab)
-	slotABC := &g.arena.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
+	slotABC := &g.concatCache[gnConcatHash(ab, c)&(gnConcatCacheSize-1)]
 	gnConcatCachePut(slotABC, abc)
-	slotABCD := &g.arena.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
+	slotABCD := &g.concatCache[gnConcatHash(abc, d)&(gnConcatCacheSize-1)]
 	gnConcatCachePut(slotABCD, res)
 	return res
 }
@@ -532,7 +289,11 @@ type GlobalNamespace struct {
 	// Limits traversal to scripts matching the given predicate.
 	shouldTraverseScript func(*rhino.Node) bool
 
-	arena                  *globalNamespaceArena
+	// Go-only: performance — while the namespace is being built, a cache of
+	// the qualified-name strings built by concatDotCached, so that the many
+	// references to one name share one string.
+	concatCache *[gnConcatCacheSize][2]string
+
 	scopeCreator           *SyntacticScopeCreator
 	forProcessDefines      bool
 	processDefinesCheck    bool
@@ -540,38 +301,18 @@ type GlobalNamespace struct {
 	defineCandidateScripts map[*rhino.Node]struct{}
 }
 
-func (g *GlobalNamespace) allocRefSlice(length, capacity int) []*GlobalNamespace_Ref {
-	if g.arena != nil {
-		return g.arena.allocRefSlice(length, capacity)
-	}
-	return make([]*GlobalNamespace_Ref, length, capacity)
-}
-
-// Release returns pooled Scope/Var and GlobalNamespace arenas owned by this
-// GlobalNamespace back to their sync.Pools. Callers must only invoke Release
-// once no references from this GlobalNamespace are needed anymore.
+// Release returns the pooled Scope/Var arenas owned by this GlobalNamespace.
+// Callers must only invoke Release once no references from this
+// GlobalNamespace are needed anymore.
 func (g *GlobalNamespace) Release() {
 	if g == nil {
 		return
 	}
-	if g.scopeCreator != nil {
-		g.scopeCreator.ReleaseArena()
-		g.scopeCreator = nil
-	}
-	if g.arena != nil {
-		if !g.arena.unpooled {
-			g.arena.release()
-		}
-		g.arena = nil
-		g.nameMap = nil
-		g.globalNames = nil
-		g.spreadSiblingCache = nil
-	}
+	g.ReleaseScopeArena()
 }
 
 func (g *GlobalNamespace) ReleaseScopeArena() {
 	if g != nil && g.scopeCreator != nil {
-		g.scopeCreator.ReleaseArena()
 		g.scopeCreator = nil
 	}
 }
@@ -677,13 +418,11 @@ func NewGlobalNamespaceWithLogAndRoots(
 	compiler AbstractCompiler,
 	externsRoot *rhino.Node,
 	root *rhino.Node) *GlobalNamespace {
-	arena := acquireGlobalNamespaceArena()
 	g := &GlobalNamespace{
 		globalRoot:  globalNamespace_globalRoot,
 		generated:   false,
-		globalNames: arena.globalNames,
-		nameMap:     arena.nameMap,
-		arena:       arena,
+		globalNames: jutil.NewArrayList[*GlobalNamespace_Name](),
+		nameMap:     jutil.NewLinkedHashMap[string, *GlobalNamespace_Name](),
 	}
 	g.decisionsLog = decisionsLog
 	g.compiler = compiler
@@ -696,17 +435,6 @@ func NewGlobalNamespaceWithLogAndRoots(
 // Java: GlobalNamespace.setShouldTraverseScriptPredicate(Predicate<Node>)
 func (g *GlobalNamespace) SetShouldTraverseScriptPredicate(shouldTraverseScript func(*rhino.Node) bool) {
 	g.shouldTraverseScript = shouldTraverseScript
-	if shouldTraverseScript != nil && g.arena != nil && !g.arena.unpooled && !g.generated {
-		g.arena.release()
-		g.arena = &globalNamespaceArena{
-			nameMap:     jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](64),
-			nameMapCap:  64,
-			globalNames: jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](16),
-			unpooled:    true,
-		}
-		g.nameMap = g.arena.nameMap
-		g.globalNames = g.arena.globalNames
-	}
 }
 
 // Java: GlobalNamespace.hasExternsRoot()
@@ -944,73 +672,51 @@ func (g *GlobalNamespace) ScanFromNode(builder *GlobalNamespace_BuildGlobalNames
 func (g *GlobalNamespace) ProcessNamespace() {
 	isInitial := !g.generated && g.nameMap.IsEmpty() && g.nameMapByModule == nil
 	if g.nameMap.IsEmpty() {
-		if capHint := g.estimateNameCapacity(); capHint > 8 {
-			if g.arena != nil {
-				if capHint > g.arena.nameMapCap {
-					g.nameMap = jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](capHint)
-					g.arena.nameMap = g.nameMap
-					g.arena.nameMapCap = capHint
-				}
-				if want := max(capHint/4, 16); cap(g.globalNames.Slice()) < want {
-					g.globalNames = jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](want)
-					g.arena.globalNames = g.globalNames
-				}
-			} else {
-				g.nameMap = jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](capHint)
-				g.globalNames = jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](max(capHint/4, 16))
-			}
+		if capHint := g.estimateNameCapacity(); capHint > 64 {
+			g.nameMap = jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](capHint)
 		}
 	}
 	if g.scopeCreator == nil {
 		g.scopeCreator = NewSyntacticScopeCreator(g.compiler)
-		g.scopeCreator.EnableArenaPool()
-		if g.forProcessDefines {
-			g.scopeCreator.EnableLocalScopeReclamation()
-		}
 	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 	builder.confirmExisting = !isInitial
 	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(g.scopeCreator).SetCallback(builder)
 
+	g.concatCache = new([gnConcatCacheSize][2]string)
 	if g.HasExternsRoot() {
 		traversal.TraverseRoots(g.externsRoot, g.root)
 	} else {
 		traversal.Traverse(g.root)
 	}
+	g.concatCache = nil
 
 	g.generated = true
 }
 
+// estimateNameCapacity guesses the number of names from the number of
+// top-level statements in the code (externs hold few qualified names).
+//
+// Go-only: performance — growing the name index to ~150k names (the
+// typed-full benchmark) allocates about twice its final size.
 func (g *GlobalNamespace) estimateNameCapacity() int {
+	if g.root == nil {
+		return 0
+	}
 	stmtCount := 0
-	const maxStmts = 262144
-	countRoot := func(r *rhino.Node) {
-		if r == nil {
-			return
+	for s := g.root.GetFirstChild(); s != nil; s = s.GetNext() {
+		if g.shouldTraverseScript != nil && !g.shouldTraverseScript(s) {
+			continue
 		}
-		for s := r.GetFirstChild(); s != nil && stmtCount < maxStmts; s = s.GetNext() {
-			if g.shouldTraverseScript != nil && !g.shouldTraverseScript(s) {
-				continue
-			}
-			for c := s.GetFirstChild(); c != nil && stmtCount < maxStmts; c = c.GetNext() {
-				if c.IsModuleBody() {
-					for m := c.GetFirstChild(); m != nil && stmtCount < maxStmts; m = m.GetNext() {
-						stmtCount++
-					}
-				} else {
-					stmtCount++
-				}
+		for c := s.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.IsModuleBody() {
+				stmtCount += c.GetChildCount()
+			} else {
+				stmtCount++
 			}
 		}
 	}
-	if g.HasExternsRoot() {
-		countRoot(g.externsRoot)
-	}
-	countRoot(g.root)
-	if stmtCount <= 2 {
-		return stmtCount * 2
-	}
-	return stmtCount * 4
+	return stmtCount * 5
 }
 
 // GlobalNamespace_GetTopVarName gets the top variable name from a possibly
@@ -1059,11 +765,6 @@ func (g *GlobalNamespace) DeclarationHasFollowingObjectSpreadSibling(declaration
 		if cached, ok := g.spreadSiblingCache[declaration]; ok {
 			return cached
 		}
-	} else if g.arena != nil {
-		if g.arena.spreadSiblingCache == nil {
-			g.arena.spreadSiblingCache = make(map[*rhino.Node]bool, 64)
-		}
-		g.spreadSiblingCache = g.arena.spreadSiblingCache
 	} else {
 		g.spreadSiblingCache = make(map[*rhino.Node]bool, 64)
 	}
@@ -2414,8 +2115,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, meta
 			b.lastParentName = parentName
 			b.lastParentMeta = metadata
 			b.lastParentNode = parent
-			node = parent.AddProperty(name[i+1:], g.sourceKind)
-			node.fullName = name
+			node = parent.addPropertyWithFullName(name, g.sourceKind)
 			if metadata == nil {
 				g.nameMap.PutNew(name, node)
 			} else {
@@ -2520,7 +2220,8 @@ func (i GlobalNamespace_Inlinability) CanCollapse() bool {
 type GlobalNamespace_Name struct {
 	outer *GlobalNamespace
 
-	baseName string
+	// Go-only: performance — the base name is the end of fullName (see
+	// GetBaseName); a Name does not store it separately.
 	fullName string
 	parent   *GlobalNamespace_Name
 
@@ -2539,7 +2240,8 @@ type GlobalNamespace_Name struct {
 	//   0: empty
 	//   1: singleton Ref in refsBuf[0] (refsSlice == refsBuf[:1])
 	//   2: slice in refsSlice (with lazy refsIndex when len > 24)
-	refsBuf        [4]*GlobalNamespace_Ref
+	// About 90% of the Names of a large program have a single Ref.
+	refsBuf        [1]*GlobalNamespace_Ref
 	refsSlice      []*GlobalNamespace_Ref
 	refsIndex      map[*rhino.Node]int
 	refsTombstones int32
@@ -2578,18 +2280,15 @@ type GlobalNamespace_Name struct {
 
 // Java: GlobalNamespace.Name(String, Name, SourceKind)
 func NewGlobalNamespace_Name(outer *GlobalNamespace, name string, parent *GlobalNamespace_Name, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
-	var n *GlobalNamespace_Name
-	if outer != nil && outer.arena != nil {
-		n = outer.arena.allocName()
-		n.outer = outer
-	} else {
-		n = &GlobalNamespace_Name{outer: outer}
+	if parent != nil {
+		name = parent.fullName + "." + name
 	}
-	n.baseName = name
-	n.parent = parent
-	if parent == nil {
-		n.fullName = name
-	}
+	return newGlobalNamespace_Name(outer, name, parent, sourceKind)
+}
+
+// newGlobalNamespace_Name is the Name constructor given the full name.
+func newGlobalNamespace_Name(outer *GlobalNamespace, fullName string, parent *GlobalNamespace_Name, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
+	n := &GlobalNamespace_Name{outer: outer, fullName: fullName, parent: parent}
 	n.SetBooleanProperty(GlobalNamespace_NameProp_NOT_A_TYPE)
 	n.SetBooleanProperty(GlobalNamespace_NameProp_OTHER_OBJECT)
 	if sourceKind == GlobalNamespace_SourceKind_EXTERN {
@@ -2600,23 +2299,27 @@ func NewGlobalNamespace_Name(outer *GlobalNamespace, name string, parent *Global
 
 // Java: GlobalNamespace.Name.addProperty(String, SourceKind)
 func (n *GlobalNamespace_Name) AddProperty(name string, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
+	return n.addPropertyWithFullName(n.fullName+"."+name, sourceKind)
+}
+
+// addPropertyWithFullName is addProperty given the property's full name.
+func (n *GlobalNamespace_Name) addPropertyWithFullName(fullName string, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
 	if n.props == nil {
-		if n.outer != nil && n.outer.arena != nil {
-			slot := n.outer.arena.allocPropsSlot()
-			slot.list.InitWithBuffer(slot.buf[:])
-			n.props = &slot.list
-		} else {
-			n.props = jutil.NewArrayListWithCapacity[*GlobalNamespace_Name](4)
-		}
+		slot := &globalNamespace_propsSlot{}
+		slot.list.InitWithBuffer(slot.buf[:])
+		n.props = &slot.list
 	}
-	node := NewGlobalNamespace_Name(n.outer, name, n, sourceKind)
+	node := newGlobalNamespace_Name(n.outer, fullName, n, sourceKind)
 	n.props.Add(node)
 	return node
 }
 
 // Java: GlobalNamespace.Name.getBaseName()
 func (n *GlobalNamespace_Name) GetBaseName() string {
-	return n.baseName
+	if n.parent == nil {
+		return n.fullName
+	}
+	return n.fullName[len(n.parent.fullName)+1:]
 }
 
 // Java: GlobalNamespace.Name.inExterns()
@@ -2636,18 +2339,6 @@ func (n *GlobalNamespace_Name) GetName() string {
 
 // Java: GlobalNamespace.Name.getFullName()
 func (n *GlobalNamespace_Name) GetFullName() string {
-	if n.fullName != "" {
-		return n.fullName
-	}
-	if n.parent == nil {
-		n.fullName = n.baseName
-		return n.baseName
-	}
-	if n.outer != nil {
-		n.fullName = n.outer.concatDotCached(n.parent.GetFullName(), n.baseName)
-	} else {
-		n.fullName = n.parent.GetFullName() + "." + n.baseName
-	}
 	return n.fullName
 }
 
@@ -2850,14 +2541,6 @@ func (n *GlobalNamespace_Name) CreateNewRef(chunk *JSChunk, scope *Scope, node *
 		jutil.CheckNotNull(scope)
 	}
 	jutil.CheckNotNull(node) // may be null later, but not on creation
-	if n.outer != nil && n.outer.arena != nil {
-		r := n.outer.arena.allocRef()
-		r.chunk = chunk
-		r.scope = scope
-		r.node = node
-		r.type_ = type_
-		return r
-	}
 	return NewGlobalNamespace_Ref(chunk, scope, node, type_)
 }
 
@@ -2868,8 +2551,8 @@ func (n *GlobalNamespace_Name) putNewRef(node *rhino.Node, ref *GlobalNamespace_
 		n.refsSlice = n.refsBuf[:1]
 		n.refsState = 1
 	case 1:
-		n.refsBuf[1] = ref
-		n.refsSlice = n.refsBuf[:2]
+		n.refsSlice = append(make([]*GlobalNamespace_Ref, 0, 4), n.refsBuf[0], ref)
+		n.refsBuf[0] = nil
 		n.refsState = 2
 	default:
 		oldLen := len(n.refsSlice)
@@ -2885,12 +2568,7 @@ func (n *GlobalNamespace_Name) putNewRef(node *rhino.Node, ref *GlobalNamespace_
 			if newCap < 8 {
 				newCap = 8
 			}
-			var next []*GlobalNamespace_Ref
-			if n.outer != nil && newCap <= 64 {
-				next = n.outer.allocRefSlice(oldLen+1, newCap)
-			} else {
-				next = make([]*GlobalNamespace_Ref, oldLen+1, newCap)
-			}
+			next := make([]*GlobalNamespace_Ref, oldLen+1, newCap)
 			copy(next, n.refsSlice)
 			next[oldLen] = ref
 			n.refsSlice = next
@@ -2913,8 +2591,8 @@ func (n *GlobalNamespace_Name) PutRef(node *rhino.Node, ref *GlobalNamespace_Ref
 			n.refsBuf[0] = ref
 			n.refsState = 2
 		} else {
-			n.refsBuf[1] = ref
-			n.refsSlice = n.refsBuf[:2]
+			n.refsSlice = append(make([]*GlobalNamespace_Ref, 0, 4), n.refsBuf[0], ref)
+			n.refsBuf[0] = nil
 			n.refsState = 2
 		}
 	default:

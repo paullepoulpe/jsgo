@@ -129,7 +129,7 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
 		// referenced in actual code though.)
 		return
 	case rhino.Token_NAME:
-		if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+		if tb := n.GetJSTypeBase(); tb != nil && !s.jstypeReconserializer.hasTypePointer(tb) {
 			s.jstypeReconserializer.SerializeType(tb.Self())
 		}
 		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
@@ -139,7 +139,7 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
 		}
 		return
 	}
-	if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+	if tb := n.GetJSTypeBase(); tb != nil && !s.jstypeReconserializer.hasTypePointer(tb) {
 		s.jstypeReconserializer.SerializeType(tb.Self())
 	}
 }
@@ -154,7 +154,7 @@ func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
 	if n.IsRoot() {
 		return
 	}
-	if tb := n.GetJSTypeBase(); tb != nil && tb.SerialGen != s.jstypeReconserializer.serialGen {
+	if tb := n.GetJSTypeBase(); tb != nil && !s.jstypeReconserializer.hasTypePointer(tb) {
 		s.jstypeReconserializer.SerializeType(tb.Self())
 	}
 	if n.IsName() {

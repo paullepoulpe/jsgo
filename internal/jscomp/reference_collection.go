@@ -31,10 +31,6 @@ type ReferenceCollection struct {
 	varScope   *Scope
 }
 
-func initReferenceCollection(c *ReferenceCollection) *ReferenceCollection {
-	return c
-}
-
 // Java: ReferenceCollection()
 func NewReferenceCollection() *ReferenceCollection {
 	return &ReferenceCollection{}
@@ -49,6 +45,10 @@ func (c *ReferenceCollection) All() iter.Seq[*Reference] {
 
 // Java: ReferenceCollection.add(Reference)
 func (c *ReferenceCollection) Add(reference *Reference) {
+	if cap(c.references.Slice()) == 0 {
+		// Go-only: performance — most variables have a few references.
+		c.references.InitWithBuffer(make([]*Reference, 4))
+	}
 	c.references.Add(reference)
 }
 

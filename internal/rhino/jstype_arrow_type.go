@@ -46,7 +46,9 @@ import (
 // etc, and are modeled by FunctionType.
 type ArrowType struct {
 	parameterList []*FunctionType_Parameter
-	returnType    JSType
+	// Go-only: performance — the type's base (8 bytes) rather than a JSType
+	// interface (16); GetReturnType returns its self().
+	returnType *JSTypeBase
 
 	// Whether the return type is inferred.
 	returnTypeInferred bool
@@ -72,12 +74,12 @@ func (t *ArrowType) init(
 	if parameters == nil {
 		t.parameterList = registry.CreateParametersWithVarArgs(registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	} else {
-		t.parameterList = arrowTypeCopyParametersWithRegistry(registry, parameters)
+		t.parameterList = arrowTypeCopyParameters(parameters)
 	}
 	if returnType == nil {
-		t.returnType = registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		t.returnType = jsTypeBase(registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	} else {
-		t.returnType = returnType
+		t.returnType = jsTypeBase(returnType)
 	}
 	t.returnTypeInferred = returnTypeInferred
 }
@@ -85,14 +87,10 @@ func (t *ArrowType) init(
 // arrowTypeCopyParameters is ImmutableList.copyOf(parameters), which
 // rejects null elements.
 func arrowTypeCopyParameters(parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
-	return arrowTypeCopyParametersWithRegistry(nil, parameters)
-}
-
-func arrowTypeCopyParametersWithRegistry(registry *JSTypeRegistry, parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
 	if len(parameters) == 0 {
 		return emptyFunctionTypeParameterSlice
 	}
-	out := registry.allocFunctionParamPtrSlice(len(parameters))
+	out := make([]*FunctionType_Parameter, len(parameters))
 	for i, p := range parameters {
 		out[i] = jutil.CheckNotNull(p)
 	}
@@ -106,7 +104,7 @@ func (t *ArrowType) GetTypeClass() JSTypeClass {
 
 // Java: ArrowType.recursionUnsafeHashCode()
 func (t *ArrowType) RecursionUnsafeHashCode() int32 {
-	hashCode := jutil.ObjectHashCode(t.returnType)
+	hashCode := jutil.ObjectHashCode(jsTypeOf(t.returnType))
 	for _, param := range t.parameterList {
 		hashCode = hashCode*31 + jutil.ObjectHashCode(param.GetJSType())
 	}
@@ -119,7 +117,7 @@ func (t *ArrowType) HashCode() int32 {
 
 // Java: ArrowType.getReturnType()
 func (t *ArrowType) GetReturnType() JSType {
-	return t.returnType
+	return jsTypeOf(t.returnType)
 }
 
 // Java: ArrowType.getParameterList()
@@ -145,7 +143,7 @@ func (t *ArrowType) resolveInternal(reporter ErrorReporter) {
 		return
 	}
 	t.resolved = true
-	t.returnType = JSType_SafeResolve(t.returnType, reporter)
+	t.returnType = jsTypeBase(JSType_SafeResolve(jsTypeOf(t.returnType), reporter))
 	for _, param := range t.parameterList {
 		param.GetJSType().Resolve(reporter)
 	}
@@ -160,7 +158,7 @@ func (t *ArrowType) HasUnknownParamsOrReturn() bool {
 		}
 	}
 
-	return t.returnType == nil || t.returnType.IsUnknownType()
+	return t.returnType == nil || t.returnType.self().IsUnknownType()
 }
 
 // Java: ArrowType.appendTo(TypeStringBuilder)
@@ -170,7 +168,7 @@ func (t *ArrowType) AppendTo(sb *TypeStringBuilder) {
 
 // Java: ArrowType.hasAnyTemplateTypesInternal()
 func (t *ArrowType) HasAnyTemplateTypesInternal() bool {
-	return t.returnType.HasAnyTemplateTypes() || t.HasTemplatedParameterType()
+	return t.returnType.self().HasAnyTemplateTypes() || t.HasTemplatedParameterType()
 }
 
 func (t *ArrowType) HasAnyTemplateTypes() bool {
@@ -201,6 +199,6 @@ func (t *ArrowType) String() string {
 	}
 	typeStringBuilder.AppendAll(elements, ",")
 	typeStringBuilder.Append(") -> ")
-	typeStringBuilder.AppendType(t.returnType)
+	typeStringBuilder.AppendType(jsTypeOf(t.returnType))
 	return typeStringBuilder.Build()
 }

@@ -29,9 +29,9 @@ type LabelledStatementTree struct {
 // NewLabelledStatementTree constructs a LabelledStatementTree.
 //
 // Java: LabelledStatementTree(SourceRange, IdentifierToken, ParseTree)
-func NewLabelledStatementTree(location *SourceRange, name *IdentifierToken, statement ParseTree) *LabelledStatementTree {
+func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement ParseTree) *LabelledStatementTree {
 	t := &LabelledStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_LABELLED_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_LABELLED_STATEMENT, location)
 	t.Name = name
 	t.Statement = statement
 	return t

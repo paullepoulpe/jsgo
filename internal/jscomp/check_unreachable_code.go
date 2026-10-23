@@ -32,7 +32,7 @@ type CheckUnreachableCode struct {
 	reachability        GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
 	hasUnreachableStack []bool
 	hasUnreachableBuf   [8]bool
-	scriptCheckCfg      *ReusableCfg
+	scriptCheckCfg      ReusableCfg
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -169,17 +169,15 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot *rhino.Node) b
 			if hasTopLevelReturn(s) {
 				return false
 			}
-			if c.scriptCheckCfg == nil {
-				c.scriptCheckCfg = acquireReusableCfg()
-			}
-			cfg := c.scriptCheckCfg.cfa.ComputeReusableCfg(
+			cfg := c.scriptCheckCfg.Compute(
 				c.compiler,
 				s,
 				/* shouldTraverseFunctions= */ false,
-				/* edgeAnnotations= */ true,
-				&c.scriptCheckCfg.cfg)
+				/* edgeAnnotations= */ true)
 			c.InitScope(cfg)
-			if hasUnreachableCfgNode(cfg) || cfg.GetImplicitReturn().GetAnnotation() != GraphReachability_REACHABLE {
+			unreachable := hasUnreachableCfgNode(cfg) || cfg.GetImplicitReturn().GetAnnotation() != GraphReachability_REACHABLE
+			c.scriptCheckCfg.release()
+			if unreachable {
 				return false
 			}
 		}
@@ -204,9 +202,6 @@ func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 		c.InitScope(cfg)
 		hasUnreachable := hasUnreachableCfgNode(cfg)
 		c.hasUnreachableStack = append(c.hasUnreachableStack, hasUnreachable)
-		if !hasUnreachable {
-			c.ReleaseCurrentScopeCfg()
-		}
 		if t != nil && t.callback == c {
 			t.noShouldTraverse = !hasUnreachable
 		}
@@ -217,10 +212,6 @@ func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
 	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) && len(c.hasUnreachableStack) > 0 {
 		c.hasUnreachableStack = c.hasUnreachableStack[:len(c.hasUnreachableStack)-1]
-		if len(c.hasUnreachableStack) == 0 && c.scriptCheckCfg != nil {
-			releaseReusableCfg(c.scriptCheckCfg)
-			c.scriptCheckCfg = nil
-		}
 		if t != nil && t.callback == c {
 			t.noShouldTraverse = c.CurrentScopeHasNoUnreachable()
 		}

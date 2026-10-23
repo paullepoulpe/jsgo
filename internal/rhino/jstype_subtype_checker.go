@@ -411,7 +411,7 @@ func (c *SubtypeChecker) IsObjectSubtypeHelper(subtype ObjectType, supertype Obj
 	// be be considered subtypes because their types for this operator are
 	// different.
 	if SubtypeChecker_IsBivariantType(supertype) {
-		key := subtype.GetJSTypeBase().registry.GetObjectElementKey()
+		key := subtype.GetJSTypeBase().GetRegistry().GetObjectElementKey()
 		thisElement := subtypeParams.GetResolvedTemplateType(key)
 		thatElement := supertypeParams.GetResolvedTemplateType(key)
 
@@ -498,9 +498,9 @@ func (c *SubtypeChecker) IsStructuralSubtypeHelper(
 	if supertype.IsRecordType() {
 		pm := supertype.GetPropertyMap()
 		pm.ensureSorted()
-		for i := range pm.entries {
+		for i := range pm.entries() {
 			if !c.CheckPropertyPresence(
-				NewProperty_StringKey(rhinoStringFromID(pm.entries[i].nameID)), subtype, supertype, optionality) {
+				NewProperty_StringKey(rhinoStringFromID(pm.entries()[i].nameID)), subtype, supertype, optionality) {
 				return false
 			}
 		}
@@ -839,8 +839,8 @@ func SubtypeChecker_GetTemplateKeyIfCovariantType(type_ JSType) *TemplateType {
 		// Unlike other covariant/bivariant types, even non-native subtypes of
 		// IThenable are covariant, so IThenable is special-cased here.
 		ttype := type_.ToMaybeTemplatizedType()
-		if ttype.GetTemplateTypeMap().HasTemplateKey(ttype.registry.GetIThenableTemplate()) {
-			return ttype.registry.GetIThenableTemplate()
+		if ttype.GetTemplateTypeMap().HasTemplateKey(ttype.GetRegistry().GetIThenableTemplate()) {
+			return ttype.GetRegistry().GetIThenableTemplate()
 		}
 	}
 	unwrapped := SubtypeChecker_GetObjectTypeIfNative(type_)
@@ -851,7 +851,7 @@ func SubtypeChecker_GetTemplateKeyIfCovariantType(type_ JSType) *TemplateType {
 	if unwrappedTypeName == nil {
 		return nil
 	}
-	registry := unwrapped.GetJSTypeBase().registry
+	registry := unwrapped.GetJSTypeBase().GetRegistry()
 	switch *unwrappedTypeName {
 	case "ReadonlyArray":
 		return registry.GetReadonlyArrayElementKey()

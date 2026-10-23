@@ -29,9 +29,9 @@ type ArrayLiteralExpressionTree struct {
 // NewArrayLiteralExpressionTree constructs a ArrayLiteralExpressionTree.
 //
 // Java: ArrayLiteralExpressionTree(SourceRange, ImmutableList, boolean)
-func NewArrayLiteralExpressionTree(location *SourceRange, elements []ParseTree, hasTrailingComma bool) *ArrayLiteralExpressionTree {
+func NewArrayLiteralExpressionTree(location SourceRange, elements []ParseTree, hasTrailingComma bool) *ArrayLiteralExpressionTree {
 	t := &ArrayLiteralExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_ARRAY_LITERAL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_ARRAY_LITERAL_EXPRESSION, location)
 	t.Elements = elements
 	t.HasTrailingComma = hasTrailingComma
 	return t

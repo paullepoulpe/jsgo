@@ -28,9 +28,30 @@ type ParenExpressionTree struct {
 // NewParenExpressionTree constructs a ParenExpressionTree.
 //
 // Java: ParenExpressionTree(SourceRange, ParseTree)
-func NewParenExpressionTree(location *SourceRange, expression ParseTree) *ParenExpressionTree {
+func NewParenExpressionTree(location SourceRange, expression ParseTree) *ParenExpressionTree {
 	t := &ParenExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_PAREN_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_PAREN_EXPRESSION, location)
 	t.Expression = expression
 	return t
+}
+
+// IsPattern looks through the parentheses.
+//
+// Java: ParseTree.isPattern()
+func (t *ParenExpressionTree) IsPattern() bool {
+	return t.Expression.IsPattern()
+}
+
+// IsValidNonVanillaAssignmentTarget looks through the parentheses.
+//
+// Java: ParseTree.isValidNonVanillaAssignmentTarget()
+func (t *ParenExpressionTree) IsValidNonVanillaAssignmentTarget() bool {
+	return t.Expression.IsValidNonVanillaAssignmentTarget()
+}
+
+// IsValidAssignmentTarget looks through the parentheses.
+//
+// Java: ParseTree.isValidAssignmentTarget()
+func (t *ParenExpressionTree) IsValidAssignmentTarget() bool {
+	return t.Expression.IsValidAssignmentTarget()
 }

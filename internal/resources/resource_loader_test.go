@@ -78,9 +78,9 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 		t.Fatal(err)
 	}
 	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files,
-	// plus externs.zip and runtime_libs.typedast.
-	if n != 171 {
-		t.Errorf("%d embedded resources, want 171", n)
+	// plus externs.zip (runtime_libs.typedast is embedded on its own).
+	if n != 170 {
+		t.Errorf("%d embedded resources, want 170", n)
 	}
 }
 

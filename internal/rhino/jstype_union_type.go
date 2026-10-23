@@ -86,9 +86,11 @@ type UnionType struct {
 	alternatesResolvedBeforeBuild bool
 }
 
+// UnionType is 96 B: the 32-B JSTypeBase, three inline alternates (48 B),
+// altPtr and the three small fields; keep it at that size class.
 var (
-	_ [128 - unsafe.Sizeof(UnionType{})]byte
-	_ [unsafe.Sizeof(UnionType{}) - 128]byte
+	_ [96 - unsafe.Sizeof(UnionType{})]byte
+	_ [unsafe.Sizeof(UnionType{}) - 96]byte
 )
 
 func (t *UnionType) rawAlternates() []JSType {
@@ -116,13 +118,13 @@ const UnionType_MAX_UNION_SIZE = 30
 //
 // Java: UnionType(Builder)
 func NewUnionType(builder *UnionType_Builder) *UnionType {
-	t := builder.registry.allocUnionType()
+	t := &UnionType{}
 	t.objFlags = jsKindUnion
 	t.InitJSTypeBase(t, builder.registry)
 	t.resolvedAlternatesAtLastBuild = -1
 	t.FillFromBuilder(builder)
 
-	t.registry.GetResolver().ResolveIfClosed(t, UnionType_TYPE_CLASS)
+	t.GetRegistry().GetResolver().ResolveIfClosed(t, UnionType_TYPE_CLASS)
 	return t
 }
 
@@ -163,7 +165,7 @@ func (t *UnionType) GetAlternates() []JSType {
 		if resolvedAlternates != t.resolvedAlternatesAtLastBuild {
 			t.resolvedAlternatesAtLastBuild = resolvedAlternates
 
-			b := t.registry.acquireUnionBuilder()
+			b := t.GetRegistry().acquireUnionBuilder()
 			b.rebuildTarget = t
 			b.AddAlternates(t.rawAlternates())
 			// Double checked rebuilds, in case the union is involved in a cycle.
@@ -178,7 +180,7 @@ func (t *UnionType) GetAlternates() []JSType {
 				// actually have now, so the next read compares like with like.
 				t.resolvedAlternatesAtLastBuild = int8(t.CountResolvedAlternates())
 			}
-			t.registry.releaseUnionBuilder(b)
+			t.GetRegistry().releaseUnionBuilder(b)
 		}
 	}
 	return t.rawAlternates()
@@ -243,8 +245,7 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 			t.altPtr = nil
 		} else {
 			t.inlineAlternates = [3]JSType{}
-			s := t.registry.allocJSTypeSlice(n)
-			copy(s, builder.inlineAlternates[:n])
+			s := slices.Clone(builder.inlineAlternates[:n])
 			t.altPtr = &s[0]
 		}
 	}
@@ -360,13 +361,13 @@ func (t *UnionType) CanBeCalled() bool {
 
 // Java: UnionType.autobox()
 func (t *UnionType) Autobox() JSType {
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	alts := t.GetAlternates()
 	for i := 0; i < len(alts); i++ {
 		b.AddAlternate(alts[i].Autobox())
 	}
 	res := b.Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -382,19 +383,19 @@ func (t *UnionType) RestrictByNotNullOrUndefined() JSType {
 		if r0.IsNoType() && r1 == alts[1] {
 			return r1
 		}
-		b := t.registry.acquireUnionBuilder()
+		b := t.GetRegistry().acquireUnionBuilder()
 		b.AddAlternate(r0)
 		b.AddAlternate(r1)
 		res := b.Build()
-		t.registry.releaseUnionBuilder(b)
+		t.GetRegistry().releaseUnionBuilder(b)
 		return res
 	}
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	for i := 0; i < len(alts); i++ {
 		b.AddAlternate(alts[i].RestrictByNotNullOrUndefined())
 	}
 	res := b.Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -410,19 +411,19 @@ func (t *UnionType) RestrictByNotUndefined() JSType {
 		if r0.IsNoType() && r1 == alts[1] {
 			return r1
 		}
-		b := t.registry.acquireUnionBuilder()
+		b := t.GetRegistry().acquireUnionBuilder()
 		b.AddAlternate(r0)
 		b.AddAlternate(r1)
 		res := b.Build()
-		t.registry.releaseUnionBuilder(b)
+		t.GetRegistry().releaseUnionBuilder(b)
 		return res
 	}
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	for i := 0; i < len(alts); i++ {
 		b.AddAlternate(alts[i].RestrictByNotUndefined())
 	}
 	res := b.Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -438,19 +439,19 @@ func (t *UnionType) RestrictByNotNull() JSType {
 		if r0.IsNoType() && r1 == alts[1] {
 			return r1
 		}
-		b := t.registry.acquireUnionBuilder()
+		b := t.GetRegistry().acquireUnionBuilder()
 		b.AddAlternate(r0)
 		b.AddAlternate(r1)
 		res := b.Build()
-		t.registry.releaseUnionBuilder(b)
+		t.GetRegistry().releaseUnionBuilder(b)
 		return res
 	}
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	for i := 0; i < len(alts); i++ {
 		b.AddAlternate(alts[i].RestrictByNotNull())
 	}
 	res := b.Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -571,7 +572,7 @@ func UnionType_GetGreatestSubtype(union *UnionType, that JSType) JSType {
 	// polymorphism. Ideally all the `greatestSubtype` code would be in one
 	// place. Until then, using static calls minimizes confusion.
 
-	registry := union.registry
+	registry := union.GetRegistry()
 	builder := registry.acquireUnionBuilder()
 
 	unionAlts := union.rawAlternates()
@@ -701,7 +702,7 @@ func (t *UnionType) Contains(type_ JSType) bool {
 //
 // Java: UnionType.getRestrictedUnion(JSType)
 func (t *UnionType) GetRestrictedUnion(type_ JSType) JSType {
-	restricted := t.registry.acquireUnionBuilder()
+	restricted := t.GetRegistry().acquireUnionBuilder()
 	alts := t.rawAlternates()
 	for i := 0; i < len(alts); i++ {
 		alt := alts[i]
@@ -711,7 +712,7 @@ func (t *UnionType) GetRestrictedUnion(type_ JSType) JSType {
 		}
 	}
 	res := restricted.Build()
-	t.registry.releaseUnionBuilder(restricted)
+	t.GetRegistry().releaseUnionBuilder(restricted)
 	return res
 }
 
@@ -737,13 +738,13 @@ func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 
 // Java: UnionType.getRestrictedTypeGivenOutcome(Outcome)
 func (t *UnionType) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	alts := t.GetAlternates()
 	for i := 0; i < len(alts); i++ {
 		b.AddAlternate(alts[i].GetRestrictedTypeGivenOutcome(outcome))
 	}
 	res := b.Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -768,8 +769,8 @@ func (t *UnionType) GetTypesUnderEquality(that JSType) *JSType_TypePair {
 }
 
 func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
-	thisRestricted := t.registry.acquireUnionBuilder()
-	thatRestricted := t.registry.acquireUnionBuilder()
+	thisRestricted := t.GetRegistry().acquireUnionBuilder()
+	thatRestricted := t.GetRegistry().acquireUnionBuilder()
 	alts := t.rawAlternates()
 	for i := 0; i < len(alts); i++ {
 		element := alts[i]
@@ -783,8 +784,8 @@ func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
-	t.registry.releaseUnionBuilder(thatRestricted)
-	t.registry.releaseUnionBuilder(thisRestricted)
+	t.GetRegistry().releaseUnionBuilder(thatRestricted)
+	t.GetRegistry().releaseUnionBuilder(thisRestricted)
 	return resA, resB
 }
 
@@ -795,8 +796,8 @@ func (t *UnionType) GetTypesUnderInequality(that JSType) *JSType_TypePair {
 }
 
 func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
-	thisRestricted := t.registry.acquireUnionBuilder()
-	thatRestricted := t.registry.acquireUnionBuilder()
+	thisRestricted := t.GetRegistry().acquireUnionBuilder()
+	thatRestricted := t.GetRegistry().acquireUnionBuilder()
 	alts := t.rawAlternates()
 	for i := 0; i < len(alts); i++ {
 		element := alts[i]
@@ -810,8 +811,8 @@ func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
-	t.registry.releaseUnionBuilder(thatRestricted)
-	t.registry.releaseUnionBuilder(thisRestricted)
+	t.GetRegistry().releaseUnionBuilder(thatRestricted)
+	t.GetRegistry().releaseUnionBuilder(thisRestricted)
 	return resA, resB
 }
 
@@ -822,8 +823,8 @@ func (t *UnionType) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair
 }
 
 func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
-	thisRestricted := t.registry.acquireUnionBuilder()
-	thatRestricted := t.registry.acquireUnionBuilder()
+	thisRestricted := t.GetRegistry().acquireUnionBuilder()
+	thatRestricted := t.GetRegistry().acquireUnionBuilder()
 	alts := t.rawAlternates()
 	for i := 0; i < len(alts); i++ {
 		element := alts[i]
@@ -837,8 +838,8 @@ func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JST
 	}
 	resA := thisRestricted.Build()
 	resB := thatRestricted.Build()
-	t.registry.releaseUnionBuilder(thatRestricted)
-	t.registry.releaseUnionBuilder(thisRestricted)
+	t.GetRegistry().releaseUnionBuilder(thatRestricted)
+	t.GetRegistry().releaseUnionBuilder(thisRestricted)
 	return resA, resB
 }
 
@@ -862,10 +863,10 @@ func (t *UnionType) ResolveInternal(reporter ErrorReporter) JSType {
 	for i := 0; i < len(alts); i++ {
 		alts[i].Resolve(reporter)
 	}
-	b := t.registry.acquireUnionBuilder()
+	b := t.GetRegistry().acquireUnionBuilder()
 	b.rebuildTarget = t
 	res := b.AddAlternates(t.rawAlternates()).Build()
-	t.registry.releaseUnionBuilder(b)
+	t.GetRegistry().releaseUnionBuilder(b)
 	return res
 }
 
@@ -895,7 +896,7 @@ func (t *UnionType) CollapseUnion() JSType {
 		} else if currentCommonSuper == nil {
 			currentCommonSuper = obj
 		} else {
-			currentCommonSuper = t.registry.FindCommonSuperObject(currentCommonSuper, obj)
+			currentCommonSuper = t.GetRegistry().FindCommonSuperObject(currentCommonSuper, obj)
 		}
 	}
 	return jsTypeOrNil(currentCommonSuper)
@@ -1059,7 +1060,7 @@ func NewUnionType_Builder(registry *JSTypeRegistry) *UnionType_Builder {
 //
 // Java: UnionType.Builder(UnionType)
 func NewUnionType_BuilderOfRebuildTarget(rebuildTarget *UnionType) *UnionType_Builder {
-	b := NewUnionType_Builder(rebuildTarget.registry)
+	b := NewUnionType_Builder(rebuildTarget.GetRegistry())
 	b.rebuildTarget = rebuildTarget
 	return b
 }
@@ -1297,8 +1298,8 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 func (b *UnionType_Builder) MayRegisterDroppedProperties(subtype JSType, supertype JSType) {
 	subKind := jsTypeBase(subtype).objFlags & objKindMask
 	supKind := jsTypeBase(supertype).objFlags & objKindMask
-	if ((uint32(1) << subKind) & jsKindMaybeRecordMask) == 0 ||
-		((uint32(1) << supKind) & jsKindMaybeRecordMask) == 0 {
+	if ((uint32(1)<<subKind)&jsKindMaybeRecordMask) == 0 ||
+		((uint32(1)<<supKind)&jsKindMaybeRecordMask) == 0 {
 		return
 	}
 	if subRec := subtype.ToMaybeRecordType(); subRec != nil {

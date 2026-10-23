@@ -26,8 +26,8 @@ type MissingPrimaryExpressionTree struct {
 // NewMissingPrimaryExpressionTree constructs a MissingPrimaryExpressionTree.
 //
 // Java: MissingPrimaryExpressionTree(SourceRange)
-func NewMissingPrimaryExpressionTree(location *SourceRange) *MissingPrimaryExpressionTree {
+func NewMissingPrimaryExpressionTree(location SourceRange) *MissingPrimaryExpressionTree {
 	t := &MissingPrimaryExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_MISSING_PRIMARY_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_MISSING_PRIMARY_EXPRESSION, location)
 	return t
 }

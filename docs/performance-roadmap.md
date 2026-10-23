@@ -1215,6 +1215,15 @@ Whole-program suite (`N=3` median, `t=1` / `t=4` `compat` & `t=4 --fast_mode`, 1
 | **`downlevel-simple`** (2.1 MB) | 1.01 s / 0.90 s | **0.89 s** / **0.80 s** | — | **−11.11%** (**−0.10 s**) | **179** / **181 MiB** (**−11.3%**) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.52 s / 0.43 s | **0.45 s** / **0.38 s** | — | **−11.63%** (**−0.05 s**) | 154 / **138 MiB** (**−11.0%**) | `MATCH` |
 
+## Memory round 1 (2026-10-23): peak heap and pointers instead of wall time
+
+Slabs, arenas, pools and cross-pass caches from the earlier rounds were the
+main source of excess heap: removing them (plus fixing several retention
+leaks and shrinking the type structs) cut the peak live heap by 34–62 % on
+all 11 benchmarks (peak RSS −26 to −53 %), byte-identical with Java, at the
+cost of more allocation (wall time +9 to +19 % with Go 1.27.3). Details, numbers and
+the round-2 plan: [memory-research/round1-results.md](memory-research/round1-results.md).
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

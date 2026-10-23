@@ -71,10 +71,8 @@ func (c *ConstCheck) addInitializedConstant(var_ *Var) bool {
 // Java: ConstCheck.process(Node, Node)
 func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	sc := NewSyntacticScopeCreator(c.compiler)
-	sc.EnableLocalScopeReclamation()
 	defer func() {
 		clear(c.initializedConstants)
-		sc.ReleaseArena()
 	}()
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,

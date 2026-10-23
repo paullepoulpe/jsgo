@@ -78,34 +78,32 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 			size:  int32(n),
 		}
 	}
-	index := make(map[K]int, n)
+	idx := &lhmIndex{table: make([]uint32, lhmTableLen(n))}
+	h := LinkedHashMap[K, V]{
+		m:     idx,
+		slots: src,
+		size:  int32(n),
+	}
 	for i := n - 1; i >= 0; i-- {
 		k := src[i].key
-		if laterIdx1, ok := index[k]; ok {
+		if later := h.lookup(k); later >= 0 {
 			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				ToJavaString(k) + "=" + ToJavaString(src[laterIdx1-1].value) + " and " +
+				ToJavaString(k) + "=" + ToJavaString(src[later].value) + " and " +
 				ToJavaString(k) + "=" + ToJavaString(src[i].value)))
 		}
-		index[k] = i + 1
+		idx.insert(lhmHash(k), i)
 	}
 	if !b.built {
 		b.built = true
-		slots := src[:n:n]
-		b.slots = slots
-		b.out = LinkedHashMap[K, V]{
-			m:     &lhmLarge[K, V]{index: index},
-			slots: slots,
-			size:  int32(n),
-		}
+		h.slots = src[:n:n]
+		b.slots = h.slots
+		b.out = h
 		return &b.out
 	}
-	slots := make([]LhmSlot[K, V], n)
-	copy(slots, src)
-	return &LinkedHashMap[K, V]{
-		m:     &lhmLarge[K, V]{index: index},
-		slots: slots,
-		size:  int32(n),
-	}
+	h.slots = make([]LhmSlot[K, V], n)
+	copy(h.slots, src)
+	out := h
+	return &out
 }
 
 // PutAll is ImmutableMap.Builder.putAll(Map): puts each entry of m, in its

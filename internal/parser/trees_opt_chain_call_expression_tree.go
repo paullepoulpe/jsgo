@@ -32,9 +32,9 @@ type OptChainCallExpressionTree struct {
 // NewOptChainCallExpressionTree constructs a OptChainCallExpressionTree.
 //
 // Java: OptChainCallExpressionTree(SourceRange, ParseTree, ArgumentListTree, boolean, boolean)
-func NewOptChainCallExpressionTree(location *SourceRange, operand ParseTree, arguments *ArgumentListTree, isStartOfOptionalChain bool, hasTrailingComma bool) *OptChainCallExpressionTree {
+func NewOptChainCallExpressionTree(location SourceRange, operand ParseTree, arguments *ArgumentListTree, isStartOfOptionalChain bool, hasTrailingComma bool) *OptChainCallExpressionTree {
 	t := &OptChainCallExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_OPT_CHAIN_CALL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_OPT_CHAIN_CALL_EXPRESSION, location)
 	t.Operand = operand
 	t.Arguments = arguments
 	t.IsStartOfOptionalChain = isStartOfOptionalChain

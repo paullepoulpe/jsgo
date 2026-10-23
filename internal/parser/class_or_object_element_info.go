@@ -30,7 +30,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Used by Parser but separated out to enforce visibility.
 type ClassOrObjectElementInfo struct {
 	// The start position of the element.
-	start *SourcePosition
+	start SourcePosition
 
 	// Whether this is a class member. False for object literal elements.
 	isClassMember bool
@@ -46,7 +46,7 @@ type ClassOrObjectElementInfo struct {
 // NewClassOrObjectElementInfo constructs a ClassOrObjectElementInfo.
 //
 // Java: ClassOrObjectElementInfo(SourcePosition, boolean, boolean)
-func NewClassOrObjectElementInfo(start *SourcePosition, isClassMember, isStatic bool) *ClassOrObjectElementInfo {
+func NewClassOrObjectElementInfo(start SourcePosition, isClassMember, isStatic bool) *ClassOrObjectElementInfo {
 	c := &ClassOrObjectElementInfo{}
 	c.start = start
 	c.isClassMember = isClassMember
@@ -58,7 +58,7 @@ func NewClassOrObjectElementInfo(start *SourcePosition, isClassMember, isStatic 
 // class member.
 //
 // Java: ClassOrObjectElementInfo.createClassMemberInfo(SourcePosition, boolean)
-func ClassOrObjectElementInfo_CreateClassMemberInfo(start *SourcePosition, isStatic bool) *ClassOrObjectElementInfo {
+func ClassOrObjectElementInfo_CreateClassMemberInfo(start SourcePosition, isStatic bool) *ClassOrObjectElementInfo {
 	return NewClassOrObjectElementInfo(start /* isClassMember= */, true, isStatic)
 }
 
@@ -66,7 +66,7 @@ func ClassOrObjectElementInfo_CreateClassMemberInfo(start *SourcePosition, isSta
 // for an object literal element.
 //
 // Java: ClassOrObjectElementInfo.createObjectLiteralElementInfo(SourcePosition)
-func ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(start *SourcePosition) *ClassOrObjectElementInfo {
+func ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(start SourcePosition) *ClassOrObjectElementInfo {
 	return NewClassOrObjectElementInfo(start /* isClassMember= */, false /* isStatic= */, false)
 }
 
