@@ -1,6 +1,7 @@
 package jutil
 
 import (
+	"hash/maphash"
 	"iter"
 	"slices"
 	"strings"
@@ -185,10 +186,12 @@ func CollectionToString[T any](elems []T) string {
 //
 // Go-only: performance — storing entries in a flat contiguous slice instead
 // of a doubly-linked list of heap-allocated nodes eliminates per-entry heap
-// allocations and the 16-byte prev/next pointer overhead per entry.
+// allocations and the 16-byte prev/next pointer overhead per entry. The
+// value comes first because Go pads a struct that ends in a zero-size field
+// (the struct{} values of a LinkedHashSet) by a word.
 type LhmSlot[K comparable, V any] struct {
-	key   K
 	value V
+	key   K
 }
 
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
@@ -198,26 +201,102 @@ type LhmSlot[K comparable, V any] struct {
 //
 // Go-only: performance — most maps of a compilation stay small (in the
 // typed-app benchmark, half of them never get an entry and 98% never hold
-// more than 8), and a Go map costs a header when it is made and a 200-byte
-// group at its first insertion. So the Go map that indexes the entries is
-// only built once the slot slice holds more than lhmSmallSize entries; until
-// then lookups scan the contiguous slots slice, comparing keys with == as the
-// Go map does.
+// more than 8), so the hash index of the entries (lhmIndex) is only built
+// once the slot slice holds more than lhmSmallSize entries; until then
+// lookups scan the contiguous slots slice, comparing keys with == as a Go
+// map does.
 type LinkedHashMap[K comparable, V any] struct {
-	m     *lhmLarge[K, V] // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
+	m     *lhmIndex // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
 	slots []LhmSlot[K, V]
 	size  int32
 	first int32
 }
 
-type lhmLarge[K comparable, V any] struct {
-	index   map[K]int // 1-based index into slots (0 means absent)
-	removed []bool    // non-nil only when a slot > first is removed
+// lhmIndex is the hash index of a LinkedHashMap's slots.
+//
+// Go-only: performance — an open-addressing table of 32-bit slot numbers
+// costs 5 to 16 bytes per entry and holds no pointers for the GC to scan;
+// a Go map[K]int costs 25 to 60 bytes per entry and, for string or pointer
+// keys, is scanned by every GC cycle.
+type lhmIndex struct {
+	// table is a linear-probing hash table whose length is a power of two.
+	// A bucket holds 0 (empty), lhmTombstone (its entry was removed) or the
+	// slot index + 1 of an entry. At most 3/4 of the buckets are non-empty,
+	// so every probe sequence ends at an empty bucket.
+	table   []uint32
+	used    int    // non-empty buckets, live or tombstones
+	removed []bool // non-nil only when a slot > first is removed
 }
 
+const lhmTombstone = ^uint32(0)
+
 // lhmSmallSize is the most entries a LinkedHashMap or ObjectLinkedHashMap
-// holds without a Go map.
+// holds without an index.
 const lhmSmallSize = 8
+
+// lhmSeed seeds the hash of LinkedHashMap keys. Iteration order never
+// depends on it.
+var lhmSeed = maphash.MakeSeed()
+
+// lhmHash hashes k as a Go map would.
+func lhmHash[K comparable](k K) uint {
+	// Go-only: language-adapter — Go 1.24 compiles maphash.Comparable[K] to
+	// a panic when K is a generic interface type instantiated in generic
+	// code (it does not apply its escapeForHash intrinsic there), so
+	// interface keys are hashed as any.
+	var zero K
+	if any(zero) == nil {
+		return uint(maphash.Comparable(lhmSeed, any(k)))
+	}
+	return uint(maphash.Comparable(lhmSeed, k))
+}
+
+// lhmTableLen is the table length for an index of n entries: at most half
+// full, so that the table takes at least n/2 more insertions to fill to 3/4.
+func lhmTableLen(n int) int {
+	l := 2 * lhmSmallSize
+	for l < 2*n {
+		l *= 2
+	}
+	return l
+}
+
+// insert records slot (whose key hashes to hash and is absent from the
+// index) in the first empty or tombstone bucket of its probe sequence. The
+// caller makes sure that the table has room (needsGrow).
+func (x *lhmIndex) insert(hash uint, slot int) {
+	t := x.table
+	mask := uint(len(t) - 1)
+	b := hash & mask
+	for t[b] != 0 && t[b] != lhmTombstone {
+		b = (b + 1) & mask
+	}
+	if t[b] == 0 {
+		x.used++
+	}
+	t[b] = uint32(slot + 1)
+}
+
+// erase turns the bucket of slot (whose key hashes to hash) into a tombstone.
+func (x *lhmIndex) erase(hash uint, slot int) {
+	t := x.table
+	mask := uint(len(t) - 1)
+	b := hash & mask
+	for t[b] != uint32(slot+1) {
+		b = (b + 1) & mask
+	}
+	t[b] = lhmTombstone
+}
+
+// needsGrow reports whether one more insertion would fill more than 3/4 of
+// the table.
+func (x *lhmIndex) needsGrow() bool {
+	return 4*(x.used+1) > 3*len(x.table)
+}
+
+func (x *lhmIndex) isRemoved(i int) bool {
+	return i < len(x.removed) && x.removed[i]
+}
 
 // NewLinkedHashMap returns an empty map.
 func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
@@ -243,21 +322,14 @@ func (h *LinkedHashMap[K, V]) InitWithBuffer(buf []LhmSlot[K, V]) {
 	h.first = 0
 }
 
-func (h *LinkedHashMap[K, V]) isRemoved(i int) bool {
-	if i < int(h.first) {
-		return true
-	}
-	return h.m != nil && i < len(h.m.removed) && h.m.removed[i]
-}
-
 // find returns k's slot index in h.slots, or -1 if absent.
 func (h *LinkedHashMap[K, V]) find(k K) int {
 	if h.m != nil {
-		return h.m.index[k] - 1
+		return h.lookup(k)
 	}
 	if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
 		h.buildIndex()
-		return h.m.index[k] - 1
+		return h.lookup(k)
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
 		if h.slots[i].key == k {
@@ -265,6 +337,23 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 		}
 	}
 	return -1
+}
+
+// lookup is find through the index.
+func (h *LinkedHashMap[K, V]) lookup(k K) int {
+	t := h.m.table
+	mask := uint(len(t) - 1)
+	for b := lhmHash(k) & mask; ; b = (b + 1) & mask {
+		switch e := t[b]; e {
+		case 0:
+			return -1
+		case lhmTombstone:
+		default:
+			if h.slots[e-1].key == k {
+				return int(e - 1)
+			}
+		}
+	}
 }
 
 func (h *LinkedHashMap[K, V]) Size() int {
@@ -354,52 +443,55 @@ func (h *LinkedHashMap[K, V]) add(k K, v V) {
 //go:noinline
 func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 	if cap(h.slots) == 0 {
-		h.slots = make([]LhmSlot[K, V], 1, 2)
-		h.slots[0] = LhmSlot[K, V]{key: k, value: v}
-		h.size = 1
+		h.slots = make([]LhmSlot[K, V], 0, 2)
 		h.first = 0
-		if h.m != nil {
-			h.m.index[k] = 1
-		}
-		return
-	}
-	if len(h.slots) >= 64 && int(h.size)*4 < len(h.slots) {
+	} else if len(h.slots) >= 64 && int(h.size)*4 < len(h.slots) {
 		h.compact()
 	}
 	idx := len(h.slots)
 	h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
 	h.size++
 	if h.m != nil {
-		h.m.index[k] = idx + 1
-	}
-}
-
-//go:noinline
-func (h *LinkedHashMap[K, V]) buildIndex() {
-	idxMap := make(map[K]int, max(cap(h.slots), 2*int(h.size), 2))
-	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m == nil || i >= len(h.m.removed) || !h.m.removed[i] {
-			idxMap[h.slots[i].key] = i + 1
+		if h.m.needsGrow() {
+			h.reindex()
+		} else {
+			h.m.insert(lhmHash(k), idx)
 		}
 	}
-	if h.m != nil {
-		h.m.index = idxMap
+}
+
+// buildIndex gives h an index of its live slots.
+//
+//go:noinline
+func (h *LinkedHashMap[K, V]) buildIndex() {
+	h.m = &lhmIndex{}
+	h.reindex()
+}
+
+// reindex rebuilds the index table from the live slots, sized for them.
+func (h *LinkedHashMap[K, V]) reindex() {
+	x := h.m
+	if n := lhmTableLen(int(h.size)); n == len(x.table) {
+		clear(x.table)
 	} else {
-		h.m = &lhmLarge[K, V]{index: idxMap}
+		x.table = make([]uint32, n)
+	}
+	x.used = 0
+	for i := int(h.first); i < len(h.slots); i++ {
+		if !x.isRemoved(i) {
+			x.insert(lhmHash(h.slots[i].key), i)
+		}
 	}
 }
 
+// compact drops the removed slots, keeping the order of the others.
+//
 //go:noinline
 func (h *LinkedHashMap[K, V]) compact() {
 	w := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m == nil || i >= len(h.m.removed) || !h.m.removed[i] {
-			if w != i {
-				h.slots[w] = h.slots[i]
-			}
-			if h.m != nil {
-				h.m.index[h.slots[w].key] = w + 1
-			}
+		if h.m == nil || !h.m.isRemoved(i) {
+			h.slots[w] = h.slots[i]
 			w++
 		}
 	}
@@ -409,6 +501,7 @@ func (h *LinkedHashMap[K, V]) compact() {
 	if h.m != nil {
 		clear(h.m.removed)
 		h.m.removed = h.m.removed[:0]
+		h.reindex()
 	}
 }
 
@@ -465,22 +558,22 @@ func (h *LinkedHashMap[K, V]) Remove(k K) V {
 
 // removeSlot removes the entry at slot index i.
 func (h *LinkedHashMap[K, V]) removeSlot(i int) {
-	if i == int(h.first) {
-		if h.m != nil {
-			delete(h.m.index, h.slots[i].key)
-		}
-		h.size--
-		h.slots[i] = LhmSlot[K, V]{}
-		first := i + 1
-		if h.m != nil {
-			for first < len(h.slots) && first < len(h.m.removed) && h.m.removed[first] {
-				first++
-			}
-		}
-		h.first = int32(first)
+	if i != int(h.first) {
+		h.removeSlotMiddle(i)
 		return
 	}
-	h.removeSlotMiddle(i)
+	if h.m != nil {
+		h.m.erase(lhmHash(h.slots[i].key), i)
+	}
+	h.size--
+	h.slots[i] = LhmSlot[K, V]{}
+	first := i + 1
+	if h.m != nil {
+		for first < len(h.slots) && h.m.isRemoved(first) {
+			first++
+		}
+	}
+	h.first = int32(first)
 }
 
 //go:noinline
@@ -488,7 +581,7 @@ func (h *LinkedHashMap[K, V]) removeSlotMiddle(i int) {
 	if h.m == nil {
 		h.buildIndex()
 	}
-	delete(h.m.index, h.slots[i].key)
+	h.m.erase(lhmHash(h.slots[i].key), i)
 	h.size--
 	h.slots[i] = LhmSlot[K, V]{}
 	if i >= len(h.m.removed) {
@@ -505,7 +598,8 @@ func (h *LinkedHashMap[K, V]) Clear() {
 	clear(h.slots)
 	h.slots = h.slots[:0]
 	if h.m != nil {
-		clear(h.m.index)
+		clear(h.m.table)
+		h.m.used = 0
 		clear(h.m.removed)
 		h.m.removed = h.m.removed[:0]
 	}
@@ -521,7 +615,7 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key, h.slots[i].value) {
@@ -542,7 +636,7 @@ func (h *LinkedHashMap[K, V]) KeyAt(index int) (K, bool) {
 	}
 	cur := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+		if h.m != nil && h.m.isRemoved(i) {
 			continue
 		}
 		if cur == index {
@@ -564,7 +658,7 @@ func (h *LinkedHashMap[K, V]) ValueAt(index int) (V, bool) {
 	}
 	cur := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+		if h.m != nil && h.m.isRemoved(i) {
 			continue
 		}
 		if cur == index {
@@ -587,7 +681,7 @@ func (h *LinkedHashMap[K, V]) NextSlotValue(slot int) (V, int, bool) {
 		slot = int(h.first)
 	}
 	for i := slot; i < len(h.slots); i++ {
-		if h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+		if h.m != nil && h.m.isRemoved(i) {
 			continue
 		}
 		return h.slots[i].value, i + 1, true
@@ -607,7 +701,7 @@ func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key) {
@@ -624,7 +718,7 @@ func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].value) {
@@ -649,7 +743,7 @@ func (h *LinkedHashMap[K, V]) KeySlice() []K {
 		return out
 	}
 	for i := int(h.first); i < len(slots); i++ {
-		if h.m == nil || i >= len(h.m.removed) || !h.m.removed[i] {
+		if h.m == nil || !h.m.isRemoved(i) {
 			out = append(out, slots[i].key)
 		}
 	}
@@ -759,7 +853,7 @@ func (s *LinkedHashSet[T]) All() iter.Seq[T] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && i < len(h.m.removed) && h.m.removed[i] {
+			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key) {
