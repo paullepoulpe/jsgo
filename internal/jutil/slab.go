@@ -1,5 +1,7 @@
 package jutil
 
+import "slices"
+
 // Slab allocates values of T in chunks: New returns a pointer to a new zero
 // T, and only one call in a few hundred allocates. It suits many small
 // objects that are created together and become garbage together, such as
@@ -39,18 +41,16 @@ func (s *Slab[T]) New() *T {
 
 // grow starts a new chunk, twice the size of the last one up to
 // slabMaxChunk elements, so that a slab that serves few objects stays small.
+// The chunk gets every element its allocation's size class holds: Go rounds
+// an allocation up to a size class (after putting an 8-byte header in front
+// of a pointerful one over 512 bytes), so make([]T, n) would leave up to 15%
+// of the chunk's memory unused.
 func (s *Slab[T]) grow() {
-	if s.fixedChunk > 0 {
-		s.chunk = make([]T, s.fixedChunk)
-		s.used = 0
-		return
+	n := s.fixedChunk
+	if n == 0 {
+		n = min(max(2*len(s.chunk), slabMinChunk), slabMaxChunk)
 	}
-	n := 2 * len(s.chunk)
-	if n < slabMinChunk {
-		n = slabMinChunk
-	} else if n > slabMaxChunk {
-		n = slabMaxChunk
-	}
-	s.chunk = make([]T, n)
+	s.chunk = slices.Grow([]T(nil), n)
+	s.chunk = s.chunk[:cap(s.chunk)]
 	s.used = 0
 }

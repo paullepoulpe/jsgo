@@ -303,11 +303,12 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 	return &LinkedHashMap[K, V]{}
 }
 
-// NewLinkedHashMapWithCapacity returns an empty map pre-sized for cap entries.
+// NewLinkedHashMapWithCapacity returns an empty map pre-sized for cap entries
+// (or the few more that the allocation's size class holds).
 func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K, V] {
 	if cap > 0 {
 		return &LinkedHashMap[K, V]{
-			slots: make([]LhmSlot[K, V], 0, cap),
+			slots: slices.Grow([]LhmSlot[K, V](nil), cap),
 		}
 	}
 	return &LinkedHashMap[K, V]{}

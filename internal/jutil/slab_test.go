@@ -1,6 +1,9 @@
 package jutil
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 	type pos struct {
@@ -30,8 +33,15 @@ func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 	}
 }
 
+// Chunks double from slabMinChunk to slabMaxChunk elements, each rounded up
+// to what its size class holds: 64-byte pointerful elements fill 9472-byte
+// chunks with 147 elements, not 128.
 func TestSlabChunkSizes(t *testing.T) {
-	var s Slab[int]
+	type node struct {
+		p [4]*int
+		x [4]int
+	}
+	var s Slab[node]
 	var got []int
 	for i := 0; i < 3000; i++ {
 		s.New()
@@ -39,16 +49,16 @@ func TestSlabChunkSizes(t *testing.T) {
 			got = append(got, len(s.chunk))
 		}
 	}
-	want := []int{16, 32, 64, 128}
-	for n := 16 + 32 + 64 + 128; n < 3000; n += 128 {
-		want = append(want, 128)
+	want := []int{17, 35, 75, 147}
+	for n := 17 + 35 + 75 + 147; n < 3000; n += 147 {
+		want = append(want, 147)
 	}
-	if len(got) != len(want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("chunk sizes %v, want %v", got, want)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("chunk sizes %v, want %v", got, want)
-		}
+	f := NewFixedSlab[node](100)
+	f.New()
+	if len(f.chunk) != 101 {
+		t.Fatalf("fixed chunk of %d elements, want 101", len(f.chunk))
 	}
 }
