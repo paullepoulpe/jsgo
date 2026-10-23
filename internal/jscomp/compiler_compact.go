@@ -3,6 +3,7 @@ package jscomp
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -26,8 +27,7 @@ import (
 // (PreservesDetailedSourceInfo), nor in a NestedCompilerRunner's shadow
 // compiler (its tree is spliced into, and held by, the outer compilation).
 //
-// JSGO_AST_COMPACT=0|1 overrides the default (fast mode only, for now),
-// JSGO_AST_COMPACT_LOG=1
+// JSGO_AST_COMPACT=0|1 overrides the default (on), JSGO_AST_COMPACT_LOG=1
 // logs each compaction to stderr, JSGO_AST_POISON=1 poisons the old nodes
 // (rhino.NodePoisonMode).
 
@@ -50,7 +50,7 @@ var (
 const astCompactMinNodes = 64 * 1024
 
 func (c *Compiler) initASTCompaction() {
-	on := c.options.isFastMode()
+	on := true
 	switch astCompactEnv {
 	case "0":
 		on = false
@@ -88,6 +88,11 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
 	a := &c.astCompact
 	t0 := time.Now()
 	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
+	if after == "typesToColors" {
+		// The type graph was just dropped; collect it first so that the copy
+		// reuses its pages instead of growing the heap by a second AST.
+		runtime.GC()
+	}
 	k := rhino.NewCompactor()
 	fwd := k.Forward
 
@@ -220,7 +225,7 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
 	// 8. Go-only caches that may hold nodes.
 	c.evictPassArenaCaches()
 
-	released := k.Finish()
+	released := k.Finish(c.nodeTables)
 	a.count++
 	a.chunksAtLast = rhino.NodeChunksAllocated()
 	a.liveAtLast = k.Copied

@@ -38,7 +38,7 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	}
 	old := NodePoisonMode
 	NodePoisonMode = true
-	released := k.Finish()
+	released := k.Finish(nil)
 	NodePoisonMode = old
 	if released == 0 {
 		t.Fatal("no chunk released")

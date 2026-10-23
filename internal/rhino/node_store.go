@@ -16,11 +16,12 @@ import (
 // to passes is an interior pointer into a chunk; the accessors translate the
 // ids back through a process-wide chunk table.
 //
-// Id scheme: id = chunkIndex<<12 | slot, with slot in 1..4095 (slot 0 of
+// Id scheme: id = chunkIndex<<9 | slot, with slot in 1..479 (slot 0 of
 // every chunk is the chunk header, so id 0 is nil and every valid id is
-// non-zero). Chunk indices are handed out once per process and never
-// reused: a stale id (one whose chunk was released) always hits an empty
-// table slot and panics instead of reading another chunk's node.
+// non-zero; slots 480..511 are never used). Chunk indices are handed out
+// once per process and never reused: a stale id (one whose chunk was
+// released) always hits an empty table slot and panics instead of reading
+// another chunk's node.
 //
 // Lifetime: the table holds the chunk addresses as plain integers that the
 // GC does not trace. A chunk is kept alive by its generation (nodeGen,
@@ -44,11 +45,19 @@ import (
 type nodeID uint32
 
 const (
-	nodeChunkShift = 12
-	nodeChunkSlots = 1 << nodeChunkShift
+	// A chunk holds nodeChunkNodes-1 nodes behind a one-node-wide header and
+	// is sized to stay under Go's 32 KiB small-object limit: a small object
+	// with pointers is accounted and scanned only up to its last pointer
+	// (the header's owner, see below), while a large one counts whole, so
+	// 480 x 56 B + the 8-byte malloc header fits the 27264-byte size class
+	// with 1.4 % slack and the GC sees 8 bytes of it.
+	nodeChunkShift = 9
+	nodeChunkSlots = 1 << nodeChunkShift // id slot bits; slots nodeChunkNodes.. are never used
+	nodeChunkNodes = 480
 	nodeChunkMask  = nodeChunkSlots - 1
 	nodeChunkCount = 1 << (32 - nodeChunkShift)
 	nodeSize       = unsafe.Sizeof(Node{})
+	nodeChunkClass = 27264 // the Go size class the chunk is allocated in
 )
 
 // nodeChunkHeader occupies slot 0 of a chunk; it is exactly one node wide.
@@ -61,22 +70,33 @@ type nodeChunkHeader struct {
 
 type nodeChunk struct {
 	hdr   nodeChunkHeader
-	nodes [nodeChunkSlots - 1]Node
+	nodes [nodeChunkNodes - 1]Node
 }
 
 var (
 	_ [unsafe.Sizeof(nodeChunkHeader{}) - nodeSize]byte
 	_ [nodeSize - unsafe.Sizeof(nodeChunkHeader{})]byte
 	_ [unsafe.Offsetof(nodeChunk{}.nodes) - nodeSize]byte
+	_ [nodeChunkClass - 8 - unsafe.Sizeof(nodeChunk{})]byte // fits its size class with the malloc header
+	_ [unsafe.Sizeof(nodeChunk{}) + 8 - 24576 - 1]byte       // and is not a smaller class
 )
 
 // nodeChunkTable maps a chunk index to the chunk's address. The slots are
 // uintptr on purpose (not traced; see the lifetime note above) and are
-// read and written through atomic pointer views.
+// read and written through atomic pointer views. 64 MiB of BSS, of which
+// only the touched pages exist (8 B per chunk allocated).
 var nodeChunkTable [nodeChunkCount]uintptr
 
+// nodeChunkSlot is the read view of a slot. Slots are only ever WRITTEN
+// as integers (setNodeChunkSlot): a pointer store would carry a GC write
+// barrier that shades the slot's previous value, and a cleanup clears the
+// slot of a chunk the GC has already freed.
 func nodeChunkSlot(k uint32) *atomic.Pointer[nodeChunk] {
 	return (*atomic.Pointer[nodeChunk])(unsafe.Pointer(&nodeChunkTable[k]))
+}
+
+func setNodeChunkSlot(k uint32, c *nodeChunk) {
+	atomic.StoreUintptr(&nodeChunkTable[k], uintptr(unsafe.Pointer(c)))
 }
 
 // nodeAt translates an id into the node it names.
@@ -118,6 +138,72 @@ type nodeGen struct {
 	mu     sync.Mutex
 	cur    atomic.Pointer[nodeChunk]
 	chunks []*nodeChunk
+	// peers: generations this one has links into (see (*Node).ref). They
+	// are kept alive with this one, since its nodes resolve ids into them.
+	peers    map[*nodeGen]struct{}
+	lastPeer atomic.Pointer[nodeGen]
+}
+
+// ref returns the id of y for a link from n to y, and ties n's generation
+// to y's when they differ: a link is an id, which the GC does not trace,
+// so the generation that holds the link must keep the target's alive. In
+// one compilation every node is in one generation (or in a compaction's
+// successor, which never links back); the cross-generation case is a
+// process that compiles several times with interleaved compilers (a test
+// harness parsing expected output with a second compiler while the first
+// one is still being worked on).
+func (n *Node) ref(y *Node) nodeID {
+	if y == nil {
+		return 0
+	}
+	if y.self == 0 {
+		notInChunk(y)
+	}
+	if (n.self^y.self)>>nodeChunkShift != 0 {
+		crossChunkRef(n, y)
+	}
+	return y.self
+}
+
+func crossChunkRef(n, y *Node) {
+	a := nodeChunkSlot(uint32(n.self) >> nodeChunkShift).Load()
+	b := nodeChunkSlot(uint32(y.self) >> nodeChunkShift).Load()
+	if a == nil || b == nil {
+		if a == nil {
+			staleNodeID(n.self)
+		}
+		staleNodeID(y.self)
+	}
+	if ga, gb := a.hdr.owner, b.hdr.owner; ga != gb {
+		ga.tie(gb)
+	}
+}
+
+//go:noinline
+func (g *nodeGen) tie(peer *nodeGen) {
+	if g.lastPeer.Load() == peer {
+		return
+	}
+	// Both directions: the parent link goes one way, the child links the
+	// other. The initial generation (never released) never needs to hold a
+	// peer, and must not (it would pin that peer forever).
+	if g != nodeInitialGen {
+		g.mu.Lock()
+		if g.peers == nil {
+			g.peers = make(map[*nodeGen]struct{})
+		}
+		g.peers[peer] = struct{}{}
+		g.mu.Unlock()
+	}
+	if peer != nodeInitialGen {
+		peer.mu.Lock()
+		if peer.peers == nil {
+			peer.peers = make(map[*nodeGen]struct{})
+		}
+		peer.peers[g] = struct{}{}
+		peer.mu.Unlock()
+	}
+	g.lastPeer.Store(peer)
 }
 
 var (
@@ -147,7 +233,7 @@ func newNodeGen() *nodeGen {
 // releaseNodeChunk clears the table slot of a chunk whose generation is no
 // longer referenced (the generation's cleanup, one per chunk).
 func releaseNodeChunk(k uint32) {
-	nodeChunkSlot(k).Store(nil)
+	setNodeChunkSlot(k, nil)
 }
 
 // addChunk allocates and publishes a new chunk for g (g.mu held or g not
@@ -162,7 +248,7 @@ func (g *nodeGen) addChunk() *nodeChunk {
 	c.hdr.index = k
 	c.hdr.n.Store(1) // slot 0 is the header
 	g.chunks = append(g.chunks, c)
-	nodeChunkSlot(k).Store(c)
+	setNodeChunkSlot(k, c)
 	g.cur.Store(c)
 	runtime.AddCleanup(g, releaseNodeChunk, k)
 	return c
@@ -196,7 +282,7 @@ func allocNode() *Node {
 	for {
 		c := g.cur.Load()
 		i := c.hdr.n.Add(1) - 1
-		if i < nodeChunkSlots {
+		if i < nodeChunkNodes {
 			n := (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(i)*nodeSize))
 			n.self = nodeID(c.hdr.index<<nodeChunkShift | i)
 			return n
@@ -228,7 +314,7 @@ func NodeChunksAllocated() int {
 }
 
 // NodeChunkCapacity is the number of nodes a chunk holds.
-const NodeChunkCapacity = nodeChunkSlots - 1
+const NodeChunkCapacity = nodeChunkNodes - 1
 
 // NodeChunksLive returns the number of chunks whose table slot is still
 // set, i.e. chunks of generations that have not been released (for tests:
@@ -236,7 +322,10 @@ const NodeChunkCapacity = nodeChunkSlots - 1
 func NodeChunksLive() int {
 	live := 0
 	for k := uint32(1); k < nodeChunkNext.Load(); k++ {
-		if nodeChunkSlot(k).Load() != nil {
+		// Read the slot as an integer: a released generation's chunks may
+		// already be freed while their cleanup has not yet cleared the
+		// slots, and a Go pointer to a freed object must never exist.
+		if atomic.LoadUintptr(&nodeChunkTable[k]) != 0 {
 			live++
 		}
 	}

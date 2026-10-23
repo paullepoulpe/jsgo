@@ -38,6 +38,7 @@ var NodePoisonMode = os.Getenv("JSGO_AST_POISON") == "1"
 // Compactor copies a live AST into a fresh generation.
 type Compactor struct {
 	gen        *nodeGen
+	aux        handleAlloc // the aux entries of the copied nodes (node_tables.go)
 	old        map[*nodeGen]struct{}
 	docs       map[*JSDocInfo]struct{}
 	lastChunk  *nodeChunk
@@ -52,6 +53,7 @@ type Compactor struct {
 func NewCompactor() *Compactor {
 	return &Compactor{
 		gen:  NewNodeGeneration().g,
+		aux:  handleAlloc{tab: &nodeAuxTable},
 		old:  make(map[*nodeGen]struct{}, 4),
 		docs: make(map[*JSDocInfo]struct{}, 1024),
 	}
@@ -79,8 +81,12 @@ func (k *Compactor) copyNode(old *Node) *Node {
 			for r.parent != 0 {
 				r = nodeAt(r.parent)
 			}
+			src := ""
+			if p := r.GetSourceFileName(); p != nil {
+				src = *p
+			}
 			panic(fmt.Sprintf("rhino.Compactor: a node of the initial generation (a package-level sentinel) is in the compacted tree: %s (root %s, source %s, extra root: %v)",
-				old, r, r.GetSourceFileName(), k.inExtra))
+				old, r, src, k.inExtra))
 		}
 		k.old[g] = struct{}{}
 	}
@@ -100,6 +106,15 @@ func (k *Compactor) copyNode(old *Node) *Node {
 	}
 	if (nw.kindFlags & kindFlagHasExtBox) != 0 {
 		k.forwardNodeProps(nw)
+	}
+	if nw.aux != 0 {
+		// The cold data moves to a fresh aux block; Finish releases the
+		// old ones, which also drops the cold data of every dead node.
+		if v := nodeAuxTable.get(nw.aux); v != nil {
+			nw.aux = k.aux.alloc(v)
+		} else {
+			nw.aux = 0
+		}
 	}
 	old.next = nw.self
 	old.previous = nodeForwardMarker
@@ -217,8 +232,10 @@ var (
 )
 
 // Finish releases the generations the copied nodes came from and returns
-// the number of chunks released.
-func (k *Compactor) Finish() int {
+// the number of chunks released. tables, when not nil, is the compilation's
+// NodeTables: its aux blocks are replaced by the ones holding the copied
+// nodes' entries (entries of dead nodes are dropped with the old blocks).
+func (k *Compactor) Finish(tables *NodeTables) int {
 	released := 0
 	for g := range k.old {
 		if g == k.gen || g == nodeInitialGen {
@@ -229,7 +246,7 @@ func (k *Compactor) Finish() int {
 		g.chunks = nil
 		g.mu.Unlock()
 		for _, c := range chunks {
-			nodeChunkSlot(c.hdr.index).Store(nil)
+			setNodeChunkSlot(c.hdr.index, nil)
 			released++
 			if NodePoisonMode {
 				poisonChunk(c)
@@ -241,6 +258,9 @@ func (k *Compactor) Finish() int {
 			nodePoisonMu.Unlock()
 		}
 	}
+	if tables != nil {
+		tables.rotateAux(&k.aux)
+	}
 	k.old = nil
 	k.docs = nil
 	k.lastChunk = nil
@@ -248,9 +268,10 @@ func (k *Compactor) Finish() int {
 }
 
 func poisonChunk(c *nodeChunk) {
-	for i := 1; i < nodeChunkSlots; i++ {
+	for i := 1; i < nodeChunkNodes; i++ {
 		n := (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(i)*nodeSize))
 		n.next, n.first, n.parent, n.previous, n.self = nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker
+		n.tc, n.aux = 0xFFFFFFFF, 0xFFFFFFFF
 		n.token = Token(0xFF)
 	}
 }

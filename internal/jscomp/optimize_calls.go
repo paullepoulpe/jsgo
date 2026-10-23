@@ -196,6 +196,7 @@ type OptimizeCalls_ReferenceMap struct {
 	lastNameList *jutil.ArrayList[*rhino.Node]
 	lastPropKey  string
 	lastPropID   uint32
+	refLists     jutil.Slab[optimizeCalls_refList] // one pass's lists die together
 	lastPropList *jutil.ArrayList[*rhino.Node]
 }
 
@@ -214,8 +215,8 @@ type optimizeCalls_refList struct {
 	buf  [4]*rhino.Node
 }
 
-func newOptimizeCallsRefList() *jutil.ArrayList[*rhino.Node] {
-	l := &optimizeCalls_refList{}
+func (m *OptimizeCalls_ReferenceMap) newRefList() *jutil.ArrayList[*rhino.Node] {
+	l := m.refLists.New()
 	l.list.InitWithBuffer(l.buf[:])
 	return &l.list
 }
@@ -245,7 +246,7 @@ func appendDoubling[T any](s []T, e T) []T {
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]], name string, n *rhino.Node) {
 	refs := data.Get(name)
 	if refs == nil {
-		refs = newOptimizeCallsRefList()
+		refs = m.newRefList()
 		data.PutNew(name, refs)
 	}
 	listAddDoubling(refs, n)
@@ -259,7 +260,7 @@ func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node
 	}
 	refs := m.names.Get(name)
 	if refs == nil {
-		refs = newOptimizeCallsRefList()
+		refs = m.newRefList()
 		m.names.PutNew(name, refs)
 	}
 	m.lastNameKey = name
@@ -276,7 +277,7 @@ func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node
 	}
 	refs := m.props.Get(name)
 	if refs == nil {
-		refs = newOptimizeCallsRefList()
+		refs = m.newRefList()
 		m.props.PutNew(name, refs)
 	}
 	m.lastPropKey = name
