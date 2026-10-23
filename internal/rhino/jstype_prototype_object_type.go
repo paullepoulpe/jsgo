@@ -515,6 +515,9 @@ func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
 func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectType) {
 	jutil.CheckState(!p.self.HasCachedValues())
 	p.implicitPrototypeFallback = implicitPrototype
+	if p.registry != nil {
+		p.registry.leastSupertypeGen++
+	}
 	if implicitPrototype != nil {
 		p.self.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(implicitPrototype)
 	}

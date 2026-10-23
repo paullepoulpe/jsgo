@@ -173,9 +173,6 @@ func (s *SerializeTypesToPointers) GetTypePointersByJstype() *base.LinkedIdentit
 				s.typePointersByJstype.Put(jstype, record.pointer)
 			}
 		}
-		for _, jstype := range s.jstypeReconserializer.forwardedTypes {
-			s.typePointersByJstype.Put(jstype, int(jstype.GetJSTypeBase().SerialPointer))
-		}
 	}
 	return s.typePointersByJstype
 }

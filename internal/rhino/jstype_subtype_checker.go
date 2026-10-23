@@ -221,8 +221,6 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 // Java: SubtypeChecker.isSubtypeDispatching(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeDispatching(subtype JSType, supertype JSType) bool {
 	switch subtype.GetTypeClass() {
-	case JSTypeClass_ARROW:
-		return c.IsArrowTypeSubtype(subtype.(*ArrowType), supertype)
 	case JSTypeClass_ENUM_ELEMENT:
 		return c.IsEnumElementSubtype(subtype.(*EnumElementType), supertype)
 	case JSTypeClass_ENUM:
@@ -506,7 +504,7 @@ func (c *SubtypeChecker) IsFunctionSubtype(subtype FunctionType, nonFunctionSupe
 		}
 
 		return c.ShouldTreatThisTypesAsCovariant(subtype, supertype) &&
-			c.IsSubtypeCaching(
+			c.IsArrowTypeSubtype(
 				subtype.GetInternalArrowType(), supertype.GetInternalArrowType())
 	}
 
@@ -524,9 +522,11 @@ func (c *SubtypeChecker) IsVariousBottomsSubtype(subtype JSType, supertype JSTyp
 }
 
 // Java: SubtypeChecker.isArrowTypeSubtype(ArrowType, JSType)
-func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, nonArrowSupertype JSType) bool {
-	supertype, ok := nonArrowSupertype.(*ArrowType)
-	if !ok {
+func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, supertype *ArrowType) bool {
+	if subtype == supertype {
+		return true
+	}
+	if supertype == nil {
 		return false
 	}
 

@@ -105,6 +105,10 @@ type FunctionType interface {
 }
 
 type functionTypeExt struct {
+	// The prototype property. This field is lazily initialized by
+	// #getPrototype().
+	prototypeSlot *Property
+
 	// The interfaces directly implemented by this function (for
 	// constructors) It is only relevant for constructors.
 	implementedInterfaces []ObjectType
@@ -129,17 +133,8 @@ type functionTypeExt struct {
 type FunctionTypeBase struct {
 	PrototypeObjectTypeBase
 
-	// [[Call]] property.
-	call *ArrowType
-
-	// The prototype property. This field is lazily initialized by
-	// #getPrototype(). The most important reason for lazily initializing this
-	// field is that there are cycles in the native types graph, so some
-	// prototypes must temporarily be null during the construction of the
-	// graph.
-	//
-	// If non-null, the type must be a PrototypeObjectType.
-	prototypeSlot *Property
+	// [[Call]] property (also packs 1-byte FunctionTypeBase flags in its tail padding).
+	call ArrowType
 
 	// The type of this in the scope of this function.
 	typeOfThis JSType
@@ -148,27 +143,10 @@ type FunctionTypeBase struct {
 	source *Node
 
 	ext *functionTypeExt
-
-	constructorAmbiguity FunctionType_ConstructorAmbiguity
-
-	// Whether a function is a constructor, an interface, or just an ordinary
-	// function.
-	kind FunctionType_Kind
-
-	// 0 = nil, 1 = ANY, 2 = ANY_EXPLICIT, 3 = STRUCT, 4 = DICT
-	propAccess uint8
-
-	// if this is an interface, indicate whether or not it supports
-	// structural interface matching
-	isStructuralInterface bool
-
-	// If true, the function type represents an abstract method or the
-	// constructor of an abstract class
-	isAbstract bool
 }
 
 func (f *FunctionTypeBase) selfFunc() FunctionType {
-	if f.kind == FunctionType_Kind_NONE {
+	if f.call.fnKind == FunctionType_Kind_NONE {
 		return f.ObjectTypeBase.self.(FunctionType)
 	}
 	return f
@@ -176,9 +154,22 @@ func (f *FunctionTypeBase) selfFunc() FunctionType {
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
 	if f.ext == nil {
-		f.ext = &functionTypeExt{}
+		f.ext = f.registry.allocFunctionTypeExt()
 	}
 	return f.ext
+}
+
+func (f *FunctionTypeBase) prototypeSlot() *Property {
+	if f.ext != nil {
+		return f.ext.prototypeSlot
+	}
+	return nil
+}
+
+func (f *FunctionTypeBase) setPrototypeSlot(slot *Property) {
+	if slot != nil || f.ext != nil {
+		f.ensureExt().prototypeSlot = slot
+	}
 }
 
 // Java: FunctionType.TYPE_CLASS
@@ -268,28 +259,34 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	if builder.googModuleId != nil {
 		f.ensureExt().googModuleId = builder.googModuleId
 	}
-	f.kind = builder.kind
+	f.call.fnKind = builder.kind
 	if builder.isKnownAmbiguous {
-		f.constructorAmbiguity = FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
+		f.call.fnConstructorAmbiguity = FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
 	} else {
-		f.constructorAmbiguity = FunctionType_ConstructorAmbiguity_UNKNOWN
+		f.call.fnConstructorAmbiguity = FunctionType_ConstructorAmbiguity_UNKNOWN
 	}
 
 	if builder.typeOfThis != nil {
 		f.typeOfThis = builder.typeOfThis
 	} else {
-		switch f.kind {
+		switch f.call.fnKind {
 		case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
-			typeOfThisBuilder := InstanceObjectType_BuilderForCtor(self)
+			var typeOfThisBuilder InstanceObjectType_Builder
+			typeOfThisBuilder.registry = f.registry
+			typeOfThisBuilder.className = self.GetReferenceName()
+			typeOfThisBuilder.nativeType = self.IsNativeObjectType()
+			typeOfThisBuilder.anonymousType = self.IsAnonymous()
+			typeOfThisBuilder.templateTypeMap = self.GetTemplateTypeMap()
+			typeOfThisBuilder.templateParamCount = self.GetTemplateParamCount()
+			typeOfThisBuilder.constructor = self
 
 			ctorKeys := builder.constructorOnlyKeys
 			if ctorKeys != nil && !ctorKeys.IsEmpty() {
-				typeOfThisBuilder.
-					SetTemplateTypeMap(f.templateTypeMap.CopyWithoutKeys(ctorKeys)).
-					SetTemplateParamCount(f.selfFunc().GetTemplateParamCount() - ctorKeys.Size())
+				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.CopyWithoutKeys(ctorKeys)
+				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - ctorKeys.Size()
 			}
 
-			f.typeOfThis = typeOfThisBuilder.Build()
+			f.typeOfThis = NewInstanceObjectType(&typeOfThisBuilder)
 		case FunctionType_Kind_ORDINARY:
 			f.typeOfThis = f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)
 		case FunctionType_Kind_NONE:
@@ -297,8 +294,8 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 		}
 	}
 
-	if f.kind == FunctionType_Kind_CONSTRUCTOR {
-		f.propAccess = uint8(FunctionType_PropAccess_ANY) + 1
+	if f.call.fnKind == FunctionType_Kind_CONSTRUCTOR {
+		f.call.fnPropAccess = uint8(FunctionType_PropAccess_ANY) + 1
 	}
 
 	var returnType JSType
@@ -307,16 +304,19 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	} else {
 		returnType = builder.returnType
 	}
-	f.call = NewArrowType(f.registry, builder.parameters, returnType, builder.returnTypeIsInferred)
+	f.call.init(f.registry, builder.parameters, returnType, builder.returnTypeIsInferred)
+	if f.registry.GetResolver().state != JSTypeResolver_State_OPEN {
+		f.call.resolveInternal(f.registry.GetErrorReporter())
+	}
 
 	if builder.primitiveId != nil {
 		f.ensureExt().closurePrimitive = builder.primitiveId
 	}
-	f.isStructuralInterface = false
-	f.isAbstract = builder.isAbstract
+	f.call.fnIsStructuralInterface = false
+	f.call.fnIsAbstract = builder.isAbstract
 	canonicalRepresentation := builder.canonicalRepresentation
 	jutil.CheckArgumentMsg(
-		canonicalRepresentation == nil || f.kind == FunctionType_Kind_CONSTRUCTOR,
+		canonicalRepresentation == nil || f.call.fnKind == FunctionType_Kind_CONSTRUCTOR,
 		"Only constructors should have canonical representations")
 	if canonicalRepresentation != nil {
 		f.ensureExt().canonicalRepresentation = canonicalRepresentation
@@ -355,22 +355,22 @@ func (f *FunctionTypeBase) IsInstanceType() bool {
 
 // Java: FunctionType.isConstructor()
 func (f *FunctionTypeBase) IsConstructor() bool {
-	return f.kind == FunctionType_Kind_CONSTRUCTOR
+	return f.call.fnKind == FunctionType_Kind_CONSTRUCTOR
 }
 
 // Java: FunctionType.isInterface()
 func (f *FunctionTypeBase) IsInterface() bool {
-	return f.kind == FunctionType_Kind_INTERFACE
+	return f.call.fnKind == FunctionType_Kind_INTERFACE
 }
 
 // Java: FunctionType.isOrdinaryFunction()
 func (f *FunctionTypeBase) IsOrdinaryFunction() bool {
-	return f.kind == FunctionType_Kind_ORDINARY
+	return f.call.fnKind == FunctionType_Kind_ORDINARY
 }
 
 // Java: FunctionType.getKind()
 func (f *FunctionTypeBase) GetKind() FunctionType_Kind {
-	return f.kind
+	return f.call.fnKind
 }
 
 // MakesStructs: when a class B inherits from A and A is annotated as a
@@ -379,10 +379,10 @@ func (f *FunctionTypeBase) GetKind() FunctionType_Kind {
 //
 // Java: FunctionType.makesStructs()
 func (f *FunctionTypeBase) MakesStructs() bool {
-	if !f.selfFunc().HasInstanceType() || f.propAccess == 0 {
+	if !f.selfFunc().HasInstanceType() || f.call.fnPropAccess == 0 {
 		return false
 	}
-	switch FunctionType_PropAccess(f.propAccess - 1) {
+	switch FunctionType_PropAccess(f.call.fnPropAccess - 1) {
 	case FunctionType_PropAccess_STRUCT:
 		return true
 	case FunctionType_PropAccess_DICT:
@@ -408,10 +408,10 @@ func (f *FunctionTypeBase) MakesStructs() bool {
 //
 // Java: FunctionType.makesDicts()
 func (f *FunctionTypeBase) MakesDicts() bool {
-	if !f.selfFunc().IsConstructor() || f.propAccess == 0 {
+	if !f.selfFunc().IsConstructor() || f.call.fnPropAccess == 0 {
 		return false
 	}
-	switch FunctionType_PropAccess(f.propAccess - 1) {
+	switch FunctionType_PropAccess(f.call.fnPropAccess - 1) {
 	case FunctionType_PropAccess_DICT:
 		return true
 	case FunctionType_PropAccess_STRUCT:
@@ -433,17 +433,17 @@ func (f *FunctionTypeBase) MakesDicts() bool {
 
 // Java: FunctionType.setStruct()
 func (f *FunctionTypeBase) SetStruct() {
-	f.propAccess = uint8(FunctionType_PropAccess_STRUCT) + 1
+	f.call.fnPropAccess = uint8(FunctionType_PropAccess_STRUCT) + 1
 }
 
 // Java: FunctionType.setDict()
 func (f *FunctionTypeBase) SetDict() {
-	f.propAccess = uint8(FunctionType_PropAccess_DICT) + 1
+	f.call.fnPropAccess = uint8(FunctionType_PropAccess_DICT) + 1
 }
 
 // Java: FunctionType.setExplicitUnrestricted()
 func (f *FunctionTypeBase) SetExplicitUnrestricted() {
-	f.propAccess = uint8(FunctionType_PropAccess_ANY_EXPLICIT) + 1
+	f.call.fnPropAccess = uint8(FunctionType_PropAccess_ANY_EXPLICIT) + 1
 }
 
 // Java: JSType.isFunctionType()
@@ -532,7 +532,7 @@ func (f *FunctionTypeBase) IsReturnTypeInferred() bool {
 //
 // Java: FunctionType.getInternalArrowType()
 func (f *FunctionTypeBase) GetInternalArrowType() *ArrowType {
-	return f.call
+	return &f.call
 }
 
 // Java: FunctionType.getSlot(Property.Key)
@@ -540,7 +540,7 @@ func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
 	if name.Matches("prototype") {
 		// Lazy initialization of the prototype field.
 		f.selfFunc().GetPrototype()
-		return f.prototypeSlot
+		return f.prototypeSlot()
 	} else {
 		return f.PrototypeObjectTypeBase.GetSlotByKey(name)
 	}
@@ -551,7 +551,7 @@ func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
 //
 // Java: FunctionType.getOwnPropertyNames()
 func (f *FunctionTypeBase) GetOwnPropertyNames() []string {
-	if f.prototypeSlot == nil {
+	if f.prototypeSlot() == nil {
 		return f.PrototypeObjectTypeBase.GetOwnPropertyNames()
 	} else {
 		names := jutil.NewLinkedHashSet[string]()
@@ -572,7 +572,7 @@ func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
 // Java: FunctionType.getPrototype()
 func (f *FunctionTypeBase) GetPrototype() ObjectType {
 	// lazy initialization of the prototype field
-	if f.prototypeSlot == nil {
+	if f.prototypeSlot() == nil {
 		refName := f.selfFunc().GetReferenceName()
 		if refName == nil {
 			// Someone is trying to access the prototype of a structural function.
@@ -581,16 +581,19 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			f.SetPrototypeNoCheck(f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
 		} else {
 			name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
+			fields := PrototypeObjectType_BuilderFields{
+				registry:          f.registry,
+				className:         &name,
+				implicitPrototype: f.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
+				nativeType:        f.selfFunc().IsNativeObjectType(),
+				templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
+			}
 			f.selfFunc().SetPrototype(
-				PrototypeObjectType_Builder_(f.registry).
-					SetName(&name).
-					SetImplicitPrototype(f.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE)).
-					SetNative(f.selfFunc().IsNativeObjectType()).
-					Build(),
+				NewPrototypeObjectType(&fields),
 				nil)
 		}
 	}
-	return f.prototypeSlot.GetType().(ObjectType)
+	return f.prototypeSlot().GetType().(ObjectType)
 }
 
 // SetPrototypeBasedOn sets the prototype, creating the prototype object from
@@ -626,21 +629,24 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 	// We handle this by breaking it into two cases:
 	//
 	// In the first case, we create a new PrototypeObjectType and set its
-	// implicit prototype to the type being assigned. This ensures that Bar
+	// implicitPrototype to the type being assigned. This ensures that Bar
 	// will not get any properties of Foo.prototype, but properties later
 	// assigned to Bar will get inherited properly.
 	//
 	// In the second case, we just use the anonymous object as the prototype.
 	if baseType.HasReferenceName() || f.selfFunc().IsNativeObjectType() || baseType.IsFunctionPrototypeType() {
-		if f.prototypeSlot != nil && f.selfFunc().HasInstanceType() && baseType.Equals(f.selfFunc().GetInstanceType()) {
+		if f.prototypeSlot() != nil && f.selfFunc().HasInstanceType() && baseType.Equals(f.selfFunc().GetInstanceType()) {
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
 		name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
-		baseType = PrototypeObjectType_Builder_(f.registry).
-			SetName(&name).
-			SetImplicitPrototype(baseType).
-			Build()
+		fields := PrototypeObjectType_BuilderFields{
+			registry:          f.registry,
+			className:         &name,
+			implicitPrototype: baseType,
+			templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
+		}
+		baseType = NewPrototypeObjectType(&fields)
 	}
 	f.selfFunc().SetPrototype(baseType, propertyNode)
 }
@@ -665,8 +671,8 @@ func (f *FunctionTypeBase) SetPrototype(prototype ObjectType, propertyNode *Node
 // Java: FunctionType.SetPrototypeNoCheck(ObjectType, Node)
 func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNode *Node) bool {
 	var oldPrototype ObjectType
-	if f.prototypeSlot != nil {
-		oldPrototype = f.prototypeSlot.GetType().(ObjectType)
+	if slot := f.prototypeSlot(); slot != nil {
+		oldPrototype = slot.GetType().(ObjectType)
 	}
 	replacedPrototype := oldPrototype != nil
 
@@ -674,7 +680,7 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	if propertyNode == nil {
 		slotNode = f.source
 	}
-	f.prototypeSlot = NewProperty("prototype", prototype, true, slotNode)
+	f.setPrototypeSlot(NewProperty("prototype", prototype, true, slotNode))
 	prototype.SetOwnerFunction(f.selfFunc())
 
 	if oldPrototype != nil {
@@ -685,6 +691,9 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 
 	if replacedPrototype {
 		f.selfFunc().ClearCachedValues()
+	}
+	if f.registry != nil {
+		f.registry.leastSupertypeGen++
 	}
 
 	return true
@@ -955,7 +964,7 @@ func (f *FunctionTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, 
 	if name.Matches("prototype") {
 		objType := type_.ToObjectType()
 		if objType != nil {
-			if f.prototypeSlot != nil && objType.Equals(f.prototypeSlot.GetType()) {
+			if slot := f.prototypeSlot(); slot != nil && objType.Equals(slot.GetType()) {
 				return true
 			}
 			f.SetPrototypeBasedOnWithPropertyNode(objType, propertyNode)
@@ -1068,7 +1077,7 @@ func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSu
 	var newParamsNode []*FunctionType_Parameter
 	if NewEqualityChecker().
 		SetEqMethod(EqualityChecker_EqMethod_IDENTITY).
-		CheckParameters(f.call, otherBase.call) {
+		CheckParameters(&f.call, &otherBase.call) {
 		newParamsNode = f.call.GetParameterList()
 	} else {
 		// If the parameters are not equal, don't try to merge them. Someday, we
@@ -1122,8 +1131,8 @@ func (f *FunctionTypeBase) GetSuperClassConstructor() FunctionType {
 func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
 	// Go-only: language-adapter — Enum.hashCode() is an identity hash in
 	// Java; the ordinal is a stable stand-in.
-	hc := int32(f.kind)
-	switch f.kind {
+	hc := int32(f.call.fnKind)
+	switch f.call.fnKind {
 	// constructors use identity semantics
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 		return 31*hc + jutil.IdentityHashCode(f.selfFunc())
@@ -1148,7 +1157,7 @@ func functionTypeClosurePrimitiveHashCode(p *ClosurePrimitive) int32 {
 // Java: FunctionType.hasEqualCallType(FunctionType)
 func (f *FunctionTypeBase) HasEqualCallType(that FunctionType) bool {
 	return NewEqualityChecker().SetEqMethod(EqualityChecker_EqMethod_IDENTITY).
-		Check(f.call, that.GetFunctionTypeBase().call)
+		CheckArrows(&f.call, &that.GetFunctionTypeBase().call)
 }
 
 // AppendTo: informally, a function is represented by function (params):
@@ -1300,18 +1309,18 @@ func (f *FunctionTypeBase) GetGoogModuleId() *string {
 //
 // Java: FunctionType.setSource(Node)
 func (f *FunctionTypeBase) SetSource(source *Node) {
-	if f.prototypeSlot != nil {
+	if slot := f.prototypeSlot(); slot != nil {
 		// NOTE(bashir): On one hand when source is null we want to drop any
 		// references to old nodes retained in prototypeSlot. On the other hand
 		// we cannot simply drop prototypeSlot, so we retain all information
 		// except the propertyNode for which we use an approximation! These
 		// details mostly matter in hot-swap passes.
-		if source == nil || f.prototypeSlot.GetNode() == nil {
-			f.prototypeSlot = NewProperty(
-				f.prototypeSlot.GetName(),
-				f.prototypeSlot.GetType(),
-				f.prototypeSlot.IsTypeInferred(),
-				source)
+		if source == nil || slot.GetNode() == nil {
+			f.setPrototypeSlot(NewProperty(
+				slot.GetName(),
+				slot.GetType(),
+				slot.IsTypeInferred(),
+				source))
 		}
 	}
 	f.source = source
@@ -1331,28 +1340,24 @@ func (f *FunctionTypeBase) ClearCachedValues() {
 			f.selfFunc().GetInstanceType().ClearCachedValues()
 		}
 
-		if f.prototypeSlot != nil {
-			f.prototypeSlot.GetType().(ObjectType).ClearCachedValues()
+		if slot := f.prototypeSlot(); slot != nil {
+			slot.GetType().(ObjectType).ClearCachedValues()
 		}
 	}
 }
 
 // Java: FunctionType.hasCachedValues()
 func (f *FunctionTypeBase) HasCachedValues() bool {
-	return f.prototypeSlot != nil || f.PrototypeObjectTypeBase.HasCachedValues()
+	return f.prototypeSlot() != nil || f.PrototypeObjectTypeBase.HasCachedValues()
 }
 
 // Java: FunctionType.resolveInternal(ErrorReporter)
 func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
-	// Go-only: language-adapter — a nil *ArrowType must reach safeResolve as
-	// Java null, not as a non-nil interface: call is still null when the
-	// InstanceObjectType that the constructor builds for typeOfThis resolves
-	// this function (InstanceObjectType.resolveInternal).
-	if f.call != nil {
-		f.call = JSType_SafeResolve(f.call, reporter).(*ArrowType)
+	if f.call.parameterList != nil && !f.call.resolved {
+		f.call.resolveInternal(reporter)
 	}
-	if f.prototypeSlot != nil {
-		f.prototypeSlot.SetType(JSType_SafeResolve(f.prototypeSlot.GetType(), reporter))
+	if slot := f.prototypeSlot(); slot != nil {
+		slot.SetType(JSType_SafeResolve(slot.GetType(), reporter))
 	}
 
 	// Warning about typeOfThis if it doesn't resolve to an ObjectType is
@@ -1455,17 +1460,17 @@ func (f *FunctionTypeBase) HasProperties() bool {
 // Java: FunctionType.setImplicitMatch(boolean)
 func (f *FunctionTypeBase) SetImplicitMatch(flag bool) {
 	jutil.CheckState(f.selfFunc().IsInterface())
-	f.isStructuralInterface = flag
+	f.call.fnIsStructuralInterface = flag
 }
 
 // Java: FunctionType.isStructuralInterface()
 func (f *FunctionTypeBase) IsStructuralInterface() bool {
-	return f.selfFunc().IsInterface() && f.isStructuralInterface
+	return f.selfFunc().IsInterface() && f.call.fnIsStructuralInterface
 }
 
 // Java: FunctionType.isAbstract()
 func (f *FunctionTypeBase) IsAbstract() bool {
-	return f.isAbstract
+	return f.call.fnIsAbstract
 }
 
 // GetPropertyTypeMap gets the map of properties to types covered in a
@@ -1594,7 +1599,7 @@ func (f *FunctionTypeBase) ForgetParameterAndReturnTypes() FunctionType {
 		WithName(f.selfFunc().GetReferenceName()).
 		WithSourceNode(f.source).
 		WithTypeOfThis(f.selfFunc().GetInstanceType()).
-		WithKind(f.kind).
+		WithKind(f.call.fnKind).
 		WithCanonicalRepresentation(f.selfFunc()).
 		Build()
 	result.SetPrototypeBasedOn(f.selfFunc().GetInstanceType())
@@ -1627,10 +1632,10 @@ func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateTyp
 //
 // Java: FunctionType.isAmbiguousConstructor()
 func (f *FunctionTypeBase) IsAmbiguousConstructor() bool {
-	if f.constructorAmbiguity == FunctionType_ConstructorAmbiguity_UNKNOWN {
-		f.constructorAmbiguity = f.CalculateConstructorAmbiguity()
+	if f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_UNKNOWN {
+		f.call.fnConstructorAmbiguity = f.CalculateConstructorAmbiguity()
 	}
-	return f.constructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
+	return f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
 }
 
 // Java: FunctionType.CalculateConstructorAmbiguity()
@@ -1714,7 +1719,7 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 	b.nativeType = f.selfFunc().IsNativeObjectType()
 	b.templateTypeMap = f.selfFunc().GetTemplateTypeMap()
 	b.canonicalRepresentation = f.selfFunc().GetCanonicalRepresentation()
-	b.isKnownAmbiguous = f.constructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
+	b.isKnownAmbiguous = f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
 	b.primitiveId = f.selfFunc().GetClosurePrimitive()
 	b.isAbstract = f.selfFunc().IsAbstract()
 	b.kind = f.selfFunc().GetKind()
@@ -1734,7 +1739,7 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 //
 // Java: FunctionType.toBuilder()
 func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
-	b := &FunctionType_Builder{}
+	b := f.registry.acquireFunctionBuilder()
 	b.self = b
 	f.initBuilder(b)
 	return b
@@ -1757,13 +1762,14 @@ type FunctionType_Builder struct {
 	isKnownAmbiguous        bool
 	returnTypeIsInferred    bool
 	returnsOwnInstanceType  bool
+	pooled                  bool
 	primitiveId             *ClosurePrimitive
 	canonicalRepresentation FunctionType
 }
 
 // Java: FunctionType.Builder(JSTypeRegistry)
 func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
-	b := &FunctionType_Builder{}
+	b := registry.acquireFunctionBuilder()
 	b.InitPrototypeObjectType_Builder(b, registry)
 	b.kind = FunctionType_Kind_ORDINARY
 
@@ -2012,7 +2018,9 @@ func (b *FunctionType_Builder) Build() FunctionType {
 		jutil.CheckState(b.constructorOnlyKeys == nil || b.constructorOnlyKeys.IsEmpty())
 	}
 
-	return NewFunctionType(b)
+	res := NewFunctionType(b)
+	b.registry.releaseFunctionBuilder(b)
+	return res
 }
 
 // Java: FunctionType.Builder.buildAndResolve()

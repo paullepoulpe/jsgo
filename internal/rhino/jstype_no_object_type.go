@@ -80,12 +80,12 @@ func NewNoObjectType(registry *JSTypeRegistry) *NoObjectTypeBase {
 //
 // Java: NoObjectType(JSTypeRegistry)
 func (t *NoObjectTypeBase) InitNoObjectTypeBase(self NoObjectType, registry *JSTypeRegistry) {
-	t.InitFunctionTypeBase(
-		self,
-		FunctionType_Builder_(registry).
-			WithKind(FunctionType_Kind_NONE).
-			WithReturnsOwnInstanceType().
-			ForNativeType())
+	b := FunctionType_Builder_(registry).
+		WithKind(FunctionType_Kind_NONE).
+		WithReturnsOwnInstanceType().
+		ForNativeType()
+	t.InitFunctionTypeBase(self, b)
+	registry.releaseFunctionBuilder(b)
 	t.EagerlyResolveToSelf()
 }
 

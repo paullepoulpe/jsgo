@@ -37,6 +37,11 @@ package rhino
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
+type resolutionQueueChunk struct {
+	next  *resolutionQueueChunk
+	items [4096]JSType
+}
+
 // JSTypeResolver is a state machine for resolving all JSType instances.
 //
 // This object shares the lifecycle of a registry. Consider it as a narrow
@@ -57,7 +62,10 @@ type JSTypeResolver struct {
 	captureStack []JSType
 
 	// The sequence of types to resolve when the resolver is closed.
-	resolutionQueue []JSType
+	queueHead *resolutionQueueChunk
+	queueTail *resolutionQueueChunk
+	headIdx   int
+	tailIdx   int
 
 	state JSTypeResolver_State
 }
@@ -155,7 +163,18 @@ func (r *JSTypeResolver) ResolveIfClosed(captured JSType, caller JSTypeClass) {
 	case JSTypeResolver_State_CLOSED, JSTypeResolver_State_CLOSING:
 		r.DoResolve(captured)
 	case JSTypeResolver_State_OPEN:
-		r.resolutionQueue = append(r.resolutionQueue, captured)
+		if r.queueTail == nil || r.tailIdx == len(r.queueTail.items) {
+			chunk := &resolutionQueueChunk{}
+			if r.queueTail != nil {
+				r.queueTail.next = chunk
+			} else {
+				r.queueHead = chunk
+			}
+			r.queueTail = chunk
+			r.tailIdx = 0
+		}
+		r.queueTail.items[r.tailIdx] = captured
+		r.tailIdx++
 	}
 }
 
@@ -182,16 +201,26 @@ func (r *JSTypeResolver) ResolveAll() {
 
 	r.state = JSTypeResolver_State_CLOSING
 
-	for len(r.resolutionQueue) != 0 {
-		first := r.resolutionQueue[0]
-		r.resolutionQueue[0] = nil
-		r.resolutionQueue = r.resolutionQueue[1:]
+	for r.queueHead != nil {
+		if r.queueHead == r.queueTail && r.headIdx == r.tailIdx {
+			break
+		}
+		first := r.queueHead.items[r.headIdx]
+		r.queueHead.items[r.headIdx] = nil
+		r.headIdx++
+		if r.headIdx == len(r.queueHead.items) && r.queueHead != r.queueTail {
+			r.queueHead = r.queueHead.next
+			r.headIdx = 0
+		}
 		r.DoResolve(first)
 	}
 
 	// resolutionQueue scales with the size of the application, so it needs
 	// to be GC'd.
-	r.resolutionQueue = nil
+	r.queueHead = nil
+	r.queueTail = nil
+	r.headIdx = 0
+	r.tailIdx = 0
 
 	r.state = JSTypeResolver_State_CLOSED
 

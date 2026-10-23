@@ -176,6 +176,12 @@ func (c *EqualityChecker) CheckParameters(left *ArrowType, right *ArrowType) boo
 	return left == right || c.AreArrowParameterEqual(left, right)
 }
 
+func (c *EqualityChecker) CheckArrows(left *ArrowType, right *ArrowType) bool {
+	c.CheckHasNotRun()
+	c.hasRun = true
+	return left == right || c.AreArrowEqual(left, right)
+}
+
 // Java: EqualityChecker.areEqualCaching(JSType, JSType)
 func (c *EqualityChecker) AreEqualCaching(left JSType, right JSType) bool {
 	// Wait to instantiate/use the cache until we have some hint that there may
@@ -272,13 +278,6 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 
 	if left.IsFunctionType() && right.IsFunctionType() {
 		return c.AreFunctionEqual(left.ToMaybeFunctionType(), right.ToMaybeFunctionType())
-	}
-
-	// TODO(nickreid): Delete `ArrowType` as not a type, or add `toMaybeArrow`.
-	if leftArrow, ok := left.(*ArrowType); ok {
-		if rightArrow, ok := right.(*ArrowType); ok {
-			return c.AreArrowEqual(leftArrow, rightArrow)
-		}
 	}
 
 	if left.IsRecordType() && right.IsRecordType() {
@@ -416,7 +415,7 @@ func (c *EqualityChecker) AreFunctionEqual(left FunctionType, right FunctionType
 		return false
 	case FunctionType_Kind_ORDINARY:
 		return c.AreEqualCaching(left.GetTypeOfThis(), right.GetTypeOfThis()) &&
-			c.AreEqualCaching(left.GetInternalArrowType(), right.GetInternalArrowType()) &&
+			c.AreArrowEqual(left.GetInternalArrowType(), right.GetInternalArrowType()) &&
 			jsTypeClosurePrimitiveEquals(left.GetClosurePrimitive(), right.GetClosurePrimitive())
 	}
 	panic(jutil.NewAssertionErrorNoMessage())

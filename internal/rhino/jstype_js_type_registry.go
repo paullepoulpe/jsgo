@@ -37,9 +37,27 @@ package rhino
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+const (
+	jsTypeRegistryLeastSupertypeCacheSize = 4096
+	jsTypeRegistryTemplatizedCacheSize    = 4096
+)
+
+type leastSupertypeCacheEntry struct {
+	a, b *JSTypeBase
+	res  JSType
+	gen  uint32
+}
+
+type templateTypeMapCacheEntry struct {
+	base   *TemplateTypeMap
+	t0, t1 *JSTypeBase
+	res    *TemplateTypeMap
+}
 
 // JSTypeRegistry is the type registry used to resolve named types.
 //
@@ -221,15 +239,39 @@ type JSTypeRegistry struct {
 
 	templateTypeMapSlab     []TemplateTypeMap
 	templatizedTypeSlab     []TemplatizedType
+	namedTypeSlab           []NamedType
 	functionTypeSlab        []FunctionTypeBase
-	arrowTypeSlab           []ArrowType
+	functionTypeExtSlab     []functionTypeExt
 	prototypeObjectTypeSlab []PrototypeObjectTypeBase
 	instanceObjectTypeSlab  []InstanceObjectType
 	unionTypeSlab           []UnionType
 	propertySlab            []Property
 	jsTypeSliceSlab         []JSType
-	unionBuilderStack       [8]UnionType_Builder
+	unionBuilderStack       [16]UnionType_Builder
 	unionBuilderDepth       int
+	fnBuilderStack          [8]FunctionType_Builder
+	fnBuilderDepth          int
+	leastSupertypeGen       uint32
+	leastSupertypeCache     *[jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry
+	templateTypeMapCache    *[jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry
+}
+
+func (r *JSTypeRegistry) acquireFunctionBuilder() *FunctionType_Builder {
+	if r != nil && r.fnBuilderDepth < len(r.fnBuilderStack) {
+		b := &r.fnBuilderStack[r.fnBuilderDepth]
+		r.fnBuilderDepth++
+		*b = FunctionType_Builder{}
+		b.pooled = true
+		return b
+	}
+	return &FunctionType_Builder{}
+}
+
+func (r *JSTypeRegistry) releaseFunctionBuilder(b *FunctionType_Builder) {
+	if b.pooled && r != nil && r.fnBuilderDepth > 0 && b == &r.fnBuilderStack[r.fnBuilderDepth-1] {
+		b.pooled = false
+		r.fnBuilderDepth--
+	}
 }
 
 func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
@@ -244,9 +286,56 @@ func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
 
 func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
 	if r.unionBuilderDepth > 0 && b == &r.unionBuilderStack[r.unionBuilderDepth-1] {
-		*b = UnionType_Builder{}
+		switch b.inlineLen {
+		case 0:
+		case 1:
+			b.inlineAlternates[0] = nil
+		case 2:
+			b.inlineAlternates[0] = nil
+			b.inlineAlternates[1] = nil
+		default:
+			clear(b.inlineAlternates[:b.inlineLen])
+		}
+		b.rebuildTarget = nil
+		b.alternates = nil
+		b.finalAlternates = nil
 		r.unionBuilderDepth--
 	}
+}
+
+func jsTypeBasePairHash(a, b *JSTypeBase) uintptr {
+	pa := uintptr(unsafe.Pointer(a)) >> 4
+	pb := uintptr(unsafe.Pointer(b)) >> 4
+	h := pa*0x9e3779b97f4a7c15 ^ pb*0xbf58476d1ce4e5b9
+	return h ^ (h >> 29)
+}
+
+func (r *JSTypeRegistry) lookupLeastSupertype(a, b *JSTypeBase) JSType {
+	if r.leastSupertypeCache == nil {
+		return nil
+	}
+	idx := jsTypeBasePairHash(a, b) & (jsTypeRegistryLeastSupertypeCacheSize - 1)
+	entry := &r.leastSupertypeCache[idx]
+	if entry.gen == r.leastSupertypeGen && entry.a == a && entry.b == b {
+		return entry.res
+	}
+	return nil
+}
+
+func (r *JSTypeRegistry) storeLeastSupertype(a, b *JSTypeBase, res JSType) {
+	if r.leastSupertypeCache == nil {
+		r.leastSupertypeCache = new([jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry)
+	}
+	idx := jsTypeBasePairHash(a, b) & (jsTypeRegistryLeastSupertypeCacheSize - 1)
+	r.leastSupertypeCache[idx] = leastSupertypeCacheEntry{a: a, b: b, res: res, gen: r.leastSupertypeGen}
+}
+
+func (r *JSTypeRegistry) templateTypeMapCacheIndex(base *TemplateTypeMap, t0, t1 *JSTypeBase) uintptr {
+	p0 := uintptr(unsafe.Pointer(base)) >> 4
+	p1 := uintptr(unsafe.Pointer(t0)) >> 4
+	p2 := uintptr(unsafe.Pointer(t1)) >> 4
+	h := p0*0x9e3779b97f4a7c15 ^ p1*0xbf58476d1ce4e5b9 ^ p2*0x94d049bb133111eb
+	return (h ^ (h >> 29)) & (jsTypeRegistryTemplatizedCacheSize - 1)
 }
 
 func (r *JSTypeRegistry) allocUnionType() *UnionType {
@@ -285,6 +374,18 @@ func (r *JSTypeRegistry) allocTemplatizedType() *TemplatizedType {
 	return t
 }
 
+func (r *JSTypeRegistry) allocNamedType() *NamedType {
+	if r == nil {
+		return &NamedType{}
+	}
+	if len(r.namedTypeSlab) == 0 {
+		r.namedTypeSlab = make([]NamedType, 256)
+	}
+	t := &r.namedTypeSlab[0]
+	r.namedTypeSlab = r.namedTypeSlab[1:]
+	return t
+}
+
 func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
 	if r == nil {
 		return &FunctionTypeBase{}
@@ -297,15 +398,15 @@ func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
 	return t
 }
 
-func (r *JSTypeRegistry) allocArrowType() *ArrowType {
+func (r *JSTypeRegistry) allocFunctionTypeExt() *functionTypeExt {
 	if r == nil {
-		return &ArrowType{}
+		return &functionTypeExt{}
 	}
-	if len(r.arrowTypeSlab) == 0 {
-		r.arrowTypeSlab = make([]ArrowType, 256)
+	if len(r.functionTypeExtSlab) == 0 {
+		r.functionTypeExtSlab = make([]functionTypeExt, 256)
 	}
-	t := &r.arrowTypeSlab[0]
-	r.arrowTypeSlab = r.arrowTypeSlab[1:]
+	t := &r.functionTypeExtSlab[0]
+	r.functionTypeExtSlab = r.functionTypeExtSlab[1:]
 	return t
 }
 
@@ -404,6 +505,7 @@ func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDe
 		propertiesOfSupertypesInUnions: jutil.NewLinkedHashSet[string](),
 		droppedPropertiesOfUnions:      jutil.NewLinkedHashSet[string](),
 		eachRefTypeIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[ObjectType]),
+		leastSupertypeGen:              1,
 	}
 	r.reporter = reporter
 	r.forwardDeclaredTypes = forwardDeclaredTypes
@@ -2458,7 +2560,12 @@ func (r *JSTypeRegistry) CreateTemplatizedTypeOfMap(
 //
 // Java: JSTypeRegistry.createTemplatizedType(ObjectType, JSType...)
 func (r *JSTypeRegistry) CreateTemplatizedType(baseType ObjectType, templatizedTypes ...JSType) *TemplatizedType {
-	return r.CreateTemplatizedTypeOfList(baseType, templateTypeMapCopyOfTypes(templatizedTypes))
+	for i, e := range templatizedTypes {
+		if e == nil {
+			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(i)))
+		}
+	}
+	return r.CreateTemplatizedTypeOfList(baseType, templatizedTypes)
 }
 
 // CreateNamedType creates a named type.
@@ -2466,11 +2573,20 @@ func (r *JSTypeRegistry) CreateTemplatizedType(baseType ObjectType, templatizedT
 // Java: JSTypeRegistry.createNamedType(StaticTypedScope, String, String, int, int)
 func (r *JSTypeRegistry) CreateNamedType(
 	scope StaticTypedScope, reference string, sourceName *string, lineno int, charno int) *NamedType {
-	return NamedType_Builder_(r, reference).
-		SetScope(scope).
-		SetResolutionKind(NamedType_ResolutionKind_TYPE_NAME).
-		SetErrorReportingLocation(sourceName, lineno, charno).
-		Build()
+	b := NamedType_Builder{
+		registry:          r,
+		referenceName:     reference,
+		hasReferenceName:  true,
+		scope:             scope,
+		sourceName:        sourceName,
+		lineno:            lineno,
+		charno:            charno,
+		referencedType:    r.GetNativeType(JSTypeNative_UNKNOWN_TYPE),
+		templateTypes:     emptyJSTypeSlice,
+		resolutionKind:    NamedType_ResolutionKind_TYPE_NAME,
+		hasResolutionKind: true,
+	}
+	return NewNamedType(&b)
 }
 
 // IdentifyNonNullableName identifies the name of a typedef or enum before

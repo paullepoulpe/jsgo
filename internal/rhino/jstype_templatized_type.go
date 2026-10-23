@@ -54,27 +54,40 @@ const TemplatizedType_TYPE_CLASS = JSTypeClass_TEMPLATIZED
 // Java: TemplatizedType(JSTypeRegistry, ObjectType, ImmutableList<JSType>)
 func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templateTypes []JSType) *TemplatizedType {
 	t := registry.allocTemplatizedType()
-	t.InitProxyObjectTypeBaseWithTemplateTypeMap(
-		t, registry, objectType, objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes))
+	ttm := objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes)
+	t.InitProxyObjectTypeBaseWithTemplateTypeMap(t, registry, objectType, ttm)
 
 	typeParams := objectType.GetTypeParameters()
-	var builder []JSType
-	if len(typeParams) == 0 {
-		builder = emptyJSTypeSlice
+	nParams := len(typeParams)
+	if nParams == 0 {
+		t.templateTypes = emptyJSTypeSlice
+		t.isSpecializedOnlyWithUnknown = true
+	} else if nParams == 1 && len(ttm.resolvedTemplateValues) == len(ttm.templateKeys) {
+		nKeys := len(ttm.templateKeys)
+		resolvedType := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-1])
+		t.templateTypes = ttm.resolvedTemplateValues[nKeys-1 : nKeys]
+		t.isSpecializedOnlyWithUnknown = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE).Equals(resolvedType)
+	} else if nParams == 2 && len(ttm.resolvedTemplateValues) == len(ttm.templateKeys) && typeParams[0] != typeParams[1] {
+		nKeys := len(ttm.templateKeys)
+		r0 := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-2])
+		r1 := jutil.CheckNotNull(ttm.resolvedTemplateValues[nKeys-1])
+		t.templateTypes = ttm.resolvedTemplateValues[nKeys-2 : nKeys]
+		unk := t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		t.isSpecializedOnlyWithUnknown = unk.Equals(r0) && unk.Equals(r1)
 	} else {
-		builder = registry.allocJSTypeSlice(len(typeParams))[:0]
-	}
-	maybeIsSpecializedOnlyWithUnknown := true
-	for _, newlyFilledTemplateKey := range typeParams {
-		resolvedType := t.GetTemplateTypeMap().GetResolvedTemplateType(newlyFilledTemplateKey)
+		builder := registry.allocJSTypeSlice(nParams)[:0]
+		maybeIsSpecializedOnlyWithUnknown := true
+		for _, newlyFilledTemplateKey := range typeParams {
+			resolvedType := ttm.GetResolvedTemplateType(newlyFilledTemplateKey)
 
-		builder = append(builder, jutil.CheckNotNull(resolvedType))
-		if maybeIsSpecializedOnlyWithUnknown {
-			maybeIsSpecializedOnlyWithUnknown = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE).Equals(resolvedType)
+			builder = append(builder, jutil.CheckNotNull(resolvedType))
+			if maybeIsSpecializedOnlyWithUnknown {
+				maybeIsSpecializedOnlyWithUnknown = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE).Equals(resolvedType)
+			}
 		}
+		t.templateTypes = builder
+		t.isSpecializedOnlyWithUnknown = maybeIsSpecializedOnlyWithUnknown
 	}
-	t.templateTypes = builder
-	t.isSpecializedOnlyWithUnknown = maybeIsSpecializedOnlyWithUnknown
 
 	registry.GetResolver().ResolveIfClosed(t, TemplatizedType_TYPE_CLASS)
 	return t
@@ -233,6 +246,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 	t.ProxyObjectTypeBase.ResolveInternal(reporter)
 
 	rebuild := baseTypeBefore != t.GetReferencedType()
+	var builderBuf [4]JSType
 	var builder []JSType
 	for i, type_ := range t.templateTypes {
 		resolved := type_.Resolve(reporter)
@@ -240,7 +254,11 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 			builder[i] = resolved
 		} else if resolved != type_ {
 			rebuild = true
-			builder = t.registry.allocJSTypeSlice(len(t.templateTypes))
+			if len(t.templateTypes) <= len(builderBuf) {
+				builder = builderBuf[:len(t.templateTypes)]
+			} else {
+				builder = t.registry.allocJSTypeSlice(len(t.templateTypes))
+			}
 			copy(builder[:i], t.templateTypes[:i])
 			builder[i] = resolved
 		}
@@ -250,7 +268,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 		if builder == nil {
 			builder = t.templateTypes
 		}
-		return NewTemplatizedType(t.registry, t.GetReferencedType(), builder)
+		return t.registry.CreateTemplatizedTypeOfList(t.GetReferencedType(), builder)
 	} else {
 		return t
 	}

@@ -163,36 +163,76 @@ func initTemplateTypeMap(
 	replacerInit := false
 
 	var resolvedValues []JSType
-	for i := 0; i < nKeys; i++ {
+	if nValues < nKeys {
+		resolvedValues = registry.allocJSTypeSlice(nKeys)
+		for i := nValues; i < nKeys; i++ {
+			resolvedValues[i] = m.templateKeys[i].GetBound()
+		}
+	}
+
+	var simpleMask uint64
+	for i := nValues - 1; i >= 0; i-- {
+		templateValue := m.templateValues[i]
 		var resolved JSType
-		if i < nValues {
-			templateValue := m.templateValues[i]
-			if r, ok := resolveSimpleTemplateValue(templateValue, registry); ok {
-				resolved = r
-			} else {
-				if !replacerInit {
-					replacer = TemplateTypeReplacer{
-						registry:                   registry,
-						bindings:                   m,
-						useUnknownForMissingValues: true,
-						ownSubMapBoundary:          -1,
-					}
-					replacerInit = true
-				}
-				nextSubMap := m.NextSubMapStart(i + 1)
-				templateKey := m.templateKeys[i]
-				replacer.SetKeyType(templateKey, nextSubMap)
-				resolved = replacer.visitJSType(templateValue)
+		if r, ok := resolveSimpleTemplateValue(templateValue, registry); ok {
+			resolved = r
+			if i < 64 {
+				simpleMask |= uint64(1) << uint(i)
 			}
-			if resolvedValues == nil && resolved == templateValue {
-				continue
+		} else if tt, ok := templateValue.(*TemplateType); ok && tt != m.templateKeys[i] {
+			nextSubMap := m.NextSubMapStart(i + 1)
+			if !m.HasTemplateKeyFrom(tt, nextSubMap) {
+				resolved = tt
+			} else {
+				idx := m.GetTemplateTypeIndex(tt)
+				if idx == -1 {
+					resolved = registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+					if i < 64 {
+						simpleMask |= uint64(1) << uint(i)
+					}
+				} else if idx >= nextSubMap && idx < 64 && (simpleMask&(uint64(1)<<uint(idx))) != 0 {
+					if resolvedValues != nil {
+						resolved = resolvedValues[idx]
+					} else {
+						resolved = m.templateValues[idx]
+					}
+					if i < 64 {
+						simpleMask |= uint64(1) << uint(i)
+					}
+				} else {
+					if !replacerInit {
+						replacer = TemplateTypeReplacer{
+							registry:                   registry,
+							bindings:                   m,
+							useUnknownForMissingValues: true,
+							ownSubMapBoundary:          -1,
+						}
+						replacerInit = true
+					}
+					replacer.SetKeyType(m.templateKeys[i], nextSubMap)
+					resolved = replacer.visitJSType(templateValue)
+				}
 			}
 		} else {
-			resolved = m.templateKeys[i].GetBound()
+			if !replacerInit {
+				replacer = TemplateTypeReplacer{
+					registry:                   registry,
+					bindings:                   m,
+					useUnknownForMissingValues: true,
+					ownSubMapBoundary:          -1,
+				}
+				replacerInit = true
+			}
+			nextSubMap := m.NextSubMapStart(i + 1)
+			replacer.SetKeyType(m.templateKeys[i], nextSubMap)
+			resolved = replacer.visitJSType(templateValue)
 		}
 		if resolvedValues == nil {
+			if resolved == templateValue {
+				continue
+			}
 			resolvedValues = registry.allocJSTypeSlice(nKeys)
-			copy(resolvedValues[:i], m.templateValues[:i])
+			copy(resolvedValues[i+1:], m.templateValues[i+1:])
 		}
 		resolvedValues[i] = resolved
 	}
@@ -211,7 +251,17 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 			return registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), true
 		}
 		return t, true
-	case *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoType, NoObjectType, *EnumElementType, *InstanceObjectType, PrototypeObjectType:
+	case *NamedType, *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoType, *NoObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *SymbolTypeBase, *KnownSymbolType, NoObjectType, PrototypeObjectType:
+		return t, true
+	case *UnionType:
+		alts := x.GetAlternates()
+		for i := 0; i < len(alts); i++ {
+			alt := alts[i]
+			r, ok := resolveSimpleTemplateValue(alt, registry)
+			if !ok || r != alt {
+				return nil, false
+			}
+		}
 		return t, true
 	default:
 		return nil, false
@@ -245,6 +295,36 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 		return m // Nothing will change.
 	}
 
+	var t0, t1 *JSTypeBase
+	var cacheIdx uintptr
+	canCache := false
+	if len(values) <= 2 && m.registry != nil {
+		canCache = true
+		if len(values) >= 1 {
+			if values[0] == nil {
+				canCache = false
+			} else {
+				t0 = values[0].GetJSTypeBase()
+			}
+		}
+		if len(values) == 2 && canCache {
+			if values[1] == nil {
+				canCache = false
+			} else {
+				t1 = values[1].GetJSTypeBase()
+			}
+		}
+		if canCache {
+			cacheIdx = m.registry.templateTypeMapCacheIndex(m, t0, t1)
+			if m.registry.templateTypeMapCache != nil {
+				entry := &m.registry.templateTypeMapCache[cacheIdx]
+				if entry.base == m && entry.t0 == t0 && entry.t1 == t1 {
+					return entry.res
+				}
+			}
+		}
+	}
+
 	nKeys := len(m.templateKeys)
 	out := m.registry.allocTemplateTypeMap()
 	extendedValues := m.registry.allocJSTypeSlice(nKeys)
@@ -272,7 +352,19 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 		idx++
 	}
 
-	return initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStarts)
+	res := initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStarts)
+	if canCache {
+		if m.registry.templateTypeMapCache == nil {
+			m.registry.templateTypeMapCache = new([jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry)
+		}
+		m.registry.templateTypeMapCache[cacheIdx] = templateTypeMapCacheEntry{
+			base: m,
+			t0:   t0,
+			t1:   t1,
+			res:  res,
+		}
+	}
+	return res
 }
 
 // templateTypeMapCopyOfTypes is ImmutableList.copyOf(list), which rejects

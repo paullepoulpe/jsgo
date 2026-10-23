@@ -36,7 +36,6 @@
 package rhino
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -46,41 +45,41 @@ import (
 // JavaScript functions include more things like properties, type of THIS,
 // etc, and are modeled by FunctionType.
 type ArrowType struct {
-	JSTypeBase
-
 	parameterList []*FunctionType_Parameter
 	returnType    JSType
 
 	// Whether the return type is inferred.
 	returnTypeInferred bool
+	resolved           bool
+
+	// FunctionTypeBase 1-byte fields packed into ArrowType's tail padding.
+	fnConstructorAmbiguity  FunctionType_ConstructorAmbiguity
+	fnKind                  FunctionType_Kind
+	fnPropAccess            uint8
+	fnIsStructuralInterface bool
+	fnIsAbstract            bool
 }
 
 // Java: ArrowType.TYPE_CLASS
 const ArrowType_TYPE_CLASS = JSTypeClass_ARROW
 
 // Java: ArrowType(JSTypeRegistry, List<Parameter>, JSType, boolean)
-func NewArrowType(
+func (t *ArrowType) init(
 	registry *JSTypeRegistry,
 	parameters []*FunctionType_Parameter,
 	returnType JSType,
-	returnTypeInferred bool) *ArrowType {
-	t := registry.allocArrowType()
-	t.InitJSTypeBase(t, registry)
-
+	returnTypeInferred bool) {
 	if parameters == nil {
-		t.parameterList = registry.CreateParametersWithVarArgs(t.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
+		t.parameterList = registry.CreateParametersWithVarArgs(registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	} else {
 		t.parameterList = arrowTypeCopyParameters(parameters)
 	}
 	if returnType == nil {
-		t.returnType = t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		t.returnType = registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 	} else {
 		t.returnType = returnType
 	}
 	t.returnTypeInferred = returnTypeInferred
-
-	registry.GetResolver().ResolveIfClosed(t, ArrowType_TYPE_CLASS)
-	return t
 }
 
 // arrowTypeCopyParameters is ImmutableList.copyOf(parameters), which
@@ -110,6 +109,10 @@ func (t *ArrowType) RecursionUnsafeHashCode() int32 {
 	return hashCode
 }
 
+func (t *ArrowType) HashCode() int32 {
+	return t.RecursionUnsafeHashCode()
+}
+
 // Java: ArrowType.getReturnType()
 func (t *ArrowType) GetReturnType() JSType {
 	return t.returnType
@@ -127,44 +130,21 @@ func (t *ArrowType) IsReturnTypeInferred() bool {
 	return t.returnTypeInferred
 }
 
-// Java: ArrowType.getLeastSupertype(JSType)
-func (t *ArrowType) GetLeastSupertype(that JSType) JSType {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-// Java: ArrowType.getGreatestSubtype(JSType)
-func (t *ArrowType) GetGreatestSubtype(that JSType) JSType {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-// Java: ArrowType.testForEquality(JSType)
-func (t *ArrowType) TestForEquality(that JSType) base.Tri {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-// Java: ArrowType.visit(Visitor<T>)
-func (t *ArrowType) Visit(visitor Visitor) any {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-// Java: ArrowType.visit(RelationshipVisitor<T>, JSType)
-func (t *ArrowType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
 // Java: ArrowType.getPossibleToBooleanOutcomes()
 func (t *ArrowType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_TRUE
 }
 
 // Java: ArrowType.resolveInternal(ErrorReporter)
-func (t *ArrowType) ResolveInternal(reporter ErrorReporter) JSType {
+func (t *ArrowType) resolveInternal(reporter ErrorReporter) {
+	if t.resolved {
+		return
+	}
+	t.resolved = true
 	t.returnType = JSType_SafeResolve(t.returnType, reporter)
 	for _, param := range t.parameterList {
 		param.GetJSType().Resolve(reporter)
 	}
-
-	return t
 }
 
 // Java: ArrowType.hasUnknownParamsOrReturn()
@@ -187,6 +167,10 @@ func (t *ArrowType) AppendTo(sb *TypeStringBuilder) {
 // Java: ArrowType.hasAnyTemplateTypesInternal()
 func (t *ArrowType) HasAnyTemplateTypesInternal() bool {
 	return t.returnType.HasAnyTemplateTypes() || t.HasTemplatedParameterType()
+}
+
+func (t *ArrowType) HasAnyTemplateTypes() bool {
+	return t.HasAnyTemplateTypesInternal()
 }
 
 // Java: ArrowType.HasTemplatedParameterType()

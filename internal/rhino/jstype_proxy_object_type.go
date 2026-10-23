@@ -62,11 +62,9 @@ type ProxyObjectType interface {
 }
 
 // ProxyObjectTypeBase holds ProxyObjectType's fields and methods; plain
-// proxies are *ProxyObjectTypeBase values. self (shadowing
-// ObjectTypeBase.self) dispatches the virtual calls.
+// proxies are *ProxyObjectTypeBase values.
 type ProxyObjectTypeBase struct {
 	ObjectTypeBase
-	self ProxyObjectType
 
 	referencedType    JSType
 	referencedObjType ObjectType
@@ -103,7 +101,6 @@ func (p *ProxyObjectTypeBase) InitProxyObjectTypeBase(self ProxyObjectType, regi
 // Java: ProxyObjectType(JSTypeRegistry, JSType, TemplateTypeMap)
 func (p *ProxyObjectTypeBase) InitProxyObjectTypeBaseWithTemplateTypeMap(
 	self ProxyObjectType, registry *JSTypeRegistry, referencedType JSType, templateTypeMap *TemplateTypeMap) {
-	p.self = self
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, registry, templateTypeMap)
 	p.SetReferencedType(jutil.CheckNotNull(referencedType))
 
@@ -448,7 +445,7 @@ func (p *ProxyObjectTypeBase) VisitReferenceType(visitor Visitor) any {
 
 // Java: ProxyObjectType.visit(Visitor<T>)
 func (p *ProxyObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseProxyObjectType(p.self)
+	return visitor.CaseProxyObjectType(p.ObjectTypeBase.self.(ProxyObjectType))
 }
 
 // Java: ProxyObjectType.visit(RelationshipVisitor<T>, JSType)
@@ -458,8 +455,8 @@ func (p *ProxyObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, tha
 
 // Java: ProxyObjectType.resolveInternal(ErrorReporter)
 func (p *ProxyObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
-	p.self.SetReferencedType(p.referencedType.Resolve(reporter))
-	return p.self
+	p.SetReferencedType(p.referencedType.Resolve(reporter))
+	return p.ObjectTypeBase.self
 }
 
 // Java: ProxyObjectType.getTypeOfThis()
@@ -475,7 +472,7 @@ func (p *ProxyObjectTypeBase) CollapseUnion() JSType {
 	if p.referencedType.IsUnionType() {
 		return p.referencedType.CollapseUnion()
 	}
-	return p.self
+	return p.ObjectTypeBase.self
 }
 
 // Java: ProxyObjectType.matchConstraint(JSType)

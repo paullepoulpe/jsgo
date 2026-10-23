@@ -254,8 +254,9 @@ type JSTypeBase struct {
 	// 0 = unset, 1 = false, 2 = true.
 	templateCheckResult uint8
 
-	visited bool
-	unknown bool
+	visited        bool
+	unknown        bool
+	resolvedToSelf bool
 }
 
 // Java: JSType.serialVersionUID
@@ -1456,11 +1457,34 @@ func (t *JSTypeBase) GetLeastSupertype(that JSType) JSType {
 //
 // Java: JSType.getLeastSupertype(JSType, JSType)
 func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
+	if thisType == thatType {
+		return thisType
+	}
+	thisTb := thisType.GetJSTypeBase()
+	registry := thisTb.registry
+	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.resolvedToSelf {
+		thatTb := thatType.GetJSTypeBase()
+		if thatTb.resolvedToSelf {
+			if cached := registry.lookupLeastSupertype(thisTb, thatTb); cached != nil {
+				return cached
+			}
+			areEquivalent := thisType.Equals(thatType)
+			if areEquivalent {
+				registry.storeLeastSupertype(thisTb, thatTb, thisType)
+				return thisType
+			}
+			res := registry.CreateUnionType(thisType, thatType)
+			if res == thisType || res == thatType {
+				registry.storeLeastSupertype(thisTb, thatTb, res)
+			}
+			return res
+		}
+	}
 	areEquivalent := thisType.Equals(thatType)
 	if areEquivalent {
 		return thisType
 	}
-	return thisType.GetJSTypeBase().registry.CreateUnionType(thisType, thatType)
+	return registry.CreateUnionType(thisType, thatType)
 }
 
 // GetGreatestSubtype gets the greatest subtype of this and that. The
@@ -1856,7 +1880,7 @@ func JSType_VisitForJSType(type_ JSType, visitor Visitor) JSType {
 // Java: JSType.resolve(ErrorReporter)
 func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 	t.registry.GetResolver().AssertLegalToResolveTypes()
-	if !t.self.IsResolved() {
+	if t.resolveResult == nil {
 		// Prevent infinite recursion in cyclically defined types.
 		//
 		// If resolve is called a twice on a type, before the first call
@@ -1865,8 +1889,12 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 		// be equal to `this`, even though the different calls will return
 		// different objects.
 		t.resolveResult = t.self
-		t.resolveResult = t.self.ResolveInternal(reporter)
-		jutil.CheckState(t.self.IsResolved())
+		res := t.self.ResolveInternal(reporter)
+		t.resolveResult = res
+		if res != nil && res.GetJSTypeBase() == t {
+			t.resolvedToSelf = true
+		}
+		jutil.CheckState(t.resolveResult != nil)
 	}
 	return t.resolveResult
 }
@@ -1878,6 +1906,7 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 func (t *JSTypeBase) EagerlyResolveToSelf() {
 	jutil.CheckStateMsg1(!t.self.IsResolved(), "%s", t.self)
 	t.resolveResult = t.self
+	t.resolvedToSelf = true
 	t.registry.GetResolver().ResolveIfClosed(t.self, t.self.GetTypeClass())
 }
 

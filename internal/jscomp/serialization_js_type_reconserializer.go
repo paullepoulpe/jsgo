@@ -51,7 +51,6 @@ type JSTypeReconserializer struct {
 
 	serialGen              uint32
 	recordsByPointer       []*JSTypeReconserializer_SeenTypeRecord
-	forwardedTypes         []rhino.JSType
 	seenTypeRecords        *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
 	disambiguateEdges      *jutil.LinkedHashMap[int32, disambiguateEdgeSet]
 	totalDisambiguateEdges int
@@ -274,10 +273,9 @@ func (s *JSTypeReconserializer) LookupTypePointer(type_ rhino.JSType) (int, bool
 	return 0, false
 }
 
-func (s *JSTypeReconserializer) cacheForwardedRecord(type_ rhino.JSType, tb *rhino.JSTypeBase, rec *JSTypeReconserializer_SeenTypeRecord) *JSTypeReconserializer_SeenTypeRecord {
+func (s *JSTypeReconserializer) cacheForwardedRecord(_ rhino.JSType, tb *rhino.JSTypeBase, rec *JSTypeReconserializer_SeenTypeRecord) *JSTypeReconserializer_SeenTypeRecord {
 	tb.SerialGen = s.serialGen
 	tb.SerialPointer = int32(rec.pointer)
-	s.forwardedTypes = append(s.forwardedTypes, type_)
 	return rec
 }
 

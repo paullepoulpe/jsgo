@@ -69,12 +69,8 @@ import (
 type NamedType struct {
 	ProxyObjectTypeBase
 
-	reference      string
-	sourceName     *string
-	lineno         int
-	charno         int
-	resolutionKind NamedType_ResolutionKind
-
+	reference       string
+	sourceName      *string
 	resolutionScope StaticTypedScope
 
 	// Validates the type resolution.
@@ -98,6 +94,10 @@ type NamedType struct {
 	// checking; it is only needed by Clutz.
 	templateTypes []JSType
 
+	lineno         int32
+	charno         int32
+	resolutionKind NamedType_ResolutionKind
+
 	// Applies the "!" operator to the resolved type, which removes null and
 	// undefined
 	restrictByNull bool
@@ -115,24 +115,24 @@ func NamedType_NominalHashCode(type_ ObjectType) int32 {
 
 // Java: NamedType(Builder)
 func NewNamedType(builder *NamedType_Builder) *NamedType {
-	t := &NamedType{}
+	t := builder.registry.allocNamedType()
 	t.InitProxyObjectTypeBase(t, builder.registry, builder.referencedType)
-	jutil.CheckNotNull(builder.referenceName)
-	jutil.CheckNotNull(builder.resolutionKind)
+	jutil.CheckState(builder.hasReferenceName)
+	jutil.CheckState(builder.hasResolutionKind)
 	jutil.CheckNotNull(builder.templateTypes)
-	if *builder.resolutionKind == NamedType_ResolutionKind_TYPEOF {
-		jutil.CheckState(jutil.StringStartsWith(*builder.referenceName, "typeof "))
+	if builder.resolutionKind == NamedType_ResolutionKind_TYPEOF {
+		jutil.CheckState(jutil.StringStartsWith(builder.referenceName, "typeof "))
 	}
 	// TODO(lharker): enforce that the scope is not null
 
 	t.restrictByNull = builder.restrictByNull
 	t.resolutionScope = builder.scope
-	t.reference = *builder.referenceName
+	t.reference = builder.referenceName
 	t.sourceName = builder.sourceName
-	t.lineno = builder.lineno
-	t.charno = builder.charno
+	t.lineno = int32(builder.lineno)
+	t.charno = int32(builder.charno)
 	t.templateTypes = builder.templateTypes
-	t.resolutionKind = *builder.resolutionKind
+	t.resolutionKind = builder.resolutionKind
 
 	t.registry.GetResolver().ResolveIfClosed(t, NamedType_TYPE_CLASS)
 	return t
@@ -251,7 +251,13 @@ func (t *NamedType) RecursionUnsafeHashCode() int32 {
 //
 // Java: NamedType.resolveInternal(ErrorReporter)
 func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
-	resolvedTypeArgs := JSTypeIterations_MapTypes(func(x JSType) JSType { return x.Resolve(reporter) }, t.templateTypes)
+	var resolvedTypeArgs []JSType
+	if len(t.templateTypes) != 0 {
+		resolvedTypeArgs = make([]JSType, len(t.templateTypes))
+		for i, x := range t.templateTypes {
+			resolvedTypeArgs[i] = x.Resolve(reporter)
+		}
+	}
 
 	if t.resolutionKind == NamedType_ResolutionKind_NONE {
 		// In some cases (e.g. typeof(ns) when the actual type is just a literal
@@ -465,7 +471,7 @@ func (t *NamedType) SetValidator(validator func(JSType) bool) bool {
 
 // Java: NamedType.warning(ErrorReporter, String)
 func (t *NamedType) Warning(reporter ErrorReporter, message string) {
-	reporter.Warning(message, jsTypeDerefString(t.sourceName), t.lineno, t.charno)
+	reporter.Warning(message, jsTypeDerefString(t.sourceName), int(t.lineno), int(t.charno))
 }
 
 // NamedType_PropertyContinuation stores enough information to define a
@@ -543,7 +549,7 @@ func (t *NamedType) ToBuilder() *NamedType_Builder {
 	return NewNamedType_Builder(t.registry, t.reference).
 		SetScope(t.resolutionScope).
 		SetResolutionKind(t.resolutionKind).
-		SetErrorReportingLocation(t.sourceName, t.lineno, t.charno).
+		SetErrorReportingLocation(t.sourceName, int(t.lineno), int(t.charno)).
 		SetTemplateTypes(t.templateTypes).
 		SetReferencedType(t.GetReferencedType()).
 		SetRestrictByNull(t.restrictByNull)
@@ -551,26 +557,28 @@ func (t *NamedType) ToBuilder() *NamedType_Builder {
 
 // NamedType_Builder is NamedType.Builder.
 type NamedType_Builder struct {
-	registry *JSTypeRegistry
-	// Go: nil is Java null.
-	resolutionKind *NamedType_ResolutionKind
-	referenceName  *string
-	scope          StaticTypedScope
-	sourceName     *string
-	lineno         int
-	charno         int
-	referencedType JSType
-	restrictByNull bool
-	templateTypes  []JSType
+	registry          *JSTypeRegistry
+	referenceName     string
+	scope             StaticTypedScope
+	sourceName        *string
+	lineno            int
+	charno            int
+	referencedType    JSType
+	templateTypes     []JSType
+	resolutionKind    NamedType_ResolutionKind
+	hasResolutionKind bool
+	hasReferenceName  bool
+	restrictByNull    bool
 }
 
 // Java: NamedType.Builder(JSTypeRegistry, String)
 func NewNamedType_Builder(registry *JSTypeRegistry, referenceName string) *NamedType_Builder {
 	return &NamedType_Builder{
-		registry:       registry,
-		referenceName:  &referenceName,
-		referencedType: registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE),
-		templateTypes:  []JSType{},
+		registry:         registry,
+		referenceName:    referenceName,
+		hasReferenceName: true,
+		referencedType:   registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE),
+		templateTypes:    emptyJSTypeSlice,
 	}
 }
 
@@ -582,7 +590,8 @@ func (b *NamedType_Builder) SetScope(scope StaticTypedScope) *NamedType_Builder 
 
 // Java: NamedType.Builder.setResolutionKind(ResolutionKind)
 func (b *NamedType_Builder) SetResolutionKind(resolutionKind NamedType_ResolutionKind) *NamedType_Builder {
-	b.resolutionKind = &resolutionKind
+	b.resolutionKind = resolutionKind
+	b.hasResolutionKind = true
 	return b
 }
 
