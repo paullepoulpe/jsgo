@@ -91,7 +91,7 @@ def main():
         extra.append("--fast_mode")
     tasks = bench.load_tasks(a.tasks.split(","))
     hdr = (f"{'task':22} {'gate':6} {'wall':>7} {'cpu':>7} {'rss MB':>7} {'live MB':>8} "
-           f"{'alloc GB':>8} {'Mobj':>7} {'gcs':>5} {'gcCPU':>6}")
+           f"{'scan MB':>8} {'alloc GB':>8} {'Mobj':>7} {'gcs':>5} {'gcCPU':>6}")
     print(hdr, flush=True)
     for task in tasks:
         name = task["name"]
@@ -119,7 +119,8 @@ def main():
                         bad.append((j, k, bench.describe_diff(ra[k], ga[k])))
             status = "MATCH" if not bad else f"DIFF{len(bad)}"
             print(f"{name:22} {status:6} {tot['wall_s']:7.2f} {tot['cpu_s']:7.2f} {tot['rss_mb']:7.0f} "
-                  f"{tot.get('peak_live_bytes', 0) / 2**20:8.0f} {tot.get('alloc_bytes', 0) / 2**30:8.2f} "
+                  f"{tot.get('peak_live_bytes', 0) / 2**20:8.0f} {tot.get('peak_scan_bytes', 0) / 2**20:8.0f} "
+                  f"{tot.get('alloc_bytes', 0) / 2**30:8.2f} "
                   f"{tot.get('alloc_objects', 0) / 1e6:7.1f} {tot.get('gc_cycles', 0):5.0f} "
                   f"{tot.get('gc_cpu_s', 0):6.2f}", flush=True)
             for b in bad[:4]:

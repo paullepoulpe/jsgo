@@ -16,9 +16,12 @@ import (
 // is a less noisy measure of the working set than the process's peak RSS.
 // JSGO_PEAK_HEAP_PROFILE=<file> also writes a heap profile whenever the live
 // heap reaches a new peak (5% above the last one), so the file ends up
-// describing the heap at its high-water mark.
+// describing the heap at its high-water mark. peak_scan_bytes and
+// peak_objects are the scannable (pointerful) heap bytes and the number of
+// live objects at that same cycle: the GC's mark work per cycle grows with
+// the scannable bytes, not with pointer-free ones.
 
-var peakLive atomic.Uint64
+var peakLive, peakScan, peakObjects atomic.Uint64
 
 // trackPeakLive samples the live heap after every GC cycle with a finalizer
 // that re-arms itself.
@@ -26,7 +29,11 @@ func trackPeakLive(profPath string) {
 	var lastProf uint64
 	pending := false
 	type sentinel struct{ _ [16]byte }
-	sample := []metrics.Sample{{Name: "/gc/heap/live:bytes"}}
+	sample := []metrics.Sample{
+		{Name: "/gc/heap/live:bytes"},
+		{Name: "/gc/scan/heap:bytes"},
+		{Name: "/gc/heap/objects:objects"},
+	}
 	var arm func()
 	arm = func() {
 		s := &sentinel{}
@@ -43,6 +50,8 @@ func trackPeakLive(profPath string) {
 			}
 			if v := sample[0].Value.Uint64(); v > peakLive.Load() {
 				peakLive.Store(v)
+				peakScan.Store(sample[1].Value.Uint64())
+				peakObjects.Store(sample[2].Value.Uint64())
 				if v > lastProf+lastProf/20 {
 					lastProf = v
 					pending = true
@@ -90,8 +99,9 @@ func memStatsWriter(path string) func() {
 			}
 			defer f.Close()
 			fmt.Fprintf(f, "{\"alloc_bytes\": %.0f, \"alloc_objects\": %.0f, \"gc_cycles\": %.0f, "+
-				"\"gc_cpu_s\": %.3f, \"runtime_mapped_bytes\": %.0f, \"peak_live_bytes\": %d}\n",
-				val(0), val(1), val(2), val(3), val(4), peakLive.Load())
+				"\"gc_cpu_s\": %.3f, \"runtime_mapped_bytes\": %.0f, \"peak_live_bytes\": %d, "+
+				"\"peak_scan_bytes\": %d, \"peak_objects\": %d}\n",
+				val(0), val(1), val(2), val(3), val(4), peakLive.Load(), peakScan.Load(), peakObjects.Load())
 		})
 	}
 }
