@@ -203,7 +203,6 @@ func (ti *TypeInference) initTypeInference(
 	rootNode := syntacticScope.GetRootNode()
 	ti.bottomTypedScope = TypedScope{}
 	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
-	ti.bottomTypedScope.vars.InitWithBuffer(nil)
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
 	ti.bottomFlowScope = LinkedFlowScope{
@@ -219,7 +218,7 @@ func (ti *TypeInference) initTypeInference(
 // Java: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(FlowScope)
 func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScope) FlowScope {
 	scope := flow.GetDeclarationScope().(*TypedScope)
-	if scope.vars.IsEmpty() || ti.inferredUnboundVarScope == scope {
+	if len(scope.vars) == 0 || ti.inferredUnboundVarScope == scope {
 		return flow
 	}
 	if ti.inferredUnboundVarScope == nil {
@@ -247,7 +246,7 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	var overlay *LinkedFlowScope_OverlayScope
 	var slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]
 	var voidType rhino.JSType
-	for var_ := range scope.vars.Values() {
+	for var_ := range scope.GetVarIterable() {
 		if !scope.IsDeclarativelyUnboundVarWithoutType(var_) || ti.IsUnflowable(var_) {
 			continue
 		}
