@@ -78,7 +78,7 @@ var (
 	_ [nodeSize - unsafe.Sizeof(nodeChunkHeader{})]byte
 	_ [unsafe.Offsetof(nodeChunk{}.nodes) - nodeSize]byte
 	_ [nodeChunkClass - 8 - unsafe.Sizeof(nodeChunk{})]byte // fits its size class with the malloc header
-	_ [unsafe.Sizeof(nodeChunk{}) + 8 - 24576 - 1]byte       // and is not a smaller class
+	_ [unsafe.Sizeof(nodeChunk{}) + 8 - 24576 - 1]byte      // and is not a smaller class
 )
 
 // nodeChunkTable maps a chunk index to the chunk's address. The slots are
