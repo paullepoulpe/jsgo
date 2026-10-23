@@ -1075,11 +1075,11 @@ func typedAstDeserializer_streamLargeShard(
 		if n == 0 {
 			return nil
 		}
-		if n > 32768 {
+		if n > 32760 {
 			return bytes.Clone(src)
 		}
 		if len(scriptSlab) < n {
-			scriptSlab = make([]byte, 32768)
+			scriptSlab = make([]byte, 32760)
 		}
 		dst := scriptSlab[:n:n]
 		scriptSlab = scriptSlab[n:]

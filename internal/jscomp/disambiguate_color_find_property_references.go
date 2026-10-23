@@ -385,8 +385,8 @@ func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site *
 		n := len(r.useSiteBuf) * 2
 		if n < 256 {
 			n = 256
-		} else if n > 4096 {
-			n = 4096
+		} else if n > 2047 {
+			n = 2047 // 2047 * 16B = 32752B <= 32760B
 		}
 		r.useSiteBuf = make([]PropertyUseSite, n)
 		r.useSiteUsed = 0

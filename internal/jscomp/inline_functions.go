@@ -428,7 +428,7 @@ func (f *InlineFunctions) allocFunctionExpression(fn *rhino.Node, index int) *In
 	fe := &p.fnExprChunks[p.fnExprIdx][p.fnExprUsed]
 	p.fnExprUsed++
 	fe.fn = fn
-	fe.fakeName = strconv.Itoa(index)
+	fe.fakeName = nodeUtilFormatInt(index)
 	return fe
 }
 

@@ -4387,7 +4387,7 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_COMPUTED_PROP_GETTER |
 	propFlag_COMPUTED_PROP_SETTER
 
-const rhinoByteSlabSize = 32764
+const rhinoByteSlabSize = 32756 // +4B atomic.Uint32 == 32760B <= maxSmallSize - MallocHeaderSize
 
 type rhinoByteSlab struct {
 	buf  [rhinoByteSlabSize]byte
@@ -4785,7 +4785,7 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	}
 }
 
-const cloneTreeMaxSlabSize = 512
+const cloneTreeMaxSlabSize = 511 // 511 * 64B = 32704B <= 32760B (maxSmallSize - MallocHeaderSize)
 
 type nodeCloneSlab struct {
 	chunk []Node

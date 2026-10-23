@@ -730,7 +730,7 @@ func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Pr
 	if len(a.propertySlab) == cap(a.propertySlab) {
 		newCap := 256
 		if cap(a.propertySlab) >= 256 {
-			newCap = min(cap(a.propertySlab)*2, 2048)
+			newCap = min(cap(a.propertySlab)*2, jscompMaxSmallAlloc/int(unsafe.Sizeof(AmbiguateProperties_Property{})))
 		}
 		a.propertySlab = make([]AmbiguateProperties_Property, 0, newCap)
 	}

@@ -22,6 +22,7 @@ import (
 	"iter"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -193,7 +194,7 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 	references.lastPropID = 0
 }
 
-const ocRefSlotChunkSize = 4096
+const ocRefSlotChunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(optimizeCalls_refListSlot{}))
 
 type optimizeCalls_refListSlot struct {
 	list jutil.ArrayList[*rhino.Node]
@@ -301,7 +302,7 @@ func releaseOptimizeCallsRefMap(m *OptimizeCalls_ReferenceMap) {
 			}
 		}
 	}
-	const maxRetainedChunks = 128
+	const maxRetainedChunks = (128 * 4096) / ocRefSlotChunkSize
 	if len(m.slotChunks) > maxRetainedChunks {
 		clear(m.slotChunks[maxRetainedChunks:])
 		m.slotChunks = m.slotChunks[:maxRetainedChunks]

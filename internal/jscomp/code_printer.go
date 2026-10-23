@@ -97,7 +97,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 	lineIndex            int
 }
 
-const codePrinter_mappingSlabSize = 4096
+const codePrinter_mappingSlabSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(SourceMap_Mapping{}))
 
 var codePrinter_mappingSlabPool = sync.Pool{
 	New: func() any {

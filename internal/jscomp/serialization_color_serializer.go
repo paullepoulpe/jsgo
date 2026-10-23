@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -139,7 +141,7 @@ func colorSerializer_int32s(xs []int) []int32 {
 
 func (s *ColorSerializer) allocTypeProto() *TypeProto {
 	if len(s.typeProtoSlab) == 0 {
-		s.typeProtoSlab = make([]TypeProto, 1024)
+		s.typeProtoSlab = make([]TypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(TypeProto{})))
 	}
 	p := &s.typeProtoSlab[0]
 	s.typeProtoSlab = s.typeProtoSlab[1:]
@@ -148,7 +150,7 @@ func (s *ColorSerializer) allocTypeProto() *TypeProto {
 
 func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
 	if len(s.objProtoSlab) == 0 {
-		s.objProtoSlab = make([]ObjectTypeProto, 1024)
+		s.objProtoSlab = make([]ObjectTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(ObjectTypeProto{})))
 	}
 	p := &s.objProtoSlab[0]
 	s.objProtoSlab = s.objProtoSlab[1:]
@@ -157,7 +159,7 @@ func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
 
 func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
 	if len(s.unionProtoSlab) == 0 {
-		s.unionProtoSlab = make([]UnionTypeProto, 256)
+		s.unionProtoSlab = make([]UnionTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(UnionTypeProto{})))
 	}
 	p := &s.unionProtoSlab[0]
 	s.unionProtoSlab = s.unionProtoSlab[1:]
@@ -166,7 +168,7 @@ func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
 
 func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *SubtypingEdge {
 	if len(s.edgeSlab) == 0 {
-		s.edgeSlab = make([]SubtypingEdge, 1024)
+		s.edgeSlab = make([]SubtypingEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(SubtypingEdge{})))
 	}
 	e := &s.edgeSlab[0]
 	s.edgeSlab = s.edgeSlab[1:]

@@ -97,7 +97,7 @@ type SourceMapGeneratorV3 struct {
 	mappingBuf             [16]SourceMapGeneratorV3_Mapping
 }
 
-const sourceMapGeneratorV3_mappingSlabSize = 16384
+const sourceMapGeneratorV3_mappingSlabSize = 32760 / int(unsafe.Sizeof(SourceMapGeneratorV3_Mapping{}))
 
 var sourceMapGeneratorV3_mappingSlabPool = sync.Pool{
 	New: func() any {

@@ -22,25 +22,31 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+const jscompMaxSmallAlloc = 32760 // runtime.maxSmallSize (32768) - gc.MallocHeaderSize (8)
+
 type typedScopeArena struct {
-	scopes   []TypedScope
-	vars     []TypedVar
-	varSlots []jutil.LhmSlot[string, *TypedVar]
-	names    []string
+	scopes       []TypedScope
+	vars         []TypedVar
+	varSlots     []jutil.LhmSlot[string, *TypedVar]
+	names        []string
+	implicitVars [][4]*TypedVar
 }
 
 func (a *typedScopeArena) allocScope() *TypedScope {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(TypedScope{}))
 	if len(a.scopes) == cap(a.scopes) {
 		newCap := cap(a.scopes) * 2
 		if newCap < 64 {
 			newCap = 64
-		} else if newCap > 1024 {
-			newCap = 1024
+		}
+		if newCap > maxCap {
+			newCap = maxCap
 		}
 		a.scopes = make([]TypedScope, 0, newCap)
 	}
@@ -57,12 +63,14 @@ func (a *typedScopeArena) allocVar(
 	scope *TypedScope,
 	index int,
 	input *CompilerInput) *TypedVar {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(TypedVar{}))
 	if len(a.vars) == cap(a.vars) {
 		newCap := cap(a.vars) * 2
 		if newCap < 128 {
 			newCap = 128
-		} else if newCap > 2048 {
-			newCap = 2048
+		}
+		if newCap > maxCap {
+			newCap = maxCap
 		}
 		a.vars = make([]TypedVar, 0, newCap)
 	}
@@ -84,6 +92,7 @@ func (a *typedScopeArena) allocVar(
 }
 
 func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar] {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(jutil.LhmSlot[string, *TypedVar]{}))
 	if n > 256 {
 		return make([]jutil.LhmSlot[string, *TypedVar], n)
 	}
@@ -91,8 +100,9 @@ func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar
 		newCap := cap(a.varSlots) * 2
 		if newCap < 256 {
 			newCap = 256
-		} else if newCap > 4096 {
-			newCap = 4096
+		}
+		if newCap > maxCap {
+			newCap = maxCap
 		}
 		a.varSlots = make([]jutil.LhmSlot[string, *TypedVar], 0, newCap)
 	}
@@ -102,6 +112,7 @@ func (a *typedScopeArena) allocVarSlots(n int) []jutil.LhmSlot[string, *TypedVar
 }
 
 func (a *typedScopeArena) allocNames(n int) []string {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(""))
 	if n > 256 {
 		return make([]string, 0, n)
 	}
@@ -109,14 +120,32 @@ func (a *typedScopeArena) allocNames(n int) []string {
 		newCap := cap(a.names) * 2
 		if newCap < 256 {
 			newCap = 256
-		} else if newCap > 4096 {
-			newCap = 4096
+		}
+		if newCap > maxCap {
+			newCap = maxCap
 		}
 		a.names = make([]string, 0, newCap)
 	}
 	start := len(a.names)
 	a.names = a.names[:start+n]
 	return a.names[start : start : start+n]
+}
+
+func (a *typedScopeArena) allocImplicitVars() *[4]*TypedVar {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof([4]*TypedVar{}))
+	if len(a.implicitVars) == cap(a.implicitVars) {
+		newCap := cap(a.implicitVars) * 2
+		if newCap < 16 {
+			newCap = 16
+		}
+		if newCap > maxCap {
+			newCap = maxCap
+		}
+		a.implicitVars = make([][4]*TypedVar, 0, newCap)
+	}
+	idx := len(a.implicitVars)
+	a.implicitVars = a.implicitVars[:idx+1]
+	return &a.implicitVars[idx]
 }
 
 // TypedScope contains information about variables and their types. Scopes
@@ -302,7 +331,6 @@ func (s *TypedScope) ValidateCompletelyBuilt() {
 	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
 	// singleton)
 	s.reservedNames = nil
-	s.arena = nil
 }
 
 // IsBottom reports whether this is the bottom of the lattice.
@@ -494,6 +522,29 @@ func (s *TypedScope) HasOwnSlot(name string) bool {
 		return s.HasOwnImplicitSlot(imp)
 	}
 	return false
+}
+
+// Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
+func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
+	if !s.HasOwnImplicitSlot(name) {
+		return nil
+	}
+	if s.implicitVars == nil {
+		if s.arena != nil {
+			s.implicitVars = s.arena.allocImplicitVars()
+		} else {
+			s.implicitVars = new([4]*TypedVar)
+		}
+	}
+	if v := s.implicitVars[*name]; v != nil {
+		return v
+	}
+	v := s.MakeImplicitVar(*name)
+	if v != nil {
+		s.hasImplicitVars = true
+		s.implicitVars[*name] = v
+	}
+	return v
 }
 
 // Java: TypedScope.makeImplicitVar(ImplicitVar)

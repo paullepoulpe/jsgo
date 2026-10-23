@@ -1313,7 +1313,7 @@ func (c *TypedScopeCreator) concatDot(a, b string) string {
 		return a + "." + b
 	}
 	if len(c.strSlab) < n {
-		c.strSlab = make([]byte, 32768) // 32 KiB noscan
+		c.strSlab = make([]byte, 32760) // <= maxSmallSize - MallocHeaderSize noscan
 	}
 	buf := c.strSlab[:n:n]
 	c.strSlab = c.strSlab[n:]
@@ -3150,9 +3150,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 			superCtor := superClass.GetConstructor()
 			subCtor := subClass.GetConstructor()
 			if superCtor != nil && subCtor != nil {
+				superBuilder := rhino.MakeNominalTypeBuilder(superCtor, superClass)
+				subBuilder := rhino.MakeNominalTypeBuilder(subCtor, subClass)
 				b.outer.codingConvention.ApplySubclassRelationship(
-					rhino.NewNominalTypeBuilder(superCtor, superClass),
-					rhino.NewNominalTypeBuilder(subCtor, subClass),
+					&superBuilder,
+					&subBuilder,
 					relationship.type_)
 			}
 		}
@@ -3167,8 +3169,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 
 			if functionType != nil {
 				getterType := b.outer.typeRegistry.CreateFunctionType(objectType)
-				b.outer.codingConvention.ApplySingletonGetter(
-					rhino.NewNominalTypeBuilder(functionType, objectType), getterType)
+				builder := rhino.MakeNominalTypeBuilder(functionType, objectType)
+				b.outer.codingConvention.ApplySingletonGetter(&builder, getterType)
 			}
 		}
 	}

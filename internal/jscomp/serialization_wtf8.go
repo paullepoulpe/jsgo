@@ -104,7 +104,7 @@ func (d *Wtf8_Decoder) allocASCIIString(b []byte) string {
 		return string(b)
 	}
 	if len(d.byteSlab) < n {
-		d.byteSlab = make([]byte, 65536)
+		d.byteSlab = make([]byte, 32760)
 	}
 	buf := d.byteSlab[:n]
 	d.byteSlab = d.byteSlab[n:]

@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"slices"
 	"strconv"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -121,7 +122,7 @@ func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assi
 	if len(r.assignmentSlab) == cap(r.assignmentSlab) {
 		newCap := 64
 		if cap(r.assignmentSlab) >= 64 {
-			newCap = min(cap(r.assignmentSlab)*2, 4096)
+			newCap = min(cap(r.assignmentSlab)*2, jscompMaxSmallAlloc/int(unsafe.Sizeof(RenameVars_Assignment{})))
 		}
 		r.assignmentSlab = make([]RenameVars_Assignment, 0, newCap)
 	}

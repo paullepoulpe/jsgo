@@ -2629,9 +2629,9 @@ func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n *rhino.Node) {
 	relationship := tc.compiler.GetCodingConvention().GetClassesDefinedByCall(n)
 	scope := t.GetTypedScope()
 	if relationship != nil {
-		superClass := scope.LookupQualifiedName(rhino.QualifiedName_Of(relationship.superclassName))
+		superClass := rhino.StaticTypedScope_LookupQualifiedNameString(scope, relationship.superclassName)
 		superClassInstanceType := TypeValidator_GetInstanceOfCtor(superClass)
-		subClass := scope.LookupQualifiedName(rhino.QualifiedName_Of(relationship.subclassName))
+		subClass := rhino.StaticTypedScope_LookupQualifiedNameString(scope, relationship.subclassName)
 		subClassInstance := TypeValidator_GetInstanceOfCtor(subClass)
 		if relationship.type_ == CodingConvention_SubclassType_INHERITS &&
 			superClassInstanceType != nil &&

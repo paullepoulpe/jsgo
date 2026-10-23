@@ -213,12 +213,10 @@ func (p *PeepholeFoldConstants) TryConvertToNumber(n *rhino.Node) {
 	default:
 	}
 
-	result := p.GetSideEffectFreeNumberValue(n)
-	if result == nil {
+	value, ok := p.GetSideEffectFreeNumberValueVal(n)
+	if !ok {
 		return
 	}
-
-	value := *result
 
 	replacement := NodeUtil_NumberNode(value, n)
 	if replacement.IsEquivalentTo(n) {
@@ -339,10 +337,10 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n *rhino.Node) *rhino.Node 
 		}
 		return n
 	case rhino.Token_BITNOT:
-		doubleVal := p.GetSideEffectFreeNumberValue(left)
-		if doubleVal != nil {
-			if base.JSCompDoubles_IsMathematicalInteger(*doubleVal) {
-				intVal := base.JSCompDoubles_EcmascriptToInt32(*doubleVal)
+		doubleVal, ok := p.GetSideEffectFreeNumberValueVal(left)
+		if ok {
+			if base.JSCompDoubles_IsMathematicalInteger(doubleVal) {
+				intVal := base.JSCompDoubles_EcmascriptToInt32(doubleVal)
 				notIntValNode := NodeUtil_NumberNode(float64(^intVal), left)
 				n.ReplaceWith(notIntValNode)
 				p.ReportChangeToEnclosingScope(parent)
@@ -370,6 +368,10 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n *rhino.Node) *rhino.Node 
 // Java: PeepholeFoldConstants.isReasonableDoubleValue(Double)
 func (p *PeepholeFoldConstants) IsReasonableDoubleValue(x *float64) bool {
 	return x != nil && !math.IsInf(*x, 0) && !math.IsNaN(*x)
+}
+
+func (p *PeepholeFoldConstants) isReasonableDoubleVal(x float64, ok bool) bool {
+	return ok && !math.IsInf(x, 0) && !math.IsNaN(x)
 }
 
 // TryFoldInstanceof tries to fold `left instanceof right` into true or
@@ -761,83 +763,81 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 	// TODO(johnlenz): Handle NaN with unknown value. BIT ops convert NaN
 	// to zero so this is a little awkward here.
 
-	lValObj := p.GetSideEffectFreeNumberValue(left)
-	rValObj := p.GetSideEffectFreeNumberValue(right)
+	lval, lOk := p.GetSideEffectFreeNumberValueVal(left)
+	rval, rOk := p.GetSideEffectFreeNumberValueVal(right)
 	// at least one of the two operands must have a value and both must be numeric
-	if (lValObj == nil && rValObj == nil) || !p.IsNumeric(left) || !p.IsNumeric(right) {
+	if (!lOk && !rOk) || !p.IsNumeric(left) || !p.IsNumeric(right) {
 		return nil
 	}
 	// handle the operations that have algebraic identities, since we can simplify the tree without
 	// actually knowing the value statically.
 	switch n.GetToken() {
 	case rhino.Token_ADD:
-		if lValObj != nil && rValObj != nil {
-			return p.MaybeReplaceBinaryOpWithNumericResult(*lValObj+*rValObj, *lValObj, *rValObj)
+		if lOk && rOk {
+			return p.MaybeReplaceBinaryOpWithNumericResult(lval+rval, lval, rval)
 		}
-		if lValObj != nil && *lValObj == 0 {
+		if lOk && lval == 0 {
 			return right.CloneTreeWithTypeExprs(true)
-		} else if rValObj != nil && *rValObj == 0 {
+		} else if rOk && rval == 0 {
 			return left.CloneTreeWithTypeExprs(true)
 		}
 		return nil
 	case rhino.Token_SUB:
-		if lValObj != nil && rValObj != nil {
-			return p.MaybeReplaceBinaryOpWithNumericResult(*lValObj-*rValObj, *lValObj, *rValObj)
+		if lOk && rOk {
+			return p.MaybeReplaceBinaryOpWithNumericResult(lval-rval, lval, rval)
 		}
-		if lValObj != nil && *lValObj == 0 {
+		if lOk && lval == 0 {
 			// 0 - x -> -x
 			// NOTE: this optimization has the subtle side effect of changing `0` to `-0` because
 			// `0-0 -> 0` but `-0 -> -0`.
 			return rhino.IR_Neg(right.CloneTreeWithTypeExprs(true))
-		} else if rValObj != nil && *rValObj == 0 {
+		} else if rOk && rval == 0 {
 			// x - 0 -> x
 			return left.CloneTreeWithTypeExprs(true)
 		}
 		return nil
 	case rhino.Token_MUL:
-		if lValObj != nil && rValObj != nil {
-			return p.MaybeReplaceBinaryOpWithNumericResult(*lValObj**rValObj, *lValObj, *rValObj)
+		if lOk && rOk {
+			return p.MaybeReplaceBinaryOpWithNumericResult(lval*rval, lval, rval)
 		}
 		// NOTE: 0*x != 0 for all x, if x==0, then it is NaN.  So we can't take advantage of that
 		// without some kind of non-NaN proof.  So the special cases here only deal with 1*x
-		if lValObj != nil {
-			if *lValObj == 1 {
+		if lOk {
+			if lval == 1 {
 				return right.CloneTreeWithTypeExprs(true)
 			}
 		} else {
-			if *rValObj == 1 {
+			if rval == 1 {
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
 		return nil
 	case rhino.Token_DIV:
-		if lValObj != nil && rValObj != nil {
-			if *rValObj == 0 {
+		if lOk && rOk {
+			if rval == 0 {
 				return nil
 			}
-			return p.MaybeReplaceBinaryOpWithNumericResult(*lValObj / *rValObj, *lValObj, *rValObj)
+			return p.MaybeReplaceBinaryOpWithNumericResult(lval/rval, lval, rval)
 		}
 		// NOTE: 0/x != 0 for all x, if x==0, then it is NaN
-		if rValObj != nil {
-			if *rValObj == 1 {
+		if rOk {
+			if rval == 1 {
 				// x/1->x
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
 		return nil
 	case rhino.Token_EXPONENT:
-		if lValObj != nil && rValObj != nil {
+		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(
-				jutil.MathPow(*lValObj, *rValObj), *lValObj, *rValObj)
+				jutil.MathPow(lval, rval), lval, rval)
 		}
 		return nil
 	default:
 	}
-	if lValObj == nil || rValObj == nil {
+	if !lOk || !rOk {
 		return nil
 	}
-	lval := *lValObj
-	rval := *rValObj
 	switch n.GetToken() {
 	case rhino.Token_BITAND:
 		result = float64(base.JSCompDoubles_EcmascriptToInt32(lval) & base.JSCompDoubles_EcmascriptToInt32(rval))
@@ -989,9 +989,9 @@ func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n *rhino.Node, left *rhino.No
 
 	// Use getNumberValue to handle constants like "NaN" and "Infinity"
 	// other values are converted to numbers elsewhere.
-	rightValObj := p.GetSideEffectFreeNumberValue(right)
+	_, rightNumOk := p.GetSideEffectFreeNumberValueVal(right)
 	rightBigInt := p.GetSideEffectFreeBigIntValue(right)
-	if (rightValObj != nil || rightBigInt != nil) && left.GetToken() == opType {
+	if (rightNumOk || rightBigInt != nil) && left.GetToken() == opType {
 		jutil.CheckState(left.HasTwoChildren())
 
 		ll := left.GetFirstChild()
@@ -1299,29 +1299,29 @@ func (p *PeepholeFoldConstants) IsStringTyped(n *rhino.Node) bool {
 //
 // Java: PeepholeFoldConstants.tryFoldShift(Node, Node, Node)
 func (p *PeepholeFoldConstants) TryFoldShift(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
-	leftVal := p.GetSideEffectFreeNumberValue(left)
-	rightVal := p.GetSideEffectFreeNumberValue(right)
+	leftVal, lOk := p.GetSideEffectFreeNumberValueVal(left)
+	rightVal, rOk := p.GetSideEffectFreeNumberValueVal(right)
 
-	if !p.IsReasonableDoubleValue(leftVal) || !p.IsReasonableDoubleValue(rightVal) {
+	if !p.isReasonableDoubleVal(leftVal, lOk) || !p.isReasonableDoubleVal(rightVal, rOk) {
 		return n
 	}
-	if !base.JSCompDoubles_IsMathematicalInteger(*leftVal) {
+	if !base.JSCompDoubles_IsMathematicalInteger(leftVal) {
 		p.Report(PeepholeFoldConstants_FRACTIONAL_BITWISE_OPERAND, left)
 		return n
 	}
-	if !base.JSCompDoubles_IsMathematicalInteger(*rightVal) {
+	if !base.JSCompDoubles_IsMathematicalInteger(rightVal) {
 		p.Report(PeepholeFoldConstants_FRACTIONAL_BITWISE_OPERAND, right)
 		return n
 	}
 
 	// only the lower 5 bits are used when shifting, so don't do anything
 	// if the shift amount is outside [0,32)
-	if !(0 <= *rightVal && *rightVal < 32) {
+	if !(0 <= rightVal && rightVal < 32) {
 		return n
 	}
 
-	rvalInt := jutil.D2I(*rightVal)
-	bits := base.JSCompDoubles_EcmascriptToInt32(*leftVal)
+	rvalInt := jutil.D2I(rightVal)
+	bits := base.JSCompDoubles_EcmascriptToInt32(leftVal)
 
 	var result float64
 	switch n.GetToken() {
@@ -1437,25 +1437,25 @@ func PeepholeFoldConstants_TryAbstractRelationalComparison(
 	}
 
 	// Then, try comparing as Numbers.
-	lvNum := peepholeOptimization.GetSideEffectFreeNumberValue(left)
-	if lvBig != nil || lvNum != nil {
-		rvNum := peepholeOptimization.GetSideEffectFreeNumberValue(right)
-		if lvNum != nil && rvNum != nil {
-			if math.IsNaN(*lvNum) || math.IsNaN(*rvNum) {
+	lvNum, lvOk := peepholeOptimization.GetSideEffectFreeNumberValueVal(left)
+	if lvBig != nil || lvOk {
+		rvNum, rvOk := peepholeOptimization.GetSideEffectFreeNumberValueVal(right)
+		if lvOk && rvOk {
+			if math.IsNaN(lvNum) || math.IsNaN(rvNum) {
 				return base.Tri_ForBoolean(willNegate)
 			} else {
-				return base.Tri_ForBoolean(*lvNum < *rvNum)
+				return base.Tri_ForBoolean(lvNum < rvNum)
 			}
 		}
 
 		// Finally, try comparisons between BigInt and Number.
-		if lvBig != nil && rvNum != nil {
-			return PeepholeFoldConstants_BigintLessThanDouble(lvBig, *rvNum, base.Tri_FALSE, willNegate)
+		if lvBig != nil && rvOk {
+			return PeepholeFoldConstants_BigintLessThanDouble(lvBig, rvNum, base.Tri_FALSE, willNegate)
 		}
-		if lvNum != nil {
+		if lvOk {
 			rvBig = peepholeOptimization.GetSideEffectFreeBigIntValue(right)
 			if rvBig != nil {
-				return PeepholeFoldConstants_BigintLessThanDouble(rvBig, *lvNum, base.Tri_TRUE, willNegate)
+				return PeepholeFoldConstants_BigintLessThanDouble(rvBig, lvNum, base.Tri_TRUE, willNegate)
 			}
 		}
 	}
@@ -1524,21 +1524,21 @@ func PeepholeFoldConstants_TryAbstractEqualityComparison(
 
 		if (leftValueType == NodeUtil_ValueType_NUMBER && rightValueType == NodeUtil_ValueType_STRING) ||
 			rightValueType == NodeUtil_ValueType_BOOLEAN {
-			rv := peepholeOptimization.GetSideEffectFreeNumberValue(right)
-			if rv == nil {
+			rv, ok := peepholeOptimization.GetSideEffectFreeNumberValueVal(right)
+			if !ok {
 				return base.Tri_UNKNOWN
 			}
 			return PeepholeFoldConstants_TryAbstractEqualityComparison(
-				peepholeOptimization, left, NodeUtil_NumberNode(*rv, right))
+				peepholeOptimization, left, NodeUtil_NumberNode(rv, right))
 		}
 		if (leftValueType == NodeUtil_ValueType_STRING && rightValueType == NodeUtil_ValueType_NUMBER) ||
 			leftValueType == NodeUtil_ValueType_BOOLEAN {
-			lv := peepholeOptimization.GetSideEffectFreeNumberValue(left)
-			if lv == nil {
+			lv, ok := peepholeOptimization.GetSideEffectFreeNumberValueVal(left)
+			if !ok {
 				return base.Tri_UNKNOWN
 			}
 			return PeepholeFoldConstants_TryAbstractEqualityComparison(
-				peepholeOptimization, NodeUtil_NumberNode(*lv, left), right)
+				peepholeOptimization, NodeUtil_NumberNode(lv, left), right)
 		}
 
 		if leftValueType == NodeUtil_ValueType_BIGINT && rightValueType == NodeUtil_ValueType_STRING {
@@ -1636,10 +1636,10 @@ func PeepholeFoldConstants_TryStrictEqualityComparison(
 			if NodeUtil_IsNaN(right) {
 				return base.Tri_FALSE
 			}
-			lv := peepholeOptimization.GetSideEffectFreeNumberValue(left)
-			rv := peepholeOptimization.GetSideEffectFreeNumberValue(right)
-			if lv != nil && rv != nil {
-				return base.Tri_ForBoolean(*lv == *rv)
+			lv, lOk := peepholeOptimization.GetSideEffectFreeNumberValueVal(left)
+			rv, rOk := peepholeOptimization.GetSideEffectFreeNumberValueVal(right)
+			if lOk && rOk {
+				return base.Tri_ForBoolean(lv == rv)
 			}
 		case NodeUtil_ValueType_STRING:
 			lv := peepholeOptimization.GetSideEffectFreeStringValue(left)
@@ -1874,20 +1874,20 @@ func (p *PeepholeFoldConstants) TryFoldArrayAccess(n *rhino.Node, left *rhino.No
 		return n
 	}
 
-	index := p.GetSideEffectFreeNumberValue(right)
-	if !p.IsReasonableDoubleValue(index) {
+	index, ok := p.GetSideEffectFreeNumberValueVal(right)
+	if !p.isReasonableDoubleVal(index, ok) {
 		// Sometimes people like to use complex expressions to index into
 		// arrays, or strings to index into array methods.
 		return n
 	}
 
-	if !base.JSCompDoubles_IsExactInt32(*index) {
+	if !base.JSCompDoubles_IsExactInt32(index) {
 		// Ideally this should be caught in the check passes.
 		p.Report(PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR, right)
 		return n
 	}
 
-	intIndex := int(jutil.D2I(*index))
+	intIndex := int(jutil.D2I(index))
 	current := left.GetFirstChild()
 	var elem *rhino.Node
 	for i := 0; current != nil; i++ {
@@ -1986,15 +1986,15 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n *rhino.Node, left *rh
 		return n
 	}
 
-	index := p.GetSideEffectFreeNumberValue(right)
-	if !p.IsReasonableDoubleValue(index) {
+	index, ok := p.GetSideEffectFreeNumberValueVal(right)
+	if !p.isReasonableDoubleVal(index, ok) {
 		// Sometimes people like to use complex expressions to index into
 		// arrays, or strings to index into array methods.
 		return n
 	}
 
-	intIndex := jutil.D2I(*index)
-	if float64(intIndex) != *index {
+	intIndex := jutil.D2I(index)
+	if float64(intIndex) != index {
 		p.Report(PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR, right)
 		return n
 	}

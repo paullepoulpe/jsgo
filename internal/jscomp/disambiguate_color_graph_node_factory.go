@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -80,7 +82,7 @@ func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraph
 	if len(f.nodeSlab) == cap(f.nodeSlab) {
 		newCap := 256
 		if cap(f.nodeSlab) >= 256 {
-			newCap = min(cap(f.nodeSlab)*2, 4096)
+			newCap = min(cap(f.nodeSlab)*2, jscompMaxSmallAlloc/int(unsafe.Sizeof(ColorGraphNode{})))
 		}
 		f.nodeSlab = make([]ColorGraphNode, 0, newCap)
 	}

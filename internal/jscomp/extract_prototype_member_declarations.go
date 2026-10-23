@@ -202,7 +202,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 			}
 		}
 
-		for _, instance := range entryValue.instances.Slice() {
+		for _, instance := range entryValue.instances {
 			e.ExtractInstance(instance, alias)
 		}
 	}
@@ -214,11 +214,11 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 //
 // Java: ExtractPrototypeMemberDeclarations.extractInstance(ExtractionInstance, String)
 func (e *ExtractPrototypeMemberDeclarations) ExtractInstance(instance *ExtractPrototypeMemberDeclarations_ExtractionInstance, alias string) {
-	first := instance.declarations.Get(0)
-	className := first.qualifiedClassName
+	first := &instance.declarations[0]
+	className, _ := first.classNode.GetQualifiedNameString()
 	if e.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP || e.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP {
 		// Use the temp variable to hold the prototype.
-		classNameNode := NodeUtil_NewQName(e.compiler, *className)
+		classNameNode := NodeUtil_NewQName(e.compiler, className)
 		classNameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, first.constant)
 		stmt := rhino.IR_ExprResult(rhino.IR_Assign(rhino.IR_Name(alias), rhino.IR_Getprop(classNameNode, "prototype"))).
 			SrcrefTreeIfMissing(first.node)
@@ -229,25 +229,27 @@ func (e *ExtractPrototypeMemberDeclarations) ExtractInstance(instance *ExtractPr
 		block := rhino.IR_Block()
 		func_ := rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(rhino.IR_Name(alias)), block)
 
+		protoName := className + ".prototype"
 		call := rhino.IR_Call(
 			func_,
 			NodeUtil_NewQNameWithOriginalName(
-				e.compiler, *className+".prototype", instance.parent, *className+".prototype"))
+				e.compiler, protoName, instance.parent, protoName))
 		call.PutIntProp(rhino.Node_FREE_CALL, 1)
 
 		stmt := rhino.IR_ExprResult(call)
 		stmt.SrcrefTreeIfMissing(first.node)
 		stmt.InsertBefore(first.node)
 		e.compiler.ReportChangeToEnclosingScope(stmt)
-		for _, declar := range instance.declarations.Slice() {
+		for i := range instance.declarations {
+			declar := &instance.declarations[i]
 			e.compiler.ReportChangeToEnclosingScope(declar.node)
 			block.AddChildToBack(declar.node.Detach())
 		}
 	}
 	// Go through each member declaration and replace it with an assignment
 	// to the prototype variable.
-	for _, declar := range instance.declarations.Slice() {
-		e.ReplacePrototypeMemberDeclaration(declar, alias)
+	for i := range instance.declarations {
+		e.ReplacePrototypeMemberDeclaration(&instance.declarations[i], alias)
 	}
 }
 
@@ -282,15 +284,13 @@ func (e *ExtractPrototypeMemberDeclarations) ReplacePrototypeMemberDeclaration(d
 // ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo is per-chunk info
 // needed for prototype extraction
 type ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo struct {
-	instances  *jutil.ArrayList[*ExtractPrototypeMemberDeclarations_ExtractionInstance]
+	instances  []*ExtractPrototypeMemberDeclarations_ExtractionInstance
 	totalDelta int
 }
 
 // Java: ExtractPrototypeMemberDeclarations.ExtractionInstanceInfo()
 func NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo() *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo {
-	return &ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo{
-		instances: jutil.NewArrayList[*ExtractPrototypeMemberDeclarations_ExtractionInstance](),
-	}
+	return &ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo{}
 }
 
 // ExtractPrototypeMemberDeclarations_GatherExtractionInfo collects all the
@@ -299,6 +299,10 @@ type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
 	NodeTraversal_AbstractShallowCallbackBase
 	outer            *ExtractPrototypeMemberDeclarations
 	instancesByChunk *jutil.LinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]
+	scratchDecls     []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
+	declSlab         []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
+	instSlab         jutil.Slab[ExtractPrototypeMemberDeclarations_ExtractionInstance]
+	infoSlab         jutil.Slab[ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]
 }
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo()
@@ -306,7 +310,26 @@ func NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(outer *ExtractPr
 	return &ExtractPrototypeMemberDeclarations_GatherExtractionInfo{
 		outer:            outer,
 		instancesByChunk: jutil.NewLinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](),
+		instSlab:         jutil.NewMaxSlab[ExtractPrototypeMemberDeclarations_ExtractionInstance](1024),
+		infoSlab:         jutil.NewMaxSlab[ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](1024),
 	}
+}
+
+func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) allocDecls(src []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
+	n := len(src)
+	const maxSlab = 682 // 682 * 48B = 32736B <= 32760B
+	if n > maxSlab {
+		out := make([]ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, n)
+		copy(out, src)
+		return out
+	}
+	if len(g.declSlab) < n {
+		g.declSlab = make([]ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, maxSlab)
+	}
+	out := g.declSlab[:n:n]
+	g.declSlab = g.declSlab[n:]
+	copy(out, src)
+	return out
 }
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo.visit(NodeTraversal, Node, Node)
@@ -317,24 +340,45 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 	}
 
 	for cur := n.GetFirstChild(); cur != nil; cur = cur.GetNext() {
-		prototypeMember := ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(cur)
-		if prototypeMember == nil {
+		if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(cur) {
 			continue
 		}
+		g.scratchDecls = g.scratchDecls[:0]
+		head := makePrototypeMemberDeclaration(cur.GetFirstFirstChild(), cur)
+		g.scratchDecls = append(g.scratchDecls, head)
+		delta := extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[g.outer.pattern] +
+			extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[g.outer.pattern]
 
-		// Found a good site here. The constructor will computes the chain of
-		// declarations that is qualified for extraction.
-		instance := NewExtractPrototypeMemberDeclarations_ExtractionInstance(g.outer, prototypeMember, n)
-		cur = instance.declarations.GetLast().node
+		for next := head.node.GetNext(); next != nil; next = next.GetNext() {
+			if next.IsFunction() {
+				continue
+			}
+			if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(next) {
+				break
+			}
+			cand := makePrototypeMemberDeclaration(next.GetFirstFirstChild(), next)
+			if !head.IsSameClass(&cand) {
+				break
+			}
+			g.scratchDecls = append(g.scratchDecls, cand)
+			delta += extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[g.outer.pattern]
+		}
+		cur = g.scratchDecls[len(g.scratchDecls)-1].node
 
 		// Only add it to our work list if the extraction at this instance makes the code smaller.
-		if instance.IsFavorable() {
-			g.instancesByChunk.ComputeIfAbsent(
-				t.GetChunk(), func(k *JSChunk) *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo {
-					return NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo()
-				})
-			instanceInfo := g.instancesByChunk.Get(t.GetChunk())
-			instanceInfo.instances.Add(instance)
+		if delta <= 0 {
+			instance := g.instSlab.New()
+			instance.declarations = g.allocDecls(g.scratchDecls)
+			instance.delta = delta
+			instance.parent = n
+
+			chunk := t.GetChunk()
+			instanceInfo := g.instancesByChunk.Get(chunk)
+			if instanceInfo == nil {
+				instanceInfo = g.infoSlab.New()
+				g.instancesByChunk.PutNew(chunk, instanceInfo)
+			}
+			instanceInfo.instances = append(instanceInfo.instances, instance)
 			instanceInfo.totalDelta += instance.delta
 		}
 	}
@@ -367,7 +411,7 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) ShouldExtractC
 // ExtractPrototypeMemberDeclarations_ExtractionInstance is the inner class
 // ExtractionInstance.
 type ExtractPrototypeMemberDeclarations_ExtractionInstance struct {
-	declarations *jutil.ArrayList[*ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration]
+	declarations []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
 	delta        int
 	parent       *rhino.Node
 }
@@ -376,10 +420,9 @@ type ExtractPrototypeMemberDeclarations_ExtractionInstance struct {
 func NewExtractPrototypeMemberDeclarations_ExtractionInstance(
 	outer *ExtractPrototypeMemberDeclarations, head *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, parent *rhino.Node) *ExtractPrototypeMemberDeclarations_ExtractionInstance {
 	i := &ExtractPrototypeMemberDeclarations_ExtractionInstance{
-		declarations: jutil.NewArrayList[*ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration](),
+		parent: parent,
 	}
-	i.parent = parent
-	i.declarations.Add(head)
+	i.declarations = append(i.declarations, *head)
 	i.delta = extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[outer.pattern] +
 		extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[outer.pattern]
 
@@ -396,7 +439,7 @@ func NewExtractPrototypeMemberDeclarations_ExtractionInstance(
 		if prototypeMember == nil || !head.IsSameClass(prototypeMember) {
 			break
 		}
-		i.declarations.Add(prototypeMember)
+		i.declarations = append(i.declarations, *prototypeMember)
 		i.delta += extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[outer.pattern]
 	}
 	return i
@@ -415,30 +458,35 @@ func (i *ExtractPrototypeMemberDeclarations_ExtractionInstance) IsFavorable() bo
 //
 // `a.b.c.prototype.d = ....`
 type ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration struct {
-	memberName         string
-	node               *rhino.Node
-	qualifiedClassName *string
-	lhs                *rhino.Node
-	constant           bool
+	memberName string
+	node       *rhino.Node
+	classNode  *rhino.Node
+	lhs        *rhino.Node
+	constant   bool
+}
+
+func makePrototypeMemberDeclaration(lhs *rhino.Node, node *rhino.Node) ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
+	jutil.CheckStateMsg1(NodeUtil_IsExprAssign(node), "%s", node)
+	classNode := ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(lhs)
+	return ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration{
+		memberName: NodeUtil_GetPrototypePropertyName(lhs),
+		node:       node,
+		classNode:  classNode,
+		lhs:        lhs,
+		constant:   classNode.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME),
+	}
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration(Node, Node)
 func NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs *rhino.Node, node *rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
-	d := &ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration{}
-	jutil.CheckStateMsg1(NodeUtil_IsExprAssign(node), "%s", node)
-	d.lhs = lhs
-	d.memberName = NodeUtil_GetPrototypePropertyName(lhs)
-	d.node = node
-	classNode := ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(lhs)
-	d.qualifiedClassName = classNode.GetQualifiedName()
-	d.constant = classNode.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
-	return d
+	d := makePrototypeMemberDeclaration(lhs, node)
+	return &d
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.isSameClass(PrototypeMemberDeclaration)
 func (d *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) IsSameClass(other *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) bool {
 	// String.equals(Object): other's name may be null.
-	return other.qualifiedClassName != nil && *d.qualifiedClassName == *other.qualifiedClassName
+	return d.classNode != nil && other.classNode != nil && d.classNode.MatchesQualifiedNameNode(other.classNode)
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.getPrototypeClassName(Node)

@@ -255,16 +255,19 @@ func NewIRFactoryWithSlabs(
 	if nodeSlab != nil {
 		f.nodeSlab = nodeSlab
 	} else {
+		f.nodes = jutil.NewMaxSlab[rhino.Node](511)
 		f.nodeSlab = &f.nodes
 	}
 	if jsdocNodeSlab != nil {
 		f.jsdocNodeSlab = jsdocNodeSlab
 	} else {
+		f.jsdocNodes = jutil.NewMaxSlab[rhino.Node](511)
 		f.jsdocNodeSlab = &f.jsdocNodes
 	}
 	if jsdocSlabs != nil {
 		f.jsdocSlabs = jsdocSlabs
 	} else {
+		f.jsdocSlabsVal = rhino.NewJSDocBuilderSlabs()
 		f.jsdocSlabs = &f.jsdocSlabsVal
 	}
 	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {

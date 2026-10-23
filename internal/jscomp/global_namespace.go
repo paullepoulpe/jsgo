@@ -32,15 +32,15 @@ import (
 )
 
 const (
-	gnNameChunkSize     = 256
-	gnRefChunkSize      = 256
-	gnPropsChunkSize    = 256
-	gnRefSliceChunkSize = 1024
+	gnNameChunkSize     = jscompMaxSmallAlloc / int(unsafe.Sizeof(GlobalNamespace_Name{}))
+	gnRefChunkSize      = jscompMaxSmallAlloc / int(unsafe.Sizeof(GlobalNamespace_Ref{}))
+	gnPropsChunkSize    = jscompMaxSmallAlloc / int(unsafe.Sizeof(globalNamespace_propsSlot{}))
+	gnRefSliceChunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof((*GlobalNamespace_Ref)(nil)))
 
 	gnMaxNameChunks     = 2048
 	gnMaxRefChunks      = 4096
 	gnMaxPropsChunks    = 1024
-	gnMaxRefSliceChunks = 1024
+	gnMaxRefSliceChunks = 256
 
 	gnConcatCacheSize = 65536
 )

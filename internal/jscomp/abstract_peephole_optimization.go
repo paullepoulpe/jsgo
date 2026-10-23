@@ -102,9 +102,11 @@ type AbstractPeepholeOptimization interface {
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
 	GetSideEffectFreeNumberValue(n *rhino.Node) *float64
+	GetSideEffectFreeNumberValueVal(n *rhino.Node) (float64, bool)
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
 	GetSideEffectFreeNumberValueNoConversion(n *rhino.Node) *float64
+	GetSideEffectFreeNumberValueNoConversionVal(n *rhino.Node) (float64, bool)
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeBigIntValue(Node)
 	GetSideEffectFreeBigIntValue(n *rhino.Node) *big.Int
@@ -288,24 +290,40 @@ func (b *AbstractPeepholeOptimizationBase) MayHaveSideEffects(n *rhino.Node) boo
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
 func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n *rhino.Node) *float64 {
-	value := NodeUtil_GetNumberValue(n)
+	v, ok := b.GetSideEffectFreeNumberValueVal(n)
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n *rhino.Node) (float64, bool) {
 	// Calculating the number value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a number value, but there could
 	// also be side effects. e.g. `void doSomething()` has value NaN, regardless of the behavior
 	// of `doSomething()`
-	if value != nil && b.astAnalyzer.MayHaveSideEffects(n) {
-		value = nil
+	v, ok := nodeUtil_doGetNumberValue(n, true)
+	if !ok || b.astAnalyzer.MayHaveSideEffects(n) {
+		return 0, false
 	}
-	return value
+	return v, true
 }
 
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
 func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversion(n *rhino.Node) *float64 {
-	value := NodeUtil_GetNumberValueNoConversions(n)
-	if value != nil && b.astAnalyzer.MayHaveSideEffects(n) {
-		value = nil
+	v, ok := b.GetSideEffectFreeNumberValueNoConversionVal(n)
+	if !ok {
+		return nil
 	}
-	return value
+	return &v
+}
+
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversionVal(n *rhino.Node) (float64, bool) {
+	v, ok := nodeUtil_doGetNumberValue(n, false)
+	if !ok || b.astAnalyzer.MayHaveSideEffects(n) {
+		return 0, false
+	}
+	return v, true
 }
 
 // GetSideEffectFreeBigIntValue returns the bigint value of the node if it

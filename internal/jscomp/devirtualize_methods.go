@@ -607,7 +607,7 @@ func allocPooledStringConcat2(prefix, suffix string) string {
 	}
 	s := devirtStrSlabPool.Get().(*devirtStrSlab)
 	if len(s.buf) < n {
-		s.buf = make([]byte, 32768) // 32 KiB noscan
+		s.buf = make([]byte, 32760) // <= maxSmallSize - MallocHeaderSize noscan
 	}
 	b := s.buf[:n:n]
 	s.buf = s.buf[n:]

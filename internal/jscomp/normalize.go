@@ -426,7 +426,7 @@ func (s *Normalize_NormalizeStatements) formatUniqueName(name string, id int) st
 	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
 	totalLen := len(name) + len(sep) + len(numBytes)
 	if len(s.strSlab)+totalLen > cap(s.strSlab) {
-		s.strSlab = make([]byte, 0, max(32768, totalLen))
+		s.strSlab = make([]byte, 0, max(32760, totalLen))
 	}
 	start := len(s.strSlab)
 	s.strSlab = append(s.strSlab, name...)

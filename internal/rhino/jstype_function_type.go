@@ -597,10 +597,9 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// then it would propagate to all structural functions.
 			f.SetPrototypeNoCheck(f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
 		} else {
-			name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
 			fields := PrototypeObjectType_BuilderFields{
 				registry:          f.registry,
-				className:         &name,
+				className:         f.registry.allocPrototypeClassName(refName),
 				implicitPrototype: f.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
 				nativeType:        f.selfFunc().IsNativeObjectType(),
 				templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
@@ -656,10 +655,9 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
-		name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
 		fields := PrototypeObjectType_BuilderFields{
 			registry:          f.registry,
-			className:         &name,
+			className:         f.registry.allocPrototypeClassName(f.selfFunc().GetReferenceName()),
 			implicitPrototype: baseType,
 			templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
 		}

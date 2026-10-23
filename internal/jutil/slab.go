@@ -1,5 +1,7 @@
 package jutil
 
+import "unsafe"
+
 // Slab allocates values of T in chunks: New returns a pointer to a new zero
 // T, and only one call in a few hundred allocates. It suits many small
 // objects that are created together and become garbage together, such as
@@ -28,8 +30,9 @@ func NewMaxSlab[T any](maxChunk int) Slab[T] {
 }
 
 const (
-	slabMinChunk = 16
-	slabMaxChunk = 128
+	slabMinChunk       = 16
+	slabMaxChunk       = 128
+	maxSmallAllocBytes = 32760 // Go runtime maxSmallSize (32768) - gc.MallocHeaderSize (8)
 )
 
 // New returns a pointer to a new zero T, distinct from every other pointer
@@ -44,10 +47,20 @@ func (s *Slab[T]) New() *T {
 }
 
 // grow starts a new chunk, twice the size of the last one up to
-// slabMaxChunk (or s.maxChunk) elements, so that a slab that serves few objects stays small.
+// slabMaxChunk (or s.maxChunk) elements, clamped to maxSmallAllocBytes so
+// chunks stay in P-local mcache small spans instead of mallocgcLarge.
 func (s *Slab[T]) grow() {
+	elemSize := unsafe.Sizeof(*new(T))
+	maxSmallElems := 0
+	if elemSize > 0 {
+		maxSmallElems = max(int(maxSmallAllocBytes/elemSize), 1)
+	}
 	if s.fixedChunk > 0 {
-		s.chunk = make([]T, s.fixedChunk)
+		fc := s.fixedChunk
+		if maxSmallElems > 0 && fc > maxSmallElems {
+			fc = maxSmallElems
+		}
+		s.chunk = make([]T, fc)
 		s.used = 0
 		return
 	}
@@ -55,10 +68,14 @@ func (s *Slab[T]) grow() {
 	if s.maxChunk > 0 {
 		maxC = s.maxChunk
 	}
+	if maxSmallElems > 0 && maxC > maxSmallElems {
+		maxC = maxSmallElems
+	}
 	n := 2 * cap(s.chunk)
 	if n < slabMinChunk {
 		n = slabMinChunk
-	} else if n > maxC {
+	}
+	if n > maxC {
 		n = maxC
 	}
 	s.chunk = make([]T, n)

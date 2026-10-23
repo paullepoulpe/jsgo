@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -95,15 +97,16 @@ func (s *TypedAstSerializer) resetScriptSlabs() {
 }
 
 func (s *TypedAstSerializer) allocAstNode() *AstNode {
+	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(AstNode{}))
 	if s.nodeSlabIdx >= len(s.nodeSlabs) {
-		s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, 4096))
+		s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, chunkSize))
 	}
 	slab := s.nodeSlabs[s.nodeSlabIdx]
 	if s.nodeSlabPos >= len(slab) {
 		s.nodeSlabIdx++
 		s.nodeSlabPos = 0
 		if s.nodeSlabIdx >= len(s.nodeSlabs) {
-			s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, 4096))
+			s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, chunkSize))
 		}
 		slab = s.nodeSlabs[s.nodeSlabIdx]
 	}
@@ -114,19 +117,20 @@ func (s *TypedAstSerializer) allocAstNode() *AstNode {
 }
 
 func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
+	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof((*AstNode)(nil)))
 	n := len(children)
 	if n == 0 {
 		return nil
 	}
 	if s.childSlabIdx >= len(s.childPtrSlabs) {
-		s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(8192, n)))
+		s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(chunkSize, n)))
 	}
 	slab := s.childPtrSlabs[s.childSlabIdx]
 	if s.childSlabPos+n > len(slab) {
 		s.childSlabIdx++
 		s.childSlabPos = 0
 		if s.childSlabIdx >= len(s.childPtrSlabs) || len(s.childPtrSlabs[s.childSlabIdx]) < n {
-			s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(8192, n)))
+			s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(chunkSize, n)))
 			s.childSlabIdx = len(s.childPtrSlabs) - 1
 		}
 		slab = s.childPtrSlabs[s.childSlabIdx]
@@ -138,15 +142,16 @@ func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
 }
 
 func (s *TypedAstSerializer) allocJsdoc(src OptimizationJsdoc) *OptimizationJsdoc {
+	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(OptimizationJsdoc{}))
 	if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
-		s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, 512))
+		s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, chunkSize))
 	}
 	slab := s.jsdocSlabs[s.jsdocSlabIdx]
 	if s.jsdocSlabPos >= len(slab) {
 		s.jsdocSlabIdx++
 		s.jsdocSlabPos = 0
 		if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
-			s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, 512))
+			s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, chunkSize))
 		}
 		slab = s.jsdocSlabs[s.jsdocSlabIdx]
 	}

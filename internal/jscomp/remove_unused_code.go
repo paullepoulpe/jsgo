@@ -60,12 +60,18 @@ func (s *rucSlab[T]) New() *T {
 			return p
 		}
 	}
-	size := rucSlabMinChunk
+	maxChunk := rucSlabMaxChunk
+	if elemSize := unsafe.Sizeof(*new(T)); elemSize > 0 {
+		if m := max(int(jscompMaxSmallAlloc/elemSize), 1); maxChunk > m {
+			maxChunk = m
+		}
+	}
+	size := min(rucSlabMinChunk, maxChunk)
 	if n := len(s.chunks); n > 0 {
 		prev := len(s.chunks[n-1])
 		size = prev * 2
-		if size > rucSlabMaxChunk {
-			size = rucSlabMaxChunk
+		if size > maxChunk {
+			size = maxChunk
 		}
 	}
 	chunk := make([]T, size)
@@ -83,7 +89,13 @@ func (s *rucSlab[T]) reset() {
 	if limit >= len(s.chunks) {
 		limit = len(s.chunks) - 1
 	}
-	const maxRetainedChunks = 256
+	maxChunk := rucSlabMaxChunk
+	if elemSize := unsafe.Sizeof(*new(T)); elemSize > 0 {
+		if m := max(int(jscompMaxSmallAlloc/elemSize), 1); maxChunk > m {
+			maxChunk = m
+		}
+	}
+	maxRetainedChunks := max((256*rucSlabMaxChunk)/maxChunk, 256)
 	for i := 0; i < limit && i < maxRetainedChunks; i++ {
 		clear(s.chunks[i])
 	}

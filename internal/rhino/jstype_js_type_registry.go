@@ -252,6 +252,7 @@ type JSTypeRegistry struct {
 	functionParamSlab       []FunctionType_Parameter
 	functionParamPtrSlab    []*FunctionType_Parameter
 	nodeExtBoxSlab          []nodeExtBox
+	stringSlab              []string
 	unionBuilderStack       [16]UnionType_Builder
 	unionBuilderDepth       int
 	fnBuilderStack          [8]FunctionType_Builder
@@ -364,12 +365,14 @@ func (r *JSTypeRegistry) templateTypeMapCacheIndex(base *TemplateTypeMap, t0, t1
 	return (h ^ (h >> 29)) & (jsTypeRegistryTemplatizedCacheSize - 1)
 }
 
+const rhinoMaxSmallAlloc = 32760 // runtime.maxSmallSize (32768) - gc.MallocHeaderSize (8)
+
 func (r *JSTypeRegistry) allocUnionType() *UnionType {
 	if r == nil {
 		return &UnionType{}
 	}
 	if len(r.unionTypeSlab) == 0 {
-		r.unionTypeSlab = make([]UnionType, 256)
+		r.unionTypeSlab = make([]UnionType, rhinoMaxSmallAlloc/int(unsafe.Sizeof(UnionType{})))
 	}
 	u := &r.unionTypeSlab[0]
 	r.unionTypeSlab = r.unionTypeSlab[1:]
@@ -381,7 +384,7 @@ func (r *JSTypeRegistry) allocTemplateTypeMap() *TemplateTypeMap {
 		return &TemplateTypeMap{}
 	}
 	if len(r.templateTypeMapSlab) == 0 {
-		r.templateTypeMapSlab = make([]TemplateTypeMap, 256)
+		r.templateTypeMapSlab = make([]TemplateTypeMap, rhinoMaxSmallAlloc/int(unsafe.Sizeof(TemplateTypeMap{})))
 	}
 	m := &r.templateTypeMapSlab[0]
 	r.templateTypeMapSlab = r.templateTypeMapSlab[1:]
@@ -393,7 +396,7 @@ func (r *JSTypeRegistry) allocTemplatizedType() *TemplatizedType {
 		return &TemplatizedType{}
 	}
 	if len(r.templatizedTypeSlab) == 0 {
-		r.templatizedTypeSlab = make([]TemplatizedType, 256)
+		r.templatizedTypeSlab = make([]TemplatizedType, rhinoMaxSmallAlloc/int(unsafe.Sizeof(TemplatizedType{})))
 	}
 	t := &r.templatizedTypeSlab[0]
 	r.templatizedTypeSlab = r.templatizedTypeSlab[1:]
@@ -405,7 +408,7 @@ func (r *JSTypeRegistry) allocNamedType() *NamedType {
 		return &NamedType{}
 	}
 	if len(r.namedTypeSlab) == 0 {
-		r.namedTypeSlab = make([]NamedType, 256)
+		r.namedTypeSlab = make([]NamedType, rhinoMaxSmallAlloc/int(unsafe.Sizeof(NamedType{})))
 	}
 	t := &r.namedTypeSlab[0]
 	r.namedTypeSlab = r.namedTypeSlab[1:]
@@ -417,7 +420,7 @@ func (r *JSTypeRegistry) allocFunctionType() *FunctionTypeBase {
 		return &FunctionTypeBase{}
 	}
 	if len(r.functionTypeSlab) == 0 {
-		r.functionTypeSlab = make([]FunctionTypeBase, 192)
+		r.functionTypeSlab = make([]FunctionTypeBase, rhinoMaxSmallAlloc/int(unsafe.Sizeof(FunctionTypeBase{})))
 	}
 	t := &r.functionTypeSlab[0]
 	r.functionTypeSlab = r.functionTypeSlab[1:]
@@ -429,7 +432,7 @@ func (r *JSTypeRegistry) allocFunctionTypeExt() *functionTypeExt {
 		return &functionTypeExt{}
 	}
 	if len(r.functionTypeExtSlab) == 0 {
-		r.functionTypeExtSlab = make([]functionTypeExt, 256)
+		r.functionTypeExtSlab = make([]functionTypeExt, rhinoMaxSmallAlloc/int(unsafe.Sizeof(functionTypeExt{})))
 	}
 	t := &r.functionTypeExtSlab[0]
 	r.functionTypeExtSlab = r.functionTypeExtSlab[1:]
@@ -441,7 +444,7 @@ func (r *JSTypeRegistry) allocPrototypeObjectType() *PrototypeObjectTypeBase {
 		return &PrototypeObjectTypeBase{}
 	}
 	if len(r.prototypeObjectTypeSlab) == 0 {
-		r.prototypeObjectTypeSlab = make([]PrototypeObjectTypeBase, 192)
+		r.prototypeObjectTypeSlab = make([]PrototypeObjectTypeBase, rhinoMaxSmallAlloc/int(unsafe.Sizeof(PrototypeObjectTypeBase{})))
 	}
 	t := &r.prototypeObjectTypeSlab[0]
 	r.prototypeObjectTypeSlab = r.prototypeObjectTypeSlab[1:]
@@ -453,7 +456,7 @@ func (r *JSTypeRegistry) allocInstanceObjectType() *InstanceObjectType {
 		return &InstanceObjectType{}
 	}
 	if len(r.instanceObjectTypeSlab) == 0 {
-		r.instanceObjectTypeSlab = make([]InstanceObjectType, 256)
+		r.instanceObjectTypeSlab = make([]InstanceObjectType, rhinoMaxSmallAlloc/int(unsafe.Sizeof(InstanceObjectType{})))
 	}
 	t := &r.instanceObjectTypeSlab[0]
 	r.instanceObjectTypeSlab = r.instanceObjectTypeSlab[1:]
@@ -465,7 +468,7 @@ func (r *JSTypeRegistry) allocProperty() *Property {
 		return &Property{}
 	}
 	if len(r.propertySlab) == 0 {
-		r.propertySlab = make([]Property, 256)
+		r.propertySlab = make([]Property, rhinoMaxSmallAlloc/int(unsafe.Sizeof(Property{})))
 	}
 	p := &r.propertySlab[0]
 	r.propertySlab = r.propertySlab[1:]
@@ -477,11 +480,36 @@ func (r *JSTypeRegistry) allocNodeExtBox() *nodeExtBox {
 		return allocPooledNodeExtBox()
 	}
 	if len(r.nodeExtBoxSlab) == 0 {
-		r.nodeExtBoxSlab = make([]nodeExtBox, 1024) // 32 KiB
+		r.nodeExtBoxSlab = make([]nodeExtBox, rhinoMaxSmallAlloc/int(unsafe.Sizeof(nodeExtBox{})))
 	}
 	b := &r.nodeExtBoxSlab[0]
 	r.nodeExtBoxSlab = r.nodeExtBoxSlab[1:]
 	return b
+}
+
+func (r *JSTypeRegistry) allocStringPtr(s string) *string {
+	if r == nil {
+		return &s
+	}
+	if len(r.stringSlab) == 0 {
+		r.stringSlab = make([]string, rhinoMaxSmallAlloc/int(unsafe.Sizeof("")))
+	}
+	p := &r.stringSlab[0]
+	r.stringSlab = r.stringSlab[1:]
+	*p = s
+	return p
+}
+
+func (r *JSTypeRegistry) allocPrototypeClassName(refName *string) *string {
+	prefix := "null"
+	if refName != nil {
+		prefix = *refName
+	}
+	const suffix = ".prototype"
+	b := rhinoAllocStringBytes(len(prefix) + len(suffix))
+	b = append(b, prefix...)
+	b = append(b, suffix...)
+	return r.allocStringPtr(unsafe.String(unsafe.SliceData(b), len(b)))
 }
 
 func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {
@@ -492,7 +520,8 @@ func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {
 		return make([]JSType, n)
 	}
 	if len(r.jsTypeSliceSlab) < n {
-		r.jsTypeSliceSlab = make([]JSType, 1024)
+		var zero JSType
+		r.jsTypeSliceSlab = make([]JSType, rhinoMaxSmallAlloc/int(unsafe.Sizeof(zero)))
 	}
 	s := r.jsTypeSliceSlab[:n:n]
 	r.jsTypeSliceSlab = r.jsTypeSliceSlab[n:]
@@ -509,7 +538,7 @@ func (r *JSTypeRegistry) allocTemplateTypeSlice(n int) []*TemplateType {
 		return make([]*TemplateType, n)
 	}
 	if len(r.templateTypePtrSlab) < n {
-		r.templateTypePtrSlab = make([]*TemplateType, 4096) // 32 KiB
+		r.templateTypePtrSlab = make([]*TemplateType, rhinoMaxSmallAlloc/int(unsafe.Sizeof((*TemplateType)(nil))))
 	}
 	s := r.templateTypePtrSlab[:n:n]
 	r.templateTypePtrSlab = r.templateTypePtrSlab[n:]
@@ -521,7 +550,7 @@ func (r *JSTypeRegistry) allocPropertySliceCap(c int) []*Property {
 		return make([]*Property, 0, c)
 	}
 	if len(r.propertyPtrSlab) < c {
-		r.propertyPtrSlab = make([]*Property, 4096) // 32 KiB
+		r.propertyPtrSlab = make([]*Property, rhinoMaxSmallAlloc/int(unsafe.Sizeof((*Property)(nil))))
 	}
 	s := r.propertyPtrSlab[:0:c]
 	r.propertyPtrSlab = r.propertyPtrSlab[c:]
@@ -536,7 +565,7 @@ func (r *JSTypeRegistry) allocFunctionParam(type_ JSType, isOptional bool, isVar
 		return &FunctionType_Parameter{jSType: type_, optional: isOptional, variadic: isVariadic}
 	}
 	if len(r.functionParamSlab) == 0 {
-		r.functionParamSlab = make([]FunctionType_Parameter, 1024)
+		r.functionParamSlab = make([]FunctionType_Parameter, rhinoMaxSmallAlloc/int(unsafe.Sizeof(FunctionType_Parameter{})))
 	}
 	p := &r.functionParamSlab[0]
 	r.functionParamSlab = r.functionParamSlab[1:]
@@ -552,7 +581,7 @@ func (r *JSTypeRegistry) allocFunctionParamPtrSlice(n int) []*FunctionType_Param
 		return make([]*FunctionType_Parameter, n)
 	}
 	if len(r.functionParamPtrSlab) < n {
-		r.functionParamPtrSlab = make([]*FunctionType_Parameter, 1024)
+		r.functionParamPtrSlab = make([]*FunctionType_Parameter, rhinoMaxSmallAlloc/int(unsafe.Sizeof((*FunctionType_Parameter)(nil))))
 	}
 	s := r.functionParamPtrSlab[:n:n]
 	r.functionParamPtrSlab = r.functionParamPtrSlab[n:]
@@ -1633,8 +1662,28 @@ func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope,
 		return nil
 	}
 	var componentNames []string
+	var componentBuf [16]string
 	if dotIdx != -1 {
-		componentNames = JSTypeRegistry_DOT_SPLITTER_Split(qualifiedName[dotIdx+1:])
+		rem := qualifiedName[dotIdx+1:]
+		dots := 0
+		for i := 0; i < len(rem); i++ {
+			if rem[i] == '.' {
+				dots++
+			}
+		}
+		if dots < len(componentBuf) {
+			componentNames = componentBuf[:0]
+			start := 0
+			for i := 0; i < len(rem); i++ {
+				if rem[i] == '.' {
+					componentNames = append(componentNames, rem[start:i])
+					start = i + 1
+				}
+			}
+			componentNames = append(componentNames, rem[start:])
+		} else {
+			componentNames = JSTypeRegistry_DOT_SPLITTER_Split(rem)
+		}
 	}
 	slotType := slot.GetType()
 	return r.ResolveViaPropertyGivenSlot(slotType, nil, componentNames)

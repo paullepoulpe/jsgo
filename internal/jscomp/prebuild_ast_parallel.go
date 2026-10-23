@@ -62,8 +62,8 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
 	}
 	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		astSlab := jutil.NewFixedSlab[rhino.Node](512)
-		jsdocSlab := jutil.NewFixedSlab[rhino.Node](512)
+		astSlab := jutil.NewFixedSlab[rhino.Node](511)
+		jsdocSlab := jutil.NewFixedSlab[rhino.Node](511)
 		jsdocSlabs := rhino.NewJSDocBuilderSlabs()
 		for {
 			index, ok := claim()

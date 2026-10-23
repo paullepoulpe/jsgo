@@ -273,20 +273,20 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree *rhino.N
 	if valueNode == nil || valueNode.GetNext() != nil {
 		return subtree
 	}
-	onlyArg := p.GetSideEffectFreeNumberValueNoConversion(valueNode)
+	onlyArg, ok := p.GetSideEffectFreeNumberValueNoConversionVal(valueNode)
 	var replacement *rhino.Node
-	if onlyArg != nil {
+	if ok {
 		switch methodName {
 		case "isFinite":
-			replacement = NodeUtil_BooleanNode(!math.IsInf(*onlyArg, 0) && !math.IsNaN(*onlyArg))
+			replacement = NodeUtil_BooleanNode(!math.IsInf(onlyArg, 0) && !math.IsNaN(onlyArg))
 		case "isNaN":
-			replacement = NodeUtil_BooleanNode(math.IsNaN(*onlyArg))
+			replacement = NodeUtil_BooleanNode(math.IsNaN(onlyArg))
 		case "isSafeInteger":
 			replacement =
 				NodeUtil_BooleanNode(
-					*onlyArg < jutil.MathPow(2, 53) &&
-						*onlyArg >= (-1*(jutil.MathPow(2, 53)-1)) &&
-						float64(jutil.D2L(*onlyArg)) == *onlyArg)
+					onlyArg < jutil.MathPow(2, 53) &&
+						onlyArg >= (-1*(jutil.MathPow(2, 53)-1)) &&
+						float64(jutil.D2L(onlyArg)) == onlyArg)
 		default:
 		}
 	} else if !p.MayHaveSideEffects(valueNode) &&
@@ -314,10 +314,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(subtree *rhino.Nod
 	// first collect the arguments, if they are all numbers then we proceed
 	var args []float64
 	for arg := callTarget.GetNext(); arg != nil; arg = arg.GetNext() {
-		d := p.GetSideEffectFreeNumberValue(arg)
-		if d != nil {
+		d, ok := p.GetSideEffectFreeNumberValueVal(arg)
+		if ok {
 			// lazily allocate, most calls will not be optimizable
-			args = append(args, *d)
+			args = append(args, d)
 		} else {
 			return subtree
 		}
@@ -488,19 +488,19 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 		firstArg != nil &&
 		(isStringLiteral || colors.StandardColors_STRING.Equals(stringNode.GetColor())) {
 		if subtree.HasXChildren(3) {
-			maybeStart := p.GetSideEffectFreeNumberValue(firstArg)
-			if maybeStart != nil {
-				start := int(jutil.D2I(*maybeStart))
-				maybeLengthOrEnd := p.GetSideEffectFreeNumberValue(firstArg.GetNext())
-				if maybeLengthOrEnd != nil {
+			maybeStart, ok := p.GetSideEffectFreeNumberValueVal(firstArg)
+			if ok {
+				start := int(jutil.D2I(maybeStart))
+				maybeLengthOrEnd, ok := p.GetSideEffectFreeNumberValueVal(firstArg.GetNext())
+				if ok {
 					switch functionNameString {
 					case "substr":
-						length := int(jutil.D2I(*maybeLengthOrEnd))
+						length := int(jutil.D2I(maybeLengthOrEnd))
 						if start >= 0 && length == 1 {
 							return p.ReplaceWithCharAt(subtree, callTarget, firstArg)
 						}
 					case "substring", "slice":
-						end := int(jutil.D2I(*maybeLengthOrEnd))
+						end := int(jutil.D2I(maybeLengthOrEnd))
 						// unlike slice and substring, chatAt can not be used with negative indexes
 						if start >= 0 && jutil.IntSub(end, start) == 1 {
 							return p.ReplaceWithCharAt(subtree, callTarget, firstArg)
@@ -676,8 +676,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n *rhino.Node, function
 		// parseFloat logic
 		var stringVal string
 		if NodeUtil_IsNumericLiteral(firstArg) {
-			checkVal := p.GetSideEffectFreeNumberValue(firstArg)
-			numericNode := NodeUtil_NumberNode(*checkVal, n)
+			checkVal, _ := p.GetSideEffectFreeNumberValueVal(firstArg)
+			numericNode := NodeUtil_NumberNode(checkVal, n)
 			n.ReplaceWith(numericNode)
 			p.ReportChangeToEnclosingScope(numericNode)
 			return numericNode
@@ -687,8 +687,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n *rhino.Node, function
 				return n
 			}
 			stringVal = *maybeStringVal
-			checkVal := NodeUtil_GetStringNumberValue(stringVal)
-			if checkVal == nil {
+			if _, ok := nodeUtil_getStringNumberValue(stringVal); !ok {
 				return n
 			}
 			stringVal = NodeUtil_TrimJsWhiteSpace(stringVal)
@@ -1010,14 +1009,14 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(n *rhino.Node, stringNode 
 		if firstArg.GetNext() != nil {
 			return n
 		}
-		maybePos := p.GetSideEffectFreeNumberValue(firstArg)
-		if maybePos == nil {
+		maybePos, ok := p.GetSideEffectFreeNumberValueVal(firstArg)
+		if !ok {
 			return n
 		}
-		if math.IsNaN(*maybePos) {
+		if math.IsNaN(maybePos) {
 			posVal = 0.0
 		} else {
-			posVal = *maybePos
+			posVal = maybePos
 		}
 	}
 
@@ -1192,18 +1191,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n *rhino.Node, stringN
 	var length int
 	stringAsString := stringNode.GetString()
 
-	maybeStart := p.GetSideEffectFreeNumberValue(arg1)
-	if maybeStart != nil {
-		start = int(jutil.D2I(*maybeStart))
+	maybeStart, ok := p.GetSideEffectFreeNumberValueVal(arg1)
+	if ok {
+		start = int(jutil.D2I(maybeStart))
 	} else {
 		return n
 	}
 
 	arg2 := arg1.GetNext()
 	if arg2 != nil {
-		maybeLength := p.GetSideEffectFreeNumberValue(arg2)
-		if maybeLength != nil {
-			length = int(jutil.D2I(*maybeLength))
+		maybeLength, ok := p.GetSideEffectFreeNumberValueVal(arg2)
+		if ok {
+			length = int(jutil.D2I(maybeLength))
 		} else {
 			return n
 		}
@@ -1247,18 +1246,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n *rhino.Nod
 	var end int
 	stringAsString := stringNode.GetString()
 
-	maybeStart := p.GetSideEffectFreeNumberValue(arg1)
-	if maybeStart != nil {
-		start = int(jutil.D2I(*maybeStart))
+	maybeStart, ok := p.GetSideEffectFreeNumberValueVal(arg1)
+	if ok {
+		start = int(jutil.D2I(maybeStart))
 	} else {
 		return n
 	}
 
 	arg2 := arg1.GetNext()
 	if arg2 != nil {
-		maybeEnd := p.GetSideEffectFreeNumberValue(arg2)
-		if maybeEnd != nil {
-			end = int(jutil.D2I(*maybeEnd))
+		maybeEnd, ok := p.GetSideEffectFreeNumberValueVal(arg2)
+		if ok {
+			end = int(jutil.D2I(maybeEnd))
 		} else {
 			return n
 		}

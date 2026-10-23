@@ -86,6 +86,9 @@ func (d *ScriptNodeDeserializer) DeserializeNewWithSlab(slab *jutil.Slab[rhino.N
 	r.featureCollectorVal.Reset()
 	r.featureCollector = &r.featureCollectorVal
 	r.extNodeSlab = slab
+	if slab == nil {
+		r.nodeSlab = jutil.NewMaxSlab[rhino.Node](511)
+	}
 	r.previousLine = 0
 	r.previousColumn = 0
 	r.childBytes = r.childBytes[:0]

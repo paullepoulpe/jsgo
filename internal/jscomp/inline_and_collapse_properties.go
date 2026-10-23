@@ -1404,11 +1404,11 @@ type InlineAndCollapseProperties_CollapseProperties struct {
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) allocSlabBytes(n int) []byte {
-	if n > 32768 {
+	if n > 32760 {
 		return make([]byte, n)
 	}
 	if len(c.aliasByteSlab) < n {
-		c.aliasByteSlab = make([]byte, 32768)
+		c.aliasByteSlab = make([]byte, 32760)
 	}
 	b := c.aliasByteSlab[:n:n]
 	c.aliasByteSlab = c.aliasByteSlab[n:]

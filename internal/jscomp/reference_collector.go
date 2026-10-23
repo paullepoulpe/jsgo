@@ -86,6 +86,7 @@ func (s *rcVarSlabs) addVarCol(v *Var, col *ReferenceCollection, minGrow int) {
 }
 
 func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(Reference{}))
 	if len(s.refSlab) == cap(s.refSlab) {
 		if s.pooled {
 			if s.refChunkIdx > 0 {
@@ -97,7 +98,7 @@ func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *Bas
 			} else {
 				newCap := 256
 				if cap(s.refSlab) >= 256 {
-					newCap = min(cap(s.refSlab)*2, 1024) // 1024 * 32B = 32 KiB == _MaxSmallSize
+					newCap = min(cap(s.refSlab)*2, maxCap)
 				}
 				s.refSlab = make([]Reference, 0, newCap)
 				s.refChunks = append(s.refChunks, s.refSlab)
@@ -106,7 +107,7 @@ func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *Bas
 		} else {
 			newCap := 256
 			if cap(s.refSlab) >= 256 {
-				newCap = min(cap(s.refSlab)*2, 1024)
+				newCap = min(cap(s.refSlab)*2, maxCap)
 			}
 			s.refSlab = make([]Reference, 0, newCap)
 		}
@@ -122,6 +123,7 @@ func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *Bas
 }
 
 func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(ReferenceCollection{}))
 	if len(s.colSlab) == cap(s.colSlab) {
 		if s.pooled {
 			if s.colChunkIdx > 0 {
@@ -133,7 +135,7 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 			} else {
 				newCap := 64
 				if cap(s.colSlab) >= 64 {
-					newCap = min(cap(s.colSlab)*2, 1024) // 1024 * 32B = 32 KiB == _MaxSmallSize
+					newCap = min(cap(s.colSlab)*2, maxCap)
 				}
 				s.colSlab = make([]ReferenceCollection, 0, newCap)
 				s.colChunks = append(s.colChunks, s.colSlab)
@@ -142,7 +144,7 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 		} else {
 			newCap := 64
 			if cap(s.colSlab) >= 64 {
-				newCap = min(cap(s.colSlab)*2, 1024)
+				newCap = min(cap(s.colSlab)*2, maxCap)
 			}
 			s.colSlab = make([]ReferenceCollection, 0, newCap)
 		}
@@ -155,6 +157,7 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 }
 
 func (s *rcVarSlabs) allocRefPtrSlice(n int) []*Reference {
+	const maxCap = jscompMaxSmallAlloc / int(unsafe.Sizeof((*Reference)(nil)))
 	if len(s.refPtrSlab)+n > cap(s.refPtrSlab) {
 		if s.pooled {
 			if s.refPtrChunkIdx > 0 {
@@ -163,20 +166,20 @@ func (s *rcVarSlabs) allocRefPtrSlice(n int) []*Reference {
 			if s.refPtrChunkIdx < len(s.refPtrChunks) {
 				ch := s.refPtrChunks[s.refPtrChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(4096, n)) // 4096 * 8B = 32 KiB == _MaxSmallSize
+					ch = make([]*Reference, 0, max(maxCap, n))
 					s.refPtrChunks[s.refPtrChunkIdx] = ch
 				}
 				s.refPtrSlab = ch[:0]
 				s.refPtrChunkIdx++
 			} else {
-				s.refPtrSlab = make([]*Reference, 0, max(4096, n))
+				s.refPtrSlab = make([]*Reference, 0, max(maxCap, n))
 				s.refPtrChunks = append(s.refPtrChunks, s.refPtrSlab)
 				s.refPtrChunkIdx++
 			}
 		} else {
 			newCap := 256
 			if cap(s.refPtrSlab) >= 256 {
-				newCap = min(cap(s.refPtrSlab)*2, 4096)
+				newCap = min(cap(s.refPtrSlab)*2, maxCap)
 			}
 			if newCap < n {
 				newCap = n

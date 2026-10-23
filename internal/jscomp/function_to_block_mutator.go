@@ -614,7 +614,7 @@ func (m *FunctionToBlockMutator) GetLabelNameForFunction(fnName string) string {
 		return prefix + name + "_" + id
 	}
 	if len(m.strSlab) < n {
-		m.strSlab = make([]byte, 32768) // 32 KiB noscan
+		m.strSlab = make([]byte, 32760) // <= maxSmallSize - MallocHeaderSize noscan
 	}
 	b := m.strSlab[:n:n]
 	m.strSlab = m.strSlab[n:]
@@ -638,7 +638,7 @@ func (m *FunctionToBlockMutator) GetUniqueThisName() string {
 		return prefix + id
 	}
 	if len(m.strSlab) < n {
-		m.strSlab = make([]byte, 32768) // 32 KiB noscan
+		m.strSlab = make([]byte, 32760) // <= maxSmallSize - MallocHeaderSize noscan
 	}
 	b := m.strSlab[:n:n]
 	m.strSlab = m.strSlab[n:]

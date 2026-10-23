@@ -67,7 +67,7 @@ type UnionType struct {
 	// overhead of allocating iterators. All loops over this collection should
 	// be indexed.
 	alternates       []JSType
-	inlineAlternates [2]JSType
+	inlineAlternates [3]JSType
 
 	// How many alternates were resolved the last time this union was
 	// (re)built?
@@ -191,10 +191,16 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 		jutil.CheckState(n != 0)
 		if n <= len(t.inlineAlternates) {
 			t.inlineAlternates[0] = builder.finalAlternates[0]
-			if n == 2 {
+			if n >= 2 {
 				t.inlineAlternates[1] = builder.finalAlternates[1]
+				if n == 3 {
+					t.inlineAlternates[2] = builder.finalAlternates[2]
+				} else {
+					t.inlineAlternates[2] = nil
+				}
 			} else {
 				t.inlineAlternates[1] = nil
+				t.inlineAlternates[2] = nil
 			}
 			t.alternates = t.inlineAlternates[:n]
 		} else {
@@ -205,10 +211,16 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 		jutil.CheckState(n != 0)
 		if n <= len(t.inlineAlternates) {
 			t.inlineAlternates[0] = builder.inlineAlternates[0]
-			if n == 2 {
+			if n >= 2 {
 				t.inlineAlternates[1] = builder.inlineAlternates[1]
+				if n == 3 {
+					t.inlineAlternates[2] = builder.inlineAlternates[2]
+				} else {
+					t.inlineAlternates[2] = nil
+				}
 			} else {
 				t.inlineAlternates[1] = nil
+				t.inlineAlternates[2] = nil
 			}
 			t.alternates = t.inlineAlternates[:n]
 		} else {

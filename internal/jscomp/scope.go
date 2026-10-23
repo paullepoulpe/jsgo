@@ -38,11 +38,11 @@ const (
 	maxVarChunks         = 1368 // same total pooled capacity as 256 * 4096
 	smallVarChunks       = 172
 	minSlotChunkSize     = 128
-	maxSlotChunkSize     = 4096 // 4096 * 8B = 32 KiB == _MaxSmallSize
+	maxSlotChunkSize     = 4095 // 4095 * 8B = 32760B <= maxSmallSize - MallocHeaderSize
 	maxSlotChunks        = 512  // same total pooled capacity as 128 * 16384
 	smallSlotChunks      = 64
 	minHashChunkSize     = 256
-	maxHashChunkSize     = 8192 // 8192 * 4B = 32 KiB == _MaxSmallSize
+	maxHashChunkSize     = 8190 // 8190 * 4B = 32760B <= maxSmallSize - MallocHeaderSize
 	maxHashChunks        = 512  // same total pooled capacity as 128 * 32768
 	smallHashChunks      = 64
 	minImplicitChunkSize = 8

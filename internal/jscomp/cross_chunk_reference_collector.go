@@ -23,6 +23,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -191,8 +192,8 @@ func (c *CrossChunkReferenceCollector) release() {
 		c.vars = nil
 		c.cols = nil
 		const (
-			maxRetainedRefChunks = 512
-			maxRetainedColChunks = 256
+			maxRetainedRefChunks = (512 * 4096) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(Reference{})))
+			maxRetainedColChunks = (256 * 2048) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(ReferenceCollection{})))
 			maxRetainedBlkChunks = 160
 		)
 		if a.global.refChunkIdx > 0 {
@@ -250,7 +251,7 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		c.topLevelStatements = nil
 		const (
-			maxRetainedStmtChunks     = 256
+			maxRetainedStmtChunks     = (256 * 2048) / (jscompMaxSmallAlloc / int(unsafe.Sizeof(CrossChunkReferenceCollector_TopLevelStatement{})))
 			maxRetainedStmtRefsChunks = 128
 			maxRetainedSymChunks      = 640
 			maxRetainedDsgChunks      = 192
@@ -367,6 +368,7 @@ func (c *CrossChunkReferenceCollector) release() {
 }
 
 func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scope, basicBlock *BasicBlock, inputId *rhino.InputId) *Reference {
+	const maxRefCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(Reference{}))
 	if len(c.refSlab) == cap(c.refSlab) {
 		if c.poolable {
 			a := c.getArena()
@@ -379,7 +381,7 @@ func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scop
 			} else {
 				newCap := 256
 				if cap(c.refSlab) >= 256 {
-					newCap = min(cap(c.refSlab)*2, 4096)
+					newCap = min(cap(c.refSlab)*2, maxRefCap)
 				}
 				c.refSlab = make([]Reference, 0, newCap)
 				a.global.refChunks = append(a.global.refChunks, c.refSlab)
@@ -388,7 +390,7 @@ func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scop
 		} else {
 			newCap := 256
 			if cap(c.refSlab) >= 256 {
-				newCap = min(cap(c.refSlab)*2, 4096)
+				newCap = min(cap(c.refSlab)*2, maxRefCap)
 			}
 			c.refSlab = make([]Reference, 0, newCap)
 		}
@@ -404,6 +406,7 @@ func (c *CrossChunkReferenceCollector) allocReference(n *rhino.Node, scope *Scop
 }
 
 func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceCollection {
+	const maxColCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(ReferenceCollection{}))
 	if len(c.colSlab) == cap(c.colSlab) {
 		if c.poolable {
 			a := c.getArena()
@@ -416,7 +419,7 @@ func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceColl
 			} else {
 				newCap := 64
 				if cap(c.colSlab) >= 64 {
-					newCap = min(cap(c.colSlab)*2, 2048)
+					newCap = min(cap(c.colSlab)*2, maxColCap)
 				}
 				c.colSlab = make([]ReferenceCollection, 0, newCap)
 				a.global.colChunks = append(a.global.colChunks, c.colSlab)
@@ -425,7 +428,7 @@ func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceColl
 		} else {
 			newCap := 64
 			if cap(c.colSlab) >= 64 {
-				newCap = min(cap(c.colSlab)*2, 2048)
+				newCap = min(cap(c.colSlab)*2, maxColCap)
 			}
 			c.colSlab = make([]ReferenceCollection, 0, newCap)
 		}
@@ -442,6 +445,7 @@ func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceColl
 }
 
 func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
+	const maxBlkCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(BasicBlock{}))
 	if len(c.blockSlab) == cap(c.blockSlab) {
 		if c.poolable {
 			a := c.getArena()
@@ -454,7 +458,7 @@ func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root 
 			} else {
 				newCap := 64
 				if cap(c.blockSlab) >= 64 {
-					newCap = min(cap(c.blockSlab)*2, 1024)
+					newCap = min(cap(c.blockSlab)*2, maxBlkCap)
 				}
 				c.blockSlab = make([]BasicBlock, 0, newCap)
 				a.blkChunks = append(a.blkChunks, c.blockSlab)
@@ -463,7 +467,7 @@ func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root 
 		} else {
 			newCap := 64
 			if cap(c.blockSlab) >= 64 {
-				newCap = min(cap(c.blockSlab)*2, 1024)
+				newCap = min(cap(c.blockSlab)*2, maxBlkCap)
 			}
 			c.blockSlab = make([]BasicBlock, 0, newCap)
 		}
@@ -474,6 +478,7 @@ func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root 
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
+	const maxPtrCap = jscompMaxSmallAlloc / int(unsafe.Sizeof((*Reference)(nil)))
 	if cap(c.stmtRefsSlab)-len(c.stmtRefsSlab) < n {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -483,7 +488,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 			if ca.stmtRefsChunkIdx < len(ca.stmtRefsChunks) {
 				ch := ca.stmtRefsChunks[ca.stmtRefsChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(n, 4096))
+					ch = make([]*Reference, 0, max(n, maxPtrCap))
 					ca.stmtRefsChunks[ca.stmtRefsChunkIdx] = ch
 				}
 				c.stmtRefsSlab = ch[:0]
@@ -491,7 +496,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 			} else {
 				newCap := 256
 				if cap(c.stmtRefsSlab) >= 256 {
-					newCap = min(cap(c.stmtRefsSlab)*2, 4096)
+					newCap = min(cap(c.stmtRefsSlab)*2, maxPtrCap)
 				}
 				if newCap < n {
 					newCap = n
@@ -503,7 +508,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 		} else {
 			newCap := 256
 			if cap(c.stmtRefsSlab) >= 256 {
-				newCap = min(cap(c.stmtRefsSlab)*2, 4096)
+				newCap = min(cap(c.stmtRefsSlab)*2, maxPtrCap)
 			}
 			if newCap < n {
 				newCap = n
@@ -517,6 +522,7 @@ func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
+	const maxPtrCap = jscompMaxSmallAlloc / int(unsafe.Sizeof((*Var)(nil)))
 	if cap(c.stmtVarsSlab)-len(c.stmtVarsSlab) < n {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -526,7 +532,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 			if ca.stmtVarsChunkIdx < len(ca.stmtVarsChunks) {
 				ch := ca.stmtVarsChunks[ca.stmtVarsChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Var, 0, max(n, 4096))
+					ch = make([]*Var, 0, max(n, maxPtrCap))
 					ca.stmtVarsChunks[ca.stmtVarsChunkIdx] = ch
 				}
 				c.stmtVarsSlab = ch[:0]
@@ -534,7 +540,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 			} else {
 				newCap := 256
 				if cap(c.stmtVarsSlab) >= 256 {
-					newCap = min(cap(c.stmtVarsSlab)*2, 4096)
+					newCap = min(cap(c.stmtVarsSlab)*2, maxPtrCap)
 				}
 				if newCap < n {
 					newCap = n
@@ -546,7 +552,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 		} else {
 			newCap := 256
 			if cap(c.stmtVarsSlab) >= 256 {
-				newCap = min(cap(c.stmtVarsSlab)*2, 4096)
+				newCap = min(cap(c.stmtVarsSlab)*2, maxPtrCap)
 			}
 			if newCap < n {
 				newCap = n
@@ -560,6 +566,7 @@ func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
 }
 
 func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
+	const maxStmtCap = jscompMaxSmallAlloc / int(unsafe.Sizeof(CrossChunkReferenceCollector_TopLevelStatement{}))
 	if len(c.stmtSlab) == cap(c.stmtSlab) {
 		if c.poolable {
 			ca := c.getCCArena()
@@ -572,7 +579,7 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 			} else {
 				newCap := 64
 				if cap(c.stmtSlab) >= 64 {
-					newCap = min(cap(c.stmtSlab)*2, 2048)
+					newCap = min(cap(c.stmtSlab)*2, maxStmtCap)
 				}
 				c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
 				ca.stmtChunks = append(ca.stmtChunks, c.stmtSlab)
@@ -581,7 +588,7 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 		} else {
 			newCap := 64
 			if cap(c.stmtSlab) >= 64 {
-				newCap = min(cap(c.stmtSlab)*2, 2048)
+				newCap = min(cap(c.stmtSlab)*2, maxStmtCap)
 			}
 			c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
 		}

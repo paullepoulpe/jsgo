@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -550,7 +551,7 @@ func (r *RenameProperties) allocProperty(name string) *RenameProperties_Property
 	if len(r.propertySlab) == cap(r.propertySlab) {
 		newCap := 256
 		if cap(r.propertySlab) >= 256 {
-			newCap = min(cap(r.propertySlab)*2, 4096)
+			newCap = min(cap(r.propertySlab)*2, jscompMaxSmallAlloc/int(unsafe.Sizeof(RenameProperties_Property{})))
 		}
 		r.propertySlab = make([]RenameProperties_Property, 0, newCap)
 	}

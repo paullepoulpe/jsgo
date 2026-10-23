@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -80,7 +82,7 @@ func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode *rhino.Node, v
 		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
 			NodeUtil_IsFunctionDeclaration(parent))
 	if len(a.globalFuncSlab) == 0 {
-		a.globalFuncSlab = make([]AnalyzePrototypeProperties_GlobalFunction, 1024)
+		a.globalFuncSlab = make([]AnalyzePrototypeProperties_GlobalFunction, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_GlobalFunction{})))
 	}
 	g := &a.globalFuncSlab[0]
 	a.globalFuncSlab = a.globalFuncSlab[1:]
@@ -91,7 +93,7 @@ func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode *rhino.Node, v
 
 func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node *rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
 	if len(a.assignPropSlab) == 0 {
-		a.assignPropSlab = make([]AnalyzePrototypeProperties_AssignmentPrototypeProperty, 1024)
+		a.assignPropSlab = make([]AnalyzePrototypeProperties_AssignmentPrototypeProperty, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_AssignmentPrototypeProperty{})))
 	}
 	p := &a.assignPropSlab[0]
 	a.assignPropSlab = a.assignPropSlab[1:]
@@ -162,7 +164,7 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 		newCap := max(cap(src.outEdges)*2, 8)
 		if newCap <= 256 {
 			if len(a.edgeSlab) < newCap {
-				a.edgeSlab = make([]analyzeProtoPropEdge, 2048) // 2048 * 16B = 32 KiB == _MaxSmallSize
+				a.edgeSlab = make([]analyzeProtoPropEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(analyzeProtoPropEdge{})))
 			}
 			newBuf := a.edgeSlab[:len(src.outEdges):newCap]
 			a.edgeSlab = a.edgeSlab[newCap:]

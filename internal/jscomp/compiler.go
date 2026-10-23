@@ -2101,7 +2101,7 @@ func (c *Compiler) nextUniqueNameId() int {
 // Java: Compiler.getUniqueNameIdSupplier()
 func (c *Compiler) GetUniqueNameIdSupplier() func() string {
 	if c.uniqueNameIdSupplier == nil {
-		c.uniqueNameIdSupplier = func() string { return strconv.Itoa(c.nextUniqueNameId()) }
+		c.uniqueNameIdSupplier = func() string { return nodeUtilFormatInt(c.nextUniqueNameId()) }
 	}
 	return c.uniqueNameIdSupplier
 }
