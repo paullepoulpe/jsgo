@@ -44,9 +44,9 @@ func (s *reuseSlab[T]) alloc() *T {
 }
 
 // reset makes s hand out its elements again from the start, after zeroing
-// those that alloc handed out (so that they do not keep the old graph alive),
-// or after calling recycle on them when it is non-nil. It drops all but the
-// first reuseSlabKeepChunks chunks.
+// those that alloc handed out (so that they do not keep the old analysis
+// alive), or after calling recycle on them when it is non-nil. It drops all
+// but the first reuseSlabKeepChunks chunks.
 func (s *reuseSlab[T]) reset(recycle func(*T)) {
 	for i := 0; i <= s.cur && i < len(s.chunks); i++ {
 		used := s.chunks[i]
@@ -61,6 +61,13 @@ func (s *reuseSlab[T]) reset(recycle func(*T)) {
 			recycle(&used[j])
 		}
 	}
+	s.rewind()
+}
+
+// rewind is reset for Ts whose users re-initialize every field of what alloc
+// returns: it hands the elements out again as they are, so that the storage
+// they own can be reused too.
+func (s *reuseSlab[T]) rewind() {
 	if len(s.chunks) > reuseSlabKeepChunks {
 		clear(s.chunks[reuseSlabKeepChunks:])
 		s.chunks = s.chunks[:reuseSlabKeepChunks]
