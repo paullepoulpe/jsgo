@@ -2028,10 +2028,15 @@ func (d *IRFactory_TransformDispatcher) ParseDirectives(node *rhino.Node) {
 // Java: IRFactory.TransformDispatcher.processBlock(BlockTree)
 func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree) *rhino.Node {
 	node := d.NewNode(rhino.Token_BLOCK)
-	for _, child := range blockNode.Statements {
+	for i, child := range blockNode.Statements {
 		childNode := d.Transform(child)
 		node.AddChildToBack(childNode)
 		d.AttachPossibleTrailingComment(childNode, child.GetEnd())
+		// Go-only: performance — nothing reads a statement's parse tree once it
+		// is transformed: dropping it lets the GC free it while the rest of the
+		// file is transformed, instead of holding a large file's whole parse
+		// tree next to its whole AST.
+		blockNode.Statements[i] = nil
 	}
 
 	lastComment := d.ParseNonJSDocCommentAt(blockNode.GetEnd(), false)
