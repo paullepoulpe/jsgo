@@ -1,29 +1,39 @@
 # Round 2: int32 node links, chunked node storage and copying compaction
 
-Status: implemented (2026-10-23) on the `ast-links` worktree; measurements
-below. Companion to `round2-design.md` (design) and `node-holder-census.md`
-(the holder list the forwarding registry implements). The type/color handle
-(`typeOrColor` → 32-bit `tc` + `aux`) is the concurrent `ast-handles` work;
-until the two are merged `Node` still carries one Go pointer, so the chunks
-are still scanned (see "What is and is not pointer-free yet").
+Status: implemented (2026-10-23/24) on the `ast-links` worktree, merged
+with the `ast-handles` work (`typeOrColor` → 32-bit `tc` + `aux` handles,
+`node_tables.go`); measurements below. Companion to `round2-design.md`
+(design) and `node-holder-census.md` (the holder list the forwarding
+registry implements). With both, `Node` holds no Go pointer at all
+(`TestNodeHasNoPointers`).
 
 ## 1. Node storage and the id scheme (`internal/rhino/node_store.go`)
 
 - `Node.next/first/parent/previous` are `nodeID` (uint32); a new `self`
   field holds the node's own id. `Node` is 56 bytes (was 64): 4 × 4 B links
-  + 4 B self + 8 B typeOrColor + payload 8 + propFlags 8 + lineno 4 +
-  length 2 + token 1 + kindFlags 1.
-- Chunks: `nodeChunk = { header (one node wide); nodes [4095]Node }`,
-  4096 × 56 B = 224 KiB (28 pages, no size-class waste). Slot 0 is the
-  header (`owner *nodeGen`, `index`, bump counter), so **id = chunk<<12 |
-  slot with slot in 1..4095 and id 0 = nil**. 2^20 chunks of id space
-  (4 G nodes per process; the last chunk index is reserved for the
-  forwarding marker).
-- Directory: one process-wide table `nodeChunkTable [2^20]uintptr` (8 MiB
-  of BSS, demand-paged, **not traced by the GC**: the slots are integers).
-  `nodeAt(id)` = `(*Node)(chunkTable[id>>12] + (id&4095)*56)`: an atomic
-  load of the slot and no bounds check. A cleared slot panics
-  ("stale node id") instead of dereferencing.
+  + 4 B self + payload 8 + propFlags 8 + lineno 4 + tc 4 + aux 4 +
+  length 2 + token 1 + kindFlags 1 (52, padded to 56; the 48-byte layout of
+  the design would need `tc` as a per-chunk column indexed by `self`, one
+  more dependent load per type/color access — not done).
+- Chunks: `nodeChunk = { header (one node wide); nodes [479]Node }`,
+  480 × 56 B = 26,880 B. Slot 0 is the header (`owner *nodeGen`, `index`,
+  bump counter), so **id = chunk<<9 | slot with slot in 1..479 and id 0 =
+  nil**. 2^23 chunks of id space (4 G nodes per process; the last chunk
+  index is reserved for the forwarding marker). The size is chosen for
+  the GC: a chunk is a *small* object (≤ 32 KiB, size class 27,264 with the
+  8-byte malloc header, 1.4 % slack), and Go accounts and scans a small
+  object with pointers only up to its last pointer (`PtrBytes`), i.e. the
+  header's `owner` word; a large object is accounted whole
+  (`heapSetTypeLarge` returns the element size). So the AST costs the GC
+  8 bytes per chunk: `peak_scan_bytes` no longer contains it (section 3).
+- Directory: one process-wide table `nodeChunkTable [2^23]uintptr` (64 MiB
+  of BSS, demand-paged, 8 B per chunk ever allocated, **not traced by the
+  GC**: the slots are integers; they are *written* as integers too — a
+  pointer store would carry a write barrier that shades the slot's old
+  value, and a cleanup clears the slot of a chunk the GC already freed).
+  `nodeAt(id)` = `(*Node)(chunkTable[id>>9] + (id&511)*56)`: an atomic load
+  of the slot and no bounds check. A cleared slot panics ("stale node id")
+  instead of dereferencing.
 - `*Node` stays the handle passes hold: an interior pointer into a chunk;
   `GetNext()` etc. translate ids. `idOf(n)` panics for a by-value node
   (`self == 0`): the by-value template nodes (`SourceFile`, `IRFactory`,
@@ -49,12 +59,17 @@ is the ownership scheme:
 - Chunk indices are **never reused**, so a stale id always hits an empty
   slot and panics; it can never alias another chunk.
 - Nodes are allocated in whichever generation is current, which is only a
-  lifetime grouping: ids are global and links across generations are valid
-  while both are alive. Limit (documented, tests only): a node that outlives
-  the Compiler that made it and links into a generation that was since
-  released panics on traversal; a window of a few ms exists between a
-  generation's collection and its cleanup in which such a (buggy) traversal
-  reads freed memory.
+  lifetime grouping: ids are global. A link written between nodes of two
+  generations (`Node.ref`, every link write goes through it) **ties** the
+  two generations (each keeps the other in a `peers` set), because an id
+  keeps nothing alive by itself; in one compilation this never happens (a
+  compaction's successor never links back), in the test suite it happens
+  constantly (the compiler under test keeps allocating into the generation
+  of a later helper compiler). Without the tie the first merged test runs
+  crashed in the GC ("found pointer to free object").
+  Limit: a stale holder (a bug) that traverses into a released generation
+  panics on the cleared slot; between a generation's collection and its
+  cleanup (a few ms) such a traversal would read freed memory.
 - The initial generation (package-level sentinel nodes, allocated during
   `init`) is never released and never compacted; `Forward` leaves its nodes
   in place (the JSDoc serializer's placeholder type expression is one).
@@ -83,8 +98,18 @@ and releases the old generations:
 - Side trees owned by nodes are copied with them: JSDoc type-expression
   roots and type transformations (once per `JSDocInfo`), and the node-valued
   props `DECLARED_TYPE_EXPR` / `CLOSURE_UNAWARE_SHADOW`.
+- The aux table (`node_tables.go`) is rebuilt: each copied node's aux
+  entry (its `*JSDocInfo` or `*nodeExtBox`) moves to a fresh block and
+  `Finish` swaps the compilation's aux allocator to those blocks and
+  releases the old ones (`NodeTables.rotateAux`), so the cold data of dead
+  nodes is dropped too. Type and color handles are object-owned and need
+  nothing.
 - `Finish` clears the old chunks' table slots immediately and drops the
   generations' chunk lists (a stale holder keeps only its own chunk alive).
+- Before the compaction that follows `typesToColors` the driver runs
+  `runtime.GC()`: the type graph was just dropped, and without the
+  collection the copy allocated a second AST on top of the not-yet-reclaimed
+  types (typed-full peak RSS 731 MB instead of 535 MB in the first runs).
 
 ### Forwarding registry (`Compiler.compactAST`)
 
@@ -121,9 +146,9 @@ Hooks after every pass of `PhaseOptimizer.Process` and at the end of every
 forced right after `typesToColors` and otherwise runs when the nodes
 allocated since the last compaction (chunk count × 4095, free to read)
 exceed a quarter of the live nodes at the last compaction (and 64 k).
-Enabled with `--fast_mode`; `JSGO_AST_COMPACT=0|1` overrides (1 = also in
-default mode), `JSGO_AST_COMPACT_LOG=1` logs, `JSGO_AST_POISON=1` is the
-verifier.
+On by default (after the poison runs below came back clean);
+`JSGO_AST_COMPACT=0|1` overrides, `JSGO_AST_COMPACT_LOG=1` logs,
+`JSGO_AST_POISON=1` is the verifier.
 
 ### Poison mode results
 
@@ -140,22 +165,27 @@ Old chunks are kept alive, their slots cleared (any id into them panics in
   136 ms.
 - `JSGO_AST_COMPACT=1 JSGO_AST_POISON=1 go test ./internal/jscomp`: green
   after two fixes it found (the shared JSDoc placeholder sentinel, and the
-  nested shadow compiler compacting a tree the outer compilation holds).
+  nested shadow compiler compacting a tree the outer compilation holds);
+  green again on the merged tree (compaction on by default, 177 s).
+- Known pre-existing flake (handles-only baseline 0f0b036e, 1 run in 8):
+  `TestTranspileAndOptimizeClosureUnawareTest` loses a
+  `CLOSURE_UNAWARE_SHADOW` prop ("reportCodeChange should have been
+  called") — an aux handle released under the nested compiler; not from
+  this work.
 
 ## 3. Measurements
 
 (filled in below)
 
-## 4. What is and is not pointer-free yet
+## 4. Pointer-free, not noscan
 
-`Node` still holds `typeOrColor unsafe.Pointer`, and the chunk header holds
-`owner *nodeGen`, so a chunk is a pointerful 224 KiB object and the GC scans
-all of it (the links themselves are no longer pointers: 1 pointer word per
-node instead of 5). Once the handles work lands, `Node` has no pointer and
-the chunk type's pointer prefix is the 8-byte `owner` only: Go's allocator
-accounts and scans objects up to `PtrBytes`, so the AST then costs 8 bytes
-of scan work per chunk. The chunk header is laid out for that (the pointer
-is at offset 0).
+`Node` has no pointer; the only pointer in a chunk is the header's `owner`
+(offset 0), kept on purpose: it is what lets a held `*Node` keep its
+generation (and everything its links reach) alive, so chunks are released
+by the GC's own reachability instead of by a compiler-lifetime rule that a
+test holding a tree after dropping its compiler would break. Because the
+chunk is a small object, that one pointer is all the GC accounts and
+scans (section 1); a genuinely noscan chunk would save nothing more.
 
 ## 5. Address-order audit
 
