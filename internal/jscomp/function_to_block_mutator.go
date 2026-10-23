@@ -52,6 +52,7 @@ type FunctionToBlockMutator struct {
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
 	paramReplacementsScratch jutil.LinkedHashMap[string, *rhino.Node]
 	newAliasesToAddScratch   jutil.ArrayList[*rhino.Node]
+	strSlab                  []byte
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -595,7 +596,7 @@ func NewFunctionToBlockMutator_LabelNameSupplier(idSupplier func() string) *Func
 
 // Java: FunctionToBlockMutator.LabelNameSupplier.get()
 func (s *FunctionToBlockMutator_LabelNameSupplier) Get() string {
-	return "JSCompiler_inline_label_" + s.idSupplier()
+	return allocPooledStringConcat2("JSCompiler_inline_label_", s.idSupplier())
 }
 
 // GetLabelNameForFunction creates a unique label name.
@@ -606,14 +607,44 @@ func (m *FunctionToBlockMutator) GetLabelNameForFunction(fnName string) string {
 	if fnName == "" {
 		name = "anon"
 	}
-	return "JSCompiler_inline_label_" + name + "_" + m.safeNameIdSupplier()
+	const prefix = "JSCompiler_inline_label_"
+	id := m.safeNameIdSupplier()
+	n := len(prefix) + len(name) + 1 + len(id)
+	if n > 2048 {
+		return prefix + name + "_" + id
+	}
+	if len(m.strSlab) < n {
+		m.strSlab = make([]byte, 32768) // 32 KiB noscan
+	}
+	b := m.strSlab[:n:n]
+	m.strSlab = m.strSlab[n:]
+	copy(b, prefix)
+	off := len(prefix)
+	copy(b[off:], name)
+	off += len(name)
+	b[off] = '_'
+	copy(b[off+1:], id)
+	return unsafe.String(&b[0], n)
 }
 
 // GetUniqueThisName creates a unique "this" name.
 //
 // Java: FunctionToBlockMutator.getUniqueThisName()
 func (m *FunctionToBlockMutator) GetUniqueThisName() string {
-	return "JSCompiler_inline_this_" + m.safeNameIdSupplier()
+	const prefix = "JSCompiler_inline_this_"
+	id := m.safeNameIdSupplier()
+	n := len(prefix) + len(id)
+	if n > 2048 {
+		return prefix + id
+	}
+	if len(m.strSlab) < n {
+		m.strSlab = make([]byte, 32768) // 32 KiB noscan
+	}
+	b := m.strSlab[:n:n]
+	m.strSlab = m.strSlab[n:]
+	copy(b, prefix)
+	copy(b[len(prefix):], id)
+	return unsafe.String(&b[0], n)
 }
 
 func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedFnsHolder *rhino.Node) *rhino.Node {

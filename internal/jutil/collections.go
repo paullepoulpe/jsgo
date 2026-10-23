@@ -1084,9 +1084,22 @@ type ObjectLinkedHashMap[K any, V any] struct {
 	first   int32
 }
 
+// OlhmSlot is an entry slot of ObjectLinkedHashMap / ObjectLinkedHashSet for
+// callers that provide an inline or slab-allocated initial buffer via InitWithBuffer.
+type OlhmSlot[K any, V any] = olhmSlot[K, V]
+
 // NewObjectLinkedHashMap returns an empty map.
 func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 	return &ObjectLinkedHashMap[K, V]{}
+}
+
+// InitWithBuffer makes h an empty map that stores its first len(buf) entries
+// in buf; it grows into a new slice past that.
+func (h *ObjectLinkedHashMap[K, V]) InitWithBuffer(buf []OlhmSlot[K, V]) {
+	h.buckets = nil
+	h.slots = buf[:0:len(buf)]
+	h.size = 0
+	h.first = 0
 }
 
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
@@ -1416,6 +1429,12 @@ func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
 		s.Add(e)
 	}
 	return s
+}
+
+// InitWithBuffer makes s an empty set that stores its first len(buf) elements
+// in buf; it grows into a new slice past that.
+func (s *ObjectLinkedHashSet[T]) InitWithBuffer(buf []OlhmSlot[T, struct{}]) {
+	s.m.InitWithBuffer(buf)
 }
 
 func (s *ObjectLinkedHashSet[T]) Size() int {

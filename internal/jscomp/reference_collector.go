@@ -97,7 +97,7 @@ func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *Bas
 			} else {
 				newCap := 256
 				if cap(s.refSlab) >= 256 {
-					newCap = min(cap(s.refSlab)*2, 8192)
+					newCap = min(cap(s.refSlab)*2, 1024) // 1024 * 32B = 32 KiB == _MaxSmallSize
 				}
 				s.refSlab = make([]Reference, 0, newCap)
 				s.refChunks = append(s.refChunks, s.refSlab)
@@ -106,7 +106,7 @@ func (s *rcVarSlabs) allocReference(n *rhino.Node, scope *Scope, basicBlock *Bas
 		} else {
 			newCap := 256
 			if cap(s.refSlab) >= 256 {
-				newCap = min(cap(s.refSlab)*2, 8192)
+				newCap = min(cap(s.refSlab)*2, 1024)
 			}
 			s.refSlab = make([]Reference, 0, newCap)
 		}
@@ -133,7 +133,7 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 			} else {
 				newCap := 64
 				if cap(s.colSlab) >= 64 {
-					newCap = min(cap(s.colSlab)*2, 4096)
+					newCap = min(cap(s.colSlab)*2, 1024) // 1024 * 32B = 32 KiB == _MaxSmallSize
 				}
 				s.colSlab = make([]ReferenceCollection, 0, newCap)
 				s.colChunks = append(s.colChunks, s.colSlab)
@@ -142,7 +142,7 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 		} else {
 			newCap := 64
 			if cap(s.colSlab) >= 64 {
-				newCap = min(cap(s.colSlab)*2, 4096)
+				newCap = min(cap(s.colSlab)*2, 1024)
 			}
 			s.colSlab = make([]ReferenceCollection, 0, newCap)
 		}
@@ -163,13 +163,13 @@ func (s *rcVarSlabs) allocRefPtrSlice(n int) []*Reference {
 			if s.refPtrChunkIdx < len(s.refPtrChunks) {
 				ch := s.refPtrChunks[s.refPtrChunkIdx]
 				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(8192, n))
+					ch = make([]*Reference, 0, max(4096, n)) // 4096 * 8B = 32 KiB == _MaxSmallSize
 					s.refPtrChunks[s.refPtrChunkIdx] = ch
 				}
 				s.refPtrSlab = ch[:0]
 				s.refPtrChunkIdx++
 			} else {
-				s.refPtrSlab = make([]*Reference, 0, max(8192, n))
+				s.refPtrSlab = make([]*Reference, 0, max(4096, n))
 				s.refPtrChunks = append(s.refPtrChunks, s.refPtrSlab)
 				s.refPtrChunkIdx++
 			}
@@ -338,11 +338,11 @@ func acquireRCArena() *referenceCollectorArena {
 }
 
 func (a *referenceCollectorArena) trimSmall() {
-	a.global.reset(8, 8, 8, 4096)
-	a.local.reset(8, 8, 8, 4096)
-	if len(a.blkChunks) > 8 {
-		clear(a.blkChunks[8:])
-		a.blkChunks = a.blkChunks[:8]
+	a.global.reset(64, 16, 32, 4096)
+	a.local.reset(64, 16, 32, 4096)
+	if len(a.blkChunks) > 32 {
+		clear(a.blkChunks[32:])
+		a.blkChunks = a.blkChunks[:32]
 	}
 }
 
@@ -564,7 +564,7 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 		c.globalRefInNonFnLocal = false
 		return
 	}
-	c.localSlabs.resetToBase(64, 64, 64, 65536)
+	c.localSlabs.resetToBase(512, 128, 256, 65536)
 	if c.lastVar != nil && c.lastVar.scope != nil && c.lastVar.scope.parent != nil {
 		c.lastVar = nil
 		c.lastCollection = nil
@@ -623,8 +623,8 @@ func (c *ReferenceCollector) release() {
 		return
 	}
 	c.arena = nil
-	a.global.reset(512, 256, 256, 1048576)
-	a.local.reset(64, 64, 64, 65536)
+	a.global.reset(4096, 512, 1024, 1048576)
+	a.local.reset(512, 128, 256, 65536)
 	c.globalSlabs = &c.defaultSlabs
 	c.localSlabs = &c.defaultSlabs
 	if len(c.hoistedTable) > 0 && len(c.hoistedList) > 0 {
@@ -667,7 +667,7 @@ func (c *ReferenceCollector) release() {
 		}
 	}
 	c.argumentsRefs = nil
-	const maxRetainedBlkChunks = 160
+	const maxRetainedBlkChunks = 640
 	if a.blkChunkIdx > 0 {
 		a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
 	}
@@ -697,7 +697,7 @@ func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Nod
 			} else {
 				newCap := 64
 				if cap(c.blockSlab) >= 64 {
-					newCap = min(cap(c.blockSlab)*2, 4096)
+					newCap = min(cap(c.blockSlab)*2, 1024) // 1024 * 24B = 24 KiB <= 32 KiB
 				}
 				c.blockSlab = make([]BasicBlock, 0, newCap)
 				a.blkChunks = append(a.blkChunks, c.blockSlab)
@@ -706,7 +706,7 @@ func (c *ReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Nod
 		} else {
 			newCap := 64
 			if cap(c.blockSlab) >= 64 {
-				newCap = min(cap(c.blockSlab)*2, 4096)
+				newCap = min(cap(c.blockSlab)*2, 1024)
 			}
 			c.blockSlab = make([]BasicBlock, 0, newCap)
 		}

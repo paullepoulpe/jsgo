@@ -31,21 +31,46 @@ type ColorRegistry struct {
 	mismatchLocations                   *jutil.SetMultimap[ColorId, string]
 }
 
+type colorRegistryEdgeSet struct {
+	set jutil.ObjectLinkedHashSet[*Color]
+	buf [2]jutil.OlhmSlot[*Color, struct{}]
+}
+
 // Java: ColorRegistry(Builder)
 func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 	r := &ColorRegistry{}
-	r.nativeColors = jutil.NewLinkedHashMapFrom(builder.nativeColors)
-	r.colorToDisambiguationSupertypeGraph = jutil.SetMultimapCopyOf(builder.colorToDisambiguationSupertypeGraph)
-	r.mismatchLocations = jutil.SetMultimapCopyOf(builder.mismatchLocations)
+	if !builder.consumed {
+		builder.consumed = true
+		r.nativeColors = builder.nativeColors
+		r.colorToDisambiguationSupertypeGraph = builder.colorToDisambiguationSupertypeGraph
+		r.mismatchLocations = builder.mismatchLocations
+	} else {
+		r.nativeColors = jutil.NewLinkedHashMapFrom(builder.nativeColors)
+		r.colorToDisambiguationSupertypeGraph = jutil.SetMultimapCopyOf(builder.colorToDisambiguationSupertypeGraph)
+		r.mismatchLocations = jutil.SetMultimapCopyOf(builder.mismatchLocations)
+	}
 
-	jutil.CheckState(jutil.NewLinkedHashSet(r.nativeColors.KeySlice()...).Equals(ColorRegistry_REQUIRED_IDS))
+	ok := r.nativeColors.Size() == ColorRegistry_REQUIRED_IDS.Size()
+	if ok {
+		for id := range ColorRegistry_REQUIRED_IDS.All() {
+			if !r.nativeColors.ContainsKey(id) {
+				ok = false
+				break
+			}
+		}
+	}
+	jutil.CheckState(ok)
 	return r
 }
 
 // Java: ColorRegistry.get(ColorId)
 func (r *ColorRegistry) Get(id ColorId) *Color {
 	// checkNotNull(id): ColorId is a Go value type and cannot be null.
-	return jutil.CheckNotNullMsg1(r.nativeColors.Get(id), "Missing Color for %s", id)
+	c := r.nativeColors.Get(id)
+	if c == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Missing Color for " + id.String()))
+	}
+	return c
 }
 
 // GetDisambiguationSupertypes returns the colors directly above `x` in the
@@ -53,7 +78,7 @@ func (r *ColorRegistry) Get(id ColorId) *Color {
 //
 // Java: ColorRegistry.getDisambiguationSupertypes(Color)
 func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinkedHashSet[*Color] {
-	return r.colorToDisambiguationSupertypeGraph.Get(x)
+	return r.colorToDisambiguationSupertypeGraph.GetOrEmpty(x, colorEmptyColorSet)
 }
 
 // GetMismatchLocationsForDebugging returns an index (mismatch sourceref
@@ -77,19 +102,41 @@ type ColorRegistry_Builder struct {
 	nativeColors                        *jutil.LinkedHashMap[ColorId, *Color]
 	colorToDisambiguationSupertypeGraph *jutil.SetMultimap[*Color, *Color]
 	mismatchLocations                   *jutil.SetMultimap[ColorId, string]
+	edgeSetSlab                         jutil.Slab[colorRegistryEdgeSet]
+	allocEdgeSetFn                      func() *jutil.ObjectLinkedHashSet[*Color]
+	consumed                            bool
 }
 
 // Java: ColorRegistry.Builder()
 func NewColorRegistry_Builder() *ColorRegistry_Builder {
-	return &ColorRegistry_Builder{
+	b := &ColorRegistry_Builder{
 		nativeColors:                        jutil.NewLinkedHashMap[ColorId, *Color](),
 		colorToDisambiguationSupertypeGraph: jutil.NewSetMultimap[*Color, *Color](),
 		mismatchLocations:                   jutil.NewSetMultimap[ColorId, string](),
+		edgeSetSlab:                         jutil.NewFixedSlab[colorRegistryEdgeSet](256), // 16 KiB <= 32 KiB
+	}
+	b.allocEdgeSetFn = b.allocEdgeSet
+	return b
+}
+
+func (b *ColorRegistry_Builder) allocEdgeSet() *jutil.ObjectLinkedHashSet[*Color] {
+	es := b.edgeSetSlab.New()
+	es.set.InitWithBuffer(es.buf[:])
+	return &es.set
+}
+
+func (b *ColorRegistry_Builder) ensureMutable() {
+	if b.consumed {
+		b.nativeColors = jutil.NewLinkedHashMapFrom(b.nativeColors)
+		b.colorToDisambiguationSupertypeGraph = jutil.SetMultimapCopyOf(b.colorToDisambiguationSupertypeGraph)
+		b.mismatchLocations = jutil.SetMultimapCopyOf(b.mismatchLocations)
+		b.consumed = false
 	}
 }
 
 // Java: ColorRegistry.Builder.setNativeColor(Color)
 func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder {
+	b.ensureMutable()
 	jutil.CheckStateMsg1(ColorRegistry_REQUIRED_IDS.Contains(x.GetId()), "%s", x)
 	b.nativeColors.Put(x.GetId(), x)
 	return b
@@ -97,12 +144,14 @@ func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder 
 
 // Java: ColorRegistry.Builder.addDisambiguationEdge(Color, Color)
 func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype *Color) *ColorRegistry_Builder {
-	b.colorToDisambiguationSupertypeGraph.Put(subtype, supertype)
+	b.ensureMutable()
+	b.colorToDisambiguationSupertypeGraph.PutWithSetAlloc(subtype, supertype, b.allocEdgeSetFn)
 	return b
 }
 
 // Java: ColorRegistry.Builder.addMismatchLocation(ColorId, String)
 func (b *ColorRegistry_Builder) AddMismatchLocation(id ColorId, location string) *ColorRegistry_Builder {
+	b.ensureMutable()
 	b.mismatchLocations.Put(id, location)
 	return b
 }

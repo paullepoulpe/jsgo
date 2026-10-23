@@ -70,6 +70,15 @@ func (s *FieldSetter) AddValue(value any) {
 	s.f.Set(s.bean, value)
 }
 
+// AddStringValue implements StringSetter without boxing value into any.
+func (s *FieldSetter) AddStringValue(value string) {
+	if s.f.setString != nil {
+		s.f.setString(value)
+		return
+	}
+	s.AddValue(value)
+}
+
 // Java: FieldSetter.getValue()
 func (s *FieldSetter) GetValue() any {
 	// Go-only: language-adapter — reflection (see AddValue).

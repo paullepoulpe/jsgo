@@ -32,11 +32,17 @@ type JSTypeColorIdHasher struct {
 	standardColorObjectIds *jutil.ObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]
 	standardColorByPtr     map[*rhino.JSTypeBase]colors.ColorId
 	hasher                 jutil.FarmHashFingerprint64Hasher
+	hashOwnPropFn          func(string)
+}
+
+func (h *JSTypeColorIdHasher) onOwnProp(prop string) {
+	JSTypeColorIdHasher_PutUtf8(&h.hasher, prop)
 }
 
 // Java: JSTypeColorIdHasher(JSTypeRegistry)
 func NewJSTypeColorIdHasher(registry *rhino.JSTypeRegistry) *JSTypeColorIdHasher {
 	h := &JSTypeColorIdHasher{}
+	h.hashOwnPropFn = h.onOwnProp
 	// NATIVE_TYPE_TO_ID.entrySet().stream().collect(toImmutableMap(...))
 	standardColorObjectIds := jutil.NewObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]()
 	standardColorByPtr := make(map[*rhino.JSTypeBase]colors.ColorId, 16)
@@ -90,9 +96,7 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 	if type_.HasReferenceName() {
 		h.PutReferenceNameType(hasher, type_)
 	} else {
-		type_.ForEachOwnPropertyName(func(prop string) {
-			JSTypeColorIdHasher_PutUtf8(hasher, prop)
-		})
+		type_.ForEachOwnPropertyName(h.hashOwnPropFn)
 	}
 
 	return colors.ColorId_FromUnsigned(hasher.HashAsLong())

@@ -30,21 +30,21 @@ import (
 
 const (
 	minScopeChunkSize    = 16
-	maxScopeChunkSize    = 4096
-	maxScopeChunks       = 400
-	smallScopeChunks     = 32
+	maxScopeChunkSize    = 256  // 256 * 112B = 28 KiB <= 32 KiB
+	maxScopeChunks       = 6400 // same total pooled capacity as 400 * 4096
+	smallScopeChunks     = 512
 	minVarChunkSize      = 32
-	maxVarChunkSize      = 4096
-	maxVarChunks         = 256
-	smallVarChunks       = 32
+	maxVarChunkSize      = 768  // 768 * 40B = 30 KiB <= 32 KiB
+	maxVarChunks         = 1368 // same total pooled capacity as 256 * 4096
+	smallVarChunks       = 172
 	minSlotChunkSize     = 128
-	maxSlotChunkSize     = 16384
-	maxSlotChunks        = 128
-	smallSlotChunks      = 16
+	maxSlotChunkSize     = 4096 // 4096 * 8B = 32 KiB == _MaxSmallSize
+	maxSlotChunks        = 512  // same total pooled capacity as 128 * 16384
+	smallSlotChunks      = 64
 	minHashChunkSize     = 256
-	maxHashChunkSize     = 32768
-	maxHashChunks        = 128
-	smallHashChunks      = 16
+	maxHashChunkSize     = 8192 // 8192 * 4B = 32 KiB == _MaxSmallSize
+	maxHashChunks        = 512  // same total pooled capacity as 128 * 32768
+	smallHashChunks      = 64
 	minImplicitChunkSize = 8
 	maxImplicitChunkSize = 128
 	maxImplicitChunks    = 16

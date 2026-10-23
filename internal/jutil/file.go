@@ -111,8 +111,13 @@ func (f *File) GetParentFile() *File {
 // IsDirectory is File.isDirectory(): whether the file exists and is a
 // directory (following symbolic links).
 func (f *File) IsDirectory() bool {
-	st, err := os.Stat(f.path)
-	return err == nil && st.IsDir()
+	return fileIsDirectoryRaw(f.path)
+}
+
+// File_IsDirectoryPath reports whether pathname exists and is a directory
+// without allocating a File or os.FileInfo.
+func File_IsDirectoryPath(pathname string) bool {
+	return fileIsDirectoryRaw(fileNormalize(pathname))
 }
 
 // Mkdirs is File.mkdirs(): creates the directory and any missing parents,

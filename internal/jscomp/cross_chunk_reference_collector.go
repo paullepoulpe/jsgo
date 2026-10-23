@@ -252,9 +252,9 @@ func (c *CrossChunkReferenceCollector) release() {
 		const (
 			maxRetainedStmtChunks     = 256
 			maxRetainedStmtRefsChunks = 128
-			maxRetainedSymChunks      = 128
-			maxRetainedDsgChunks      = 128
-			maxRetainedCycleChunks    = 64
+			maxRetainedSymChunks      = 640
+			maxRetainedDsgChunks      = 192
+			maxRetainedCycleChunks    = 128
 		)
 		if ca.stmtChunkIdx > 0 {
 			ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab

@@ -22,6 +22,7 @@ package colors
 import (
 	"encoding/binary"
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -69,12 +70,19 @@ func ColorId_FromUnsignedByte(x int8) ColorId {
 //
 // Java: ColorId.fromBytes(ByteString)
 func ColorId_FromBytes(bytes []byte) ColorId {
-	return ColorId_FromBytesAt(bytes, len(bytes), func(s []byte, i int) int8 { return int8(s[i]) })
+	if len(bytes) > 8 {
+		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(len(bytes))))
+	}
+	var rightAligned int64
+	for _, b := range bytes {
+		rightAligned = (rightAligned << 8) | int64(b)
+	}
+	return NewColorId(rightAligned)
 }
 
 // Java: ColorId.fromBytes(byte[])
 func ColorId_FromByteArray(bytes []byte) ColorId {
-	return ColorId_FromBytesAt(bytes, len(bytes), func(s []byte, i int) int8 { return int8(s[i]) })
+	return ColorId_FromBytes(bytes)
 }
 
 // Java: ColorId.fromAscii(String)
@@ -84,7 +92,9 @@ func ColorId_FromAscii(str string) ColorId {
 
 // Java: ColorId.fromBytesAt(T, int, ByteAt<T>)
 func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) ColorId {
-	jutil.CheckStateMsg1(length <= 8, "%s", length)
+	if length > 8 {
+		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(length)))
+	}
 
 	var rightAligned int64 = 0
 	for i := 0; i < length; i++ {

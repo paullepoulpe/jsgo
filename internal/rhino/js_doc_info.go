@@ -613,13 +613,14 @@ type JSDocBuilderSlabs struct {
 	TypeExprSlab jutil.Slab[JSTypeExpression]
 	TypeMapSlab  jutil.Slab[jsdocTypeMapWithBuf]
 	AnySliceSlab []any
+	anySliceCap  int
 }
 
 func NewJSDocBuilderSlabs() JSDocBuilderSlabs {
 	return JSDocBuilderSlabs{
-		InfoSlab:     jutil.NewFixedSlab[JSDocInfo](1024),        // 32 KiB
-		TypeExprSlab: jutil.NewFixedSlab[JSTypeExpression](1024), // 24 KiB
-		TypeMapSlab:  jutil.NewFixedSlab[jsdocTypeMapWithBuf](368), // 32.3 KiB
+		InfoSlab:     jutil.NewMaxSlab[JSDocInfo](1024),          // ramps 16..1024 (<= 32 KiB)
+		TypeExprSlab: jutil.NewMaxSlab[JSTypeExpression](1024),   // ramps 16..1024 (<= 24 KiB)
+		TypeMapSlab:  jutil.NewMaxSlab[jsdocTypeMapWithBuf](256), // ramps 16..256 (<= 22.5 KiB)
 	}
 }
 
@@ -637,7 +638,18 @@ func (s *JSDocBuilderSlabs) allocAnySlice(n int) []any {
 		return make([]any, n)
 	}
 	if len(s.AnySliceSlab) < n {
-		s.AnySliceSlab = make([]any, 2048) // 32 KiB
+		next := s.anySliceCap * 4
+		if next < 64 {
+			next = 64
+		}
+		if next < n {
+			next = n * 2
+		}
+		if next > 2048 {
+			next = 2048 // 32 KiB
+		}
+		s.anySliceCap = next
+		s.AnySliceSlab = make([]any, next)
 	}
 	out := s.AnySliceSlab[:n:n]
 	s.AnySliceSlab = s.AnySliceSlab[n:]

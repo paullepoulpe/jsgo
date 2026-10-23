@@ -53,7 +53,12 @@ func (h *StringOptionHandler) InitStringOptionHandler(self OptionHandler, parser
 
 // Java: StringOptionHandler.parseArguments(Parameters)
 func (h *StringOptionHandler) ParseArguments(params Parameters) int {
-	h.Setter.AddValue(params.GetParameter(0))
+	v := params.GetParameter(0)
+	if ss, ok := h.Setter.(StringSetter); ok {
+		ss.AddStringValue(v)
+	} else {
+		h.Setter.AddValue(v)
+	}
 	return 1
 }
 

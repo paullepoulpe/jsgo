@@ -486,6 +486,28 @@ func (p *Path) HashCode() int32 {
 // String is Path.toString().
 func (p *Path) String() string { return p.s }
 
+// Path_NormalizeString returns Path_Of(input).String() without allocating a
+// Path struct on the common case where input has no NULs, lone surrogates,
+// duplicate slashes, or trailing slashes.
+func Path_NormalizeString(input string) string {
+	slow := len(input) > 1 && input[len(input)-1] == '/'
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if c == 0 {
+			panic(NewInvalidPathException(input, "Nul character not allowed"))
+		}
+		if c == '/' && i > 0 && input[i-1] == '/' {
+			slow = true
+		} else if c == 0xED && i+1 < len(input) && input[i+1] >= 0xA0 && input[i+1] <= 0xBF {
+			slow = true
+		}
+	}
+	if !slow {
+		return input
+	}
+	return parsePath(input).String()
+}
+
 // ToAbsolutePath is Path.toAbsolutePath(): a relative path resolved against
 // the working directory (Java's user.dir).
 func (p *Path) ToAbsolutePath() *Path {
@@ -498,4 +520,22 @@ func (p *Path) ToAbsolutePath() *Path {
 		panic(NewJavaLangError("cannot read the working directory: " + err.Error()))
 	}
 	return parsePath(wd).Resolve(p)
+}
+
+// Path_WorkingDir returns Path.of(System.getProperty("user.dir")) so callers
+// resolving many relative paths in a single batch can call os.Getwd() once.
+func Path_WorkingDir() *Path {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(NewJavaLangError("cannot read the working directory: " + err.Error()))
+	}
+	return parsePath(wd)
+}
+
+// ToAbsolutePathWithWd resolves p against wd when p is relative.
+func (p *Path) ToAbsolutePathWithWd(wd *Path) *Path {
+	if p.IsAbsolute() {
+		return p
+	}
+	return wd.Resolve(p)
 }

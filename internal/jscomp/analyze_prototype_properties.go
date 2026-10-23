@@ -71,6 +71,7 @@ type AnalyzePrototypeProperties struct {
 	nameInfoIdx      int
 	globalFuncSlab   []AnalyzePrototypeProperties_GlobalFunction
 	assignPropSlab   []AnalyzePrototypeProperties_AssignmentPrototypeProperty
+	edgeSlab         []analyzeProtoPropEdge
 }
 
 func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode *rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_GlobalFunction {
@@ -105,8 +106,8 @@ func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototyp
 		nextCap := 64
 		if len(a.nameInfoChunks) > 0 {
 			nextCap = len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) * 2
-			if nextCap > 128 {
-				nextCap = 128
+			if nextCap > 112 {
+				nextCap = 112
 			}
 		}
 		a.nameInfoChunks = append(a.nameInfoChunks, make([]AnalyzePrototypeProperties_NameInfo, nextCap))
@@ -157,6 +158,18 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 	}
 	dest.lastSrc = src
 	dest.lastChunk = chunk
+	if len(src.outEdges) == cap(src.outEdges) {
+		newCap := max(cap(src.outEdges)*2, 8)
+		if newCap <= 256 {
+			if len(a.edgeSlab) < newCap {
+				a.edgeSlab = make([]analyzeProtoPropEdge, 2048) // 2048 * 16B = 32 KiB == _MaxSmallSize
+			}
+			newBuf := a.edgeSlab[:len(src.outEdges):newCap]
+			a.edgeSlab = a.edgeSlab[newCap:]
+			copy(newBuf, src.outEdges)
+			src.outEdges = newBuf
+		}
+	}
 	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 
@@ -1160,7 +1173,7 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	deepestCommonChunkRef *JSChunk
 
 	outEdges        []analyzeProtoPropEdge
-	outEdgesBuf     [2]analyzeProtoPropEdge
+	outEdgesBuf     [4]analyzeProtoPropEdge
 	lastSrc         *AnalyzePrototypeProperties_NameInfo
 	lastChunk       *JSChunk
 	globalEdgeChunk *JSChunk

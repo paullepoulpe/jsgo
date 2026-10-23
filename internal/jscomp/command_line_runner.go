@@ -884,33 +884,58 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 //
 // Java: CommandLineRunner.Flags.getMixedJsSources()
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
-	mixedSources := []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]{}
-	excludes := jutil.NewLinkedHashSet[string]()
+	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(commandLineRunner_Flags_mixedJsSources)+len(f.arguments))
+	var excludes *jutil.LinkedHashSet[string]
+	var entrySlab []AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
+	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
+		if len(entrySlab) == 0 {
+			entrySlab = make([]AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 512) // 12 KiB <= 32 KiB
+		}
+		e := &entrySlab[0]
+		entrySlab = entrySlab[1:]
+		e.flag = AbstractCommandLineRunner_JsSourceType_JS
+		e.value = filename
+		return e
+	}
 	for _, source := range commandLineRunner_Flags_mixedJsSources {
-		if strings.HasSuffix(source.GetValue(), ".zip") {
+		val := source.GetValue()
+		if strings.HasSuffix(val, ".zip") {
 			mixedSources = append(mixedSources, source)
-		} else if strings.HasPrefix(source.GetValue(), "!") {
-			for _, filename := range CommandLineRunner_FindJsFiles([]string{source.GetValue()[1:]}) {
+		} else if strings.HasPrefix(val, "!") {
+			if excludes == nil {
+				excludes = jutil.NewLinkedHashSet[string]()
+			}
+			for _, filename := range CommandLineRunner_FindJsFiles([]string{val[1:]}) {
 				excludes.Add(filename)
 				// Java: List.remove(Object) removes the first equal element.
-				entry := NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename)
 				if i := slices.IndexFunc(mixedSources, func(e *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]) bool {
-					return entry.Equals(e)
+					return e != nil && e.flag == AbstractCommandLineRunner_JsSourceType_JS && e.value == filename
 				}); i >= 0 {
 					mixedSources = slices.Delete(mixedSources, i, i+1)
 				}
 			}
+		} else if !strings.Contains(val, "*") && !jutil.File_IsDirectoryPath(val) {
+			filename := jutil.Path_NormalizeString(val)
+			if excludes == nil || !excludes.Contains(filename) {
+				if source.flag == AbstractCommandLineRunner_JsSourceType_JS && filename == val {
+					mixedSources = append(mixedSources, source)
+				} else {
+					mixedSources = append(mixedSources, allocJsEntry(filename))
+				}
+			}
 		} else {
-			for _, filename := range commandLineRunner_findJsFilesSorted([]string{source.GetValue()}, true) {
-				if !excludes.Contains(filename) {
-					mixedSources = append(mixedSources, NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename))
+			for _, filename := range commandLineRunner_findJsFilesSorted([]string{val}, true) {
+				if excludes == nil || !excludes.Contains(filename) {
+					mixedSources = append(mixedSources, allocJsEntry(filename))
 				}
 			}
 		}
 	}
-	fromArguments := CommandLineRunner_FindJsFiles(f.arguments)
-	for _, filename := range fromArguments {
-		mixedSources = append(mixedSources, NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename))
+	if len(f.arguments) != 0 {
+		fromArguments := CommandLineRunner_FindJsFiles(f.arguments)
+		for _, filename := range fromArguments {
+			mixedSources = append(mixedSources, allocJsEntry(filename))
+		}
 	}
 	if len(commandLineRunner_Flags_mixedJsSources) != 0 && len(f.arguments) != 0 && len(mixedSources) == 0 {
 		panic(args4j.NewCmdLineExceptionWithParser(f.parser, "No inputs matched"))
@@ -1098,9 +1123,10 @@ func newCommandLineRunner_Flags_JsZipOptionHandler(
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter<T>
 type commandLineRunner_Flags_MultiFlagSetter[T abstractCommandLineRunner_flag] struct {
-	proxy   args4j.Setter
-	flag    T
-	entries *[]*AbstractCommandLineRunner_FlagEntry[T]
+	proxy     args4j.Setter
+	flag      T
+	entries   *[]*AbstractCommandLineRunner_FlagEntry[T]
+	entrySlab []AbstractCommandLineRunner_FlagEntry[T]
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter(Setter<? super String>, T, List<FlagEntry<T>>)
@@ -1119,19 +1145,44 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) GetType() *args4j.Class {
 	return s.proxy.GetType()
 }
 
+func (s *commandLineRunner_Flags_MultiFlagSetter[T]) allocEntry(val string) *AbstractCommandLineRunner_FlagEntry[T] {
+	if len(s.entrySlab) == 0 {
+		s.entrySlab = make([]AbstractCommandLineRunner_FlagEntry[T], 512) // 12 KiB <= 32 KiB
+	}
+	e := &s.entrySlab[0]
+	s.entrySlab = s.entrySlab[1:]
+	e.flag = s.flag
+	e.value = val
+	return e
+}
+
+// AddStringValue implements args4j.StringSetter without interface boxing.
+func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string) {
+	normalizedValue := value
+	if len(value) >= 1 && (value[0] == '\'' || value[0] == '"') && value[len(value)-1] == value[0] {
+		if len(value) == 1 {
+			normalizedValue = ""
+		} else {
+			normalizedValue = value[1 : len(value)-1]
+		}
+	}
+	if ss, ok := s.proxy.(args4j.StringSetter); ok {
+		ss.AddStringValue(normalizedValue)
+	} else {
+		s.proxy.AddValue(normalizedValue)
+	}
+	*s.entries = append(*s.entries, s.allocEntry(normalizedValue))
+}
+
 // Java: CommandLineRunner.Flags.MultiFlagSetter.addValue(String)
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddValue(v any) {
-	value, _ := v.(string)
-	// On windows, some quoted values seem to preserve the quotes as part of the value.
-	normalizedValue := value
-	if v != nil &&
-		jutil.StringLength(value) > 0 &&
-		(jutil.StringSubstring(value, 0, 1) == "'" || jutil.StringSubstring(value, 0, 1) == "\"") &&
-		jutil.StringSubstringFrom(value, jutil.StringLength(value)-1) == jutil.StringSubstring(value, 0, 1) {
-		normalizedValue = jutil.StringSubstring(value, 1, jutil.StringLength(value)-1)
+	if v == nil {
+		s.proxy.AddValue("")
+		*s.entries = append(*s.entries, s.allocEntry(""))
+		return
 	}
-	s.proxy.AddValue(normalizedValue)
-	*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, normalizedValue))
+	value, _ := v.(string)
+	s.AddStringValue(value)
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter.asFieldSetter()
@@ -1959,6 +2010,9 @@ func (m commandLineRunner_linkedJsInputs) Values() func(yield func(string) bool)
 //
 // Java: CommandLineRunner.findJsFiles(Collection<String>, boolean)
 func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically bool) []string {
+	if len(patterns) == 0 {
+		return nil
+	}
 	// A map from normalized absolute paths to original paths. We need to return original paths to
 	// support allowlist files that depend on them.
 	var allJsInputs commandLineRunner_jsInputs
@@ -1968,14 +2022,18 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 		allJsInputs = commandLineRunner_linkedJsInputs{jutil.NewLinkedHashMap[string, string]()}
 	}
 	excludes := jutil.NewLinkedHashSet[string]()
+	var wd *jutil.Path
 	for _, pattern := range patterns {
 		if !strings.Contains(pattern, "*") && !strings.HasPrefix(pattern, "!") {
-			matchedFile := jutil.NewFile(pattern)
-			if matchedFile.IsDirectory() {
-				commandLineRunner_matchPaths(jutil.NewFileWithParent(matchedFile, "**.js").String(), allJsInputs, excludes)
+			if jutil.File_IsDirectoryPath(pattern) {
+				commandLineRunner_matchPaths(jutil.NewFileWithParent(jutil.NewFile(pattern), "**.js").String(), allJsInputs, excludes)
 			} else {
 				original := jutil.Path_Of(pattern)
-				pathStringAbsolute := original.Normalize().ToAbsolutePath().String()
+				norm := original.Normalize()
+				if !norm.IsAbsolute() && wd == nil {
+					wd = jutil.Path_WorkingDir()
+				}
+				pathStringAbsolute := norm.ToAbsolutePathWithWd(wd).String()
 				if !excludes.Contains(pathStringAbsolute) {
 					allJsInputs.Put(pathStringAbsolute, original.String())
 				}

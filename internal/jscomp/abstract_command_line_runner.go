@@ -275,6 +275,7 @@ const abstractCommandLineRunner_OUTPUT_MARKER_JS_STRING = "%output|jsstring%"
 // Java: AbstractCommandLineRunner(InputStream, PrintStream, PrintStream)
 func (r *AbstractCommandLineRunnerBase) InitAbstractCommandLineRunnerBase(
 	self AbstractCommandLineRunner, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) {
+	rhino.EnableNodePooling()
 	r.self = self
 	r.exitCodeReceiver = AbstractCommandLineRunner_SystemExitCodeReceiver_INSTANCE.Apply
 	r.config = NewAbstractCommandLineRunner_CommandLineConfig()
@@ -1242,6 +1243,11 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 		r.defaultJsOutput.Println(r.self.GetVersionText())
 		r.defaultJsOutput.Flush()
 		return 0
+	}
+
+	var arena rhino.NodeArena
+	if rhino.EnterNodeArena(&arena) {
+		defer rhino.ExitNodeArena(&arena)
 	}
 
 	Compiler_SetLoggingLevel(jutil.Level_Parse(config.loggingLevel))

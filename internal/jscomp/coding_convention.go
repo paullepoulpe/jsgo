@@ -23,6 +23,7 @@ package jscomp
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -391,19 +392,35 @@ type CodingConvention_SubclassRelationship struct {
 	superclassName string
 }
 
+type pooledSubclassRelSlab struct {
+	chunk []CodingConvention_SubclassRelationship
+}
+
+var subclassRelSlabPool = sync.Pool{
+	New: func() any { return &pooledSubclassRelSlab{} },
+}
+
 // Java: CodingConvention.SubclassRelationship(SubclassType, Node, Node)
 func NewCodingConvention_SubclassRelationship(
 	type_ CodingConvention_SubclassType, subclassNode *rhino.Node, superclassNode *rhino.Node) *CodingConvention_SubclassRelationship {
-	r := &CodingConvention_SubclassRelationship{}
-	jutil.CheckArgumentMsg1(
-		subclassNode.IsQualifiedName(), "Expected qualified name, found: %s", subclassNode)
-	jutil.CheckArgumentMsg1(
-		superclassNode.IsQualifiedName(), "Expected qualified name, found: %s", superclassNode)
+	subName, subOk := subclassNode.GetQualifiedNameString()
+	if !subOk {
+		jutil.CheckArgumentMsg1(false, "Expected qualified name, found: %s", subclassNode)
+	}
+	supName, supOk := superclassNode.GetQualifiedNameString()
+	if !supOk {
+		jutil.CheckArgumentMsg1(false, "Expected qualified name, found: %s", superclassNode)
+	}
+	s := subclassRelSlabPool.Get().(*pooledSubclassRelSlab)
+	if len(s.chunk) == 0 {
+		s.chunk = make([]CodingConvention_SubclassRelationship, 512) // 20 KiB <= 32 KiB
+	}
+	r := &s.chunk[0]
+	s.chunk = s.chunk[1:]
+	subclassRelSlabPool.Put(s)
 	r.type_ = type_
-	// Go-only: language-adapter — getQualifiedName() is non-null for a
-	// qualified name (checked above); the String fields hold its value.
-	r.subclassName = *subclassNode.GetQualifiedName()
-	r.superclassName = *superclassNode.GetQualifiedName()
+	r.subclassName = subName
+	r.superclassName = supName
 	return r
 }
 

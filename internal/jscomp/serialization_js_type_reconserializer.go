@@ -61,6 +61,8 @@ type JSTypeReconserializer struct {
 	scratchAltRecords   *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]
 	scratchAlternateIds *jutil.LinkedHashSet[colors.ColorId]
 	scratchInt32s       []int32
+	singleOwnPropFn     func(string)
+	multiOwnPropFn      func(string)
 
 	recordSlab   []JSTypeReconserializer_SeenTypeRecord
 	int32Slab    []int32
@@ -158,6 +160,8 @@ func newJSTypeReconserializer(
 	s.stringPoolBuilder = stringPoolBuilder
 	s.shouldPropagatePropertyName = shouldPropagatePropertyName
 	s.serializationMode = serializationMode
+	s.singleOwnPropFn = s.onSingleOwnProp
+	s.multiOwnPropFn = s.onMultiOwnProp
 
 	s.SeedCachesWithAxiomaticTypes()
 
@@ -166,9 +170,21 @@ func newJSTypeReconserializer(
 	return s
 }
 
+func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
+	if s.shouldPropagate(ownProperty) {
+		s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.Put(ownProperty)))
+	}
+}
+
+func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
+	if s.shouldPropagate(ownProperty) {
+		s.scratchOwnProps.Add(s.stringPoolBuilder.Put(ownProperty))
+	}
+}
+
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
 	if len(s.recordSlab) == 0 {
-		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 1024)
+		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 192) // 30 KiB <= 32 KiB
 	}
 	r := &s.recordSlab[0]
 	s.recordSlab = s.recordSlab[1:]
@@ -586,13 +602,9 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			isClosureAssert = JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
 		}
 
-		ownProps := s.scratchInt32s[:0]
-		objType.ForEachOwnPropertyName(func(ownProperty string) {
-			if s.shouldPropagate(ownProperty) {
-				ownProps = append(ownProps, int32(s.stringPoolBuilder.Put(ownProperty)))
-			}
-		})
-		s.scratchInt32s = ownProps
+		s.scratchInt32s = s.scratchInt32s[:0]
+		objType.ForEachOwnPropertyName(s.singleOwnPropFn)
+		ownProps := s.scratchInt32s
 
 		isInvalidating := s.invalidatingTypes.IsInvalidating(objType)
 		propertiesKeepOriginalName := objType.IsEnumType()
@@ -652,13 +664,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			isClosureAssert = isClosureAssert || JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
 		}
 
-		objType.ForEachOwnPropertyName(func(ownProperty string) {
-			// TODO(b/169899789): consider omitting common, well-known properties like "prototype" to
-			// save space.
-			if s.shouldPropagate(ownProperty) {
-				ownProperties.Add(s.stringPoolBuilder.Put(ownProperty))
-			}
-		})
+		objType.ForEachOwnPropertyName(s.multiOwnPropFn)
 
 		isInvalidating = isInvalidating || s.invalidatingTypes.IsInvalidating(objType)
 

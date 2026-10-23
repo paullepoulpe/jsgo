@@ -420,6 +420,13 @@ func jsDocSerializer_newStringTreeSet() *jutil.TreeSet[string] {
 	return jutil.NewTreeSet(jutil.StringCompareTo)
 }
 
+var (
+	jsDocSerializer_modifiesArguments        = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("arguments"))
+	jsDocSerializer_modifiesThis             = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("this"))
+	jsDocSerializer_modifiesArgumentsAndThis = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("arguments", "this"))
+	jsDocSerializer_throwsPlaceholder        = "{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}"
+)
+
 // JSDocSerializer_DeserializeJsdoc may return nil.
 //
 // Java: JSDocSerializer.deserializeJsdoc(OptimizationJsdoc, StringPool)
@@ -428,6 +435,19 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 		return nil
 	}
 	var builder rhino.JSDocInfo_Builder
+	builder.Reset()
+	return jsDocSerializer_deserializeJsdocWithBuilder(serializedJsdoc, stringPool, &builder)
+}
+
+func jsDocSerializer_deserializeJsdocWithBuilder(
+	serializedJsdoc *OptimizationJsdoc,
+	stringPool *StringPool,
+	builder *rhino.JSDocInfo_Builder,
+) *rhino.JSDocInfo {
+	if serializedJsdoc == nil || serializedJsdoc == OptimizationJsdoc_GetDefaultInstance() {
+		return nil
+	}
+	builder.Reset()
 
 	if serializedJsdoc.GetClosureUnawareModePointer() != 0 {
 		builder.RecordClosureUnawareCodeWithMode(
@@ -448,9 +468,12 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 			stringPool.Get(int(serializedJsdoc.GetAlternateMessageIdPointer())))
 	}
 
-	// lazily create these sets to save a few hundred ms for some large projects
-	var modifies *jutil.TreeSet[string]
-	var suppressions *jutil.TreeSet[string]
+	// Bitmasks avoid allocating TreeSets/LinkedHashSets on the deserialization hot path
+	// while preserving exact alphabetical TreeSet<String> order:
+	// modifies: bit 0 = "arguments", bit 1 = "this"
+	// suppressions: bit 0 = "messageConventions", bit 1 = "partialAlias", bit 2 = "untranspilableFeatures"
+	var modMask uint8
+	var suppMask uint8
 
 	for i := 0; i < serializedJsdoc.GetKindCount(); i++ {
 		tag := serializedJsdoc.GetKind(i)
@@ -498,19 +521,13 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 			builder.RecordNoSideEffects()
 			continue
 		case JsdocTag_JSDOC_MODIFIES_THIS:
-			if modifies == nil {
-				modifies = jsDocSerializer_newStringTreeSet()
-			}
-			modifies.Add("this")
+			modMask |= 2
 			continue
 		case JsdocTag_JSDOC_MODIFIES_ARGUMENTS:
-			if modifies == nil {
-				modifies = jsDocSerializer_newStringTreeSet()
-			}
-			modifies.Add("arguments")
+			modMask |= 1
 			continue
 		case JsdocTag_JSDOC_THROWS:
-			builder.RecordThrowsAnnotation("{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}")
+			builder.RecordThrowsAnnotation(jsDocSerializer_throwsPlaceholder)
 			continue
 		case JsdocTag_JSDOC_CONSTRUCTOR:
 			builder.RecordConstructor()
@@ -519,10 +536,7 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 			builder.RecordInterface()
 			continue
 		case JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS:
-			if suppressions == nil {
-				suppressions = jsDocSerializer_newStringTreeSet()
-			}
-			suppressions.Add("partialAlias")
+			suppMask |= 2
 			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_CONSISTENT:
 			builder.RecordConsistentIdGenerator()
@@ -545,20 +559,14 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 			// TODO(lharker): stage 2 passes ideally shouldn't report diagnostics, so this could be
 			// moved to stage 1.
 		case JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION:
-			if suppressions == nil {
-				suppressions = jsDocSerializer_newStringTreeSet()
-			}
-			suppressions.Add("messageConventions")
+			suppMask |= 1
 			continue
 			// ReportUntranspilableFeatures pass will run in stage2 since it uses languageOut
 			// information. It reports diagnostic {@code UNTRANSPILABLE_FEATURE_PRESENT} that can be
 			// supppressed using `untranspilableFeatures` suppression tag.
 			// Hence we must propagate it.
 		case JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES:
-			if suppressions == nil {
-				suppressions = jsDocSerializer_newStringTreeSet()
-			}
-			suppressions.Add("untranspilableFeatures")
+			suppMask |= 4
 			continue
 		case JsdocTag_JSDOC_FILEOVERVIEW:
 			builder.RecordFileOverview("")
@@ -577,11 +585,27 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 				"Unsupported JSDoc tag can't be deserialized: " + tag.String()))
 		}
 	}
-	if modifies != nil {
-		builder.RecordModifies(jutil.NewLinkedHashSet(modifies.ToSlice()...))
+	switch modMask {
+	case 1:
+		builder.RecordModifies(jsDocSerializer_modifiesArguments)
+	case 2:
+		builder.RecordModifies(jsDocSerializer_modifiesThis)
+	case 3:
+		builder.RecordModifies(jsDocSerializer_modifiesArgumentsAndThis)
 	}
-	if suppressions != nil {
-		builder.RecordSuppressions(jutil.NewLinkedHashSet(suppressions.ToSlice()...))
+	if suppMask != 0 {
+		var suppBuf [3]string
+		suppSlice := suppBuf[:0]
+		if (suppMask & 1) != 0 {
+			suppSlice = append(suppSlice, "messageConventions")
+		}
+		if (suppMask & 2) != 0 {
+			suppSlice = append(suppSlice, "partialAlias")
+		}
+		if (suppMask & 4) != 0 {
+			suppSlice = append(suppSlice, "untranspilableFeatures")
+		}
+		builder.RecordSuppressionSliceWithDescription(suppSlice, "")
 	}
 
 	return builder.Build()

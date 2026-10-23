@@ -474,7 +474,7 @@ func (r *JSTypeRegistry) allocProperty() *Property {
 
 func (r *JSTypeRegistry) allocNodeExtBox() *nodeExtBox {
 	if r == nil {
-		return &nodeExtBox{}
+		return allocPooledNodeExtBox()
 	}
 	if len(r.nodeExtBoxSlab) == 0 {
 		r.nodeExtBoxSlab = make([]nodeExtBox, 1024) // 32 KiB

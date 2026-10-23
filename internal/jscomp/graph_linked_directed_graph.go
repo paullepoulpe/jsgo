@@ -297,7 +297,7 @@ func (g *LinkedDirectedGraph[N, E]) allocNode(nodeValue N) *LinkedDirectedGraph_
 		if g.nodeChunkIdx < len(g.nodeChunks) {
 			g.nodeSlab = g.nodeChunks[g.nodeChunkIdx][:0]
 		} else {
-			nextCap := min(max(cap(g.nodeSlab)*2, 16), 256)
+			nextCap := min(max(cap(g.nodeSlab)*2, 16), 128)
 			g.nodeSlab = make([]LinkedDirectedGraph_LinkedDiGraphNode[N, E], 0, nextCap)
 			g.nodeChunks = append(g.nodeChunks, g.nodeSlab)
 		}
@@ -851,7 +851,7 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 	// Go-only: performance — the lists and their capacity-1 arrays are held
 	// in the node (ArrayList.InitWithBuffer): one allocation per graph node
 	// instead of five, and scalar fields sit at the tail to minimize GC ptrdata.
-	inEdgeBuffer, outEdgeBuffer [1]DiGraph_DiGraphEdge[N, E]
+	inEdgeBuffer, outEdgeBuffer [2]DiGraph_DiGraphEdge[N, E]
 
 	// AnnotatedLinkedDiGraphNode
 	annotation Annotation

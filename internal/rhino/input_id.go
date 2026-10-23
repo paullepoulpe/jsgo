@@ -34,7 +34,11 @@
 
 package rhino
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"sync"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // InputId is an id used uniquely identify a CompilerInput.
 type InputId struct {
@@ -42,12 +46,33 @@ type InputId struct {
 	hash int32
 }
 
+type pooledInputIdSlab struct {
+	chunk []InputId
+}
+
+var inputIdSlabPool = sync.Pool{
+	New: func() any { return &pooledInputIdSlab{} },
+}
+
 // Java: InputId.serialVersionUID
 const InputId_serialVersionUID int64 = 1
 
 // Java: InputId(String)
 func NewInputId(id string) *InputId {
-	return &InputId{id: id, hash: jutil.StringHashCode(id)}
+	h := jutil.StringHashCode(id)
+	if !nodePoolingEnabled.Load() {
+		return &InputId{id: id, hash: h}
+	}
+	s := inputIdSlabPool.Get().(*pooledInputIdSlab)
+	if len(s.chunk) == 0 {
+		s.chunk = make([]InputId, 1024) // 24 KiB <= 32 KiB
+	}
+	out := &s.chunk[0]
+	s.chunk = s.chunk[1:]
+	inputIdSlabPool.Put(s)
+	out.id = id
+	out.hash = h
+	return out
 }
 
 // Java: InputId.getIdName()

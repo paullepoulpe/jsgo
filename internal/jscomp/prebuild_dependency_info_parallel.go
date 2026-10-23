@@ -117,25 +117,17 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		seen[input.sourceFile] = true
 	}
 	if !JsFileRegexParser_IsSupported() || !compiler.PreferRegexParser() {
-		type dependencyPath struct {
-			original     *ModuleLoader_ModulePath
-			private      ModuleLoader_ModulePath
-			errors       []prebuildDependencyDiagnostic
-			moduleErrors prebuildDependencyModuleErrors
-		}
-		paths := make([]dependencyPath, len(inputs))
+		origPaths := make([]*ModuleLoader_ModulePath, len(inputs))
+		var baseLoader *ModuleLoader
 		for i, input := range inputs {
-			path := &paths[i]
-			path.original = input.GetPath()
-			path.moduleErrors = prebuildDependencyModuleErrors{
-				target: path.original.outer.GetErrorHandler(), events: &path.errors,
+			orig := input.GetPath()
+			origPaths[i] = orig
+			if orig.outer != baseLoader {
+				if prebuildCloneModuleLoader(orig.outer, nil) == nil {
+					return false
+				}
+				baseLoader = orig.outer
 			}
-			loader := prebuildCloneModuleLoader(path.original.outer, &path.moduleErrors)
-			if loader == nil {
-				return false
-			}
-			path.private = *path.original
-			path.private.outer = loader
 		}
 		// Parsing has shared compiler side effects, so first publish independent
 		// AST parses in order. Dependency tree walks then touch only their own
@@ -143,16 +135,47 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		if !NewPrebuildAst(compiler, p.numParallelThreads).prebuildParallel(inputs) {
 			return false
 		}
-		failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(i int) {
-			input := inputs[i]
-			input.modulePath = &paths[i].private
-			defer func() { input.modulePath = paths[i].original }()
-			inputs[i].GetDependencyInfo()
+		errorsByInput := make([][]prebuildDependencyDiagnostic, len(inputs))
+		failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+			var workerEvents []prebuildDependencyDiagnostic
+			var workerModuleErrors prebuildDependencyModuleErrors
+			workerModuleErrors.events = &workerEvents
+			var cachedSource *ModuleLoader
+			var workerLoader *ModuleLoader
+			var privatePath ModuleLoader_ModulePath
+			for {
+				i, ok := claim()
+				if !ok {
+					return
+				}
+				jutil.Try(func() {
+					input := inputs[i]
+					orig := origPaths[i]
+					workerEvents = nil
+					workerModuleErrors.target = orig.outer.GetErrorHandler()
+					if orig.outer != cachedSource {
+						cachedSource = orig.outer
+						workerLoader = prebuildCloneModuleLoader(orig.outer, &workerModuleErrors)
+					}
+					privatePath = *orig
+					privatePath.outer = workerLoader
+					input.modulePath = &privatePath
+					defer func() {
+						input.modulePath = orig
+						if len(workerEvents) > 0 {
+							errorsByInput[i] = workerEvents
+						}
+					}()
+					input.GetDependencyInfo()
+				}, func(t jutil.Throwable) {
+					recordFailure(i, t)
+				})
+			}
 		})
 		var failure jutil.Throwable
 		for i := range inputs {
 			jutil.Try(func() {
-				for _, diagnostic := range paths[i].errors {
+				for _, diagnostic := range errorsByInput[i] {
 					diagnostic.target.Report(diagnostic.level, diagnostic.error)
 				}
 				if failures[i] != nil {

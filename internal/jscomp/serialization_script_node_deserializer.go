@@ -80,6 +80,8 @@ func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
 // DeserializeNewWithSlab deserializes the script into rhino.Nodes allocated from slab (when non-nil).
 func (d *ScriptNodeDeserializer) DeserializeNewWithSlab(slab *jutil.Slab[rhino.Node]) *rhino.Node {
 	r := scriptNodeDeserializerRunnerPool.Get().(*scriptNodeDeserializer_Runner)
+	jsdocSlabs := rhino.AcquireJSDocBuilderSlabs()
+	r.jsdocBuilder.SetSlabs(jsdocSlabs)
 	r.owner_ = d
 	r.featureCollectorVal.Reset()
 	r.featureCollector = &r.featureCollectorVal
@@ -96,6 +98,8 @@ func (d *ScriptNodeDeserializer) DeserializeNewWithSlab(slab *jutil.Slab[rhino.N
 		clear(r.childBytes)
 		r.childBytes = r.childBytes[:0]
 		r.jsdoc = OptimizationJsdoc{}
+		r.jsdocBuilder.SetSlabs(nil)
+		rhino.ReleaseJSDocBuilderSlabs(jsdocSlabs)
 		scriptNodeDeserializerRunnerPool.Put(r)
 	}()
 	return r.Run()
@@ -115,10 +119,17 @@ type scriptNodeDeserializer_Runner struct {
 	contextStack        *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
 	jsdoc               OptimizationJsdoc
 	jsdocKindBuf        [16]int32
+	jsdocBuilder        rhino.JSDocInfo_Builder
 }
 
 func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNodeDeserializer_Runner {
-	return &scriptNodeDeserializer_Runner{owner_: owner, featureCollector: parsing.NewFeatureCollector()}
+	jsdocSlabs := rhino.NewJSDocBuilderSlabs()
+	r := &scriptNodeDeserializer_Runner{
+		owner_:           owner,
+		featureCollector: parsing.NewFeatureCollector(),
+	}
+	r.jsdocBuilder.SetSlabs(&jsdocSlabs)
+	return r
 }
 
 func (r *scriptNodeDeserializer_Runner) allocNode() *rhino.Node {
@@ -269,7 +280,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 			owner.FilterOutCastProp(booleanProperties), sourceFileTemplate.GetIsInClosureUnawareSubtree())
 	}
 	if hasJsdoc {
-		n.SetJSDocInfo(JSDocSerializer_DeserializeJsdoc(&r.jsdoc, owner.stringPool))
+		n.SetJSDocInfo(jsDocSerializer_deserializeJsdocWithBuilder(&r.jsdoc, owner.stringPool, &r.jsdocBuilder))
 	}
 	n.SetLinenoCharno(currentLine, currentColumn)
 	r.previousLine = currentLine
@@ -677,7 +688,7 @@ func (r *scriptNodeDeserializer_Runner) Visit(
 		n.DeserializeProperties(
 			r.Owner().FilterOutCastProp(properties), sourceFileTemplate.GetIsInClosureUnawareSubtree())
 	}
-	n.SetJSDocInfo(JSDocSerializer_DeserializeJsdoc(astNode.GetJsdoc(), r.Owner().stringPool))
+	n.SetJSDocInfo(jsDocSerializer_deserializeJsdocWithBuilder(astNode.GetJsdoc(), r.Owner().stringPool, &r.jsdocBuilder))
 	n.SetLinenoCharno(currentLine, currentColumn)
 	r.previousLine = currentLine
 	r.previousColumn = currentColumn

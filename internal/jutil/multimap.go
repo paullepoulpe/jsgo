@@ -41,6 +41,20 @@ func (mm *SetMultimap[K, V]) Put(k K, v V) bool {
 	return false
 }
 
+// PutWithSetAlloc is Put using allocSet to construct the value set when k is new.
+func (mm *SetMultimap[K, V]) PutWithSetAlloc(k K, v V, allocSet func() *ObjectLinkedHashSet[V]) bool {
+	vs := mm.m.Get(k)
+	if vs == nil {
+		vs = allocSet()
+		mm.m.Put(k, vs)
+	}
+	if vs.Add(v) {
+		mm.size++
+		return true
+	}
+	return false
+}
+
 // Get is SetMultimap.get: the values for k (an empty set when absent).
 // Callers must not mutate the returned set.
 func (mm *SetMultimap[K, V]) Get(k K) *ObjectLinkedHashSet[V] {
@@ -48,6 +62,15 @@ func (mm *SetMultimap[K, V]) Get(k K) *ObjectLinkedHashSet[V] {
 		return vs
 	}
 	return NewObjectLinkedHashSet[V]()
+}
+
+// GetOrEmpty returns the values for k, or empty when k is absent.
+// Callers must not mutate the returned set.
+func (mm *SetMultimap[K, V]) GetOrEmpty(k K, empty *ObjectLinkedHashSet[V]) *ObjectLinkedHashSet[V] {
+	if vs := mm.m.Get(k); vs != nil {
+		return vs
+	}
+	return empty
 }
 
 // ContainsKey is Multimap.containsKey.

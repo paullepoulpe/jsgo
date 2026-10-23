@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -89,6 +90,7 @@ type TypedScopeCreator struct {
 
 	arena      typedScopeArena
 	scopeCount int
+	strSlab    []byte
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
 	functionsWithNonEmptyReturns map[*rhino.Node]struct{}
@@ -1305,6 +1307,22 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineObjectLiteral(objectL
 		objectLit, rhino.ObjectType_Cast(objectLit.GetJSType()), !createEnumType)
 }
 
+func (c *TypedScopeCreator) concatDot(a, b string) string {
+	n := len(a) + 1 + len(b)
+	if n > 2048 {
+		return a + "." + b
+	}
+	if len(c.strSlab) < n {
+		c.strSlab = make([]byte, 32768) // 32 KiB noscan
+	}
+	buf := c.strSlab[:n:n]
+	c.strSlab = c.strSlab[n:]
+	copy(buf, a)
+	buf[len(a)] = '.'
+	copy(buf[len(a)+1:], b)
+	return unsafe.String(&buf[0], n)
+}
+
 // ProcessObjectLitProperties processes an object literal and all the types
 // on it.
 //
@@ -1344,7 +1362,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 			keyName := NodeUtil_GetObjectOrClassLitKeyName(keyNode)
 			memberName = rhino.NewProperty_StringKey(keyName)
 			if hasObjOwnerName && rhino.TokenStream_IsJSIdentifier(keyName) {
-				qualifiedName = objOwnerName + "." + keyName
+				qualifiedName = b.outer.concatDot(objOwnerName, keyName)
 				hasQualifiedName = true
 			}
 		}

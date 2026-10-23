@@ -38,7 +38,8 @@ type CompilerInput struct {
 	sourceFile *SourceFile
 
 	// The lazily constructed AST.
-	ast *CompilerInput_JsAst
+	ast       *CompilerInput_JsAst
+	inlineAst CompilerInput_JsAst
 
 	// DependencyInfo to delegate to.
 	dependencyInfo  DependencyInfo
@@ -103,20 +104,26 @@ func NewCompilerInputWithStringIdAndIsExtern(sourceFile *SourceFile, inputId str
 	return NewCompilerInputWithInputIdAndIsExtern(sourceFile, rhino.NewInputId(inputId), isExtern)
 }
 
+var (
+	compilerInputEmptyRequires = []*DependencyInfo_Require{}
+	compilerInputEmptyStrings  = []string{}
+)
+
 // Deprecated: the inputId is read from the SourceFile. Use
 // NewCompilerInputWithIsExtern(file, isExtern)
 //
 // Java: CompilerInput(SourceFile, InputId, boolean)
 func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
 	c := &CompilerInput{
-		extraRequires:         []*DependencyInfo_Require{},
-		extraProvides:         []string{},
-		orderedRequires:       []*DependencyInfo_Require{},
-		dynamicRequires:       []string{},
-		requireDynamicImports: []string{},
+		extraRequires:         compilerInputEmptyRequires,
+		extraProvides:         compilerInputEmptyStrings,
+		orderedRequires:       compilerInputEmptyRequires,
+		dynamicRequires:       compilerInputEmptyStrings,
+		requireDynamicImports: compilerInputEmptyStrings,
 		jsModuleType:          CompilerInput_ModuleType_NONE,
 	}
-	c.ast = newCompilerInput_JsAst(c)
+	c.inlineAst.outer = c
+	c.ast = &c.inlineAst
 	c.sourceFile = jutil.CheckNotNull(sourceFile)
 	c.id = jutil.CheckNotNull(inputId)
 	if isExtern {

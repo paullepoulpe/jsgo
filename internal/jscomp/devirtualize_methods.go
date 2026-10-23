@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"sync"
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -586,9 +589,37 @@ func (d *DevirtualizeMethods) ChunkForNode(node *rhino.Node) *JSChunk {
 	return input.GetChunk()
 }
 
+type devirtStrSlab struct {
+	buf []byte
+}
+
+var devirtStrSlabPool = sync.Pool{
+	New: func() any { return &devirtStrSlab{} },
+}
+
+func allocPooledStringConcat2(prefix, suffix string) string {
+	n := len(prefix) + len(suffix)
+	if n == 0 {
+		return ""
+	}
+	if n > 2048 {
+		return prefix + suffix
+	}
+	s := devirtStrSlabPool.Get().(*devirtStrSlab)
+	if len(s.buf) < n {
+		s.buf = make([]byte, 32768) // 32 KiB noscan
+	}
+	b := s.buf[:n:n]
+	s.buf = s.buf[n:]
+	devirtStrSlabPool.Put(s)
+	copy(b, prefix)
+	copy(b[len(prefix):], suffix)
+	return unsafe.String(&b[0], n)
+}
+
 // Java: DevirtualizeMethods.rewrittenMethodNameOf(String)
 func DevirtualizeMethods_RewrittenMethodNameOf(originalMethodName string) string {
-	return "JSCompiler_StaticMethods_" + originalMethodName
+	return allocPooledStringConcat2("JSCompiler_StaticMethods_", originalMethodName)
 }
 
 // DevirtualizeMethods_IsScopingOrBranchingConstruct returns true iff a node

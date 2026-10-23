@@ -265,6 +265,7 @@ type Compiler struct {
 	asErrorHandler      *compiler_errorHandler
 	asSourceFileMapping *compiler_sourceFileMapping
 	cachedAstAnalyzer   *AstAnalyzer
+	nodeArena           rhino.NodeArena
 
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods and blocks hold.
@@ -427,6 +428,7 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
+	rhino.EnableNodePooling()
 	c := &Compiler{}
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
@@ -1358,6 +1360,9 @@ func (c *Compiler) SetTimeout(timeout int) {
 //
 // Java: Compiler.runInCompilerThread(Callable<T>)
 func Compiler_RunInCompilerThread[T any](c *Compiler, callable func() T) T {
+	if rhino.EnterNodeArena(&c.nodeArena) {
+		defer rhino.ExitNodeArena(&c.nodeArena)
+	}
 	return CompilerExecutor_RunInCompilerThread(
 		c.compilerExecutor, callable, c.options != nil && c.options.GetTracerMode().IsOn())
 }

@@ -43,6 +43,7 @@ import (
 	"math"
 	"math/big"
 	"math/bits"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -600,6 +601,138 @@ type nodeExtBox struct {
 	propListHead   *Node_PropListItem // remaining cold properties
 }
 
+const numNodeArenaSlots = 64
+
+type nodeArenaSlot struct {
+	jsdocSlabs *JSDocBuilderSlabs
+	_          [56]byte // cache-line isolation
+}
+
+// NodeArena holds per-compilation P-sharded JSDoc builder slabs. Scoping slabs
+// to a single compilation prevents cross-compilation pinning in long-lived
+// multi-compilation processes, while avoiding cross-subtree AST Node slab sharing
+// so dead-code elimination can collect detached subtrees immediately.
+type NodeArena struct {
+	slot0 nodeArenaSlot
+	more  atomic.Pointer[[numNodeArenaSlots - 1]nodeArenaSlot]
+}
+
+func (a *NodeArena) slotAt(idx int) *nodeArenaSlot {
+	if idx == 0 {
+		return &a.slot0
+	}
+	m := a.more.Load()
+	if m == nil {
+		allocated := new([numNodeArenaSlots - 1]nodeArenaSlot)
+		if a.more.CompareAndSwap(nil, allocated) {
+			m = allocated
+		} else {
+			m = a.more.Load()
+		}
+	}
+	return &m[idx-1]
+}
+
+type procToken struct {
+	slot int
+}
+
+var (
+	nodePoolingEnabled atomic.Bool
+	freeNodeArenaSlots atomic.Uint64
+	activeNodeArena    atomic.Pointer[NodeArena]
+
+	procTokenPool = sync.Pool{
+		New: func() any {
+			for {
+				avail := freeNodeArenaSlots.Load()
+				if avail == 0 {
+					return &procToken{slot: -1}
+				}
+				slot := bits.TrailingZeros64(avail)
+				if freeNodeArenaSlots.CompareAndSwap(avail, avail&^(uint64(1)<<uint(slot))) {
+					tok := &procToken{slot: slot}
+					runtime.SetFinalizer(tok, releaseProcTokenSlot)
+					return tok
+				}
+			}
+		},
+	}
+)
+
+func init() {
+	freeNodeArenaSlots.Store(^uint64(0))
+}
+
+func releaseProcTokenSlot(tok *procToken) {
+	if tok.slot >= 0 {
+		mask := uint64(1) << uint(tok.slot)
+		for {
+			cur := freeNodeArenaSlots.Load()
+			if freeNodeArenaSlots.CompareAndSwap(cur, cur|mask) {
+				return
+			}
+		}
+	}
+}
+
+// EnterNodeArena activates a per-compilation NodeArena if none is currently active.
+func EnterNodeArena(a *NodeArena) bool {
+	return activeNodeArena.CompareAndSwap(nil, a)
+}
+
+// ExitNodeArena deactivates a previously entered NodeArena.
+func ExitNodeArena(a *NodeArena) {
+	activeNodeArena.CompareAndSwap(a, nil)
+}
+
+// AcquireJSDocBuilderSlabs checks out a JSDocBuilderSlabs from the active NodeArena
+// (or allocates a fresh one if outside a NodeArena).
+func AcquireJSDocBuilderSlabs() *JSDocBuilderSlabs {
+	if arena := activeNodeArena.Load(); arena != nil {
+		tok := procTokenPool.Get().(*procToken)
+		if tok.slot >= 0 {
+			slot := arena.slotAt(tok.slot)
+			slabs := slot.jsdocSlabs
+			slot.jsdocSlabs = nil
+			procTokenPool.Put(tok)
+			if slabs != nil {
+				return slabs
+			}
+		}
+	}
+	s := NewJSDocBuilderSlabs()
+	return &s
+}
+
+// ReleaseJSDocBuilderSlabs returns a JSDocBuilderSlabs to the active NodeArena
+// (dropping it when outside a NodeArena so cross-compilation AST refs are never retained).
+func ReleaseJSDocBuilderSlabs(slabs *JSDocBuilderSlabs) {
+	if slabs == nil {
+		return
+	}
+	if arena := activeNodeArena.Load(); arena != nil {
+		tok := procTokenPool.Get().(*procToken)
+		if tok.slot >= 0 {
+			slot := arena.slotAt(tok.slot)
+			if slot.jsdocSlabs == nil {
+				slot.jsdocSlabs = slabs
+			}
+			procTokenPool.Put(tok)
+		}
+	}
+}
+
+// EnableNodePooling enables P-local slab pooling for InputId allocations
+// (called once package init completes).
+func EnableNodePooling() {
+	nodePoolingEnabled.Store(true)
+}
+
+func allocPooledNodeExtBox() *nodeExtBox {
+	return &nodeExtBox{}
+}
+
 var (
 	sourceFilePropMu        sync.Mutex
 	sourceFilePropCount     atomic.Uint32
@@ -992,9 +1125,12 @@ func NewNode_ObjectPropListItem(propType int8, objectValue any, next *Node_PropL
 
 // Java: Node.IntPropListItem(byte, int, PropListItem)
 func NewNode_IntPropListItem(propType int8, intValue int32, next *Node_PropListItem) *Node_PropListItem {
-	item := &Node_PropListItem{propType: propType, next: next, intValue: intValue}
-	jutil.CheckState(item.intValue != 0)
-	return item
+	jutil.CheckState(intValue != 0)
+	return &Node_PropListItem{
+		propType: propType,
+		next:     next,
+		intValue: intValue,
+	}
 }
 
 // Java: Node.PropListItem.getIntValue()
@@ -4614,9 +4750,9 @@ func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
 //
 // Java: Node.cloneNode(boolean)
 func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
-	var clone Node
-	cloneNodeInto(&clone, n, cloneTypeExprs)
-	return &clone
+	clone := &Node{}
+	cloneNodeInto(clone, n, cloneTypeExprs)
+	return clone
 }
 
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
@@ -4625,8 +4761,9 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	if (source.kindFlags & kindFlagHasExtBox) != 0 {
 		srcBox := (*nodeExtBox)(source.typeOrColor)
 		srcBox.propListHead.markShared()
-		boxCopy := *srcBox
-		dest.typeOrColor = unsafe.Pointer(&boxCopy)
+		boxCopy := allocPooledNodeExtBox()
+		*boxCopy = *srcBox
+		dest.typeOrColor = unsafe.Pointer(boxCopy)
 	} else {
 		dest.typeOrColor = source.typeOrColor
 	}
