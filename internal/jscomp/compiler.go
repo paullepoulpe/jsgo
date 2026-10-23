@@ -105,6 +105,9 @@ type Compiler struct {
 
 	scriptNodeByFilename *jutil.LinkedHashMap[string, *rhino.Node]
 
+	// Go-only: AST compaction state (compiler_compact.go).
+	astCompact astCompaction
+
 	inputPathByWebpackId *jutil.LinkedHashMap[string, string]
 
 	transpilationNamespace rhino.StaticScope
@@ -535,6 +538,7 @@ func (c *Compiler) initExperimentalOutputFeatureSetOptions(options *CompilerOpti
 // Java: Compiler.initOptions(CompilerOptions)
 func (c *Compiler) InitOptions(options *CompilerOptions) {
 	c.options = options
+	c.initASTCompaction()
 	c.allowableFeatures = options.GetLanguageIn().ToFeatureSet()
 	c.initExperimentalOutputFeatureSetOptions(options)
 	if c.errorManager == nil {
@@ -4019,7 +4023,10 @@ func (c *Compiler) PerformTranspilationAndOptimizations(segmentOfCompilationToRu
 
 	c.phaseOptimizer = c.createPhaseOptimizer()
 	c.phaseOptimizer.Consume(optimizationPassesToRunInCurrentSegment)
+	c.astCompact.allowed = true
 	c.phaseOptimizer.Process(c.externsRoot, c.jsRoot)
+	c.maybeCompactAST("end of optimizations", nil, nil, nil)
+	c.astCompact.allowed = false
 	c.phaseOptimizer = nil
 }
 

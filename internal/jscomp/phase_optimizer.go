@@ -206,6 +206,13 @@ func (p *PhaseOptimizer) Process(externs *rhino.Node, root *rhino.Node) {
 		if p.HasHaltingErrors() {
 			return
 		}
+		if c, ok := p.compiler.(*Compiler); ok {
+			name := ""
+			if np, ok := pass.(*PhaseOptimizer_NamedPass); ok {
+				name = np.name
+			}
+			c.maybeCompactAST(name, &externs, &root, nil)
+		}
 	}
 }
 
@@ -521,6 +528,17 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 					}
 				}
 			}
+		}
+		if c, ok := p.compiler.(*Compiler); ok {
+			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(*rhino.Node) *rhino.Node) {
+				if scriptSizes != nil {
+					sizes := make(map[*rhino.Node]int, len(scriptSizes))
+					for script, sz := range scriptSizes {
+						sizes[fwd(script)] = sz
+					}
+					scriptSizes = sizes
+				}
+			})
 		}
 		if state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER {
 			if lastIterMadeChanges && l.IsAstSufficientlyChanging(previousAstSize, astSize) {
