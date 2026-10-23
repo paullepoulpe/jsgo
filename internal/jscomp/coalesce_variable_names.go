@@ -587,73 +587,6 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 	return interferenceGraph
 }
 
-func coalesceResetInterferenceGraph(g *LinkedUndirectedGraph[*Var, any]) {
-	if !g.nodes.HasBacking() {
-		g.useNodeAnnotations = true
-		g.useEdgeAnnotations = true
-		g.nodes.InitWithBuffer(g.nodeSlots[:])
-		g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-		g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
-		g.InitUndiGraphBase(g)
-		return
-	}
-	g.nodes.Clear()
-	for i := range g.nodeSlab {
-		g.nodeSlab[i].value = nil
-		g.nodeSlab[i].annotation = nil
-		g.nodeSlab[i].neighborEdges.Clear()
-	}
-	g.nodeSlab = g.nodeSlab[:0]
-	clear(g.edgeSlab)
-	g.edgeSlab = g.edgeSlab[:0]
-}
-
-func coalesceCreateInterferenceNode(
-	g *LinkedUndirectedGraph[*Var, any], nodeValue *Var,
-) *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any] {
-	if n := g.nodes.Get(nodeValue); n != nil {
-		return n
-	}
-	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 16), 256)
-		g.nodeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], 0, nextCap)
-	}
-	idx := len(g.nodeSlab)
-	g.nodeSlab = g.nodeSlab[:idx+1]
-	n := &g.nodeSlab[idx]
-	n.value = nodeValue
-	n.annotated = true
-	n.annotation = nil
-	if cap(n.neighborEdges.Slice()) == 0 {
-		n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
-	} else {
-		n.neighborEdges.Clear()
-	}
-	g.nodes.PutNew(nodeValue, n)
-	return n
-}
-
-func coalesceConnectInterferenceNodes(
-	g *LinkedUndirectedGraph[*Var, any],
-	src *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
-	dest *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
-) {
-	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 16), 8192)
-		g.edgeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphEdge[*Var, any], 0, nextCap)
-	}
-	idx := len(g.edgeSlab)
-	g.edgeSlab = g.edgeSlab[:idx+1]
-	e := &g.edgeSlab[idx]
-	e.nodeA = src
-	e.nodeB = dest
-	e.value = nil
-	e.annotated = true
-	e.annotation = nil
-	src.neighborEdges.Add(e)
-	dest.neighborEdges.Add(e)
-}
-
 func coalesceCompareNodesByDegreeDesc(
 	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
 ) int {
@@ -725,7 +658,8 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	interferenceGraph *LinkedUndirectedGraph[*Var, any],
 ) {
-	coalesceResetInterferenceGraph(interferenceGraph)
+	interferenceGraph.clearForReuse()
+	interferenceGraph.init(true, true) // LinkedUndirectedGraph.create()
 
 	// First create a node for each non-escaped variable. We add these nodes in the order in which
 	// they appear in the code because we want the names that appear earlier in the code to be used
@@ -779,7 +713,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			continue
 		}
 
-		graphNodes[vIndex] = coalesceCreateInterferenceNode(interferenceGraph, v)
+		graphNodes[vIndex] = interferenceGraph.createLinkedNode(v)
 	}
 
 	var assignToBuf [8]int
@@ -838,7 +772,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			if (v1IsParam && orderedVariables[v2Index].IsParam()) || bits1.Get(v2Index) {
 				// Add an edge between variable pairs that are both parameters
 				// because we don't want parameters to share a name.
-				coalesceConnectInterferenceNodes(interferenceGraph, node1, node2)
+				interferenceGraph.connectLinkedNodes(node1, nil, node2)
 			}
 		}
 	}

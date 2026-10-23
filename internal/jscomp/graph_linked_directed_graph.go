@@ -43,77 +43,12 @@ type LinkedDirectedGraph[N comparable, E any] struct {
 
 	nodes jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
 
-	// Go-only: performance — nodes and edges are carved out of chunked slabs
-	// (one allocation per chunk instead of one per object), which a reused
-	// CFG rewinds instead of reallocating (see ReusableCfg).
-	nodeSlab graphSlab[LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
-	edgeSlab graphSlab[LinkedDirectedGraph_LinkedDiGraphEdge[N, E]]
+	// Go-only: performance — see reuseSlab.
+	nodeSlab reuseSlab[LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
+	edgeSlab reuseSlab[LinkedDirectedGraph_LinkedDiGraphEdge[N, E]]
 
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
-}
-
-// graphSlab hands out pointers to Ts that stay valid until reset: zeroed
-// ones, or ones that reset recycled. Chunks double in size from
-// graphSlabMinChunk elements up to graphSlabMaxChunk, each rounded up to its
-// allocation size class.
-//
-// Go-only: performance — see LinkedDirectedGraph.
-type graphSlab[T any] struct {
-	chunks [][]T // chunks[:cur] are full; chunks[cur][:used] is in use
-	cur    int
-	used   int
-}
-
-const (
-	graphSlabMinChunk = 8
-	graphSlabMaxChunk = 256
-	// A reset slab keeps at most this many chunks (about 500 elements).
-	graphSlabKeepChunks = 6
-)
-
-func (s *graphSlab[T]) alloc() *T {
-	if s.cur < len(s.chunks) && s.used == len(s.chunks[s.cur]) {
-		s.cur++
-		s.used = 0
-	}
-	if s.cur == len(s.chunks) {
-		n := graphSlabMinChunk
-		if s.cur > 0 {
-			n = min(2*len(s.chunks[s.cur-1]), graphSlabMaxChunk)
-		}
-		chunk := slices.Grow([]T(nil), n)
-		s.chunks = append(s.chunks, chunk[:cap(chunk)])
-	}
-	p := &s.chunks[s.cur][s.used]
-	s.used++
-	return p
-}
-
-// reset makes s hand out its elements again from the start, after zeroing
-// those that alloc handed out (so that they do not keep the old graph alive),
-// or after calling recycle on them when it is non-nil. It drops all but the
-// first graphSlabKeepChunks chunks.
-func (s *graphSlab[T]) reset(recycle func(*T)) {
-	for i := 0; i <= s.cur && i < len(s.chunks); i++ {
-		used := s.chunks[i]
-		if i == s.cur {
-			used = used[:s.used]
-		}
-		if recycle == nil {
-			clear(used)
-			continue
-		}
-		for j := range used {
-			recycle(&used[j])
-		}
-	}
-	if len(s.chunks) > graphSlabKeepChunks {
-		clear(s.chunks[graphSlabKeepChunks:])
-		s.chunks = s.chunks[:graphSlabKeepChunks]
-	}
-	s.cur = 0
-	s.used = 0
 }
 
 type linkedDirectedSubGraph[N comparable, E any] struct {

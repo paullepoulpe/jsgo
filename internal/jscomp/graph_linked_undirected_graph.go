@@ -36,13 +36,11 @@ import (
 type LinkedUndirectedGraph[N comparable, E any] struct {
 	UndiGraphBase[N, E]
 
-	nodes     jutil.LinkedHashMap[N, *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]
-	nodeSlots [8]jutil.LhmSlot[N, *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]
+	nodes jutil.LinkedHashMap[N, *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]
 
-	nodeSlab []LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]
-	edgeSlab []LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E]
-	nodeBuf  [4]LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]
-	edgeBuf  [4]LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E]
+	// Go-only: performance — see reuseSlab.
+	nodeSlab reuseSlab[LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]
+	edgeSlab reuseSlab[LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E]]
 
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
@@ -85,15 +83,33 @@ func LinkedUndirectedGraph_Create[N comparable, E any]() *LinkedUndirectedGraph[
 
 // Java: LinkedUndirectedGraph(boolean, boolean)
 func NewLinkedUndirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdgeAnnotations bool) *LinkedUndirectedGraph[N, E] {
-	g := &LinkedUndirectedGraph[N, E]{
-		useNodeAnnotations: useNodeAnnotations,
-		useEdgeAnnotations: useEdgeAnnotations,
-	}
-	g.nodes.InitWithBuffer(g.nodeSlots[:])
-	g.nodeSlab = g.nodeBuf[:0:len(g.nodeBuf)]
-	g.edgeSlab = g.edgeBuf[:0:len(g.edgeBuf)]
-	g.InitUndiGraphBase(g)
+	g := &LinkedUndirectedGraph[N, E]{}
+	g.init(useNodeAnnotations, useEdgeAnnotations)
 	return g
+}
+
+// init runs the LinkedUndirectedGraph(boolean, boolean) constructor on g.
+func (g *LinkedUndirectedGraph[N, E]) init(useNodeAnnotations bool, useEdgeAnnotations bool) {
+	g.useNodeAnnotations = useNodeAnnotations
+	g.useEdgeAnnotations = useEdgeAnnotations
+	g.InitUndiGraphBase(g)
+}
+
+// clearForReuse removes all nodes and edges from g, keeping its slab chunks
+// and (when small) its node map for the next graph built in g, which must
+// then be initialized again.
+//
+// Go-only: performance — see CoalesceVariableNames.
+func (g *LinkedUndirectedGraph[N, E]) clearForReuse() {
+	g.nodeAnnotationStack = nil
+	g.edgeAnnotationStack = nil
+	if g.nodes.Size() > linkedDirectedGraphReuseMaxNodes {
+		g.nodes = jutil.LinkedHashMap[N, *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]{}
+	} else {
+		g.nodes.Clear()
+	}
+	g.nodeSlab.reset((*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]).recycle)
+	g.edgeSlab.reset(nil)
 }
 
 // getLinkedNodeOrFail is getNodeOrFail(N) with the
@@ -106,28 +122,18 @@ func (g *LinkedUndirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedUndirect
 }
 
 func (g *LinkedUndirectedGraph[N, E]) allocNode(nodeValue N) *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E] {
-	if len(g.nodeSlab) == cap(g.nodeSlab) {
-		nextCap := min(max(cap(g.nodeSlab)*2, 8), 256)
-		g.nodeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E], 0, nextCap)
-	}
-	idx := len(g.nodeSlab)
-	g.nodeSlab = g.nodeSlab[:idx+1]
-	n := &g.nodeSlab[idx]
+	n := g.nodeSlab.alloc()
 	n.value = nodeValue
 	n.annotated = g.useNodeAnnotations
-	n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
+	if cap(n.neighborEdges.Slice()) == 0 {
+		n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
+	}
 	return n
 }
 
 func (g *LinkedUndirectedGraph[N, E]) newEdge(
 	src *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E], edgeValue E, dest *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) *LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E] {
-	if len(g.edgeSlab) == cap(g.edgeSlab) {
-		nextCap := min(max(cap(g.edgeSlab)*2, 8), 256)
-		g.edgeSlab = make([]LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E], 0, nextCap)
-	}
-	idx := len(g.edgeSlab)
-	g.edgeSlab = g.edgeSlab[:idx+1]
-	e := &g.edgeSlab[idx]
+	e := g.edgeSlab.alloc()
 	e.nodeA = src
 	e.nodeB = dest
 	e.value = edgeValue
@@ -491,6 +497,17 @@ type LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E any] struct {
 	// AnnotatedLinkedUndirectedGraphNode
 	annotated  bool
 	annotation Annotation
+}
+
+// recycle zeroes n for allocNode to reuse, but keeps its edge list's backing
+// array (emptied) unless it is large.
+func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) recycle() {
+	edges := n.neighborEdges
+	*n = LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]{}
+	if c := cap(edges.Slice()); c > len(n.neighborEdgeBuffer) && c <= 64 {
+		edges.Clear()
+		n.neighborEdges = edges
+	}
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode(N)
