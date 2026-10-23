@@ -454,7 +454,11 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 		wordLen := RhinoStringPool_WriteOnlyBitset_WordIndex(len(l.ids)-1) + 1
 		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
 	}
-	if uint(offset) >= uint(len(l.ids)) {
+	if uint(offset) < uint(len(l.ids)) {
+		if id := atomic.LoadUint32((*uint32)(&l.ids[offset])); id != 0 {
+			return rhinoStringID(id)
+		}
+	} else {
 		_ = l.isInterned.Get(offset)
 	}
 	uninterned := l.pool.Get(offset)
@@ -466,13 +470,8 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 
 // GetID returns the interned rhinoStringID at offset, interning on first access.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
-	if uint(offset) < uint(len(l.ids)) {
-		if l.pool == nil {
-			return l.ids[offset]
-		}
-		if id := atomic.LoadUint32((*uint32)(&l.ids[offset])); id != 0 {
-			return rhinoStringID(id)
-		}
+	if l.pool == nil && uint(offset) < uint(len(l.ids)) {
+		return l.ids[offset]
 	}
 	return l.getIDSlow(offset)
 }

@@ -426,6 +426,46 @@ func (m *MessageFormat) Format(arguments []any) string {
 	return sb.String()
 }
 
+// FormatStrings formats string arguments without boxing []any or allocating a
+// strings.Builder when the pattern has no placeholders.
+func (m *MessageFormat) FormatStrings(arguments ...string) string {
+	if len(m.elements) == 0 {
+		return m.tail
+	}
+	n := len(m.tail)
+	for i := range m.elements {
+		e := &m.elements[i]
+		if e.kind != mfNone {
+			args := make([]any, len(arguments))
+			for j, a := range arguments {
+				args[j] = a
+			}
+			return m.Format(args)
+		}
+		n += len(e.prefix)
+		if e.index < len(arguments) {
+			n += len(arguments[e.index])
+		} else {
+			n += 3
+		}
+	}
+	var sb strings.Builder
+	sb.Grow(n)
+	for i := range m.elements {
+		e := &m.elements[i]
+		sb.WriteString(e.prefix)
+		if e.index >= len(arguments) {
+			sb.WriteByte('{')
+			sb.WriteString(strconv.Itoa(e.index))
+			sb.WriteByte('}')
+		} else {
+			sb.WriteString(arguments[e.index])
+		}
+	}
+	sb.WriteString(m.tail)
+	return sb.String()
+}
+
 func (e *mfElement) formatNumber(n mfNum) string {
 	switch e.style {
 	case mfNumberInteger:

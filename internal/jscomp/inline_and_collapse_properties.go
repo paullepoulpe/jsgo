@@ -1623,19 +1623,27 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 		return
 	}
 
-	for p := range n.props.All() {
-		propAlias := c.AppendPropForAlias(alias, p.GetBaseName())
+	for _, p := range n.props.Slice() {
 		inlinability := p.CanCollapseOrInline()
 
 		isAllowedToCollapse :=
 			c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
+		willCollapse := isAllowedToCollapse && inlinability.CanCollapse()
+		willStub := isAllowedToCollapse && !inlinability.CanCollapse() && !p.IsCollapsingExplicitlyDenied() && p.IsSimpleStubDeclaration()
+		willRecurse := p.props != nil && (!p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p) || c.outer.decisionsLog.IsLogging())
+
+		var propAlias string
+		if willCollapse || willStub || (p.props != nil && !p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p)) {
+			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
+		}
+
 		if isAllowedToCollapse {
-			if inlinability.CanCollapse() {
+			if willCollapse {
 				c.LogDecisionForNameWithInlinability(p, inlinability, "will flatten references")
 				c.flattenReferencesTo(p, propAlias, escaped)
 			} else if p.IsCollapsingExplicitlyDenied() {
 				c.LogDecisionForName(p, "@nocollapse: will not flatten references")
-			} else if p.IsSimpleStubDeclaration() {
+			} else if willStub {
 				c.LogDecisionForName(p, "simple stub declaration: will flatten references")
 				c.FlattenSimpleStubDeclaration(p, propAlias)
 			} else {
@@ -1643,7 +1651,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 			}
 		}
 
-		c.FlattenReferencesToCollapsibleDescendantNames(p, propAlias, escaped)
+		if willRecurse {
+			c.FlattenReferencesToCollapsibleDescendantNames(p, propAlias, escaped)
+		}
 	}
 }
 
@@ -1781,9 +1791,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	// replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
 	if n.props != nil {
 		descendantsVisited := escaped != nil && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
-		for p := range n.props.All() {
+		for _, p := range n.props.Slice() {
 			if flattenPrefixesHasWork(p) {
-				c.flattenPrefixes(alias, originalName+p.GetBaseName(), p, 1, isConstantName, escaped, descendantsVisited)
+				c.flattenPrefixesLazy(alias, originalName, p, 1, 1, isConstantName, escaped, descendantsVisited)
 			}
 		}
 	}
@@ -1813,47 +1823,79 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	alias string, originalName string, n *GlobalNamespace_Name, depth int, isConstantName bool) {
-	c.flattenPrefixes(alias, originalName, n, depth, isConstantName, nil, false)
+	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, nil, false)
 }
 
-func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixes(
+func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
+	if extraDepth <= 0 {
+		return baseOriginalName
+	}
+	if extraDepth == 1 {
+		return baseOriginalName + n.baseName
+	}
+	var stackBuf [16]string
+	var parts []string
+	if extraDepth <= len(stackBuf) {
+		parts = stackBuf[:extraDepth]
+	} else {
+		parts = make([]string, extraDepth)
+	}
+	totalLen := len(baseOriginalName)
+	cur := n
+	for i := extraDepth - 1; i >= 0; i-- {
+		parts[i] = cur.baseName
+		totalLen += len(cur.baseName)
+		cur = cur.parent
+	}
+	var sb strings.Builder
+	sb.Grow(totalLen)
+	sb.WriteString(baseOriginalName)
+	for _, s := range parts {
+		sb.WriteString(s)
+	}
+	return sb.String()
+}
+
+func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	alias string,
-	originalName string,
+	baseOriginalName string,
 	n *GlobalNamespace_Name,
 	depth int,
+	extraDepth int,
 	isConstantName bool,
 	escaped *jutil.LinkedHashSet[*GlobalNamespace_Name],
 	descendantsVisited bool) {
-	// Only flatten the prefix of a name declaration if the name being
-	// initialized is fully qualified (i.e. not an object literal key).
-	decl := n.getDeclarationRef()
-	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
-		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, originalName, isConstantName)
+	var cachedOrig string
+	hasOrig := false
+	getOrig := func() string {
+		if !hasOrig {
+			cachedOrig = buildLazyPrefixOriginalName(baseOriginalName, n, extraDepth)
+			hasOrig = true
+		}
+		return cachedOrig
 	}
 
-	// If FlattenReferencesToCollapsibleDescendantNames will visit n and call
-	// flattenReferencesTo(n, ...), then every non-declaration GETPROP ref in
-	// n.GetRefs() and every prefix in n.props will be replaced with n's own
-	// collapsed alias, completely overwriting any intermediate prefix node
-	// created here for n's ancestor.
+	decl := n.getDeclarationRef()
+	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
+		c.FlattenNameRefAtDepth(alias, decl.GetNode(), depth, getOrig(), isConstantName)
+	}
+
 	if descendantsVisited && c.willFlattenReferences(n) {
 		return
 	}
 
 	for _, r := range n.GetRefs() {
 		if r == decl {
-			// Declarations are handled separately.
 			continue
 		}
-
-		c.FlattenNameRefAtDepth(alias, r.GetNode(), depth, originalName, isConstantName)
+		c.FlattenNameRefAtDepth(alias, r.GetNode(), depth, getOrig(), isConstantName)
 	}
 
 	if n.props != nil {
 		nextDescendantsVisited := descendantsVisited && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
-		for p := range n.props.All() {
+		for _, p := range n.props.Slice() {
 			if flattenPrefixesHasWork(p) {
-				c.flattenPrefixes(alias, originalName+p.GetBaseName(), p, depth+1, isConstantName, escaped, nextDescendantsVisited)
+				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, escaped, nextDescendantsVisited)
 			}
 		}
 	}
@@ -1960,9 +2002,16 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 		return
 	}
 	c.LogDecisionForName(n, "collapsing descendants")
-	for p := range n.props.All() {
-		c.CollapseDeclarationOfNameAndDescendants(
-			p, c.AppendPropForAlias(alias, p.GetBaseName()), escaped)
+	isLogging := c.outer.decisionsLog.IsLogging()
+	for _, p := range n.props.Slice() {
+		if !isLogging && p.props == nil && !c.CanCollapse(p) {
+			continue
+		}
+		var propAlias string
+		if c.CanCollapse(p) || (p.props != nil && !escaped.Contains(p)) {
+			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
+		}
+		c.CollapseDeclarationOfNameAndDescendants(p, propAlias, escaped)
 	}
 }
 

@@ -113,19 +113,20 @@ type RenameLabels_ProcessLabels struct {
 	//
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/peek/pop at the head) is a slice whose top is its last element.
-	namespaceStack []*RenameLabels_LabelNamespace
+	namespaceStack    []RenameLabels_LabelNamespace
+	namespaceStackBuf [8]RenameLabels_LabelNamespace
 
 	// The list of generated names. Typically, the first name will be "a",
 	// the second "b", etc.
-	names *jutil.ArrayList[string]
+	names    []string
+	namesBuf [4]string
 }
 
 // Java: RenameLabels.ProcessLabels(boolean)
 func NewRenameLabels_ProcessLabels(outer *RenameLabels, markChanges bool) *RenameLabels_ProcessLabels {
-	p := &RenameLabels_ProcessLabels{outer: outer, names: jutil.NewArrayList[string]()}
-	p.markChanges = markChanges
-	// Create a entry for global scope.
-	p.namespaceStack = append(p.namespaceStack, NewRenameLabels_LabelNamespace())
+	p := &RenameLabels_ProcessLabels{outer: outer, markChanges: markChanges}
+	p.namespaceStack = p.namespaceStackBuf[:1]
+	p.names = p.namesBuf[:0]
 	return p
 }
 
@@ -133,21 +134,23 @@ func NewRenameLabels_ProcessLabels(outer *RenameLabels, markChanges bool) *Renam
 //
 // Go-only: language-adapter — see namespaceStack.
 func (p *RenameLabels_ProcessLabels) peek() *RenameLabels_LabelNamespace {
-	return p.namespaceStack[len(p.namespaceStack)-1]
+	return &p.namespaceStack[len(p.namespaceStack)-1]
 }
 
 // Java: RenameLabels.ProcessLabels.enterScope(NodeTraversal)
 func (p *RenameLabels_ProcessLabels) EnterScope(nodeTraversal *NodeTraversal) {
 	// Start a new namespace for label names.
 	if nodeTraversal.GetScopeRoot().IsFunction() {
-		p.namespaceStack = append(p.namespaceStack, NewRenameLabels_LabelNamespace())
+		p.namespaceStack = append(p.namespaceStack, RenameLabels_LabelNamespace{})
 	}
 }
 
 // Java: RenameLabels.ProcessLabels.exitScope(NodeTraversal)
 func (p *RenameLabels_ProcessLabels) ExitScope(nodeTraversal *NodeTraversal) {
 	if nodeTraversal.GetScopeRoot().IsFunction() {
-		p.namespaceStack = p.namespaceStack[:len(p.namespaceStack)-1]
+		top := len(p.namespaceStack) - 1
+		p.namespaceStack[top].renameMap = nil
+		p.namespaceStack = p.namespaceStack[:top]
 	}
 }
 
@@ -159,6 +162,9 @@ func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal
 	if node.IsLabel() {
 		// Determine the new name for this label.
 		current := p.peek()
+		if current.renameMap == nil {
+			current.renameMap = jutil.NewLinkedHashMap[string, *RenameLabels_LabelInfo]()
+		}
 		currentDepth := current.renameMap.Size() + 1
 		name := node.GetFirstChild().GetString()
 
@@ -168,8 +174,8 @@ func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal
 		current.renameMap.Put(name, li)
 
 		// Create a new name, if needed, for this depth.
-		if p.names.Size() < currentDepth {
-			p.names.Add(p.outer.nameSupplier())
+		if len(p.names) < currentDepth {
+			p.names = append(p.names, p.outer.nameSupplier())
 		}
 	}
 
@@ -261,7 +267,7 @@ func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node *rhino.No
 //
 // Java: RenameLabels.ProcessLabels.getNameForId(int)
 func (p *RenameLabels_ProcessLabels) GetNameForId(id int) string {
-	return p.names.Get(id - 1)
+	return p.names[id-1]
 }
 
 // GetLabelInfo returns the structure representing the name in the current
@@ -271,7 +277,11 @@ func (p *RenameLabels_ProcessLabels) GetNameForId(id int) string {
 //
 // Java: RenameLabels.ProcessLabels.getLabelInfo(String)
 func (p *RenameLabels_ProcessLabels) GetLabelInfo(name string) *RenameLabels_LabelInfo {
-	return p.peek().renameMap.Get(name)
+	m := p.peek().renameMap
+	if m == nil {
+		return nil
+	}
+	return m.Get(name)
 }
 
 // Java: RenameLabels.process(Node, Node)

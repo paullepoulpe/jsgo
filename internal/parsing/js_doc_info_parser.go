@@ -1467,7 +1467,8 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 		p.AddParserWarning(rhino.Msg_JSDOC_SUPPRESS)
 		return token
 	} else {
-		suppressions := jutil.NewLinkedHashSet[string]()
+		var suppressBuf [8]string
+		suppressions := suppressBuf[:0]
 		for {
 			if p.Match(JsDocToken_STRING) {
 				name := p.stream.GetString()
@@ -1475,7 +1476,7 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 					p.AddParserWarningWithArg(rhino.Msg_JSDOC_SUPPRESS_UNKNOWN, name)
 				}
 
-				suppressions.Add(p.stream.GetString())
+				suppressions = append(suppressions, name)
 				token = p.Next()
 			} else {
 				p.AddParserWarning(rhino.Msg_JSDOC_SUPPRESS)
@@ -1499,12 +1500,11 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 		if p.jsdocBuilder.ShouldParseDocumentation() && !p.LookAheadForAnnotation() {
 			suppressDescriptionInfo := p.ExtractMultilineTextualBlock(token)
 			suppressDescription := suppressDescriptionInfo.string_
-			p.jsdocBuilder.RecordSuppressionsWithDescription(
-				jutil.NewLinkedHashSet(suppressions.ToSlice()...), suppressDescription)
+			p.jsdocBuilder.RecordSuppressionSliceWithDescription(suppressions, suppressDescription)
 			token = suppressDescriptionInfo.token
 		} else {
 			token = p.EatUntilEOLIfNotAnnotationFrom(p.Next())
-			p.jsdocBuilder.RecordSuppressions(suppressions)
+			p.jsdocBuilder.RecordSuppressionSliceWithDescription(suppressions, "")
 		}
 		return token
 	}

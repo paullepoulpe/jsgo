@@ -319,7 +319,8 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 }
 
 func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode *rhino.Node) *rhino.Node {
-	return r.allocNode().InitStringFromStringPool(token, r.owner_.stringPool.GetInternedStrings(), int(stringValPtr), templateNode)
+	id := r.owner_.stringPool.GetInternedStrings().GetID(int(stringValPtr))
+	return r.allocNode().InitFromTemplate(token, templateNode).SetStringID(id)
 }
 
 func (r *scriptNodeDeserializer_Runner) newNodeFromTemplate(token rhino.Token, templateNode *rhino.Node) *rhino.Node {
@@ -339,7 +340,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 		return (&rhino.Node{}).InitFromTemplate(rhino.Token_SCRIPT, templateNode)
 
 	case NodeKind_NUMBER_LITERAL:
-		return r.allocNode().InitNumberFromTemplate(doubleVal, templateNode)
+		return r.allocNode().InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
 	case NodeKind_STRING_LITERAL:
 		return r.stringNode(rhino.Token_STRINGLIT, stringValPtr, templateNode)
 	case NodeKind_IDENTIFIER:

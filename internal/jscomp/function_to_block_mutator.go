@@ -378,8 +378,22 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 	m.resetLocalArena()
 
 	// Make label names unique to this instance.
-	NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
-		Process(nil, fnNode)
+	if hasLabelNode(fnNode) {
+		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
+			Process(nil, fnNode)
+	}
+}
+
+func hasLabelNode(n *rhino.Node) bool {
+	if n.IsLabel() {
+		return true
+	}
+	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		if hasLabelNode(c) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *FunctionToBlockMutator) resetLocalArena() {

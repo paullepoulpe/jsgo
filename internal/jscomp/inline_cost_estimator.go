@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"math"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -49,14 +50,36 @@ func InlineCostEstimator_GetCost(root *rhino.Node) int {
 	return InlineCostEstimator_GetCostWithThreshold(root, math.MaxInt32)
 }
 
+type pooledCostEstimator struct {
+	est InlineCostEstimator_CompiledSizeEstimator
+	cg  CodeGeneratorBase
+}
+
+var costEstimatorPool = sync.Pool{
+	New: func() any {
+		p := &pooledCostEstimator{}
+		p.est.InitCodeConsumerBase(&p.est)
+		p.cg.InitCodeGeneratorBase(&p.cg, &p.est)
+		return p
+	},
+}
+
 // InlineCostEstimator_GetCostWithThreshold determines the estimated size of
 // the JS snippet represented by the node.
 //
 // Java: InlineCostEstimator.getCost(Node, int)
 func InlineCostEstimator_GetCostWithThreshold(root *rhino.Node, costThreshold int) int {
-	estimator := NewInlineCostEstimator_CompiledSizeEstimator(costThreshold)
-	estimator.AddNode(root)
-	return estimator.GetCost()
+	p := costEstimatorPool.Get().(*pooledCostEstimator)
+	p.est.InitCodeConsumerBase(&p.est)
+	p.est.maxCost = costThreshold
+	p.est.cost = 0
+	p.est.last = 0
+	p.est.continueProcessing = true
+	p.cg.InitCodeGeneratorBase(&p.cg, &p.est)
+	p.cg.AddNode(root)
+	cost := p.est.cost
+	costEstimatorPool.Put(p)
+	return cost
 }
 
 // InlineCostEstimator_CompiledSizeEstimator is a code consumer that

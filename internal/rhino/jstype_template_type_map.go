@@ -433,13 +433,18 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 
 	nOldKeys := len(m.templateKeys)
 	nNewKeys := len(keys)
-	extendedKeys := make([]*TemplateType, nOldKeys+nNewKeys)
-	copy(extendedKeys, m.templateKeys)
-	for i, k := range keys {
-		if k == nil {
-			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(i)))
+	var extendedKeys []*TemplateType
+	if nNewKeys == 0 {
+		extendedKeys = m.templateKeys
+	} else {
+		extendedKeys = m.registry.allocTemplateTypeSlice(nOldKeys + nNewKeys)
+		copy(extendedKeys, m.templateKeys)
+		for i, k := range keys {
+			if k == nil {
+				panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(i)))
+			}
+			extendedKeys[nOldKeys+i] = k
 		}
-		extendedKeys[nOldKeys+i] = k
 	}
 
 	out := m.registry.allocTemplateTypeMap()

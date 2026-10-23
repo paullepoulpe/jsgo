@@ -247,6 +247,8 @@ type JSTypeRegistry struct {
 	unionTypeSlab           []UnionType
 	propertySlab            []Property
 	jsTypeSliceSlab         []JSType
+	templateTypePtrSlab     []*TemplateType
+	propertyPtrSlab         []*Property
 	functionParamSlab       []FunctionType_Parameter
 	functionParamPtrSlab    []*FunctionType_Parameter
 	unionBuilderStack       [16]UnionType_Builder
@@ -481,6 +483,35 @@ func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {
 	}
 	s := r.jsTypeSliceSlab[:n:n]
 	r.jsTypeSliceSlab = r.jsTypeSliceSlab[n:]
+	return s
+}
+
+var emptyTemplateTypePtrSlice = []*TemplateType{}
+
+func (r *JSTypeRegistry) allocTemplateTypeSlice(n int) []*TemplateType {
+	if n == 0 {
+		return emptyTemplateTypePtrSlice
+	}
+	if r == nil || n > 64 {
+		return make([]*TemplateType, n)
+	}
+	if len(r.templateTypePtrSlab) < n {
+		r.templateTypePtrSlab = make([]*TemplateType, 4096) // 32 KiB
+	}
+	s := r.templateTypePtrSlab[:n:n]
+	r.templateTypePtrSlab = r.templateTypePtrSlab[n:]
+	return s
+}
+
+func (r *JSTypeRegistry) allocPropertySliceCap(c int) []*Property {
+	if r == nil || c > 64 {
+		return make([]*Property, 0, c)
+	}
+	if len(r.propertyPtrSlab) < c {
+		r.propertyPtrSlab = make([]*Property, 4096) // 32 KiB
+	}
+	s := r.propertyPtrSlab[:0:c]
+	r.propertyPtrSlab = r.propertyPtrSlab[c:]
 	return s
 }
 

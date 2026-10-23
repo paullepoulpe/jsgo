@@ -21,8 +21,10 @@ package jscomp
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // DependencyInfo is a data structure for JS dependency information for a
@@ -141,33 +143,44 @@ func DependencyInfo_Require_AsSymbolList(requires []*DependencyInfo_Require) []s
 	return out
 }
 
+const googRequireCacheSize = 8192
+
+var googRequireCache [googRequireCacheSize]atomic.Pointer[DependencyInfo_Require]
+
 // Java: DependencyInfo.Require.googRequireSymbol(String)
 func DependencyInfo_Require_GoogRequireSymbol(symbol string) *DependencyInfo_Require {
-	return DependencyInfo_Require_Builder_().
-		SetRawText(symbol).
-		SetSymbol(symbol).
-		SetType(DependencyInfo_Require_Type_GOOG_REQUIRE_SYMBOL).
-		Build()
+	idx := uint32(jutil.StringHashCode(symbol)) & (googRequireCacheSize - 1)
+	if cached := googRequireCache[idx].Load(); cached != nil && cached.symbol == symbol {
+		return cached
+	}
+	interned := rhino.RhinoStringPool_AddOrGet(symbol)
+	req := &DependencyInfo_Require{
+		symbol:  interned,
+		rawText: interned,
+		type_:   DependencyInfo_Require_Type_GOOG_REQUIRE_SYMBOL,
+	}
+	googRequireCache[idx].Store(req)
+	return req
 }
 
 // Java: DependencyInfo.Require.es6Import(String, String)
 func DependencyInfo_Require_Es6Import(symbol string, rawPath string) *DependencyInfo_Require {
-	return DependencyInfo_Require_Builder_().SetRawText(rawPath).SetSymbol(symbol).SetType(DependencyInfo_Require_Type_ES6_IMPORT).Build()
+	return &DependencyInfo_Require{symbol: symbol, rawText: rawPath, type_: DependencyInfo_Require_Type_ES6_IMPORT}
 }
 
 // Java: DependencyInfo.Require.commonJs(String, String)
 func DependencyInfo_Require_CommonJs(symbol string, rawPath string) *DependencyInfo_Require {
-	return DependencyInfo_Require_Builder_().SetRawText(rawPath).SetSymbol(symbol).SetType(DependencyInfo_Require_Type_COMMON_JS).Build()
+	return &DependencyInfo_Require{symbol: symbol, rawText: rawPath, type_: DependencyInfo_Require_Type_COMMON_JS}
 }
 
 // Java: DependencyInfo.Require.compilerChunk(String)
 func DependencyInfo_Require_CompilerChunk(symbol string) *DependencyInfo_Require {
-	return DependencyInfo_Require_Builder_().SetRawText(symbol).SetSymbol(symbol).SetType(DependencyInfo_Require_Type_COMPILER_CHUNK).Build()
+	return &DependencyInfo_Require{symbol: symbol, rawText: symbol, type_: DependencyInfo_Require_Type_COMPILER_CHUNK}
 }
 
 // Java: DependencyInfo.Require.parsedFromDeps(String)
 func DependencyInfo_Require_ParsedFromDeps(symbol string) *DependencyInfo_Require {
-	return DependencyInfo_Require_Builder_().SetRawText(symbol).SetSymbol(symbol).SetType(DependencyInfo_Require_Type_PARSED_FROM_DEPS).Build()
+	return &DependencyInfo_Require{symbol: symbol, rawText: symbol, type_: DependencyInfo_Require_Type_PARSED_FROM_DEPS}
 }
 
 // DependencyInfo_Require_Builder_ is DependencyInfo.Require.builder().
@@ -185,7 +198,7 @@ func (r *DependencyInfo_Require) ToBuilder() *DependencyInfo_Require_Builder {
 
 // Java: DependencyInfo.Require.withSymbol(String)
 func (r *DependencyInfo_Require) WithSymbol(symbol string) *DependencyInfo_Require {
-	return r.ToBuilder().SetSymbol(symbol).Build()
+	return &DependencyInfo_Require{symbol: symbol, rawText: r.rawText, type_: r.type_}
 }
 
 // GetSymbol returns the symbol provided by another DependencyInfo's

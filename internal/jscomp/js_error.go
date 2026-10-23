@@ -139,7 +139,11 @@ const (
 //
 // Java: JSError.make(DiagnosticType, String...)
 func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_Builder_(type_, arguments...).Build()
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	return NewJSError(
+		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, nil, type_.level, nil)
 }
 
 // JSError_MakeWithSourceLocation creates a JSError at a given source
@@ -149,14 +153,22 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 // Java: JSError.make(String, int, int, DiagnosticType, String...)
 func JSError_MakeWithSourceLocation(
 	sourceName *string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_Builder_(type_, arguments...).SetSourceLocation(sourceName, lineno, charno).Build()
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	return NewJSError(
+		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, nil, type_.level, nil)
 }
 
 // JSError_MakeWithNode creates a JSError from a file and Node position.
 //
 // Java: JSError.make(Node, DiagnosticType, String...)
 func JSError_MakeWithNode(n *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_Builder_(type_, arguments...).SetNode(n).Build()
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	return NewJSError(
+		type_, type_.Format(arguments...), n.GetSourceFileName(), n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, nil)
 }
 
 // JSError_MakeWithNodeRange creates a JSError from a file and Node position:
@@ -165,7 +177,17 @@ func JSError_MakeWithNode(n *rhino.Node, type_ *DiagnosticType, arguments ...str
 //
 // Java: JSError.make(Node, Node, DiagnosticType, String...)
 func JSError_MakeWithNodeRange(start *rhino.Node, end *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_Builder_(type_, arguments...).SetNodeRange(start, end).Build()
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	length := jSError_DEFAULT_LENGTH
+	endOffset := end.GetSourceOffset()
+	startOffset := start.GetSourceOffset()
+	if endOffset != -1 && startOffset != -1 {
+		length = (endOffset + end.GetLength()) - startOffset
+	}
+	return NewJSError(
+		type_, type_.Format(arguments...), start.GetSourceFileName(), start.GetLineno(), start.GetCharno(), length, start, type_.level, nil)
 }
 
 // JSError_MakeWithRequirement creates a JSError from a requirement, file and
@@ -174,7 +196,12 @@ func JSError_MakeWithNodeRange(start *rhino.Node, end *rhino.Node, type_ *Diagno
 // Java: JSError.make(Requirement, Node, DiagnosticType, String...)
 func JSError_MakeWithRequirement(
 	requirement *Requirement, n *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_Builder_(type_, arguments...).SetNode(n).SetRequirement(requirement).Build()
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	jutil.CheckNotNull(requirement)
+	return NewJSError(
+		type_, type_.Format(arguments...), n.GetSourceFileName(), n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, requirement)
 }
 
 // JSError_Builder is JSError.Builder.

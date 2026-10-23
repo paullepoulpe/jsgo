@@ -39,6 +39,7 @@ import (
 	"iter"
 	"math/bits"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -600,19 +601,35 @@ func newJSDocInfo(bits_ int64, props *jutil.TreeMap[JSDocInfo_Property, any]) *J
 	}
 }
 
+type jsdocTypeMapWithBuf struct {
+	m   jutil.LinkedHashMap[string, *JSTypeExpression]
+	buf [4]jutil.LhmSlot[string, *JSTypeExpression]
+}
+
 // JSDocBuilderSlabs holds worker-scoped slab allocators for JSDocInfo,
 // JSTypeExpression, and multi-property JSDocInfo value slices (all <= 32 KiB).
 type JSDocBuilderSlabs struct {
 	InfoSlab     jutil.Slab[JSDocInfo]
 	TypeExprSlab jutil.Slab[JSTypeExpression]
+	TypeMapSlab  jutil.Slab[jsdocTypeMapWithBuf]
 	AnySliceSlab []any
 }
 
 func NewJSDocBuilderSlabs() JSDocBuilderSlabs {
 	return JSDocBuilderSlabs{
-		InfoSlab:     jutil.NewFixedSlab[JSDocInfo](1024),        // 32 KiB
-		TypeExprSlab: jutil.NewFixedSlab[JSTypeExpression](1024), // 24 KiB
+		InfoSlab:     jutil.NewFixedSlab[JSDocInfo](1024),            // 32 KiB
+		TypeExprSlab: jutil.NewFixedSlab[JSTypeExpression](1024),     // 24 KiB
+		TypeMapSlab:  jutil.NewFixedSlab[jsdocTypeMapWithBuf](240),   // 32.6 KiB
 	}
+}
+
+func (s *JSDocBuilderSlabs) allocTypeMap() *jutil.LinkedHashMap[string, *JSTypeExpression] {
+	if s == nil {
+		return jutil.NewLinkedHashMap[string, *JSTypeExpression]()
+	}
+	w := s.TypeMapSlab.New()
+	w.m.InitWithBuffer(w.buf[:])
+	return &w.m
 }
 
 func (s *JSDocBuilderSlabs) allocAnySlice(n int) []any {
@@ -2068,7 +2085,7 @@ func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 		return jsDocInfo_noSuppressions
 	}
 	if suppressions.Size() == 1 {
-		for nameSet := range suppressions.Keys() {
+		if nameSet, ok := suppressions.FirstKey(); ok {
 			return nameSet
 		}
 	}
@@ -2907,7 +2924,7 @@ func (b *JSDocInfo_Builder) OverwriteVisibility(visibility JSDocInfo_Visibility)
 // Java: JSDocInfo.Builder.recordParameter(String, JSTypeExpression)
 func (b *JSDocInfo_Builder) RecordParameter(parameterName string, type_ *JSTypeExpression) bool {
 	return !b.HasAnySingletonTypeTags() &&
-		JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
+		b.populateTypeMapEntry(JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
 }
 
 // RecordParameterDescription records a parameter's description; returns
@@ -2942,7 +2959,25 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
 	}
-	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
+	return b.populateTypeMapEntry(b_propTemplateTypeNames(), RhinoStringPool_AddOrGet(name), bound)
+}
+
+func b_propTemplateTypeNames() JSDocInfo_Property { return JSDocInfo_TEMPLATE_TYPE_NAMES }
+
+func (b *JSDocInfo_Builder) populateTypeMapEntry(prop JSDocInfo_Property, key string, value *JSTypeExpression) bool {
+	raw := b.GetProp(prop)
+	var m *jutil.LinkedHashMap[string, *JSTypeExpression]
+	if raw == nil {
+		m = b.slabs.allocTypeMap()
+		b.SetProp(prop, m)
+	} else {
+		m = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](raw)
+	}
+	if m.PutIfAbsent(key, value) == nil {
+		b.populated = true
+		return true
+	}
+	return false
 }
 
 // RecordTypeTransformation records a type transformation expression
@@ -3072,7 +3107,106 @@ func (b *JSDocInfo_Builder) IsDeprecationReasonRecorded() bool {
 }
 
 // Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
+const suppressionInternCacheSize = 2048
+
+type internedSuppressionEntry struct {
+	names []string
+	set   *jutil.LinkedHashSet[string]
+	mp    *jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]
+}
+
+var suppressionInternCache [suppressionInternCacheSize]atomic.Pointer[internedSuppressionEntry]
+
+func internSuppressionSlice(rawNames []string) *internedSuppressionEntry {
+	var uniqBuf [8]string
+	var uniq []string
+	if len(rawNames) <= 1 {
+		uniq = rawNames
+	} else {
+		if len(rawNames) <= len(uniqBuf) {
+			uniq = uniqBuf[:0]
+		} else {
+			uniq = make([]string, 0, len(rawNames))
+		}
+		for _, s := range rawNames {
+			dup := false
+			for _, u := range uniq {
+				if u == s {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				uniq = append(uniq, s)
+			}
+		}
+	}
+
+	h := uint32(2166136261)
+	for _, s := range uniq {
+		h = (h ^ uint32(jutil.StringHashCode(s))) * 16777619
+	}
+	idx := h & (suppressionInternCacheSize - 1)
+	if cached := suppressionInternCache[idx].Load(); cached != nil && len(cached.names) == len(uniq) {
+		match := true
+		for i, u := range uniq {
+			if cached.names[i] != u {
+				match = false
+				break
+			}
+		}
+		if match {
+			return cached
+		}
+	}
+
+	namesCopy := make([]string, len(uniq))
+	set := jutil.NewLinkedHashSet[string]()
+	for i, u := range uniq {
+		interned := RhinoStringPool_AddOrGet(u)
+		namesCopy[i] = interned
+		set.Add(interned)
+	}
+	mp := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
+	mp.Put(set, "")
+	entry := &internedSuppressionEntry{names: namesCopy, set: set, mp: mp}
+	suppressionInternCache[idx].Store(entry)
+	return entry
+}
+
+// RecordSuppressionSliceWithDescription records a parsed @suppress slice without
+// allocating temporary LinkedHashSets or ObjectLinkedHashMaps on the common path.
+func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []string, description string) {
+	b.populated = true
+	entry := internSuppressionSlice(rawNames)
+	current := jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](b.GetProp(JSDocInfo_SUPPRESSIONS))
+	if current == nil && description == "" {
+		b.SetProp(JSDocInfo_SUPPRESSIONS, entry.mp)
+		return
+	}
+	if current != nil && current.ContainsKey(entry.set) {
+		return
+	}
+	mapBuilder := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
+	if current != nil {
+		for k, v := range current.All() {
+			mapBuilder.Put(k, v)
+		}
+	}
+	mapBuilder.Put(entry.set, description)
+	b.SetProp(JSDocInfo_SUPPRESSIONS, mapBuilder)
+}
+
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
+	if suppressions != nil && suppressions.Size() <= 8 {
+		var buf [8]string
+		names := buf[:0]
+		for s := range suppressions.All() {
+			names = append(names, s)
+		}
+		b.RecordSuppressionSliceWithDescription(names, description)
+		return
+	}
 	b.populated = true
 	mapBuilder := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
 	current := jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](b.GetProp(JSDocInfo_SUPPRESSIONS))
@@ -3106,7 +3240,9 @@ func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet
 
 // Java: JSDocInfo.Builder.recordSuppression(String)
 func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
-	b.RecordSuppressionsWithDescription(jutil.NewLinkedHashSet(suppression), "")
+	var single [1]string
+	single[0] = suppression
+	b.RecordSuppressionSliceWithDescription(single[:], "")
 }
 
 // RecordModifies records the list of modifies warnings.

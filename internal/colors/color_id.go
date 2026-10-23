@@ -113,12 +113,39 @@ func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) 
 //
 // Java: ColorId.union(Set<ColorId>)
 func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
-	if ids.Size() <= 1 {
+	n := ids.Size()
+	if n <= 1 {
 		return iterablesGetOnlyElement(ids)
 	}
+	if n == 2 {
+		var a, b int64
+		first := true
+		for id := range ids.All() {
+			if first {
+				a = id.rightAligned
+				first = false
+			} else {
+				b = id.rightAligned
+			}
+		}
+		if a > b {
+			a, b = b, a
+		}
+		var hasher jutil.FarmHashFingerprint64Hasher
+		hasher.Reset()
+		hasher.PutLong(a)
+		hasher.PutLong(b)
+		return NewColorId(hasher.HashAsLong())
+	}
 
+	var stackBuf [32]int64
+	var sorted []int64
+	if n <= len(stackBuf) {
+		sorted = stackBuf[:n]
+	} else {
+		sorted = make([]int64, n)
+	}
 	index := 0
-	sorted := make([]int64, ids.Size())
 	for id := range ids.All() {
 		sorted[index] = id.rightAligned
 		index++

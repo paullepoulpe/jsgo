@@ -64,6 +64,9 @@ const typeValidator_FOUND_REQUIRED_MISSING = "{0}\n" +
 	"mismatch: [{4}]"
 
 var (
+	typeValidator_foundRequiredFormat        = jutil.NewMessageFormat(typeValidator_FOUND_REQUIRED)
+	typeValidator_foundRequiredMissingFormat = jutil.NewMessageFormat(typeValidator_FOUND_REQUIRED_MISSING)
+
 	TypeValidator_INVALID_CAST = DiagnosticType_Warning(
 		"JSC_INVALID_CAST",
 		"invalid cast - must be a subtype or supertype\n"+
@@ -1219,10 +1222,10 @@ func TypeValidator_FormatFoundRequired(
 		mismatchStr = typeValidator_joinComma(mismatch)
 	}
 	if len(missingStr) > 0 || len(mismatchStr) > 0 {
-		return Platform_FormatMessage(
-			typeValidator_FOUND_REQUIRED_MISSING, description, foundStr, requiredStr, missingStr, mismatchStr)
+		return typeValidator_foundRequiredMissingFormat.FormatStrings(
+			description, foundStr, requiredStr, missingStr, mismatchStr)
 	} else {
-		return Platform_FormatMessage(typeValidator_FOUND_REQUIRED, description, foundStr, requiredStr)
+		return typeValidator_foundRequiredFormat.FormatStrings(description, foundStr, requiredStr)
 	}
 }
 

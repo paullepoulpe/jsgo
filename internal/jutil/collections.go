@@ -1210,6 +1210,19 @@ func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
 	}
 }
 
+// FirstKey returns the first non-removed key in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) FirstKey() (K, bool) {
+	if h != nil && h.size > 0 {
+		for i := int(h.first); i < len(h.slots); i++ {
+			if h.slots[i].hnext != olhmRemoved {
+				return h.slots[i].key, true
+			}
+		}
+	}
+	var zero K
+	return zero, false
+}
+
 // Values iterates values in insertion order.
 func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {

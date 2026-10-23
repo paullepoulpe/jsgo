@@ -4162,7 +4162,7 @@ func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref *
 func NodeUtil_NewNameWithOriginalName(
 	compiler AbstractCompiler, name string, basisNode *rhino.Node, originalName string) *rhino.Node {
 	nameNode := NodeUtil_NewNameWithSrcref(compiler, name, basisNode)
-	nameNode.SetOriginalName(jutil.StringPtr(originalName))
+	nameNode.SetOriginalNameString(originalName)
 	return nameNode
 }
 

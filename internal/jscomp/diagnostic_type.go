@@ -18,7 +18,11 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"sync/atomic"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // DiagnosticType is the type of a compile or analysis error.
 type DiagnosticType struct {
@@ -32,6 +36,8 @@ type DiagnosticType struct {
 
 	// The default reporting level for this diagnostic
 	level CheckLevel
+
+	msgFormat atomic.Pointer[jutil.MessageFormat]
 }
 
 // Java: DiagnosticType.serialVersionUID
@@ -73,7 +79,12 @@ func newDiagnosticType(key string, level CheckLevel, format string) *DiagnosticT
 
 // Java: DiagnosticType.format(String...)
 func (t *DiagnosticType) Format(arguments ...string) string {
-	return Platform_FormatMessage(t.format, arguments...)
+	mf := t.msgFormat.Load()
+	if mf == nil {
+		mf = jutil.NewMessageFormat(t.format)
+		t.msgFormat.Store(mf)
+	}
+	return mf.FormatStrings(arguments...)
 }
 
 // Java: DiagnosticType.equals(Object)

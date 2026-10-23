@@ -36,14 +36,17 @@ import (
 // objects).
 type StandardUnionFind[E comparable] struct {
 	// All values with the same root node are in the same equivalence set.
-	elmap *jutil.LinkedHashMap[E, *standardUnionFind_Node[E]]
+	elmap    *jutil.LinkedHashMap[E, *standardUnionFind_Node[E]]
+	nodeSlab jutil.Slab[standardUnionFind_Node[E]]
 }
 
 // NewStandardUnionFind creates an empty UnionFind structure.
 //
 // Java: StandardUnionFind()
 func NewStandardUnionFind[E comparable]() *StandardUnionFind[E] {
-	return &StandardUnionFind[E]{elmap: jutil.NewLinkedHashMap[E, *standardUnionFind_Node[E]]()}
+	return &StandardUnionFind[E]{
+		elmap: jutil.NewLinkedHashMap[E, *standardUnionFind_Node[E]](),
+	}
 }
 
 // NewStandardUnionFindCopyOf creates an UnionFind structure being a copy of
@@ -177,7 +180,11 @@ func (u *StandardUnionFind[E]) findRootOrCreateNode(e E) *standardUnionFind_Node
 	if node != nil {
 		return u.findRoot(node)
 	}
-	node = newStandardUnionFind_Node(e)
+	node = u.nodeSlab.New()
+	node.element = e
+	node.rank = 0
+	node.size = 1
+	node.parent = node
 	u.elmap.Put(e, node)
 	return node
 }

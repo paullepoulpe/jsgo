@@ -4971,7 +4971,7 @@ func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return f.nodeSlab.New().InitNumberFromTemplate(value, f.templateNode)
+	return f.nodeSlab.New().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)

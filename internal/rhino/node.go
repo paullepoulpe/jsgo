@@ -1048,6 +1048,20 @@ func (n *Node) InitFromTemplate(token Token, template *Node) *Node {
 
 // InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
 func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Node) *Node {
+	if child.parent != nil || child.next != nil || child.previous != nil || template.typeOrColor != nil {
+		return n.initWithChildFromTemplateSlow(token, child, template)
+	}
+	n.token = token
+	n.linenoCharno = -1
+	n.propFlags = template.propFlags
+	n.first = child
+	child.previous = child
+	child.parent = n
+	return n
+}
+
+//go:noinline
+func (n *Node) initWithChildFromTemplateSlow(token Token, child *Node, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
 	n.propFlags = template.propFlags
@@ -1055,7 +1069,6 @@ func (n *Node) InitWithChildFromTemplate(token Token, child *Node, template *Nod
 		n.copyTemplateColdProps(template)
 	}
 	n.first = child
-
 	child.CheckDetached()
 	child.previous = child
 	child.parent = n
@@ -1109,30 +1122,42 @@ func (n *Node) InitWith3ChildrenFromTemplate(token Token, left *Node, mid *Node,
 	return n
 }
 
+//go:noinline
+func (n *Node) initStringPayloadAndCold(str string, template *Node) {
+	if template.typeOrColor != nil {
+		n.copyTemplateColdProps(template)
+	}
+	n.payload = uint64(rhinoStringPoolIntern(str))
+}
+
 // InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
 func (n *Node) InitStringFromTemplate(token Token, str string, template *Node) *Node {
 	n.token = token
 	n.linenoCharno = -1
 	n.kindFlags = uint8(node_kindString)
 	n.propFlags = template.propFlags
-	if template.typeOrColor != nil {
-		n.copyTemplateColdProps(template)
-	}
-	n.payload = uint64(rhinoStringPoolIntern(str))
+	n.initStringPayloadAndCold(str, template)
+	return n
+}
+
+// SetStringID sets the interned string payload on a freshly initialized Node.
+func (n *Node) SetStringID(id rhinoStringID) *Node {
+	n.kindFlags |= uint8(node_kindString)
+	n.payload = uint64(id)
+	return n
+}
+
+// SetNumberRaw sets the float64 payload on a freshly initialized Node.
+func (n *Node) SetNumberRaw(number float64) *Node {
+	n.kindFlags |= uint8(node_kindNumber)
+	n.payload = math.Float64bits(number)
 	return n
 }
 
 // InitStringFromStringPool initializes a zero Node from a slab as a StringNode from a LazyInternedStringList.
 func (n *Node) InitStringFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int, template *Node) *Node {
-	n.token = token
-	n.linenoCharno = -1
-	n.kindFlags = uint8(node_kindString)
-	n.propFlags = template.propFlags
-	if template.typeOrColor != nil {
-		n.copyTemplateColdProps(template)
-	}
-	n.payload = uint64(stringPool.GetID(offset))
-	return n
+	id := stringPool.GetID(offset)
+	return n.InitFromTemplate(token, template).SetStringID(id)
 }
 
 // InitTemplateLitStringFromStringPool initializes a zero Node from a slab as a TemplateLiteralSubstringNode from a LazyInternedStringList.
@@ -1160,14 +1185,9 @@ func (n *Node) InitTemplateLitStringFromStringPool(
 
 // InitNumberFromTemplate initializes a zero Node from a slab as a NumberNode with template properties.
 func (n *Node) InitNumberFromTemplate(number float64, template *Node) *Node {
-	n.token = Token_NUMBER
-	n.linenoCharno = -1
-	n.kindFlags = uint8(node_kindNumber)
-	n.propFlags = template.propFlags
-	if template.typeOrColor != nil {
-		n.copyTemplateColdProps(template)
-	}
-	n.SetDouble(number)
+	n.InitFromTemplate(Token_NUMBER, template)
+	n.kindFlags |= uint8(node_kindNumber)
+	n.payload = math.Float64bits(number)
 	return n
 }
 
