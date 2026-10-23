@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Memory gate: byte-identity against Java plus heap/GC numbers, one run per task.
 
-  python3 -I tools/bench/memgate.py --jsgo BIN [--tasks a,b] [--fast] [--threads N] [--out DIR]
+  python3 -I tools/bench/memgate.py --jsgo BIN [--tasks a,b] [--fast] [--threads N] [--gogc N] [--out DIR]
 
 For each task (tools/bench/tasks/*.json) it runs Java once and keeps its outputs as
 the reference (in --golden, reused across calls), then runs jsgo with
@@ -74,6 +74,11 @@ def main():
     ap.add_argument("--label", default="")
     ap.add_argument("--nice", type=int, default=0)
     ap.add_argument("--runs", type=int, default=1)
+    # Peak live heap is sampled once per GC cycle, so at the default GOGC (few
+    # cycles) it is noisy and usually misses the true peak; --gogc 10 makes the
+    # GC run often enough to measure the working set within a few MB (wall,
+    # CPU and RSS then describe that setting, not the default).
+    ap.add_argument("--gogc", type=int, default=0)
     a = ap.parse_args()
     cache = bench.default_cache()
     jar = os.path.join(cache, bench.read_pin()["CLOSURE_JAR"])
@@ -82,6 +87,8 @@ def main():
     for e in (java_env, go_env):
         e["LC_ALL"] = "C"
     go_env["JSGO_MEMSTATS_ON"] = "1"
+    if a.gogc:
+        go_env["GOGC"] = str(a.gogc)
     jsgo = os.path.abspath(a.jsgo)
     os.makedirs(a.out, exist_ok=True)
     extra = []
@@ -126,7 +133,7 @@ def main():
             for b in bad[:4]:
                 print(f"     job {b[0]} {b[1]}: {b[2]}", flush=True)
             rec = {"time": time.time(), "label": a.label, "jsgo": jsgo, "task": name, "fast": a.fast,
-                   "threads": a.threads, "status": status, **{k: v for k, v in tot.items() if k != "exits"}}
+                   "threads": a.threads, "gogc": a.gogc, "status": status, **{k: v for k, v in tot.items() if k != "exits"}}
             with open(os.path.join(a.out, "results.jsonl"), "a") as f:
                 f.write(json.dumps(rec) + "\n")
 
