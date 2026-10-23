@@ -39,6 +39,25 @@ gap). The real waste was **dead objects pinned inside live slab chunks**
 
 A rebuild is worth it only as the reclamation step of a pointer-free AST.
 
+## Counter-evidence from round 1 (rhino.Node agent, measured)
+
+Nodes allocated over a run vs live at the peak: typed-full 2.99 M / 2.15 M
+(ratio 1.39), typed-mega 1.42, typed-app 1.49, bundle 1.96 by the end. A
+48-B node in a never-freed arena beats 64-B GC-managed nodes on bytes only
+below a ratio of 64/48 = 1.33, so **without reclamation the byte gain is a
+wash** (typed-full: arena ≤ 144 MB vs 138 MB of scanned nodes today); the
+gain is GC mark work (−140 to −240 MB of scannable heap per cycle, about 30 %
+of marking). Also: types and JSDoc reached only through ids must be held by
+per-compilation tables, which re-creates the after-colors retention that
+per-node allocation just fixed, unless the type column is dropped at colors.
+
+So the order below changes: first the cheap, safe steps (Go 1.27; a 32-bit
+type/color handle, which removes 1 of 5 pointer words per node and lets the
+type column be dropped wholesale), and the pointer-free arena only together
+with compaction, which requires an exhaustive census of `*Node` holders that
+live across a compaction point (pass-local maps die with their pass; the risk
+is Compiler fields and other long-lived holders).
+
 ## Design
 
 ### 1. Node core: 48 B, no Go pointers
@@ -102,12 +121,13 @@ the full parity corpus (40k Java builds) in that mode before the default flips.
 
 ### 4. Migration steps (each measured with memgate, byte-identical)
 
-1. **Measure:** dead/live node counts per pass, and a census of `*Node` holders
-   alive at each candidate compaction point.
-2. **int32 links, GC-managed chunks, no reclamation:** proves the API
-   translation and its CPU cost; node 64 → 56 B.
-3. **Columns for types/colors/cold data:** the node becomes pointer-free
-   (48 B, noscan); AST scan work → 0.
+1. **Measure:** dead/live node counts per pass (done for whole runs, above),
+   and a census of `*Node` holders alive at each candidate compaction point.
+2. **Type/color handle:** `typeOrColor` becomes a 32-bit id into
+   registry-owned tables (5 → 4 pointer words per node, −20 % AST marking; the
+   JSType table is dropped wholesale at colors). Safe, no reclamation needed.
+3. **Columns for cold data, int32 links:** the node becomes pointer-free
+   (48 B, noscan); AST scan work → 0. Only together with step 4.
 4. **Compaction after typesToColors and in the loop**, behind `--fast_mode`,
    with the poison verifier in tests.
 5. **Default** once the parity corpus is clean in poison mode.
