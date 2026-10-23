@@ -31,7 +31,7 @@ type DefaultParameterTree struct {
 // Java: DefaultParameterTree(SourceRange, ParseTree, ParseTree)
 func NewDefaultParameterTree(location SourceRange, lhs ParseTree, defaultValue ParseTree) *DefaultParameterTree {
 	t := &DefaultParameterTree{}
-	t.InitParseTreeBase(t, ParseTreeType_DEFAULT_PARAMETER, location)
+	t.InitParseTreeBase(ParseTreeType_DEFAULT_PARAMETER, location)
 	t.Lhs = lhs
 	t.DefaultValue = defaultValue
 	return t

@@ -28,6 +28,6 @@ type EmptyStatementTree struct {
 // Java: EmptyStatementTree(SourceRange)
 func NewEmptyStatementTree(location SourceRange) *EmptyStatementTree {
 	t := &EmptyStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_EMPTY_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_EMPTY_STATEMENT, location)
 	return t
 }

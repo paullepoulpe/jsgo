@@ -31,7 +31,7 @@ type ImportSpecifierTree struct {
 // Java: ImportSpecifierTree(SourceRange, IdentifierToken, IdentifierToken)
 func NewImportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ImportSpecifierTree {
 	t := &ImportSpecifierTree{}
-	t.InitParseTreeBase(t, ParseTreeType_IMPORT_SPECIFIER, location)
+	t.InitParseTreeBase(ParseTreeType_IMPORT_SPECIFIER, location)
 	t.ImportedName = importedName
 	t.DestinationName = destinationName
 	return t

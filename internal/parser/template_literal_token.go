@@ -71,7 +71,7 @@ func (e TemplateLiteralToken_ErrorLevel) String() string { return e.Name() }
 // Java: TemplateLiteralToken(TokenType, String, String, ErrorLevel, SourcePosition, SourceRange)
 func NewTemplateLiteralToken(type_ TokenType, value string, errorMsg *string, errorLevel *TemplateLiteralToken_ErrorLevel, position SourcePosition, location SourceRange) *TemplateLiteralToken {
 	t := &TemplateLiteralToken{}
-	t.InitLiteralTokenBase(t, type_, value, location)
+	t.InitLiteralTokenBase(type_, value, location)
 	t.ErrorMessage = errorMsg
 	t.ErrorLevel = errorLevel
 	t.ErrorPosition = position

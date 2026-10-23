@@ -30,7 +30,7 @@ type StringLiteralToken struct {
 // Java: StringLiteralToken(String, SourceRange, boolean)
 func NewStringLiteralToken(value string, location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
 	t := &StringLiteralToken{}
-	t.InitLiteralTokenBase(t, TokenType_STRING, value, location)
+	t.InitLiteralTokenBase(TokenType_STRING, value, location)
 	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
 	return t
 }

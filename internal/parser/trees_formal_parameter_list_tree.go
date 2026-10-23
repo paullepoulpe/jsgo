@@ -23,10 +23,11 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // FormalParameterListTree is the parse tree for ParseTreeType FORMAL_PARAMETER_LIST.
 type FormalParameterListTree struct {
 	ParseTreeBase
-
-	Parameters       []ParseTree
+	// Go-only: performance — before the other fields, in the base's padding.
 	HasTrailingComma bool
-	CommaPositions   []SourcePosition
+
+	Parameters     []ParseTree
+	CommaPositions []SourcePosition
 }
 
 // NewFormalParameterListTree constructs a FormalParameterListTree.
@@ -34,7 +35,7 @@ type FormalParameterListTree struct {
 // Java: FormalParameterListTree(SourceRange, ImmutableList, boolean, ImmutableList)
 func NewFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
 	t := &FormalParameterListTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FORMAL_PARAMETER_LIST, location)
+	t.InitParseTreeBase(ParseTreeType_FORMAL_PARAMETER_LIST, location)
 	numParams := len(parameters)
 	numCommas := len(commaPositions)
 	if !(numCommas <= numParams && numCommas >= numParams-1) {

@@ -31,7 +31,7 @@ type WithStatementTree struct {
 // Java: WithStatementTree(SourceRange, ParseTree, ParseTree)
 func NewWithStatementTree(location SourceRange, expression ParseTree, body ParseTree) *WithStatementTree {
 	t := &WithStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_WITH_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_WITH_STATEMENT, location)
 	t.Expression = expression
 	t.Body = body
 	return t

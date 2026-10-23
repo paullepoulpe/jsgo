@@ -31,7 +31,7 @@ type CaseClauseTree struct {
 // Java: CaseClauseTree(SourceRange, ParseTree, ImmutableList)
 func NewCaseClauseTree(location SourceRange, expression ParseTree, statements []ParseTree) *CaseClauseTree {
 	t := &CaseClauseTree{}
-	t.InitParseTreeBase(t, ParseTreeType_CASE_CLAUSE, location)
+	t.InitParseTreeBase(ParseTreeType_CASE_CLAUSE, location)
 	t.Expression = expression
 	t.Statements = statements
 	return t

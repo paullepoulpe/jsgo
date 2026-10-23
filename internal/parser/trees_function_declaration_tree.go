@@ -87,7 +87,7 @@ func FunctionDeclarationTree_NewBuilder(kind FunctionDeclarationTree_Kind) *Func
 // Java: FunctionDeclarationTree(Builder)
 func NewFunctionDeclarationTree(builder *FunctionDeclarationTree_Builder) *FunctionDeclarationTree {
 	t := &FunctionDeclarationTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FUNCTION_DECLARATION, builder.location)
+	t.InitParseTreeBase(ParseTreeType_FUNCTION_DECLARATION, builder.location)
 
 	t.Name = builder.name
 	t.IsClassMember = builder.isClassMember

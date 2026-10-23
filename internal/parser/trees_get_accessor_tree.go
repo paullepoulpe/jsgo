@@ -33,7 +33,7 @@ type GetAccessorTree struct {
 // Java: GetAccessorTree(SourceRange, Token, boolean, boolean, BlockTree)
 func NewGetAccessorTree(location SourceRange, propertyName Token, isClassMember bool, isStatic bool, body *BlockTree) *GetAccessorTree {
 	t := &GetAccessorTree{}
-	t.InitParseTreeBase(t, ParseTreeType_GET_ACCESSOR, location)
+	t.InitParseTreeBase(ParseTreeType_GET_ACCESSOR, location)
 	t.PropertyName = propertyName
 	t.IsClassMember = isClassMember
 	t.IsStatic = isStatic

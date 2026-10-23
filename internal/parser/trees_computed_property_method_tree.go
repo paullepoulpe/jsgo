@@ -31,7 +31,7 @@ type ComputedPropertyMethodTree struct {
 // Java: ComputedPropertyMethodTree(SourceRange, ParseTree, ParseTree)
 func NewComputedPropertyMethodTree(location SourceRange, property ParseTree, method ParseTree) *ComputedPropertyMethodTree {
 	t := &ComputedPropertyMethodTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_METHOD, location)
+	t.InitParseTreeBase(ParseTreeType_COMPUTED_PROPERTY_METHOD, location)
 	t.Property = property
 	t.Method = method
 	return t

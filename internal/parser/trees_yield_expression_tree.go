@@ -21,9 +21,10 @@ package parser
 // YieldExpressionTree is the parse tree for ParseTreeType YIELD_EXPRESSION.
 type YieldExpressionTree struct {
 	ParseTreeBase
+	// Go-only: performance — before the other fields, in the base's padding.
+	IsYieldAll bool
 
 	Expression ParseTree
-	IsYieldAll bool
 }
 
 // NewYieldExpressionTree constructs a YieldExpressionTree.
@@ -31,7 +32,7 @@ type YieldExpressionTree struct {
 // Java: YieldExpressionTree(SourceRange, boolean, ParseTree)
 func NewYieldExpressionTree(location SourceRange, isYieldAll bool, expression ParseTree) *YieldExpressionTree {
 	t := &YieldExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_YIELD_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_YIELD_EXPRESSION, location)
 	t.IsYieldAll = isYieldAll
 	t.Expression = expression
 	return t

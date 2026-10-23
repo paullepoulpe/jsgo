@@ -21,9 +21,10 @@ package parser
 // Tree for public comptuted property fields
 type ComputedPropertyFieldTree struct {
 	ParseTreeBase
+	// Go-only: performance — before the other fields, in the base's padding.
+	IsStatic bool
 
 	Property    ParseTree
-	IsStatic    bool
 	Initializer ParseTree
 }
 
@@ -32,7 +33,7 @@ type ComputedPropertyFieldTree struct {
 // Java: ComputedPropertyFieldTree(SourceRange, ParseTree, boolean, ParseTree)
 func NewComputedPropertyFieldTree(location SourceRange, property ParseTree, isStatic bool, initializer ParseTree) *ComputedPropertyFieldTree {
 	t := &ComputedPropertyFieldTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_FIELD, location)
+	t.InitParseTreeBase(ParseTreeType_COMPUTED_PROPERTY_FIELD, location)
 	t.Property = property
 	t.IsStatic = isStatic
 	t.Initializer = initializer

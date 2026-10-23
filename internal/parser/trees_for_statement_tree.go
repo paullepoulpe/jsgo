@@ -33,7 +33,7 @@ type ForStatementTree struct {
 // Java: ForStatementTree(SourceRange, ParseTree, ParseTree, ParseTree, ParseTree)
 func NewForStatementTree(location SourceRange, variables ParseTree, condition ParseTree, increment ParseTree, body ParseTree) *ForStatementTree {
 	t := &ForStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_FOR_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_FOR_STATEMENT, location)
 	t.Initializer = variables
 	t.Condition = condition
 	t.Increment = increment

@@ -32,7 +32,7 @@ type VariableDeclarationTree struct {
 // Java: VariableDeclarationTree(SourceRange, ParseTree, ParseTree)
 func NewVariableDeclarationTree(location SourceRange, lvalue ParseTree, initializer ParseTree) *VariableDeclarationTree {
 	t := &VariableDeclarationTree{}
-	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_DECLARATION, location)
+	t.InitParseTreeBase(ParseTreeType_VARIABLE_DECLARATION, location)
 	t.Lvalue = lvalue
 	t.Initializer = initializer
 	return t

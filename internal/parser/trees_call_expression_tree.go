@@ -31,7 +31,7 @@ type CallExpressionTree struct {
 // Java: CallExpressionTree(SourceRange, ParseTree, ArgumentListTree)
 func NewCallExpressionTree(location SourceRange, operand ParseTree, arguments *ArgumentListTree) *CallExpressionTree {
 	t := &CallExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_CALL_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_CALL_EXPRESSION, location)
 	t.Operand = operand
 	t.Arguments = arguments
 	return t

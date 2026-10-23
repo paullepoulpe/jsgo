@@ -31,7 +31,7 @@ type ComputedPropertyDefinitionTree struct {
 // Java: ComputedPropertyDefinitionTree(SourceRange, ParseTree, ParseTree)
 func NewComputedPropertyDefinitionTree(location SourceRange, property ParseTree, value ParseTree) *ComputedPropertyDefinitionTree {
 	t := &ComputedPropertyDefinitionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_DEFINITION, location)
+	t.InitParseTreeBase(ParseTreeType_COMPUTED_PROPERTY_DEFINITION, location)
 	t.Property = property
 	t.Value = value
 	return t

@@ -32,7 +32,7 @@ type NewExpressionTree struct {
 // Java: NewExpressionTree(SourceRange, ParseTree, ArgumentListTree, boolean)
 func NewNewExpressionTree(location SourceRange, operand ParseTree, arguments *ArgumentListTree, hasTrailingComma bool) *NewExpressionTree {
 	t := &NewExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_NEW_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_NEW_EXPRESSION, location)
 	t.Operand = operand
 	t.Arguments = arguments
 	t.HasTrailingComma = hasTrailingComma

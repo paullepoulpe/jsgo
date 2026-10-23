@@ -21,10 +21,11 @@ package parser
 // ArgumentListTree is the parse tree for ParseTreeType ARGUMENT_LIST.
 type ArgumentListTree struct {
 	ParseTreeBase
-
-	Arguments        []ParseTree
+	// Go-only: performance — before the other fields, in the base's padding.
 	HasTrailingComma bool
-	CommaPositions   []SourcePosition
+
+	Arguments      []ParseTree
+	CommaPositions []SourcePosition
 }
 
 // NewArgumentListTree constructs a ArgumentListTree.
@@ -32,7 +33,7 @@ type ArgumentListTree struct {
 // Java: ArgumentListTree(SourceRange, ImmutableList, boolean, ImmutableList)
 func NewArgumentListTree(location SourceRange, arguments []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *ArgumentListTree {
 	t := &ArgumentListTree{}
-	t.InitParseTreeBase(t, ParseTreeType_ARGUMENT_LIST, location)
+	t.InitParseTreeBase(ParseTreeType_ARGUMENT_LIST, location)
 	t.Arguments = arguments
 	t.HasTrailingComma = hasTrailingComma
 	t.CommaPositions = commaPositions

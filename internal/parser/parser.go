@@ -349,7 +349,7 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 
 	// import ModuleSpecifier ;
 	if p.Peek(TokenType_STRING) {
-		moduleSpecifier := p.Eat(TokenType_STRING).AsLiteral()
+		moduleSpecifier := p.Eat(TokenType_STRING).(LiteralToken)
 		p.EatPossiblyImplicitSemiColon()
 
 		return NewImportDeclarationTree(p.GetTreeLocation(start), nil, nil, nil, moduleSpecifier)
@@ -391,7 +391,7 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 	moduleStr := p.Eat(TokenType_STRING)
 	var moduleSpecifier LiteralToken
 	if moduleStr != nil {
-		moduleSpecifier = moduleStr.AsLiteral()
+		moduleSpecifier = moduleStr.(LiteralToken)
 	}
 	p.EatPossiblyImplicitSemiColon()
 
@@ -521,7 +521,7 @@ func (p *Parser) ParseExportDeclaration() ParseTree {
 		}
 	} else if isExportSpecifier {
 		for _, tree := range exportSpecifierList {
-			importedName := tree.AsExportSpecifier().ImportedName
+			importedName := tree.(*ExportSpecifierTree).ImportedName
 			if importedName.IsKeyword() {
 				p.ReportErrorAtToken(identifierTokenAsToken(importedName), "cannot use keyword '%s' here.", importedName)
 			}
@@ -2232,7 +2232,7 @@ func (p *Parser) PeekPredefinedString(string_ string) bool {
 // Java: Parser.eatPredefinedString(String)
 func (p *Parser) EatPredefinedString(string_ string) Token {
 	token := identifierTokenAsToken(p.EatId())
-	if token == nil || !token.AsIdentifier().ValueEquals(string_) {
+	if token == nil || !token.(*IdentifierToken).ValueEquals(string_) {
 		p.ReportExpectedError(token, string_)
 		return nil
 	}
@@ -2323,7 +2323,7 @@ func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
 	if colon == nil {
 		if name.GetTokenBase().Type != TokenType_IDENTIFIER {
 			p.ReportExpectedError(p.PeekToken(), TokenType_COLON)
-		} else if name.AsIdentifier().IsKeyword() {
+		} else if name.(*IdentifierToken).IsKeyword() {
 			p.ReportErrorAtToken(name, "Cannot use keyword in short object literal")
 		} else if p.Peek(TokenType_EQUAL) {
 			idTree := NewIdentifierExpressionTree(p.GetTreeLocation(start), name.(*IdentifierToken))
@@ -2578,7 +2578,7 @@ func (p *Parser) ParseAssignment(expressionIn Parser_Expression) ParseTree {
 // Java: Parser.isStartOfAsyncArrowFunction(ParseTree)
 func (p *Parser) IsStartOfAsyncArrowFunction(partialExpression ParseTree) bool {
 	if partialExpression.GetParseTreeBase().Type == ParseTreeType_IDENTIFIER_EXPRESSION {
-		identifierToken := partialExpression.AsIdentifierExpression().IdentifierToken
+		identifierToken := partialExpression.(*IdentifierExpressionTree).IdentifierToken
 		// partialExpression is `async`
 		// followed by `[no newline] bindingIdentifier [no newline] =>`
 		return identifierToken.ValueEquals(Parser_ASYNC) &&
@@ -2587,13 +2587,13 @@ func (p *Parser) IsStartOfAsyncArrowFunction(partialExpression ParseTree) bool {
 			!p.PeekImplicitSemiColonAt(1) &&
 			p.PeekAt(1, TokenType_ARROW)
 	} else if partialExpression.GetParseTreeBase().Type == ParseTreeType_CALL_EXPRESSION {
-		callExpression := partialExpression.AsCallExpression()
+		callExpression := partialExpression.(*CallExpressionTree)
 		callee := callExpression.Operand
 		var arguments ParseTree = callExpression.Arguments
 		// partialExpression is `async [no newline] (parameters)`
 		// followed by `[no newline] =>`
 		return callee.GetParseTreeBase().Type == ParseTreeType_IDENTIFIER_EXPRESSION &&
-			callee.AsIdentifierExpression().IdentifierToken.ValueEquals(Parser_ASYNC) &&
+			callee.(*IdentifierExpressionTree).IdentifierToken.ValueEquals(Parser_ASYNC) &&
 			callee.GetParseTreeBase().Location.End.Line == arguments.GetParseTreeBase().Location.Start.Line &&
 			!p.PeekImplicitSemiColon() &&
 			p.Peek(TokenType_ARROW)
@@ -2607,7 +2607,7 @@ func (p *Parser) CompleteAssignmentExpressionParseAtArrowWithExpression(leftOfAr
 	if leftOfArrow.GetParseTreeBase().Type == ParseTreeType_CALL_EXPRESSION {
 		//   ... someAssignmentExpression // implicit semicolon
 		//   (args) =>
-		return p.CompleteAssignmentExpressionParseAtArrow(leftOfArrow.AsCallExpression())
+		return p.CompleteAssignmentExpressionParseAtArrow(leftOfArrow.(*CallExpressionTree))
 	} else {
 		return p.CompleteArrowFunctionParseAtArrow(leftOfArrow, expressionIn)
 	}
@@ -2633,7 +2633,7 @@ func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *Formal
 	var arrowParameterList *FormalParameterListTree
 	switch leftOfArrow.GetParseTreeBase().Type {
 	case ParseTreeType_FORMAL_PARAMETER_LIST:
-		arrowParameterList = leftOfArrow.AsFormalParameterList()
+		arrowParameterList = leftOfArrow.(*FormalParameterListTree)
 	case ParseTreeType_IDENTIFIER_EXPRESSION:
 		// e.g. x => x + 1
 		arrowParameterList = NewFormalParameterListTree(
@@ -2845,7 +2845,7 @@ func (p *Parser) ParseShortCircuit(expressionIn Parser_Expression) ParseTree {
 	left := p.ParseLogicalOR(expressionIn)
 	if p.Peek(TokenType_QUESTION_QUESTION) {
 		if left.GetParseTreeBase().Type == ParseTreeType_BINARY_OPERATOR {
-			binaryTree := left.AsBinaryOperator()
+			binaryTree := left.(*BinaryOperatorTree)
 			if binaryTree.Operator.GetTokenBase().Type == TokenType_AND || binaryTree.Operator.GetTokenBase().Type == TokenType_OR {
 				p.ReportError("Logical OR and logical AND require parentheses when used with '??'")
 			}
@@ -3074,7 +3074,7 @@ func (p *Parser) ParseExponentiationExpression() ParseTree {
 		if left.GetParseTreeBase().Type == ParseTreeType_UNARY_EXPRESSION {
 			p.ReportError(
 				"Unary operator '%s' requires parentheses before '**'",
-				left.AsUnaryExpression().Operator)
+				left.(*UnaryExpressionTree).Operator)
 		} else if left.GetParseTreeBase().Type == ParseTreeType_AWAIT_EXPRESSION {
 			p.ReportError("Unary operator 'await' requires parentheses before '**'")
 		}
@@ -3816,7 +3816,7 @@ func (p *Parser) PeekIdAt(index int) bool {
 	typeToCheck := token.GetTokenBase().Type
 
 	if typeToCheck == TokenType_IDENTIFIER {
-		value := token.AsIdentifier().GetMaybePrivateValue()
+		value := token.(*IdentifierToken).GetMaybePrivateValue()
 		k := Keywords_Get(value)
 		if k == nil {
 			return true

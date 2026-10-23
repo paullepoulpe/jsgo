@@ -30,7 +30,7 @@ type IterRestTree struct {
 // Java: IterRestTree(SourceRange, ParseTree)
 func NewIterRestTree(location SourceRange, assignmentTarget ParseTree) *IterRestTree {
 	t := &IterRestTree{}
-	t.InitParseTreeBase(t, ParseTreeType_ITER_REST, location)
+	t.InitParseTreeBase(ParseTreeType_ITER_REST, location)
 	t.AssignmentTarget = assignmentTarget
 	return t
 }

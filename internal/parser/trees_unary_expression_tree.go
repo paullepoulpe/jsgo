@@ -31,7 +31,7 @@ type UnaryExpressionTree struct {
 // Java: UnaryExpressionTree(SourceRange, Token, ParseTree)
 func NewUnaryExpressionTree(location SourceRange, operator Token, operand ParseTree) *UnaryExpressionTree {
 	t := &UnaryExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_UNARY_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_UNARY_EXPRESSION, location)
 	t.Operator = operator
 	t.Operand = operand
 	return t

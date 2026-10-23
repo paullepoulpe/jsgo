@@ -28,6 +28,6 @@ type NullTree struct {
 // Java: NullTree(SourceRange)
 func NewNullTree(location SourceRange) *NullTree {
 	t := &NullTree{}
-	t.InitParseTreeBase(t, ParseTreeType_NULL, location)
+	t.InitParseTreeBase(ParseTreeType_NULL, location)
 	return t
 }

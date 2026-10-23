@@ -31,7 +31,7 @@ type MemberLookupExpressionTree struct {
 // Java: MemberLookupExpressionTree(SourceRange, ParseTree, ParseTree)
 func NewMemberLookupExpressionTree(location SourceRange, operand ParseTree, memberExpression ParseTree) *MemberLookupExpressionTree {
 	t := &MemberLookupExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_MEMBER_LOOKUP_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_MEMBER_LOOKUP_EXPRESSION, location)
 	t.Operand = operand
 	t.MemberExpression = memberExpression
 	return t

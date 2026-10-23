@@ -28,6 +28,6 @@ type DebuggerStatementTree struct {
 // Java: DebuggerStatementTree(SourceRange)
 func NewDebuggerStatementTree(location SourceRange) *DebuggerStatementTree {
 	t := &DebuggerStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_DEBUGGER_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_DEBUGGER_STATEMENT, location)
 	return t
 }

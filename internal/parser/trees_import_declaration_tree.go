@@ -39,7 +39,7 @@ type ImportDeclarationTree struct {
 // Java: ImportDeclarationTree(SourceRange, IdentifierToken, ImmutableList, IdentifierToken, LiteralToken)
 func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *IdentifierToken, importSpecifierList []ParseTree, nameSpaceImportIdentifier *IdentifierToken, moduleSpecifier LiteralToken) *ImportDeclarationTree {
 	t := &ImportDeclarationTree{}
-	t.InitParseTreeBase(t, ParseTreeType_IMPORT_DECLARATION, location)
+	t.InitParseTreeBase(ParseTreeType_IMPORT_DECLARATION, location)
 	t.DefaultBindingIdentifier = defaultBindingIdentifier
 	t.ImportSpecifierList = importSpecifierList
 	t.NameSpaceImportIdentifier = nameSpaceImportIdentifier

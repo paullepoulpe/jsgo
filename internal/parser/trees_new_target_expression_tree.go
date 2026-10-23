@@ -28,6 +28,6 @@ type NewTargetExpressionTree struct {
 // Java: NewTargetExpressionTree(SourceRange)
 func NewNewTargetExpressionTree(location SourceRange) *NewTargetExpressionTree {
 	t := &NewTargetExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_NEW_TARGET_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_NEW_TARGET_EXPRESSION, location)
 	return t
 }

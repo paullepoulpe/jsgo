@@ -31,7 +31,7 @@ type WhileStatementTree struct {
 // Java: WhileStatementTree(SourceRange, ParseTree, ParseTree)
 func NewWhileStatementTree(location SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
 	t := &WhileStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_WHILE_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_WHILE_STATEMENT, location)
 	t.Condition = condition
 	t.Body = body
 	return t

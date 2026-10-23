@@ -31,7 +31,7 @@ type TemplateSubstitutionTree struct {
 // Java: TemplateSubstitutionTree(SourceRange, ParseTree)
 func NewTemplateSubstitutionTree(location SourceRange, expression ParseTree) *TemplateSubstitutionTree {
 	t := &TemplateSubstitutionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_TEMPLATE_SUBSTITUTION, location)
+	t.InitParseTreeBase(ParseTreeType_TEMPLATE_SUBSTITUTION, location)
 	t.Expression = expression
 	return t
 }

@@ -30,7 +30,7 @@ type ObjectSpreadTree struct {
 // Java: ObjectSpreadTree(SourceRange, ParseTree)
 func NewObjectSpreadTree(location SourceRange, expression ParseTree) *ObjectSpreadTree {
 	t := &ObjectSpreadTree{}
-	t.InitParseTreeBase(t, ParseTreeType_OBJECT_SPREAD, location)
+	t.InitParseTreeBase(ParseTreeType_OBJECT_SPREAD, location)
 	t.Expression = expression
 	return t
 }

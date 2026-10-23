@@ -30,7 +30,7 @@ type BlockTree struct {
 // Java: BlockTree(SourceRange, ImmutableList)
 func NewBlockTree(location SourceRange, statements []ParseTree) *BlockTree {
 	t := &BlockTree{}
-	t.InitParseTreeBase(t, ParseTreeType_BLOCK, location)
+	t.InitParseTreeBase(ParseTreeType_BLOCK, location)
 	t.Statements = statements
 	return t
 }

@@ -28,6 +28,6 @@ type SuperExpressionTree struct {
 // Java: SuperExpressionTree(SourceRange)
 func NewSuperExpressionTree(location SourceRange) *SuperExpressionTree {
 	t := &SuperExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_SUPER_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_SUPER_EXPRESSION, location)
 	return t
 }

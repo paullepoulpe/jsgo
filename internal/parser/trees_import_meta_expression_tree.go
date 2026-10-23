@@ -28,6 +28,6 @@ type ImportMetaExpressionTree struct {
 // Java: ImportMetaExpressionTree(SourceRange)
 func NewImportMetaExpressionTree(location SourceRange) *ImportMetaExpressionTree {
 	t := &ImportMetaExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_IMPORT_META_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_IMPORT_META_EXPRESSION, location)
 	return t
 }

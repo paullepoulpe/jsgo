@@ -38,13 +38,13 @@ func TestToStringMatchesJava(t *testing.T) {
 	if want := "Unexpected # of comma and formal params.|params: []|comma positions: [(1, 1), (2, 3)]"; strings.ReplaceAll(msg, "\n", "|") != want {
 		t.Errorf("checkArgument message %q, Java %q", msg, want)
 	}
-	// Token casts go through the Java object (self), like Java's (T) this.
+	// Token casts are type assertions, like Java's (T) this.
 	var tok Token = NewIdentifierToken(r, "x")
-	if tok.AsIdentifier().GetValue() != "x" {
+	if tok.(*IdentifierToken).GetValue() != "x" {
 		t.Errorf("AsIdentifier")
 	}
 	var lit Token = NewStringLiteralToken("'s'", r, false)
-	if lit.AsLiteral().GetLiteralTokenBase().Value != "'s'" {
+	if lit.(LiteralToken).GetLiteralTokenBase().Value != "'s'" {
 		t.Errorf("AsLiteral")
 	}
 	var tree ParseTree = NewParenExpressionTree(r, NewArrayPatternTree(r, []ParseTree{}))

@@ -26,10 +26,11 @@ package parser
 //	LeftHandSideExpression [no LineTerminator here] { ++ | -- }
 type UpdateExpressionTree struct {
 	ParseTreeBase
-
-	Operator         Token
+	// Go-only: performance — before the other fields, in the base's padding.
 	OperatorPosition UpdateExpressionTree_OperatorPosition
-	Operand          ParseTree
+
+	Operator Token
+	Operand  ParseTree
 }
 
 // UpdateExpressionTree_OperatorPosition is UpdateExpressionTree.OperatorPosition:
@@ -67,7 +68,7 @@ func (p UpdateExpressionTree_OperatorPosition) String() string { return p.Name()
 // Java: UpdateExpressionTree(SourceRange, Token, OperatorPosition, ParseTree)
 func NewUpdateExpressionTree(location SourceRange, operator Token, operatorPosition UpdateExpressionTree_OperatorPosition, operand ParseTree) *UpdateExpressionTree {
 	t := &UpdateExpressionTree{}
-	t.InitParseTreeBase(t, ParseTreeType_UPDATE_EXPRESSION, location)
+	t.InitParseTreeBase(ParseTreeType_UPDATE_EXPRESSION, location)
 	t.Operator = operator
 	t.OperatorPosition = operatorPosition
 	t.Operand = operand

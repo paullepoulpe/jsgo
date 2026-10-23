@@ -30,7 +30,7 @@ type BreakStatementTree struct {
 // Java: BreakStatementTree(SourceRange, IdentifierToken)
 func NewBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakStatementTree {
 	t := &BreakStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_BREAK_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_BREAK_STATEMENT, location)
 	t.Name = name
 	return t
 }

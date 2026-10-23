@@ -30,7 +30,7 @@ type VariableStatementTree struct {
 // Java: VariableStatementTree(SourceRange, VariableDeclarationListTree)
 func NewVariableStatementTree(location SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
 	t := &VariableStatementTree{}
-	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_STATEMENT, location)
+	t.InitParseTreeBase(ParseTreeType_VARIABLE_STATEMENT, location)
 	t.Declarations = declarations
 	return t
 }

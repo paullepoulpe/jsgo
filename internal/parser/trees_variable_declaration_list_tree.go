@@ -31,7 +31,7 @@ type VariableDeclarationListTree struct {
 // Java: VariableDeclarationListTree(SourceRange, TokenType, ImmutableList)
 func NewVariableDeclarationListTree(location SourceRange, declarationType TokenType, declarations []*VariableDeclarationTree) *VariableDeclarationListTree {
 	t := &VariableDeclarationListTree{}
-	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_DECLARATION_LIST, location)
+	t.InitParseTreeBase(ParseTreeType_VARIABLE_DECLARATION_LIST, location)
 	t.DeclarationType = declarationType
 	t.Declarations = declarations
 	return t

@@ -36,7 +36,7 @@ type ExportDeclarationTree struct {
 // Java: ExportDeclarationTree(SourceRange, boolean, boolean, ParseTree, ImmutableList, LiteralToken)
 func NewExportDeclarationTree(location SourceRange, isDefault bool, isExportAll bool, declaration ParseTree, exportSpecifierList []ParseTree, from LiteralToken) *ExportDeclarationTree {
 	t := &ExportDeclarationTree{}
-	t.InitParseTreeBase(t, ParseTreeType_EXPORT_DECLARATION, location)
+	t.InitParseTreeBase(ParseTreeType_EXPORT_DECLARATION, location)
 	t.IsDefault = isDefault
 	t.IsExportAll = isExportAll
 	t.Declaration = declaration
