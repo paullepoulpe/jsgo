@@ -2984,10 +2984,6 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // ------------------------------------------------------------------------
 
 func (c *Compiler) evictPassArenaCaches() {
-	evictCachedGlobalNamespaceArenas()
-	if a := cachedRUCArena.Swap(nil); a != nil {
-		removeUnusedCodeArenaPool.Put(a)
-	}
 	for i := range cachedRCArenas {
 		if a := cachedRCArenas[i].Swap(nil); a != nil {
 			referenceCollectorArenaPool.Put(a)
@@ -3001,12 +2997,6 @@ func (c *Compiler) evictPassArenaCaches() {
 			a.trimSmall()
 			scopeArenaPool.Put(a)
 		}
-	}
-	if ic := cachedInferConstsCollector.Swap(nil); ic != nil {
-		inferConstsCollectorPool.Put(ic)
-	}
-	if p := cachedIfPoolState.Swap(nil); p != nil && len(p.fnStateChunks) <= 64 {
-		ifPool.Put(p)
 	}
 }
 
