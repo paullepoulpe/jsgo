@@ -51,11 +51,11 @@ func (s *Slab[T]) New() *T {
 
 // grow starts a new chunk, twice the size of the last one up to
 // slabMaxChunk (or s.maxChunk) elements, so that a slab that serves few
-// objects stays small (many slabs serve only a handful: a scope creator's
-// scopes for one function, say). The chunk gets every element its allocation's size
-// class holds: Go rounds an allocation up to a size class (after putting an
-// 8-byte header in front of a pointerful one over 512 bytes), so make([]T, n)
-// would leave up to 15% of the chunk's memory unused.
+// objects stays small (many serve only a handful: one traversal's scopes,
+// say). The chunk gets every element its allocation's size class holds: Go
+// rounds an allocation up to a size class (after putting an 8-byte header in
+// front of a pointerful one over 512 bytes), so make([]T, n) would leave up
+// to 15% of the chunk's memory unused.
 func (s *Slab[T]) grow() {
 	n := s.fixedChunk
 	if n == 0 {
