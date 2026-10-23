@@ -196,7 +196,7 @@ func (l *LiveVariablesAnalysis) Reset(
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
-	l.ResetDataFlowAnalysisBase(l, cfg)
+	l.InitDataFlowAnalysisBase(l, cfg)
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
 	l.jsScope = jsScope

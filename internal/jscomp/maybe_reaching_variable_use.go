@@ -102,7 +102,7 @@ func (u *MaybeReachingVariableUse) Reset(
 	cfg ControlFlowGraph[*rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	u.ResetDataFlowAnalysisBase(u, cfg)
+	u.InitDataFlowAnalysisBase(u, cfg)
 	u.varMapArena.Reset()
 	u.nodeMapArena.Reset()
 	u.escaped = escaped

@@ -119,15 +119,7 @@ func NewTypeInference(
 
 func (ti *TypeInference) ReleaseLargeBuffers() {
 	ti.flowScopeArena.trimLargeChunks()
-	ti.trimLargeFlowStateChunks(16)
-	if cap(ti.queue) > 4096 {
-		ti.queue = nil
-		ti.queueHead = 0
-	} else if len(ti.queue) > 0 {
-		clear(ti.queue)
-		ti.queue = ti.queue[:0]
-		ti.queueHead = 0
-	}
+	ti.releaseLargeStorage()
 	if cap(ti.outcomePairSlab) > 1024 {
 		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]
 	}
@@ -143,7 +135,7 @@ func (ti *TypeInference) initTypeInference(
 	syntacticScope *TypedScope,
 	scopeCreator *TypedScopeCreator,
 	assertionFunctionLookup *CodingConvention_AssertionFunctionLookup) {
-	ti.ResetDataFlowAnalysisBase(ti, cfg)
+	ti.InitDataFlowAnalysisBase(ti, cfg)
 	ti.flowScopeArena.reset()
 	if cap(ti.outcomePairSlab) == 0 {
 		ti.outcomePairSlab = ti.outcomePairBuf[:0:len(ti.outcomePairBuf)]

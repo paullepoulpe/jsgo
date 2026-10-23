@@ -302,7 +302,7 @@ func (d *MustBeReachingVariableDef) Reset(
 	compiler AbstractCompiler,
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	d.ResetDataFlowAnalysisBase(d, cfg)
+	d.InitDataFlowAnalysisBase(d, cfg)
 	d.compiler = compiler
 	d.escaped = escaped
 	d.allVarsInFn = allVarsInFn
