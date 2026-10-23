@@ -114,7 +114,7 @@ const PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
 //
 // Java: PrototypeObjectType(Builder<?>)
 func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *PrototypeObjectTypeBase {
-	t := builder.registry.allocPrototypeObjectType()
+	t := &PrototypeObjectTypeBase{}
 	t.objFlags = objKindPrototype
 	t.InitPrototypeObjectTypeBase(t, builder)
 	return t

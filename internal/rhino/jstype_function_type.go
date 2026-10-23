@@ -154,7 +154,7 @@ func (f *FunctionTypeBase) selfFunc() FunctionType {
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
 	if f.ext == nil {
-		f.ext = f.registry.allocFunctionTypeExt()
+		f.ext = &functionTypeExt{}
 	}
 	return f.ext
 }
@@ -241,7 +241,7 @@ var (
 //
 // Java: FunctionType(Builder)
 func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
-	t := builder.registry.allocFunctionType()
+	t := &FunctionTypeBase{}
 	t.objFlags = objKindFunction
 	t.InitFunctionTypeBase(t, builder)
 	return t

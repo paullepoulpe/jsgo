@@ -36,35 +36,28 @@
 package rhino
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-var (
-	propertySymbolMu   sync.RWMutex
-	propertySymbolList []*KnownSymbolType
-)
-
-func registerPropertySymbol(sym *KnownSymbolType) rhinoStringID {
-	propertySymbolMu.Lock()
-	for i, existing := range propertySymbolList {
+// propertySymbolID returns the 1-based index of sym in r's list of symbols
+// used as property keys, adding it if new.
+//
+// Go-only: performance — a Property names a symbol by this index (it shares
+// the 32-bit name field with string IDs), resolved through the registry of
+// the property's type, so that the list dies with the registry.
+func (r *JSTypeRegistry) propertySymbolID(sym *KnownSymbolType) rhinoStringID {
+	for i, existing := range r.propertySymbols {
 		if existing == sym {
-			propertySymbolMu.Unlock()
 			return rhinoStringID(i + 1)
 		}
 	}
-	propertySymbolList = append(propertySymbolList, sym)
-	id := rhinoStringID(len(propertySymbolList))
-	propertySymbolMu.Unlock()
-	return id
+	r.propertySymbols = append(r.propertySymbols, sym)
+	return rhinoStringID(len(r.propertySymbols))
 }
 
-func propertySymbolFromID(id rhinoStringID) *KnownSymbolType {
-	propertySymbolMu.RLock()
-	sym := propertySymbolList[id-1]
-	propertySymbolMu.RUnlock()
-	return sym
+// symbol is the key of a symbol-keyed property.
+func (p *Property) symbol() *KnownSymbolType {
+	return p.type_.GetJSTypeBase().registry.propertySymbols[p.nameID-1]
 }
 
 // Property is a property slot of an object.
@@ -80,7 +73,7 @@ type Property struct {
 	docInfo *JSDocInfo
 
 	// Property's name: either a 32-bit RhinoStringPool ID (!isSymbol) or a
-	// 1-based index into propertySymbolList (isSymbol).
+	// 1-based index into the registry's propertySymbols (isSymbol).
 	nameID rhinoStringID
 
 	// Whether the property's type is inferred.
@@ -253,11 +246,7 @@ const Property_serialVersionUID int64 = 1
 // Java: Property(String, JSType, boolean, Node)
 func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *Property {
 	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
-	var r *JSTypeRegistry
-	if tb := type_.GetJSTypeBase(); tb != nil {
-		r = tb.registry
-	}
-	p := r.allocProperty()
+	p := &Property{}
 	p.nameID = rhinoStringPoolIntern(name)
 	p.type_ = type_
 	p.inferred = inferred
@@ -270,16 +259,12 @@ func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNo
 	if jutil.IsNil(type_) {
 		jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
 	}
-	var r *JSTypeRegistry
-	if tb := type_.GetJSTypeBase(); tb != nil {
-		r = tb.registry
-	}
-	p := r.allocProperty()
+	p := &Property{}
 	switch name.Kind() {
 	case Property_KeyKind_STRING:
 		p.nameID = rhinoStringPoolIntern(name.String_())
 	case Property_KeyKind_SYMBOL:
-		p.nameID = registerPropertySymbol(name.Symbol())
+		p.nameID = type_.GetJSTypeBase().registry.propertySymbolID(name.Symbol())
 		p.isSymbol = true
 	}
 	p.type_ = type_
@@ -292,7 +277,7 @@ func (p *Property) nameObject() any {
 	if !p.isSymbol {
 		return rhinoStringFromID(p.nameID)
 	}
-	return propertySymbolFromID(p.nameID)
+	return p.symbol()
 }
 
 // Java: Property.getName()
@@ -300,7 +285,7 @@ func (p *Property) GetName() string {
 	if !p.isSymbol {
 		return rhinoStringFromID(p.nameID)
 	}
-	return *propertySymbolFromID(p.nameID).GetDisplayName()
+	return *p.symbol().GetDisplayName()
 }
 
 // Java: Property.getNode()
@@ -395,7 +380,7 @@ func (p *Property) HashCode() int32 {
 	if !p.isSymbol {
 		return 31*(31+jutil.StringHashCode(rhinoStringFromID(p.nameID))) + jutil.ObjectHashCode(p.type_)
 	}
-	return jutil.ObjectsHash(propertySymbolFromID(p.nameID), p.type_)
+	return jutil.ObjectsHash(p.symbol(), p.type_)
 }
 
 // Equals is Object.equals (Property does not override it): identity.

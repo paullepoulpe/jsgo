@@ -102,7 +102,7 @@ const UnionType_MAX_UNION_SIZE = 30
 //
 // Java: UnionType(Builder)
 func NewUnionType(builder *UnionType_Builder) *UnionType {
-	t := builder.registry.allocUnionType()
+	t := &UnionType{}
 	t.objFlags = jsKindUnion
 	t.InitJSTypeBase(t, builder.registry)
 	t.resolvedAlternatesAtLastBuild = -1
@@ -212,9 +212,7 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 			}
 			t.alternates = t.inlineAlternates[:n]
 		} else {
-			s := t.registry.allocJSTypeSlice(n)
-			copy(s, builder.inlineAlternates[:n])
-			t.alternates = s
+			t.alternates = slices.Clone(builder.inlineAlternates[:n])
 		}
 	}
 	t.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild

@@ -558,19 +558,6 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	} else if m.sorted && jutil.StringCompareTo(rhinoStringFromID(m.entries[len(m.entries)-1].nameID), name) >= 0 {
 		m.sorted = false
 	}
-	if len(m.entries) == cap(m.entries) {
-		var reg *JSTypeRegistry
-		if m.embeddedInProto {
-			o := (*ObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
-			reg = o.registry
-		}
-		if cap(m.entries) == 0 {
-			m.entries = reg.allocPropertySliceCap(4)
-		} else if reg != nil && cap(m.entries) <= 16 {
-			grown := reg.allocPropertySliceCap(cap(m.entries) * 4)
-			m.entries = append(grown, m.entries...)
-		}
-	}
 	m.entries = append(m.entries, newProp)
 	if !m.hasNonASCII {
 		if m.ext != nil && m.ext.byID != nil {

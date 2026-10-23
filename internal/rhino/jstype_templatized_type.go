@@ -53,7 +53,7 @@ const TemplatizedType_TYPE_CLASS = JSTypeClass_TEMPLATIZED
 
 // Java: TemplatizedType(JSTypeRegistry, ObjectType, ImmutableList<JSType>)
 func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templateTypes []JSType) *TemplatizedType {
-	t := registry.allocTemplatizedType()
+	t := &TemplatizedType{}
 	t.objFlags = objKindTemplatized
 	ttm := objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes)
 	t.InitProxyObjectTypeBaseWithTemplateTypeMap(t, registry, objectType, ttm)
@@ -76,7 +76,7 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 		unk := t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		t.isSpecializedOnlyWithUnknown = jsTypeEquals(unk, r0) && jsTypeEquals(unk, r1)
 	} else {
-		builder := registry.allocJSTypeSlice(nParams)[:0]
+		builder := make([]JSType, 0, nParams)
 		maybeIsSpecializedOnlyWithUnknown := true
 		for _, newlyFilledTemplateKey := range typeParams {
 			resolvedType := ttm.GetResolvedTemplateType(newlyFilledTemplateKey)
@@ -258,7 +258,7 @@ func (t *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 			if len(t.templateTypes) <= len(builderBuf) {
 				builder = builderBuf[:len(t.templateTypes)]
 			} else {
-				builder = t.registry.allocJSTypeSlice(len(t.templateTypes))
+				builder = make([]JSType, len(t.templateTypes))
 			}
 			copy(builder[:i], t.templateTypes[:i])
 			builder[i] = resolved

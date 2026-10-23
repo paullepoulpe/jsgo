@@ -52,7 +52,7 @@ const InstanceObjectType_TYPE_CLASS = JSTypeClass_INSTANCE_OBJECT
 
 // Java: InstanceObjectType(Builder)
 func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectType {
-	t := builder.registry.allocInstanceObjectType()
+	t := &InstanceObjectType{}
 	t.objFlags = objKindInstance
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
 	t.constructor = jutil.CheckNotNull(builder.constructor).GetFunctionTypeBase()
