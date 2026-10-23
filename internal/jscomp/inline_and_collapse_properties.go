@@ -1995,17 +1995,22 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	//     string c
 	// AFTER:
 	//   name a$b$c
-	ref := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, n, originalName).CopyTypeFrom(n)
-	NodeUtil_CopyNameAnnotations(n, ref)
-	if isConstantName {
-		ref.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstantName)
-	}
+	isConst := isConstantName || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) || c.outer.compiler.GetCodingConvention().IsConstant(alias)
 	if NodeUtil_IsNormalOrOptChainCall(parent) && n.IsFirstChildOf(parent) {
 		// The node was a call target. We are deliberately flattening these as
 		// the "this" isn't provided by the namespace. Mark it as such:
 		parent.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	}
+	if n.MutateGetPropToNameInPlace(alias, originalName, isConst) {
+		c.outer.compiler.ReportChangeToEnclosingScope(n)
+		return
+	}
 
+	ref := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, n, originalName).CopyTypeFrom(n)
+	NodeUtil_CopyNameAnnotations(n, ref)
+	if isConstantName {
+		ref.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstantName)
+	}
 	n.ReplaceWith(ref)
 	c.outer.compiler.ReportChangeToEnclosingScope(ref)
 }

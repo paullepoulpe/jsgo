@@ -1594,31 +1594,67 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	p := f.ensurePoolState()
 	names := p.calledNames
 	names.Clear()
-	inlineFunctions_findCalledFunctions(NodeUtil_GetFunctionBody(fnNode), names)
+	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
+		NodeUtil_GetFunctionBody(fnNode), names, f.anonFns, f.fns)
 	if !names.IsEmpty() {
+		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode)
+		if !needsSafeClone {
+			for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); param != nil; param = param.GetNext() {
+				if param.GetFirstChild() != nil {
+					needsSafeClone = true
+					break
+				}
+			}
+		}
 		// Prevent the removal of the referenced functions unless they will be immediately inlined.
 		for name := range names.All() {
 			fsCalled := f.fns.Get(name)
-			if fsCalled != nil && fsCalled.CanRemove() {
-				fsCalled.SetRemove(
-					false,
-					f.compiler,
-					InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
-					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-				// For functions that can no longer be removed, check if they should
-				// still be inlined.
-				if !f.MinimizeCost(fsCalled) &&
-					!fsCalled.RequireInlining() &&
-					!fsCalled.EncourageInlining() {
-					// It can't be inlined remove it from the list.
-					fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
+			if fsCalled != nil {
+				if fsCalled.CanRemove() {
+					fsCalled.SetRemove(
+						false,
+						f.compiler,
+						InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
+						InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
+					// For functions that can no longer be removed, check if they should
+					// still be inlined.
+					if !f.MinimizeCost(fsCalled) &&
+						!fsCalled.RequireInlining() &&
+						!fsCalled.EncourageInlining() {
+						// It can't be inlined remove it from the list.
+						fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
+					}
+				}
+				if fsCalled.CanInline() {
+					needsSafeClone = true
 				}
 			}
 		}
 
-		// Make a copy of the Node, so it isn't changed by other inlines.
-		functionState.SetSafeFnNode(functionState.GetFn().GetFunctionNode().CloneTree())
+		if needsSafeClone {
+			// Make a copy of the Node, so it isn't changed by other inlines.
+			functionState.SetSafeFnNode(fnNode.CloneTree())
+		}
 	}
+}
+
+func inlineFunctions_isIsolatedStmtFn(fnNode *rhino.Node) bool {
+	for anc := fnNode.GetParent(); anc != nil; anc = anc.GetParent() {
+		switch anc.GetToken() {
+		case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
+			return true
+		case rhino.Token_BLOCK, rhino.Token_FUNCTION,
+			rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
+			rhino.Token_NAME, rhino.Token_EXPR_RESULT, rhino.Token_LABEL:
+		case rhino.Token_ASSIGN:
+			if p := anc.GetParent(); p == nil || !p.IsExprResult() {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // FindCalledFunctions: this functions that may be called directly.
@@ -1652,6 +1688,50 @@ func inlineFunctions_findCalledFunctions(node *rhino.Node, changed *jutil.Linked
 		}
 		inlineFunctions_findCalledFunctions(c, changed)
 	}
+}
+
+func inlineFunctions_findCalledFunctionsAndAnon(
+	node *rhino.Node,
+	changed *jutil.LinkedHashSet[string],
+	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+) bool {
+	if anonFns == nil || anonFns.IsEmpty() {
+		inlineFunctions_findCalledFunctions(node, changed)
+		return false
+	}
+	return inlineFunctions_findCalledFunctionsWithAnon(node, changed, anonFns, fns)
+}
+
+func inlineFunctions_findCalledFunctionsWithAnon(
+	node *rhino.Node,
+	changed *jutil.LinkedHashSet[string],
+	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+) bool {
+	hasAnon := false
+	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
+		changed.Add(node.GetString())
+	} else if node.IsFunction() {
+		if anonName, ok := anonFns.Lookup(node); ok {
+			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
+				hasAnon = true
+			}
+		}
+	}
+
+	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+		if c.GetFirstChild() == nil {
+			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
+				changed.Add(c.GetString())
+			}
+			continue
+		}
+		if inlineFunctions_findCalledFunctionsWithAnon(c, changed, anonFns, fns) {
+			hasAnon = true
+		}
+	}
+	return hasAnon
 }
 
 // DecomposeExpressions: for any call-site that needs it, prepare the

@@ -66,15 +66,17 @@ type UnionType struct {
 	// substantially more efficient than using the for-each idiom due to the
 	// overhead of allocating iterators. All loops over this collection should
 	// be indexed.
-	alternates       []JSType
 	inlineAlternates [3]JSType
+	altPtr           *JSType // nil when altLen <= 3 (uses inlineAlternates); &heapSlice[0] when altLen > 3
+
+	altLen uint8
 
 	// How many alternates were resolved the last time this union was
 	// (re)built?
 	//
 	// Used to skip rebuilds that cannot change anything. -1 means "never
 	// rebuilt since construction".
-	resolvedAlternatesAtLastBuild int32
+	resolvedAlternatesAtLastBuild int8
 
 	// Were all the types used in the most recent build of this union resolved
 	// before that build?
@@ -82,6 +84,18 @@ type UnionType struct {
 	// If this is true, there is no need to rebuild this union ever again,
 	// including during resolution. The result will not change.
 	alternatesResolvedBeforeBuild bool
+}
+
+var (
+	_ [128 - unsafe.Sizeof(UnionType{})]byte
+	_ [unsafe.Sizeof(UnionType{}) - 128]byte
+)
+
+func (t *UnionType) rawAlternates() []JSType {
+	if t.altPtr == nil {
+		return t.inlineAlternates[:t.altLen]
+	}
+	return unsafe.Slice(t.altPtr, t.altLen)
 }
 
 // Java: UnionType.TYPE_CLASS
@@ -144,14 +158,14 @@ func (t *UnionType) GetAlternates() []JSType {
 		// same union, and `alternates` is not replaced until the rebuild
 		// finishes, so the nested read sees no change and returns instead of
 		// starting another rebuild.
-		resolvedAlternates := int32(t.CountResolvedAlternates())
+		resolvedAlternates := int8(t.CountResolvedAlternates())
 
 		if resolvedAlternates != t.resolvedAlternatesAtLastBuild {
 			t.resolvedAlternatesAtLastBuild = resolvedAlternates
 
 			b := t.registry.acquireUnionBuilder()
 			b.rebuildTarget = t
-			b.AddAlternates(t.alternates)
+			b.AddAlternates(t.rawAlternates())
 			// Double checked rebuilds, in case the union is involved in a cycle.
 			if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
 				b.Build()
@@ -162,21 +176,22 @@ func (t *UnionType) GetAlternates() []JSType {
 				// a union is flattened into its members, and those members may
 				// themselves be unresolved. Re-baseline against the list we
 				// actually have now, so the next read compares like with like.
-				t.resolvedAlternatesAtLastBuild = int32(t.CountResolvedAlternates())
+				t.resolvedAlternatesAtLastBuild = int8(t.CountResolvedAlternates())
 			}
 			t.registry.releaseUnionBuilder(b)
 		}
 	}
-	return t.alternates
+	return t.rawAlternates()
 }
 
 // CountResolvedAlternates: how many of the current alternates are resolved?
 //
 // Java: UnionType.countResolvedAlternates()
 func (t *UnionType) CountResolvedAlternates() int {
+	alts := t.rawAlternates()
 	count := 0
-	for i := 0; i < len(t.alternates); i++ {
-		if t.alternates[i].IsResolved() {
+	for i := 0; i < len(alts); i++ {
+		if alts[i].IsResolved() {
 			count++
 		}
 	}
@@ -189,6 +204,7 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 	if builder.finalAlternates != nil {
 		n := len(builder.finalAlternates)
 		jutil.CheckState(n != 0)
+		t.altLen = uint8(n)
 		if n <= len(t.inlineAlternates) {
 			t.inlineAlternates[0] = builder.finalAlternates[0]
 			if n >= 2 {
@@ -202,13 +218,15 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 				t.inlineAlternates[1] = nil
 				t.inlineAlternates[2] = nil
 			}
-			t.alternates = t.inlineAlternates[:n]
+			t.altPtr = nil
 		} else {
-			t.alternates = builder.finalAlternates
+			t.inlineAlternates = [3]JSType{}
+			t.altPtr = &builder.finalAlternates[0]
 		}
 	} else {
 		n := builder.inlineLen
 		jutil.CheckState(n != 0)
+		t.altLen = uint8(n)
 		if n <= len(t.inlineAlternates) {
 			t.inlineAlternates[0] = builder.inlineAlternates[0]
 			if n >= 2 {
@@ -222,11 +240,12 @@ func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 				t.inlineAlternates[1] = nil
 				t.inlineAlternates[2] = nil
 			}
-			t.alternates = t.inlineAlternates[:n]
+			t.altPtr = nil
 		} else {
+			t.inlineAlternates = [3]JSType{}
 			s := t.registry.allocJSTypeSlice(n)
 			copy(s, builder.inlineAlternates[:n])
-			t.alternates = s
+			t.altPtr = &s[0]
 		}
 	}
 	t.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild
@@ -307,7 +326,7 @@ func (t *UnionType) MatchesObjectContext() bool {
 func (t *UnionType) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
 	var propertyType JSType
 
-	for _, alternate := range t.alternates {
+	for _, alternate := range t.rawAlternates() {
 		// Filter out the null/undefined type.
 		if alternate.IsNullType() || alternate.IsVoidType() {
 			continue
@@ -438,8 +457,9 @@ func (t *UnionType) RestrictByNotNull() JSType {
 // Java: UnionType.testForEquality(JSType)
 func (t *UnionType) TestForEquality(that JSType) base.Tri {
 	result := jsType_TRI_NULL
-	for i := 0; i < len(t.alternates); i++ {
-		alt := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		alt := alts[i]
 		test := alt.TestForEquality(that)
 		if result == jsType_TRI_NULL {
 			result = test
@@ -533,8 +553,9 @@ func (t *UnionType) GetLeastSupertype(that JSType) JSType {
 		return t
 	}
 	if !that.IsUnknownType() && !that.IsUnionType() {
-		for i := 0; i < len(t.alternates); i++ {
-			alternate := t.alternates[i]
+		alts := t.rawAlternates()
+		for i := 0; i < len(alts); i++ {
+			alternate := alts[i]
 			if alternate == that || (!alternate.IsUnknownType() && that.IsSubtypeOf(alternate)) {
 				return t
 			}
@@ -553,8 +574,9 @@ func UnionType_GetGreatestSubtype(union *UnionType, that JSType) JSType {
 	registry := union.registry
 	builder := registry.acquireUnionBuilder()
 
-	for i := 0; i < len(union.alternates); i++ {
-		alternate := union.alternates[i]
+	unionAlts := union.rawAlternates()
+	for i := 0; i < len(unionAlts); i++ {
+		alternate := unionAlts[i]
 		if alternate.IsSubtypeOf(that) {
 			builder.AddAlternate(alternate)
 		}
@@ -587,8 +609,9 @@ func UnionType_GetGreatestSubtype(union *UnionType, that JSType) JSType {
 func (t *UnionType) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox bool) JSType_HasPropertyKind {
 	found := false
 	always := true
-	for i := 0; i < len(t.alternates); i++ {
-		alternate := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		alternate := alts[i]
 		if alternate.IsNullType() || alternate.IsVoidType() {
 			continue
 		}
@@ -616,13 +639,14 @@ func (t *UnionType) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox 
 
 // Java: UnionType.recursionUnsafeHashCode()
 func (t *UnionType) RecursionUnsafeHashCode() int32 {
-	hashCode := int32(len(t.alternates))
-	for i := 0; i < len(t.alternates); i++ {
+	alts := t.rawAlternates()
+	hashCode := int32(len(alts))
+	for i := 0; i < len(alts); i++ {
 		// To be determinisitic this aggregation must be order-independent.
 		// Using a commutative operatator (multiplication) allows us to achieve
 		// that without sorting. Multiplication also has some nice properties
 		// about reducing collisions compared to addition or xor.
-		hashCode *= t.alternates[i].HashCode()
+		hashCode *= alts[i].HashCode()
 	}
 	return hashCode
 }
@@ -678,8 +702,9 @@ func (t *UnionType) Contains(type_ JSType) bool {
 // Java: UnionType.getRestrictedUnion(JSType)
 func (t *UnionType) GetRestrictedUnion(type_ JSType) JSType {
 	restricted := t.registry.acquireUnionBuilder()
-	for i := 0; i < len(t.alternates); i++ {
-		alt := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		alt := alts[i]
 		// Keep all unknown/unresolved types.
 		if alt.IsUnknownType() || !alt.IsSubtypeOf(type_) {
 			restricted.AddAlternate(alt)
@@ -695,7 +720,7 @@ func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("(")
 
 	names := []string{}
-	for _, alt := range t.alternates {
+	for _, alt := range t.rawAlternates() {
 		// Clone the config to preserve indentation.
 		names = append(names, sb.CloneWithConfig().AppendType(alt).Build())
 	}
@@ -725,8 +750,9 @@ func (t *UnionType) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
 // Java: UnionType.getPossibleToBooleanOutcomes()
 func (t *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	literals := BooleanLiteralSet_EMPTY
-	for i := 0; i < len(t.alternates); i++ {
-		element := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		element := alts[i]
 		literals = literals.Union(element.GetPossibleToBooleanOutcomes())
 		if literals == BooleanLiteralSet_BOTH {
 			break
@@ -744,8 +770,9 @@ func (t *UnionType) GetTypesUnderEquality(that JSType) *JSType_TypePair {
 func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
-	for i := 0; i < len(t.alternates); i++ {
-		element := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		element := alts[i]
 		typeA, typeB := element.GetTypesUnderEqualityPair(that)
 		if typeA != nil {
 			thisRestricted.AddAlternate(typeA)
@@ -770,8 +797,9 @@ func (t *UnionType) GetTypesUnderInequality(that JSType) *JSType_TypePair {
 func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
-	for i := 0; i < len(t.alternates); i++ {
-		element := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		element := alts[i]
 		typeA, typeB := element.GetTypesUnderInequalityPair(that)
 		if typeA != nil {
 			thisRestricted.AddAlternate(typeA)
@@ -796,8 +824,9 @@ func (t *UnionType) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair
 func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.registry.acquireUnionBuilder()
 	thatRestricted := t.registry.acquireUnionBuilder()
-	for i := 0; i < len(t.alternates); i++ {
-		element := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		element := alts[i]
 		typeA, typeB := element.GetTypesUnderShallowInequalityPair(that)
 		if typeA != nil {
 			thisRestricted.AddAlternate(typeA)
@@ -829,12 +858,13 @@ func (t *UnionType) ResolveInternal(reporter ErrorReporter) JSType {
 		return t
 	}
 
-	for i := 0; i < len(t.alternates); i++ {
-		t.alternates[i].Resolve(reporter)
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		alts[i].Resolve(reporter)
 	}
 	b := t.registry.acquireUnionBuilder()
 	b.rebuildTarget = t
-	res := b.AddAlternates(t.alternates).Build()
+	res := b.AddAlternates(t.rawAlternates()).Build()
 	t.registry.releaseUnionBuilder(b)
 	return res
 }
@@ -843,8 +873,9 @@ func (t *UnionType) ResolveInternal(reporter ErrorReporter) JSType {
 func (t *UnionType) CollapseUnion() JSType {
 	var currentValue JSType
 	var currentCommonSuper ObjectType
-	for i := 0; i < len(t.alternates); i++ {
-		a := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		a := alts[i]
 		if a.IsUnknownType() {
 			return t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		}
@@ -872,8 +903,9 @@ func (t *UnionType) CollapseUnion() JSType {
 
 // Java: UnionType.matchConstraint(JSType)
 func (t *UnionType) MatchConstraint(constraint JSType) {
-	for i := 0; i < len(t.alternates); i++ {
-		alternate := t.alternates[i]
+	alts := t.rawAlternates()
+	for i := 0; i < len(alts); i++ {
+		alternate := alts[i]
 		alternate.MatchConstraint(constraint)
 	}
 }
@@ -1317,8 +1349,8 @@ func (b *UnionType_Builder) Build() JSType {
 
 	b.BuildInternal()
 	b.rebuildTarget.FillFromBuilder(b)
-	if len(b.rebuildTarget.alternates) == 1 {
-		return b.rebuildTarget.alternates[0]
+	if b.rebuildTarget.altLen == 1 {
+		return b.rebuildTarget.inlineAlternates[0]
 	}
 	return b.rebuildTarget
 }

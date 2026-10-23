@@ -464,13 +464,15 @@ func (d *DevirtualizeMethods) RewriteCall(getprop *rhino.Node, newMethodName str
 	// doing so means extracting `receiver` into a new variable at each call-site. This  has a
 	// significant code-size impact (circa 2018-11-19).
 
-	receiver.Detach()
-	getprop.ReplaceWith(receiver)
-	newReceiver := rhino.IR_Name(newMethodName).CopyTypeFrom(getprop).Srcref(getprop)
-	if isConstantName {
-		newReceiver.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+	if !getprop.MutateCallTargetGetPropToNameInPlace(call, receiver, newMethodName, isConstantName) {
+		receiver.Detach()
+		getprop.ReplaceWith(receiver)
+		newReceiver := rhino.IR_Name(newMethodName).CopyTypeFrom(getprop).Srcref(getprop)
+		if isConstantName {
+			newReceiver.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		}
+		call.AddChildToFront(newReceiver)
 	}
-	call.AddChildToFront(newReceiver)
 
 	if receiver.IsSuper() {
 		// Case: `super.foo(a, b)` => `foo(this, a, b)`
@@ -491,6 +493,42 @@ func (d *DevirtualizeMethods) RewriteCall(getprop *rhino.Node, newMethodName str
 // Java: DevirtualizeMethods.rewriteDefinition(Node, String, boolean)
 func (d *DevirtualizeMethods) RewriteDefinition(
 	definitionSite *rhino.Node, newMethodName string, isConstantName bool) {
+	if definitionSite.GetToken() == rhino.Token_GETPROP {
+		assign := definitionSite.GetParent()
+		statement := NodeUtil_GetEnclosingStatement(definitionSite)
+		recv := definitionSite.GetFirstChild()
+		if assign != nil && statement == assign.GetParent() && statement.IsExprResult() &&
+			recv != nil && recv.IsQualifiedName() &&
+			definitionSite.CanResetInPlace() && statement.CanResetInPlace() && recv.CanResetInPlace() {
+			originalJSDoc := NodeUtil_GetBestJSDocInfo(definitionSite)
+			function := assign.GetLastChild()
+
+			statement.DetachChildren()
+			assign.DetachChildren()
+			definitionSite.DetachChildren()
+			recv.DetachChildren()
+
+			methodNameID := rhino.RhinoStringPool_InternID(newMethodName)
+			selfName := allocPooledStringConcat2(newMethodName, "$self")
+			selfNameID := rhino.RhinoStringPool_InternID(selfName)
+
+			definitionSite.ResetDetachedGetPropToNameID(methodNameID, isConstantName)
+			definitionSite.AddChildToFront(function)
+			statement.MutateAttachedStmtToVarFromSrcref(definitionSite, definitionSite, originalJSDoc)
+
+			paramList := function.GetSecondChild()
+			paramList.AddChildToFront(recv.ResetDetachedToFreshNameID(selfNameID).SrcrefIfMissing(function))
+			d.compiler.ReportChangeToEnclosingScope(paramList)
+
+			d.replaceReferencesToThisID(function.GetSecondChild(), selfName, selfNameID)
+			d.replaceReferencesToThisID(function.GetLastChild(), selfName, selfNameID)
+
+			d.compiler.ReportChangeToEnclosingScope(statement.GetParent())
+			d.compiler.ReportChangeToEnclosingScope(statement)
+			return
+		}
+	}
+
 	var function *rhino.Node
 	var subtreeToRemove *rhino.Node
 	var nameSource *rhino.Node
@@ -526,14 +564,15 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 	newNameNode.AddChildToFront(function)
 
 	// Create the `this` param.
-	selfName := newMethodName + "$self"
+	selfName := allocPooledStringConcat2(newMethodName, "$self")
+	selfNameID := rhino.RhinoStringPool_InternID(selfName)
 	paramList := function.GetSecondChild()
 	paramList.AddChildToFront(rhino.IR_Name(selfName).SrcrefIfMissing(function))
 	d.compiler.ReportChangeToEnclosingScope(paramList)
 
 	// Eliminate `this`.
-	d.ReplaceReferencesToThis(function.GetSecondChild(), selfName) // In default param values.
-	d.ReplaceReferencesToThis(function.GetLastChild(), selfName)   // In function body.
+	d.replaceReferencesToThisID(function.GetSecondChild(), selfName, selfNameID) // In default param values.
+	d.replaceReferencesToThisID(function.GetLastChild(), selfName, selfNameID)   // In function body.
 
 	// Clean up dangling AST.
 	NodeUtil_DeleteNode(subtreeToRemove, d.compiler)
@@ -545,6 +584,10 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 //
 // Java: DevirtualizeMethods.replaceReferencesToThis(Node, String)
 func (d *DevirtualizeMethods) ReplaceReferencesToThis(node *rhino.Node, name string) {
+	d.replaceReferencesToThisID(node, name, rhino.RhinoStringPool_InternID(name))
+}
+
+func (d *DevirtualizeMethods) replaceReferencesToThisID(node *rhino.Node, name string, nameID uint32) {
 	if (node.IsFunction() && !node.IsArrowFunction()) ||
 		node.IsMemberFieldDef() ||
 		NodeUtil_IsClassStaticBlock(node) {
@@ -559,11 +602,15 @@ func (d *DevirtualizeMethods) ReplaceReferencesToThis(node *rhino.Node, name str
 		key := node.GetFirstChild()
 		if key != nil {
 			if key.IsThis() {
-				newName := rhino.IR_Name(name).Srcref(key).CopyTypeFrom(key)
-				key.ReplaceWith(newName)
-				d.compiler.ReportChangeToEnclosingScope(newName)
+				if key.MutateThisToNameIDInPlace(nameID) {
+					d.compiler.ReportChangeToEnclosingScope(key)
+				} else {
+					newName := rhino.IR_Name(name).Srcref(key).CopyTypeFrom(key)
+					key.ReplaceWith(newName)
+					d.compiler.ReportChangeToEnclosingScope(newName)
+				}
 			} else {
-				d.ReplaceReferencesToThis(key, name)
+				d.replaceReferencesToThisID(key, name, nameID)
 			}
 		}
 		return
@@ -572,11 +619,15 @@ func (d *DevirtualizeMethods) ReplaceReferencesToThis(node *rhino.Node, name str
 	for child := node.GetFirstChild(); child != nil; {
 		next := child.GetNext()
 		if child.IsThis() {
-			newName := rhino.IR_Name(name).Srcref(child).CopyTypeFrom(child)
-			child.ReplaceWith(newName)
-			d.compiler.ReportChangeToEnclosingScope(newName)
+			if child.MutateThisToNameIDInPlace(nameID) {
+				d.compiler.ReportChangeToEnclosingScope(child)
+			} else {
+				newName := rhino.IR_Name(name).Srcref(child).CopyTypeFrom(child)
+				child.ReplaceWith(newName)
+				d.compiler.ReportChangeToEnclosingScope(newName)
+			}
 		} else {
-			d.ReplaceReferencesToThis(child, name)
+			d.replaceReferencesToThisID(child, name, nameID)
 		}
 		child = next
 	}

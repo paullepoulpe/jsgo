@@ -6388,3 +6388,129 @@ func (n *Node) typeOrColorValue() any {
 func (n *Node) nodeStringValue() string {
 	return rhinoStringFromID(rhinoStringID(n.payload))
 }
+
+// CanResetInPlace reports whether n has no cold extBox, extra side-table entry,
+// or overflow source-file ID, making in-place token/payload mutation exact.
+func (n *Node) CanResetInPlace() bool {
+	return (n.kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
+		uint32(n.propFlags>>nodePropSourceFileShift) != nodePropSourceFileOverflow
+}
+
+// MutateGetPropToNameInPlace rewrites an attached GETPROP node into a NAME node
+// in-place (preserving its sibling links, JSType/Color, and Srcref(n)) when n
+// has no cold extBox/extra metadata. Interns name before originalName to match
+// NodeUtil_NewNameWithOriginalName's exact RhinoStringPool interning order.
+func (n *Node) MutateGetPropToNameInPlace(name string, originalName string, isConstant bool) bool {
+	if !n.CanResetInPlace() {
+		return false
+	}
+	n.DetachChildren()
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	nameID := rhinoStringPoolIntern(name)
+	origID := rhinoStringPoolIntern(originalName)
+	if (n.propFlags & propFlagHasJSDoc) != 0 {
+		n.typeOrColor = nil
+	}
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString) | (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor))
+	flags := n.propFlags & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
+	if isConstant {
+		flags |= propFlag_IS_CONSTANT_NAME
+	}
+	n.propFlags = flags
+	n.payload = (uint64(origID) << 32) | uint64(nameID)
+	return true
+}
+
+// MutateCallTargetGetPropToNameInPlace rewrites a CALL's first-child GETPROP
+// `o.foo` into `NAME(newMethodName)` in-place and inserts detached `o` right
+// after it (`foo(o, ...)`), matching DevirtualizeMethods.RewriteCall.
+func (n *Node) MutateCallTargetGetPropToNameInPlace(call *Node, receiver *Node, newMethodName string, isConstantName bool) bool {
+	if !n.CanResetInPlace() {
+		return false
+	}
+	n.DetachChildren()
+	receiver.SrcrefIfMissing(n)
+	nameID := rhinoStringPoolIntern(newMethodName)
+	origID := rhinoStringID(n.payload >> 32)
+	if (n.propFlags & propFlagHasJSDoc) != 0 {
+		n.typeOrColor = nil
+	}
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString) | (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor))
+	flags := n.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	if isConstantName {
+		flags |= propFlag_IS_CONSTANT_NAME
+	}
+	n.propFlags = flags
+	n.payload = (uint64(origID) << 32) | uint64(nameID)
+	receiver.InsertAfter(n)
+	return true
+}
+
+// MutateThisToNameIDInPlace rewrites an attached leaf THIS node into
+// NAME(nameID) in-place, preserving Srcref(n) and CopyTypeFrom(n).
+func (n *Node) MutateThisToNameIDInPlace(nameID uint32) bool {
+	if !n.CanResetInPlace() || n.first != nil {
+		return false
+	}
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	if (n.propFlags & propFlagHasJSDoc) != 0 {
+		n.typeOrColor = nil
+	}
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString) | (n.kindFlags & (kindFlagHasTypeOrColor | kindFlagTypeIsColor))
+	n.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+	n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(nameID)
+	return true
+}
+
+// ResetDetachedGetPropToNameID resets a detached GETPROP node (CanResetInPlace)
+// into IR_Name(nameID).SrcrefIfMissing(self), optionally setting IS_CONSTANT_NAME.
+func (n *Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) {
+	n.typeOrColor = nil
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString)
+	flags := n.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	if isConstantName {
+		flags |= propFlag_IS_CONSTANT_NAME
+	}
+	n.propFlags = flags
+	n.payload = (n.payload & 0xFFFFFFFF00000000) | uint64(nameID)
+}
+
+// MutateAttachedStmtToVarFromSrcref resets an attached childless statement node
+// (CanResetInPlace) into IR_Var(nameChild).SrcrefIfMissing(srcref) in-place.
+func (n *Node) MutateAttachedStmtToVarFromSrcref(nameChild *Node, srcref *Node, jsdoc *JSDocInfo) {
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	n.typeOrColor = nil
+	n.token = Token_VAR
+	n.kindFlags = 0
+	n.propFlags = srcref.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.payload = srcref.payload & 0xFFFFFFFF00000000
+	n.linenoCharno = srcref.linenoCharno
+	n.length16 = srcref.length16
+	n.AddChildToFront(nameChild)
+	if jsdoc != nil {
+		n.SetJSDocInfo(jsdoc)
+	}
+}
+
+// ResetDetachedToFreshNameID resets a detached childless node (CanResetInPlace)
+// into a fresh IR_Name(nameID) with unset source location.
+func (n *Node) ResetDetachedToFreshNameID(nameID uint32) *Node {
+	n.typeOrColor = nil
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString)
+	n.propFlags = 0
+	n.payload = uint64(nameID)
+	n.linenoCharno = -1
+	n.length16 = 0
+	return n
+}

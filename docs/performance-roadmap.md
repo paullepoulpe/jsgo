@@ -1172,6 +1172,49 @@ All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Roun
 | **`downlevel-simple`** (2.1 MB) | 1.09 s / 0.98 s | **1.01 s** / **0.90 s** | — | **−7.41%** / **−8.16%** | **−14.29%** (**−0.15 s**) | **196** / 204 MiB (**−0.74%** `t=1`) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.52 s** / **0.43 s** | — | **−3.34%** / **−3.69%** | **−6.52%** (**−0.03 s**) | **148** / **155 MiB** (**−8.54%** / **−2.33%**) | `MATCH` |
 
+## Rounds 2A–2S: Single-Cache-Line AST (`64 B`), Pointer-Free Interning, Parallel Staged I/O, Small-Span Arenas, and In-Place AST Mutation
+
+Rounds 2A–2S redesigned the AST, string pool, type/color representations, staged serialization/deserialization, and hot optimization passes around cache-line density, Go GC `ptrdata` elimination, and `≤ 32,760 B` small-span slab sizing, measured continuously on both the 35.1M-AST-node / 7,460-chunk **`googleapis-bench`** production staged workload and the 11 whole-program benchmarks:
+
+1. **Single-Cache-Line `64 B` `rhino.Node` (`5` Pointers, `ptrdata = 40 B`) & Inline `propFlags` (`internal/rhino/node.go`):**
+   - Shrunk `rhino.Node` from `80 B` (`8` pointers, `ptrdata = 64 B`) to **`64 B`** (**1 cache line**, `5` pointers, `ptrdata = 40 B`) by packing leaf payloads (`str`, `number`, `bigint`) into a pointer-free `payload uint64` union (`rhinoStringID` / `math.Float64bits` / `rhinoBigIntID`), packing all boolean & small-enum `Node_Prop` values into a 64-bit `propFlags uint64` bitmask (eliminating millions of `Node_PropListItem` heap allocations), unioning `typeOrColor` + `typeTag` across `CHECKS` (`JSType`) and `OPTIMIZATIONS` (`Color`), and moving cold `JSDocInfo` (~2% of nodes) off the hot struct.
+2. **Pointer-Free 64-Shard `RhinoStringPool` (`internal/rhino/rhino_string_pool.go`):**
+   - Replaced pointer-heavy string interning with a 64-shard open-addressed `uint32` slot table backed by `noscan` `[]byte` slabs (`ptrdata = 0`), resolving `32-bit` `rhinoStringID` handles in O(1) without GC pointer scanning.
+3. **Compact Type & Color Representations (`internal/rhino/jstype_*.go`, `internal/jscomp/colors_*.go`):**
+   - Embedded `ArrowType` directly inside `FunctionType`, shrunk `UnionType` to **`128 B`** (`[3]JSType` inline array + raw `*JSType` data pointer + `uint8` length, eliminating slice header padding and heap allocations for all 2- and 3-member unions), flattened `ObjectType.properties` to an open-addressed property map, and shrunk `Color` (`32 B`) and `Scope` (`112 B`).
+4. **Parallel Staged Deserialization, Dependency Analysis, and Chunk Code Printing (`internal/jscomp/typed_ast_deserializer.go`, `compiler.go`, `code_printer.go`):**
+   - Parallelized `TypedAst` script deserialization across worker slabs, parallelized `PrebuildAst` + `GatherModuleMetadata` + `CreateInputsByIdMap`, parallelized `Finalizations` `CodePrinter` across all 7,460 chunks, and eliminated full-AST `SourceFile` backpatching via per-`SCRIPT` fallback lookup (`−2.89 s` CPU on `googleapis-bench`).
+5. **Go GC `≤ 32,760 B` Small-Span Arena Sizing & Allocation Elimination (`130M+ → 17.86M` `alloc_objects`):**
+   - Clamped `Slab[T]`, `nodeCloneSlab`, `jscomp.slabArena[T]`, `jutil.LinkedHashMap`, and `RhinoStringPool` chunks to `≤ 32,760 B` (`_MaxSmallSize`), keeping arenas out of `scanLargeObject` and eliminating ~500 MB of power-of-2 page rounding waste.
+   - Added safe in-place AST node mutation (`MutateGetPropToNameInPlace`, `MutateCallTargetGetPropToNameInPlace`, `MutateThisToNameIDInPlace`, `MutateAttachedStmtToVarFromSrcref`) in `CollapseProperties` and `DevirtualizeMethods` (`−150 MB` `NewNode` live heap in `OPTIMIZATIONS`), conditional `CloneTree` elision for isolated statement-level functions in `InlineFunctions`, and O(1) tombstones in `GlobalNamespace.Ref` (`−6.2M` slice-shift allocations).
+
+### Final measured results — Round 2S (`googleapis-bench` & Whole-Program Suite, 100% Byte-Identical to Java)
+
+On **`googleapis-bench`** (**43,917 JS files, 35.14M AST nodes, 7,460 chunks**, `--threads 4`), total `alloc_objects` dropped from **>130M** to **`17.86M`**, cutting total compilation time from `118.37 s` (Round 22) to **`95.41 s` median (`93.90 s` best, `94.57 s` `--fast_mode` — 2.88×–2.93× faster than Java's `274.88 s`)** and Peak RSS from `8,697 MiB` to **`6,084 MiB` median (`5,821 MiB` best; `5,313 MiB` Stage 2 `--fast_mode` — saving up to 6.4 GiB vs. Java's `11,892 MiB`)**:
+
+| Stage (`googleapis-bench`) | Round 22 (`a1b9137e`) | **Round 2S `compat` (median / best)** | **`--fast_mode`** | Java (`-Xmx20g`) | Speedup vs. Java | Peak RSS (`compat` / Java) | Parity |
+|---|---:|---:|---:|---:|---:|---:|:---:|
+| **`CHECKS`** | 60.75 s (`8,697 MiB`) | **49.36 s** / **48.09 s** | **48.71 s** | 150.70 s | **3.05×** *(3.13× best)* | **6,084 MiB** *(5,821 best)* vs. 10,516 MiB | `MATCH` |
+| **`OPTIMIZATIONS`** | 48.94 s (`8,572 MiB`) | **39.53 s** / **39.37 s** | **39.30 s** | 102.77 s | **2.60×** *(2.62× fast)* | **5,525 MiB** *(5,313 fast)* vs. 11,892 MiB | `MATCH` |
+| **`FINALIZATIONS`** | 8.68 s (`2,490 MiB`) | **6.52 s** / **6.44 s** | **6.56 s** | 21.41 s | **3.28×** *(3.32× best)* | **1,622 MiB** *(1,617 best)* vs. 6,750 MiB | `MATCH` |
+| **Total** | 118.37 s (`8,697 MiB`) | **95.41 s** / **93.90 s** | **94.57 s** | **274.88 s** | **2.88×** *(2.93× best)* | **6,084 MiB** *(5,821 best)* vs. **11,892 MiB** | `MATCH` |
+
+Whole-program suite (`N=3` median, `t=1` / `t=4` `compat` & `t=4 --fast_mode`, 100% byte-identical to Java):
+
+| Benchmark | Round 22 (`t=1` / `t=4`) | **Round 2S `compat` (`t=1` / `t=4`)** | **`--fast_mode` (`t=4`)** | Round 2S vs Round 22 (`t=4`) | Peak RSS (`t=1` / `t=4`) | Parity |
+|---|---:|---:|---:|---:|---:|:---:|
+| **`bundle-mega`** (36.1 MB, 26 UMD libs) | 21.67 s / 20.27 s | **20.76 s** / **19.34 s** | **19.02 s** | **−4.59%** (**−0.93 s**) | **1,252** / **1,614 MiB** | `MATCH` |
+| **`typed-mega`** (44.6 MB, 4,385 files) | 17.96 s / 16.72 s | **15.84 s** / **14.21 s** | **13.71 s** | **−15.01%** (**−2.51 s**) | **1,322** / **1,225 MiB** (**−30.9%**) | `MATCH` |
+| **`typed-full`** (28.5 MB, 1,818 files) | 10.25 s / 9.50 s | **9.21 s** / **8.30 s** | **7.98 s** | **−12.63%** (**−1.20 s**) | **858** / **869 MiB** (**−21.9%**) | `MATCH` |
+| **`bundle-advanced-ts`** (12.6 MB) | 6.16 s / 5.86 s | **5.77 s** / **5.52 s** | — | **−5.80%** (**−0.34 s**) | 603 / 615 MiB | `MATCH` |
+| **`bundle`** (12.6 MB) | 4.03 s / 3.75 s | **3.90 s** / **3.61 s** | — | **−3.73%** (**−0.14 s**) | 611 / **535 MiB** | `MATCH` |
+| **`shaka-blockly`** (8.6 MB) | 4.18 s / 3.88 s | **3.78 s** / **3.40 s** | **3.34 s** | **−12.37%** (**−0.48 s**) | **402** / **412 MiB** (**−20.3%**) | `MATCH` |
+| **`bundle-advanced`** (5.4 MB) | 3.14 s / 2.91 s | **3.03 s** / **2.75 s** | — | **−5.50%** (**−0.16 s**) | 336 / 328 MiB | `MATCH` |
+| **`checks-only`** (11.3 MB) | 2.39 s / 2.00 s | **2.18 s** / **1.77 s** | — | **−11.50%** (**−0.23 s**) | **387** / **408 MiB** (**−21.4%**) | `MATCH` |
+| **`typed-app`** (2.8 MB) | 1.35 s / 1.23 s | **1.21 s** / **1.08 s** | **1.07 s** | **−12.20%** (**−0.15 s**) | **225** / **225 MiB** (**−15.1%**) | `MATCH` |
+| **`downlevel-simple`** (2.1 MB) | 1.01 s / 0.90 s | **0.89 s** / **0.80 s** | — | **−11.11%** (**−0.10 s**) | **179** / **181 MiB** (**−11.3%**) | `MATCH` |
+| **`downlevel-whitespace`** (2.1 MB) | 0.52 s / 0.43 s | **0.45 s** / **0.38 s** | — | **−11.63%** (**−0.05 s**) | 154 / **138 MiB** (**−11.0%**) | `MATCH` |
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
