@@ -2,6 +2,7 @@ package jutil
 
 import (
 	"fmt"
+	"math/rand"
 	"slices"
 	"testing"
 	"unsafe"
@@ -101,6 +102,46 @@ func TestLinkedHashMapTombstoneChurn(t *testing.T) {
 			}
 		}
 		checkLinkedHashMapKeys(t, fmt.Sprint("fromFront=", fromFront), h, live, gone)
+	}
+}
+
+// ObjectLinkedHashMap far past lhmSmallSize, with hash codes that collide
+// in groups (id % 50) and through the table mask, against the model.
+func TestObjectLinkedHashMapIndexedLarge(t *testing.T) {
+	r := rand.New(rand.NewSource(7))
+	h := NewObjectLinkedHashMap[olhmKey, int]()
+	var m orderedModel[olhmKey]
+	for step := 0; step < 30000; step++ {
+		id := r.Intn(600)
+		k := olhmKey{id, id % 50 * 1024}
+		switch op := r.Intn(100); {
+		case op < 50:
+			v := r.Intn(1000) + 1
+			if got, want := h.Put(k, v), func() int { o, _ := m.put(k, v); return o }(); got != want {
+				t.Fatalf("step %d: Put(%v) = %d, want %d", step, k, got, want)
+			}
+		case op < 80:
+			got := h.Remove(k)
+			if want, _ := m.remove(k); got != want {
+				t.Fatalf("step %d: Remove(%v) = %d, want %d", step, k, got, want)
+			}
+		case op < 81 && step%7 == 0:
+			h.Clear()
+			m = orderedModel[olhmKey]{}
+		default:
+			v, ok := h.Lookup(k)
+			if i := m.index(k); ok != (i >= 0) || ok && v != m.vals[i] {
+				t.Fatalf("step %d: Lookup(%v) = %d, %v; model index %d", step, k, v, ok, i)
+			}
+		}
+		if h.Size() != len(m.keys) {
+			t.Fatalf("step %d: size %d, want %d", step, h.Size(), len(m.keys))
+		}
+		if step%100 == 0 {
+			if got := h.KeySlice(); !slices.Equal(got, m.keys) && !(len(got) == 0 && len(m.keys) == 0) {
+				t.Fatalf("step %d: keys %v, want %v", step, got, m.keys)
+			}
+		}
 	}
 }
 

@@ -9,8 +9,8 @@ func (s *ObjectLinkedHashSet[T]) Clear() {
 func (h *ObjectLinkedHashMap[K, V]) Clear() {
 	clear(h.slots)
 	h.slots = h.slots[:0]
-	if h.buckets != nil {
-		clear(h.buckets)
+	if h.m != nil {
+		h.m.reset(len(h.m.table))
 	}
 	h.size = 0
 	h.first = 0
