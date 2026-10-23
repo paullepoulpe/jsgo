@@ -4515,6 +4515,11 @@ func (c *Compiler) getSourceMappingValue(
 	if consumer == nil {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
+	if !c.options.GetSourceMapIncludeSourcesContent() {
+		// Go-only: performance — only addSourceMapSourceFiles reads the
+		// sources' contents, and only with that option.
+		consumer.DropSourcesContent()
+	}
 	result, identifierPtr, ok := consumer.GetMappingForLineValue(lineNumber, columnNumber+1)
 	if !ok {
 		return sourcemap.Mapping_OriginalMapping{}, nil, true, true
