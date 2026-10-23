@@ -289,12 +289,8 @@ func (g *CheckSideEffects_GetNoSideEffectExterns) Visit(t *NodeTraversal, n *rhi
 	if n.IsFunction() {
 		jsDoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsDoc != nil && jsDoc.IsNoSideEffects() {
-			name := NodeUtil_GetName(n)
-			// Go-only: language-adapter — a Go string cannot be null; the Java set
-			// may hold a null name, which no lookup (always with a non-null name)
-			// can observe.
-			if name != nil {
-				g.c.noSideEffectExterns.Add(*name)
+			if name, ok := NodeUtil_GetNameString(n); ok {
+				g.c.noSideEffectExterns.Add(name)
 			}
 		}
 	}

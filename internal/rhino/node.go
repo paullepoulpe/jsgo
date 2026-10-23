@@ -606,6 +606,18 @@ type nodeExtBox struct {
 	origNameID     rhinoStringID      // the originalName of a NUMBER or TEMPLATELIT_STRING node
 }
 
+var singleProcessCLI atomic.Bool
+
+// SetSingleProcessCLI marks the process as a single-invocation CLI run.
+func SetSingleProcessCLI() {
+	singleProcessCLI.Store(true)
+}
+
+// IsSingleProcessCLI reports whether single-invocation CLI pooling is enabled.
+func IsSingleProcessCLI() bool {
+	return singleProcessCLI.Load()
+}
+
 var (
 	sourceFilePropMu        sync.Mutex
 	sourceFilePropCount     atomic.Uint32
@@ -2185,9 +2197,11 @@ func (n *Node) PutProp(prop Node_Prop, value any) {
 		n.kindFlags |= kindFlagHasExtra
 	}
 	head := n.coldPropListHead()
-	if head != nil && !head.shared && int(head.propType) == prop.Ordinal() && head.isObject {
-		head.objectValue = value
-		return
+	for cur := head; cur != nil && !cur.shared; cur = cur.next {
+		if int(cur.propType) == prop.Ordinal() && cur.isObject {
+			cur.objectValue = value
+			return
+		}
 	}
 	head = Node_RebuildListWithoutProp(head, prop)
 	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))
