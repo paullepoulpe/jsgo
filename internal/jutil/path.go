@@ -67,8 +67,9 @@ func Path_Of(first string, more ...string) *Path {
 	return parsePath(input)
 }
 
-// parsePath checks a path string and removes its redundant slashes.
-func parsePath(input string) *Path {
+// ParsePathString validates and normalizes input identically to Path_Of(input).String()
+// without allocating a *Path.
+func ParsePathString(input string) string {
 	slow := len(input) > 1 && input[len(input)-1] == '/'
 	for i := 0; i < len(input); i++ {
 		c := input[i]
@@ -82,14 +83,7 @@ func parsePath(input string) *Path {
 		}
 	}
 	if !slow {
-		switch input {
-		case "":
-			return emptyPath
-		case "/":
-			return rootPath
-		default:
-			return &Path{s: input}
-		}
+		return input
 	}
 	b := make([]byte, 0, len(input))
 	for i := 0; i < len(input); i++ {
@@ -102,15 +96,17 @@ func parsePath(input string) *Path {
 	if len(b) > 1 && b[len(b)-1] == '/' {
 		b = b[:len(b)-1]
 	}
-	// A WTF-8 lone surrogate (ED A0..BF xx) has no UTF-8 encoding. Observed
-	// behaviour (black-box): this error names the path with its redundant
-	// slashes removed, the NUL error the string as given.
 	for i := 0; i+1 < len(b); i++ {
 		if b[i] == 0xED && b[i+1] >= 0xA0 && b[i+1] <= 0xBF {
 			panic(NewInvalidPathException(string(b), "Malformed input or input contains unmappable characters"))
 		}
 	}
-	return newPathFromString(string(b))
+	return string(b)
+}
+
+// parsePath checks a path string and removes its redundant slashes.
+func parsePath(input string) *Path {
+	return newPathFromString(ParsePathString(input))
 }
 
 func newPathFromString(s string) *Path {

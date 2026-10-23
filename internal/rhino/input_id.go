@@ -57,6 +57,12 @@ var inputIdSlabPool = sync.Pool{
 // Java: InputId.serialVersionUID
 const InputId_serialVersionUID int64 = 1
 
+// Init initializes i in-place with id.
+func (i *InputId) Init(id string) {
+	i.id = id
+	i.hash = jutil.StringHashCode(id)
+}
+
 // Java: InputId(String)
 func NewInputId(id string) *InputId {
 	h := jutil.StringHashCode(id)

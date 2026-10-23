@@ -249,6 +249,22 @@ func (h *LinkedHashMap[K, V]) InitWithBuffer(buf []LhmSlot[K, V]) {
 	h.first = 0
 }
 
+// CompactLen returns len(h.slots) when h has no tombstones, or -1 otherwise.
+func (h *LinkedHashMap[K, V]) CompactLen() int {
+	if h == nil {
+		return 0
+	}
+	if int(h.size) == len(h.slots) {
+		return len(h.slots)
+	}
+	return -1
+}
+
+// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
+func (h *LinkedHashMap[K, V]) ValueAtSlot(i int) V {
+	return h.slots[i].value
+}
+
 func (h *LinkedHashMap[K, V]) isRemoved(i int) bool {
 	if i < int(h.first) {
 		return true

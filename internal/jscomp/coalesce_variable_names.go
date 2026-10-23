@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"cmp"
+	"math/bits"
 	"slices"
 	"strings"
 	"sync"
@@ -95,8 +96,11 @@ type CoalesceVariableNames struct {
 	scopeStates    []*coalesceScopeState
 	scopeStatesBuf [4]*coalesceScopeState
 
-	interferenceBitSetBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]jutil.BitSet
-	graphNodesBuf         [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE][2]uint64
+	graphNodesBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	liveRangeChecker    CoalesceVariableNames_LiveRangeChecker
+	assignToBuf         [16]int
+	readFromBuf         [16]int
 
 	deferChanges     bool
 	changedScopes    []*rhino.Node
@@ -742,17 +746,18 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	orderedVariables := c.liveness.GetAllVariablesInOrder()
 	numVars := len(orderedVariables)
 
-	// interferenceBitSet[i] = indices of all variables that should have an edge with
+	// interferenceBits[i] = indices of all variables that should have an edge with
 	// orderedVariables[i]
-	var interferenceBitSet []jutil.BitSet
+	var interferenceBits [][2]uint64
+	var interferenceBitSetFallback []jutil.BitSet
 	var graphNodes []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
-	if numVars <= len(c.interferenceBitSetBuf) {
-		interferenceBitSet = c.interferenceBitSetBuf[:numVars]
-		clear(interferenceBitSet)
+	if numVars <= len(c.interferenceBitsBuf) {
+		interferenceBits = c.interferenceBitsBuf[:numVars]
+		clear(interferenceBits)
 		graphNodes = c.graphNodesBuf[:numVars]
 		clear(graphNodes)
 	} else {
-		interferenceBitSet = make([]jutil.BitSet, numVars)
+		interferenceBitSetFallback = make([]jutil.BitSet, numVars)
 		graphNodes = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], numVars)
 	}
 
@@ -791,65 +796,153 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		graphNodes[vIndex] = coalesceCreateInterferenceNode(interferenceGraph, v)
 	}
 
-	var assignToBuf [8]int
-	var readFromBuf [8]int
-	liveRangeChecker := CoalesceVariableNames_LiveRangeChecker{
-		orderedVariables: orderedVariables,
-		liveness:         c.liveness,
-		isAssignToList:   assignToBuf[:0],
-		isReadFromList:   readFromBuf[:0],
+	lrc := &c.liveRangeChecker
+	lrc.orderedVariables = orderedVariables
+	lrc.liveness = c.liveness
+	if lrc.isAssignToList == nil {
+		lrc.isAssignToList = c.assignToBuf[:0]
+	}
+	if lrc.isReadFromList == nil {
+		lrc.isReadFromList = c.readFromBuf[:0]
 	}
 
-	// Go through every CFG node in the program and look at variables that are live.
-	// Set the pair of live variables in interferenceBitSet so we can add an edge between them.
-	for cfgNode := range cfg.GetControlFlowGraphBase().nodes.Values() {
+	cfgNodes := cfg.GetControlFlowGraphBase().nodes
+	if interferenceBits != nil {
+		// Go through every CFG node in the program and look at variables that are live.
+		// Set the pair of live variables in interferenceBits so we can add an edge between them.
+		if nNodes := cfgNodes.CompactLen(); nNodes >= 0 {
+			for idx := 0; idx < nNodes; idx++ {
+				c.processCfgNodeBits128(cfg, cfgNodes.ValueAtSlot(idx), interferenceBits)
+			}
+		} else {
+			for cfgNode := range cfgNodes.Values() {
+				c.processCfgNodeBits128(cfg, cfgNode, interferenceBits)
+			}
+		}
+
+		lrc.root = nil
+		lrc.state = nil
+		lrc.orderedVariables = nil
+		lrc.liveness = nil
+
+		// Go through each variable and try to connect them.
+		for v1Index, v1 := range orderedVariables {
+			node1 := graphNodes[v1Index]
+			if node1 == nil {
+				continue
+			}
+			v1IsParam := v1.IsParam()
+			w0 := interferenceBits[v1Index][0]
+			w1 := interferenceBits[v1Index][1]
+			for v2Index := v1Index; v2Index < numVars; v2Index++ {
+				node2 := graphNodes[v2Index]
+				if node2 == nil {
+					// Skip nodes that were not added. They are globals and escaped locals.
+					continue
+				}
+				var bitSet bool
+				if v2Index < 64 {
+					bitSet = (w0 & (uint64(1) << uint(v2Index))) != 0
+				} else {
+					bitSet = (w1 & (uint64(1) << uint(v2Index-64))) != 0
+				}
+				if (v1IsParam && orderedVariables[v2Index].IsParam()) || bitSet {
+					// Add an edge between variable pairs that are both parameters
+					// because we don't want parameters to share a name.
+					coalesceConnectInterferenceNodes(interferenceGraph, node1, node2)
+				}
+			}
+		}
+		return
+	}
+
+	for cfgNode := range cfgNodes.Values() {
 		if cfg.IsImplicitReturn(cfgNode) {
 			continue
 		}
-
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
-
-		// Check the live states and add edge when possible. An edge between two variables
-		// means that they are alive at overlapping times, which means that their
-		// variable names cannot be coalesced.
 		livein := state.GetIn()
 		for i := livein.NextSetBit(0); i >= 0; i = livein.NextSetBit(i + 1) {
-			interferenceBitSet[i].Or(livein.liveSet)
+			interferenceBitSetFallback[i].Or(livein.liveSet)
 		}
 		liveout := state.GetOut()
 		for i := liveout.NextSetBit(0); i >= 0; i = liveout.NextSetBit(i + 1) {
-			interferenceBitSet[i].Or(liveout.liveSet)
+			interferenceBitSetFallback[i].Or(liveout.liveSet)
 		}
-
-		liveRangeChecker.root = cfgNode.GetValue()
-		liveRangeChecker.state = state
-		liveRangeChecker.isAssignToList = liveRangeChecker.isAssignToList[:0]
-		liveRangeChecker.isReadFromList = liveRangeChecker.isReadFromList[:0]
-		liveRangeChecker.Check(cfgNode.GetValue())
-		liveRangeChecker.setCrossingVariablesSlice(interferenceBitSet)
+		lrc.root = cfgNode.GetValue()
+		lrc.state = state
+		lrc.isAssignToList = lrc.isAssignToList[:0]
+		lrc.isReadFromList = lrc.isReadFromList[:0]
+		lrc.Check(cfgNode.GetValue())
+		lrc.setCrossingVariablesSlice(interferenceBitSetFallback)
 	}
+	lrc.root = nil
+	lrc.state = nil
+	lrc.orderedVariables = nil
+	lrc.liveness = nil
 
-	// Go through each variable and try to connect them.
 	for v1Index, v1 := range orderedVariables {
 		node1 := graphNodes[v1Index]
 		if node1 == nil {
 			continue
 		}
 		v1IsParam := v1.IsParam()
-		bits1 := &interferenceBitSet[v1Index]
+		bits1 := &interferenceBitSetFallback[v1Index]
 		for v2Index := v1Index; v2Index < numVars; v2Index++ {
 			node2 := graphNodes[v2Index]
 			if node2 == nil {
-				// Skip nodes that were not added. They are globals and escaped locals.
 				continue
 			}
-
 			if (v1IsParam && orderedVariables[v2Index].IsParam()) || bits1.Get(v2Index) {
-				// Add an edge between variable pairs that are both parameters
-				// because we don't want parameters to share a name.
 				coalesceConnectInterferenceNodes(interferenceGraph, node1, node2)
 			}
 		}
+	}
+}
+
+func (c *CoalesceVariableNames) processCfgNodeBits128(
+	cfg ControlFlowGraph[*rhino.Node],
+	cfgNode DiGraph_DiGraphNode[*rhino.Node, ControlFlowGraph_Branch],
+	interferenceBits [][2]uint64,
+) {
+	if cfg.IsImplicitReturn(cfgNode) {
+		return
+	}
+	state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
+
+	inW0, inW1 := state.GetIn().liveSet.Words128()
+	for w := inW0; w != 0; w &= w - 1 {
+		i := bits.TrailingZeros64(w)
+		interferenceBits[i][0] |= inW0
+		interferenceBits[i][1] |= inW1
+	}
+	for w := inW1; w != 0; w &= w - 1 {
+		i := 64 + bits.TrailingZeros64(w)
+		interferenceBits[i][0] |= inW0
+		interferenceBits[i][1] |= inW1
+	}
+
+	outW0, outW1 := state.GetOut().liveSet.Words128()
+	for w := outW0; w != 0; w &= w - 1 {
+		i := bits.TrailingZeros64(w)
+		interferenceBits[i][0] |= outW0
+		interferenceBits[i][1] |= outW1
+	}
+	for w := outW1; w != 0; w &= w - 1 {
+		i := 64 + bits.TrailingZeros64(w)
+		interferenceBits[i][0] |= outW0
+		interferenceBits[i][1] |= outW1
+	}
+
+	lrc := &c.liveRangeChecker
+	val := cfgNode.GetValue()
+	lrc.root = val
+	lrc.state = state
+	lrc.isAssignToList = lrc.isAssignToList[:0]
+	lrc.isReadFromList = lrc.isReadFromList[:0]
+	lrc.Check(val)
+	if len(lrc.isAssignToList) > 0 {
+		lrc.setCrossingVariablesBits128(interferenceBits, outW0, outW1)
 	}
 }
 
@@ -1150,6 +1243,42 @@ func (l *CoalesceVariableNames_LiveRangeChecker) setCrossingVariablesSlice(inter
 		for _, iWrittenVar := range l.isAssignToList {
 			interferenceBitSet[iReadVar].Set(iWrittenVar)
 		}
+	}
+}
+
+func (l *CoalesceVariableNames_LiveRangeChecker) setCrossingVariablesBits128(
+	interferenceBits [][2]uint64,
+	outW0, outW1 uint64,
+) {
+	var writtenW0, writtenW1 uint64
+	var readW0, readW1 uint64
+	for _, iReadVar := range l.isReadFromList {
+		if iReadVar < 64 {
+			readW0 |= uint64(1) << uint(iReadVar)
+		} else {
+			readW1 |= uint64(1) << uint(iReadVar-64)
+		}
+	}
+	for _, iWrittenVar := range l.isAssignToList {
+		if iWrittenVar < 64 {
+			writtenW0 |= uint64(1) << uint(iWrittenVar)
+		} else {
+			writtenW1 |= uint64(1) << uint(iWrittenVar-64)
+		}
+		interferenceBits[iWrittenVar][0] |= outW0 | readW0
+		interferenceBits[iWrittenVar][1] |= outW1 | readW1
+	}
+	unionRead0 := outW0 | readW0
+	unionRead1 := outW1 | readW1
+	for w := unionRead0; w != 0; w &= w - 1 {
+		iReadVar := bits.TrailingZeros64(w)
+		interferenceBits[iReadVar][0] |= writtenW0
+		interferenceBits[iReadVar][1] |= writtenW1
+	}
+	for w := unionRead1; w != 0; w &= w - 1 {
+		iReadVar := 64 + bits.TrailingZeros64(w)
+		interferenceBits[iReadVar][0] |= writtenW0
+		interferenceBits[iReadVar][1] |= writtenW1
 	}
 }
 

@@ -71,9 +71,16 @@ type TypedAstDeserializer struct {
 	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
+	sourceFileSlab                jutil.Slab[SourceFile]
+	deserializerSlab              jutil.Slab[ScriptNodeDeserializer]
+	smallScriptByteSlab           []byte
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
+}
+
+func typedAstDeserializer_scriptSentinel() *rhino.Node {
+	panic(jutil.NewAssertionError("unexpected direct call to sentinel script supplier"))
 }
 
 // Java: TypedAstDeserializer(SourceFile, Optional<ColorPool.Builder>, Optional<ImmutableSet<SourceFile>>, Mode, boolean)
@@ -88,6 +95,8 @@ func newTypedAstDeserializer(
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
+		sourceFileSlab:                jutil.NewMaxSlab[SourceFile](64),
+		deserializerSlab:              jutil.NewMaxSlab[ScriptNodeDeserializer](256),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
 		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
@@ -409,7 +418,7 @@ func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFil
 			existingFile.RestoreCachedStateFrom(p)
 			fileShardBuilder = append(fileShardBuilder, existingFile)
 		} else {
-			protoFile := SourceFile_FromProto(p)
+			protoFile := sourceFileFromProtoWithSlab(p, &d.sourceFileSlab)
 			d.addToFilePool(p.GetFilename(), protoFile)
 			fileShardBuilder = append(fileShardBuilder, protoFile)
 		}
@@ -442,13 +451,17 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 	}
 
 	deserializer :=
-		NewScriptNodeDeserializer(lazyAst, stringShard, colorShard, fileShard)
+		newScriptNodeDeserializerFromSlab(&d.deserializerSlab, &d.smallScriptByteSlab, lazyAst, stringShard, colorShard, fileShard)
 
 	if d.syntheticExterns == file {
 		d.syntheticExternsDeserializers.Add(deserializer)
 	} else {
 		if !d.typedAstFilesystem.ContainsKey(file) {
-			d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
+			if d.mode == typedAstDeserializer_Mode_FULL_AST {
+				d.typedAstFilesystem.Put(file, typedAstDeserializer_scriptSentinel)
+			} else {
+				d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
+			}
 			d.scriptDeserializers[file] = deserializer
 		}
 	}
@@ -1436,9 +1449,14 @@ func typedAstDeserializer_streamLargeShard(
 type TypedAstDeserializer_DeserializedAst struct {
 	filesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	scriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
+	suppliersBound      bool
 	colorRegistry       *colors.ColorRegistry // Optional: nil when absent
 	externProperties    *jutil.LinkedHashSet[string]
 	runtimeLibraries    *jutil.LinkedHashSet[string]
+}
+
+func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+	return a.filesystem
 }
 
 // GetFilesystem maps from SourceFile to a lazy deserializer of the SCRIPT
@@ -1449,6 +1467,14 @@ type TypedAstDeserializer_DeserializedAst struct {
 //
 // Java: TypedAstDeserializer.DeserializedAst.getFilesystem()
 func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+	if !a.suppliersBound && len(a.scriptDeserializers) > 0 && a.filesystem != nil {
+		a.suppliersBound = true
+		for file, sd := range a.scriptDeserializers {
+			if a.filesystem.ContainsKey(file) {
+				a.filesystem.Put(file, sd.DeserializeNew)
+			}
+		}
+	}
 	return a.filesystem
 }
 

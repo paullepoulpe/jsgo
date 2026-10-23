@@ -49,18 +49,45 @@ func NewScriptNodeDeserializer(
 	stringPool *StringPool,
 	colorPoolShard *ColorPool_ShardView,
 	filePool []*SourceFile) *ScriptNodeDeserializer {
+	return newScriptNodeDeserializerFromSlab(nil, nil, ast, stringPool, colorPoolShard, filePool)
+}
+
+func newScriptNodeDeserializerFromSlab(
+	slab *jutil.Slab[ScriptNodeDeserializer],
+	smallByteSlab *[]byte,
+	ast *LazyAst,
+	stringPool *StringPool,
+	colorPoolShard *ColorPool_ShardView,
+	filePool []*SourceFile,
+) *ScriptNodeDeserializer {
 	scriptBytes := ast.GetScript()
-	if len(scriptBytes) <= 256 {
-		scriptBytes = bytes.Clone(scriptBytes)
+	if n := len(scriptBytes); n <= 256 {
+		if smallByteSlab != nil && n > 0 {
+			buf := *smallByteSlab
+			if cap(buf)-len(buf) < n {
+				buf = make([]byte, 0, 32760)
+			}
+			off := len(buf)
+			buf = append(buf, scriptBytes...)
+			*smallByteSlab = buf
+			scriptBytes = buf[off : off+n : off+n]
+		} else {
+			scriptBytes = bytes.Clone(scriptBytes)
+		}
 	}
-	return &ScriptNodeDeserializer{
-		scriptBytes:      scriptBytes,
-		sourceFile:       filePool[ast.GetSourceFile()-1],
-		sourceMappingURL: ast.GetSourceMappingUrl(),
-		colorPoolShard:   colorPoolShard,
-		stringPool:       stringPool,
-		filePool:         filePool,
+	var d *ScriptNodeDeserializer
+	if slab != nil {
+		d = slab.New()
+	} else {
+		d = &ScriptNodeDeserializer{}
 	}
+	d.scriptBytes = scriptBytes
+	d.sourceFile = filePool[ast.GetSourceFile()-1]
+	d.sourceMappingURL = ast.GetSourceMappingUrl()
+	d.colorPoolShard = colorPoolShard
+	d.stringPool = stringPool
+	d.filePool = filePool
+	return d
 }
 
 var scriptNodeDeserializerRunnerPool = sync.Pool{

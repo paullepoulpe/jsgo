@@ -95,6 +95,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 	lineLengthThreshold  int
 	lineLength           int
 	lineIndex            int
+	cg                   CodeGeneratorBase
 }
 
 const codePrinter_mappingSlabSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(SourceMap_Mapping{}))
@@ -216,6 +217,11 @@ func (m *CodePrinter_MappedCodePrinterBase) resetForPool() {
 	m.codeUTF16 = nil
 	m.licenseTracker = nil
 	m.self = nil
+	var keepScratch []uint16
+	if cap(m.cg.scratchUnits) <= 65536 {
+		keepScratch = m.cg.scratchUnits[:0]
+	}
+	m.cg = CodeGeneratorBase{scratchUnits: keepScratch}
 }
 
 func returnPooledPrinter(pooledCompact *CodePrinter_CompactCodePrinter, pooledPretty *CodePrinter_PrettyCodePrinter) {
@@ -1434,14 +1440,14 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceA
 	}
 
 	var cg CodeGenerator
-	var localCG CodeGeneratorBase
 	if b.codeGeneratorFactory != nil {
 		cg = b.codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
 	} else if outputFormat == CodePrinter_Format_TYPED {
 		cg = NewTypedCodeGenerator(mcp, options, b.registry)
 	} else {
-		localCG.InitCodeGeneratorBaseWithOptions(&localCG, mcp, options)
-		cg = &localCG
+		baseCG := &mcp.GetCodePrinter_MappedCodePrinterBase().cg
+		baseCG.InitCodeGeneratorBaseWithOptions(baseCG, mcp, options)
+		cg = baseCG
 	}
 
 	if b.tagAsTypeSummary {

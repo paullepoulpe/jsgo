@@ -18,7 +18,7 @@ type BitSet struct {
 // NewBitSet is new BitSet().
 func NewBitSet() *BitSet {
 	b := &BitSet{}
-	b.words = b.buf[:0:1]
+	b.words = b.buf[:0:len(b.buf)]
 	return b
 }
 
@@ -217,13 +217,24 @@ func (b *BitSet) NextClearBit(fromIndex int) int {
 
 // Or is BitSet.or(BitSet).
 func (b *BitSet) Or(set *BitSet) {
-	if b == set {
+	if b == set || len(set.words) == 0 {
 		return
 	}
 	b.ensure(len(set.words) - 1)
 	for i, w := range set.words {
 		b.words[i] |= w
 	}
+}
+
+// Words128 returns the low 128 bits of b as two uint64 words.
+func (b *BitSet) Words128() (w0, w1 uint64) {
+	if len(b.words) > 0 {
+		w0 = b.words[0]
+		if len(b.words) > 1 {
+			w1 = b.words[1]
+		}
+	}
+	return w0, w1
 }
 
 // And is BitSet.and(BitSet).

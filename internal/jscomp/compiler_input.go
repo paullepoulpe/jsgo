@@ -35,6 +35,7 @@ type CompilerInput struct {
 	// Info about where the file lives.
 	chunk      *JSChunk
 	id         *rhino.InputId
+	inlineId   rhino.InputId
 	sourceFile *SourceFile
 
 	// The lazily constructed AST.
@@ -101,7 +102,9 @@ func NewCompilerInputWithInputId(file *SourceFile, inputId *rhino.InputId) *Comp
 //
 // Java: CompilerInput(SourceFile, String, boolean)
 func NewCompilerInputWithStringIdAndIsExtern(sourceFile *SourceFile, inputId string, isExtern bool) *CompilerInput {
-	return NewCompilerInputWithInputIdAndIsExtern(sourceFile, rhino.NewInputId(inputId), isExtern)
+	c := &CompilerInput{}
+	c.inlineId.Init(inputId)
+	return initCompilerInputWithInputId(c, sourceFile, &c.inlineId, isExtern)
 }
 
 var (
@@ -109,19 +112,13 @@ var (
 	compilerInputEmptyStrings  = []string{}
 )
 
-// Deprecated: the inputId is read from the SourceFile. Use
-// NewCompilerInputWithIsExtern(file, isExtern)
-//
-// Java: CompilerInput(SourceFile, InputId, boolean)
-func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
-	c := &CompilerInput{
-		extraRequires:         compilerInputEmptyRequires,
-		extraProvides:         compilerInputEmptyStrings,
-		orderedRequires:       compilerInputEmptyRequires,
-		dynamicRequires:       compilerInputEmptyStrings,
-		requireDynamicImports: compilerInputEmptyStrings,
-		jsModuleType:          CompilerInput_ModuleType_NONE,
-	}
+func initCompilerInputWithInputId(c *CompilerInput, sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
+	c.extraRequires = compilerInputEmptyRequires
+	c.extraProvides = compilerInputEmptyStrings
+	c.orderedRequires = compilerInputEmptyRequires
+	c.dynamicRequires = compilerInputEmptyStrings
+	c.requireDynamicImports = compilerInputEmptyStrings
+	c.jsModuleType = CompilerInput_ModuleType_NONE
 	c.inlineAst.outer = c
 	c.ast = &c.inlineAst
 	c.sourceFile = jutil.CheckNotNull(sourceFile)
@@ -132,14 +129,34 @@ func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhi
 	return c
 }
 
+func newCompilerInputFromSlab(slab *jutil.Slab[CompilerInput], file *SourceFile, isExtern bool) *CompilerInput {
+	jutil.CheckNotNull(file)
+	var c *CompilerInput
+	if slab != nil {
+		c = slab.New()
+	} else {
+		c = &CompilerInput{}
+	}
+	c.inlineId.Init(file.GetName())
+	return initCompilerInputWithInputId(c, file, &c.inlineId, isExtern)
+}
+
+// Deprecated: the inputId is read from the SourceFile. Use
+// NewCompilerInputWithIsExtern(file, isExtern)
+//
+// Java: CompilerInput(SourceFile, InputId, boolean)
+func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhino.InputId, isExtern bool) *CompilerInput {
+	return initCompilerInputWithInputId(&CompilerInput{}, sourceFile, inputId, isExtern)
+}
+
 // Java: CompilerInput(SourceFile)
 func NewCompilerInput(file *SourceFile) *CompilerInput {
-	return NewCompilerInputWithIsExtern(file, false)
+	return newCompilerInputFromSlab(nil, file, false)
 }
 
 // Java: CompilerInput(SourceFile, boolean)
 func NewCompilerInputWithIsExtern(file *SourceFile, isExtern bool) *CompilerInput {
-	return NewCompilerInputWithInputIdAndIsExtern(file, rhino.NewInputId(file.GetName()), isExtern)
+	return newCompilerInputFromSlab(nil, file, isExtern)
 }
 
 // GetInputId returns a name for this input. Must be unique across all

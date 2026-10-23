@@ -74,7 +74,11 @@ type SourceFile struct {
 	// getCode and getCodeReader.
 	mu sync.Mutex
 
-	sourceInfoTemplate atomic.Pointer[rhino.Node]
+	onDiskLoader SourceFile_CodeLoader_OnDisk
+
+	sourceInfoTemplateMu    sync.Mutex
+	sourceInfoTemplateReady atomic.Bool
+	sourceInfoTemplateVal   rhino.Node
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
@@ -86,15 +90,17 @@ func (f *SourceFile) getOrCreateSourceInfoTemplate() *rhino.Node {
 	if f == nil {
 		return rhino.NewNode(rhino.Token_SCRIPT)
 	}
-	if tmpl := f.sourceInfoTemplate.Load(); tmpl != nil {
-		return tmpl
+	if f.sourceInfoTemplateReady.Load() {
+		return &f.sourceInfoTemplateVal
 	}
-	tmpl := rhino.NewNode(rhino.Token_SCRIPT)
-	tmpl.SetStaticSourceFile(f)
-	if f.sourceInfoTemplate.CompareAndSwap(nil, tmpl) {
-		return tmpl
+	f.sourceInfoTemplateMu.Lock()
+	if !f.sourceInfoTemplateReady.Load() {
+		f.sourceInfoTemplateVal.Init(rhino.Token_SCRIPT)
+		f.sourceInfoTemplateVal.SetStaticSourceFile(f)
+		f.sourceInfoTemplateReady.Store(true)
 	}
-	return f.sourceInfoTemplate.Load()
+	f.sourceInfoTemplateMu.Unlock()
+	return &f.sourceInfoTemplateVal
 }
 
 const sourceFile_UTF8_BOM = "\uFEFF"
@@ -862,8 +868,12 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 
 // Java: SourceFile.fromProto(SourceFileProto)
 func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
+	return sourceFileFromProtoWithSlab(protoSourceFile, nil)
+}
+
+func sourceFileFromProtoWithSlab(protoSourceFile *SourceFileProto, slab *jutil.Slab[SourceFile]) *SourceFile {
 	sourceKind := sourceFile_getSourceKindFromProto(protoSourceFile)
-	sourceFile := sourceFile_fromProtoWithKind(protoSourceFile, sourceKind)
+	sourceFile := sourceFile_fromProtoWithKindAndSlab(protoSourceFile, sourceKind, slab)
 	// Restore the number of lines/bytes, which are offset by 1 in the proto.
 	sourceFile.numLines = int(protoSourceFile.GetNumLinesPlusOne()) - 1
 	sourceFile.numBytes = int(protoSourceFile.GetNumBytesPlusOne()) - 1
@@ -875,33 +885,47 @@ func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
 
 // Java: SourceFile.fromProto(SourceFileProto, SourceKind)
 func sourceFile_fromProtoWithKind(protoSourceFile *SourceFileProto, sourceKind rhino.StaticSourceFile_SourceKind) *SourceFile {
+	return sourceFile_fromProtoWithKindAndSlab(protoSourceFile, sourceKind, nil)
+}
+
+func sourceFile_fromProtoWithKindAndSlab(
+	protoSourceFile *SourceFileProto,
+	sourceKind rhino.StaticSourceFile_SourceKind,
+	slab *jutil.Slab[SourceFile],
+) *SourceFile {
 	switch protoSourceFile.GetLoaderCase() {
 	case SourceFileProto_LoaderCase_PRELOADED_CONTENTS:
 		return SourceFile_FromCodeWithKind(
 			protoSourceFile.GetFilename(), protoSourceFile.GetPreloadedContents(), sourceKind)
 	case SourceFileProto_LoaderCase_FILE_ON_DISK:
-		pathOnDisk := protoSourceFile.GetFileOnDisk().GetActualPath()
+		fileOnDisk := protoSourceFile.GetFileOnDisk()
+		pathOnDisk := fileOnDisk.GetActualPath()
 		if pathOnDisk == "" {
 			pathOnDisk = protoSourceFile.GetFilename()
 		}
-		return SourceFile_Builder_().
-			WithCharset(sourceFile_toCharset(protoSourceFile.GetFileOnDisk().GetCharset())).
-			WithOriginalPath(protoSourceFile.GetFilename()).
-			WithKind(sourceKind).
+		charset := sourceFile_toCharset(fileOnDisk.GetCharset())
+		if !sourceFile_isZipEntryPath(pathOnDisk) {
+			return newOnDiskSourceFileFromSlab(slab, pathOnDisk, protoSourceFile.GetFilename(), charset, sourceKind)
+		}
+		var b SourceFile_Builder
+		b.kind = sourceKind
+		b.charset = charset
+		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			WithPath(pathOnDisk).
 			Build()
 	case SourceFileProto_LoaderCase_ZIP_ENTRY:
 		zipEntry := protoSourceFile.GetZipEntry()
-		return SourceFile_Builder_().
-			WithKind(sourceKind).
-			WithOriginalPath(protoSourceFile.GetFilename()).
-			WithCharset(sourceFile_toCharset(zipEntry.GetCharset())).
+		var b SourceFile_Builder
+		b.kind = sourceKind
+		b.charset = sourceFile_toCharset(zipEntry.GetCharset())
+		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			WithZipEntryPath(zipEntry.GetZipPath(), zipEntry.GetEntryName()).
 			Build()
 	case SourceFileProto_LoaderCase_STUB_FILE:
-		return SourceFile_Builder_().
-			WithKind(sourceKind).
-			WithOriginalPath(protoSourceFile.GetFilename()).
+		var b SourceFile_Builder
+		b.kind = sourceKind
+		b.charset = jutil.StandardCharsets_UTF_8
+		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			SetIsStubSourceFileForAlreadyProvidedInput().
 			Build()
 	case SourceFileProto_LoaderCase_LOADER_NOT_SET:
@@ -943,12 +967,15 @@ func SourceFile_Builder_() *SourceFile_Builder {
 type SourceFile_Builder struct {
 	kind                                    rhino.StaticSourceFile_SourceKind
 	charset                                 *jutil.Charset
-	originalPath                            *string
+	originalPath                            string
+	hasOriginalPath                         bool
 	isStubSourceFileForAlreadyProvidedInput bool
 
-	path               *string
+	path               string
+	hasPath            bool
 	pathWithFilesystem *jutil.Path
-	zipEntryPath       *string
+	zipEntryPath       string
+	hasZipEntryPath    bool
 
 	lazyContent func() string
 }
@@ -1007,8 +1034,10 @@ func (b *SourceFile_Builder) WithContentFromStream(x io.Reader) *SourceFile_Buil
 
 // Java: SourceFile.Builder.withZipEntryPath(String, String)
 func (b *SourceFile_Builder) WithZipEntryPath(zipPath string, entryPath string) *SourceFile_Builder {
-	b.path = &zipPath
-	b.zipEntryPath = &entryPath
+	b.path = zipPath
+	b.hasPath = true
+	b.zipEntryPath = entryPath
+	b.hasZipEntryPath = true
 	return b
 }
 
@@ -1022,7 +1051,8 @@ func (b *SourceFile_Builder) WithZipEntryPath(zipPath string, entryPath string) 
 //
 // Java: SourceFile.Builder.withOriginalPath(String)
 func (b *SourceFile_Builder) WithOriginalPath(originalPath string) *SourceFile_Builder {
-	b.originalPath = &originalPath
+	b.originalPath = originalPath
+	b.hasOriginalPath = true
 	return b
 }
 
@@ -1039,12 +1069,12 @@ func (b *SourceFile_Builder) SetIsStubSourceFileForAlreadyProvidedInput() *Sourc
 // Java: SourceFile.Builder.build()
 func (b *SourceFile_Builder) Build() *SourceFile {
 	var displayPath string
-	if b.originalPath != nil {
-		displayPath = *b.originalPath
-	} else if b.zipEntryPath == nil {
-		displayPath = sourceFile_nullableString(b.path)
+	if b.hasOriginalPath {
+		displayPath = b.originalPath
+	} else if !b.hasZipEntryPath {
+		displayPath = sourceFile_nullableStringVal(b.path, b.hasPath)
 	} else {
-		displayPath = sourceFile_nullableString(b.path) + sourceFile_BANG_SLASH + *b.zipEntryPath
+		displayPath = sourceFile_nullableStringVal(b.path, b.hasPath) + sourceFile_BANG_SLASH + b.zipEntryPath
 	}
 
 	if b.isStubSourceFileForAlreadyProvidedInput {
@@ -1057,48 +1087,103 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 		return newSourceFile(NewSourceFile_CodeLoader_Preloaded(b.lazyContent()), displayPath, b.kind)
 	}
 
-	if b.zipEntryPath != nil {
+	if b.hasZipEntryPath {
 		return newSourceFile(
-			NewSourceFile_CodeLoader_AtZip(*b.path, *b.zipEntryPath, b.charset),
+			NewSourceFile_CodeLoader_AtZip(b.path, b.zipEntryPath, b.charset),
 			displayPath,
 			b.kind)
 	}
 
-	pathWithFilesystem := b.pathWithFilesystem
-	if pathWithFilesystem == nil {
-		pathWithFilesystem = jutil.Path_Of(*jutil.CheckNotNull(b.path))
+	if b.pathWithFilesystem != nil {
+		return newOnDiskSourceFileWithNormalizedPath(nil, b.pathWithFilesystem.String(), displayPath, b.charset, b.kind)
 	}
-	return newSourceFile(
-		NewSourceFile_CodeLoader_OnDisk(pathWithFilesystem, b.charset),
-		displayPath,
-		b.kind)
+	if !b.hasPath {
+		panic(jutil.NewNullPointerException())
+	}
+	return newOnDiskSourceFileFromSlab(nil, b.path, displayPath, b.charset, b.kind)
 }
 
-// sourceFile_nullableString is String.valueOf for string concatenation
-// ("null" for null), as when displayPath is built from a null path.
-func sourceFile_nullableString(s *string) string {
-	if s == nil {
+func sourceFile_nullableStringVal(s string, ok bool) string {
+	if !ok {
 		return "null"
 	}
-	return *s
+	return s
 }
 
-func (b *SourceFile_Builder) WithPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
-	// Check if this path should be inferred as a ZIP entry path.
+func sourceFile_isZipEntryPath(path string) bool {
+	if strings.IndexByte(path, '!') < 0 {
+		return false
+	}
 	bangSlashIndex := strings.Index(path, sourceFile_BANG_SLASH)
 	if bangSlashIndex >= 0 {
 		zipPath := path[:bangSlashIndex]
 		entryPath := path[bangSlashIndex+len(sourceFile_BANG_SLASH):]
+		return strings.HasSuffix(zipPath, ".zip") &&
+			(strings.HasSuffix(entryPath, ".js") || strings.HasSuffix(entryPath, ".js.map"))
+	}
+	return false
+}
 
-		if strings.HasSuffix(zipPath, ".zip") &&
-			(strings.HasSuffix(entryPath, ".js") || strings.HasSuffix(entryPath, ".js.map")) {
-			return b.WithZipEntryPath(zipPath, entryPath)
+func newOnDiskSourceFileFromSlab(
+	slab *jutil.Slab[SourceFile],
+	pathOnDisk string,
+	displayPath string,
+	charset *jutil.Charset,
+	kind rhino.StaticSourceFile_SourceKind,
+) *SourceFile {
+	normalizedPath := jutil.ParsePathString(pathOnDisk)
+	return newOnDiskSourceFileWithNormalizedPath(slab, normalizedPath, displayPath, charset, kind)
+}
+
+func newOnDiskSourceFileWithNormalizedPath(
+	slab *jutil.Slab[SourceFile],
+	normalizedPath string,
+	displayPath string,
+	charset *jutil.Charset,
+	kind rhino.StaticSourceFile_SourceKind,
+) *SourceFile {
+	charsetName := charset.Name()
+	if displayPath == "" {
+		panic(jutil.NewIllegalArgumentExceptionMsg("a source must have a name"))
+	}
+	if Platform_GetFileSeperator() != "/" {
+		displayPath = strings.ReplaceAll(displayPath, Platform_GetFileSeperator(), "/")
+	}
+	var f *SourceFile
+	if slab != nil {
+		f = slab.New()
+	} else {
+		f = &SourceFile{}
+	}
+	f.onDiskLoader.serializableCharset = charsetName
+	f.onDiskLoader.relativePathStr = normalizedPath
+	f.loader = &f.onDiskLoader
+	f.fileName = displayPath
+	f.kind = kind
+	f.numLines = -1
+	f.numBytes = -1
+	return f
+}
+
+func (b *SourceFile_Builder) WithPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
+	// Check if this path should be inferred as a ZIP entry path.
+	if strings.IndexByte(path, '!') >= 0 {
+		bangSlashIndex := strings.Index(path, sourceFile_BANG_SLASH)
+		if bangSlashIndex >= 0 {
+			zipPath := path[:bangSlashIndex]
+			entryPath := path[bangSlashIndex+len(sourceFile_BANG_SLASH):]
+
+			if strings.HasSuffix(zipPath, ".zip") &&
+				(strings.HasSuffix(entryPath, ".js") || strings.HasSuffix(entryPath, ".js.map")) {
+				return b.WithZipEntryPath(zipPath, entryPath)
+			}
 		}
 	}
 
 	// Path instances have an implicit reference to a FileSystem. Make sure
 	// to preserve it.
-	b.path = &path
+	b.path = path
+	b.hasPath = true
 	b.pathWithFilesystem = pathWithFilesystem
 
 	return b
@@ -1185,21 +1270,23 @@ func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) ToProtoLocationBuilder(
 type SourceFile_CodeLoader_OnDisk struct {
 	SourceFile_CodeLoaderBase
 	serializableCharset string
-	relativePath        *jutil.Path
+	relativePathStr     string
 }
+
+var sourceFileEmptyFileOnDisk = &SourceFileProto_FileOnDisk{frozen: true, memoizedSize: 0}
 
 // Java: SourceFile.CodeLoader.OnDisk(Path, Charset)
 func NewSourceFile_CodeLoader_OnDisk(relativePath *jutil.Path, c *jutil.Charset) *SourceFile_CodeLoader_OnDisk {
-	return &SourceFile_CodeLoader_OnDisk{serializableCharset: c.Name(), relativePath: relativePath}
+	return &SourceFile_CodeLoader_OnDisk{serializableCharset: c.Name(), relativePathStr: relativePath.String()}
 }
 
 // Java: SourceFile.CodeLoader.OnDisk.loadUncachedCode()
 func (l *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 	var result string
 	jutil.Try(func() {
-		result = jutil.Files_ReadString(l.relativePath, l.GetCharset())
+		result = jutil.Files_ReadStringRaw(l.relativePathStr, l.GetCharset())
 	}, func(e jutil.ICharacterCodingException) {
-		msg := "Failed to read: " + l.relativePath.String() + ", is this input UTF-8 encoded?"
+		msg := "Failed to read: " + l.relativePathStr + ", is this input UTF-8 encoded?"
 		ex := &jutil.IOException{}
 		jutil.InitThrowable(ex, "java.io.IOException", &msg, e)
 		panic(ex)
@@ -1209,23 +1296,26 @@ func (l *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 
 // Java: SourceFile.CodeLoader.OnDisk.openUncachedReader()
 func (l *SourceFile_CodeLoader_OnDisk) OpenUncachedReader() jutil.JavaReader {
-	return jutil.Files_NewBufferedReader(l.relativePath, l.GetCharset())
+	return jutil.Files_NewBufferedReaderRaw(l.relativePathStr, l.GetCharset())
 }
 
 func (l *SourceFile_CodeLoader_OnDisk) GetCharset() *jutil.Charset {
+	if l.serializableCharset == "UTF-8" {
+		return jutil.StandardCharsets_UTF_8
+	}
 	return jutil.Charset_ForName(l.serializableCharset)
 }
 
 // Java: SourceFile.CodeLoader.OnDisk.toProtoLocationBuilder(String)
 func (l *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
-	actualPath := l.relativePath.String()
+	actualPath := l.relativePathStr
 	// to save space, don't serialize the path if equal to the fileName.
 	if fileName == actualPath {
 		actualPath = ""
 	}
 	// save space by not serializing UTF_8 (the default charset)
 	charset := l.serializableCharset
-	if l.GetCharset() == jutil.StandardCharsets_UTF_8 {
+	if charset == "UTF-8" || l.GetCharset() == jutil.StandardCharsets_UTF_8 {
 		charset = ""
 	}
 	return SourceFileProto_NewBuilder().
@@ -1282,6 +1372,36 @@ func (l *SourceFile_CodeLoader_AtZip) ToProtoLocationBuilder(fileName string) *S
 
 // Java: SourceFile.getProto()
 func (f *SourceFile) GetProto() *SourceFileProto {
+	if l, ok := f.loader.(*SourceFile_CodeLoader_OnDisk); ok {
+		actualPath := l.relativePathStr
+		if f.fileName == actualPath {
+			actualPath = ""
+		}
+		charset := l.serializableCharset
+		if charset == "UTF-8" || l.GetCharset() == jutil.StandardCharsets_UTF_8 {
+			charset = ""
+		}
+		fileOnDisk := sourceFileEmptyFileOnDisk
+		if actualPath != "" || charset != "" {
+			fileOnDisk = &SourceFileProto_FileOnDisk{
+				actualPath_:  actualPath,
+				charset_:     charset,
+				frozen:       true,
+				memoizedSize: -1,
+			}
+		}
+		return &SourceFileProto{
+			filename_:             f.fileName,
+			fileOnDisk_:           fileOnDisk,
+			sourceKind_:           sourceFile_sourceKindToProto(f.kind).GetNumber(),
+			isClosureUnawareCode_: f.isClosureUnawareCode,
+			numBytesPlusOne_:      int32(f.numBytes + 1),
+			numLinesPlusOne_:      int32(f.numLines + 1),
+			loaderCase_:           SourceFileProto_FILE_ON_DISK_FIELD_NUMBER,
+			frozen:                true,
+			memoizedSize:          -1,
+		}
+	}
 	return f.loader.
 		ToProtoLocationBuilder(f.GetName()).
 		SetFilename(f.GetName()).
