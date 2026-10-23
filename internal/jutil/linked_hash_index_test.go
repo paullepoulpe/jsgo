@@ -246,3 +246,65 @@ func TestLinkedHashSetGenericInterfaceKeys(t *testing.T) {
 		t.Fatal("found a new node")
 	}
 }
+
+func TestLinkedHashMapConcurrentReadsLazyIndex(t *testing.T) {
+	for trial := 0; trial < 32; trial++ {
+		h := NewLinkedHashMap[string, int]()
+		s := NewLinkedHashSet[string]()
+		const n = 24
+		keys := make([]string, n)
+		for i := 0; i < n; i++ {
+			k := fmt.Sprintf("key_%d_%d", trial, i)
+			keys[i] = k
+			h.PutNew(k, i)
+			s.AddNew(k)
+		}
+		if h.m != nil || s.m.m != nil {
+			t.Fatal("expected nil index before first lookup")
+		}
+
+		const workers = 8
+		start := make(chan struct{})
+		done := make(chan struct{}, workers)
+		for w := 0; w < workers; w++ {
+			w := w
+			go func() {
+				defer func() { done <- struct{}{} }()
+				<-start
+				for i, k := range keys {
+					idx := (i + w) % len(keys)
+					qk := keys[idx]
+					if got, ok := h.Lookup(qk); !ok || got != idx {
+						t.Errorf("Lookup(%q) = (%d, %v), want (%d, true)", qk, got, ok, idx)
+						return
+					}
+					if !s.Contains(k) {
+						t.Errorf("Contains(%q) = false", k)
+						return
+					}
+				}
+				if h.ContainsKey("missing") || s.Contains("missing") {
+					t.Errorf("unexpected hit for missing key")
+					return
+				}
+				cnt := 0
+				for range h.All() {
+					cnt++
+				}
+				if cnt != n {
+					t.Errorf("All count = %d, want %d", cnt, n)
+				}
+				_ = h.KeySlice()
+				_ = h.HashCode()
+				_ = s.ToSlice()
+				_ = s.HashCode()
+				_, _ = s.First()
+				_, _, _ = s.FirstTwo()
+			}()
+		}
+		close(start)
+		for w := 0; w < workers; w++ {
+			<-done
+		}
+	}
+}

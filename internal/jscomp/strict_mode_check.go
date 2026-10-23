@@ -111,8 +111,74 @@ func NewStrictModeCheck(compiler AbstractCompiler, defaultLevel CheckLevel) *Str
 
 // Java: StrictModeCheck.process(Node, Node)
 func (c *StrictModeCheck) Process(externs *rhino.Node, root *rhino.Node) {
+	if c.processParallel(externs, root) {
+		return
+	}
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 	NodeTraversal_Traverse(c.compiler, root, NewStrictModeCheck_NonExternChecks(c))
+}
+
+func (c *StrictModeCheck) processParallel(externs *rhino.Node, root *rhino.Node) bool {
+	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(c.compiler, len(items))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(c.compiler)
+	restoreReg := enableParallelTypeRegistryReads(c.compiler)
+	defer restoreReg()
+	lazyGlobal := newLazyGlobalScope(c.compiler, scopeRoot)
+
+	pass2EventsByItem := make([][]recordedCompilerEvent, len(items))
+	runParallelWork(c.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass1 *StrictModeCheck
+		var workerPass2 *StrictModeCheck_NonExternChecks
+		var pass2RC recordingCompiler
+		var sc *SyntacticScopeCreator
+
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerPass1 == nil || workerRC != rc {
+				workerRC = rc
+				workerPass1 = NewStrictModeCheck(rc, c.defaultLevel)
+				workerPass2 = NewStrictModeCheck_NonExternChecks(NewStrictModeCheck(&pass2RC, c.defaultLevel))
+				sc = NewSyntacticScopeCreator(rc)
+			}
+			item := items[idx]
+			b1 := NodeTraversal_Builder{
+				compiler:     rc,
+				callback:     workerPass1,
+				scopeCreator: sc,
+			}
+			t1 := acquireNodeTraversal(&b1)
+			traverseScriptUnderRoot(t1, scopeRoot, item.parent, item.script, lazyGlobal)
+			releaseNodeTraversal(t1)
+
+			if item.parent == root {
+				initRecordingCompiler(&pass2RC, c.compiler)
+				b2 := NodeTraversal_Builder{
+					compiler: &pass2RC,
+					callback: workerPass2,
+				}
+				t2 := acquireNodeTraversal(&b2)
+				traverseScriptUnderRoot(t2, root, root, item.script, nil)
+				releaseNodeTraversal(t2)
+				pass2EventsByItem[idx] = pass2RC.takeEvents()
+			}
+		}
+		return runItem, nil
+	}, false)
+
+	for i := range pass2EventsByItem {
+		if len(pass2EventsByItem[i]) != 0 {
+			replayCompilerEvents(c.compiler, pass2EventsByItem[i])
+		}
+	}
+	return true
 }
 
 // Java: StrictModeCheck.visit(NodeTraversal, Node, Node)

@@ -116,6 +116,7 @@ type NodeTraversal struct {
 	scopeCallback                                  NodeTraversal_ScopedCallback
 	scopeCreator                                   ScopeCreator
 	syntacticScopeCreator                          *SyntacticScopeCreator
+	lazyGlobalScope                                *lazyGlobalScope
 	defaultScopeCreator                            SyntacticScopeCreator
 	obeyDestructuringAndDefaultValueExecutionOrder bool
 	mayContainSyntheticBlocks                      bool
@@ -1073,6 +1074,42 @@ func NodeTraversal_TraverseRoots(
 	t := acquireNodeTraversal(&b)
 	t.TraverseRoots(externs, root)
 	releaseNodeTraversal(t)
+}
+
+func traverseScriptUnderRoot(
+	t *NodeTraversal,
+	scopeRoot *rhino.Node,
+	scriptParent *rhino.Node,
+	script *rhino.Node,
+	lazyGlobal *lazyGlobalScope,
+) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.ThrowUnexpectedException(jutil.AsThrowable(r))
+		}
+	}()
+	t.lazyGlobalScope = lazyGlobal
+	t.InitTraversal(scopeRoot)
+	t.currentNode = scopeRoot
+	t.PushScope(scopeRoot)
+	if t.noShouldTraverse || t.callback.ShouldTraverse(t, scopeRoot, nil) {
+		if scriptParent != scopeRoot {
+			if t.noShouldTraverse || t.callback.ShouldTraverse(t, scriptParent, scopeRoot) {
+				t.TraverseBranch(script, scriptParent)
+				if !t.noVisit {
+					t.currentNode = scriptParent
+					t.callback.Visit(t, scriptParent, scopeRoot)
+				}
+			}
+		} else {
+			t.TraverseBranch(script, scriptParent)
+		}
+		if !t.noVisit {
+			t.currentNode = scopeRoot
+			t.callback.Visit(t, scopeRoot, nil)
+		}
+	}
+	t.PopScope()
 }
 
 const nodeTraversal_MISSING_SOURCE = "[source unknown]"
@@ -2328,6 +2365,13 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 		return s
 	}
 	if t.syntacticScopeCreator != nil {
+		if rootDepth == 0 && t.lazyGlobalScope != nil {
+			s := t.lazyGlobalScope.get()
+			t.scopes[0].scope = s
+			t.scopes[0].untypedScope = s
+			t.scopes[0].lookupScope = s
+			return s
+		}
 		var parentScope *Scope
 		if rootDepth > 0 {
 			parentScope = t.getScopeSlow(rootDepth - 1)

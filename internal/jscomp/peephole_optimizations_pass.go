@@ -20,6 +20,8 @@ package jscomp
 
 import (
 	"math/bits"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -282,6 +284,10 @@ func (p *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 
 // Java: PeepholeOptimizationsPass.process(Node, Node)
 func (p *PeepholeOptimizationsPass) Process(externs *rhino.Node, root *rhino.Node) {
+	if p.canCloneForParallel() && parallelThreadCount(p.compiler, 2) > 1 {
+		p.processParallelLoop(root)
+		return
+	}
 	p.BeginTraversal()
 	cb := newPeepholeOptimizationsPass_PeepCallback(p)
 
@@ -303,6 +309,246 @@ func (p *PeepholeOptimizationsPass) Process(externs *rhino.Node, root *rhino.Nod
 	}
 
 	p.EndTraversal()
+}
+
+func (p *PeepholeOptimizationsPass) canCloneForParallel() bool {
+	for _, optim := range p.peepholeOptimizations {
+		switch optim.(type) {
+		case *MinimizeExitPoints,
+			*PeepholeMinimizeConditions,
+			*PeepholeSubstituteAlternateSyntax,
+			*PeepholeReplaceKnownMethods,
+			*PeepholeRemoveDeadCode,
+			*J2clEqualitySameRewriterPass,
+			*J2clStringValueOfRewriterPass,
+			*J2clUndefinedChecksRewriterPass,
+			*PeepholeFoldConstants,
+			*PeepholeCollectPropertyAssignments,
+			*ExploitAssigns,
+			*StatementFusion,
+			*OptimizeLetAndConstPeephole:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (p *PeepholeOptimizationsPass) cloneForWorker(rc *recordingCompiler) *PeepholeOptimizationsPass {
+	clonedOpts := make([]AbstractPeepholeOptimization, len(p.peepholeOptimizations))
+	for i, optim := range p.peepholeOptimizations {
+		switch opt := optim.(type) {
+		case *MinimizeExitPoints:
+			clonedOpts[i] = NewMinimizeExitPoints()
+		case *PeepholeMinimizeConditions:
+			clonedOpts[i] = NewPeepholeMinimizeConditions(opt.late)
+		case *PeepholeSubstituteAlternateSyntax:
+			clonedOpts[i] = NewPeepholeSubstituteAlternateSyntax(opt.late)
+		case *PeepholeReplaceKnownMethods:
+			clonedOpts[i] = NewPeepholeReplaceKnownMethods(opt.late, opt.useTypes)
+		case *PeepholeRemoveDeadCode:
+			clonedOpts[i] = NewPeepholeRemoveDeadCode()
+		case *J2clEqualitySameRewriterPass:
+			clonedOpts[i] = NewJ2clEqualitySameRewriterPass(opt.useTypes)
+		case *J2clStringValueOfRewriterPass:
+			clonedOpts[i] = NewJ2clStringValueOfRewriterPass()
+		case *J2clUndefinedChecksRewriterPass:
+			clonedOpts[i] = NewJ2clUndefinedChecksRewriterPass()
+		case *PeepholeFoldConstants:
+			clonedOpts[i] = NewPeepholeFoldConstants(opt.late, opt.shouldUseTypes)
+		case *PeepholeCollectPropertyAssignments:
+			clonedOpts[i] = NewPeepholeCollectPropertyAssignments()
+		case *ExploitAssigns:
+			clonedOpts[i] = NewExploitAssigns()
+		case *StatementFusion:
+			clonedOpts[i] = NewStatementFusion()
+		case *OptimizeLetAndConstPeephole:
+			clonedOpts[i] = NewOptimizeLetAndConstPeephole(opt.assumeOutputIsWrapped)
+		}
+	}
+	cp := NewPeepholeOptimizationsPassOfList(rc, p.passName, clonedOpts)
+	cp.retraverseOnChange = p.retraverseOnChange
+	return cp
+}
+
+func enclosingScriptForPeephole(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil; cur = cur.GetParent() {
+		if cur.IsScript() {
+			return cur
+		}
+	}
+	return nil
+}
+
+type peepholeScriptBucket struct {
+	origIndices []int
+}
+
+func (p *PeepholeOptimizationsPass) processParallelLoop(root *rhino.Node) {
+	prewarmCompilerForParallelReads(p.compiler)
+	restoreReg := enableParallelTypeRegistryReads(p.compiler)
+	defer restoreReg()
+
+	p.BeginTraversal()
+	var seqCb *peepholeOptimizationsPass_PeepCallback
+
+	for changedScopeNodes := p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName); changedScopeNodes == nil || len(changedScopeNodes) != 0; changedScopeNodes = p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName) {
+		if changedScopeNodes == nil {
+			if !p.processFullRootParallel(root) {
+				if seqCb == nil {
+					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
+				}
+				NodeTraversal_Traverse(p.compiler, root, seqCb)
+			}
+		} else {
+			if !p.processChangedScopesParallel(changedScopeNodes) {
+				if seqCb == nil {
+					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
+				}
+				NodeTraversal_TraverseScopeRoots(
+					p.compiler, changedScopeNodes, seqCb, false /* traverseNested */)
+			}
+		}
+		if !p.retraverseOnChange {
+			break
+		}
+	}
+
+	p.EndTraversal()
+}
+
+func (p *PeepholeOptimizationsPass) processFullRootParallel(root *rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(p.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+	runParallelWork(p.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass *PeepholeOptimizationsPass
+		var workerCb *peepholeOptimizationsPass_PeepCallback
+
+		cleanup := func() {
+			if workerPass != nil {
+				workerPass.EndTraversal()
+			}
+		}
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerPass == nil || workerRC != rc {
+				workerRC = rc
+				workerPass = p.cloneForWorker(rc)
+				workerPass.BeginTraversal()
+				workerCb = newPeepholeOptimizationsPass_PeepCallback(workerPass)
+			}
+			b := NodeTraversal_Builder{
+				compiler: rc,
+				callback: workerCb,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
+			releaseNodeTraversal(t)
+		}
+		return runItem, cleanup
+	}, false)
+	return true
+}
+
+func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNodes []*rhino.Node) bool {
+	if len(changedScopeNodes) < 2 {
+		return false
+	}
+	bucketByScript := make(map[*rhino.Node]int, len(changedScopeNodes))
+	var buckets []peepholeScriptBucket
+	for origIdx, scopeNode := range changedScopeNodes {
+		script := enclosingScriptForPeephole(scopeNode)
+		if script == nil {
+			return false
+		}
+		bIdx, exists := bucketByScript[script]
+		if !exists {
+			bIdx = len(buckets)
+			bucketByScript[script] = bIdx
+			buckets = append(buckets, peepholeScriptBucket{origIndices: []int{origIdx}})
+		} else {
+			buckets[bIdx].origIndices = append(buckets[bIdx].origIndices, origIdx)
+		}
+	}
+	numWorkers := parallelThreadCount(p.compiler, len(buckets))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	eventsByOrigIdx := make([][]recordedCompilerEvent, len(changedScopeNodes))
+	panicsByOrigIdx := make([]any, len(changedScopeNodes))
+
+	var nextBucket atomic.Uint32
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			var rc recordingCompiler
+			initRecordingCompiler(&rc, p.compiler)
+			workerPass := p.cloneForWorker(&rc)
+			workerPass.BeginTraversal()
+			defer workerPass.EndTraversal()
+			workerCb := newPeepholeOptimizationsPass_PeepCallback(workerPass)
+			scb := &nodeTraversal_TraverseScopeRootsCallback{
+				cb:             workerCb,
+				scopedCb:       workerCb,
+				traverseNested: false,
+			}
+			scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(&rc))
+
+			for {
+				bIdx := int(nextBucket.Add(1) - 1)
+				if bIdx >= len(buckets) {
+					return
+				}
+				for _, origIdx := range buckets[bIdx].origIndices {
+					initRecordingCompiler(&rc, p.compiler)
+					scb.insideScopeNode = false
+					scb.scopeNode = changedScopeNodes[origIdx]
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								panicsByOrigIdx[origIdx] = r
+							}
+						}()
+						b := NodeTraversal_Builder{
+							compiler:     &rc,
+							callback:     scb,
+							scopeCreator: scopeCreator,
+						}
+						t := acquireNodeTraversal(&b)
+						t.TraverseScopeRoot(changedScopeNodes[origIdx])
+						releaseNodeTraversal(t)
+					}()
+					eventsByOrigIdx[origIdx] = rc.takeEvents()
+					if panicsByOrigIdx[origIdx] != nil {
+						return
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	for i := range changedScopeNodes {
+		if len(eventsByOrigIdx[i]) != 0 {
+			replayCompilerEvents(p.compiler, eventsByOrigIdx[i])
+		}
+		if r := panicsByOrigIdx[i]; r != nil {
+			if ie, ok := r.(parallelInternalError); ok {
+				p.compiler.ThrowInternalError(ie.msg, ie.cause)
+			}
+			panic(r)
+		}
+	}
+	return true
 }
 
 // peepholeOptimizationsPass_PeepCallback is the inner class PeepCallback.

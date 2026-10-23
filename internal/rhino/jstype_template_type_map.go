@@ -314,7 +314,7 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 				t1 = values[1].GetJSTypeBase()
 			}
 		}
-		if canCache {
+		if canCache && !m.registry.parallelReadOnly {
 			cacheIdx = m.registry.templateTypeMapCacheIndex(m, t0, t1)
 			if m.registry.templateTypeMapCache != nil {
 				entry := &m.registry.templateTypeMapCache[cacheIdx]
@@ -353,7 +353,7 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	}
 
 	res := initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStarts)
-	if canCache {
+	if canCache && !m.registry.parallelReadOnly {
 		if m.registry.templateTypeMapCache == nil {
 			m.registry.templateTypeMapCache = new([jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry)
 		}

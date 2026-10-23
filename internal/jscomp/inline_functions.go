@@ -21,6 +21,8 @@ package jscomp
 import (
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -182,17 +184,21 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		f.lastContainingFn = nil
 	}()
 
-	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
 	if root != nil {
-		findCandidates.walk(root, nil, nil, false)
+		if !f.findCandidateFunctionsParallel(root) {
+			findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
+			findCandidates.walk(root, nil, nil, false)
+		}
 	}
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
 	}
-	sc := NewSyntacticScopeCreator(f.compiler)
-	findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
-	findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
-	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
+	if !f.findCandidatesReferencesParallel(root) {
+		sc := NewSyntacticScopeCreator(f.compiler)
+		findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
+		findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
+		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
+	}
 	f.lastContainingFn = nil
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if f.fns.IsEmpty() {
@@ -1103,6 +1109,668 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node,
 // InlineFunctions_Inline inlines functions at the call sites.
 type InlineFunctions_Inline struct {
 	injector *FunctionInjector
+}
+
+type ifCandKind uint8
+
+const (
+	ifCandVar ifCandKind = iota + 1
+	ifCandNamedFn
+	ifCandAnonExpr
+)
+
+type ifPhase1Candidate struct {
+	kind                ifCandKind
+	node                *rhino.Node
+	fnNode              *rhino.Node
+	name                string
+	chunk               *JSChunk
+	disallowReason      InlineFunctions_DisallowInliningReason
+	hasDisallow         bool
+	disallowBeforeSetFn bool
+	inlineDirectly      bool
+	referencesThis      bool
+	hasInnerClosures    bool
+	namesToAlias        *jutil.LinkedHashSet[string]
+	bodyAstSize         int32
+}
+
+type ifPhase1Worker struct {
+	outer                         *InlineFunctions
+	paramScratch                  []string
+	lastCheckedBlock              *rhino.Node
+	lastCheckedBlockHasLetOrConst bool
+	cands                         []ifPhase1Candidate
+}
+
+func (w *ifPhase1Worker) blockHasLetOrConst(block *rhino.Node) bool {
+	if block == w.lastCheckedBlock {
+		return w.lastCheckedBlockHasLetOrConst
+	}
+	res := inlineFunctions_hasLetOrConst(block)
+	w.lastCheckedBlock = block
+	w.lastCheckedBlockHasLetOrConst = res
+	return res
+}
+
+func (w *ifPhase1Worker) analyzeBody(fnNode *rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
+	params := NodeUtil_GetFunctionParameters(fnNode)
+	w.paramScratch = w.paramScratch[:0]
+	var paramBloom uint64
+	for n := params.GetFirstChild(); n != nil; n = n.GetNext() {
+		if n.IsRest() {
+			w.paramScratch = append(w.paramScratch, FunctionArgumentInjector_REST_MARKER)
+			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
+		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
+			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
+		} else {
+			s := n.GetString()
+			w.paramScratch = append(w.paramScratch, s)
+			paramBloom |= scopeBloomMask(s)
+		}
+	}
+	var res inlineFunctions_bodyAnalysis
+	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), w.paramScratch, paramBloom, false, true, &res)
+	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
+}
+
+func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node *rhino.Node, nameNode *rhino.Node, fnNode *rhino.Node, chunk *JSChunk) ifPhase1Candidate {
+	f := w.outer
+	name := nameNode.GetString()
+	cand := ifPhase1Candidate{
+		kind:   kind,
+		node:   node,
+		fnNode: fnNode,
+		name:   name,
+		chunk:  chunk,
+	}
+	if f.HasNoInlineAnnotation(fnNode) {
+		cand.hasDisallow = true
+		cand.disallowBeforeSetFn = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_NO_INLINE_ANNOTATION
+		return cand
+	}
+	if f.enforceMaxSizeAfterInlining &&
+		!InlineFunctions_IsAlwaysInlinable(fnNode) &&
+		f.maxSizeAfterInlining <= NodeUtil_CountAstSizeUpToLimit(fnNode, f.maxSizeAfterInlining) {
+		cand.hasDisallow = true
+		cand.disallowBeforeSetFn = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_TARGET_SIZE_EXCEEDS_LIMIT
+		return cand
+	}
+	if FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode) {
+		cand.inlineDirectly = true
+	}
+	if fnNode.IsGeneratorFunction() {
+		cand.hasDisallow = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_GENERATOR_FUNCTION
+		return cand
+	}
+	if fnNode.IsAsyncFunction() {
+		cand.hasDisallow = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_ASYNC_FUNCTION
+		return cand
+	}
+	if InlineFunctions_HasNonInlinableParam(NodeUtil_GetFunctionParameters(fnNode)) {
+		cand.hasDisallow = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_NON_INLINABLE_PARAM
+		return cand
+	}
+	conv := f.compiler.GetCodingConvention()
+	if conv.IsExported(name) || conv.IsPropertyRenameFunction(nameNode) || !f.injector.DoesFunctionMeetMinimumRequirements(name, fnNode) {
+		cand.hasDisallow = true
+		cand.disallowReason = InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION
+		return cand
+	}
+	namesToAlias, referencesThis, hasInnerClosures := w.analyzeBody(fnNode)
+	if namesToAlias != nil && !namesToAlias.IsEmpty() {
+		cand.inlineDirectly = false
+		cand.namesToAlias = namesToAlias
+	}
+	cand.referencesThis = referencesThis
+	if hasInnerClosures {
+		cand.hasInnerClosures = true
+		if !f.assumeMinimumCapture && InlineFunctions_HasLocalNames(fnNode) {
+			cand.hasDisallow = true
+			cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
+			return cand
+		}
+	}
+	if fnNode.GetGrandparent().IsVar() {
+		var block *rhino.Node
+		if kind == ifCandVar {
+			block = node.GetParent()
+		} else {
+			block = fnNode.GetParent()
+		}
+		if block.IsBlock() && !block.GetParent().IsFunction() && w.blockHasLetOrConst(block) {
+			cand.hasDisallow = true
+			cand.disallowReason = InlineFunctions_DisallowInliningReason_CAPTURED_VARIABLE_NOT_IN_SCOPE
+			return cand
+		}
+	}
+	if f.enforceMaxSizeAfterInlining && !InlineFunctions_IsAlwaysInlinable(fnNode) {
+		cand.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(fnNode), f.maxSizeAfterInlining))
+	}
+	return cand
+}
+
+func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	tok := n.GetToken()
+	childLocalHoist := inLocalHoist
+	switch tok {
+	case rhino.Token_SCRIPT:
+		if id := n.GetInputId(); id != nil {
+			if inp := w.outer.compiler.GetInput(id); inp != nil {
+				chunk = inp.GetChunk()
+			}
+		}
+	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
+		childLocalHoist = true
+	case rhino.Token_BLOCK:
+		if parent != nil && parent.IsClassMembers() {
+			childLocalHoist = true
+		}
+	case rhino.Token_CLASS_MEMBERS:
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
+				w.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
+			}
+		}
+		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+			switch ch.GetToken() {
+			case rhino.Token_COMPUTED_PROP:
+				w.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if ch.HasTwoChildren() {
+					w.walk(ch.GetLastChild(), ch, chunk, true)
+				}
+			default:
+				w.walk(ch, n, chunk, inLocalHoist)
+			}
+		}
+		return
+	}
+	for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		if ch.GetFirstChild() != nil {
+			w.walk(ch, n, chunk, childLocalHoist)
+		}
+	}
+	switch tok {
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		if (w.outer.reach.IncludesGlobals() || inLocalHoist) && NodeUtil_IsStatement(n) {
+			jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
+			nameNode := n.GetFirstChild()
+			if nameNode.IsName() && nameNode.HasChildren() && nameNode.GetFirstChild().IsFunction() {
+				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandVar, n, nameNode, nameNode.GetFirstChild(), chunk))
+			}
+		}
+	case rhino.Token_FUNCTION:
+		if (w.outer.reach.IncludesGlobals() || inLocalHoist) && NodeUtil_IsStatement(n) {
+			jutil.CheckState(NodeUtil_IsStatementBlock(parent) || parent.IsLabel())
+			if NodeUtil_IsFunctionDeclaration(n) {
+				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandNamedFn, n, n.GetFirstChild(), n, chunk))
+			}
+		}
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
+		if w.outer.reach.IncludesGlobals() || inLocalHoist {
+			var fnNode *rhino.Node
+			first := n.GetFirstChild()
+			if first.IsFunction() {
+				fnNode = first
+			} else if first.HasChildren() && first.GetFirstChild().IsFunction() && NodeUtil_IsFunctionObjectCall(n) {
+				fnNode = first.GetFirstChild()
+			}
+			if fnNode != nil {
+				w.cands = append(w.cands, ifPhase1Candidate{
+					kind:   ifCandAnonExpr,
+					node:   fnNode,
+					fnNode: fnNode,
+					chunk:  chunk,
+				})
+			}
+		}
+	}
+}
+
+func (f *InlineFunctions) findCandidateFunctionsParallel(root *rhino.Node) bool {
+	if f.compiler.IsDebugLoggingEnabled() {
+		return false
+	}
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(f.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+	prewarmCompilerForParallelReads(f.compiler)
+
+	candsByScript := make([][]ifPhase1Candidate, len(scripts))
+	panicsByScript := make([]any, len(scripts))
+
+	var nextIdx atomic.Uint32
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			worker := ifPhase1Worker{outer: f}
+			for {
+				idx := int(nextIdx.Add(1) - 1)
+				if idx >= len(scripts) {
+					return
+				}
+				worker.cands = nil
+				worker.lastCheckedBlock = nil
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							panicsByScript[idx] = r
+						}
+					}()
+					worker.walk(scripts[idx], root, nil, false)
+				}()
+				candsByScript[idx] = worker.cands
+				if panicsByScript[idx] != nil {
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	callsSeen := 0
+	for idx := range scripts {
+		if p := panicsByScript[idx]; p != nil {
+			panic(p)
+		}
+		for i := range candsByScript[idx] {
+			cand := &candsByScript[idx][i]
+			if cand.kind == ifCandAnonExpr {
+				fn := NewInlineFunctions_FunctionExpression(cand.fnNode, callsSeen)
+				callsSeen++
+				f.MaybeAddFunction(fn, cand.chunk)
+				f.anonFns.Put(cand.fnNode, fn.GetName())
+				continue
+			}
+			fs := f.GetOrCreateFunctionState(cand.name)
+			if fs.HasExistingFunctionDefinition() {
+				fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_MULTIPLE_FUNCTION_DEFINITIONS)
+			} else if fs.CanInline() {
+				if cand.disallowBeforeSetFn {
+					fs.DisallowInlining(f.compiler, cand.disallowReason)
+				} else {
+					var fn InlineFunctions_Function
+					if cand.kind == ifCandVar {
+						fn = NewInlineFunctions_FunctionVar(f, cand.node)
+					} else {
+						fn = NewInlineFunctions_NamedFunction(f, cand.node)
+					}
+					fs.SetFn(fn)
+					if cand.hasDisallow {
+						fs.DisallowInlining(f.compiler, cand.disallowReason)
+					} else {
+						if cand.inlineDirectly {
+							fs.InlineDirectly(true)
+						}
+						fs.SetChunk(cand.chunk)
+						if cand.namesToAlias != nil && !cand.namesToAlias.IsEmpty() {
+							fs.InlineDirectly(false)
+							fs.SetNamesToAlias(cand.namesToAlias)
+						}
+						if cand.referencesThis {
+							fs.SetReferencesThis(true)
+						}
+						if cand.hasInnerClosures {
+							fs.SetHasInnerClosures(true)
+						}
+						fs.bodyAstSize = cand.bodyAstSize
+					}
+				}
+			}
+			jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(cand.fnNode) && !fs.CanInline()))
+		}
+	}
+	return true
+}
+
+type ifPhase2EventKind uint8
+
+const (
+	ifEvAddRef ifPhase2EventKind = iota + 1
+	ifEvUninlinableCall
+	ifEvDisallowReassigned
+	ifEvUnremovableConst
+	ifEvUnremovableContext
+)
+
+type ifPhase2Event struct {
+	kind                  ifPhase2EventKind
+	fs                    *InlineFunctions_FunctionState
+	node                  *rhino.Node
+	scope                 *Scope
+	chunk                 *JSChunk
+	mode                  FunctionInjector_InliningMode
+	requiresDecomposition bool
+	safeIdsConsumed       uint32
+}
+
+type ifPhase2RefCallback struct {
+	InlineFunctions_CallVisitorBase
+
+	outer                *InlineFunctions
+	injector             *FunctionInjector
+	safeIdsCounter       int
+	scratchRef           InlineFunctions_Reference
+	lastContainingFn     *rhino.Node
+	lastContainingFnSize int
+	localDisallowed      map[*InlineFunctions_FunctionState]struct{}
+	events               []ifPhase2Event
+}
+
+func (*ifPhase2RefCallback) onlyNameLeaves() {}
+
+func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bool {
+	if !fs.CanInline() {
+		return true
+	}
+	if r.localDisallowed != nil {
+		_, ok := r.localDisallowed[fs]
+		return ok
+	}
+	return false
+}
+
+func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *InlineFunctions_FunctionState) bool {
+	containingFunction := t.GetEnclosingFunction()
+	if containingFunction == nil {
+		return false
+	}
+	inlinedFun := fs.GetFn().GetFunctionNode()
+	if InlineFunctions_IsAlwaysInlinable(inlinedFun) {
+		return false
+	}
+	inlinedFunSize := int(fs.bodyAstSize)
+	if inlinedFunSize == 0 {
+		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(inlinedFun), r.outer.maxSizeAfterInlining)
+	}
+	var targetFunSize int
+	if containingFunction == r.lastContainingFn {
+		targetFunSize = r.lastContainingFnSize
+	} else {
+		targetFunSize = NodeUtil_CountAstSizeUpToLimit(containingFunction, r.outer.maxSizeAfterInlining)
+		r.lastContainingFn = containingFunction
+		r.lastContainingFnSize = targetFunSize
+	}
+	return inlinedFunSize+targetFunSize > r.outer.maxSizeAfterInlining
+}
+
+func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if n.IsName() {
+		r.checkNameUsage(n, parent)
+		return
+	}
+	r.InlineFunctions_CallVisitorBase.Visit(t, n, parent)
+}
+
+func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState) {
+	if r.isDisallowed(functionState) {
+		return
+	}
+	chunk := t.GetChunk()
+	mode := FunctionInjector_InliningMode_BLOCK
+	if functionState.CanInlineDirectly() {
+		mode = FunctionInjector_InliningMode_DIRECT
+	}
+	beforeIds := r.safeIdsCounter
+	added, scope, reqDecomp, usedMode := r.tryMode(t, functionState, callNode, chunk, mode)
+	if !added && mode == FunctionInjector_InliningMode_DIRECT {
+		added, scope, reqDecomp, usedMode = r.tryMode(t, functionState, callNode, chunk, FunctionInjector_InliningMode_BLOCK)
+	}
+	consumed := uint32(r.safeIdsCounter - beforeIds)
+	if added {
+		r.events = append(r.events, ifPhase2Event{
+			kind:                  ifEvAddRef,
+			fs:                    functionState,
+			node:                  callNode,
+			scope:                 scope,
+			chunk:                 chunk,
+			mode:                  usedMode,
+			requiresDecomposition: reqDecomp,
+			safeIdsConsumed:       consumed,
+		})
+	} else {
+		r.events = append(r.events, ifPhase2Event{
+			kind:            ifEvUninlinableCall,
+			fs:              functionState,
+			node:            callNode,
+			safeIdsConsumed: consumed,
+		})
+	}
+}
+
+func (r *ifPhase2RefCallback) tryMode(
+	t *NodeTraversal,
+	functionState *InlineFunctions_FunctionState,
+	callNode *rhino.Node,
+	chunk *JSChunk,
+	mode FunctionInjector_InliningMode,
+) (bool, *Scope, bool, FunctionInjector_InliningMode) {
+	if r.outer.enforceMaxSizeAfterInlining && r.targetSizeExceedsLimit(t, functionState) {
+		return false, nil, false, mode
+	}
+	r.scratchRef.requiresDecomposition = false
+	r.scratchRef.inlined = false
+	r.scratchRef.InitFunctionInjector_ReferenceBase(callNode, nil, chunk, mode)
+	r.scratchRef.t = t
+	result := r.injector.CanInlineReferenceToFunction(
+		&r.scratchRef,
+		functionState.GetFn().GetFunctionNode(),
+		functionState.GetNamesToAlias(),
+		functionState.GetReferencesThis(),
+		functionState.HasInnerClosures())
+	if result != FunctionInjector_CanInlineResult_NO {
+		var scope *Scope
+		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
+			scope = t.GetScope()
+		} else if mode != FunctionInjector_InliningMode_DIRECT && !NodeUtil_IsExprCall(callNode.GetParent()) {
+			scope = t.resolveLookupScope(len(t.scopes) - 1)
+		}
+		return true, scope, result == FunctionInjector_CanInlineResult_AFTER_PREPARATION, mode
+	}
+	return false, nil, false, mode
+}
+
+func (r *ifPhase2RefCallback) checkNameUsage(n *rhino.Node, parent *rhino.Node) {
+	jutil.CheckStateMsg1(n.IsName(), "%s", n)
+
+	name := n.GetString()
+	if name == "" || (r.hasLastMiss && name == r.lastMissName) {
+		return
+	}
+	if InlineFunctions_IsCandidateUsage(n) {
+		return
+	}
+	functionState := r.lookupFunctionState(name)
+	if functionState == nil {
+		return
+	}
+	if NodeUtil_IsLValue(n) {
+		if r.localDisallowed == nil {
+			r.localDisallowed = make(map[*InlineFunctions_FunctionState]struct{}, 4)
+		}
+		r.localDisallowed[functionState] = struct{}{}
+		r.events = append(r.events, ifPhase2Event{
+			kind: ifEvDisallowReassigned,
+			fs:   functionState,
+		})
+	} else if (parent.IsAssign() &&
+		parent.GetJSDocInfo() != nil &&
+		parent.GetJSDocInfo().IsConstant() &&
+		parent.GetSecondChild() == n) ||
+		(parent.GetParent() != nil &&
+			parent.GetParent().IsConst() &&
+			parent.GetFirstChild() == n) {
+		r.events = append(r.events, ifPhase2Event{
+			kind: ifEvUnremovableConst,
+			fs:   functionState,
+		})
+	} else {
+		r.events = append(r.events, ifPhase2Event{
+			kind: ifEvUnremovableContext,
+			fs:   functionState,
+			node: parent,
+		})
+	}
+}
+
+func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(f.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(f.compiler)
+	if f.enforceMaxSizeAfterInlining {
+		for fs := range f.fns.Values() {
+			if fs.CanInline() && fs.bodyAstSize == 0 {
+				fnNode := fs.GetFn().GetFunctionNode()
+				if !InlineFunctions_IsAlwaysInlinable(fnNode) {
+					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(fnNode), f.maxSizeAfterInlining))
+				}
+			}
+		}
+	}
+
+	lazyGlobal := newLazyGlobalScope(f.compiler, root)
+	workerFnCaches := make([]map[*rhino.Node]functionInjectorFnInfo, numWorkers)
+
+	ifEventsByScript := make([][]ifPhase2Event, len(scripts))
+	runParallelWork(f.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var cb *ifPhase2RefCallback
+		var sc *SyntacticScopeCreator
+
+		cleanup := func() {
+			if cb != nil && cb.injector != nil && len(cb.injector.fnInfoCache) != 0 {
+				workerFnCaches[workerID] = cb.injector.fnInfoCache
+			}
+		}
+		runItem := func(idx int, rc *recordingCompiler) {
+			if cb == nil || workerRC != rc {
+				workerRC = rc
+				cb = &ifPhase2RefCallback{outer: f}
+				cb.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, cb)
+				localSafeSupplier := func() string {
+					id := cb.safeIdsCounter
+					cb.safeIdsCounter++
+					return strconv.Itoa(id)
+				}
+				injBuilder := NewFunctionInjector_Builder(rc).
+					SafeNameIdSupplier(localSafeSupplier).
+					AllowDecomposition(f.injector.allowDecomposition).
+					AssumeStrictThis(f.injector.assumeStrictThis).
+					AssumeMinimumCapture(f.injector.assumeMinimumCapture).
+					FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer()))
+				cb.injector = injBuilder.Build()
+				cb.injector.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
+				sc = NewSyntacticScopeCreator(rc)
+			} else {
+				cb.events = nil
+				cb.lastContainingFn = nil
+				if cb.localDisallowed != nil {
+					clear(cb.localDisallowed)
+				}
+			}
+			b := NodeTraversal_Builder{
+				compiler:     rc,
+				callback:     cb,
+				scopeCreator: sc,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
+			releaseNodeTraversal(t)
+			ifEventsByScript[idx] = cb.events
+		}
+		return runItem, cleanup
+	}, false)
+
+	for idx := range ifEventsByScript {
+		events := ifEventsByScript[idx]
+		for i := range events {
+			ev := &events[i]
+			switch ev.kind {
+			case ifEvAddRef:
+				if !ev.fs.CanInline() {
+					continue
+				}
+				for k := uint32(0); k < ev.safeIdsConsumed; k++ {
+					_ = f.injector.safeNameIdSupplier()
+				}
+				candidate := f.allocReference(ev.node, ev.scope, ev.chunk, ev.mode)
+				candidate.SetRequiresDecomposition(ev.requiresDecomposition)
+				ev.fs.AddReference(candidate)
+			case ifEvUninlinableCall:
+				if !ev.fs.CanInline() {
+					continue
+				}
+				for k := uint32(0); k < ev.safeIdsConsumed; k++ {
+					_ = f.injector.safeNameIdSupplier()
+				}
+				ev.fs.SetRemoveWithContext(
+					false,
+					f.compiler,
+					InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE,
+					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO,
+					ev.node)
+			case ifEvDisallowReassigned:
+				ev.fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
+			case ifEvUnremovableConst:
+				ev.fs.SetRemove(
+					false,
+					f.compiler,
+					InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
+					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
+			case ifEvUnremovableContext:
+				ev.fs.SetRemoveWithContext(
+					false,
+					f.compiler,
+					InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
+					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
+					ev.node)
+			}
+		}
+	}
+
+	for _, cache := range workerFnCaches {
+		if len(cache) == 0 {
+			continue
+		}
+		if f.injector.fnInfoCache == nil {
+			f.injector.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, len(cache)*2)
+		}
+		for fnNode, info := range cache {
+			if existing, ok := f.injector.fnInfoCache[fnNode]; ok {
+				if existing.inner == nil && info.inner != nil {
+					existing.inner = info.inner
+				}
+				if existing.evalState == 0 && info.evalState != 0 {
+					existing.evalState = info.evalState
+				}
+				f.injector.fnInfoCache[fnNode] = existing
+			} else {
+				f.injector.fnInfoCache[fnNode] = info
+			}
+		}
+	}
+
+	return true
 }
 
 // Java: InlineFunctions.Inline(FunctionInjector)
