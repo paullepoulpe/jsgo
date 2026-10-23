@@ -125,7 +125,7 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	callback.enableLocalReclamation(func() bool {
 		if len(behavior.aliasRetryHandlers) == 0 {
 			behavior.unpinnedRetries = 0
-			callback.localSlabs.clearBase()
+			callback.clearLocalBase()
 			return true
 		}
 		if behavior.unpinnedRetries == 0 {

@@ -2988,11 +2988,6 @@ func (c *Compiler) evictPassArenaCaches() {
 	if a := cachedRUCArena.Swap(nil); a != nil {
 		removeUnusedCodeArenaPool.Put(a)
 	}
-	for i := range cachedRCArenas {
-		if a := cachedRCArenas[i].Swap(nil); a != nil {
-			referenceCollectorArenaPool.Put(a)
-		}
-	}
 	if a := cachedCCAArena.Swap(nil); a != nil {
 		crossChunkArenaPool.Put(a)
 	}
