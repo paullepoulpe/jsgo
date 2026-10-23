@@ -2189,8 +2189,10 @@ func (c *Compiler) ClearJSTypeRegistry() {
 
 // typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
 // dropped has been garbage collected. Every JSType points to its registry,
-// so a single JSType that is still reachable (for example from a Node, live
-// or detached, that still carries it) keeps the whole type graph alive.
+// so this is a strict check: it fails as long as any JSType at all is still
+// reachable (for example from a Node, live or detached, that still carries
+// it), even if the registry emptied its tables and the rest of the type
+// graph was freed.
 //
 // Go-only: debugging aid for tests.
 func (c *Compiler) typeRegistryReleased() bool {

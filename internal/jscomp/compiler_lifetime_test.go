@@ -10,7 +10,8 @@ import (
 // the whole type graph, its JSDocInfos and scopes alive through the
 // optimizations).
 //
-// Opt-in until the known retainers are gone: the package-level
+// The check is strict (see typeRegistryReleased): a single stray JSType
+// fails it. Opt-in until the known retainers are gone: the package-level
 // rhino.propertySymbolList (KnownSymbolTypes), and detached Nodes that still
 // carry a JSType and are kept reachable by their rhino.Node slab chunk.
 // Run with JSGO_CHECK_TYPE_REGISTRY_RELEASE=1.
