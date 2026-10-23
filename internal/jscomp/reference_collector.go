@@ -138,10 +138,6 @@ func NewReferenceCollectorWithVarFilter(
 	return c
 }
 
-// TODO(scope-arena-removal): no-ops left for the callers; delete with them.
-func (c *ReferenceCollector) enableArenaPool() {}
-func (c *ReferenceCollector) release()         {}
-
 func (c *ReferenceCollector) enableLocalReclamation(canReclaim func() bool) {
 	c.reclaimLocals = true
 	c.canReclaimLocals = canReclaim

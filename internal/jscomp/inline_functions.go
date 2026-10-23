@@ -488,8 +488,6 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		return // Nothing left to do.
 	}
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	findRefs := InlineFunctions_FindCandidatesReferences{outer: f}
 	findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
 	inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)

@@ -49,8 +49,6 @@ func (*InferConsts) onlyNameLeaves() {}
 // Java: InferConsts.process(Node, Node)
 func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
-	scopeCreator.EnableArenaPool()
-	defer scopeCreator.ReleaseArena()
 	collector := acquireInferConstsCollector(c, c.compiler, scopeCreator)
 	defer releaseInferConstsCollector(collector)
 	collector.processRoot(js)
@@ -450,7 +448,6 @@ func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 	}
 	if len(t.scopes) == 2 && c.jumpDepth == 0 {
 		c.flushLocalStates()
-		c.sc.ResetLocalArena()
 	}
 }
 
@@ -532,7 +529,6 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	c.jumpDepth--
 	if len(t.scopes) == 1 && c.jumpDepth == 0 {
 		c.flushLocalStates()
-		c.sc.ResetLocalArena()
 	}
 
 	usedStack := c.blockStack

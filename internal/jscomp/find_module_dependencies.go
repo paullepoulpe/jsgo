@@ -122,8 +122,6 @@ func (f *FindModuleDependencies) Process(root *rhino.Node) {
 	}
 
 	sc := NewSyntacticScopeCreator(f.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	b := NodeTraversal_Builder{
 		compiler:     f.compiler,
 		callback:     f,

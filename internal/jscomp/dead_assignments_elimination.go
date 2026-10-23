@@ -173,12 +173,10 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 
 	if numThreads <= 1 || len(candidates) <= 1 {
 		sc := NewSyntacticScopeCreator(d.compiler)
-		sc.EnableArenaPool()
 		d.scopeCreator = sc
 		defer func() {
 			d.releaseReusableCFAs()
 			d.scopeCreator = nil
-			sc.ReleaseArena()
 		}()
 		for _, fn := range candidates {
 			d.eliminateFunction(fn, dummyGlobal)
@@ -198,12 +196,10 @@ func (d *DeadAssignmentsElimination) Process(externs *rhino.Node, root *rhino.No
 			wd := NewDeadAssignmentsElimination(d.compiler)
 			wd.deferChanges = true
 			sc := NewSyntacticScopeCreator(d.compiler)
-			sc.EnableArenaPool()
 			wd.scopeCreator = sc
 			defer func() {
 				wd.releaseReusableCFAs()
 				wd.scopeCreator = nil
-				sc.ReleaseArena()
 			}()
 			for {
 				idx := int(next.Add(1) - 1)

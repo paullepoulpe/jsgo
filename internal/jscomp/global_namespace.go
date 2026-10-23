@@ -555,7 +555,6 @@ func (g *GlobalNamespace) Release() {
 		return
 	}
 	if g.scopeCreator != nil {
-		g.scopeCreator.ReleaseArena()
 		g.scopeCreator = nil
 	}
 	if g.arena != nil {
@@ -571,7 +570,6 @@ func (g *GlobalNamespace) Release() {
 
 func (g *GlobalNamespace) ReleaseScopeArena() {
 	if g != nil && g.scopeCreator != nil {
-		g.scopeCreator.ReleaseArena()
 		g.scopeCreator = nil
 	}
 }
@@ -963,10 +961,6 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	}
 	if g.scopeCreator == nil {
 		g.scopeCreator = NewSyntacticScopeCreator(g.compiler)
-		g.scopeCreator.EnableArenaPool()
-		if g.forProcessDefines {
-			g.scopeCreator.EnableLocalScopeReclamation()
-		}
 	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 	builder.confirmExisting = !isInitial

@@ -419,7 +419,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 	}
 	innerName := innerNameNode.GetString()
 	syntacticScopeCreator := NewSyntacticScopeCreator(a.outer.compiler)
-	syntacticScopeCreator.EnableArenaPool()
 	innerScope := syntacticScopeCreator.CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
 	innerNameVar := jutil.CheckNotNull(innerScope.GetVar(innerName))
 	collector := NewReferenceCollectorWithVarFilter(
@@ -427,8 +426,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
 		syntacticScopeCreator,
 		func(v *Var) bool { return jutil.ObjectsEquals(innerNameVar, v) })
-	collector.enableArenaPool()
-	defer collector.release()
 	collector.ProcessScope(innerScope)
 	innerNameRefs := collector.GetReferences(innerNameVar)
 
@@ -617,8 +614,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			ReferenceCollector_DO_NOTHING_BEHAVIOR,
 			NewSyntacticScopeCreator(a.outer.compiler),
 			func(v *Var) bool { return jutil.ObjectsEquals(aliasVar, v) })
-		collector.enableArenaPool()
-		defer collector.release()
 		aliasScope := aliasVar.GetScope().(*Scope)
 		collector.ProcessScope(aliasScope)
 

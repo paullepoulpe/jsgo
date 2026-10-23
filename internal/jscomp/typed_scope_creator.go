@@ -567,8 +567,6 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 
 	// Gather global information used in typed scope creation.
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
-	scopeCreator.EnableLocalScopeReclamation()
-	defer scopeCreator.ReleaseArena()
 
 	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
 	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry

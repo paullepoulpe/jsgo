@@ -359,7 +359,6 @@ func isImplicitlyUsedProperty(name string) bool {
 // Java: RemoveUnusedCode(Builder)
 func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
 	sc := NewSyntacticScopeCreator(builder.compiler)
-	sc.EnableArenaPool()
 	r := &RemoveUnusedCode{
 		compiler:                        builder.compiler,
 		astAnalyzer:                     builder.compiler.GetAstAnalyzer(),
@@ -574,9 +573,6 @@ func (r *RemoveUnusedCode) Process(externs *rhino.Node, root *rhino.Node) {
 	arena := acquireRUCArena()
 	r.removeUnusedCodeArena = *arena
 	defer func() {
-		if r.scopeCreator != nil {
-			r.scopeCreator.ReleaseArena()
-		}
 		r.removeUnusedCodeArena.reset()
 		*arena = r.removeUnusedCodeArena
 		r.removeUnusedCodeArena = removeUnusedCodeArena{}

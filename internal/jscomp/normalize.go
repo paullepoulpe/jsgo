@@ -141,18 +141,14 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 	normStmts.initFastContextualRenamer()
 	defer normStmts.releaseFastContextualRenamer()
 	sc1 := NewSyntacticScopeCreator(n.compiler)
-	sc1.EnableLocalScopeReclamation()
 	b1 := NodeTraversal_Builder{
 		compiler:     n.compiler,
 		callback:     normStmts,
 		scopeCreator: sc1,
 	}
 	b1.TraverseRoots(externs, root)
-	sc1.ReleaseArena()
 
 	sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
-	sc2.EnableLocalScopeReclamation()
-	defer sc2.ReleaseArena()
 	b2 := NodeTraversal_Builder{
 		compiler:     n.compiler,
 		callback:     NewNormalize_PropagateConstantPropertyOverVars(n.compiler, n.assertOnChange),

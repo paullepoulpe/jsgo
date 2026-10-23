@@ -138,9 +138,6 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 
 func (c *CrossChunkReferenceCollector) enableArenaPool() {
 	c.poolable = true
-	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.EnableArenaPool()
-	}
 	ca := c.getCCArena()
 	if cap(ca.topLevelStatements) > 0 {
 		c.topLevelStatements = ca.topLevelStatements[:0]
@@ -280,9 +277,6 @@ func (c *CrossChunkReferenceCollector) release() {
 		ca.dsgChunkIdx = 0
 		ca.cycleChunkIdx = 0
 		releaseCCArena(ca)
-	}
-	if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.ReleaseArena()
 	}
 }
 

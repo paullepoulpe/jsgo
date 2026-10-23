@@ -23,11 +23,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-type memoizedScopeEntry struct {
-	node  *rhino.Node
-	scope AbstractScope
-}
-
 // MemoizedScopeCreator memoizes a scope creator.
 //
 // This allows you to make multiple passes, without worrying about the
@@ -38,10 +33,6 @@ type memoizedScopeEntry struct {
 // scope may be out of sync.
 type MemoizedScopeCreator struct {
 	scopesByScopeRoot map[*rhino.Node]AbstractScope
-	small             [8]memoizedScopeEntry
-	smallLen          int
-	lastNode          *rhino.Node
-	lastScope         AbstractScope
 	delegate          ScopeCreator
 }
 
@@ -50,78 +41,21 @@ type MemoizedScopeCreator struct {
 // Java: MemoizedScopeCreator(ScopeCreator)
 func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
 	return &MemoizedScopeCreator{
-		delegate: delegate,
+		scopesByScopeRoot: make(map[*rhino.Node]AbstractScope),
+		delegate:          delegate,
 	}
 }
 
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
 func (m *MemoizedScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
-	if n == m.lastNode && m.lastScope != nil {
-		jutil.CheckState(parent == m.lastScope.GetParentScope())
-		return m.lastScope
-	}
-	var scope AbstractScope
-	if m.scopesByScopeRoot != nil {
-		scope = m.scopesByScopeRoot[n]
-	} else {
-		for i := 0; i < m.smallLen; i++ {
-			if m.small[i].node == n {
-				scope = m.small[i].scope
-				break
-			}
-		}
-	}
+	scope := m.scopesByScopeRoot[n]
 	if scope == nil {
 		scope = m.delegate.CreateScope(n, parent)
-		if m.scopesByScopeRoot != nil {
-			m.scopesByScopeRoot[n] = scope
-		} else if m.smallLen < len(m.small) {
-			m.small[m.smallLen] = memoizedScopeEntry{node: n, scope: scope}
-			m.smallLen++
-		} else {
-			mp := make(map[*rhino.Node]AbstractScope, 1024)
-			for i := 0; i < len(m.small); i++ {
-				mp[m.small[i].node] = m.small[i].scope
-			}
-			mp[n] = scope
-			m.scopesByScopeRoot = mp
-			m.small = [8]memoizedScopeEntry{}
-		}
+		m.scopesByScopeRoot[n] = scope
 	} else {
 		// Go-only: language-adapter — scope.getParent() on an AbstractScope<?, ?>
 		// is the final getParentScope(), which returns getParent().
 		jutil.CheckState(parent == scope.GetParentScope())
 	}
-	m.lastNode = n
-	m.lastScope = scope
 	return scope
-}
-
-func (m *MemoizedScopeCreator) EnableArenaPool() {
-	if m == nil {
-		return
-	}
-	if sc, ok := m.delegate.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.EnableArenaPool()
-	}
-}
-
-func (m *MemoizedScopeCreator) ReleaseArena() {
-	if m == nil {
-		return
-	}
-	if m.scopesByScopeRoot != nil {
-		if len(m.scopesByScopeRoot) <= 65536 {
-			clear(m.scopesByScopeRoot)
-		} else {
-			m.scopesByScopeRoot = nil
-		}
-	}
-	m.small = [8]memoizedScopeEntry{}
-	m.smallLen = 0
-	m.lastNode = nil
-	m.lastScope = nil
-	if sc, ok := m.delegate.(*SyntacticScopeCreator); ok && sc != nil {
-		sc.ReleaseArena()
-	}
 }

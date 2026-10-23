@@ -135,7 +135,6 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 		return false
 	})
 	callback.Process(externs, root)
-	callback.release()
 	behavior.release()
 }
 

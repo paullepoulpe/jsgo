@@ -328,8 +328,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 				go func() {
 					defer wg.Done()
 					sc := NewSyntacticScopeCreator(o.compiler)
-					sc.EnableArenaPool()
-					defer sc.ReleaseArena()
 					behavior := NewInlineObjectLiterals_InliningBehavior(o)
 					behavior.scanner = &s
 					dummyGlobalScope := newScope(root)
@@ -373,7 +371,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 						t.TraverseBranch(candFn, candFn.GetParent())
 						t.PopScope()
 						releaseNodeTraversal(t)
-						rc.release()
 					}
 				}()
 			}
@@ -387,8 +384,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		}
 		if fastMode || len(s.candFns) == 1 || !s.anyCandFnInHoistedFn {
 			sc := NewSyntacticScopeCreator(o.compiler)
-			sc.EnableArenaPool()
-			defer sc.ReleaseArena()
 			behavior := NewInlineObjectLiterals_InliningBehavior(o)
 			behavior.scanner = &s
 			if fastMode && len(s.candFns) >= 1 {
@@ -419,7 +414,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 					t.TraverseBranch(candFn, candFn.GetParent())
 					t.PopScope()
 					releaseNodeTraversal(t)
-					rc.release()
 				}
 				return
 			}
@@ -428,7 +422,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 				behavior.staleVars.Clear()
 				return true
 			})
-			defer callback.release()
 			dummyGlobalScope := newScope(root)
 			dummyGlobalScope.scanDone = true
 			dummyGlobalScope.hasImplicitVars = false
@@ -449,8 +442,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 
 	sc := NewSyntacticScopeCreator(o.compiler)
-	sc.EnableArenaPool()
-	defer sc.ReleaseArena()
 	behavior := NewInlineObjectLiterals_InliningBehavior(o)
 	behavior.scanner = &s
 	callback := NewReferenceCollectorWithVarFilter(
@@ -463,7 +454,6 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		return true
 	})
 	callback.Process(externs, root)
-	callback.release()
 }
 
 // InlineObjectLiterals_InliningBehavior builds up information about nodes in

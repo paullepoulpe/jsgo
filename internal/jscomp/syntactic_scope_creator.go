@@ -44,18 +44,6 @@ type SyntacticScopeCreator struct {
 	scanning   bool
 }
 
-// TODO(scope-arena-removal): the four methods below are no-ops left for the
-// passes that still call them; delete them with their call sites.
-func (c *SyntacticScopeCreator) EnableArenaPool()             {}
-func (c *SyntacticScopeCreator) EnableLocalScopeReclamation() {}
-func (c *SyntacticScopeCreator) ResetLocalArena()             {}
-func (c *SyntacticScopeCreator) ReleaseArena() {
-	if c != nil {
-		c.lastInputId = nil
-		c.lastInput = nil
-	}
-}
-
 // The arguments variable is special, in that it's declared for every function,
 // but not explicitly declared.
 const syntacticScopeCreator_ARGUMENTS = "arguments"

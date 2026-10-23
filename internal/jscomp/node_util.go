@@ -6322,8 +6322,6 @@ func NodeUtil_CollectExternVariableNames(
 	compiler AbstractCompiler, externs *rhino.Node) *jutil.LinkedHashSet[string] {
 	externsRefs := NewReferenceCollector(
 		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
-	externsRefs.enableArenaPool()
-	defer externsRefs.release()
 	externsRefs.ProcessRoot(externs)
 	externsNames := jutil.NewLinkedHashSet[string]()
 	for v := range externsRefs.GetAllSymbols() {

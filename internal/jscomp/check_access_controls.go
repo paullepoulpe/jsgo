@@ -216,12 +216,10 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	c.defaultVisibilityForFiles = collectPass.GetFileOverviewVisibilityMap()
 
 	sc := NewSyntacticScopeCreator(c.compiler)
-	sc.EnableArenaPool()
 	defer func() {
 		c.lastVarNode = nil
 		c.lastVar = nil
 		clear(c.varCache[:])
-		sc.ReleaseArena()
 	}()
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -238,7 +236,6 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	c.lastVarNode = nil
 	c.lastVar = nil
 	clear(c.varCache[:])
-	sc.ReleaseArena()
 	b.Traverse(root)
 }
 
