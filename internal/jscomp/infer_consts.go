@@ -19,9 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-	"sync/atomic"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -51,8 +48,7 @@ func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
 	scopeCreator.EnableArenaPool()
 	defer scopeCreator.ReleaseArena()
-	collector := acquireInferConstsCollector(c, c.compiler, scopeCreator)
-	defer releaseInferConstsCollector(collector)
+	collector := newInferConstsCollector(c, c.compiler, scopeCreator)
 	collector.processRoot(js)
 
 	collector.flushLocalStates()
@@ -175,105 +171,25 @@ type inferConstsCollector struct {
 	globalStates        []inferConstVarState
 	blockStack          []basicBlockEntry
 	blockStackPool      [][]basicBlockEntry
-	blockChunks         [][]BasicBlock
-	blockChunkIdx       int
-	blockUsed           int
 	collectedHoistedMap map[*rhino.Node]struct{}
 	lastHoisted         *rhino.Node
 	hoistedBuf          [16]*rhino.Node
 	hoistedCount        uint8
 	jumpDepth           int
 	blockStackBuf       [64]basicBlockEntry
-	blockBuf            [32]BasicBlock
 }
 
-var cachedInferConstsCollector atomic.Pointer[inferConstsCollector]
-
-var inferConstsCollectorPool sync.Pool
-
-func acquireInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *SyntacticScopeCreator) *inferConstsCollector {
-	if c := cachedInferConstsCollector.Swap(nil); c != nil {
-		c.outer = outer
-		c.compiler = compiler
-		c.scopeCreator = sc
-		c.sc = sc
-		return c
-	}
-	if v := inferConstsCollectorPool.Get(); v != nil {
-		c := v.(*inferConstsCollector)
-		c.outer = outer
-		c.compiler = compiler
-		c.scopeCreator = sc
-		c.sc = sc
-		return c
-	}
+func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *SyntacticScopeCreator) *inferConstsCollector {
 	c := &inferConstsCollector{
-		outer:         outer,
-		compiler:      compiler,
-		scopeCreator:  sc,
-		sc:            sc,
-		localStates:   make([]inferConstVarState, 1, 8192),
-		globalStates:  make([]inferConstVarState, 1, 16384),
-		blockChunkIdx: -1,
+		outer:        outer,
+		compiler:     compiler,
+		scopeCreator: sc,
+		sc:           sc,
+		localStates:  make([]inferConstVarState, 1),
+		globalStates: make([]inferConstVarState, 1),
 	}
 	c.blockStack = c.blockStackBuf[:0]
 	return c
-}
-
-func releaseInferConstsCollector(c *inferConstsCollector) {
-	if cap(c.localStates) > 262144 {
-		c.localStates = make([]inferConstVarState, 1, 8192)
-	} else {
-		clear(c.localStates[1:])
-		c.localStates = c.localStates[:1]
-	}
-	if cap(c.globalStates) > 262144 {
-		c.globalStates = make([]inferConstVarState, 1, 16384)
-	} else {
-		clear(c.globalStates[1:])
-		c.globalStates = c.globalStates[:1]
-	}
-	if c.blockChunkIdx == -1 {
-		clear(c.blockBuf[:c.blockUsed])
-	} else {
-		clear(c.blockBuf[:])
-		limit := min(c.blockChunkIdx, 127)
-		for i := 0; i <= limit; i++ {
-			if i == c.blockChunkIdx {
-				clear(c.blockChunks[i][:c.blockUsed])
-			} else {
-				clear(c.blockChunks[i])
-			}
-		}
-		if len(c.blockChunks) > 128 {
-			clear(c.blockChunks[128:])
-			c.blockChunks = c.blockChunks[:128]
-		}
-	}
-	c.blockChunkIdx = -1
-	c.blockUsed = 0
-	clear(c.blockStack)
-	clear(c.blockStackBuf[:])
-	c.blockStack = c.blockStackBuf[:0]
-	clear(c.hoistedBuf[:c.hoistedCount])
-	c.hoistedCount = 0
-	c.lastHoisted = nil
-	if c.collectedHoistedMap != nil {
-		if len(c.collectedHoistedMap) <= 65536 {
-			clear(c.collectedHoistedMap)
-		} else {
-			c.collectedHoistedMap = nil
-		}
-	}
-	c.jumpDepth = 0
-	c.outer = nil
-	c.compiler = nil
-	c.scopeCreator = nil
-	c.sc = nil
-	if cachedInferConstsCollector.CompareAndSwap(nil, c) {
-		return
-	}
-	inferConstsCollectorPool.Put(c)
 }
 
 func (c *inferConstsCollector) flushLocalStates() {
@@ -298,32 +214,6 @@ func (c *inferConstsCollector) builderVal() NodeTraversal_Builder {
 func (c *inferConstsCollector) processRoot(root *rhino.Node) {
 	b := c.builderVal()
 	b.Traverse(root)
-}
-
-func (c *inferConstsCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
-	if c.blockChunkIdx == -1 {
-		if c.blockUsed < len(c.blockBuf) {
-			b := &c.blockBuf[c.blockUsed]
-			c.blockUsed++
-			return initBasicBlock(b, parent, root)
-		}
-		c.blockChunkIdx = 0
-		c.blockUsed = 0
-	}
-	if c.blockChunkIdx < len(c.blockChunks) && c.blockUsed == len(c.blockChunks[c.blockChunkIdx]) {
-		c.blockChunkIdx++
-		c.blockUsed = 0
-	}
-	if c.blockChunkIdx == len(c.blockChunks) {
-		chunkCap := 64
-		if c.blockChunkIdx > 0 {
-			chunkCap = min(len(c.blockChunks[c.blockChunkIdx-1])*2, 4096)
-		}
-		c.blockChunks = append(c.blockChunks, make([]BasicBlock, chunkCap))
-	}
-	b := &c.blockChunks[c.blockChunkIdx][c.blockUsed]
-	c.blockUsed++
-	return initBasicBlock(b, parent, root)
 }
 
 func (c *inferConstsCollector) pushNewBlock(root *rhino.Node) {
@@ -356,7 +246,7 @@ func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
 		parent = c.blockStack[i-1].block
 	}
 	for ; i <= idx; i++ {
-		parent = c.allocBasicBlock(parent, c.blockStack[i].root)
+		parent = NewBasicBlock(parent, c.blockStack[i].root)
 		c.blockStack[i].block = parent
 	}
 	return parent
@@ -586,19 +476,9 @@ func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino
 		}
 		if v.IsLocal() {
 			v.nameHash = int32(len(c.localStates))
-			if len(c.localStates) == cap(c.localStates) {
-				next := make([]inferConstVarState, len(c.localStates), max(cap(c.localStates)*4, 8192))
-				copy(next, c.localStates)
-				c.localStates = next
-			}
 			c.localStates = append(c.localStates, st)
 		} else {
 			v.nameHash = -int32(len(c.globalStates))
-			if len(c.globalStates) == cap(c.globalStates) {
-				next := make([]inferConstVarState, len(c.globalStates), max(cap(c.globalStates)*4, 16384))
-				copy(next, c.globalStates)
-				c.globalStates = next
-			}
 			c.globalStates = append(c.globalStates, st)
 		}
 		return

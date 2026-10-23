@@ -19,13 +19,9 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-const ismSlotChunkSize = 512
 
 type ismPropSlot struct {
 	defs          []*rhino.Node
@@ -34,67 +30,11 @@ type ismPropSlot struct {
 	checked       bool
 }
 
-type ismPoolState struct {
-	props        map[string]*ismPropSlot
-	slotChunks   [][]ismPropSlot
-	slotChunkIdx int
-	slotUsed     int
-	gatherCb     InlineSimpleMethods_GatherSignatures
-	inlineCb     InlineSimpleMethods_InlineTrivialAccessors
-}
-
-var ismStatePool sync.Pool
-
-func acquireIsmState(m *InlineSimpleMethods) *ismPoolState {
-	var s *ismPoolState
-	if v := ismStatePool.Get(); v != nil {
-		s = v.(*ismPoolState)
-	} else {
-		s = &ismPoolState{
-			props: make(map[string]*ismPropSlot, 1024),
-		}
-		s.inlineCb.InitInvocationsCallbackBase(&s.inlineCb)
-	}
-	s.gatherCb.outer = m
-	s.inlineCb.outer = m
-	return s
-}
-
-func releaseIsmState(s *ismPoolState) {
-	if len(s.props) > 524288 {
-		return
-	}
-	clear(s.props)
-	for ci := 0; ci <= s.slotChunkIdx && ci < len(s.slotChunks); ci++ {
-		chunk := s.slotChunks[ci]
-		limit := len(chunk)
-		if ci == s.slotChunkIdx {
-			limit = s.slotUsed
-		}
-		clear(chunk[:limit])
-	}
-	s.slotChunkIdx = 0
-	s.slotUsed = 0
-	s.gatherCb.outer = nil
-	s.inlineCb.outer = nil
-	ismStatePool.Put(s)
-}
-
-func (s *ismPoolState) allocSlot() *ismPropSlot {
-	if len(s.slotChunks) == 0 {
-		s.slotChunks = append(s.slotChunks, make([]ismPropSlot, ismSlotChunkSize))
-		s.slotChunkIdx = 0
-		s.slotUsed = 0
-	} else if s.slotUsed == len(s.slotChunks[s.slotChunkIdx]) {
-		s.slotChunkIdx++
-		if s.slotChunkIdx == len(s.slotChunks) {
-			s.slotChunks = append(s.slotChunks, make([]ismPropSlot, ismSlotChunkSize))
-		}
-		s.slotUsed = 0
-	}
-	slot := &s.slotChunks[s.slotChunkIdx][s.slotUsed]
-	s.slotUsed++
-	return slot
+// ismRunState is the state of one run of InlineSimpleMethods.Process.
+type ismRunState struct {
+	props    map[string]*ismPropSlot
+	gatherCb InlineSimpleMethods_GatherSignatures
+	inlineCb InlineSimpleMethods_InlineTrivialAccessors
 }
 
 // InlineSimpleMethods inlines methods that take no arguments and have only a
@@ -120,7 +60,7 @@ func (s *ismPoolState) allocSlot() *ismPropSlot {
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
 	externProperties *jutil.LinkedHashSet[string]
-	state            *ismPoolState
+	state            *ismRunState
 
 	lastNonInlineable string
 	hasLastNonInline  bool
@@ -142,9 +82,13 @@ func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	return m
 }
 
-func (m *InlineSimpleMethods) ensureState() *ismPoolState {
+func (m *InlineSimpleMethods) ensureState() *ismRunState {
 	if m.state == nil {
-		m.state = acquireIsmState(m)
+		s := &ismRunState{props: make(map[string]*ismPropSlot)}
+		s.inlineCb.InitInvocationsCallbackBase(&s.inlineCb)
+		s.gatherCb.outer = m
+		s.inlineCb.outer = m
+		m.state = s
 	}
 	return m.state
 }
@@ -156,7 +100,7 @@ func (m *InlineSimpleMethods) markNonInlineable(name string) {
 	s := m.ensureState()
 	slot := s.props[name]
 	if slot == nil {
-		slot = s.allocSlot()
+		slot = &ismPropSlot{}
 		s.props[name] = slot
 	}
 	slot.nonInlineable = true
@@ -173,7 +117,6 @@ func (m *InlineSimpleMethods) Process(externs *rhino.Node, root *rhino.Node) {
 	s := m.ensureState()
 	defer func() {
 		m.state = nil
-		releaseIsmState(s)
 	}()
 
 	NodeTraversal_TraverseRoots(m.compiler, &s.gatherCb, externs, root)
@@ -474,7 +417,7 @@ func (m *InlineSimpleMethods) AddSignature(name string, function *rhino.Node) {
 	}
 	if m.externProperties != nil && m.externProperties.Contains(name) {
 		if slot == nil {
-			slot = s.allocSlot()
+			slot = &ismPropSlot{}
 			s.props[name] = slot
 		}
 		slot.nonInlineable = true
@@ -483,7 +426,7 @@ func (m *InlineSimpleMethods) AddSignature(name string, function *rhino.Node) {
 		return
 	}
 	if slot == nil {
-		slot = s.allocSlot()
+		slot = &ismPropSlot{}
 		slot.defs = slot.buf[:1:2]
 		slot.buf[0] = function
 		s.props[name] = slot

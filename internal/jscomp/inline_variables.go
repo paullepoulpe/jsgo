@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -116,7 +114,7 @@ func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *I
 
 // Java: InlineVariables.process(Node, Node)
 func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
-	behavior := acquireInliningBehavior(iv)
+	behavior := NewInlineVariables_InliningBehavior(iv)
 	callback := NewReferenceCollectorWithVarFilter(
 		iv.compiler,
 		behavior,
@@ -136,7 +134,6 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 	})
 	callback.Process(externs, root)
 	callback.release()
-	behavior.release()
 }
 
 // InlineVariables_VarExpert is responsible for analyzing a variable to
@@ -345,72 +342,6 @@ type InlineVariables_InliningBehavior struct {
 	retryHandlerChunkIdx int
 	retryHandlerBuf      [8]InlineVariables_InliningBehavior_AliasInlineRetryHandler
 	motionScratch        NodeIterators_LocalVarMotion
-}
-
-var inliningBehaviorPool = sync.Pool{
-	New: func() any {
-		b := &InlineVariables_InliningBehavior{}
-		b.handledScopeVars = b.handledScopeVarsBuf[:0]
-		b.handledFallbackVars = b.handledFallbackBuf[:0]
-		b.delayedNegSlab = b.delayedNegBuf[:0]
-		b.retryExpertSlab = b.retryExpertBuf[:0]
-		b.retryHandlerSlab = b.retryHandlerBuf[:0]
-		return b
-	},
-}
-
-func acquireInliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
-	b := inliningBehaviorPool.Get().(*InlineVariables_InliningBehavior)
-	b.outer = outer
-	if outer != nil && outer.compiler != nil {
-		b.codingConvention = outer.compiler.GetCodingConvention()
-	} else {
-		b.codingConvention = nil
-	}
-	return b
-}
-
-func (b *InlineVariables_InliningBehavior) release() {
-	b.outer = nil
-	b.codingConvention = nil
-	b.currentScope = nil
-	if len(b.handledScopeVars) > 0 {
-		clear(b.handledScopeVars)
-		b.handledScopeVars = b.handledScopeVars[:0]
-	}
-	if len(b.handledFallbackVars) > 0 {
-		clear(b.handledFallbackVars)
-		b.handledFallbackVars = b.handledFallbackVars[:0]
-	}
-	if len(b.aliasRetryHandlers) > 0 {
-		clear(b.aliasRetryHandlers)
-	}
-	b.unpinnedRetries = 0
-	b.scratchExpert = InlineVariables_InliningBehavior_StandardVarExpert{}
-	clear(b.delayedNegBuf[:])
-	for i := range b.delayedNegChunks {
-		clear(b.delayedNegChunks[i][:cap(b.delayedNegChunks[i])])
-	}
-	b.delayedNegChunkIdx = 0
-	b.delayedNegSlab = b.delayedNegBuf[:0]
-	clear(b.retryExpertBuf[:])
-	for i := range b.retryExpertChunks {
-		clear(b.retryExpertChunks[i][:cap(b.retryExpertChunks[i])])
-	}
-	b.retryExpertChunkIdx = 0
-	b.retryExpertSlab = b.retryExpertBuf[:0]
-	clear(b.retryHandlerBuf[:])
-	for i := range b.retryHandlerChunks {
-		clear(b.retryHandlerChunks[i][:cap(b.retryHandlerChunks[i])])
-	}
-	b.retryHandlerChunkIdx = 0
-	b.retryHandlerSlab = b.retryHandlerBuf[:0]
-	b.motionScratch.compiler = nil
-	b.motionScratch.varName = ""
-	b.motionScratch.lookAhead = nil
-	clear(b.motionScratch.iteratorStorage.ancestors)
-	b.motionScratch.iteratorStorage.ancestors = b.motionScratch.iteratorStorage.ancestors[:0]
-	inliningBehaviorPool.Put(b)
 }
 
 // Java: InlineVariables.InliningBehavior()
