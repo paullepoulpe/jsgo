@@ -67,8 +67,40 @@ type inlineFunctionsPoolState struct {
 	fnExprIdx    int
 	fnExprUsed   int
 
-	movedArgs   map[*rhino.Node]struct{}
-	fnInfoCache map[*rhino.Node]functionInjectorFnInfo
+	movedArgs    map[*rhino.Node]struct{}
+	fnInfoCache  map[*rhino.Node]functionInjectorFnInfo
+	largeRefMaps [3][]jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
+}
+
+func ifRefMapTier(c int) int {
+	switch {
+	case c <= 4 || c > 262144:
+		return -1
+	case c <= 128:
+		return 0
+	case c <= 4096:
+		return 1
+	default:
+		return 2
+	}
+}
+
+func (p *inlineFunctionsPoolState) recycleRefMap(m *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]) {
+	t := ifRefMapTier(m.Cap())
+	if t < 0 {
+		return
+	}
+	maxKeep := 256
+	if t == 1 {
+		maxKeep = 64
+	} else if t == 2 {
+		maxKeep = 16
+	}
+	if len(p.largeRefMaps[t]) >= maxKeep {
+		return
+	}
+	m.Clear()
+	p.largeRefMaps[t] = append(p.largeRefMaps[t], *m)
 }
 
 var (
@@ -108,6 +140,11 @@ func releaseIfPoolState(p *inlineFunctionsPoolState) {
 		limit := len(chunk)
 		if ci == p.fnStateIdx {
 			limit = p.fnStateUsed
+		}
+		for i := 0; i < limit; i++ {
+			if chunk[i].refMapVal.Cap() > 4 {
+				p.recycleRefMap(&chunk[i].refMapVal)
+			}
 		}
 		clear(chunk[:limit])
 	}
@@ -428,6 +465,20 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		f.lastContainingFn = nil
 		releaseIfPoolState(p)
 	}()
+
+	if root != nil && f.fns.Cap() <= 512 {
+		stmtCount := 0
+		const maxStmts = 131072
+		for s := root.GetFirstChild(); s != nil && stmtCount < maxStmts; s = s.GetNext() {
+			for c := s.GetFirstChild(); c != nil && stmtCount < maxStmts; c = c.GetNext() {
+				stmtCount++
+			}
+		}
+		if stmtCount > 512 {
+			p.fns = jutil.NewLinkedHashMapWithCapacity[string, *InlineFunctions_FunctionState](stmtCount)
+			f.fns = p.fns
+		}
+	}
 
 	findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
 	if root != nil {
@@ -1839,6 +1890,9 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 	s.inline = false
 
 	// No need to keep references to function that can't be inlined.
+	if s.refMapVal.Size() > 0 {
+		s.refMapVal.Clear()
+	}
 	s.references = nil
 	// Don't remove functions that we aren't inlining.
 	s.remove = false
@@ -1912,6 +1966,34 @@ func (s *InlineFunctions_FunctionState) addReference(ref *InlineFunctions_Refere
 			s.refMapVal.InitWithBuffer(p.allocRefSlots(4))
 		}
 		s.references = &s.refMapVal
+	} else if p != nil && s.references == &s.refMapVal {
+		sz := s.refMapVal.Size()
+		cp := s.refMapVal.Cap()
+		if sz == cp {
+			wantTier := -1
+			if cp == 4 {
+				wantTier = 0
+			} else if cp == 128 {
+				wantTier = 1
+			} else if cp == 4096 {
+				wantTier = 2
+			}
+			if wantTier >= 0 && len(p.largeRefMaps[wantTier]) > 0 {
+				last := len(p.largeRefMaps[wantTier]) - 1
+				warm := p.largeRefMaps[wantTier][last]
+				p.largeRefMaps[wantTier][last] = jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]{}
+				p.largeRefMaps[wantTier] = p.largeRefMaps[wantTier][:last]
+				for k, v := range s.refMapVal.All() {
+					warm.PutNew(k, v)
+				}
+				if cp > 4 {
+					p.recycleRefMap(&s.refMapVal)
+				} else {
+					s.refMapVal.Clear()
+				}
+				s.refMapVal = warm
+			}
+		}
 	}
 	s.references.PutNew(ref.callNode, ref)
 }

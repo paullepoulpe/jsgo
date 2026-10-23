@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func iacpSnapshotRefs(raw []*GlobalNamespace_Ref, buf *[8]*GlobalNamespace_Ref) []*GlobalNamespace_Ref {
+	if len(raw) <= len(buf) {
+		return append(buf[:0], raw...)
+	}
+	return slices.Clone(raw)
+}
 
 // InlineAndCollapseProperties performs inlining of aliases and collapsing of
 // qualified names in order to improve later optimizations, such as
@@ -363,7 +371,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliasesForName(Name, GlobalNamespace)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForName(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
-	refs := name.GetRefs()
+	var refsBuf [8]*GlobalNamespace_Ref
+	refs := iacpSnapshotRefs(name.GetRefs(), &refsBuf)
 	for _, ref := range refs {
 		if ref.IsAliasingGet() && !InlineAndCollapseProperties_MayBeGlobalAlias(ref) && !ref.IsTwin() {
 			// `name` meets condition (c). Try to inline it.
@@ -484,7 +493,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	// Recurse to find potential sub-subclass accesses of the superclass property.
 	subclassNameObj, _ := namespace.GetOwnSlot(subclassName).(*GlobalNamespace_Name)
 	if subclassNameObj != nil && subclassNameObj.SubclassingGetCount() > 0 {
-		for _, ref := range subclassNameObj.GetRefs() {
+		var subRefsBuf [8]*GlobalNamespace_Ref
+		for _, ref := range iacpSnapshotRefs(subclassNameObj.GetRefs(), &subRefsBuf) {
 			if ref.IsSubclassingGet() {
 				a.RewriteAllSubclassInheritedAccesses(superclassNameObj, ref, prop, namespace)
 			}
@@ -885,7 +895,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasReferences(
 	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *jutil.LinkedHashSet[GlobalNamespace_AstChange] {
 	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
-	refs := aliasingName.GetRefs()
+	var refsBuf [8]*GlobalNamespace_Ref
+	refs := iacpSnapshotRefs(aliasingName.GetRefs(), &refsBuf)
 	var initializationChunk *JSChunk
 	if aliasingName.GetInitialization() != nil {
 		initializationChunk = aliasingName.GetInitialization().GetChunk()
@@ -970,7 +981,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAliasReference(
 	value *rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
 	a.RewriteAliasProps(prop, value, depth+1, newNodes)
-	refs := prop.GetRefs()
+	var refsBuf [8]*GlobalNamespace_Ref
+	refs := iacpSnapshotRefs(prop.GetRefs(), &refsBuf)
 	for _, ref := range refs {
 		target := ref.GetNode()
 		if target.IsStringKey() && target.GetParent().IsDestructuringPattern() {

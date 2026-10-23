@@ -31,6 +31,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		parsed           *parsing.ParserRunner_ParseResult
 		errors           parseBufferedErrors
 		failure          jutil.Throwable
+		wasDeserialized  bool
 	}
 	outcomes := make([]outcome, len(inputs))
 	if compiler.typedAstFilesystem != nil {
@@ -39,8 +40,11 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				continue
 			}
 			jutil.Try(func() {
-				outcomes[index].deserializer = compiler.GetTypedAstDeserializer(input.sourceFile)
-				if outcomes[index].deserializer == nil {
+				fn := compiler.GetTypedAstDeserializer(input.sourceFile)
+				if fn != nil {
+					outcomes[index].deserializer = fn
+					outcomes[index].wasDeserialized = true
+				} else {
 					needParserConfig = true
 				}
 			}, func(t jutil.Throwable) {
@@ -55,10 +59,13 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(index int) {
 		input, result := inputs[index], &outcomes[index]
 		if input.ast.isParsed() || result.failure != nil {
+			result.deserializer = nil
 			return
 		}
-		if result.deserializer != nil {
-			result.deserializedRoot = result.deserializer()
+		if result.wasDeserialized {
+			fn := result.deserializer
+			result.deserializer = nil
+			result.deserializedRoot = fn()
 			return
 		}
 		config := normal
@@ -80,7 +87,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		}
 		result := &outcomes[index]
 		jutil.Try(func() {
-			if result.deserializer != nil {
+			if result.wasDeserialized {
 				if result.failure != nil {
 					panic(result.failure)
 				}

@@ -5250,14 +5250,18 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	c.externs.Clear()
 
 	c.colorRegistry = deserializedAst.GetColorRegistry()
+	runtimeLibraries := deserializedAst.GetRuntimeLibraries()
 
 	// Tells CompilerInput::getRoot to deserialize an AST rather than re-parsing the file
 	c.typedAstFilesystem = deserializedAst.GetFilesystem()
+	deserializedAst = nil
 
 	// overwrite any existing CompilerInput instances. Reuse the SourceFiles created by
 	// TypedAstDeserializer; otherwise lookups in this.typedAstFilesystem will fail.
 	externFiles := externFilesBuilder
 	codeFiles := codeFilesBuilder
+	externFilesBuilder = nil
+	codeFilesBuilder = nil
 	for _, externName := range stateProto.GetExternsList() {
 		if externName == c.SYNTHETIC_EXTERNS_FILE.GetName() {
 			c.GetSynthesizedExternsInput()
@@ -5277,6 +5281,8 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 		c.scriptNodeByFilename.Put(externFile.GetName(), script)
 		c.externs.Add(input)
 	}
+	c.typedAstFilesystem.Remove(c.SYNTHETIC_EXTERNS_FILE)
+	externFiles = nil
 
 	// Restore the inputs for each chunk.
 	type restoredChunkInput struct {
@@ -5313,8 +5319,10 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 			}
 		}
 	}
+	codeFiles = nil
 	if parallelRestore && len(restoredInputs) > 0 {
 		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(prebuildInputs))
+		prebuildInputs = nil
 		for _, item := range restoredInputs {
 			script := item.input.GetAstRoot(c)
 
@@ -5324,9 +5332,10 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 			c.putCompilerInput(item.input) // overwrite the old input
 			chunks[item.chunkIdx].Add(item.input)
 		}
+		restoredInputs = nil
 	}
 
-	for library := range deserializedAst.GetRuntimeLibraries().All() {
+	for library := range runtimeLibraries.All() {
 		c.runtimeJsLibManager.EnsureLibraryInjected(library, false)
 	}
 

@@ -22,6 +22,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+const (
+	timelineChunkShift = 8
+	timelineChunkSize  = 1 << timelineChunkShift
+	timelineChunkMask  = timelineChunkSize - 1
+	timelineTimeBit    = uint32(1) << 31
+	timelinePrevMask   = ^timelineTimeBit
+)
+
 // Timeline is an ordered set that moves values to the front when added
 // (even if already contained) and which allows for the marking of named
 // points in time in the series from which point an accumulation of all
@@ -30,42 +38,59 @@ import (
 // TODO(stalcup): save memory by unlinking events older than the oldest
 // marked time.
 type Timeline[T comparable] struct {
-	eventsByTime  map[string]*timeline_Event[T]
-	eventsByValue map[T]*timeline_Event[T]
-	headEvent     *timeline_Event[T]
-	freeEvent     *timeline_Event[T]
-	eventSlab     []timeline_Event[T]
+	eventsByTime  map[string]uint32
+	eventsByValue map[T]uint32
+	chunks        []*[timelineChunkSize]timeline_Event[T]
+	nextIdx       uint32
+	headEvent     uint32
+	freeEvent     uint32
 }
 
 // timeline_Event is Timeline.Event<T>.
 type timeline_Event[T comparable] struct {
-	nextEvent     *timeline_Event[T]
-	previousEvent *timeline_Event[T]
-	value         T
-	isTime        bool
+	value       T
+	next        uint32
+	prevAndTime uint32
 }
 
-func (tl *Timeline[T]) allocEvent(value T, isTime bool) *timeline_Event[T] {
-	if e := tl.freeEvent; e != nil {
-		tl.freeEvent = e.nextEvent
-		*e = timeline_Event[T]{value: value, isTime: isTime}
-		return e
+func (e *timeline_Event[T]) prev() uint32   { return e.prevAndTime & timelinePrevMask }
+func (e *timeline_Event[T]) isTime() bool   { return e.prevAndTime&timelineTimeBit != 0 }
+func (e *timeline_Event[T]) setPrev(p uint32) {
+	e.prevAndTime = (e.prevAndTime & timelineTimeBit) | p
+}
+
+func (tl *Timeline[T]) event(id uint32) *timeline_Event[T] {
+	idx := id - 1
+	return &tl.chunks[idx>>timelineChunkShift][idx&timelineChunkMask]
+}
+
+func (tl *Timeline[T]) allocEvent(value T, isTime bool) uint32 {
+	var pt uint32
+	if isTime {
+		pt = timelineTimeBit
 	}
-	if len(tl.eventSlab) == 0 {
-		tl.eventSlab = make([]timeline_Event[T], 256)
+	if id := tl.freeEvent; id != 0 {
+		e := tl.event(id)
+		tl.freeEvent = e.next
+		*e = timeline_Event[T]{value: value, prevAndTime: pt}
+		return id
 	}
-	e := &tl.eventSlab[0]
-	tl.eventSlab = tl.eventSlab[1:]
+	idx := tl.nextIdx
+	tl.nextIdx = idx + 1
+	if idx&timelineChunkMask == 0 {
+		tl.chunks = append(tl.chunks, new([timelineChunkSize]timeline_Event[T]))
+	}
+	e := &tl.chunks[idx>>timelineChunkShift][idx&timelineChunkMask]
 	e.value = value
-	e.isTime = isTime
-	return e
+	e.prevAndTime = pt
+	return idx + 1
 }
 
 // NewTimeline is new Timeline<>().
 func NewTimeline[T comparable]() *Timeline[T] {
 	tl := &Timeline[T]{
-		eventsByTime:  make(map[string]*timeline_Event[T]),
-		eventsByValue: make(map[T]*timeline_Event[T]),
+		eventsByTime:  make(map[string]uint32),
+		eventsByValue: make(map[T]uint32),
 	}
 	var zero T
 	tl.headEvent = tl.allocEvent(zero, true)
@@ -75,61 +100,74 @@ func NewTimeline[T comparable]() *Timeline[T] {
 // Java: Timeline.add(T)
 func (tl *Timeline[T]) Add(value T) {
 	jutil.CheckNotNull(value)
-	event := tl.eventsByValue[value]
-	if tl.headEvent == event {
+	id := tl.eventsByValue[value]
+	if tl.headEvent == id {
 		return
 	}
-	if event != nil {
-		event.previousEvent.nextEvent = event.nextEvent
-		event.nextEvent.previousEvent = event.previousEvent
-		event.nextEvent = nil
+	var e *timeline_Event[T]
+	if id != 0 {
+		e = tl.event(id)
+		prevId := e.prev()
+		nextId := e.next
+		tl.event(prevId).next = nextId
+		tl.event(nextId).setPrev(prevId)
+		e.next = 0
 	} else {
-		event = tl.allocEvent(value, false)
-		tl.eventsByValue[value] = event
+		id = tl.allocEvent(value, false)
+		tl.eventsByValue[value] = id
+		e = tl.event(id)
 	}
-	event.previousEvent = tl.headEvent
-	tl.headEvent.nextEvent = event
-	tl.headEvent = event
+	e.setPrev(tl.headEvent)
+	tl.event(tl.headEvent).next = id
+	tl.headEvent = id
 }
 
 // Java: Timeline.remove(T)
 func (tl *Timeline[T]) Remove(value T) {
-	event := tl.eventsByValue[value]
-	if event != nil {
+	id := tl.eventsByValue[value]
+	if id != 0 {
 		delete(tl.eventsByValue, value)
-		if event.nextEvent != nil {
-			event.nextEvent.previousEvent = event.previousEvent
+		e := tl.event(id)
+		prevId := e.prev()
+		nextId := e.next
+		if nextId != 0 {
+			tl.event(nextId).setPrev(prevId)
 		} else {
-			tl.headEvent = event.previousEvent
+			tl.headEvent = prevId
 		}
-		event.previousEvent.nextEvent = event.nextEvent
+		tl.event(prevId).next = nextId
 
 		var zero T
-		event.value = zero
-		event.previousEvent = nil
-		event.nextEvent = tl.freeEvent
-		tl.freeEvent = event
+		e.value = zero
+		e.prevAndTime = 0
+		e.next = tl.freeEvent
+		tl.freeEvent = id
 	}
 }
 
 // Java: Timeline.mark(String)
 func (tl *Timeline[T]) Mark(timeName string) {
-	event := tl.eventsByTime[timeName]
-	if tl.headEvent == event {
+	id := tl.eventsByTime[timeName]
+	if tl.headEvent == id {
 		return
 	}
-	if event != nil {
-		event.previousEvent.nextEvent = event.nextEvent
-		event.nextEvent.previousEvent = event.previousEvent
-		event.nextEvent = nil
+	var e *timeline_Event[T]
+	if id != 0 {
+		e = tl.event(id)
+		prevId := e.prev()
+		nextId := e.next
+		tl.event(prevId).next = nextId
+		tl.event(nextId).setPrev(prevId)
+		e.next = 0
 	} else {
 		var zero T
-		event = tl.allocEvent(zero, true)
-		tl.eventsByTime[timeName] = event
+		id = tl.allocEvent(zero, true)
+		tl.eventsByTime[timeName] = id
+		e = tl.event(id)
 	}
-	event.previousEvent = tl.headEvent
-	tl.headEvent.nextEvent = event
-	tl.headEvent = event
+	e.setPrev(tl.headEvent)
+	tl.event(tl.headEvent).next = id
+	tl.headEvent = id
 }
 
 // GetSince returns the values added since the named time, or nil (Java
@@ -137,15 +175,17 @@ func (tl *Timeline[T]) Mark(timeName string) {
 //
 // Java: Timeline.getSince(String)
 func (tl *Timeline[T]) GetSince(timeName string) []T {
-	firstEvent := tl.eventsByTime[timeName]
-	if firstEvent == nil {
+	firstId := tl.eventsByTime[timeName]
+	if firstId == 0 {
 		return nil
 	}
 	values := []T{}
-	for event := firstEvent; event != nil; event = event.nextEvent {
-		if !event.isTime {
-			values = append(values, event.value)
+	for id := firstId; id != 0; {
+		e := tl.event(id)
+		if !e.isTime() {
+			values = append(values, e.value)
 		}
+		id = e.next
 	}
 	return values
 }

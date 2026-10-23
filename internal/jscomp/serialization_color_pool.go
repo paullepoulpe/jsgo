@@ -111,7 +111,7 @@ type ColorPool_ShardView struct {
 	stringPool *StringPool
 
 	// Set once the complete pool is built.
-	colorPool *ColorPool
+	built bool
 }
 
 // Java: ColorPool.ShardView(TypePool, StringPool, ImmutableList<ColorId>)
@@ -129,18 +129,15 @@ func (s *ColorPool_ShardView) GetColor(pointer int) *colors.Color {
 	if uint(pointer) < uint(len(s.offsetToColor)) {
 		return s.offsetToColor[pointer]
 	}
-	jutil.CheckStateMsg1(s.colorPool != nil, "%s", s)
-	if TypePointers_IsAxiomatic(pointer) {
-		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[pointer]
-	}
-	if s.trimmedOffsetToColor != nil {
-		return s.trimmedOffsetToColor[TypePointers_TrimOffset(pointer)]
-	}
-	return s.colorPool.GetColor(s.trimmedOffsetToId[TypePointers_TrimOffset(pointer)])
+	jutil.CheckStateMsg1(s.built, "%s", s)
+	return s.offsetToColor[pointer]
 }
 
 // Java: ColorPool.ShardView.getId(int)
 func (s *ColorPool_ShardView) GetId(untrimmedOffset int) colors.ColorId {
+	if s.offsetToColor != nil {
+		return s.offsetToColor[untrimmedOffset].GetId()
+	}
 	if TypePointers_IsAxiomatic(untrimmedOffset) {
 		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[untrimmedOffset].GetId()
 	} else {
@@ -150,7 +147,7 @@ func (s *ColorPool_ShardView) GetId(untrimmedOffset int) colors.ColorId {
 
 // Java: ColorPool.ShardView.updateStateAfterColorPoolIsBuilt(ColorPool)
 func (s *ColorPool_ShardView) UpdateStateAfterColorPoolIsBuilt(colorPool *ColorPool) {
-	s.colorPool = colorPool
+	s.built = true
 	s.typePool = nil
 	s.stringPool = nil
 	axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
@@ -165,6 +162,7 @@ func (s *ColorPool_ShardView) UpdateStateAfterColorPoolIsBuilt(colorPool *ColorP
 			offsetToColor[axiomaticCount+i] = idToColor[id]
 		}
 	}
+	s.trimmedOffsetToId = nil
 	s.offsetToColor = offsetToColor
 }
 
@@ -213,10 +211,15 @@ type ColorPool_Builder struct {
 	forTesting_  bool
 	built        bool
 
-	colorBuilder   colors.Color_Builder
-	stringSetSlab  []jutil.LinkedHashSet[string]
-	colorSetSlab   []jutil.ObjectLinkedHashSet[*colors.Color]
-	singlePropSets map[int32]*jutil.LinkedHashSet[string]
+	colorBuilder     colors.Color_Builder
+	stringSetSlab    []jutil.LinkedHashSet[string]
+	stringSlotSlab   []jutil.LhmSlot[string, struct{}]
+	colorSetSlab     []jutil.ObjectLinkedHashSet[*colors.Color]
+	singlePropSets   map[int32]*jutil.LinkedHashSet[string]
+	singlePropByName map[string]*jutil.LinkedHashSet[string]
+	propScratch      []string
+	seenProps        map[string]uint32
+	seenPropsGen     uint32
 
 	reconcilationDebugStack []colors.ColorId
 }
@@ -228,6 +231,64 @@ func (b *ColorPool_Builder) allocStringSet() *jutil.LinkedHashSet[string] {
 	s := &b.stringSetSlab[0]
 	b.stringSetSlab = b.stringSetSlab[1:]
 	return s
+}
+
+func (b *ColorPool_Builder) allocStringSlots(n int) []jutil.LhmSlot[string, struct{}] {
+	const slotSlabSize = 4096
+	if n > slotSlabSize {
+		return make([]jutil.LhmSlot[string, struct{}], n)
+	}
+	if len(b.stringSlotSlab) < n {
+		b.stringSlotSlab = make([]jutil.LhmSlot[string, struct{}], slotSlabSize)
+	}
+	buf := b.stringSlotSlab[:n:n]
+	b.stringSlotSlab = b.stringSlotSlab[n:]
+	return buf
+}
+
+func (b *ColorPool_Builder) internSinglePropSet(prop string) *jutil.LinkedHashSet[string] {
+	if b.singlePropByName == nil {
+		b.singlePropByName = make(map[string]*jutil.LinkedHashSet[string], 256)
+	} else if cached := b.singlePropByName[prop]; cached != nil {
+		return cached
+	}
+	s := b.allocStringSet()
+	s.InitWithBuffer(b.allocStringSlots(1))
+	s.AddNew(prop)
+	b.singlePropByName[prop] = s
+	return s
+}
+
+func (b *ColorPool_Builder) buildUniqueStringSet(props []string) *jutil.LinkedHashSet[string] {
+	if len(props) == 0 {
+		return colorPool_emptyStringSet
+	}
+	if len(props) == 1 {
+		return b.internSinglePropSet(props[0])
+	}
+	s := b.allocStringSet()
+	s.InitWithBuffer(b.allocStringSlots(len(props)))
+	for _, p := range props {
+		s.AddNew(p)
+	}
+	return s
+}
+
+func (b *ColorPool_Builder) appendDedupProp(prop string, useMap bool) {
+	if useMap {
+		if b.seenProps[prop] == b.seenPropsGen {
+			return
+		}
+		b.seenProps[prop] = b.seenPropsGen
+		b.propScratch = append(b.propScratch, prop)
+		return
+	}
+	for _, existing := range b.propScratch {
+		if existing == prop {
+			return
+		}
+	}
+	b.propScratch = append(b.propScratch, prop)
 }
 
 func (b *ColorPool_Builder) allocColorSet() *jutil.ObjectLinkedHashSet[*colors.Color] {
@@ -431,6 +492,11 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	colorPool := newColorPool(b.idToColor, b.registry.Build(), shardViewsForTesting)
 
 	b.ForEachShard(func(shard *ColorPool_ShardView) { shard.UpdateStateAfterColorPoolIsBuilt(colorPool) })
+	b.idToProto = nil
+	b.singlePropSets = nil
+	b.singlePropByName = nil
+	b.propScratch = nil
+	b.seenProps = nil
 	return colorPool
 }
 
@@ -493,14 +559,26 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 				ownProperties = cached
 			} else {
 				ownProperties = b.allocStringSet()
-				ownProperties.Add(shard.stringPool.Get(int(propIdx)))
+				ownProperties.InitWithBuffer(b.allocStringSlots(1))
+				ownProperties.AddNew(shard.stringPool.Get(int(propIdx)))
 				b.singlePropSets[propIdx] = ownProperties
 			}
 		} else if len(ownPropList) > 1 {
-			ownProperties = b.allocStringSet()
-			for i := 0; i < len(ownPropList); i++ {
-				ownProperties.Add(shard.stringPool.Get(int(ownPropList[i])))
+			b.propScratch = b.propScratch[:0]
+			useMap := len(ownPropList) > 8
+			if useMap {
+				b.seenPropsGen++
+				if b.seenProps == nil {
+					b.seenProps = make(map[string]uint32, 64)
+				} else if b.seenPropsGen == 0 {
+					clear(b.seenProps)
+					b.seenPropsGen = 1
+				}
 			}
+			for i := 0; i < len(ownPropList); i++ {
+				b.appendDedupProp(shard.stringPool.Get(int(ownPropList[i])), useMap)
+			}
+			ownProperties = b.buildUniqueStringSet(b.propScratch)
 		}
 		result = b.colorBuilder.
 			SetId(id).
@@ -585,6 +663,7 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 	isConstructor := false
 	isInvalidating := false
 	propertiesKeepOriginalName := false
+	totalOwnProps := 0
 
 	for idx := -1; idx < len(entry.extra); idx++ {
 		var shard *ColorPool_ShardView
@@ -631,15 +710,49 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 				prototypes.Add(b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))))
 			}
 		}
-		ownPropCount := objProto.GetOwnPropertyCount()
-		if ownPropCount > 0 {
-			if ownProperties == nil {
-				ownProperties = b.allocStringSet()
+		totalOwnProps += objProto.GetOwnPropertyCount()
+	}
+
+	if totalOwnProps == 1 {
+		for idx := -1; idx < len(entry.extra); idx++ {
+			shard := entry.firstShard
+			proto := entry.firstProto
+			if idx >= 0 {
+				shard = entry.extra[idx].shard
+				proto = entry.extra[idx].proto
 			}
-			for i := 0; i < ownPropCount; i++ {
-				ownProperties.Add(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
+			objProto := proto.GetObject()
+			if objProto.GetOwnPropertyCount() == 1 {
+				ownProperties = b.internSinglePropSet(shard.stringPool.Get(int(objProto.GetOwnProperty(0))))
+				break
 			}
 		}
+	} else if totalOwnProps > 1 {
+		b.propScratch = b.propScratch[:0]
+		useMap := totalOwnProps > 8
+		if useMap {
+			b.seenPropsGen++
+			if b.seenProps == nil {
+				b.seenProps = make(map[string]uint32, 64)
+			} else if b.seenPropsGen == 0 {
+				clear(b.seenProps)
+				b.seenPropsGen = 1
+			}
+		}
+		for idx := -1; idx < len(entry.extra); idx++ {
+			shard := entry.firstShard
+			proto := entry.firstProto
+			if idx >= 0 {
+				shard = entry.extra[idx].shard
+				proto = entry.extra[idx].proto
+			}
+			objProto := proto.GetObject()
+			ownPropCount := objProto.GetOwnPropertyCount()
+			for i := 0; i < ownPropCount; i++ {
+				b.appendDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))), useMap)
+			}
+		}
+		ownProperties = b.buildUniqueStringSet(b.propScratch)
 	}
 
 	if instanceColors == nil {

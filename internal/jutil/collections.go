@@ -333,6 +333,14 @@ func (h *LinkedHashMap[K, V]) HasBacking() bool {
 	return cap(h.slots) > 0
 }
 
+// Cap returns the current slot slice capacity of h.
+func (h *LinkedHashMap[K, V]) Cap() int {
+	if h == nil {
+		return 0
+	}
+	return cap(h.slots)
+}
+
 // add appends an entry for k, which must be absent.
 func (h *LinkedHashMap[K, V]) add(k K, v V) {
 	if len(h.slots) < cap(h.slots) && h.m == nil {
@@ -641,6 +649,12 @@ func NewLinkedHashSet[T comparable](elems ...T) *LinkedHashSet[T] {
 		s.Add(e)
 	}
 	return s
+}
+
+// InitWithBuffer makes s an empty set that stores its first len(buf) elements
+// in buf; it grows into a new slice past that.
+func (s *LinkedHashSet[T]) InitWithBuffer(buf []LhmSlot[T, struct{}]) {
+	s.m.InitWithBuffer(buf)
 }
 
 func (s *LinkedHashSet[T]) Size() int {

@@ -983,7 +983,7 @@ func (g *GlobalNamespace) ProcessNamespace() {
 
 func (g *GlobalNamespace) estimateNameCapacity() int {
 	stmtCount := 0
-	const maxStmts = 32768
+	const maxStmts = 262144
 	countRoot := func(r *rhino.Node) {
 		if r == nil {
 			return

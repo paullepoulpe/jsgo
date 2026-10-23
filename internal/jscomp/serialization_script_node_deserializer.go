@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"math"
 	"sync"
 
@@ -48,8 +49,12 @@ func NewScriptNodeDeserializer(
 	stringPool *StringPool,
 	colorPoolShard *ColorPool_ShardView,
 	filePool []*SourceFile) *ScriptNodeDeserializer {
+	scriptBytes := ast.GetScript()
+	if len(scriptBytes) <= 256 {
+		scriptBytes = bytes.Clone(scriptBytes)
+	}
 	return &ScriptNodeDeserializer{
-		scriptBytes:      ast.GetScript(),
+		scriptBytes:      scriptBytes,
 		sourceFile:       filePool[ast.GetSourceFile()-1],
 		sourceMappingURL: ast.GetSourceMappingUrl(),
 		colorPoolShard:   colorPoolShard,

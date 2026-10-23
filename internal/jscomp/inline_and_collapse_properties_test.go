@@ -3874,3 +3874,28 @@ alert(b.Foo.bar);
 	IsInstanceOf[*jutil.IllegalStateException](AssertThat(root))
 	AssertThat(root.GetMessage()).Contains("unexpected node: MEMBER_FIELD_DEF")
 }
+
+func (c *InlineAndCollapsePropertiesTest) TestInlineAliasesSnapshotRefsUnderConcurrentRemoval() {
+	c.Test(
+		`var ns = {};
+ns.x = 1;
+var a1 = ns;
+var a2 = ns;
+function f() {
+  var l1 = a1;
+  var l2 = ns;
+  return l1.x + l2.x + a2.x;
+}
+f();
+`,
+		`var ns$x = 1;
+var a1 = null;
+var a2 = null;
+function f() {
+  var l1 = null;
+  var l2 = null;
+  return ns$x + ns$x + ns$x;
+}
+f();
+`)
+}

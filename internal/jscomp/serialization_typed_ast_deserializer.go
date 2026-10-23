@@ -261,8 +261,11 @@ func newTypedAstDeserializer_SyntheticExternsDeserializer(
 func (s *typedAstDeserializer_SyntheticExternsDeserializer) Deserialize() *rhino.Node {
 	script := rhino.IR_Script()
 	script.SetStaticSourceFile(s.syntheticExterns)
-	for d := range s.syntheticExternsDeserializers.All() {
-		script.AddChildrenToBack(d.DeserializeNew().RemoveChildren())
+	if s.syntheticExternsDeserializers != nil {
+		for d := range s.syntheticExternsDeserializers.All() {
+			script.AddChildrenToBack(d.DeserializeNew().RemoveChildren())
+		}
+		s.syntheticExternsDeserializers = nil
 	}
 	return script
 }
@@ -696,6 +699,8 @@ func typedAstDeserializer_deserializeTypedAsts(
 			}
 			panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
 		}
+		const probeSize = 64 * 1024
+		var probe [probeSize]byte
 		readNextFromStream := func() ([]byte, bool) {
 			first, ok := readByte(true)
 			if !ok {
@@ -721,7 +726,6 @@ func typedAstDeserializer_deserializeTypedAsts(
 			}
 			// Do not pool messageBytes buffers because LazyAst.script uses zero-copy readBytesView().
 			var messageBytes []byte
-			const probeSize = 64 * 1024
 			if msgLen <= probeSize {
 				messageBytes = make([]byte, msgLen)
 				if _, err := io.ReadFull(typedAstsStream, messageBytes); err != nil {
@@ -731,7 +735,6 @@ func typedAstDeserializer_deserializeTypedAsts(
 					panic(jutil.NewIOException(err.Error()))
 				}
 			} else {
-				var probe [probeSize]byte
 				if _, err := io.ReadFull(typedAstsStream, probe[:]); err != nil {
 					if err == io.EOF || err == io.ErrUnexpectedEOF {
 						panic(protoTruncatedMessage())
