@@ -20,9 +20,6 @@ package jscomp
 
 import (
 	"strconv"
-	"sync"
-	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -270,62 +267,6 @@ type normalizeRenameUndo struct {
 	hadOld  bool
 }
 
-type normalizeFastRenamerPoolState struct {
-	nameUsage          map[string]int
-	activeReplacements map[string]string
-	undoStack          []normalizeRenameUndo
-	scopeUndoOffsets   []int
-}
-
-var cachedNormalizeRenamerState atomic.Pointer[normalizeFastRenamerPoolState]
-var normalizeRenamerStatePool sync.Pool
-
-func acquireNormalizeRenamerState() *normalizeFastRenamerPoolState {
-	if p := cachedNormalizeRenamerState.Swap(nil); p != nil {
-		return p
-	}
-	if v := normalizeRenamerStatePool.Get(); v != nil {
-		return v.(*normalizeFastRenamerPoolState)
-	}
-	return &normalizeFastRenamerPoolState{
-		nameUsage:          make(map[string]int, 4096),
-		activeReplacements: make(map[string]string, 256),
-		undoStack:          make([]normalizeRenameUndo, 0, 256),
-		scopeUndoOffsets:   make([]int, 0, 64),
-	}
-}
-
-func releaseNormalizeRenamerState(p *normalizeFastRenamerPoolState) {
-	if p == nil {
-		return
-	}
-	if len(p.nameUsage) <= 262144 {
-		clear(p.nameUsage)
-	} else {
-		p.nameUsage = make(map[string]int, 4096)
-	}
-	if len(p.activeReplacements) <= 65536 {
-		clear(p.activeReplacements)
-	} else {
-		p.activeReplacements = make(map[string]string, 256)
-	}
-	if cap(p.undoStack) <= 65536 {
-		clear(p.undoStack)
-		p.undoStack = p.undoStack[:0]
-	} else {
-		p.undoStack = make([]normalizeRenameUndo, 0, 256)
-	}
-	if cap(p.scopeUndoOffsets) <= 65536 {
-		p.scopeUndoOffsets = p.scopeUndoOffsets[:0]
-	} else {
-		p.scopeUndoOffsets = make([]int, 0, 64)
-	}
-	if cachedNormalizeRenamerState.CompareAndSwap(nil, p) {
-		return
-	}
-	normalizeRenamerStatePool.Put(p)
-}
-
 // Normalize_NormalizeStatements simplifies the AST:
 //   - VAR declarations split, so they represent exactly one child
 //     declaration.
@@ -345,12 +286,10 @@ type Normalize_NormalizeStatements struct {
 
 	useFastContextualRenamer bool
 	hasJscompVar             bool
-	renamerPoolState         *normalizeFastRenamerPoolState
 	nameUsage                map[string]int
 	activeReplacements       map[string]string
 	undoStack                []normalizeRenameUndo
 	scopeUndoOffsets         []int
-	strSlab                  []byte
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -378,27 +317,15 @@ func NewNormalize_NormalizeStatements(
 
 func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
 	s.useFastContextualRenamer = true
-	p := acquireNormalizeRenamerState()
-	s.renamerPoolState = p
-	s.nameUsage = p.nameUsage
-	s.activeReplacements = p.activeReplacements
-	s.undoStack = p.undoStack
-	s.scopeUndoOffsets = p.scopeUndoOffsets
+	s.nameUsage = make(map[string]int)
+	s.activeReplacements = make(map[string]string)
 }
 
 func (s *Normalize_NormalizeStatements) releaseFastContextualRenamer() {
-	if p := s.renamerPoolState; p != nil {
-		p.nameUsage = s.nameUsage
-		p.activeReplacements = s.activeReplacements
-		p.undoStack = s.undoStack
-		p.scopeUndoOffsets = s.scopeUndoOffsets
-		s.renamerPoolState = nil
-		s.nameUsage = nil
-		s.activeReplacements = nil
-		s.undoStack = nil
-		s.scopeUndoOffsets = nil
-		releaseNormalizeRenamerState(p)
-	}
+	s.nameUsage = nil
+	s.activeReplacements = nil
+	s.undoStack = nil
+	s.scopeUndoOffsets = nil
 }
 
 func normalizeHasJscompSeparator(s string) bool {
@@ -421,18 +348,7 @@ func normalizeHasJscompSeparator(s string) bool {
 }
 
 func (s *Normalize_NormalizeStatements) formatUniqueName(name string, id int) string {
-	var numBuf [20]byte
-	numBytes := strconv.AppendInt(numBuf[:0], int64(id), 10)
-	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
-	totalLen := len(name) + len(sep) + len(numBytes)
-	if len(s.strSlab)+totalLen > cap(s.strSlab) {
-		s.strSlab = make([]byte, 0, max(32768, totalLen))
-	}
-	start := len(s.strSlab)
-	s.strSlab = append(s.strSlab, name...)
-	s.strSlab = append(s.strSlab, sep...)
-	s.strSlab = append(s.strSlab, numBytes...)
-	return unsafe.String(&s.strSlab[start], totalLen)
+	return name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id)
 }
 
 func (s *Normalize_NormalizeStatements) enableJscompVarMode() {

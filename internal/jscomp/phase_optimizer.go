@@ -446,7 +446,6 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 		if trackAstSize {
 			p.changeTracker.changeTimeline.Unmark(astSizeTimelineKey)
 		}
-		evictOptimizeCallsLoopCache()
 	}()
 	for {
 		if count > p.optimizationLoopMaxIterations && l.isCodeRemovalLoop {

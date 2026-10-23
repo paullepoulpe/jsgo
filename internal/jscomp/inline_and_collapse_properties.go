@@ -187,7 +187,6 @@ func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.N
 			p.namespace.Release()
 			p.namespace = nil
 		}
-		evictCachedGlobalNamespaceArenas()
 	}()
 	logFile := p.compiler.CreateOrReopenIndexedLog(reflect.TypeOf(p).Elem(), "decisions.log")
 	defer logFile.Close()
@@ -1229,7 +1228,7 @@ func inlineAndCollapseProperties_getProperty(
 	props := parent.props.Slice()
 	if len(props) <= 16 {
 		for _, p := range props {
-			if p.baseName == propName {
+			if p.GetBaseName() == propName {
 				return p
 			}
 		}
@@ -1831,7 +1830,7 @@ func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Nam
 		return baseOriginalName
 	}
 	if extraDepth == 1 {
-		return baseOriginalName + n.baseName
+		return baseOriginalName + n.GetBaseName()
 	}
 	var stackBuf [16]string
 	var parts []string
@@ -1843,8 +1842,8 @@ func buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Nam
 	totalLen := len(baseOriginalName)
 	cur := n
 	for i := extraDepth - 1; i >= 0; i-- {
-		parts[i] = cur.baseName
-		totalLen += len(cur.baseName)
+		parts[i] = cur.GetBaseName()
+		totalLen += len(parts[i])
 		cur = cur.parent
 	}
 	var sb strings.Builder

@@ -3221,7 +3221,7 @@ func (ti *TypeInference) concatQName(a, b string) string {
 	if res, ok := ti.lookupQNameCache(a, b); ok {
 		return res
 	}
-	res := nodeUtilConcatDot(a, b)
+	res := a + "." + b
 	ti.putQNameCache(a, b, res)
 	return res
 }
@@ -3349,7 +3349,7 @@ func (ti *TypeInference) getQualifiedNameString(n *rhino.Node) (string, bool) {
 			for m := j; m < totalDepth; m++ {
 				totalLen += len(nodeAt(m).GetString())
 			}
-			buf := nodeUtilAllocStringBytes(totalLen)
+			buf := make([]byte, totalLen)
 			pos := copy(buf, acc)
 			for m := j; m < totalDepth; m++ {
 				nodeM := nodeAt(m)

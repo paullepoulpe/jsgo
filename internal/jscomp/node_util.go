@@ -5766,20 +5766,6 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 	return &s
 }
 
-// nodeUtilAllocStringBytes returns a zeroed n-byte buffer for a string that
-// the caller fills and then views with unsafe.String.
-func nodeUtilAllocStringBytes(n int) []byte {
-	return make([]byte, n)
-}
-
-func nodeUtilConcatDot(a, b string) string {
-	return a + "." + b
-}
-
-func nodeUtilConcat3(a, b, c string) string {
-	return a + b + c
-}
-
 // nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
 // false where Java returns null.
 func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
@@ -5793,9 +5779,9 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 		}
 		methodName := lValue.GetString()
 		if lValue.IsStaticMember() {
-			return nodeUtilConcatDot(*className, methodName), true
+			return *className + "." + methodName, true
 		}
-		return nodeUtilConcat3(*className, ".prototype.", methodName), true
+		return *className + ".prototype." + methodName, true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
@@ -5808,7 +5794,7 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 			}
 			ownerName, ok := nodeUtil_getBestLValueNameString(owner)
 			if ok {
-				return nodeUtilConcatDot(ownerName, key), true
+				return ownerName + "." + key, true
 			}
 		}
 		return "", false

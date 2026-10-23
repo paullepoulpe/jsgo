@@ -42,8 +42,6 @@ type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	propIndex        *jutil.LinkedHashMap[string, *PropertyClustering]
-	propSlab         jutil.Slab[PropertyClustering]
-	ufNodeSlab       jutil.Slab[standardUnionFind_Node[*ColorGraphNode]]
 	useSiteChunkSlab jutil.Slab[propertyUseSiteChunk]
 	useSiteBuf       []PropertyUseSite
 	useSiteUsed      int
@@ -307,7 +305,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 		} else {
 			prop = r.propIndex.Get(propName)
 			if prop == nil {
-				prop = r.propSlab.New()
+				prop = new(PropertyClustering)
 				prop.init(propName)
 				r.propIndex.PutNew(propName, prop)
 			}
@@ -318,7 +316,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	} else {
 		prop = r.propIndex.Get(propName)
 		if prop == nil {
-			prop = r.propSlab.New()
+			prop = new(PropertyClustering)
 			prop.init(propName)
 			r.propIndex.PutNew(propName, prop)
 		}
@@ -333,7 +331,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 		// Set the initial condition for flowing this property along the graph.
 		if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
 			// Make sure there's a cluster for this name/type combination.
-			ufNode := r.ufNodeSlab.New()
+			ufNode := new(standardUnionFind_Node[*ColorGraphNode])
 			ufNode.parent = ufNode
 			ufNode.element = flatOwner
 			ufNode.size = 1
