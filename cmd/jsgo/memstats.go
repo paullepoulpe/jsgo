@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"runtime/metrics"
 	"runtime/pprof"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -34,6 +35,27 @@ func recordLiveAfterColors() {
 	liveAfterColors.Store(sample[0].Value.Uint64())
 }
 
+// memClassNames are the /memory/classes metrics sampled after every GC
+// cycle; peakClasses holds them at the cycle whose total was the largest
+// (the runtime's view of the peak RSS: live and not-yet-swept objects,
+// unused span slack, free and released spans, stacks and metadata).
+var memClassNames = []string{
+	"/memory/classes/total:bytes",
+	"/memory/classes/heap/objects:bytes",
+	"/memory/classes/heap/unused:bytes",
+	"/memory/classes/heap/free:bytes",
+	"/memory/classes/heap/released:bytes",
+	"/memory/classes/heap/stacks:bytes",
+	"/memory/classes/metadata/mspan/inuse:bytes",
+	"/memory/classes/metadata/other:bytes",
+	"/memory/classes/other:bytes",
+}
+
+var (
+	peakClassesMu sync.Mutex
+	peakClasses   []uint64
+)
+
 // trackPeakLive samples the live heap after every GC cycle with a finalizer
 // that re-arms itself.
 func trackPeakLive(profPath string) {
@@ -44,6 +66,9 @@ func trackPeakLive(profPath string) {
 		{Name: "/gc/heap/live:bytes"},
 		{Name: "/gc/scan/heap:bytes"},
 		{Name: "/gc/heap/objects:objects"},
+	}
+	for _, n := range memClassNames {
+		sample = append(sample, metrics.Sample{Name: n})
 	}
 	var arm func()
 	arm = func() {
@@ -59,6 +84,14 @@ func trackPeakLive(profPath string) {
 					_ = f.Close()
 				}
 			}
+			peakClassesMu.Lock()
+			if total := sample[3].Value.Uint64(); len(peakClasses) == 0 || total > peakClasses[0] {
+				peakClasses = peakClasses[:0]
+				for _, s := range sample[3:] {
+					peakClasses = append(peakClasses, s.Value.Uint64())
+				}
+			}
+			peakClassesMu.Unlock()
 			if v := sample[0].Value.Uint64(); v > peakLive.Load() {
 				peakLive.Store(v)
 				peakScan.Store(sample[1].Value.Uint64())
@@ -112,8 +145,15 @@ func memStatsWriter(path string) func() {
 			defer f.Close()
 			fmt.Fprintf(f, "{\"alloc_bytes\": %.0f, \"alloc_objects\": %.0f, \"gc_cycles\": %.0f, "+
 				"\"gc_cpu_s\": %.3f, \"runtime_mapped_bytes\": %.0f, \"peak_live_bytes\": %d, "+
-				"\"peak_scan_bytes\": %d, \"peak_objects\": %d, \"live_after_colors_bytes\": %d}\n",
+				"\"peak_scan_bytes\": %d, \"peak_objects\": %d, \"live_after_colors_bytes\": %d",
 				val(0), val(1), val(2), val(3), val(4), peakLive.Load(), peakScan.Load(), peakObjects.Load(), liveAfterColors.Load())
+			peakClassesMu.Lock()
+			for i, v := range peakClasses {
+				name := strings.TrimSuffix(strings.TrimPrefix(memClassNames[i], "/memory/classes/"), ":bytes")
+				fmt.Fprintf(f, ", \"peak_mapped/%s\": %d", name, v)
+			}
+			peakClassesMu.Unlock()
+			fmt.Fprintf(f, "}\n")
 		})
 	}
 }

@@ -33,9 +33,9 @@ func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 	}
 }
 
-// Chunks double from slabMinChunk to slabMaxChunk elements, each rounded up
-// to what its size class holds: 64-byte pointerful elements fill 9472-byte
-// chunks with 147 elements, not 128.
+// Chunk byte sizes double from 512 (the smallest holding slabMinChunk
+// 64-byte elements) to 8192, each filled to what its size class holds after
+// the 8-byte header of a pointerful allocation.
 func TestSlabChunkSizes(t *testing.T) {
 	type node struct {
 		p [4]*int
@@ -49,9 +49,9 @@ func TestSlabChunkSizes(t *testing.T) {
 			got = append(got, len(s.chunk))
 		}
 	}
-	want := []int{4, 8, 17, 35, 75, 147}
-	for n := 4 + 8 + 17 + 35 + 75 + 147; n < 3000; n += 147 {
-		want = append(want, 147)
+	want := []int{7, 15, 31, 63, 127}
+	for n := 7 + 15 + 31 + 63 + 127; n < 3000; n += 127 {
+		want = append(want, 127)
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("chunk sizes %v, want %v", got, want)
