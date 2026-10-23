@@ -8,6 +8,8 @@ import (
 	"runtime/pprof"
 	"sync"
 	"sync/atomic"
+
+	"github.com/paullepoulpe/jsgo/internal/jscomp"
 )
 
 // Go-only: JSGO_MEMSTATS=<file> writes allocation and GC totals at exit, as
@@ -21,7 +23,16 @@ import (
 // live objects at that same cycle: the GC's mark work per cycle grows with
 // the scannable bytes, not with pointer-free ones.
 
-var peakLive, peakScan, peakObjects atomic.Uint64
+var peakLive, peakScan, peakObjects, liveAfterColors atomic.Uint64
+
+// recordLiveAfterColors forces a collection and records the live heap, for
+// live_after_colors_bytes: what survives the types-to-colors conversion.
+func recordLiveAfterColors() {
+	runtime.GC()
+	sample := []metrics.Sample{{Name: "/gc/heap/live:bytes"}}
+	metrics.Read(sample)
+	liveAfterColors.Store(sample[0].Value.Uint64())
+}
 
 // trackPeakLive samples the live heap after every GC cycle with a finalizer
 // that re-arms itself.
@@ -69,6 +80,7 @@ func memStatsWriter(path string) func() {
 		runtime.MemProfileRate = 64 << 10
 	}
 	trackPeakLive(prof)
+	jscomp.AfterTypesToColorsHook = recordLiveAfterColors
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -100,8 +112,8 @@ func memStatsWriter(path string) func() {
 			defer f.Close()
 			fmt.Fprintf(f, "{\"alloc_bytes\": %.0f, \"alloc_objects\": %.0f, \"gc_cycles\": %.0f, "+
 				"\"gc_cpu_s\": %.3f, \"runtime_mapped_bytes\": %.0f, \"peak_live_bytes\": %d, "+
-				"\"peak_scan_bytes\": %d, \"peak_objects\": %d}\n",
-				val(0), val(1), val(2), val(3), val(4), peakLive.Load(), peakScan.Load(), peakObjects.Load())
+				"\"peak_scan_bytes\": %d, \"peak_objects\": %d, \"live_after_colors_bytes\": %d}\n",
+				val(0), val(1), val(2), val(3), val(4), peakLive.Load(), peakScan.Load(), peakObjects.Load(), liveAfterColors.Load())
 		})
 	}
 }
