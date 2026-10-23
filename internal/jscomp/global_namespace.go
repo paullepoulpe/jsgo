@@ -299,6 +299,12 @@ type GlobalNamespace struct {
 	processDefinesCheck    bool
 	hasNonScriptDefineCand bool
 	defineCandidateScripts map[*rhino.Node]struct{}
+
+	// Go-only: performance — for ProcessDefines, the qualified names that
+	// can be a define or (in check mode) a global constant whose value a
+	// define may use; the namespace records no other names. nil when the
+	// namespace serves any other pass. See collectDefineCandidates.
+	defineCandidates map[string]struct{}
 }
 
 // Release returns the pooled Scope/Var arenas owned by this GlobalNamespace.
@@ -671,8 +677,16 @@ func (g *GlobalNamespace) ScanFromNode(builder *GlobalNamespace_BuildGlobalNames
 // Java: GlobalNamespace.process()
 func (g *GlobalNamespace) ProcessNamespace() {
 	isInitial := !g.generated && g.nameMap.IsEmpty() && g.nameMapByModule == nil
+	g.concatCache = new([gnConcatCacheSize][2]string)
+	if g.forProcessDefines && isInitial {
+		g.collectDefineCandidates()
+	}
 	if g.nameMap.IsEmpty() {
-		if capHint := g.estimateNameCapacity(); capHint > 64 {
+		capHint := g.estimateNameCapacity()
+		if g.defineCandidates != nil {
+			capHint = 2 * len(g.defineCandidates)
+		}
+		if capHint > 64 {
 			g.nameMap = jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](capHint)
 		}
 	}
@@ -683,7 +697,6 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	builder.confirmExisting = !isInitial
 	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(g.scopeCreator).SetCallback(builder)
 
-	g.concatCache = new([gnConcatCacheSize][2]string)
 	if g.HasExternsRoot() {
 		traversal.TraverseRoots(g.externsRoot, g.root)
 	} else {
@@ -692,6 +705,61 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	g.concatCache = nil
 
 	g.generated = true
+}
+
+// collectDefineCandidates fills defineCandidates: the qualified name of
+// every NAME or GETPROP whose best JSDoc is @define, plus, in check mode,
+// every one whose best JSDoc is constant or that a `const` declares.
+//
+// ProcessDefines reads a name only when its declaration carries @define
+// (selectDefineDeclaration) or when it is a global constant with a `const`
+// or @const declaration (isGlobalConst + getConstantDeclValue), and then
+// only that name's own sets and gets. The names collected here are a
+// superset of those (local declarations and reads are not told apart), so
+// skipping every other name leaves ProcessDefines with the same defines,
+// the same constants and the same refs in the same order.
+//
+// Go-only: performance.
+func (g *GlobalNamespace) collectDefineCandidates() {
+	g.defineCandidates = make(map[string]struct{}, 1024)
+	check := g.processDefinesCheck
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			walk(c)
+		}
+		switch n.GetToken() {
+		case rhino.Token_NAME:
+			if check && n.GetParent() != nil && n.GetParent().IsConst() {
+				g.defineCandidates[n.GetString()] = struct{}{}
+				return
+			}
+		case rhino.Token_GETPROP:
+		default:
+			return
+		}
+		info := NodeUtil_GetBestJSDocInfo(n)
+		if info == nil || !(info.IsDefine() || (check && info.IsConstant())) {
+			return
+		}
+		if name, ok := g.qnameStringCached(n); ok {
+			g.defineCandidates[name] = struct{}{}
+		}
+	}
+	if g.HasExternsRoot() {
+		walk(g.externsRoot)
+	}
+	walk(g.root)
+}
+
+// skipsName reports whether the namespace, built for ProcessDefines, leaves
+// out the given name (see collectDefineCandidates).
+func (b *GlobalNamespace_BuildGlobalNamespace) skipsName(name string) bool {
+	if b.outer.defineCandidates == nil {
+		return false
+	}
+	_, ok := b.outer.defineCandidates[name]
+	return !ok
 }
 
 // estimateNameCapacity guesses the number of names from the number of
@@ -1478,6 +1546,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 						return
 					}
 				}
+				if b.skipsName(prefix) {
+					return
+				}
 				var nameMetadata *ModuleMetadataMap_ModuleMetadata
 				if root != g.globalRoot {
 					nameMetadata = b.curMetadata
@@ -1606,10 +1677,18 @@ func (b *GlobalNamespace_BuildGlobalNamespace) CreateNamesFromProvide(namespace 
 			subNamespace = namespace[:dot]
 		}
 		jutil.CheckState(subNamespace != "")
+		// The top-level name resolves the roots of qualified names
+		// (getRootNodeOfTopName), so it is kept even for ProcessDefines.
+		if name != nil && b.skipsName(subNamespace) {
+			continue
+		}
 		name = b.GetOrCreateName(subNamespace, nil)
 		name.SetBooleanProperty(GlobalNamespace_NameProp_IS_PROVIDED)
 	}
 
+	if b.skipsName(namespace) {
+		return
+	}
 	newName := b.GetOrCreateName(namespace, nil)
 	newName.SetBooleanProperty(GlobalNamespace_NameProp_IS_PROVIDED)
 	b.lastRootScope = nil
@@ -1724,7 +1803,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetValueType(n *rhino.Node) Globa
 // Java: GlobalNamespace.BuildGlobalNamespace.handleSetFromGlobal(JSChunk, Scope, Node, String, NameProp, ModuleMetadata)
 func (b *GlobalNamespace_BuildGlobalNamespace) HandleSetFromGlobal(
 	chunk *JSChunk, scope *Scope, n *rhino.Node, name string, type_ GlobalNamespace_NameProp, metadata *ModuleMetadataMap_ModuleMetadata) {
-	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) {
+	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) || b.skipsName(name) {
 		return
 	}
 
@@ -1796,7 +1875,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetDeclaredTypeKind(n *rhino.Node
 // Java: GlobalNamespace.BuildGlobalNamespace.handleSetFromLocal(JSChunk, Scope, Node, String, ModuleMetadata)
 func (b *GlobalNamespace_BuildGlobalNamespace) HandleSetFromLocal(
 	chunk *JSChunk, scope *Scope, n *rhino.Node, name string, metadata *ModuleMetadataMap_ModuleMetadata) {
-	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) {
+	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) || b.skipsName(name) {
 		return
 	}
 
@@ -1821,7 +1900,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) HandleSetFromLocal(
 //
 // Java: GlobalNamespace.BuildGlobalNamespace.handleGet(JSChunk, Scope, Node, String, ModuleMetadata)
 func (b *GlobalNamespace_BuildGlobalNamespace) HandleGet(chunk *JSChunk, scope *Scope, n *rhino.Node, name string, metadata *ModuleMetadataMap_ModuleMetadata) {
-	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) {
+	if b.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) || b.skipsName(name) {
 		return
 	}
 	type_ := b.DetermineRefTypeForGet(n, n, name)
@@ -2066,6 +2145,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) MaybeHandlePrototypePrefix(
 		return true
 	}
 
+	if b.skipsName(prefix) {
+		return true
+	}
 	for i := 0; i < numLevelsToRemove; i++ {
 		n = n.GetFirstChild()
 	}
