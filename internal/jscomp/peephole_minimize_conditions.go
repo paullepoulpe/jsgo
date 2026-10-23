@@ -532,9 +532,15 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n *rhino.Node) *rhino.Node {
 			if shortCond.IsNot() {
 				// if(!x)bar(); -> x||bar();
 				replacementCond := p.ReplaceNode(originalCond, shortCond.WithoutNot()).Detach()
-				or := rhino.IR_Or(
-					replacementCond,
-					expr.RemoveFirstChild()).Srcref(n)
+				rhs := expr.RemoveFirstChild()
+				if thenBranch.CanResetInPlace() && n.CanResetInPlace() {
+					thenBranch.Detach()
+					or := thenBranch.ResetDetachedToBinaryOpFromSrcref(rhino.Token_OR, replacementCond, rhs, n)
+					newExpr := n.MutateAttachedToExprResultInPlace(or)
+					p.ReportChangeToEnclosingScope(parent)
+					return newExpr
+				}
+				or := rhino.IR_Or(replacementCond, rhs).Srcref(n)
 				newExpr := NodeUtil_NewExpr(or)
 				n.ReplaceWith(newExpr)
 				p.ReportChangeToEnclosingScope(parent)
@@ -556,7 +562,15 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n *rhino.Node) *rhino.Node {
 			}
 
 			replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-			and := rhino.IR_And(replacementCond, expr.RemoveFirstChild()).Srcref(n)
+			rhs := expr.RemoveFirstChild()
+			if thenBranch.CanResetInPlace() && n.CanResetInPlace() {
+				thenBranch.Detach()
+				and := thenBranch.ResetDetachedToBinaryOpFromSrcref(rhino.Token_AND, replacementCond, rhs, n)
+				newExpr := n.MutateAttachedToExprResultInPlace(and)
+				p.ReportChangeToEnclosingScope(parent)
+				return newExpr
+			}
+			and := rhino.IR_And(replacementCond, rhs).Srcref(n)
 			newExpr := NodeUtil_NewExpr(and)
 			n.ReplaceWith(newExpr)
 			p.ReportChangeToEnclosingScope(parent)

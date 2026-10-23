@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -76,6 +77,7 @@ type ClosureRewriteModule struct {
 	googRequireDynamicCalls           *jutil.ArrayList[*rhino.Node]
 
 	globalTypedScope *TypedScope
+	scriptDescSlab   []ClosureRewriteModule_ScriptDescription
 }
 
 var _ CompilerPass = (*ClosureRewriteModule)(nil)
@@ -329,12 +331,12 @@ func NewClosureRewriteModule_AliasName(newName string, namespaceId *string) *Clo
 type ClosureRewriteModule_ScriptDescription struct {
 	isModule               bool
 	declareLegacyNamespace bool
-	namespaceId            *string                      // "a.b.c"
-	contentsPrefix         *string                      // "module$contents$a$b$c_
-	topLevelNames          *jutil.LinkedHashSet[string] // For prefixed content renaming.
+	namespaceId            *string                     // "a.b.c"
+	contentsPrefix         *string                     // "module$contents$a$b$c_
+	topLevelNames          jutil.LinkedHashSet[string] // For prefixed content renaming.
 	// Go-only: language-adapter — the ArrayDeque is an ArrayList.
-	childScripts         *jutil.ArrayList[*ClosureRewriteModule_ScriptDescription]
-	namesToInlineByAlias *jutil.LinkedHashMap[string, *ClosureRewriteModule_AliasName] // For alias inlining.
+	childScripts         jutil.ArrayList[*ClosureRewriteModule_ScriptDescription]
+	namesToInlineByAlias jutil.LinkedHashMap[string, *ClosureRewriteModule_AliasName] // For alias inlining.
 
 	// Transient state.
 	willCreateExportsObject bool
@@ -342,8 +344,8 @@ type ClosureRewriteModule_ScriptDescription struct {
 	hasCreatedExportObject bool
 	defaultExport          *ClosureRewriteModule_ExportDefinition
 	defaultExportLocalName *string
-	namedExports           *jutil.LinkedHashSet[string]
-	exportsToInline        *jutil.LinkedHashMap[*Var, *ClosureRewriteModule_ExportDefinition]
+	namedExports           jutil.LinkedHashSet[string]
+	exportsToInline        jutil.LinkedHashMap[*Var, *ClosureRewriteModule_ExportDefinition]
 
 	// The root of the module. The MODULE_BODY node that contains the module
 	// contents. For recognizing top level names.
@@ -352,13 +354,17 @@ type ClosureRewriteModule_ScriptDescription struct {
 
 // Java: ClosureRewriteModule.ScriptDescription()
 func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDescription {
-	return &ClosureRewriteModule_ScriptDescription{
-		topLevelNames:        jutil.NewLinkedHashSet[string](),
-		childScripts:         jutil.NewArrayList[*ClosureRewriteModule_ScriptDescription](),
-		namesToInlineByAlias: jutil.NewLinkedHashMap[string, *ClosureRewriteModule_AliasName](),
-		namedExports:         jutil.NewLinkedHashSet[string](),
-		exportsToInline:      jutil.NewLinkedHashMap[*Var, *ClosureRewriteModule_ExportDefinition](),
+	return &ClosureRewriteModule_ScriptDescription{}
+}
+
+func (m *ClosureRewriteModule) allocScriptDescription() *ClosureRewriteModule_ScriptDescription {
+	if len(m.scriptDescSlab) == cap(m.scriptDescSlab) {
+		newCap := max(16, min(max(cap(m.scriptDescSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(ClosureRewriteModule_ScriptDescription{}))))
+		m.scriptDescSlab = make([]ClosureRewriteModule_ScriptDescription, 0, newCap)
 	}
+	idx := len(m.scriptDescSlab)
+	m.scriptDescSlab = m.scriptDescSlab[:idx+1]
+	return &m.scriptDescSlab[idx]
 }
 
 // Java: ClosureRewriteModule.ScriptDescription.addChildScript(ScriptDescription)
@@ -990,7 +996,7 @@ func (m *ClosureRewriteModule) Process(externs *rhino.Node, root *rhino.Node) {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
 			NodeTraversal_Traverse(m.compiler, script, &unwrap)
 
-			m.PushScript(NewClosureRewriteModule_ScriptDescription()) // sets currentScript
+			m.PushScript(m.allocScriptDescription()) // sets currentScript
 
 			m.currentScript.rootNode = script
 			scriptDescriptions.Add(m.currentScript)
@@ -1100,7 +1106,7 @@ func (m *ClosureRewriteModule) PreprocessExportDeclaration(t *NodeTraversal, n *
 
 // Java: ClosureRewriteModule.recordModuleBody(Node)
 func (m *ClosureRewriteModule) RecordModuleBody(moduleRoot *rhino.Node) {
-	m.PushScript(NewClosureRewriteModule_ScriptDescription())
+	m.PushScript(m.allocScriptDescription())
 
 	m.currentScript.rootNode = moduleRoot
 	m.currentScript.isModule = true
@@ -1324,7 +1330,7 @@ func (m *ClosureRewriteModule) MaybeRecordExportDeclaration(t *NodeTraversal, n 
 	defaultExport := ClosureRewriteModule_ExportDefinition_NewDefaultExport(t, exportRhs)
 	m.currentScript.defaultExport = defaultExport
 	if !m.currentScript.declareLegacyNamespace &&
-		defaultExport.HasInlinableName(m.currentScript.exportsToInline) {
+		defaultExport.HasInlinableName(&m.currentScript.exportsToInline) {
 		localName := defaultExport.GetLocalName()
 		m.currentScript.defaultExportLocalName = localName
 		m.RecordExportToInline(defaultExport)
@@ -1409,7 +1415,8 @@ func (m *ClosureRewriteModule) UpdateGoogRequire(t *NodeTraversal, call *rhino.N
 		} else if lhs.IsName() {
 			// `var Foo` case
 			aliasName := statementNode.GetFirstChild().GetString()
-			m.RecordNameToInline(aliasName, *exportedNamespace, &namespaceId)
+			nsCopy := namespaceId
+			m.RecordNameToInline(aliasName, *exportedNamespace, &nsCopy)
 			m.MaybeAddAliasToSymbolTable(statementNode.GetFirstChild(), m.currentScript.namespaceId)
 		} else if lhs.IsDestructuringLhs() && lhs.GetFirstChild().IsObjectPattern() {
 			// `const {Foo}` case
@@ -1776,7 +1783,7 @@ func (m *ClosureRewriteModule) RecordExportsPropertyAssignment(t *NodeTraversal,
 		namedExport := ClosureRewriteModule_ExportDefinition_NewNamedExport(t, &exportName, exportRhs)
 		if !m.currentScript.declareLegacyNamespace &&
 			m.currentScript.defaultExport == nil &&
-			namedExport.HasInlinableName(m.currentScript.exportsToInline) {
+			namedExport.HasInlinableName(&m.currentScript.exportsToInline) {
 			m.RecordExportToInline(namedExport)
 			parent.GetParent().Detach()
 		}
@@ -2149,7 +2156,7 @@ func closureRewriteModule_markConstAndCopyJsDoc(from *rhino.Node, target *rhino.
 
 // Java: ClosureRewriteModule.recordExportToInline(ExportDefinition)
 func (m *ClosureRewriteModule) RecordExportToInline(exportDefinition *ClosureRewriteModule_ExportDefinition) {
-	if !exportDefinition.HasInlinableName(m.currentScript.exportsToInline) {
+	if !exportDefinition.HasInlinableName(&m.currentScript.exportsToInline) {
 		jutil.CheckStateMsg2(
 			false,
 			"exportDefinition: %s\n\nexportsToInline keys: %s",

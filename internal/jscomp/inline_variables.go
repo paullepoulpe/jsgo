@@ -1458,9 +1458,21 @@ func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, val
 			 */
 			b.InlineValue(r.GetParent(), value.Detach())
 		} else {
-			clonedValue := value.CloneTree()
-			NodeUtil_MarkNewScopesChanged(clonedValue, b.outer.compiler)
-			b.InlineValue(r.GetNode(), clonedValue)
+			toRemove := r.GetNode()
+			if toRemove.CanCloneLeafInPlace() && value.CanCloneLeafInPlace() {
+				b.outer.compiler.ReportChangeToEnclosingScope(toRemove)
+				castColor := toRemove.GetColor()
+				hasCastColor := castColor != nil && toRemove.IsColorFromTypeCast()
+				toRemove.OverwriteLeafFromClone(value)
+				if hasCastColor {
+					toRemove.SetColor(castColor)
+					toRemove.SetColorFromTypeCast()
+				}
+			} else {
+				clonedValue := value.CloneTree()
+				NodeUtil_MarkNewScopesChanged(clonedValue, b.outer.compiler)
+				b.InlineValue(toRemove, clonedValue)
+			}
 		}
 	}
 }

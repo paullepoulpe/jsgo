@@ -60,6 +60,9 @@ func NewJSError(
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
+	if node != nil {
+		node.PinForDiagnostic()
+	}
 	return &JSError{
 		type_:        type_,
 		description:  description,

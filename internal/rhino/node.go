@@ -6390,10 +6390,17 @@ func (n *Node) nodeStringValue() string {
 }
 
 // CanResetInPlace reports whether n has no cold extBox, extra side-table entry,
-// or overflow source-file ID, making in-place token/payload mutation exact.
+// diagnostic pin, or overflow source-file ID, making in-place token/payload
+// mutation exact.
 func (n *Node) CanResetInPlace() bool {
 	return (n.kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
 		uint32(n.propFlags>>nodePropSourceFileShift) != nodePropSourceFileOverflow
+}
+
+// PinForDiagnostic marks n so later optimization passes do not recycle n
+// in-place, preserving n's original length/token for deferred JSError formatting.
+func (n *Node) PinForDiagnostic() {
+	n.kindFlags |= kindFlagHasExtra
 }
 
 // MutateGetPropToNameInPlace rewrites an attached GETPROP node into a NAME node
@@ -6493,7 +6500,7 @@ func (n *Node) MutateAttachedStmtToVarFromSrcref(nameChild *Node, srcref *Node, 
 	n.token = Token_VAR
 	n.kindFlags = 0
 	n.propFlags = srcref.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.payload = srcref.payload & 0xFFFFFFFF00000000
+	n.payload = uint64(srcref.node_originalNameID()) << 32
 	n.linenoCharno = srcref.linenoCharno
 	n.length16 = srcref.length16
 	n.AddChildToFront(nameChild)
@@ -6512,5 +6519,169 @@ func (n *Node) ResetDetachedToFreshNameID(nameID uint32) *Node {
 	n.payload = uint64(nameID)
 	n.linenoCharno = -1
 	n.length16 = 0
+	return n
+}
+
+// CanCloneLeafInPlace reports whether src is a childless leaf node with no cold
+// extBox/extra metadata or overflow source file, allowing zero-allocation
+// in-place leaf cloning via OverwriteLeafFromClone.
+func (n *Node) CanCloneLeafInPlace() bool {
+	return n.first == nil && n.CanResetInPlace()
+}
+
+// OverwriteLeafFromClone overwrites an attached childless leaf node (which must
+// satisfy CanCloneLeafInPlace) with a clone of src (which must also satisfy
+// CanCloneLeafInPlace), matching src.CloneTree() + n.ReplaceWith(clone) with
+// zero allocations.
+func (n *Node) OverwriteLeafFromClone(src *Node) {
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	oldSF := n.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	oldOrigID := n.node_originalNameID()
+	n.token = src.token
+	n.kindFlags = src.kindFlags & (kindMask | kindFlagHasTypeOrColor | kindFlagTypeIsColor)
+	n.typeOrColor = src.typeOrColor
+	n.propFlags = src.propFlags
+	n.payload = src.payload
+	if (src.propFlags >> nodePropSourceFileShift) == 0 {
+		n.propFlags |= oldSF
+	} else {
+		n.linenoCharno = src.linenoCharno
+		n.length16 = src.length16
+	}
+	if oldOrigID != 0 && n.node_originalNameID() == 0 {
+		n.node_setOriginalNameID(oldOrigID)
+	}
+}
+
+// ResetTemplateUndefinedSrcref updates a detached 2-node `void 0` template in
+// place to match NodeUtil_NewUndefinedNode(src). Returns false if either node in
+// the template or src has cold/overflow metadata so the caller can allocate a
+// fresh template.
+func (n *Node) ResetTemplateUndefinedSrcref(src *Node) bool {
+	num := n.first
+	if num == nil || !n.CanResetInPlace() || !num.CanResetInPlace() {
+		return false
+	}
+	if src == nil {
+		n.typeOrColor = nil
+		n.kindFlags = 0
+		n.propFlags = 0
+		n.payload = 0
+		n.linenoCharno = -1
+		n.length16 = 0
+		num.typeOrColor = nil
+		num.kindFlags = uint8(node_kindNumber)
+		num.propFlags = 0
+		num.payload = 0
+		num.linenoCharno = -1
+		num.length16 = 0
+		return true
+	}
+	if !src.CanResetInPlace() || src.node_originalNameID() != 0 {
+		return false
+	}
+	sfFlags := src.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.typeOrColor = nil
+	n.kindFlags = 0
+	n.propFlags = sfFlags
+	n.payload = 0
+	n.linenoCharno = src.linenoCharno
+	n.length16 = src.length16
+	num.typeOrColor = nil
+	num.kindFlags = uint8(node_kindNumber)
+	num.propFlags = sfFlags
+	num.payload = 0
+	num.linenoCharno = src.linenoCharno
+	num.length16 = src.length16
+	return true
+}
+
+// MutateAttachedToFreshVarInPlace resets an attached statement node
+// (CanResetInPlace) into a Token_VAR node matching n.ReplaceWith(NewNode(Token_VAR))
+// (preserving n's Srcref), with optional single child nameChild and optional JSDocInfo.
+func (n *Node) MutateAttachedToFreshVarInPlace(nameChild *Node, jsdoc *JSDocInfo) {
+	n.DetachChildren()
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	origID := n.node_originalNameID()
+	n.typeOrColor = nil
+	n.token = Token_VAR
+	n.kindFlags = 0
+	n.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+	n.payload = uint64(origID) << 32
+	if nameChild != nil {
+		n.AddChildToFront(nameChild)
+	}
+	if jsdoc != nil {
+		n.SetJSDocInfo(jsdoc)
+	}
+}
+
+// ResetDetachedToNameWithOriginalNameInPlace resets a detached node
+// (CanResetInPlace) into a NAME(name) node with Srcref(srcref), originalName,
+// and IS_CONSTANT_NAME = isConstant (srcref must satisfy CanResetInPlace).
+func (n *Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalName string, srcref *Node, isConstant bool) *Node {
+	n.DetachChildren()
+	nameID := rhinoStringPoolIntern(name)
+	origID := rhinoStringPoolIntern(originalName)
+	n.typeOrColor = nil
+	n.token = Token_NAME
+	n.kindFlags = uint8(node_kindString)
+	flags := srcref.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	if isConstant {
+		flags |= propFlag_IS_CONSTANT_NAME
+	}
+	n.propFlags = flags
+	n.payload = (uint64(origID) << 32) | uint64(nameID)
+	n.linenoCharno = srcref.linenoCharno
+	n.length16 = srcref.length16
+	return n
+}
+
+// MutateAttachedToExprResultInPlace resets an attached statement node
+// (CanResetInPlace) into IR_ExprResult(exprChild).Srcref(exprChild) + ReplaceWith
+// (preserving n's SrcrefIfMissing) in-place (exprChild must be detached and
+// satisfy CanResetInPlace).
+func (n *Node) MutateAttachedToExprResultInPlace(exprChild *Node) *Node {
+	n.DetachChildren()
+	if n.parent != nil {
+		n.parent.kindFlags &^= kindFlagNoBlockDecl
+	}
+	origID := exprChild.node_originalNameID()
+	if origID == 0 {
+		origID = n.node_originalNameID()
+	}
+	n.typeOrColor = nil
+	n.token = Token_EXPR_RESULT
+	n.kindFlags = 0
+	if (exprChild.propFlags >> nodePropSourceFileShift) != 0 {
+		n.propFlags = exprChild.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+		n.linenoCharno = exprChild.linenoCharno
+		n.length16 = exprChild.length16
+	} else {
+		n.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+	}
+	n.payload = uint64(origID) << 32
+	n.AddChildToFront(exprChild)
+	return n
+}
+
+// ResetDetachedToBinaryOpFromSrcref resets a detached node (CanResetInPlace)
+// into NewNodeWith2Children(op, left, right).Srcref(srcref) in-place (srcref
+// must satisfy CanResetInPlace; left and right must be detached).
+func (n *Node) ResetDetachedToBinaryOpFromSrcref(op Token, left *Node, right *Node, srcref *Node) *Node {
+	n.DetachChildren()
+	n.typeOrColor = nil
+	n.token = op
+	n.kindFlags = 0
+	n.propFlags = srcref.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.payload = uint64(srcref.node_originalNameID()) << 32
+	n.linenoCharno = srcref.linenoCharno
+	n.length16 = srcref.length16
+	n.AddChildToFront(left)
+	n.AddChildToBack(right)
 	return n
 }

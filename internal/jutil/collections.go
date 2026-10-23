@@ -191,6 +191,12 @@ type LhmSlot[K comparable, V any] struct {
 	value V
 }
 
+// Key returns the slot's key.
+func (s *LhmSlot[K, V]) Key() K { return s.key }
+
+// Value returns the slot's value.
+func (s *LhmSlot[K, V]) Value() V { return s.value }
+
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
 // Guava ImmutableMap and any Java map whose iteration order is insertion
 // order. Keys use Go equality, which matches Java equals() for strings,
@@ -524,6 +530,18 @@ func (h *LinkedHashMap[K, V]) ForEachValue(fn func(V)) {
 		}
 		fn(h.slots[i].value)
 	}
+}
+
+// CompactSlots returns h's contiguous slot slice and true when h has no removed
+// entries (including when h is nil or empty), enabling zero-allocation loops.
+func (h *LinkedHashMap[K, V]) CompactSlots() ([]LhmSlot[K, V], bool) {
+	if h == nil {
+		return nil, true
+	}
+	if int(h.size) == len(h.slots) {
+		return h.slots, true
+	}
+	return nil, false
 }
 
 // All iterates entries in insertion order. Entries removed during iteration
@@ -1354,6 +1372,22 @@ func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K {
 		}
 	}
 	return out
+}
+
+// CompactLen returns len(h.slots) when h has no tombstones, or -1 otherwise.
+func (h *ObjectLinkedHashMap[K, V]) CompactLen() int {
+	if h == nil {
+		return 0
+	}
+	if int(h.size) == len(h.slots) {
+		return len(h.slots)
+	}
+	return -1
+}
+
+// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
+func (h *ObjectLinkedHashMap[K, V]) ValueAtSlot(i int) V {
+	return h.slots[i].value
 }
 
 func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {

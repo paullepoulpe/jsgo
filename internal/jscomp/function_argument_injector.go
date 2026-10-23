@@ -30,6 +30,7 @@ type FunctionArgumentInjector struct {
 	astAnalyzer *AstAnalyzer
 
 	sentinelUndefinedNode *rhino.Node
+	templateUndefinedNode *rhino.Node
 	sentinelThisNode      *rhino.Node
 	scratchArgMap         *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
 	scratchPairSlab       []FunctionArgumentInjector_ParamArgPair
@@ -52,6 +53,7 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 	f := &FunctionArgumentInjector{
 		astAnalyzer:           astAnalyzer,
 		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(nil),
+		templateUndefinedNode: NodeUtil_NewUndefinedNode(nil),
 		sentinelThisNode:      rhino.IR_ThisNode(),
 		scratchArgMap:         jutil.NewLinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair](),
 		scratchLocals:         jutil.NewLinkedHashSet[string](),
@@ -79,6 +81,13 @@ func (f *FunctionArgumentInjector) allocScratchPair(paramNode *rhino.Node, arg *
 	return p
 }
 
+func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode *rhino.Node) *rhino.Node {
+	if f.templateUndefinedNode != nil && f.templateUndefinedNode.ResetTemplateUndefinedSrcref(callNode) {
+		return f.templateUndefinedNode
+	}
+	return NodeUtil_NewUndefinedNode(callNode)
+}
+
 // Inject, with the map provided, replaces the names with expression trees.
 //
 // node is the root node of the tree within which to perform the
@@ -103,6 +112,10 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 		if replacementTemplate != nil {
 			// This should not be replacing declared names.
 			jutil.CheckStateMsg1(!(parent.IsFunction() || parent.IsVar() || parent.IsCatch()), "%s", parent)
+			if parent != nil && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+				node.OverwriteLeafFromClone(replacementTemplate)
+				return node
+			}
 			// The name may need to be replaced more than once,
 			// so we need to clone the node.
 			replacement := replacementTemplate.CloneTree()
@@ -113,6 +126,13 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 		replacementTemplate := replacements.Get(FunctionArgumentInjector_THIS_MARKER)
 		jutil.CheckNotNull(replacementTemplate)
 		if !replacementTemplate.IsThis() {
+			if parent != nil && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+				node.OverwriteLeafFromClone(replacementTemplate)
+				if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
+					replacements.Remove(FunctionArgumentInjector_THIS_MARKER)
+				}
+				return node
+			}
 			// The name may need to be replaced more than once,
 			// so we need to clone the node.
 			replacement := replacementTemplate.CloneTree()
@@ -241,17 +261,19 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 	jutil.CheckNotNull(fnNode)
 	dst.Clear()
 
+	var undefTemplate *rhino.Node
 	cArg := callNode.GetSecondChild()
 	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			dst.Put(FunctionArgumentInjector_THIS_MARKER, cArg)
 		} else {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, rhino.IR_ThisNode())
+			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.sentinelThisNode)
 		}
 		cArg = cArg.GetNext()
 	} else {
 		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		dst.Put(FunctionArgumentInjector_THIS_MARKER, NodeUtil_NewUndefinedNode(callNode))
+		undefTemplate = f.getTemplateUndefinedNode(callNode)
+		dst.Put(FunctionArgumentInjector_THIS_MARKER, undefTemplate)
 	}
 
 	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
@@ -283,7 +305,10 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 				}
 			} else {
 				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if dst.Put(fnParam.GetString(), NodeUtil_NewUndefinedNode(callNode)) != nil {
+				if undefTemplate == nil {
+					undefTemplate = f.getTemplateUndefinedNode(callNode)
+				}
+				if dst.Put(fnParam.GetString(), undefTemplate) != nil {
 					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 				}
 			}
@@ -313,17 +338,19 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 		f.scratchPairSlab = f.scratchPairSlab[:0]
 	}
 
+	var undefTemplate *rhino.Node
 	cArg := callNode.GetSecondChild()
 	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
 		} else {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, rhino.IR_ThisNode()))
+			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, f.sentinelThisNode))
 		}
 		cArg = cArg.GetNext()
 	} else {
 		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, NodeUtil_NewUndefinedNode(callNode)))
+		undefTemplate = f.getTemplateUndefinedNode(callNode)
+		dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, undefTemplate))
 	}
 
 	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
@@ -355,7 +382,10 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 				}
 			} else {
 				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if dst.Put(fnParam.GetString(), f.allocScratchPair(fnParam, NodeUtil_NewUndefinedNode(callNode))) != nil {
+				if undefTemplate == nil {
+					undefTemplate = f.getTemplateUndefinedNode(callNode)
+				}
+				if dst.Put(fnParam.GetString(), f.allocScratchPair(fnParam, undefTemplate)) != nil {
 					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 				}
 			}

@@ -926,6 +926,9 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 
 	lastOwnerNode *rhino.Node
 	lastOwnerName string
+
+	scratchSuperBuilder rhino.NominalTypeBuilder
+	scratchSubBuilder   rhino.NominalTypeBuilder
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -3150,12 +3153,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 			superCtor := superClass.GetConstructor()
 			subCtor := subClass.GetConstructor()
 			if superCtor != nil && subCtor != nil {
-				superBuilder := rhino.MakeNominalTypeBuilder(superCtor, superClass)
-				subBuilder := rhino.MakeNominalTypeBuilder(subCtor, subClass)
+				b.scratchSuperBuilder = rhino.MakeNominalTypeBuilder(superCtor, superClass)
+				b.scratchSubBuilder = rhino.MakeNominalTypeBuilder(subCtor, subClass)
 				b.outer.codingConvention.ApplySubclassRelationship(
-					&superBuilder,
-					&subBuilder,
+					&b.scratchSuperBuilder,
+					&b.scratchSubBuilder,
 					relationship.type_)
+				b.scratchSuperBuilder = rhino.NominalTypeBuilder{}
+				b.scratchSubBuilder = rhino.NominalTypeBuilder{}
 			}
 		}
 	}

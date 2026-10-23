@@ -91,7 +91,16 @@ func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraph
 	n := &f.nodeSlab[idx]
 	n.index = id
 	n.color = key
+	n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
 	return n
+}
+
+func (f *ColorGraphNodeFactory) KnownTypesCompactLen() int {
+	return f.typeIndex.CompactLen()
+}
+
+func (f *ColorGraphNodeFactory) KnownTypeAtSlot(i int) *ColorGraphNode {
+	return f.typeIndex.ValueAtSlot(i)
 }
 
 // simplifyColor merges different colors with the same ambiguation-behavior

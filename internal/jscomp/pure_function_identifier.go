@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -62,6 +63,7 @@ type PureFunctionIdentifier struct {
 	// See AmbiguatedFunctionSummary.
 	summariesByName     map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 	propSummariesByName map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	propKeyBuf          []byte
 
 	// Mapping from function node to summaries for all names associated with
 	// that node.
@@ -679,43 +681,95 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	p.ensureReverseCallGraphCapacity(totalRefs + 2)
 
 	hasDotNameCollision := false
-	for key, value := range referenceMap.GetNameReferences() {
-		if value.IsEmpty() {
-			continue
+	if slots, ok := referenceMap.names.CompactSlots(); ok {
+		for i := range slots {
+			key := slots[i].Key()
+			value := slots[i].Value()
+			if value.IsEmpty() {
+				continue
+			}
+			jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
+			p.summariesByName[key] = p.createSummaryInGraph(key)
 		}
-		jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
-		p.summariesByName[key] = p.createSummaryInGraph(key)
+	} else {
+		for key, value := range referenceMap.GetNameReferences() {
+			if value.IsEmpty() {
+				continue
+			}
+			jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
+			p.summariesByName[key] = p.createSummaryInGraph(key)
+		}
 	}
-	for key, value := range referenceMap.GetPropReferences() {
-		if value.IsEmpty() {
-			continue
+	if slots, ok := referenceMap.props.CompactSlots(); ok {
+		for i := range slots {
+			key := slots[i].Key()
+			value := slots[i].Value()
+			if value.IsEmpty() {
+				continue
+			}
+			jutil.CheckState(key != "")
+			propKey := p.allocPropKey(key)
+			if existing := p.summariesByName[propKey]; existing != nil {
+				p.propSummariesByName[key] = existing
+				hasDotNameCollision = true
+			} else {
+				s := p.createSummaryInGraph(propKey)
+				p.summariesByName[propKey] = s
+				p.propSummariesByName[key] = s
+			}
 		}
-		jutil.CheckState(key != "")
-		propKey := PureFunctionIdentifier_PROP_NAME_PREFIX + key
-		if existing := p.summariesByName[propKey]; existing != nil {
-			p.propSummariesByName[key] = existing
-			hasDotNameCollision = true
-		} else {
-			s := p.createSummaryInGraph(propKey)
-			p.summariesByName[propKey] = s
-			p.propSummariesByName[key] = s
+	} else {
+		for key, value := range referenceMap.GetPropReferences() {
+			if value.IsEmpty() {
+				continue
+			}
+			jutil.CheckState(key != "")
+			propKey := p.allocPropKey(key)
+			if existing := p.summariesByName[propKey]; existing != nil {
+				p.propSummariesByName[key] = existing
+				hasDotNameCollision = true
+			} else {
+				s := p.createSummaryInGraph(propKey)
+				p.summariesByName[propKey] = s
+				p.propSummariesByName[key] = s
+			}
 		}
 	}
 
 	if !hasDotNameCollision {
-		for key, value := range referenceMap.GetNameReferences() {
-			refs := value.Slice()
-			if len(refs) == 0 {
-				continue
+		if slots, ok := referenceMap.names.CompactSlots(); ok {
+			for i := range slots {
+				refs := slots[i].Value().Slice()
+				if len(refs) == 0 {
+					continue
+				}
+				p.populateFunctionDefinitionsWithSummary(p.summariesByName[slots[i].Key()], refs)
 			}
-			p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
+		} else {
+			for key, value := range referenceMap.GetNameReferences() {
+				refs := value.Slice()
+				if len(refs) == 0 {
+					continue
+				}
+				p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
+			}
 		}
-		for key, value := range referenceMap.GetPropReferences() {
-			refs := value.Slice()
-			if len(refs) == 0 {
-				continue
+		if slots, ok := referenceMap.props.CompactSlots(); ok {
+			for i := range slots {
+				refs := slots[i].Value().Slice()
+				if len(refs) == 0 {
+					continue
+				}
+				p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[slots[i].Key()], refs)
 			}
-			p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
+		} else {
+			for key, value := range referenceMap.GetPropReferences() {
+				refs := value.Slice()
+				if len(refs) == 0 {
+					continue
+				}
+				p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
+			}
 		}
 	} else {
 		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[*rhino.Node]](max(totalRefs, 12))
@@ -729,7 +783,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			if value.IsEmpty() {
 				continue
 			}
-			propKey := PureFunctionIdentifier_PROP_NAME_PREFIX + key
+			propKey := p.allocPropKey(key)
 			if existing := referencesByName.Get(propKey); existing != nil {
 				combined := jutil.NewArrayListWithCapacity[*rhino.Node](existing.Size() + value.Size())
 				combined.AddAll(existing.Slice()...)
@@ -747,6 +801,20 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	p.putSummaryForFunctionNode(
 		PureFunctionIdentifier_IMPLICIT_PURE_FN,
 		p.createSummaryInGraph("<implicit pure class ctor"))
+}
+
+func (p *PureFunctionIdentifier) allocPropKey(key string) string {
+	need := 1 + len(key)
+	if need > jscompMaxSmallAlloc {
+		return PureFunctionIdentifier_PROP_NAME_PREFIX + key
+	}
+	if cap(p.propKeyBuf)-len(p.propKeyBuf) < need {
+		p.propKeyBuf = make([]byte, 0, jscompMaxSmallAlloc)
+	}
+	off := len(p.propKeyBuf)
+	p.propKeyBuf = append(p.propKeyBuf, '.')
+	p.propKeyBuf = append(p.propKeyBuf, key...)
+	return unsafe.String(&p.propKeyBuf[off], need)
 }
 
 // PopulateFunctionDefinitions, for a name and its set of references, records
