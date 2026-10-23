@@ -398,9 +398,12 @@ const (
 )
 
 const (
-	kindMask               uint8 = 7
-	kindFlagTypeIsColor    uint8 = 1 << 3
-	kindFlagNoBlockDecl    uint8 = 1 << 4
+	kindMask            uint8 = 7
+	kindFlagTypeIsColor uint8 = 1 << 3
+	kindFlagNoBlockDecl uint8 = 1 << 4
+	// kindFlagHasExtra: the cold property list may hold the value of a
+	// property that is normally stored inline (e.g. an int value other than
+	// 1 for a boolean property, or CHANGE_TIME of a non-Node kind).
 	kindFlagHasExtra       uint8 = 1 << 5
 	kindFlagHasTypeOrColor uint8 = 1 << 6
 	kindFlagHasExtBox      uint8 = 1 << 7
@@ -593,11 +596,14 @@ var nodeBitToProp = [propBitCount]Node_Prop{
 	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 }
 
+// nodeExtBox holds the rarely-set parts of a node (see Node.typeOrColor).
 type nodeExtBox struct {
 	typeOrColor    unsafe.Pointer     // *JSTypeBase or *colors.Color (valid iff kindFlagHasTypeOrColor != 0)
 	jsDocInfo      *JSDocInfo         // canonical *JSDocInfo (valid iff propFlagHasJSDoc != 0 && jsDocInfo != nil)
 	typeBeforeCast *JSTypeBase        // canonical TYPE_BEFORE_CAST (non-nil iff present as JSType)
 	propListHead   *Node_PropListItem // remaining cold properties
+	length         int32              // the length, when Node.length16 is 0xFFFF
+	origNameID     rhinoStringID      // the originalName of a NUMBER or TEMPLATELIT_STRING node
 }
 
 var (
@@ -669,7 +675,7 @@ func (n *Node) ensureExtBox() *nodeExtBox {
 }
 
 func (n *Node) maybeCollapseExtBox(box *nodeExtBox) {
-	if box.typeBeforeCast != nil || box.propListHead != nil {
+	if box.typeBeforeCast != nil || box.propListHead != nil || n.extBoxHoldsNodeFields(box) {
 		return
 	}
 	hasTOC := (n.kindFlags & kindFlagHasTypeOrColor) != 0
@@ -685,6 +691,12 @@ func (n *Node) maybeCollapseExtBox(box *nodeExtBox) {
 	} else {
 		n.typeOrColor = nil
 	}
+}
+
+// extBoxHoldsNodeFields reports whether box holds a length or an original
+// name that does not fit in the Node itself.
+func (n *Node) extBoxHoldsNodeFields(box *nodeExtBox) bool {
+	return n.length16 == 0xFFFF || box.origNameID != 0
 }
 
 func (n *Node) coldPropListHead() *Node_PropListItem {
@@ -3077,7 +3089,7 @@ type Node struct {
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
 	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
 	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
-	length16     uint16 // code length (0..65534 inline; 65535 = overflow)
+	length16     uint16 // code length (0..65534 inline; 65535: in the nodeExtBox)
 	token        Token  // token kind (uint8)
 	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: hasTypeOrColor; bit 7: hasExtBox
 }
@@ -3099,69 +3111,13 @@ func (n *Node) ClearNoBlockScopeDecls() {
 	n.kindFlags &^= kindFlagNoBlockDecl
 }
 
-type nodeExtraEntry struct {
-	length     int32
-	hasLength  bool
-	origNameID rhinoStringID
-}
-
-var nodeExtraShards [64]struct {
-	mu sync.RWMutex
-	m  map[uintptr]nodeExtraEntry
-}
-
-func nodeExtraShardFor(n *Node) (uintptr, *struct {
-	mu sync.RWMutex
-	m  map[uintptr]nodeExtraEntry
-}) {
-	k := uintptr(unsafe.Pointer(n))
-	return k, &nodeExtraShards[(k>>6)&63]
-}
-
-func (n *Node) getExtraEntry() (nodeExtraEntry, bool) {
-	k, s := nodeExtraShardFor(n)
-	s.mu.RLock()
-	e, ok := s.m[k]
-	s.mu.RUnlock()
-	return e, ok
-}
-
-func (n *Node) setExtraLength(length int32) {
-	n.kindFlags |= kindFlagHasExtra
-	k, s := nodeExtraShardFor(n)
-	s.mu.Lock()
-	if s.m == nil {
-		s.m = make(map[uintptr]nodeExtraEntry)
-	}
-	e := s.m[k]
-	e.length = length
-	e.hasLength = true
-	s.m[k] = e
-	s.mu.Unlock()
-}
-
-func (n *Node) setExtraOrigNameID(id rhinoStringID) {
-	n.kindFlags |= kindFlagHasExtra
-	k, s := nodeExtraShardFor(n)
-	s.mu.Lock()
-	if s.m == nil {
-		s.m = make(map[uintptr]nodeExtraEntry)
-	}
-	e := s.m[k]
-	e.origNameID = id
-	s.m[k] = e
-	s.mu.Unlock()
-}
-
 func (n *Node) node_originalNameID() rhinoStringID {
 	k := n.nodeKind()
 	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
 		return rhinoStringID(n.payload >> 32)
 	}
-	if n.kindFlags&kindFlagHasExtra != 0 {
-		if e, ok := n.getExtraEntry(); ok {
-			return e.origNameID
-		}
+	if n.kindFlags&kindFlagHasExtBox != 0 {
+		return (*nodeExtBox)(n.typeOrColor).origNameID
 	}
 	return 0
 }
@@ -3172,10 +3128,13 @@ func (n *Node) node_setOriginalNameID(id rhinoStringID) {
 		n.payload = (n.payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
 		return
 	}
-	if id == 0 && (n.kindFlags&kindFlagHasExtra) == 0 {
-		return
+	if id != 0 {
+		n.ensureExtBox().origNameID = id
+	} else if n.kindFlags&kindFlagHasExtBox != 0 {
+		box := (*nodeExtBox)(n.typeOrColor)
+		box.origNameID = 0
+		n.maybeCollapseExtBox(box)
 	}
-	n.setExtraOrigNameID(id)
 }
 
 // node_number is the NumberNode.number field.
@@ -3389,29 +3348,29 @@ func (n *Node) GetLength() int {
 	if n.length16 != 0xFFFF {
 		return int(n.length16)
 	}
-	if n.kindFlags&kindFlagHasExtra != 0 {
-		if e, ok := n.getExtraEntry(); ok && e.hasLength {
-			return int(e.length)
-		}
-	}
-	return int(n.length16)
+	return int((*nodeExtBox)(n.typeOrColor).length)
 }
 
 // Java: Node.setLength(int)
 func (n *Node) SetLength(length int) {
 	if length >= 0 && length < 0xFFFF {
+		wasInBox := n.length16 == 0xFFFF
 		n.length16 = uint16(length)
+		if wasInBox {
+			n.maybeCollapseExtBox((*nodeExtBox)(n.typeOrColor))
+		}
 		return
 	}
+	n.ensureExtBox().length = int32(length)
 	n.length16 = 0xFFFF
-	n.setExtraLength(int32(length))
 }
 
 func (n *Node) copyLengthFrom(other *Node) {
-	n.length16 = other.length16
-	if other.length16 == 0xFFFF {
-		n.SetLength(other.GetLength())
+	if other.length16 != 0xFFFF && n.length16 != 0xFFFF {
+		n.length16 = other.length16
+		return
 	}
+	n.SetLength(other.GetLength())
 }
 
 // Java: Node.getLineno()
@@ -4230,36 +4189,6 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_COMPUTED_PROP_GETTER |
 	propFlag_COMPUTED_PROP_SETTER
 
-const rhinoByteSlabSize = 32764
-
-type rhinoByteSlab struct {
-	buf  [rhinoByteSlabSize]byte
-	used atomic.Uint32
-}
-
-var currentRhinoByteSlab atomic.Pointer[rhinoByteSlab]
-
-func rhinoAllocStringBytes(n int) []byte {
-	if n <= 0 || n > rhinoByteSlabSize/4 {
-		return make([]byte, 0, n)
-	}
-	for {
-		s := currentRhinoByteSlab.Load()
-		if s != nil {
-			end := s.used.Add(uint32(n))
-			if int(end) <= rhinoByteSlabSize {
-				start := int(end) - n
-				return s.buf[start:start:end]
-			}
-		}
-		newSlab := &rhinoByteSlab{}
-		newSlab.used.Store(uint32(n))
-		if currentRhinoByteSlab.CompareAndSwap(s, newSlab) {
-			return newSlab.buf[0:0:n]
-		}
-	}
-}
-
 // GetQualifiedName takes a set of GETPROP nodes and produces a string that
 // is each property separated by dots. If the node ultimately under the left
 // sub-tree is not a simple name, this is not a valid qualified name.
@@ -4349,7 +4278,7 @@ func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 		if !ok {
 			return nil
 		}
-		builder = rhinoAllocStringBytes(len(left) + reserve)
+		builder = make([]byte, 0, len(left)+reserve)
 		builder = append(builder, left...)
 	}
 	builder = append(builder, '.')
@@ -4578,13 +4507,6 @@ func (n *Node) CloneNode() *Node {
 	return n.CloneNodeWithTypeExprs(false)
 }
 
-func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
-	dst.token = src.token
-	dst.kindFlags = src.kindFlags & kindMask
-	dst.payload = src.payload
-	Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-}
-
 // CloneNodeWithTypeExprs returns a detached clone of the Node, specifically
 // excluding its children.
 //
@@ -4593,9 +4515,9 @@ func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
 //
 // Java: Node.cloneNode(boolean)
 func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
-	var clone Node
-	cloneNodeInto(&clone, n, cloneTypeExprs)
-	return &clone
+	clone := &Node{token: n.token, kindFlags: n.kindFlags & kindMask, payload: n.payload}
+	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
+	return clone
 }
 
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
@@ -4627,48 +4549,21 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	}
 }
 
-const cloneTreeMaxSlabSize = 512
-
-type nodeCloneSlab struct {
-	chunk []Node
-	rem   int
+// CloneTree returns a detached clone of the Node and all its children.
+//
+// Java: Node.cloneTree()
+func (n *Node) CloneTree() *Node {
+	return n.CloneTreeWithTypeExprs(false)
 }
 
-func (s *nodeCloneSlab) alloc() *Node {
-	if len(s.chunk) == 0 {
-		sz := s.rem
-		if sz > cloneTreeMaxSlabSize {
-			sz = cloneTreeMaxSlabSize
-		} else if sz < 1 {
-			sz = 1
-		}
-		s.chunk = make([]Node, sz)
-	}
-	n := &s.chunk[0]
-	s.chunk = s.chunk[1:]
-	s.rem--
-	return n
-}
-
-func (n *Node) countCloneTreeNodes() int {
-	count := 1
-	for c := n.first; c != nil; c = c.next {
-		count += c.countCloneTreeNodes()
-	}
-	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
-		count += shadow.countCloneTreeNodes()
-	}
-	return count
-}
-
-func (n *Node) cloneTreeWithSlab(cloneTypeExprs bool, slab *nodeCloneSlab) *Node {
-	result := slab.alloc()
-	cloneNodeInto(result, n, cloneTypeExprs)
+// Java: Node.cloneTree(boolean)
+func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
+	result := n.CloneNodeWithTypeExprs(cloneTypeExprs)
 	if n.first != nil {
 		var firstChild *Node
 		var lastChild *Node
 		for n2 := n.first; n2 != nil; n2 = n2.next {
-			n2clone := n2.cloneTreeWithSlab(cloneTypeExprs, slab)
+			n2clone := n2.CloneTreeWithTypeExprs(cloneTypeExprs)
 			n2clone.parent = result
 			if firstChild == nil {
 				firstChild = n2clone
@@ -4685,26 +4580,10 @@ func (n *Node) cloneTreeWithSlab(cloneTypeExprs bool, slab *nodeCloneSlab) *Node
 	}
 
 	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
-		result.SetClosureUnawareShadow(shadow.cloneTreeWithSlab(cloneTypeExprs, slab))
+		result.SetClosureUnawareShadow(shadow.CloneTreeWithTypeExprs(cloneTypeExprs))
 	}
 
 	return result
-}
-
-// CloneTree returns a detached clone of the Node and all its children.
-//
-// Java: Node.cloneTree()
-func (n *Node) CloneTree() *Node {
-	return n.CloneTreeWithTypeExprs(false)
-}
-
-// Java: Node.cloneTree(boolean)
-func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
-	if n.first == nil && n.GetClosureUnawareShadow() == nil {
-		return n.CloneNodeWithTypeExprs(cloneTypeExprs)
-	}
-	slab := nodeCloneSlab{rem: n.countCloneTreeNodes()}
-	return n.cloneTreeWithSlab(cloneTypeExprs, &slab)
 }
 
 // Srcref copies the source info from `other` onto `this`.
@@ -4983,7 +4862,7 @@ func (n *Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBe
 			box.propListHead = node_rebuildListWithoutColorConversionProps(head)
 		}
 	}
-	if box.jsDocInfo == nil && box.propListHead == nil {
+	if box.jsDocInfo == nil && box.propListHead == nil && !n.extBoxHoldsNodeFields(box) {
 		n.kindFlags &^= kindFlagHasExtBox
 		n.typeOrColor = nil
 	}

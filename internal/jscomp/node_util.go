@@ -24,8 +24,6 @@ import (
 	"math/big"
 	"slices"
 	"strings"
-	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -5768,52 +5766,18 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 	return &s
 }
 
-const nodeUtilByteSlabSize = 65536
-
-type nodeUtilByteSlab struct {
-	buf  [nodeUtilByteSlabSize]byte
-	used atomic.Uint32
-}
-
-var currentNodeUtilByteSlab atomic.Pointer[nodeUtilByteSlab]
-
+// nodeUtilAllocStringBytes returns a zeroed n-byte buffer for a string that
+// the caller fills and then views with unsafe.String.
 func nodeUtilAllocStringBytes(n int) []byte {
-	if n <= 0 || n > nodeUtilByteSlabSize/4 {
-		return make([]byte, n)
-	}
-	for {
-		s := currentNodeUtilByteSlab.Load()
-		if s != nil {
-			end := s.used.Add(uint32(n))
-			if int(end) <= nodeUtilByteSlabSize {
-				start := int(end) - n
-				return s.buf[start:end:end]
-			}
-		}
-		newSlab := &nodeUtilByteSlab{}
-		newSlab.used.Store(uint32(n))
-		if currentNodeUtilByteSlab.CompareAndSwap(s, newSlab) {
-			return newSlab.buf[0:n:n]
-		}
-	}
+	return make([]byte, n)
 }
 
 func nodeUtilConcatDot(a, b string) string {
-	n := len(a) + 1 + len(b)
-	buf := nodeUtilAllocStringBytes(n)
-	copy(buf, a)
-	buf[len(a)] = '.'
-	copy(buf[len(a)+1:], b)
-	return unsafe.String(unsafe.SliceData(buf), n)
+	return a + "." + b
 }
 
 func nodeUtilConcat3(a, b, c string) string {
-	n := len(a) + len(b) + len(c)
-	buf := nodeUtilAllocStringBytes(n)
-	i := copy(buf, a)
-	i += copy(buf[i:], b)
-	copy(buf[i:], c)
-	return unsafe.String(unsafe.SliceData(buf), n)
+	return a + b + c
 }
 
 // nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
