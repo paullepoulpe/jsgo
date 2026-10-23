@@ -33,11 +33,11 @@ type Scanner struct {
 	errorReporter     ErrorReporter
 	source            *SourceFile
 	lineNumberScanner *LineNumberScanner
-	// Go-only: language-adapter — the Java String contents as UTF-16 code
-	// units, so that every index is a Java char index.
-	contents           []uint16
+	// Go-only: language-adapter — the Java String contents, unwrapped from
+	// the SourceFile (see SourceFile.CharAt).
 	rawContents        string
 	asciiPrefix        int
+	utf16Tail          []uint16
 	contentsLength     int
 	lookahead          []Token
 	lookaheadBuf       [8]Token
@@ -46,13 +46,17 @@ type Scanner struct {
 	typeParameterLevel int
 }
 
-// sliceString returns the string for s.contents[start:end], slicing
-// s.rawContents directly with zero allocations when end <= s.asciiPrefix.
-func (s *Scanner) sliceString(start, end int) string {
-	if end <= s.asciiPrefix {
-		return s.rawContents[start:end]
+// charAt is contents.charAt(index), for a valid index (SourceFile.CharAt).
+func (s *Scanner) charAt(index int) uint16 {
+	if index < s.asciiPrefix {
+		return uint16(s.rawContents[index])
 	}
-	return jutil.StringFromUTF16(s.contents[start:end])
+	return s.utf16Tail[index-s.asciiPrefix]
+}
+
+// sliceString is contents.substring(start, end).
+func (s *Scanner) sliceString(start, end int) string {
+	return s.source.Substring(start, end)
 }
 
 // NewScanner constructs a Scanner.
@@ -67,10 +71,10 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentReco
 	s.lineNumberScanner = NewLineNumberScanner(s.source)
 	// To help reason about the expected JVM performance unwrap "file" values.
 	// The scanner is key to the parsing speed.
-	s.contents = file.ContentsUTF16
 	s.rawContents = file.Contents
 	s.asciiPrefix = file.asciiPrefix
-	s.contentsLength = len(file.ContentsUTF16)
+	s.utf16Tail = file.utf16Tail
+	s.contentsLength = file.Length()
 	s.index = offset
 	s.typeParameterLevel = 0
 	return s
@@ -347,10 +351,9 @@ func (s *Scanner) IsValidIndex(index int) bool {
 // Java: Scanner.skipWhitespace()
 func (s *Scanner) SkipWhitespace() bool {
 	foundLineTerminator := false
-	contents := s.contents
 	contentsLength := s.contentsLength
 	for s.index < contentsLength {
-		ch := contents[s.index]
+		ch := s.charAt(s.index)
 		if ch == ' ' || ch == '\t' {
 			s.index++
 			continue
@@ -515,9 +518,9 @@ func (s *Scanner) SkipMultiLineComment() {
 		s.NextChar()
 		type_ := Comment_Type_BLOCK
 		if s.index-startOffset > 4 {
-			if s.contents[startOffset+2] == '*' {
+			if s.charAt(startOffset+2) == '*' {
 				type_ = Comment_Type_JSDOC
-			} else if s.contents[startOffset+2] == '!' {
+			} else if s.charAt(startOffset+2) == '!' {
 				type_ = Comment_Type_IMPORTANT
 			}
 		}
@@ -888,10 +891,9 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		unicodeEscapeLen = 1
 	} else {
 		// Fast path for consecutive non-escaped identifier characters.
-		contents := s.contents
 		contentsLength := s.contentsLength
 		for s.index < contentsLength {
-			c := contents[s.index]
+			c := s.charAt(s.index)
 			if c <= 127 {
 				if asciiIdentFlags[c]&asciiFlagIdentPart != 0 {
 					s.index++
@@ -953,10 +955,10 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 			start = jutil.StringCharAt(value, 1)
 		}
 	} else {
-		start = s.contents[valueStartIndex]
+		start = s.charAt(valueStartIndex)
 		if isPrivateIdentifier {
 			// Skip the leading # for name validation.
-			start = s.contents[valueStartIndex+1]
+			start = s.charAt(valueStartIndex + 1)
 		}
 	}
 
@@ -1493,7 +1495,7 @@ func (s *Scanner) NextChar() uint16 {
 	if s.IsAtEnd() {
 		return 0
 	}
-	ch := s.contents[s.index]
+	ch := s.charAt(s.index)
 	s.index++
 	return ch
 }
@@ -1513,7 +1515,7 @@ func (s *Scanner) PeekCharAt(offset int) uint16 {
 	if !s.IsValidIndex(s.index + offset) {
 		return 0
 	}
-	return s.contents[s.index+offset]
+	return s.charAt(s.index + offset)
 }
 
 // Java: Scanner.reportError(String, Object...)

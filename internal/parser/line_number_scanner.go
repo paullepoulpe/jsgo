@@ -28,7 +28,6 @@ import (
 // within a source file.
 type LineNumberScanner struct {
 	sourceFile    *SourceFile
-	contents      []uint16
 	sourceLength  int
 	lastLine      int
 	lastLineStart int
@@ -41,8 +40,7 @@ type LineNumberScanner struct {
 func NewLineNumberScanner(sourceFile *SourceFile) *LineNumberScanner {
 	l := &LineNumberScanner{lastLine: -1, lastLineStart: -1, nextLineStart: 0}
 	l.sourceFile = sourceFile
-	l.contents = sourceFile.ContentsUTF16
-	l.sourceLength = len(l.contents)
+	l.sourceLength = sourceFile.Length()
 	return l
 }
 
@@ -94,16 +92,16 @@ func (l *LineNumberScanner) AdvanceLine() {
 	l.lastLine++
 
 	l.lastLineStart = l.nextLineStart
-	contents := l.contents
+	sourceFile := l.sourceFile
 	sourceLength := l.sourceLength
 	for index := l.lastLineStart; index < sourceLength; index++ {
-		ch := contents[index]
+		ch := sourceFile.CharAt(index)
 		if ch == '\n' {
 			l.nextLineStart = index + 1
 			return
 		}
 		if ch == '\r' || ch == 0x2028 || ch == 0x2029 {
-			if ch == '\r' && index+1 < sourceLength && contents[index+1] == '\n' {
+			if ch == '\r' && index+1 < sourceLength && sourceFile.CharAt(index+1) == '\n' {
 				index++
 			}
 			l.nextLineStart = index + 1

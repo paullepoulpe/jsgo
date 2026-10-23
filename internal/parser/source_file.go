@@ -18,7 +18,11 @@
 
 package parser
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"slices"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // SourceFile is a source file.
 //
@@ -27,24 +31,60 @@ type SourceFile struct {
 	Name     string
 	Contents string
 
-	// Go-only: language-adapter — Contents as UTF-16 code units (Java chars),
-	// converted once, so that the scanner and every offset work in Java char
-	// indices. Read-only.
-	ContentsUTF16 []uint16
-	// Go-only: performance — length of the leading pure-ASCII prefix of
-	// Contents where UTF-16 offsets and Go byte offsets are identical.
+	// Go-only: language-adapter — Java indexes Contents by UTF-16 code unit
+	// (char). In the leading pure-ASCII part of Contents a char index is a
+	// byte index, so it is read in place; only the rest is converted to
+	// UTF-16, once, into utf16Tail (nil for an all-ASCII file).
 	asciiPrefix int
+	utf16Tail   []uint16
 }
 
 // NewSourceFile constructs a SourceFile.
 //
 // Java: SourceFile(String, String)
 func NewSourceFile(name, contents string) *SourceFile {
-	utf16, asciiPrefix := jutil.StringToUTF16AndASCIIPrefix(contents)
-	return &SourceFile{
-		Name:          name,
-		Contents:      contents,
-		ContentsUTF16: utf16,
-		asciiPrefix:   asciiPrefix,
+	f := &SourceFile{Name: name, Contents: contents, asciiPrefix: jutil.ASCIIPrefixLen(contents)}
+	if f.asciiPrefix < len(contents) {
+		tail := jutil.StringToUTF16(contents[f.asciiPrefix:])
+		if cap(tail)-len(tail) > len(tail)/8 {
+			tail = slices.Clone(tail) // drop the slack of multi-byte characters
+		}
+		f.utf16Tail = tail
+	}
+	return f
+}
+
+// Length is contents.length(): the number of UTF-16 code units.
+//
+// Go-only: language-adapter — Java String API on the contents.
+func (f *SourceFile) Length() int {
+	return f.asciiPrefix + len(f.utf16Tail)
+}
+
+// CharAt is contents.charAt(index), for 0 <= index < Length().
+//
+// Go-only: language-adapter — Java String API on the contents.
+func (f *SourceFile) CharAt(index int) uint16 {
+	if index < f.asciiPrefix {
+		return uint16(f.Contents[index])
+	}
+	return f.utf16Tail[index-f.asciiPrefix]
+}
+
+// Substring is contents.substring(start, end).
+//
+// Go-only: language-adapter — Java String API on the contents.
+func (f *SourceFile) Substring(start, end int) string {
+	if start < 0 || end > f.Length() || start > end {
+		panic(jutil.NewStringIndexOutOfBoundsException(start, end))
+	}
+	p := f.asciiPrefix
+	switch {
+	case end <= p:
+		return f.Contents[start:end]
+	case start >= p:
+		return jutil.StringFromUTF16(f.utf16Tail[start-p : end-p])
+	default:
+		return f.Contents[start:p] + jutil.StringFromUTF16(f.utf16Tail[:end-p])
 	}
 }

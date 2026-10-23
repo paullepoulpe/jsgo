@@ -1164,8 +1164,7 @@ func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
 
 	// Check if there are only whitespace characters between the current token
 	// and the start of the comment.
-	preCommentText := irFactory_substring(
-		f.fileWithContent.ContentsUTF16, int(tokenEnd.Offset)+1, int(comment.Location.Start.Offset))
+	preCommentText := f.fileWithContent.Substring(int(tokenEnd.Offset)+1, int(comment.Location.Start.Offset))
 
 	if jutil.StringTrim(preCommentText) != "" {
 		return nil
