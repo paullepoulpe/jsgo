@@ -158,9 +158,9 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 				b.CheckDefaultParam(v, scope, b.varsInFunctionBody)
 			}
 			if scope.GetRootNode().IsFunction() {
-				b.CheckShadowParam(v, scope, referenceCollection.references)
+				b.CheckShadowParam(v, scope, &referenceCollection.references)
 			}
-			b.CheckVar(v, referenceCollection.references)
+			b.CheckVar(v, &referenceCollection.references)
 		}
 	}
 	if scope.HasOwnImplicitSlot(AbstractScope_ImplicitVar_EXPORTS.ptr()) {

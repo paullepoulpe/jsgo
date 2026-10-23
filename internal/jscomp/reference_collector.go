@@ -49,18 +49,25 @@ type scopedVarKey struct {
 }
 
 type rcVarSlabs struct {
-	vars           []*Var
-	cols           []*ReferenceCollection
-	refSlab        []Reference
-	refChunks      [][]Reference
-	refChunkIdx    int
-	refPtrSlab     []*Reference
-	refPtrChunks   [][]*Reference
-	refPtrChunkIdx int
-	colSlab        []ReferenceCollection
-	colChunks      [][]ReferenceCollection
-	colChunkIdx    int
-	pooled         bool
+	vars               []*Var
+	cols               []*ReferenceCollection
+	refSlab            []Reference
+	refChunks          [][]Reference
+	refChunkIdx        int
+	refPtrSlab         []*Reference
+	refPtrChunks       [][]*Reference
+	refPtrChunkIdx     int
+	colSlab            []ReferenceCollection
+	colChunks          [][]ReferenceCollection
+	colChunkIdx        int
+	baseVarsLen        int
+	baseRefChunkIdx    int
+	baseRefSlabLen     int
+	baseRefPtrChunkIdx int
+	baseRefPtrSlabLen  int
+	baseColChunkIdx    int
+	baseColSlabLen     int
+	pooled             bool
 }
 
 func (s *rcVarSlabs) addVarCol(v *Var, col *ReferenceCollection, minGrow int) {
@@ -143,10 +150,8 @@ func (s *rcVarSlabs) allocReferenceCollection() *ReferenceCollection {
 	idx := len(s.colSlab)
 	s.colSlab = s.colSlab[:idx+1]
 	col := &s.colSlab[idx]
-	if col.references != nil {
-		return col
-	}
-	return initReferenceCollection(col)
+	col.references.InitWithBuffer(s.allocRefPtrSlice(4))
+	return col
 }
 
 func (s *rcVarSlabs) allocRefPtrSlice(n int) []*Reference {
@@ -191,14 +196,78 @@ func (s *rcVarSlabs) growReferenceCollection(col *ReferenceCollection, slice []*
 		newCap = oldCap * 2
 	}
 	newBuf := s.allocRefPtrSlice(newCap)
-	col.refsList.InitWithBuffer(newBuf)
-	col.refsList.AddAll(slice...)
-	if oldCap == len(col.refsBuf) {
-		clear(slice)
+	col.references.InitWithBuffer(newBuf)
+	col.references.AddAll(slice...)
+}
+
+func (s *rcVarSlabs) markBase() {
+	s.baseVarsLen = len(s.vars)
+	s.baseRefChunkIdx = s.refChunkIdx
+	s.baseRefSlabLen = len(s.refSlab)
+	s.baseRefPtrChunkIdx = s.refPtrChunkIdx
+	s.baseRefPtrSlabLen = len(s.refPtrSlab)
+	s.baseColChunkIdx = s.colChunkIdx
+	s.baseColSlabLen = len(s.colSlab)
+}
+
+func (s *rcVarSlabs) clearBase() {
+	s.baseVarsLen = 0
+	s.baseRefChunkIdx = 0
+	s.baseRefSlabLen = 0
+	s.baseRefPtrChunkIdx = 0
+	s.baseRefPtrSlabLen = 0
+	s.baseColChunkIdx = 0
+	s.baseColSlabLen = 0
+}
+
+func resetRCSlabChunks[T any](chunks [][]T, slab []T, chunkIdx, baseChunkIdx, baseSlabLen, maxChunks int) ([][]T, []T, int) {
+	if chunkIdx > 0 {
+		chunks[chunkIdx-1] = slab
 	}
+	if baseChunkIdx == 0 {
+		for i := 0; i < chunkIdx && i < maxChunks; i++ {
+			ch := chunks[i]
+			clear(ch)
+			chunks[i] = ch[:0]
+		}
+		if len(chunks) > maxChunks {
+			clear(chunks[maxChunks:])
+			chunks = chunks[:maxChunks]
+		}
+		return chunks, nil, 0
+	}
+	b := baseChunkIdx - 1
+	chB := chunks[b]
+	clear(chB[baseSlabLen:])
+	chB = chB[:baseSlabLen]
+	chunks[b] = chB
+	for i := b + 1; i < chunkIdx; i++ {
+		ch := chunks[i]
+		clear(ch)
+		chunks[i] = ch[:0]
+	}
+	return chunks, chB, baseChunkIdx
+}
+
+func (s *rcVarSlabs) resetToBase(maxRefChunks, maxRefPtrChunks, maxColChunks, maxVarsCap int) {
+	if s.baseVarsLen == 0 && s.baseRefChunkIdx == 0 && s.baseRefPtrChunkIdx == 0 && s.baseColChunkIdx == 0 {
+		s.reset(maxRefChunks, maxRefPtrChunks, maxColChunks, maxVarsCap)
+		return
+	}
+	for _, kv := range s.vars[s.baseVarsLen:] {
+		kv.nameHash = 0
+	}
+	clear(s.vars[s.baseVarsLen:])
+	s.vars = s.vars[:s.baseVarsLen]
+	clear(s.cols[s.baseVarsLen:])
+	s.cols = s.cols[:s.baseVarsLen]
+	s.refChunks, s.refSlab, s.refChunkIdx = resetRCSlabChunks(s.refChunks, s.refSlab, s.refChunkIdx, s.baseRefChunkIdx, s.baseRefSlabLen, maxRefChunks)
+	s.refPtrChunks, s.refPtrSlab, s.refPtrChunkIdx = resetRCSlabChunks(s.refPtrChunks, s.refPtrSlab, s.refPtrChunkIdx, s.baseRefPtrChunkIdx, s.baseRefPtrSlabLen, maxRefPtrChunks)
+	s.colChunks, s.colSlab, s.colChunkIdx = resetRCSlabChunks(s.colChunks, s.colSlab, s.colChunkIdx, s.baseColChunkIdx, s.baseColSlabLen, maxColChunks)
 }
 
 func (s *rcVarSlabs) reset(maxRefChunks, maxRefPtrChunks, maxColChunks, maxVarsCap int) {
+	s.clearBase()
 	for _, kv := range s.vars {
 		kv.nameHash = 0
 	}
@@ -211,57 +280,9 @@ func (s *rcVarSlabs) reset(maxRefChunks, maxRefPtrChunks, maxColChunks, maxVarsC
 		s.vars = nil
 		s.cols = nil
 	}
-	if s.refChunkIdx > 0 {
-		s.refChunks[s.refChunkIdx-1] = s.refSlab
-	}
-	for i := 0; i < s.refChunkIdx && i < maxRefChunks; i++ {
-		ch := s.refChunks[i]
-		clear(ch)
-		s.refChunks[i] = ch[:0]
-	}
-	if len(s.refChunks) > maxRefChunks {
-		clear(s.refChunks[maxRefChunks:])
-		s.refChunks = s.refChunks[:maxRefChunks]
-	}
-	s.refSlab = nil
-	s.refChunkIdx = 0
-
-	if s.refPtrChunkIdx > 0 {
-		s.refPtrChunks[s.refPtrChunkIdx-1] = s.refPtrSlab
-	}
-	for i := 0; i < s.refPtrChunkIdx && i < maxRefPtrChunks; i++ {
-		ch := s.refPtrChunks[i]
-		clear(ch)
-		s.refPtrChunks[i] = ch[:0]
-	}
-	if len(s.refPtrChunks) > maxRefPtrChunks {
-		clear(s.refPtrChunks[maxRefPtrChunks:])
-		s.refPtrChunks = s.refPtrChunks[:maxRefPtrChunks]
-	}
-	s.refPtrSlab = nil
-	s.refPtrChunkIdx = 0
-
-	if s.colChunkIdx > 0 {
-		s.colChunks[s.colChunkIdx-1] = s.colSlab
-	}
-	for i := 0; i < s.colChunkIdx && i < maxColChunks; i++ {
-		ch := s.colChunks[i]
-		for j := range ch {
-			col := &ch[j]
-			if cap(col.refsList.Slice()) == len(col.refsBuf) {
-				col.refsList.Clear()
-			} else {
-				col.refsList.InitWithBuffer(col.refsBuf[:])
-			}
-		}
-		s.colChunks[i] = ch[:0]
-	}
-	if len(s.colChunks) > maxColChunks {
-		clear(s.colChunks[maxColChunks:])
-		s.colChunks = s.colChunks[:maxColChunks]
-	}
-	s.colSlab = nil
-	s.colChunkIdx = 0
+	s.refChunks, s.refSlab, s.refChunkIdx = resetRCSlabChunks(s.refChunks, s.refSlab, s.refChunkIdx, 0, 0, maxRefChunks)
+	s.refPtrChunks, s.refPtrSlab, s.refPtrChunkIdx = resetRCSlabChunks(s.refPtrChunks, s.refPtrSlab, s.refPtrChunkIdx, 0, 0, maxRefPtrChunks)
+	s.colChunks, s.colSlab, s.colChunkIdx = resetRCSlabChunks(s.colChunks, s.colSlab, s.colChunkIdx, 0, 0, maxColChunks)
 }
 
 type referenceCollectorArena struct {
@@ -274,7 +295,7 @@ type referenceCollectorArena struct {
 	argumentsRefs map[*rhino.Node]*ReferenceCollection
 }
 
-var cachedRCArenas [2]atomic.Pointer[referenceCollectorArena]
+var cachedRCArenas [4]atomic.Pointer[referenceCollectorArena]
 
 var referenceCollectorArenaPool = sync.Pool{
 	New: func() any {
@@ -286,6 +307,23 @@ var referenceCollectorArenaPool = sync.Pool{
 }
 
 func acquireRCArena() *referenceCollectorArena {
+	bestIdx := -1
+	bestLen := -1
+	for i := range cachedRCArenas {
+		if a := cachedRCArenas[i].Load(); a != nil {
+			if n := len(a.global.refChunks) + len(a.blkChunks); n > bestLen {
+				bestLen = n
+				bestIdx = i
+			}
+		}
+	}
+	if bestIdx >= 0 {
+		if a := cachedRCArenas[bestIdx].Swap(nil); a != nil {
+			a.global.pooled = true
+			a.local.pooled = true
+			return a
+		}
+	}
 	for i := range cachedRCArenas {
 		if a := cachedRCArenas[i].Swap(nil); a != nil {
 			a.global.pooled = true
@@ -309,22 +347,31 @@ func (a *referenceCollectorArena) trimSmall() {
 }
 
 func releaseRCArena(a *referenceCollectorArena) {
-	if cachedRCArenas[0].CompareAndSwap(nil, a) {
-		return
+	for i := 0; i < 2; i++ {
+		if cachedRCArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	if old := cachedRCArenas[0].Load(); old != nil && len(a.global.refChunks)+len(a.blkChunks) > len(old.global.refChunks)+len(old.blkChunks) {
 		if cachedRCArenas[0].CompareAndSwap(old, a) {
-			old.trimSmall()
 			if cachedRCArenas[1].CompareAndSwap(nil, old) {
 				return
+			}
+			old.trimSmall()
+			for i := 2; i < len(cachedRCArenas); i++ {
+				if cachedRCArenas[i].CompareAndSwap(nil, old) {
+					return
+				}
 			}
 			referenceCollectorArenaPool.Put(old)
 			return
 		}
 	}
 	a.trimSmall()
-	if cachedRCArenas[1].CompareAndSwap(nil, a) {
-		return
+	for i := 2; i < len(cachedRCArenas); i++ {
+		if cachedRCArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	referenceCollectorArenaPool.Put(a)
 }
@@ -507,10 +554,18 @@ func (c *ReferenceCollector) getDummyFnScope(t *NodeTraversal) *Scope {
 }
 
 func (c *ReferenceCollector) maybeReclaimLocals() {
-	if c.narrowScope != nil || c.referenceMap != nil || (c.canReclaimLocals != nil && !c.canReclaimLocals()) {
+	if c.narrowScope != nil || c.referenceMap != nil {
 		return
 	}
-	c.localSlabs.reset(64, 64, 64, 65536)
+	if c.canReclaimLocals != nil && !c.canReclaimLocals() {
+		c.localSlabs.markBase()
+		if sc, ok := c.scopeCreator.(*SyntacticScopeCreator); ok && sc != nil && sc.arena != nil {
+			sc.arena.markGlobalBase()
+		}
+		c.globalRefInNonFnLocal = false
+		return
+	}
+	c.localSlabs.resetToBase(64, 64, 64, 65536)
 	if c.lastVar != nil && c.lastVar.scope != nil && c.lastVar.scope.parent != nil {
 		c.lastVar = nil
 		c.lastCollection = nil
@@ -1427,11 +1482,11 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *Nod
 		inputId = t.GetInput().GetInputId()
 	}
 	ref := slabs.allocReference(n, scope, c.getCurrentBlock(), inputId)
-	s := collection.refsList.Slice()
+	s := collection.references.Slice()
 	if len(s) == cap(s) {
 		slabs.growReferenceCollection(collection, s)
 	}
-	collection.refsList.Add(ref)
+	collection.references.Add(ref)
 }
 
 // ReferenceCollector_ReferenceMapWrapper is the ReferenceMap handed to

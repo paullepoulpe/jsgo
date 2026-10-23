@@ -529,7 +529,7 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 			continue
 		}
 
-		if b.IsInlinableObject(referenceInfo.references) {
+		if b.IsInlinableObject(&referenceInfo.references) {
 			// Skiplist the object itself, as well as any other values
 			// that it refers to, since they will have been moved around.
 			b.staleVars.Add(v)

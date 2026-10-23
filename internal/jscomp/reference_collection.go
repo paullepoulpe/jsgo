@@ -27,21 +27,17 @@ import (
 // ReferenceCollection is a collection of references. Can be subclassed to
 // apply checks or store additional state when adding.
 type ReferenceCollection struct {
-	references *jutil.ArrayList[*Reference]
-	refsList   jutil.ArrayList[*Reference]
-	refsBuf    [4]*Reference
+	references jutil.ArrayList[*Reference]
 	varScope   *Scope
 }
 
 func initReferenceCollection(c *ReferenceCollection) *ReferenceCollection {
-	c.refsList.InitWithBuffer(c.refsBuf[:])
-	c.references = &c.refsList
 	return c
 }
 
 // Java: ReferenceCollection()
 func NewReferenceCollection() *ReferenceCollection {
-	return initReferenceCollection(&ReferenceCollection{})
+	return &ReferenceCollection{}
 }
 
 // All is the Iterable's iterator().
@@ -301,7 +297,7 @@ func (c *ReferenceCollection) FirstReferenceIsAssigningDeclaration() bool {
 func (c *ReferenceCollection) String() string {
 	return jutil.MoreObjects_ToStringHelper("ReferenceCollection").
 		Add("initRef", c.GetInitializingReference()).
-		Add("references", c.references).
+		Add("references", &c.references).
 		AddBool("wellDefined", c.IsWellDefined()).
 		AddBool("assignedOnce", c.IsAssignedOnceInLifetime()).
 		String()

@@ -123,7 +123,16 @@ func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
 		NewSyntacticScopeCreator(iv.compiler),
 		inlineVariables_Mode_varPredicate[iv.mode])
 	callback.enableLocalReclamation(func() bool {
-		return len(behavior.aliasRetryHandlers) == 0
+		if len(behavior.aliasRetryHandlers) == 0 {
+			behavior.unpinnedRetries = 0
+			callback.localSlabs.clearBase()
+			return true
+		}
+		if behavior.unpinnedRetries == 0 {
+			return true
+		}
+		behavior.unpinnedRetries = 0
+		return false
 	})
 	callback.Process(externs, root)
 	callback.release()
@@ -320,6 +329,7 @@ type InlineVariables_InliningBehavior struct {
 	// is handled.
 	varToAliasRetryHandlersMap *jutil.SetMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler]
 	aliasRetryHandlers         map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	unpinnedRetries            int
 
 	scratchExpert        InlineVariables_InliningBehavior_StandardVarExpert
 	delayedNegSlab       []inlineVariables_delayedNegativeAnalysis
@@ -374,6 +384,7 @@ func (b *InlineVariables_InliningBehavior) release() {
 	if len(b.aliasRetryHandlers) > 0 {
 		clear(b.aliasRetryHandlers)
 	}
+	b.unpinnedRetries = 0
 	b.scratchExpert = InlineVariables_InliningBehavior_StandardVarExpert{}
 	clear(b.delayedNegBuf[:])
 	for i := range b.delayedNegChunks {
@@ -563,6 +574,7 @@ func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
 		b.aliasRetryHandlers = make(map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler, 8)
 	}
 	b.aliasRetryHandlers[aliasedVar] = append(b.aliasRetryHandlers[aliasedVar], retryHandler)
+	b.unpinnedRetries++
 }
 
 // Java: InlineVariables.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
@@ -731,6 +743,13 @@ func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliased
 		return
 	}
 	delete(b.aliasRetryHandlers, aliasedVar)
+	if len(b.aliasRetryHandlers) == 0 {
+		b.unpinnedRetries = 0
+	} else if b.unpinnedRetries >= len(handlers) {
+		b.unpinnedRetries -= len(handlers)
+	} else {
+		b.unpinnedRetries = 0
+	}
 	for _, aliasInlineRetryHandler := range handlers {
 		aliasInlineRetryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedVarAnalysis)
 	}
@@ -841,11 +860,11 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) IsSafeToInlineAlias
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) PerformInline() {
 	switch e.analysisKind {
 	case analysisKindInlineWellDefined:
-		e.outer.InlineWellDefinedVariable(e.v, e.analysisInitValue, e.referenceInfo.references)
+		e.outer.InlineWellDefinedVariable(e.v, e.analysisInitValue, &e.referenceInfo.references)
 	case analysisKindInlineNeverAssigned:
 		srcLocation := e.declaration.GetNode()
 		undefinedNode := NodeUtil_NewUndefinedNode(srcLocation)
-		e.outer.InlineWellDefinedVariable(e.v, undefinedNode, e.referenceInfo.references)
+		e.outer.InlineWellDefinedVariable(e.v, undefinedNode, &e.referenceInfo.references)
 	case analysisKindInlineSingleRef:
 		e.outer.Inline(e.declaration, e.analysisInitRef, e.analysisSingleReadRef)
 	default:
@@ -1114,7 +1133,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVa
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.createInlineWellDefinedVarAnalysis(Node)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDefinedVarAnalysis(initValue *rhino.Node) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
 	return NewInlineVariables_InliningBehavior_PositiveInlineVarAnalysis(
-		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, e.referenceInfo.references) })
+		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, &e.referenceInfo.references) })
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.reanalyzeAfterAliasedVar(Var, InlineVarAnalysis)

@@ -212,22 +212,15 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		for i := 0; i < a.global.colChunkIdx && i < maxRetainedColChunks; i++ {
 			ch := a.global.colChunks[i]
-			for j := range ch {
-				col := &ch[j]
-				if col.references != nil {
-					col.refsList.Clear()
-					clear(col.refsBuf[:])
-					if cap(col.refsList.Slice()) > 64 {
-						col.refsList.InitWithBuffer(col.refsBuf[:])
-					}
-				}
-			}
+			clear(ch)
 			a.global.colChunks[i] = ch[:0]
 		}
 		if len(a.global.colChunks) > maxRetainedColChunks {
 			clear(a.global.colChunks[maxRetainedColChunks:])
 			a.global.colChunks = a.global.colChunks[:maxRetainedColChunks]
 		}
+		a.global.refPtrChunks, a.global.refPtrSlab, a.global.refPtrChunkIdx = resetRCSlabChunks(
+			a.global.refPtrChunks, a.global.refPtrSlab, a.global.refPtrChunkIdx, 0, 0, 256)
 		if a.blkChunkIdx > 0 {
 			a.blkChunks[a.blkChunkIdx-1] = c.blockSlab
 		}
@@ -248,7 +241,7 @@ func (c *CrossChunkReferenceCollector) release() {
 	if ca := c.ccArena; ca != nil {
 		c.ccArena = nil
 		if cap(c.topLevelStatements) > 0 {
-			if cap(c.topLevelStatements) <= 65536 {
+			if cap(c.topLevelStatements) <= 524288 {
 				clear(c.topLevelStatements)
 				ca.topLevelStatements = c.topLevelStatements[:0]
 			} else {
@@ -257,10 +250,10 @@ func (c *CrossChunkReferenceCollector) release() {
 		}
 		c.topLevelStatements = nil
 		const (
-			maxRetainedStmtChunks     = 64
-			maxRetainedStmtRefsChunks = 64
-			maxRetainedSymChunks      = 64
-			maxRetainedDsgChunks      = 64
+			maxRetainedStmtChunks     = 256
+			maxRetainedStmtRefsChunks = 128
+			maxRetainedSymChunks      = 128
+			maxRetainedDsgChunks      = 128
 			maxRetainedCycleChunks    = 64
 		)
 		if ca.stmtChunkIdx > 0 {
@@ -440,11 +433,12 @@ func (c *CrossChunkReferenceCollector) allocReferenceCollection() *ReferenceColl
 	idx := len(c.colSlab)
 	c.colSlab = c.colSlab[:idx+1]
 	col := &c.colSlab[idx]
-	if col.references != nil {
-		col.refsList.Clear()
-		return col
+	if c.poolable {
+		col.references.InitWithBuffer(c.getArena().global.allocRefPtrSlice(4))
+	} else {
+		col.references.Clear()
 	}
-	return initReferenceCollection(col)
+	return col
 }
 
 func (c *CrossChunkReferenceCollector) allocBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
@@ -795,7 +789,13 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
 						c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
 					}
-					col.Add(reference)
+					if c.poolable {
+						s := col.references.Slice()
+						if len(s) == cap(s) {
+							c.getArena().global.growReferenceCollection(col, s)
+						}
+					}
+					col.references.Add(reference)
 				}
 			}
 		}

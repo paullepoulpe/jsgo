@@ -362,13 +362,18 @@ func (a *scopeArena) release() {
 	a.implicitUsed = 0
 	a.implicitChunkIdx = 0
 
-	if cachedScopeArenas[0].CompareAndSwap(nil, a) {
-		return
+	for i := 0; i < 2; i++ {
+		if cachedScopeArenas[i].CompareAndSwap(nil, a) {
+			return
+		}
 	}
 	if old := cachedScopeArenas[0].Load(); old != nil && len(a.scopeChunks) > len(old.scopeChunks) {
 		if cachedScopeArenas[0].CompareAndSwap(old, a) {
+			if cachedScopeArenas[1].CompareAndSwap(nil, old) {
+				return
+			}
 			old.trimSmall()
-			for i := 1; i < len(cachedScopeArenas); i++ {
+			for i := 2; i < len(cachedScopeArenas); i++ {
 				if cachedScopeArenas[i].CompareAndSwap(nil, old) {
 					return
 				}
@@ -378,7 +383,7 @@ func (a *scopeArena) release() {
 		}
 	}
 	a.trimSmall()
-	for i := 1; i < len(cachedScopeArenas); i++ {
+	for i := 2; i < len(cachedScopeArenas); i++ {
 		if cachedScopeArenas[i].CompareAndSwap(nil, a) {
 			return
 		}
