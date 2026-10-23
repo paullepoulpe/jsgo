@@ -4537,13 +4537,6 @@ func (n *Node) CloneNode() *Node {
 	return n.CloneNodeWithTypeExprs(false)
 }
 
-func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
-	dst.token = src.token
-	dst.kindFlags = src.kindFlags & kindMask
-	dst.payload = src.payload
-	Node_CopyBaseNodeFields(src, dst, cloneTypeExprs)
-}
-
 // CloneNodeWithTypeExprs returns a detached clone of the Node, specifically
 // excluding its children.
 //
@@ -4552,9 +4545,9 @@ func cloneNodeInto(dst *Node, src *Node, cloneTypeExprs bool) {
 //
 // Java: Node.cloneNode(boolean)
 func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
-	var clone Node
-	cloneNodeInto(&clone, n, cloneTypeExprs)
-	return &clone
+	clone := &Node{token: n.token, kindFlags: n.kindFlags & kindMask, payload: n.payload}
+	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
+	return clone
 }
 
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
@@ -4586,48 +4579,21 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	}
 }
 
-const cloneTreeMaxSlabSize = 512
-
-type nodeCloneSlab struct {
-	chunk []Node
-	rem   int
+// CloneTree returns a detached clone of the Node and all its children.
+//
+// Java: Node.cloneTree()
+func (n *Node) CloneTree() *Node {
+	return n.CloneTreeWithTypeExprs(false)
 }
 
-func (s *nodeCloneSlab) alloc() *Node {
-	if len(s.chunk) == 0 {
-		sz := s.rem
-		if sz > cloneTreeMaxSlabSize {
-			sz = cloneTreeMaxSlabSize
-		} else if sz < 1 {
-			sz = 1
-		}
-		s.chunk = make([]Node, sz)
-	}
-	n := &s.chunk[0]
-	s.chunk = s.chunk[1:]
-	s.rem--
-	return n
-}
-
-func (n *Node) countCloneTreeNodes() int {
-	count := 1
-	for c := n.first; c != nil; c = c.next {
-		count += c.countCloneTreeNodes()
-	}
-	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
-		count += shadow.countCloneTreeNodes()
-	}
-	return count
-}
-
-func (n *Node) cloneTreeWithSlab(cloneTypeExprs bool, slab *nodeCloneSlab) *Node {
-	result := slab.alloc()
-	cloneNodeInto(result, n, cloneTypeExprs)
+// Java: Node.cloneTree(boolean)
+func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
+	result := n.CloneNodeWithTypeExprs(cloneTypeExprs)
 	if n.first != nil {
 		var firstChild *Node
 		var lastChild *Node
 		for n2 := n.first; n2 != nil; n2 = n2.next {
-			n2clone := n2.cloneTreeWithSlab(cloneTypeExprs, slab)
+			n2clone := n2.CloneTreeWithTypeExprs(cloneTypeExprs)
 			n2clone.parent = result
 			if firstChild == nil {
 				firstChild = n2clone
@@ -4644,26 +4610,10 @@ func (n *Node) cloneTreeWithSlab(cloneTypeExprs bool, slab *nodeCloneSlab) *Node
 	}
 
 	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
-		result.SetClosureUnawareShadow(shadow.cloneTreeWithSlab(cloneTypeExprs, slab))
+		result.SetClosureUnawareShadow(shadow.CloneTreeWithTypeExprs(cloneTypeExprs))
 	}
 
 	return result
-}
-
-// CloneTree returns a detached clone of the Node and all its children.
-//
-// Java: Node.cloneTree()
-func (n *Node) CloneTree() *Node {
-	return n.CloneTreeWithTypeExprs(false)
-}
-
-// Java: Node.cloneTree(boolean)
-func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
-	if n.first == nil && n.GetClosureUnawareShadow() == nil {
-		return n.CloneNodeWithTypeExprs(cloneTypeExprs)
-	}
-	slab := nodeCloneSlab{rem: n.countCloneTreeNodes()}
-	return n.cloneTreeWithSlab(cloneTypeExprs, &slab)
 }
 
 // Srcref copies the source info from `other` onto `this`.

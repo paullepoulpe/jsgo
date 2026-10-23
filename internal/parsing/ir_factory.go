@@ -85,11 +85,7 @@ type IRFactory struct {
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
-	nodes                    jutil.Slab[rhino.Node]
-	jsdocNodes               jutil.Slab[rhino.Node]
 	jsdocSlabsVal            rhino.JSDocBuilderSlabs
-	nodeSlab                 *jutil.Slab[rhino.Node]
-	jsdocNodeSlab            *jutil.Slab[rhino.Node]
 	jsdocSlabs               *rhino.JSDocBuilderSlabs
 	jsdocStream              JsDocTokenStream
 	jsdocParser              JsDocInfoParser
@@ -237,10 +233,10 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
-	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil, nil, nil)
+	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil)
 }
 
-// NewIRFactoryWithSlabs constructs an IRFactory using optional external AST and JSDoc node slabs.
+// NewIRFactoryWithSlabs constructs an IRFactory using optional external JSDoc builder slabs.
 func NewIRFactoryWithSlabs(
 	sourceFile rhino.StaticSourceFile,
 	config *Config,
@@ -248,20 +244,8 @@ func NewIRFactoryWithSlabs(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
-	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node],
 	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	f := &IRFactory{}
-	if nodeSlab != nil {
-		f.nodeSlab = nodeSlab
-	} else {
-		f.nodeSlab = &f.nodes
-	}
-	if jsdocNodeSlab != nil {
-		f.jsdocNodeSlab = jsdocNodeSlab
-	} else {
-		f.jsdocNodeSlab = &f.jsdocNodes
-	}
 	if jsdocSlabs != nil {
 		f.jsdocSlabs = jsdocSlabs
 	} else {
@@ -430,25 +414,23 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
-	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil, nil, nil)
+	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil)
 }
 
-// IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external slabs.
+// IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external JSDoc builder slabs.
 func IRFactory_TransformTreeWithSlabs(
 	tree *parser.ProgramTree,
 	sourceFile rhino.StaticSourceFile,
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile,
-	nodeSlab *jutil.Slab[rhino.Node],
-	jsdocNodeSlab *jutil.Slab[rhino.Node],
 	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
 	irFactory := NewIRFactoryWithSlabs(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, nodeSlab, jsdocNodeSlab, jsdocSlabs)
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, jsdocSlabs)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
@@ -1499,7 +1481,6 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 		config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		f.jsdocNodeSlab,
 		f.jsdocSlabs)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
@@ -1537,7 +1518,6 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 		f.config,
 		f.jsDocSourceKind,
 		f.errorReporter,
-		f.jsdocNodeSlab,
 		f.jsdocSlabs)
 	return parser_.ParseInlineTypeDoc()
 }
@@ -4924,32 +4904,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
-	return f.nodeSlab.New().InitFromTemplate(type_, f.templateNode)
+	return new(rhino.Node).InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return new(rhino.Node).InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return new(rhino.Node).InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
-	return f.nodeSlab.New().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return new(rhino.Node).InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
-	return f.nodeSlab.New().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return new(rhino.Node).InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
-	return f.nodeSlab.New().InitStringFromTemplate(type_, value, f.templateNode)
+	return new(rhino.Node).InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -4966,17 +4946,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start *parser.Sour
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
-	return f.nodeSlab.New().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
+	return new(rhino.Node).InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return f.nodeSlab.New().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
+	return new(rhino.Node).InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
-	return f.nodeSlab.New().InitBigIntFromTemplate(value, f.templateNode)
+	return new(rhino.Node).InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)
