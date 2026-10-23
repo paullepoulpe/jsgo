@@ -52,23 +52,44 @@ func ModuleNames_FileToJsIdentifier(path string) string {
 // Java: ModuleNames.escapePath(String)
 func ModuleNames_EscapePath(input string) string {
 	// Handle special characters
-	encodedInput := strings.ReplaceAll(input, ":", "-")
-	encodedInput = strings.ReplaceAll(encodedInput, "\\", "/")
-	encodedInput = strings.ReplaceAll(encodedInput, " ", "%20")
-	encodedInput = strings.ReplaceAll(encodedInput, "[", "%5B")
-	encodedInput = strings.ReplaceAll(encodedInput, "]", "%5D")
-	encodedInput = strings.ReplaceAll(encodedInput, "<", "%3C")
-	encodedInput = strings.ReplaceAll(encodedInput, ">", "%3E")
+	needsEscape := false
+	for i := 0; i < len(input); i++ {
+		switch input[i] {
+		case ':', '\\', ' ', '[', ']', '<', '>':
+			needsEscape = true
+		}
+		if needsEscape {
+			break
+		}
+	}
+	encodedInput := input
+	if needsEscape {
+		encodedInput = strings.ReplaceAll(input, ":", "-")
+		encodedInput = strings.ReplaceAll(encodedInput, "\\", "/")
+		encodedInput = strings.ReplaceAll(encodedInput, " ", "%20")
+		encodedInput = strings.ReplaceAll(encodedInput, "[", "%5B")
+		encodedInput = strings.ReplaceAll(encodedInput, "]", "%5D")
+		encodedInput = strings.ReplaceAll(encodedInput, "<", "%3C")
+		encodedInput = strings.ReplaceAll(encodedInput, ">", "%3E")
+	}
 
 	return ModuleNames_CanonicalizePath(encodedInput)
 }
 
 // Java: ModuleNames.toJSIdentifier(String)
 func ModuleNames_ToJSIdentifier(path string) string {
+	return moduleNames_toJSIdentifierWithPrefix(path, "")
+}
+
+func moduleNames_toJSIdentifierWithPrefix(path, prefix string) string {
 	s := moduleNames_stripJsExtension(path)
 	// replaceFirst("^\\./", "")
 	s = strings.TrimPrefix(s, "./")
 	var b strings.Builder
+	if prefix != "" {
+		b.Grow(len(prefix) + len(s))
+		b.WriteString(prefix)
+	}
 	last := 0
 	for i := 0; i < len(s); i++ {
 		var replacement byte
@@ -87,7 +108,7 @@ func ModuleNames_ToJSIdentifier(path string) string {
 		default:
 			continue
 		}
-		if last == 0 {
+		if last == 0 && prefix == "" {
 			b.Grow(len(s))
 		}
 		b.WriteString(s[last:i])
@@ -95,7 +116,7 @@ func ModuleNames_ToJSIdentifier(path string) string {
 		i += width - 1
 		last = i + 1
 	}
-	if last == 0 {
+	if last == 0 && prefix == "" {
 		return s
 	}
 	b.WriteString(s[last:])
@@ -107,7 +128,7 @@ func ModuleNames_ToModuleName(path string) string {
 	if strings.HasPrefix(path, ModuleNames_MODULE_SLASH) {
 		path = jutil.StringSubstringFrom(path, 1)
 	}
-	return "module$" + ModuleNames_ToJSIdentifier(path)
+	return moduleNames_toJSIdentifierWithPrefix(path, "module$")
 }
 
 func moduleNames_stripJsExtension(fileName string) string {

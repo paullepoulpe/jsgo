@@ -89,7 +89,7 @@ type JsFileLineParserBase struct {
 	shortcutMode bool
 
 	// Matcher used in the parsing string literals.
-	valueMatcher *jsFileLineParser_stringLiteralMatcher
+	valueMatcher jsFileLineParser_stringLiteralMatcher
 
 	// Path of the file currently being parsed.
 	filePath string
@@ -148,7 +148,7 @@ func (e *JsFileLineParser_ParseException) IsFatal() bool {
 // Java: JsFileLineParser(ErrorManager)
 func (b *JsFileLineParserBase) InitJsFileLineParserBase(self JsFileLineParser, errorManager ErrorManager) {
 	b.self = self
-	b.valueMatcher = newJsFileLineParser_stringLiteralMatcher("")
+	b.valueMatcher.Reset("")
 	b.errorManager = errorManager
 }
 
@@ -176,126 +176,162 @@ func (b *JsFileLineParserBase) DidParseSucceed() bool {
 func (b *JsFileLineParserBase) DoParse(filePath string, fileContents jutil.JavaReader) {
 	b.filePath = filePath
 	b.parseSucceeded = true
-
-	// Parse all lines.
 	b.lineNum = 0
+
+	var text string
+	readOK := true
+	jutil.Try(func() {
+		text = jutil.CharStreams_ToString(fileContents)
+	}, func(e jutil.IIOException) {
+		fp := filePath
+		b.errorManager.Report(CheckLevel_ERROR.Ptr(),
+			JSError_MakeWithSourceLocation(&fp, 0, 0, /* char offset */
+				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
+		b.parseSucceeded = false
+		readOK = false
+	})
+	if !readOK {
+		return
+	}
+	b.doParseLoadedString(filePath, text)
+}
+
+func (b *JsFileLineParserBase) doParseString(filePath string, text string) {
+	b.filePath = filePath
+	b.parseSucceeded = true
+	b.lineNum = 0
+	b.doParseLoadedString(filePath, text)
+}
+
+func (b *JsFileLineParserBase) doParseLoadedString(filePath string, text string) {
 	inMultilineComment := false
 	inJsDocComment := false
+	pos := 0
+	for pos < len(text) {
+		if b.doParseLinesChunk(filePath, text, &pos, &inMultilineComment, &inJsDocComment) {
+			break
+		}
+	}
+}
 
-	jutil.Try(func() {
-		lineBuffer := jsFileLineParser_newBufferedReader(fileContents)
-		for {
-			line, ok := lineBuffer.ReadLine()
-			if !ok {
-				break
-			}
-			b.lineNum++
-			stop := false
-			jutil.Try(func() {
-				revisedLine := line
-				revisedJsDocCommentLine := ""
-				if inMultilineComment {
-					endOfComment := strings.Index(revisedLine, "*/")
-					if endOfComment != -1 {
-						if inJsDocComment {
-							revisedJsDocCommentLine = revisedLine[:endOfComment+2]
-							inJsDocComment = false
-						}
-						revisedLine = revisedLine[endOfComment+2:]
-						inMultilineComment = false
-					} else {
-						if inJsDocComment {
-							revisedJsDocCommentLine = line
-						}
-						revisedLine = ""
-					}
-				}
-
-				if !inMultilineComment {
-					for {
-						startOfLineComment := strings.Index(revisedLine, "//")
-						startOfMultilineComment := strings.Index(revisedLine, "/*")
-						if startOfLineComment != -1 &&
-							(startOfMultilineComment == -1 ||
-								startOfLineComment < startOfMultilineComment) {
-							revisedLine = revisedLine[:startOfLineComment]
-							break
-						} else if startOfMultilineComment != -1 {
-							// If comment is in a string (single or double quoted), don't parse as a comment.
-							if b.isCommentQuoted(revisedLine, startOfMultilineComment, '\'') {
-								break
-							}
-							if b.isCommentQuoted(revisedLine, startOfMultilineComment, '"') {
-								break
-							}
-							if startOfMultilineComment == strings.Index(revisedLine, "/**") {
-								inJsDocComment = true
-							}
-							endOfMultilineComment := jsFileLineParser_indexFrom(revisedLine, "*/", startOfMultilineComment+2)
-							if endOfMultilineComment == -1 {
-								if inJsDocComment {
-									revisedJsDocCommentLine = revisedLine[startOfMultilineComment:]
-								}
-								revisedLine = revisedLine[:startOfMultilineComment]
-								inMultilineComment = true
-								break
-							} else {
-								if inJsDocComment {
-									jsDocComment := revisedLine[startOfMultilineComment : endOfMultilineComment+2]
-									if !b.self.ParseJsDocCommentLine(jsDocComment) && b.shortcutMode {
-										break
-									}
-									inJsDocComment = false
-								}
-								revisedLine = revisedLine[:startOfMultilineComment] +
-									revisedLine[endOfMultilineComment+2:]
-							}
-						} else {
-							break
-						}
-					}
-				}
-
-				if revisedJsDocCommentLine != "" {
-					if !b.self.ParseJsDocCommentLine(revisedJsDocCommentLine) && b.shortcutMode {
-						stop = true
-						return
-					}
-				}
-
-				if revisedLine != "" {
-					// This check for shortcut mode should be redundant, but
-					// it's done for safety reasons.
-					if !b.self.ParseLine(revisedLine) && b.shortcutMode {
-						stop = true
-						return
-					}
-				}
-			}, func(e IJsFileLineParser_ParseException) {
-				// Inform the error handler of the exception.
+func (b *JsFileLineParserBase) doParseLinesChunk(
+	filePath string,
+	text string,
+	pos *int,
+	inMultilineComment *bool,
+	inJsDocComment *bool,
+) (stopped bool) {
+	var curLine string
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(IJsFileLineParser_ParseException); ok {
 				level := CheckLevel_WARNING
 				diagnostic := JsFileLineParser_PARSE_WARNING
 				if e.IsFatal() {
 					level = CheckLevel_ERROR
 					diagnostic = JsFileLineParser_PARSE_ERROR
 				}
+				fp := filePath
 				b.errorManager.Report(
 					level.Ptr(),
-					JSError_MakeWithSourceLocation(&filePath, b.lineNum, 0, /* char offset */
+					JSError_MakeWithSourceLocation(&fp, b.lineNum, 0, /* char offset */
 						diagnostic,
-						e.GetMessage(), line))
+						e.GetMessage(), curLine))
 				b.parseSucceeded = b.parseSucceeded && !e.IsFatal()
-			})
-			if stop {
-				break
+				stopped = false
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	for {
+		line, nextPos, ok := jutil.NextLineFromString(text, *pos)
+		if !ok {
+			return true
+		}
+		*pos = nextPos
+		curLine = line
+		b.lineNum++
+
+		revisedLine := line
+		revisedJsDocCommentLine := ""
+		if *inMultilineComment {
+			endOfComment := strings.Index(revisedLine, "*/")
+			if endOfComment != -1 {
+				if *inJsDocComment {
+					revisedJsDocCommentLine = revisedLine[:endOfComment+2]
+					*inJsDocComment = false
+				}
+				revisedLine = revisedLine[endOfComment+2:]
+				*inMultilineComment = false
+			} else {
+				if *inJsDocComment {
+					revisedJsDocCommentLine = line
+				}
+				revisedLine = ""
 			}
 		}
-	}, func(e jutil.IIOException) {
-		b.errorManager.Report(CheckLevel_ERROR.Ptr(),
-			JSError_MakeWithSourceLocation(&filePath, 0, 0, /* char offset */
-				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
-		b.parseSucceeded = false
-	})
+
+		if !*inMultilineComment {
+			for {
+				startOfLineComment := strings.Index(revisedLine, "//")
+				startOfMultilineComment := strings.Index(revisedLine, "/*")
+				if startOfLineComment != -1 &&
+					(startOfMultilineComment == -1 ||
+						startOfLineComment < startOfMultilineComment) {
+					revisedLine = revisedLine[:startOfLineComment]
+					break
+				} else if startOfMultilineComment != -1 {
+					// If comment is in a string (single or double quoted), don't parse as a comment.
+					if b.isCommentQuoted(revisedLine, startOfMultilineComment, '\'') {
+						break
+					}
+					if b.isCommentQuoted(revisedLine, startOfMultilineComment, '"') {
+						break
+					}
+					if len(revisedLine) > startOfMultilineComment+2 && revisedLine[startOfMultilineComment+2] == '*' {
+						*inJsDocComment = true
+					}
+					endOfMultilineComment := jsFileLineParser_indexFrom(revisedLine, "*/", startOfMultilineComment+2)
+					if endOfMultilineComment == -1 {
+						if *inJsDocComment {
+							revisedJsDocCommentLine = revisedLine[startOfMultilineComment:]
+						}
+						revisedLine = revisedLine[:startOfMultilineComment]
+						*inMultilineComment = true
+						break
+					} else {
+						if *inJsDocComment {
+							jsDocComment := revisedLine[startOfMultilineComment : endOfMultilineComment+2]
+							if !b.self.ParseJsDocCommentLine(jsDocComment) && b.shortcutMode {
+								break
+							}
+							*inJsDocComment = false
+						}
+						revisedLine = revisedLine[:startOfMultilineComment] +
+							revisedLine[endOfMultilineComment+2:]
+					}
+				} else {
+					break
+				}
+			}
+		}
+
+		if revisedJsDocCommentLine != "" {
+			if !b.self.ParseJsDocCommentLine(revisedJsDocCommentLine) && b.shortcutMode {
+				return true
+			}
+		}
+
+		if revisedLine != "" {
+			// This check for shortcut mode should be redundant, but
+			// it's done for safety reasons.
+			if !b.self.ParseLine(revisedLine) && b.shortcutMode {
+				return true
+			}
+		}
+	}
 }
 
 // jsFileLineParser_newBufferedReader is new BufferedReader(fileContents).
@@ -390,10 +426,7 @@ func (b *JsFileLineParserBase) ParseJsString(jsStringLiteral string) string {
 	if !b.valueMatcher.Matches() {
 		panic(NewJsFileLineParser_ParseException("Syntax error in JS String literal", true /* fatal */))
 	}
-	if b.valueMatcher.Group(1) != nil {
-		return *b.valueMatcher.Group(1)
-	}
-	return *b.valueMatcher.Group(2)
+	return b.valueMatcher.MatchedValue()
 }
 
 // ParseJsStringArray parses a JavaScript array of string literals. (eg:
@@ -427,11 +460,7 @@ func (b *JsFileLineParserBase) ParseJsStringArray(input string) []string {
 				panic(NewJsFileLineParser_ParseException("Syntax error in JS String literal", true /* fatal */))
 			}
 			// Add it to the results.
-			if b.valueMatcher.Group(1) != nil {
-				results = append(results, *b.valueMatcher.Group(1))
-			} else {
-				results = append(results, *b.valueMatcher.Group(2))
-			}
+			results = append(results, b.valueMatcher.MatchedValue())
 			if b.valueMatcher.HitEnd() {
 				break
 			}
@@ -470,24 +499,14 @@ func (b *JsFileLineParserBase) ParseJsStringMap(input string) *jutil.LinkedHashM
 	for !done {
 		// Parse the next key (TODO(sdh): need to support non-quoted keys?).
 		jsFileLineParser_check(b.valueMatcher.LookingAt(), "Bad key in JS object literal")
-		var key string
-		if b.valueMatcher.Group(1) != nil {
-			key = *b.valueMatcher.Group(1)
-		} else {
-			key = *b.valueMatcher.Group(2)
-		}
+		key := b.valueMatcher.MatchedValue()
 		jsFileLineParser_check(!b.valueMatcher.HitEnd(), "Missing value in JS object literal")
 		jsFileLineParser_check(input[b.valueMatcher.End()] == ':', "Missing colon in JS object literal")
 		b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 
 		// Parse the corresponding value.
 		jsFileLineParser_check(b.valueMatcher.LookingAt(), "Bad value in JS object literal")
-		var val string
-		if b.valueMatcher.Group(1) != nil {
-			val = *b.valueMatcher.Group(1)
-		} else {
-			val = *b.valueMatcher.Group(2)
-		}
+		val := b.valueMatcher.MatchedValue()
 		results.Put(key, val)
 		if !b.valueMatcher.HitEnd() {
 			jsFileLineParser_check(input[b.valueMatcher.End()] == ',', "Missing comma in JS object literal")
@@ -590,6 +609,17 @@ func (m *jsFileLineParser_stringLiteralMatcher) End() int {
 		panic(jutil.NewIllegalStateExceptionMsg("No match available"))
 	}
 	return m.end
+}
+
+// MatchedValue returns the matched string from group 1 or group 2 without allocating.
+func (m *jsFileLineParser_stringLiteralMatcher) MatchedValue() string {
+	if !m.matched {
+		panic(jutil.NewIllegalStateExceptionMsg("No match found"))
+	}
+	if m.g1Start >= 0 {
+		return m.input[m.g1Start:m.g1End]
+	}
+	return m.input[m.g2Start:m.g2End]
 }
 
 // Group is Matcher.group(int) for groups 1 and 2: nil when the group did

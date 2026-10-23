@@ -40,20 +40,121 @@ type SimpleDependencyInfo struct {
 
 var _ DependencyInfo = (*SimpleDependencyInfo)(nil)
 
+var (
+	simpleDependencyInfo_emptyStrings  = []string{}
+	simpleDependencyInfo_emptyRequires = []*DependencyInfo_Require{}
+	simpleDependencyInfo_EMPTY_FLAGS   = jutil.NewLinkedHashMap[string, string]()
+	simpleDependencyInfo_ES6_FLAGS     = func() *jutil.LinkedHashMap[string, string] {
+		m := jutil.NewLinkedHashMap[string, string]()
+		m.Put("module", "es6")
+		return m
+	}()
+	simpleDependencyInfo_langModuleFlags = func() map[[2]string]*jutil.LinkedHashMap[string, string] {
+		langs := []string{"", "es5", "es6", "es7", "es8", "es9", "es_2020", "es_2021", "es_next", "ts_unsupported"}
+		mods := []string{"", "goog", "es6"}
+		out := make(map[[2]string]*jutil.LinkedHashMap[string, string], len(langs)*len(mods))
+		for _, l := range langs {
+			for _, mod := range mods {
+				if l == "" && mod == "" {
+					out[[2]string{l, mod}] = simpleDependencyInfo_EMPTY_FLAGS
+					continue
+				}
+				if l == "" && mod == "goog" {
+					out[[2]string{l, mod}] = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+					continue
+				}
+				if l == "" && mod == "es6" {
+					out[[2]string{l, mod}] = simpleDependencyInfo_ES6_FLAGS
+					continue
+				}
+				m := jutil.NewLinkedHashMap[string, string]()
+				if l != "" {
+					m.Put("lang", l)
+				}
+				if mod != "" {
+					m.Put("module", mod)
+				}
+				out[[2]string{l, mod}] = m
+			}
+		}
+		return out
+	}()
+)
+
+func simpleDependencyInfo_flagsForLangModule(lang, mod string) *jutil.LinkedHashMap[string, string] {
+	if m, ok := simpleDependencyInfo_langModuleFlags[[2]string{lang, mod}]; ok {
+		return m
+	}
+	m := jutil.NewLinkedHashMap[string, string]()
+	if lang != "" {
+		m.Put("lang", lang)
+	}
+	if mod != "" {
+		m.Put("module", mod)
+	}
+	return m
+}
+
+func newSimpleDependencyInfoDirect(
+	srcPathRelativeToClosure string,
+	pathOfDefiningFile string,
+	provides []string,
+	requires []*DependencyInfo_Require,
+	typeRequires []string,
+	loadFlags *jutil.LinkedHashMap[string, string],
+	hasExternsAnnotation bool,
+	hasNoCompileAnnotation bool,
+) *SimpleDependencyInfo {
+	var provCopy, typeReqCopy []string
+	np, nt := len(provides), len(typeRequires)
+	if np == 0 && nt == 0 {
+		provCopy = simpleDependencyInfo_emptyStrings
+		typeReqCopy = simpleDependencyInfo_emptyStrings
+	} else {
+		combined := make([]string, np+nt)
+		copy(combined[:np], provides)
+		copy(combined[np:], typeRequires)
+		if np == 0 {
+			provCopy = simpleDependencyInfo_emptyStrings
+		} else {
+			provCopy = combined[:np:np]
+		}
+		if nt == 0 {
+			typeReqCopy = simpleDependencyInfo_emptyStrings
+		} else {
+			typeReqCopy = combined[np:]
+		}
+	}
+	reqCopy := simpleDependencyInfo_copyRequires(requires)
+	if loadFlags == nil || loadFlags.IsEmpty() {
+		loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+	}
+	return &SimpleDependencyInfo{
+		name:                      pathOfDefiningFile,
+		pathRelativeToClosureBase: srcPathRelativeToClosure,
+		provides:                  provCopy,
+		requires:                  reqCopy,
+		typeRequires:              typeReqCopy,
+		loadFlags:                 loadFlags,
+		hasExternsAnnotation:      hasExternsAnnotation,
+		hasNoCompileAnnotation:    hasNoCompileAnnotation,
+	}
+}
+
 // SimpleDependencyInfo_Builder_ is SimpleDependencyInfo.builder(String, String).
 //
 // Go-only: language-adapter — the trailing underscore keeps the mechanical
 // name SimpleDependencyInfo_Builder for the nested Builder type.
 func SimpleDependencyInfo_Builder_(srcPathRelativeToClosure string, pathOfDefiningFile string) *SimpleDependencyInfo_Builder {
-	return NewSimpleDependencyInfo_Builder().
-		SetName(pathOfDefiningFile).
-		SetPathRelativeToClosureBase(srcPathRelativeToClosure).
-		SetProvides([]string{}).
-		SetRequires([]*DependencyInfo_Require{}).
-		SetTypeRequires([]string{}).
-		SetLoadFlags(jutil.NewLinkedHashMap[string, string]()).
-		SetHasExternsAnnotation(false).
-		SetHasNoCompileAnnotation(false)
+	return &SimpleDependencyInfo_Builder{
+		name:                      pathOfDefiningFile,
+		pathRelativeToClosureBase: srcPathRelativeToClosure,
+		provides:                  simpleDependencyInfo_emptyStrings,
+		requires:                  simpleDependencyInfo_emptyRequires,
+		typeRequires:              simpleDependencyInfo_emptyStrings,
+		loadFlags:                 simpleDependencyInfo_EMPTY_FLAGS,
+		set0:                      1 | 2 | 4 | 8,
+	}
 }
 
 // Java: AutoValue_SimpleDependencyInfo.getName()
@@ -161,8 +262,8 @@ func simpleDependencyInfo_boolHash(b bool) int32 {
 // SimpleDependencyInfo. Use SimpleDependencyInfo_Builder_ to create an
 // instance.
 type SimpleDependencyInfo_Builder struct {
-	name                      *string
-	pathRelativeToClosureBase *string
+	name                      string
+	pathRelativeToClosureBase string
 	provides                  []string
 	requires                  []*DependencyInfo_Require
 	typeRequires              []string
@@ -192,25 +293,36 @@ func SimpleDependencyInfo_Builder_From(copy DependencyInfo) *SimpleDependencyInf
 
 // Java: SimpleDependencyInfo.Builder.setName(String)
 func (b *SimpleDependencyInfo_Builder) SetName(name string) *SimpleDependencyInfo_Builder {
-	b.name = &name
+	b.name = name
+	b.set0 |= 4
 	return b
 }
 
 // Java: SimpleDependencyInfo.Builder.setPathRelativeToClosureBase(String)
 func (b *SimpleDependencyInfo_Builder) SetPathRelativeToClosureBase(srcPathRelativeToClosure string) *SimpleDependencyInfo_Builder {
-	b.pathRelativeToClosureBase = &srcPathRelativeToClosure
+	b.pathRelativeToClosureBase = srcPathRelativeToClosure
+	b.set0 |= 8
 	return b
+}
+
+func simpleDependencyInfo_copyStrings(s []string) []string {
+	if len(s) == 0 {
+		return simpleDependencyInfo_emptyStrings
+	}
+	out := make([]string, len(s))
+	copy(out, s)
+	return out
 }
 
 // Java: SimpleDependencyInfo.Builder.setProvides(Collection<String>)
 func (b *SimpleDependencyInfo_Builder) SetProvides(provides []string) *SimpleDependencyInfo_Builder {
-	b.provides = append([]string{}, provides...)
+	b.provides = simpleDependencyInfo_copyStrings(provides)
 	return b
 }
 
 // Java: SimpleDependencyInfo.Builder.setProvides(String...)
 func (b *SimpleDependencyInfo_Builder) SetProvidesArray(provides ...string) *SimpleDependencyInfo_Builder {
-	b.provides = append([]string{}, provides...)
+	b.provides = simpleDependencyInfo_copyStrings(provides)
 	return b
 }
 
@@ -229,27 +341,39 @@ func (b *SimpleDependencyInfo_Builder) SetRequiresArray(requires ...*DependencyI
 // simpleDependencyInfo_copyRequires is ImmutableList.copyOf, which rejects
 // null elements.
 func simpleDependencyInfo_copyRequires(requires []*DependencyInfo_Require) []*DependencyInfo_Require {
+	if len(requires) == 0 {
+		return simpleDependencyInfo_emptyRequires
+	}
 	for _, r := range requires {
 		jutil.CheckNotNull(r)
 	}
-	return append([]*DependencyInfo_Require{}, requires...)
+	out := make([]*DependencyInfo_Require, len(requires))
+	copy(out, requires)
+	return out
 }
 
 // Java: SimpleDependencyInfo.Builder.setTypeRequires(Collection<String>)
 func (b *SimpleDependencyInfo_Builder) SetTypeRequires(typeRequires []string) *SimpleDependencyInfo_Builder {
-	b.typeRequires = append([]string{}, typeRequires...)
+	b.typeRequires = simpleDependencyInfo_copyStrings(typeRequires)
 	return b
 }
 
 // Java: SimpleDependencyInfo.Builder.setTypeRequires(String...)
 func (b *SimpleDependencyInfo_Builder) SetTypeRequiresArray(typeRequires ...string) *SimpleDependencyInfo_Builder {
-	b.typeRequires = append([]string{}, typeRequires...)
+	b.typeRequires = simpleDependencyInfo_copyStrings(typeRequires)
 	return b
 }
 
 // Java: SimpleDependencyInfo.Builder.setLoadFlags(Map<String, String>)
 func (b *SimpleDependencyInfo_Builder) SetLoadFlags(loadFlags *jutil.LinkedHashMap[string, string]) *SimpleDependencyInfo_Builder {
-	b.loadFlags = jutil.NewLinkedHashMapFrom(jutil.CheckNotNull(loadFlags))
+	jutil.CheckNotNull(loadFlags)
+	if loadFlags.IsEmpty() {
+		b.loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+	} else if loadFlags == simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS || loadFlags == simpleDependencyInfo_ES6_FLAGS {
+		b.loadFlags = loadFlags
+	} else {
+		b.loadFlags = jutil.NewLinkedHashMapFrom(loadFlags)
+	}
 	return b
 }
 
@@ -276,20 +400,22 @@ var simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS = func() *jutil.LinkedHashMap
 // Java: SimpleDependencyInfo.Builder.setGoogModule(boolean)
 func (b *SimpleDependencyInfo_Builder) SetGoogModule(isModule bool) *SimpleDependencyInfo_Builder {
 	if isModule {
-		return b.SetLoadFlags(simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS)
+		b.loadFlags = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+		return b
 	}
-	return b.SetLoadFlags(jutil.NewLinkedHashMap[string, string]())
+	b.loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+	return b
 }
 
 // Java: SimpleDependencyInfo.Builder.build()
 func (b *SimpleDependencyInfo_Builder) Build() *SimpleDependencyInfo {
-	if b.set0 != 3 || b.name == nil || b.pathRelativeToClosureBase == nil || b.provides == nil ||
+	if b.set0 != (1|2|4|8) || b.provides == nil ||
 		b.requires == nil || b.typeRequires == nil || b.loadFlags == nil {
 		missing := jutil.NewStringBuilder()
-		if b.name == nil {
+		if b.set0&4 == 0 {
 			missing.Append(" name")
 		}
-		if b.pathRelativeToClosureBase == nil {
+		if b.set0&8 == 0 {
 			missing.Append(" pathRelativeToClosureBase")
 		}
 		if b.provides == nil {
@@ -313,8 +439,8 @@ func (b *SimpleDependencyInfo_Builder) Build() *SimpleDependencyInfo {
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}
 	return &SimpleDependencyInfo{
-		name:                      *b.name,
-		pathRelativeToClosureBase: *b.pathRelativeToClosureBase,
+		name:                      b.name,
+		pathRelativeToClosureBase: b.pathRelativeToClosureBase,
 		provides:                  b.provides,
 		requires:                  b.requires,
 		typeRequires:              b.typeRequires,

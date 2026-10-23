@@ -41,7 +41,8 @@ import (
 // Java: class CmdLineParser
 type CmdLineParser struct {
 	// Discovered OptionHandlers for options.
-	options []OptionHandler
+	options      []OptionHandler
+	optionByName map[string]OptionHandler
 
 	// Discovered OptionHandlers for arguments.
 	arguments []OptionHandler
@@ -91,6 +92,7 @@ func NewCmdLineParserWithProperties(bean any, parserProperties *ParserProperties
 	if parserProperties.GetOptionSorter() != nil {
 		// Collections.sort is a stable sort.
 		slices.SortStableFunc(p.options, parserProperties.GetOptionSorter())
+		p.optionByName = nil
 	}
 	return p
 }
@@ -135,7 +137,18 @@ func (p *CmdLineParser) AddOption(setter Setter, o *Option) {
 	for _, alias := range o.Aliases {
 		p.checkOptionNotInMap(alias)
 	}
-	p.options = append(p.options, p.CreateOptionHandler(NewNamedOptionDef(o), setter))
+	h := p.CreateOptionHandler(NewNamedOptionDef(o), setter)
+	p.options = append(p.options, h)
+	if p.optionByName != nil {
+		if _, exists := p.optionByName[o.Name]; !exists {
+			p.optionByName[o.Name] = h
+		}
+		for _, alias := range o.Aliases {
+			if _, exists := p.optionByName[alias]; !exists {
+				p.optionByName[alias] = h
+			}
+		}
+	}
 }
 
 // GetArguments lists up all the defined arguments in the order.
@@ -691,18 +704,26 @@ func (p *CmdLineParser) findOptionHandler(name string) OptionHandler {
 //
 // Java: CmdLineParser.findOptionByName(String)
 func (p *CmdLineParser) findOptionByName(name string) OptionHandler {
-	for _, h := range p.options {
-		option := h.GetOptionHandlerBase().Option.(*NamedOptionDef)
-		if name == option.Name() {
-			return h
-		}
-		for _, alias := range option.Aliases() {
-			if name == alias {
-				return h
+	if len(p.options) == 0 {
+		return nil
+	}
+	if p.optionByName == nil {
+		m := make(map[string]OptionHandler, len(p.options)*2)
+		for _, h := range p.options {
+			option := h.GetOptionHandlerBase().Option.(*NamedOptionDef)
+			optName := option.Name()
+			if _, exists := m[optName]; !exists {
+				m[optName] = h
+			}
+			for _, alias := range option.Aliases() {
+				if _, exists := m[alias]; !exists {
+					m[alias] = h
+				}
 			}
 		}
+		p.optionByName = m
 	}
-	return nil
+	return p.optionByName[name]
 }
 
 // IsOption returns true if the given token is an option (as opposed to an

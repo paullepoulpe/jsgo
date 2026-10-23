@@ -521,6 +521,26 @@ func nodeUtil_bigIntegerDoubleValue(digits string, radix int) float64 {
 	return f
 }
 
+const (
+	nodeUtil_smallBigIntMin = -128
+	nodeUtil_smallBigIntMax = 383
+)
+
+var nodeUtil_smallBigInts = func() [nodeUtil_smallBigIntMax - nodeUtil_smallBigIntMin + 1]big.Int {
+	var arr [nodeUtil_smallBigIntMax - nodeUtil_smallBigIntMin + 1]big.Int
+	for i := range arr {
+		arr[i].SetInt64(int64(i + nodeUtil_smallBigIntMin))
+	}
+	return arr
+}()
+
+func nodeUtil_bigIntFromInt64(v int64) *big.Int {
+	if v >= nodeUtil_smallBigIntMin && v <= nodeUtil_smallBigIntMax {
+		return &nodeUtil_smallBigInts[v-nodeUtil_smallBigIntMin]
+	}
+	return big.NewInt(v)
+}
+
 // NodeUtil_GetBigIntValue gets the value of a node as a BigInt, or null if it
 // cannot be converted. When it returns a non-null BigInteger, this method
 // effectively emulates the BigInt() JavaScript cast function.
@@ -533,7 +553,7 @@ func NodeUtil_GetBigIntValue(n *rhino.Node) *big.Int {
 	case rhino.Token_NUMBER:
 		val := n.GetDouble()
 		if base.JSCompDoubles_IsAtLeastIntegerPrecision(val) && base.JSCompDoubles_IsExactInt64(val) {
-			return big.NewInt(jutil.D2L(val))
+			return nodeUtil_bigIntFromInt64(jutil.D2L(val))
 		}
 		return nil
 
@@ -543,9 +563,9 @@ func NodeUtil_GetBigIntValue(n *rhino.Node) *big.Int {
 	case rhino.Token_FALSE, rhino.Token_NOT, rhino.Token_TRUE:
 		switch NodeUtil_GetBooleanValue(n) {
 		case base.Tri_TRUE:
-			return big.NewInt(1)
+			return &nodeUtil_smallBigInts[1-nodeUtil_smallBigIntMin]
 		case base.Tri_FALSE:
-			return big.NewInt(0)
+			return &nodeUtil_smallBigInts[0-nodeUtil_smallBigIntMin]
 		default: // case UNKNOWN
 			return nil
 		}
@@ -6907,10 +6927,14 @@ func NodeUtil_AddFeatureToScript(scriptNode *rhino.Node, feature parser.FeatureS
 // Java: NodeUtil.removeFeatureFromScript(Node, Feature)
 func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.FeatureSet_Feature) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
-	if currentFeatures != nil {
-		currentFeatures = currentFeatures.WithoutFeatures(feature)
+	if currentFeatures == nil {
+		scriptNode.PutProp(rhino.Node_FEATURE_SET, nil)
+		return
 	}
-	scriptNode.PutProp(rhino.Node_FEATURE_SET, currentFeatures)
+	updated := currentFeatures.WithoutFeatures(feature)
+	if updated != currentFeatures {
+		scriptNode.PutProp(rhino.Node_FEATURE_SET, updated)
+	}
 }
 
 // NodeUtil_RemoveFeaturesFromScript removes the given featureSet from the
@@ -6927,8 +6951,10 @@ func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.Fea
 func NodeUtil_RemoveFeaturesFromScript(scriptNode *rhino.Node, featureSet *parser.FeatureSet) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
 	if currentFeatures != nil {
-		currentFeatures = currentFeatures.Without(featureSet)
-		scriptNode.PutProp(rhino.Node_FEATURE_SET, currentFeatures)
+		updated := currentFeatures.Without(featureSet)
+		if updated != currentFeatures {
+			scriptNode.PutProp(rhino.Node_FEATURE_SET, updated)
+		}
 	}
 }
 

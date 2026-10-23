@@ -38,6 +38,7 @@ type StandardUnionFind[E comparable] struct {
 	// All values with the same root node are in the same equivalence set.
 	elmap    *jutil.LinkedHashMap[E, *standardUnionFind_Node[E]]
 	nodeSlab jutil.Slab[standardUnionFind_Node[E]]
+	numSets  int32
 }
 
 // NewStandardUnionFind creates an empty UnionFind structure.
@@ -82,6 +83,7 @@ func (u *StandardUnionFind[E]) Union(a E, b E) E {
 	if nodeA == nodeB {
 		return nodeA.element
 	}
+	u.numSets--
 	// If possible, prefer nodeA over nodeB, to preserve insertion order.
 	if nodeA.rank >= nodeB.rank {
 		nodeB.parent = nodeA
@@ -151,6 +153,21 @@ func (u *StandardUnionFind[E]) AllEquivalenceClasses() []*jutil.LinkedHashSet[E]
 	return result
 }
 
+// NumSets returns the number of equivalence classes in O(1).
+func (u *StandardUnionFind[E]) NumSets() int {
+	return int(u.numSets)
+}
+
+// AppendRepresentatives appends the representative elements of all equivalence classes to dst.
+func (u *StandardUnionFind[E]) AppendRepresentatives(dst []E) []E {
+	u.elmap.ForEachValue(func(n *standardUnionFind_Node[E]) {
+		if n == n.parent {
+			dst = append(dst, n.element)
+		}
+	})
+	return dst
+}
+
 // AllRepresentatives returns the reprsentative elements of all the
 // equivalence classes.
 //
@@ -160,11 +177,11 @@ func (u *StandardUnionFind[E]) AllEquivalenceClasses() []*jutil.LinkedHashSet[E]
 // Java: StandardUnionFind.allRepresentatives()
 func (u *StandardUnionFind[E]) AllRepresentatives() *jutil.LinkedHashSet[E] {
 	result := jutil.NewLinkedHashSet[E]()
-	for n := range u.elmap.Values() {
+	u.elmap.ForEachValue(func(n *standardUnionFind_Node[E]) {
 		if n == n.parent {
 			result.Add(n.element)
 		}
-	}
+	})
 	return result
 }
 
@@ -186,6 +203,7 @@ func (u *StandardUnionFind[E]) findRootOrCreateNode(e E) *standardUnionFind_Node
 	node.size = 1
 	node.parent = node
 	u.elmap.Put(e, node)
+	u.numSets++
 	return node
 }
 

@@ -345,11 +345,30 @@ func (m *PropertyMap) GetPropertiesCount() int {
 // Java: PropertyMap.getOwnPropertyNames()
 func (m *PropertyMap) GetOwnPropertyNames() []string {
 	m.ensureSorted()
+	if len(m.entries) == 0 {
+		return nil
+	}
 	out := make([]string, len(m.entries))
 	for i, p := range m.entries {
 		out[i] = rhinoStringFromID(p.nameID)
 	}
 	return out
+}
+
+// ForEachOwnPropertyName calls fn for each own property name in sorted order without allocating a slice.
+func (m *PropertyMap) ForEachOwnPropertyName(fn func(string)) {
+	if len(m.entries) == 0 {
+		return
+	}
+	m.ensureSorted()
+	for _, p := range m.entries {
+		fn(rhinoStringFromID(p.nameID))
+	}
+}
+
+// HasAnyOwnProperties reports whether m has at least one own string property.
+func (m *PropertyMap) HasAnyOwnProperties() bool {
+	return len(m.entries) != 0
 }
 
 // Java: PropertyMap.getOwnKnownSymbols()

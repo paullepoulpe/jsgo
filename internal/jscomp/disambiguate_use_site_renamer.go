@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"strconv"
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -29,14 +32,42 @@ type UseSiteRenamer struct {
 	mutationCb func(*rhino.Node)
 
 	// ImmutableSetMultimap.Builder: keys and values in insertion order.
-	renamingIndex *jutil.SetMultimap[string, string]
+	renamingIndex       *jutil.SetMultimap[string, string]
+	trackRenamingIndex  bool
+	scratchReps         []*ColorGraphNode
+	scratchClusterNames map[*ColorGraphNode]string
+	nameByteSlab        []byte
 }
 
 const useSiteRenamer_INVALIDATED_NAME_VALUE = "<INVALIDATED>"
 
 // Java: UseSiteRenamer(Consumer<Node>)
 func NewUseSiteRenamer(mutationCb func(*rhino.Node)) *UseSiteRenamer {
-	return &UseSiteRenamer{mutationCb: mutationCb, renamingIndex: jutil.NewSetMultimap[string, string]()}
+	return &UseSiteRenamer{
+		mutationCb:         mutationCb,
+		renamingIndex:      jutil.NewSetMultimap[string, string](),
+		trackRenamingIndex: true,
+	}
+}
+
+func (r *UseSiteRenamer) allocClusterName(origRep *ColorGraphNode, propName string, rep *ColorGraphNode) string {
+	if origRep == rep {
+		return propName
+	}
+	// Format "JSC$" + strconv.Itoa(rep.GetIndex()) + "_" + propName into noscan slab.
+	maxLen := 4 + 20 + 1 + len(propName)
+	if len(r.nameByteSlab) < maxLen {
+		r.nameByteSlab = make([]byte, max(maxLen, 16384))
+	}
+	buf := r.nameByteSlab[:0]
+	buf = append(buf, "JSC$"...)
+	buf = strconv.AppendInt(buf, int64(rep.GetIndex()), 10)
+	buf = append(buf, '_')
+	buf = append(buf, propName...)
+	n := len(buf)
+	s := unsafe.String(&r.nameByteSlab[0], n)
+	r.nameByteSlab = r.nameByteSlab[n:]
+	return s
 }
 
 // RenameUses renames all references to prop.
@@ -46,31 +77,68 @@ func NewUseSiteRenamer(mutationCb func(*rhino.Node)) *UseSiteRenamer {
 //
 // Java: UseSiteRenamer.renameUses(PropertyClustering)
 func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_RenameUsesResult {
+	propName := prop.GetName()
 	if prop.IsInvalidated() {
-		r.renamingIndex.Put(prop.GetName(), useSiteRenamer_INVALIDATED_NAME_VALUE)
+		if r.trackRenamingIndex {
+			r.renamingIndex.Put(propName, useSiteRenamer_INVALIDATED_NAME_VALUE)
+		}
 		return UseSiteRenamer_RenameUsesResult_INVALIDATED
 	}
 
-	clusterNames := useSiteRenamer_createAllClusterNames(prop)
-
-	if clusterNames.Size() <= 1 {
+	clusters := prop.GetClusters()
+	if clusters.NumSets() <= 1 {
 		// Don't bother renaming clusters with a single element. Renaming
 		// won't actaully disambiguate anything in this case, so skip the
 		// work.
-		r.renamingIndex.Put(prop.GetName(), prop.GetName())
+		if r.trackRenamingIndex {
+			r.renamingIndex.Put(propName, propName)
+		}
 		return UseSiteRenamer_RenameUsesResult_ONLY_ONE_CLUSTER
 	}
 
-	for v := range clusterNames.Values() {
-		r.renamingIndex.Put(prop.GetName(), v)
+	reps := clusters.AppendRepresentatives(r.scratchReps[:0])
+	r.scratchReps = reps
+	if r.scratchClusterNames == nil {
+		r.scratchClusterNames = make(map[*ColorGraphNode]string, max(16, len(reps)))
+	} else {
+		clear(r.scratchClusterNames)
 	}
-	for site, colorNode := range prop.GetUseSites().All() {
-		flatRep := prop.GetClusters().Find(colorNode)
-		// flatRep is a representative, so it has a cluster name.
-		newName := clusterNames.Get(flatRep)
-		if newName != site.GetString() {
-			site.SetString(newName)
-			r.mutationCb(site)
+	origRep := prop.GetOriginalNameClusterRep()
+	for _, rep := range reps {
+		name := r.allocClusterName(origRep, propName, rep)
+		r.scratchClusterNames[rep] = name
+		if r.trackRenamingIndex {
+			r.renamingIndex.Put(propName, name)
+		}
+	}
+
+	useSites := prop.GetUseSites()
+	nInline := int(useSites.count)
+	if nInline > len(useSites.inline) {
+		nInline = len(useSites.inline)
+	}
+	for i := 0; i < nInline; i++ {
+		e := useSites.inline[i]
+		flatRep := clusters.Find(e.owner)
+		newName := r.scratchClusterNames[flatRep]
+		if newName != e.site.GetString() {
+			e.site.SetString(newName)
+			r.mutationCb(e.site)
+		}
+	}
+	for ch := useSites.head; ch != nil; ch = ch.next {
+		entries := ch.entries
+		if ch == useSites.tail {
+			entries = entries[:useSites.tailUsed]
+		}
+		for i := range entries {
+			e := entries[i]
+			flatRep := clusters.Find(e.owner)
+			newName := r.scratchClusterNames[flatRep]
+			if newName != e.site.GetString() {
+				e.site.SetString(newName)
+				r.mutationCb(e.site)
+			}
 		}
 	}
 	return UseSiteRenamer_RenameUsesResult_DISAMBIGUATED

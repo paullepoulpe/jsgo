@@ -1114,8 +1114,13 @@ func (m *makeDeclaredNamesUniqueMultiset) String() string {
 //
 // See FunctionInjector.
 type MakeDeclaredNamesUnique_InlineRenamer struct {
-	declarations     *jutil.LinkedHashMap[string, string]
+	inlineKeys       [8]string
+	inlineVals       [8]string
+	inlineLen        int
+	overflow         map[string]string
 	uniqueIdSupplier func() string
+	concreteCompiler *Compiler
+	mutator          *FunctionToBlockMutator
 	idPrefix         string
 	removeConstness  bool
 	convention       CodingConvention
@@ -1132,7 +1137,6 @@ func NewMakeDeclaredNamesUnique_InlineRenamer(
 	hoistingTargetScope bool,
 	parent MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_InlineRenamer {
 	r := &MakeDeclaredNamesUnique_InlineRenamer{}
-	r.declarations = jutil.NewLinkedHashMap[string, string]()
 	r.convention = convention
 	r.uniqueIdSupplier = uniqueIdSupplier
 	// To ensure that the id does not conflict with the id from the
@@ -1149,14 +1153,41 @@ func NewMakeDeclaredNamesUnique_InlineRenamer(
 	return r
 }
 
+func (r *MakeDeclaredNamesUnique_InlineRenamer) lookupDeclaration(oldName string) (string, bool) {
+	n := r.inlineLen
+	for i := 0; i < n; i++ {
+		if r.inlineKeys[i] == oldName {
+			return r.inlineVals[i], true
+		}
+	}
+	if r.overflow != nil {
+		v, ok := r.overflow[oldName]
+		return v, ok
+	}
+	return "", false
+}
+
 // Java: MakeDeclaredNamesUnique.InlineRenamer.addDeclaredName(String, boolean)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string, hoisted bool) {
 	jutil.CheckState(name != MakeDeclaredNamesUnique_ARGUMENTS)
 	if hoisted && r.hoistRenamer != MakeDeclaredNamesUnique_Renamer(r) {
 		r.hoistRenamer.AddDeclaredName(name, hoisted)
-	} else {
-		r.declarations.ComputeIfAbsent(name, r.GetUniqueName)
+		return
 	}
+	if _, exists := r.lookupDeclaration(name); exists {
+		return
+	}
+	unique := r.GetUniqueName(name)
+	if r.inlineLen < len(r.inlineKeys) {
+		r.inlineKeys[r.inlineLen] = name
+		r.inlineVals[r.inlineLen] = unique
+		r.inlineLen++
+		return
+	}
+	if r.overflow == nil {
+		r.overflow = make(map[string]string, 16)
+	}
+	r.overflow[name] = unique
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getUniqueName(String)
@@ -1165,12 +1196,16 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetUniqueName(name string) strin
 		return name
 	}
 
-	if strings.Contains(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) {
-		name = jutil.StringSubstring(
-			name, 0, jutil.StringLastIndexOf(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR))
+	if idx := strings.LastIndex(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR); idx >= 0 {
+		name = name[:idx]
 	}
 
-	if r.convention.IsExported(name) {
+	exported := r.convention.IsExported(name)
+	if r.concreteCompiler != nil && r.mutator != nil {
+		return r.mutator.formatInlineUniqueName(exported, name, r.idPrefix, r.concreteCompiler.nextUniqueNameId())
+	}
+
+	if exported {
 		// The google internal coding convention includes a naming convention
 		// to export names starting with "_".  Simply strip "_" those to avoid
 		// exporting names.
@@ -1184,19 +1219,23 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetUniqueName(name string) strin
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getReplacementName(String)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementName(oldName string) *string {
-	if v, ok := r.declarations.Lookup(oldName); ok {
+	if v, ok := r.lookupDeclaration(oldName); ok {
 		return &v
 	}
 	return nil
 }
 
 func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName string) (string, bool) {
-	return r.declarations.Lookup(oldName)
+	return r.lookupDeclaration(oldName)
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.createForChildScope(Node, boolean)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) CreateForChildScope(
 	scopeRoot *rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
+	if r.mutator != nil {
+		return r.mutator.allocInlineRenamer(
+			r.convention, r.uniqueIdSupplier, r.concreteCompiler, r.idPrefix, r.removeConstness, hoistingTargetScope, r)
+	}
 	return NewMakeDeclaredNamesUnique_InlineRenamer(
 		r.convention, r.uniqueIdSupplier, r.idPrefix, r.removeConstness, hoistingTargetScope, r)
 }

@@ -169,6 +169,10 @@ func protoAppendBytes(b []byte, v []byte) []byte {
 // protoAppendString writes a string as UTF-8 (unpaired surrogates become
 // '?', as CodedOutputStream's fallback encoder does).
 func protoAppendString(b []byte, v string) []byte {
+	if utf8.ValidString(v) {
+		b = protoAppendVarint(b, uint64(len(v)))
+		return append(b, v...)
+	}
 	return protoAppendBytes(b, jutil.StringGetBytesUTF8(v))
 }
 

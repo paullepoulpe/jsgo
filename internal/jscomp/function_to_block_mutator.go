@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"strconv"
+	"unsafe"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -31,6 +34,13 @@ type FunctionToBlockMutator struct {
 	functionArgumentInjector *FunctionArgumentInjector
 	localArena               scopeArena
 	localScopeCreator        SyntacticScopeCreator
+	localMakeUnique          MakeDeclaredNamesUnique
+	localRenamerStackBuf     [16]MakeDeclaredNamesUnique_Renamer
+	localScopeRootsCb        nodeTraversal_TraverseScopeRootsCallback
+	renamerChunks            [][]MakeDeclaredNamesUnique_InlineRenamer
+	renamerChunkIdx          int
+	renamerUsedInChunk       int
+	nameByteSlab             []byte
 	allowMoveCallArgs        bool
 	currentCallNode          *rhino.Node
 	onMovedArg               func(*rhino.Node)
@@ -331,6 +341,94 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	}
 }
 
+func (m *FunctionToBlockMutator) allocInlineRenamer(
+	convention CodingConvention,
+	uniqueIdSupplier func() string,
+	concreteCompiler *Compiler,
+	idPrefix string,
+	removeConstness bool,
+	hoistingTargetScope bool,
+	parent MakeDeclaredNamesUnique_Renamer,
+) *MakeDeclaredNamesUnique_InlineRenamer {
+	const chunkSize = 64
+	if m.renamerChunkIdx >= len(m.renamerChunks) {
+		m.renamerChunks = append(m.renamerChunks, make([]MakeDeclaredNamesUnique_InlineRenamer, chunkSize))
+	}
+	chunk := m.renamerChunks[m.renamerChunkIdx]
+	r := &chunk[m.renamerUsedInChunk]
+	m.renamerUsedInChunk++
+	if m.renamerUsedInChunk == chunkSize {
+		m.renamerChunkIdx++
+		m.renamerUsedInChunk = 0
+	}
+	r.inlineLen = 0
+	if r.overflow != nil {
+		clear(r.overflow)
+	}
+	r.convention = convention
+	r.uniqueIdSupplier = uniqueIdSupplier
+	r.concreteCompiler = concreteCompiler
+	r.mutator = m
+	r.idPrefix = idPrefix
+	r.removeConstness = removeConstness
+	if hoistingTargetScope {
+		r.hoistRenamer = r
+	} else {
+		r.hoistRenamer = parent.GetHoistRenamer()
+	}
+	return r
+}
+
+func (m *FunctionToBlockMutator) resetInlineRenamers() {
+	for ci := 0; ci <= m.renamerChunkIdx && ci < len(m.renamerChunks); ci++ {
+		limit := len(m.renamerChunks[ci])
+		if ci == m.renamerChunkIdx {
+			limit = m.renamerUsedInChunk
+		}
+		chunk := m.renamerChunks[ci][:limit]
+		for i := range chunk {
+			r := &chunk[i]
+			clear(r.inlineKeys[:r.inlineLen])
+			clear(r.inlineVals[:r.inlineLen])
+			r.inlineLen = 0
+			if r.overflow != nil {
+				clear(r.overflow)
+			}
+			r.hoistRenamer = nil
+			r.uniqueIdSupplier = nil
+			r.concreteCompiler = nil
+			r.convention = nil
+			r.mutator = nil
+		}
+	}
+	m.renamerChunkIdx = 0
+	m.renamerUsedInChunk = 0
+}
+
+func (m *FunctionToBlockMutator) formatInlineUniqueName(exported bool, baseName string, idPrefix string, id int) string {
+	const jscompExportPrefix = "JSCompiler_"
+	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+	maxLen := len(baseName) + len(sep) + len(idPrefix) + 20
+	if exported {
+		maxLen += len(jscompExportPrefix)
+	}
+	if len(m.nameByteSlab) < maxLen {
+		m.nameByteSlab = make([]byte, max(maxLen, 16384))
+	}
+	buf := m.nameByteSlab[:0]
+	if exported {
+		buf = append(buf, jscompExportPrefix...)
+	}
+	buf = append(buf, baseName...)
+	buf = append(buf, sep...)
+	buf = append(buf, idPrefix...)
+	buf = strconv.AppendInt(buf, int64(id), 10)
+	n := len(buf)
+	s := unsafe.String(&m.nameByteSlab[0], n)
+	m.nameByteSlab = m.nameByteSlab[n:]
+	return s
+}
+
 // MakeLocalNamesUnique fixes up all local names to be unique for this
 // subtree.
 //
@@ -338,24 +436,32 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 //
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
 func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCallInLoop bool) {
-	idSupplier := m.compiler.GetUniqueNameIdSupplier()
-	// Make variable names unique to this instance.
-	cb := NewMakeDeclaredNamesUnique(
-		NewMakeDeclaredNamesUnique_InlineRenamer(
-			m.compiler.GetCodingConvention(),
-			idSupplier,
-			"inline_",
-			isCallInLoop,
-			true,
-			nil),
-		false,
-		false)
-	scb := nodeTraversal_TraverseScopeRootsCallback{
-		cb:             cb,
-		scopedCb:       cb,
-		traverseNested: true,
-		scopeNode:      fnNode,
+	concreteCompiler, _ := m.compiler.(*Compiler)
+	var idSupplier func() string
+	if concreteCompiler == nil {
+		idSupplier = m.compiler.GetUniqueNameIdSupplier()
 	}
+	rootRenamer := m.allocInlineRenamer(
+		m.compiler.GetCodingConvention(),
+		idSupplier,
+		concreteCompiler,
+		"inline_",
+		isCallInLoop,
+		true,
+		nil,
+	)
+	cb := &m.localMakeUnique
+	cb.renamerStack = m.localRenamerStackBuf[:0]
+	cb.rootRenamer = rootRenamer
+	cb.markChanges = false
+	cb.assertOnChange = false
+
+	scb := &m.localScopeRootsCb
+	scb.cb = cb
+	scb.scopedCb = cb
+	scb.traverseNested = true
+	scb.scopeNode = fnNode
+
 	if m.localScopeCreator.compiler == nil {
 		m.localScopeCreator = SyntacticScopeCreator{
 			compiler:             m.compiler,
@@ -369,16 +475,24 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 	}
 	b := NodeTraversal_Builder{
 		compiler:     m.compiler,
-		callback:     &scb,
+		callback:     scb,
 		scopeCreator: &m.localScopeCreator,
 	}
 	t := acquireNodeTraversal(&b)
 	t.TraverseScopeRoot(fnNode)
 	releaseNodeTraversal(t)
+	clear(cb.renamerStack)
+	cb.renamerStack = nil
+	cb.rootRenamer = nil
+	scb.scopeNode = nil
+	m.resetInlineRenamers()
 	m.resetLocalArena()
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
+		if idSupplier == nil {
+			idSupplier = m.compiler.GetUniqueNameIdSupplier()
+		}
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
 			Process(nil, fnNode)
 	}

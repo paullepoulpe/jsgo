@@ -654,10 +654,14 @@ func allocSourceFilePropID(file any) (uint32, bool) {
 }
 
 func (n *Node) ensureExtBox() *nodeExtBox {
+	return n.ensureExtBoxInRegistry(nil)
+}
+
+func (n *Node) ensureExtBoxInRegistry(r *JSTypeRegistry) *nodeExtBox {
 	if (n.kindFlags & kindFlagHasExtBox) != 0 {
 		return (*nodeExtBox)(n.typeOrColor)
 	}
-	box := &nodeExtBox{}
+	box := r.allocNodeExtBox()
 	if (n.kindFlags & kindFlagHasTypeOrColor) != 0 {
 		box.typeOrColor = n.typeOrColor
 	} else if (n.propFlags & propFlagHasJSDoc) != 0 {
@@ -742,10 +746,12 @@ func (n *Node) setRawTypeOrColorPtr(ptr unsafe.Pointer, isColor bool) {
 		return
 	}
 	if (n.kindFlags&kindFlagHasExtBox) == 0 && (n.propFlags&propFlagHasJSDoc) != 0 {
-		box := n.ensureExtBox()
+		var box *nodeExtBox
 		if isColor {
+			box = n.ensureExtBox()
 			n.kindFlags |= kindFlagHasTypeOrColor | kindFlagTypeIsColor
 		} else {
+			box = n.ensureExtBoxInRegistry((*JSTypeBase)(ptr).registry)
 			n.kindFlags = (n.kindFlags &^ kindFlagTypeIsColor) | kindFlagHasTypeOrColor
 		}
 		box.typeOrColor = ptr
@@ -2651,11 +2657,12 @@ func (n *Node) SetJSTypeBeforeCast(type_ JSType) {
 		n.RemoveProp(Node_Prop_TYPE_BEFORE_CAST)
 		return
 	}
-	box := n.ensureExtBox()
+	base := jsTypeBase(type_)
+	box := n.ensureExtBoxInRegistry(base.registry)
 	if box.typeBeforeCast == nil && box.propListHead != nil {
 		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_TYPE_BEFORE_CAST)
 	}
-	box.typeBeforeCast = jsTypeBase(type_)
+	box.typeBeforeCast = base
 }
 
 // GetJSTypeBeforeCast returns the type of this node before casting. This

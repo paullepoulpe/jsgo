@@ -513,6 +513,19 @@ func (h *LinkedHashMap[K, V]) Clear() {
 	h.first = 0
 }
 
+// ForEachValue calls fn for each value in insertion order without allocating an iterator closure.
+func (h *LinkedHashMap[K, V]) ForEachValue(fn func(V)) {
+	if h == nil || h.size == 0 {
+		return
+	}
+	for i := int(h.first); i < len(h.slots); i++ {
+		if i < int(h.first) || (h.m != nil && i < len(h.m.removed) && h.m.removed[i]) {
+			continue
+		}
+		fn(h.slots[i].value)
+	}
+}
+
 // All iterates entries in insertion order. Entries removed during iteration
 // are skipped; entries added during iteration are visited.
 func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {

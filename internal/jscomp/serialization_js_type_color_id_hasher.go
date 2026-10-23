@@ -90,9 +90,9 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 	if type_.HasReferenceName() {
 		h.PutReferenceNameType(hasher, type_)
 	} else {
-		for _, prop := range type_.GetOwnPropertyNames() {
+		type_.ForEachOwnPropertyName(func(prop string) {
 			JSTypeColorIdHasher_PutUtf8(hasher, prop)
-		}
+		})
 	}
 
 	return colors.ColorId_FromUnsigned(hasher.HashAsLong())

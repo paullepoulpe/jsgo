@@ -251,6 +251,7 @@ type JSTypeRegistry struct {
 	propertyPtrSlab         []*Property
 	functionParamSlab       []FunctionType_Parameter
 	functionParamPtrSlab    []*FunctionType_Parameter
+	nodeExtBoxSlab          []nodeExtBox
 	unionBuilderStack       [16]UnionType_Builder
 	unionBuilderDepth       int
 	fnBuilderStack          [8]FunctionType_Builder
@@ -469,6 +470,18 @@ func (r *JSTypeRegistry) allocProperty() *Property {
 	p := &r.propertySlab[0]
 	r.propertySlab = r.propertySlab[1:]
 	return p
+}
+
+func (r *JSTypeRegistry) allocNodeExtBox() *nodeExtBox {
+	if r == nil {
+		return &nodeExtBox{}
+	}
+	if len(r.nodeExtBoxSlab) == 0 {
+		r.nodeExtBoxSlab = make([]nodeExtBox, 1024) // 32 KiB
+	}
+	b := &r.nodeExtBoxSlab[0]
+	r.nodeExtBoxSlab = r.nodeExtBoxSlab[1:]
+	return b
 }
 
 func (r *JSTypeRegistry) allocJSTypeSlice(n int) []JSType {

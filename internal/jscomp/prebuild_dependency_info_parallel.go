@@ -171,44 +171,54 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 	}
 
 	type outcome struct {
-		info         DependencyInfo
-		errors       prebuildDependencyErrors
-		loader       *ModuleLoader
-		readFailure  bool
-		moduleErrors prebuildDependencyModuleErrors
+		info        DependencyInfo
+		events      []prebuildDependencyDiagnostic
+		readFailure bool
+	}
+	if prebuildCloneModuleLoader(compiler.GetModuleLoader(), nil) == nil {
+		return false
 	}
 	results := make([]outcome, len(inputs))
-	for i := range inputs {
-		results[i].errors.ErrorManager = compiler.GetErrorManager()
-		results[i].moduleErrors = prebuildDependencyModuleErrors{
-			target: compiler.GetModuleLoader().GetErrorHandler(), events: &results[i].errors.events,
+	errorManager := compiler.GetErrorManager()
+	moduleErrorTarget := compiler.GetModuleLoader().GetErrorHandler()
+	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		workerErrors := prebuildDependencyErrors{ErrorManager: errorManager}
+		workerModuleErrors := prebuildDependencyModuleErrors{
+			target: moduleErrorTarget,
+			events: &workerErrors.events,
 		}
-		results[i].loader = prebuildCloneModuleLoader(compiler.GetModuleLoader(), &results[i].moduleErrors)
-		if results[i].loader == nil {
-			return false
+		loader := prebuildCloneModuleLoader(compiler.GetModuleLoader(), &workerModuleErrors)
+		parser := NewJsFileRegexParser(&workerErrors).SetModuleLoader(loader).SetIncludeGoogBase(true)
+		for {
+			i, ok := claim()
+			if !ok {
+				return
+			}
+			jutil.Try(func() {
+				input, result := inputs[i], &results[i]
+				if input.dependencyInfo != nil {
+					return
+				}
+				workerErrors.events = nil
+				jutil.Try(func() {
+					result.info = parser.ParseFile(input.GetName(), input.GetName(), input.GetCode())
+				}, func(e jutil.IIOException) {
+					result.readFailure = true
+					workerErrors.Report(CheckLevel_ERROR.Ptr(),
+						JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), e.GetMessage()))
+					result.info = SimpleDependencyInfo_EMPTY
+				})
+				result.events = workerErrors.events
+			}, func(t jutil.Throwable) {
+				recordFailure(i, t)
+			})
 		}
-	}
-	failures := parallelPrebuild(len(inputs), p.numParallelThreads, func(i int) {
-		input, result := inputs[i], &results[i]
-		if input.dependencyInfo != nil {
-			return
-		}
-		jutil.Try(func() {
-			result.info = NewJsFileRegexParser(&result.errors).
-				SetModuleLoader(result.loader).SetIncludeGoogBase(true).
-				ParseFile(input.GetName(), input.GetName(), input.GetCode())
-		}, func(e jutil.IIOException) {
-			result.readFailure = true
-			result.errors.Report(CheckLevel_ERROR.Ptr(),
-				JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), e.GetMessage()))
-			result.info = SimpleDependencyInfo_EMPTY
-		})
 	})
 	var failure jutil.Throwable
 	for i, input := range inputs {
 		result := &results[i]
 		jutil.Try(func() {
-			for _, diagnostic := range result.errors.events {
+			for _, diagnostic := range result.events {
 				diagnostic.target.Report(diagnostic.level, diagnostic.error)
 			}
 			if failures[i] != nil {

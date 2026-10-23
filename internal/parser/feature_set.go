@@ -657,11 +657,24 @@ func (f *FeatureSet) VersionForDebugging() string {
 //
 // Java: FeatureSet.without(Feature, Feature...)
 func (f *FeatureSet) WithoutFeatures(featureToRemove FeatureSet_Feature, moreFeaturesToRemove ...FeatureSet_Feature) *FeatureSet {
-	removed := jutil.NewEnumSet(featureToRemove)
-	for _, feature := range moreFeaturesToRemove {
-		removed.Add(feature)
+	anyPresent := f.features.Contains(featureToRemove)
+	if !anyPresent {
+		for _, feature := range moreFeaturesToRemove {
+			if f.features.Contains(feature) {
+				anyPresent = true
+				break
+			}
+		}
+		if !anyPresent {
+			return f
+		}
 	}
-	return NewFeatureSet(FeatureSet_Difference(f.features, removed))
+	updated := FeatureSet_EnumSetOf(f.features)
+	updated.Remove(featureToRemove)
+	for _, feature := range moreFeaturesToRemove {
+		updated.Remove(feature)
+	}
+	return &FeatureSet{features: updated}
 }
 
 // Without returns this set minus the features of other.
@@ -678,7 +691,11 @@ func (f *FeatureSet) Without(other *FeatureSet) *FeatureSet {
 //
 // Java: FeatureSet.withoutTypes()
 func (f *FeatureSet) WithoutTypes() *FeatureSet {
-	return &FeatureSet{features: FeatureSet_Difference(f.features, FeatureSet_LangVersion_TYPESCRIPT.Features())}
+	tsFeatures := FeatureSet_LangVersion_TYPESCRIPT.Features()
+	if !f.features.Intersects(tsFeatures) {
+		return f
+	}
+	return &FeatureSet{features: FeatureSet_Difference(f.features, tsFeatures)}
 }
 
 // Union returns a new FeatureSet including all features of both this and
@@ -700,12 +717,7 @@ func (f *FeatureSet) Union(other *FeatureSet) *FeatureSet {
 //
 // Java: FeatureSet.containsAtLeastOneOf(FeatureSet)
 func (f *FeatureSet) ContainsAtLeastOneOf(other *FeatureSet) bool {
-	for otherFeature := range other.features.All() {
-		if f.features.Contains(otherFeature) {
-			return true
-		}
-	}
-	return false
+	return f.features.Intersects(other.features)
 }
 
 // Contains reports whether this FeatureSet contains all of the features of

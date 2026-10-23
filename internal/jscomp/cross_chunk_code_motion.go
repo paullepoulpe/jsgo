@@ -71,6 +71,7 @@ type CrossChunkCodeMotion struct {
 	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
 
 	scratchImmovableChunks jutil.BitSet
+	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
 
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 }
@@ -120,7 +121,7 @@ func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMoti
 			} else {
 				newCap := 64
 				if cap(ca.dsgSlab) >= 64 {
-					newCap = min(cap(ca.dsgSlab)*2, 1024)
+					newCap = min(cap(ca.dsgSlab)*2, 192)
 				}
 				ca.dsgSlab = make([]CrossChunkCodeMotion_DeclarationStatementGroup, 0, newCap)
 				ca.dsgChunks = append(ca.dsgChunks, ca.dsgSlab)
@@ -592,7 +593,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
 		if len(symbol.dsgs) == 1 {
 			dsg := symbol.dsgs[0]
-			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
+			dsgCycle := &y.outer.scratchDsgCycle
 			dsgCycle.outer = y.outer
 			dsgCycle.currentChunk = dsg.currentChunk
 			dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
@@ -615,13 +616,14 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 			} else {
 				dsgCycle.MoveToPreferredChunk(&symbol.chunksWithImmovableReferences)
 			}
+			dsgCycle.dsgsSlice[0] = nil
 			symbol.isMoveDeclarationStatementsDone = true
 			return
 		}
 		if len(symbol.dsgs) > 1 {
 			chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
 			chunksWithImmovableReferences.ClearAll()
-			var dsgCycle CrossChunkCodeMotion_DeclarationStatementGroupCycle
+			dsgCycle := &y.outer.scratchDsgCycle
 			dsgCycle.outer = y.outer
 			for i := len(symbol.dsgs) - 1; i >= 0; i-- {
 				dsg := symbol.dsgs[i]
@@ -631,6 +633,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 				symbol.orImmovableChunksInto(chunksWithImmovableReferences)
 				dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
 			}
+			dsgCycle.dsgsSlice[0] = nil
 		}
 		symbol.isMoveDeclarationStatementsDone = true
 		return
@@ -734,7 +737,7 @@ func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode *rhin
 type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 	declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol
 	referencedSlice      []*CrossChunkCodeMotion_GlobalSymbol
-	referencedBuf        [4]*CrossChunkCodeMotion_GlobalSymbol
+	referencedBuf        [8]*CrossChunkCodeMotion_GlobalSymbol
 	referencedMap        map[*CrossChunkCodeMotion_GlobalSymbol]struct{}
 
 	// chunk containing the statements

@@ -412,11 +412,17 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		return result
 	} else {
 		// Otherwise, just look at the AST.
-
-		finder := newCompilerInput_DepsFinder(c.GetPath())
 		root := c.GetAstRoot(c.compiler)
 		if root == nil {
 			return SimpleDependencyInfo_EMPTY
+		}
+
+		var providesBuf [4]string
+		var requiresBuf [16]*DependencyInfo_Require
+		finder := CompilerInput_DepsFinder{
+			provides:   providesBuf[:0],
+			requires:   requiresBuf[:0],
+			modulePath: c.GetPath(),
 		}
 
 		finder.VisitTree(root)
@@ -432,24 +438,23 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		// compilation scheme. The API needs to be fixed so callers aren't
 		// doing weird things like this, and then we should get rid of the
 		// multiple-scan strategy.
-		loadFlags := jutil.NewLinkedHashMap[string, string]()
-		for k, v := range finder.loadFlags.All() {
-			loadFlags.Put(k, v)
-		}
-		return SimpleDependencyInfo_Builder_("", "").
-			SetProvides(finder.provides).
-			SetRequires(finder.requires).
-			SetTypeRequires(finder.typeRequires).
-			SetLoadFlags(loadFlags).
-			SetHasExternsAnnotation(info != nil && info.IsExterns()).
-			SetHasNoCompileAnnotation(info != nil && info.IsNoCompile()).
-			Build()
+		return newSimpleDependencyInfoDirect(
+			"",
+			"",
+			finder.provides,
+			finder.requires,
+			finder.typeRequires,
+			simpleDependencyInfo_flagsForLangModule(finder.langFlag, finder.moduleFlag),
+			info != nil && info.IsExterns(),
+			info != nil && info.IsNoCompile(),
+		)
 	}
 }
 
 // CompilerInput_DepsFinder is CompilerInput.DepsFinder.
 type CompilerInput_DepsFinder struct {
-	loadFlags    *jutil.TreeMap[string, string]
+	langFlag     string
+	moduleFlag   string
 	provides     []string
 	requires     []*DependencyInfo_Require
 	typeRequires []string
@@ -459,7 +464,6 @@ type CompilerInput_DepsFinder struct {
 // Java: CompilerInput.DepsFinder(ModulePath)
 func newCompilerInput_DepsFinder(modulePath *ModuleLoader_ModulePath) *CompilerInput_DepsFinder {
 	return &CompilerInput_DepsFinder{
-		loadFlags:    jutil.NewTreeMap[string, string](jutil.StringCompareTo),
 		provides:     []string{},
 		requires:     []*DependencyInfo_Require{},
 		typeRequires: []string{},
@@ -480,7 +484,7 @@ func (f *CompilerInput_DepsFinder) VisitTree(n *rhino.Node) {
 		// legacy deps files will remain unchanged (i.e. load flags omitted).
 		version := features.Version()
 		if version != "es3" {
-			f.loadFlags.Put("lang", version)
+			f.langFlag = version
 		}
 	}
 }
@@ -514,7 +518,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Nod
 					// only mark as a goog.module if this is not bundled, e.g.
 					// goog.loadModule(function(exports) {"use strict";goog.module('Foo');
 					if parent.IsExprResult() && parent.GetParent().IsModuleBody() {
-						f.loadFlags.Put("module", "goog")
+						f.moduleFlag = "goog"
 					}
 				}
 				// Fall-through
@@ -560,7 +564,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Nod
 	case rhino.Token_MODULE_BODY:
 		if !parent.GetBooleanProp(rhino.Node_GOOG_MODULE) {
 			f.provides = append(f.provides, f.modulePath.ToModuleName())
-			f.loadFlags.Put("module", "es6")
+			f.moduleFlag = "es6"
 		}
 	case rhino.Token_IMPORT:
 		f.VisitEs6ModuleName(n.GetLastChild(), n)

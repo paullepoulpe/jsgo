@@ -1,6 +1,9 @@
 package jutil
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // Go-only: language-adapter — java.nio.file.Path for the default file
 // system on Linux, as Path.of builds it (see the Javadoc of
@@ -33,7 +36,7 @@ import "os"
 
 // Path is java.nio.file.Path (a Unix path of the default file system).
 type Path struct {
-	path []byte
+	s    string
 	hash int32
 	// elemStarts holds the byte offset where each name element begins; nil
 	// until first needed.
@@ -45,26 +48,47 @@ type Path struct {
 func Path_Of(first string, more ...string) *Path {
 	input := first
 	if len(more) > 0 {
-		b := make([]byte, 0, len(first)+len(more)*8)
-		for _, s := range append([]string{first}, more...) {
+		var b strings.Builder
+		b.Grow(len(first) + len(more)*8)
+		if first != "" {
+			b.WriteString(first)
+		}
+		for _, s := range more {
 			if s == "" {
 				continue
 			}
-			if len(b) > 0 {
-				b = append(b, '/')
+			if b.Len() > 0 {
+				b.WriteByte('/')
 			}
-			b = append(b, s...)
+			b.WriteString(s)
 		}
-		input = string(b)
+		input = b.String()
 	}
 	return parsePath(input)
 }
 
 // parsePath checks a path string and removes its redundant slashes.
 func parsePath(input string) *Path {
+	slow := len(input) > 1 && input[len(input)-1] == '/'
 	for i := 0; i < len(input); i++ {
-		if input[i] == 0 {
+		c := input[i]
+		if c == 0 {
 			panic(NewInvalidPathException(input, "Nul character not allowed"))
+		}
+		if c == '/' && i > 0 && input[i-1] == '/' {
+			slow = true
+		} else if c == 0xED && i+1 < len(input) && input[i+1] >= 0xA0 && input[i+1] <= 0xBF {
+			slow = true
+		}
+	}
+	if !slow {
+		switch input {
+		case "":
+			return emptyPath
+		case "/":
+			return rootPath
+		default:
+			return &Path{s: input}
 		}
 	}
 	b := make([]byte, 0, len(input))
@@ -86,47 +110,72 @@ func parsePath(input string) *Path {
 			panic(NewInvalidPathException(string(b), "Malformed input or input contains unmappable characters"))
 		}
 	}
-	return &Path{path: b}
+	return newPathFromString(string(b))
 }
 
-func newPathFromBytes(b []byte) *Path { return &Path{path: b} }
+func newPathFromString(s string) *Path {
+	switch s {
+	case "":
+		return emptyPath
+	case "/":
+		return rootPath
+	default:
+		return &Path{s: s}
+	}
+}
 
-var emptyPath = &Path{path: []byte{}}
+var (
+	emptyPath = &Path{s: "", elemStarts: []int{0}}
+	rootPath  = &Path{s: "/", hash: '/', elemStarts: []int{}}
+)
 
-func (p *Path) isEmpty() bool { return len(p.path) == 0 }
+func (p *Path) isEmpty() bool { return len(p.s) == 0 }
 
 // elementOffsets returns the start offset of every name element.
 func (p *Path) elementOffsets() []int {
 	if p.elemStarts != nil {
 		return p.elemStarts
 	}
-	starts := []int{}
 	if p.isEmpty() {
-		starts = append(starts, 0)
-	} else {
-		for i := 0; i < len(p.path); i++ {
-			if p.path[i] != '/' && (i == 0 || p.path[i-1] == '/') {
-				starts = append(starts, i)
-			}
+		starts := []int{0}
+		p.elemStarts = starts
+		return starts
+	}
+	s := p.s
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '/' && (i == 0 || s[i-1] == '/') {
+			n++
+		}
+	}
+	if n == 0 {
+		starts := []int{}
+		p.elemStarts = starts
+		return starts
+	}
+	starts := make([]int, 0, n)
+	for i := 0; i < len(s); i++ {
+		if s[i] != '/' && (i == 0 || s[i-1] == '/') {
+			starts = append(starts, i)
 		}
 	}
 	p.elemStarts = starts
 	return starts
 }
 
-// element returns the bytes of name element i.
-func (p *Path) element(i int) []byte {
+// element returns name element i.
+func (p *Path) element(i int) string {
 	starts := p.elementOffsets()
-	end := len(p.path)
+	end := len(p.s)
 	if i+1 < len(starts) {
 		end = starts[i+1] - 1
 	}
-	return p.path[starts[i]:end]
+	return p.s[starts[i]:end]
 }
 
-func (p *Path) elements() [][]byte {
+func (p *Path) elements() []string {
 	n := len(p.elementOffsets())
-	out := make([][]byte, n)
+	out := make([]string, n)
 	for i := range out {
 		out[i] = p.element(i)
 	}
@@ -136,7 +185,7 @@ func (p *Path) elements() [][]byte {
 // GetRoot is Path.getRoot(): "/" for an absolute path, else null.
 func (p *Path) GetRoot() *Path {
 	if p.IsAbsolute() {
-		return newPathFromBytes([]byte{'/'})
+		return rootPath
 	}
 	return nil
 }
@@ -147,27 +196,30 @@ func (p *Path) GetFileName() *Path {
 	if p.isEmpty() {
 		return p
 	}
-	starts := p.elementOffsets()
-	if len(starts) == 0 {
+	if p.s == "/" {
 		return nil
 	}
-	if len(starts) == 1 && p.path[0] != '/' {
+	idx := strings.LastIndexByte(p.s, '/')
+	if idx < 0 {
 		return p
 	}
-	return newPathFromBytes(p.path[starts[len(starts)-1]:])
+	return newPathFromString(p.s[idx+1:])
 }
 
 // GetParent is Path.getParent(): the path without its last name element,
 // or null when there is none (the root, a one-element relative path).
 func (p *Path) GetParent() *Path {
-	starts := p.elementOffsets()
-	switch {
-	case len(starts) == 0:
+	if len(p.s) == 0 || p.s == "/" {
 		return nil
-	case len(starts) == 1:
-		return p.GetRoot()
 	}
-	return newPathFromBytes(p.path[:starts[len(starts)-1]-1])
+	idx := strings.LastIndexByte(p.s, '/')
+	if idx < 0 {
+		return nil
+	}
+	if idx == 0 {
+		return rootPath
+	}
+	return newPathFromString(p.s[:idx])
 }
 
 // GetNameCount is Path.getNameCount().
@@ -178,7 +230,7 @@ func (p *Path) GetName(index int) *Path {
 	if index < 0 || index >= p.GetNameCount() {
 		panic(NewIllegalArgumentException())
 	}
-	return newPathFromBytes(p.element(index))
+	return newPathFromString(p.element(index))
 }
 
 // Subpath is Path.subpath(int, int): the elements beginIndex (inclusive)
@@ -189,15 +241,15 @@ func (p *Path) Subpath(beginIndex, endIndex int) *Path {
 		panic(NewIllegalArgumentException())
 	}
 	starts := p.elementOffsets()
-	end := len(p.path)
+	end := len(p.s)
 	if endIndex < n {
 		end = starts[endIndex] - 1
 	}
-	return newPathFromBytes(p.path[starts[beginIndex]:end])
+	return newPathFromString(p.s[starts[beginIndex]:end])
 }
 
 // IsAbsolute is Path.isAbsolute(): whether the path has the root.
-func (p *Path) IsAbsolute() bool { return len(p.path) > 0 && p.path[0] == '/' }
+func (p *Path) IsAbsolute() bool { return len(p.s) > 0 && p.s[0] == '/' }
 
 // Resolve is Path.resolve(Path): other if it is absolute, this path if other
 // is empty, else other appended to this path.
@@ -213,12 +265,10 @@ func (p *Path) Resolve(obj *Path) *Path {
 	case p.isEmpty():
 		return obj
 	}
-	b := make([]byte, 0, len(p.path)+1+len(obj.path))
-	b = append(b, p.path...)
-	if b[len(b)-1] != '/' {
-		b = append(b, '/')
+	if p.s[len(p.s)-1] == '/' {
+		return newPathFromString(p.s + obj.s)
 	}
-	return newPathFromBytes(append(b, obj.path...))
+	return newPathFromString(p.s + "/" + obj.s)
 }
 
 // ResolveString is Path.resolve(String).
@@ -256,50 +306,68 @@ func (p *Path) Relativize(obj *Path) *Path {
 	base, target := p.Normalize(), obj.Normalize()
 	baseNames, targetNames := base.names(), target.names()
 	common := 0
-	for common < len(baseNames) && common < len(targetNames) && string(baseNames[common]) == string(targetNames[common]) {
+	for common < len(baseNames) && common < len(targetNames) && baseNames[common] == targetNames[common] {
 		common++
 	}
-	var b []byte
+	var b strings.Builder
 	for _, name := range baseNames[common:] {
-		if string(name) == ".." {
+		if name == ".." {
 			panic(NewIllegalArgumentExceptionMsg("Unable to compute relative  path from " + p.String() + " to " + obj.String()))
 		}
-		if len(b) > 0 {
-			b = append(b, '/')
+		if b.Len() > 0 {
+			b.WriteByte('/')
 		}
-		b = append(b, '.', '.')
+		b.WriteString("..")
 	}
 	for _, name := range targetNames[common:] {
-		if len(b) > 0 {
-			b = append(b, '/')
+		if b.Len() > 0 {
+			b.WriteByte('/')
 		}
-		b = append(b, name...)
+		b.WriteString(name)
 	}
-	if b == nil {
+	if b.Len() == 0 {
 		return emptyPath
 	}
-	return newPathFromBytes(b)
+	return newPathFromString(b.String())
 }
 
 // names returns the name elements, none for the empty path.
-func (p *Path) names() [][]byte {
+func (p *Path) names() []string {
 	if p.isEmpty() {
 		return nil
 	}
 	return p.elements()
 }
 
+func pathHasDotSegment(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' && (i == 0 || s[i-1] == '/') {
+			end := i + 1
+			if end < len(s) && s[end] == '.' {
+				end++
+			}
+			if end == len(s) || s[end] == '/' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Normalize is Path.normalize() (see the observed behaviour above).
 func (p *Path) Normalize() *Path {
-	var kept [][]byte
+	if !pathHasDotSegment(p.s) {
+		return p
+	}
+	var kept []string
 	changed := false
 	for _, name := range p.names() {
-		switch string(name) {
+		switch name {
 		case ".":
 			changed = true
 			continue
 		case "..":
-			if len(kept) > 0 && string(kept[len(kept)-1]) != ".." {
+			if len(kept) > 0 && kept[len(kept)-1] != ".." {
 				kept = kept[:len(kept)-1]
 				changed = true
 				continue
@@ -314,20 +382,24 @@ func (p *Path) Normalize() *Path {
 	if !changed {
 		return p
 	}
-	var b []byte
+	if len(kept) == 0 {
+		if p.IsAbsolute() {
+			return rootPath
+		}
+		return emptyPath
+	}
+	var b strings.Builder
+	b.Grow(len(p.s))
 	if p.IsAbsolute() {
-		b = append(b, '/')
+		b.WriteByte('/')
 	}
 	for i, name := range kept {
 		if i > 0 {
-			b = append(b, '/')
+			b.WriteByte('/')
 		}
-		b = append(b, name...)
+		b.WriteString(name)
 	}
-	if b == nil {
-		return emptyPath
-	}
-	return newPathFromBytes(b)
+	return newPathFromString(b.String())
 }
 
 // StartsWith is Path.startsWith(Path): same root and the same leading name
@@ -336,19 +408,19 @@ func (p *Path) StartsWith(other *Path) bool {
 	if p.IsAbsolute() != other.IsAbsolute() {
 		return false
 	}
-	mine, theirs := p.elements(), other.elements()
 	if p.isEmpty() || other.isEmpty() {
 		return p.isEmpty() && other.isEmpty()
 	}
-	if len(theirs) > len(mine) {
+	if other.s == "/" {
+		return true
+	}
+	if len(other.s) > len(p.s) {
 		return false
 	}
-	for i := range theirs {
-		if string(mine[i]) != string(theirs[i]) {
-			return false
-		}
+	if len(other.s) == len(p.s) {
+		return p.s == other.s
 	}
-	return true
+	return p.s[len(other.s)] == '/' && p.s[:len(other.s)] == other.s
 }
 
 // StartsWithString is Path.startsWith(String).
@@ -363,17 +435,14 @@ func (p *Path) EndsWith(other *Path) bool {
 	if p.isEmpty() || other.isEmpty() {
 		return p.isEmpty() && other.isEmpty()
 	}
-	mine, theirs := p.elements(), other.elements()
-	if len(theirs) > len(mine) {
+	if len(other.s) > len(p.s) {
 		return false
 	}
-	off := len(mine) - len(theirs)
-	for i := range theirs {
-		if string(mine[off+i]) != string(theirs[i]) {
-			return false
-		}
+	if len(other.s) == len(p.s) {
+		return p.s == other.s
 	}
-	return true
+	off := len(p.s) - len(other.s)
+	return p.s[off-1] == '/' && p.s[off:] == other.s
 }
 
 // EndsWithString is Path.endsWith(String).
@@ -381,7 +450,10 @@ func (p *Path) EndsWithString(other string) bool { return p.EndsWith(parsePath(o
 
 // CompareTo is Path.compareTo(Path): the unsigned bytes, lexicographically.
 func (p *Path) CompareTo(other *Path) int {
-	a, b := p.path, other.path
+	a, b := p.s, other.s
+	if a == b {
+		return 0
+	}
 	for i := 0; i < len(a) && i < len(b); i++ {
 		if a[i] != b[i] {
 			return int(a[i]) - int(b[i])
@@ -393,15 +465,18 @@ func (p *Path) CompareTo(other *Path) int {
 // Equals is Path.equals(Object): another Path with the same bytes.
 func (p *Path) Equals(ob any) bool {
 	o, ok := ob.(*Path)
-	return ok && o != nil && string(p.path) == string(o.path)
+	return ok && o != nil && p.s == o.s
 }
 
 // HashCode is Path.hashCode().
 func (p *Path) HashCode() int32 {
+	if len(p.s) == 0 {
+		return 0
+	}
 	if p.hash == 0 {
 		var h int32
-		for _, c := range p.path {
-			h = 31*h + int32(c)
+		for i := 0; i < len(p.s); i++ {
+			h = 31*h + int32(p.s[i])
 		}
 		p.hash = h
 	}
@@ -409,7 +484,7 @@ func (p *Path) HashCode() int32 {
 }
 
 // String is Path.toString().
-func (p *Path) String() string { return string(p.path) }
+func (p *Path) String() string { return p.s }
 
 // ToAbsolutePath is Path.toAbsolutePath(): a relative path resolved against
 // the working directory (Java's user.dir).

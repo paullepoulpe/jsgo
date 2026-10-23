@@ -76,7 +76,10 @@ func (d *DisambiguateProperties) Process(externs *rhino.Node, root *rhino.Node) 
 		},
 		d.registry)
 	propagator := NewClusterPropagator()
+	renamingIndexLog := d.compiler.CreateOrReopenLog(reflect.TypeFor[DisambiguateProperties](), "renaming_index.log")
+	defer renamingIndexLog.Close()
 	renamer := NewUseSiteRenamer( /* mutationCb= */ d.compiler.ReportChangeToEnclosingScope)
+	renamer.trackRenamingIndex = renamingIndexLog.IsLogging()
 
 	NodeTraversal_Traverse(d.compiler, externs.GetParent(), findRefs)
 	propIndex := findRefs.GetPropertyIndex()
@@ -132,7 +135,7 @@ func (d *DisambiguateProperties) Process(externs *rhino.Node, root *rhino.Node) 
 	}
 	d.compiler.ReportDisambiguatePropertiesSummary(trackerSummaryGenerator.BuildSummaryString)
 
-	d.LogForDiagnostics("renaming_index", func() any { return DisambiguateProperties_BuildRenamingIndex(propIndex, renamer) })
+	renamingIndexLog.LogJsonSupplier(func() any { return DisambiguateProperties_BuildRenamingIndex(propIndex, renamer) })
 	d.LogForDiagnostics("mismatches", func() any { return d.registry.GetMismatchLocationsForDebugging().Inverse() })
 
 	GatherGetterAndSetterProperties_Update(d.compiler, externs, root)

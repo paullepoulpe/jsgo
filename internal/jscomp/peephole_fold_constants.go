@@ -1428,28 +1428,36 @@ func PeepholeFoldConstants_TryAbstractRelationalComparison(
 
 	// Next, try to evaluate based on the value of the node. Try comparing as BigInts first.
 	lvBig := peepholeOptimization.GetSideEffectFreeBigIntValue(left)
-	rvBig := peepholeOptimization.GetSideEffectFreeBigIntValue(right)
-	if lvBig != nil && rvBig != nil {
-		return base.Tri_ForBoolean(lvBig.Cmp(rvBig) < 0)
+	var rvBig *big.Int
+	if lvBig != nil {
+		rvBig = peepholeOptimization.GetSideEffectFreeBigIntValue(right)
+		if rvBig != nil {
+			return base.Tri_ForBoolean(lvBig.Cmp(rvBig) < 0)
+		}
 	}
 
 	// Then, try comparing as Numbers.
 	lvNum := peepholeOptimization.GetSideEffectFreeNumberValue(left)
-	rvNum := peepholeOptimization.GetSideEffectFreeNumberValue(right)
-	if lvNum != nil && rvNum != nil {
-		if math.IsNaN(*lvNum) || math.IsNaN(*rvNum) {
-			return base.Tri_ForBoolean(willNegate)
-		} else {
-			return base.Tri_ForBoolean(*lvNum < *rvNum)
+	if lvBig != nil || lvNum != nil {
+		rvNum := peepholeOptimization.GetSideEffectFreeNumberValue(right)
+		if lvNum != nil && rvNum != nil {
+			if math.IsNaN(*lvNum) || math.IsNaN(*rvNum) {
+				return base.Tri_ForBoolean(willNegate)
+			} else {
+				return base.Tri_ForBoolean(*lvNum < *rvNum)
+			}
 		}
-	}
 
-	// Finally, try comparisons between BigInt and Number.
-	if lvBig != nil && rvNum != nil {
-		return PeepholeFoldConstants_BigintLessThanDouble(lvBig, *rvNum, base.Tri_FALSE, willNegate)
-	}
-	if lvNum != nil && rvBig != nil {
-		return PeepholeFoldConstants_BigintLessThanDouble(rvBig, *lvNum, base.Tri_TRUE, willNegate)
+		// Finally, try comparisons between BigInt and Number.
+		if lvBig != nil && rvNum != nil {
+			return PeepholeFoldConstants_BigintLessThanDouble(lvBig, *rvNum, base.Tri_FALSE, willNegate)
+		}
+		if lvNum != nil {
+			rvBig = peepholeOptimization.GetSideEffectFreeBigIntValue(right)
+			if rvBig != nil {
+				return PeepholeFoldConstants_BigintLessThanDouble(rvBig, *lvNum, base.Tri_TRUE, willNegate)
+			}
+		}
 	}
 
 	// Special case: `x < x` is always false.
@@ -1480,8 +1488,9 @@ func PeepholeFoldConstants_BigintLessThanDouble(
 	}
 
 	// long can hold all values within [-2^53, 2^53]
-	numberAsBigInt := big.NewInt(jutil.D2L(number))
-	negativeMeansBigintSmaller := bigint.Cmp(numberAsBigInt)
+	var numberAsBigInt big.Int
+	numberAsBigInt.SetInt64(jutil.D2L(number))
+	negativeMeansBigintSmaller := bigint.Cmp(&numberAsBigInt)
 	if negativeMeansBigintSmaller < 0 {
 		return base.Tri_TRUE.Xor(invert)
 	} else if negativeMeansBigintSmaller > 0 {

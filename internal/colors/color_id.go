@@ -204,13 +204,14 @@ func (c ColorId) HashCode() int32 {
 //
 // Java: ColorId.asByteString()
 func (c ColorId) AsByteString() []byte {
-	cp := c.rightAligned
 	out := make([]byte, 8)
-	for i := 7; i >= 0; i-- {
-		out[i] = byte(cp)
-		cp = jutil.Ushr64(cp, 8)
-	}
+	binary.BigEndian.PutUint64(out, uint64(c.rightAligned))
 	return out
+}
+
+// PutBigEndian writes the eight big-endian bytes of the ID into dst[:8].
+func (c ColorId) PutBigEndian(dst []byte) {
+	binary.BigEndian.PutUint64(dst, uint64(c.rightAligned))
 }
 
 // Java: ColorId.toString()
