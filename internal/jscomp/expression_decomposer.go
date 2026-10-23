@@ -1304,10 +1304,15 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree *rhino.Node, followin
 			} else {
 				callee = tree
 			}
-			if tree.IsFirstChildOf(parent) &&
-				(e.IsTempConstantValueName(callee) ||
-					expressionDecomposerContainsNullable(e.knownConstantFunctions, callee.GetQualifiedName())) {
-				return false
+			if tree.IsFirstChildOf(parent) {
+				if e.IsTempConstantValueName(callee) {
+					return false
+				}
+				if e.knownConstantFunctions != nil {
+					if qn, ok := callee.GetQualifiedNameString(); ok && e.knownConstantFunctions.Contains(qn) {
+						return false
+					}
+				}
 			}
 		}
 
@@ -1336,12 +1341,4 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree *rhino.Node, followin
 		// are side-effects that that may affect it.
 		return e.astAnalyzer.MayHaveSideEffects(tree)
 	}
-}
-
-// expressionDecomposerContainsNullable is ImmutableSet.contains(@Nullable
-// String): false for null.
-//
-// Go-only: language-adapter — a nullable Java String is a *string.
-func expressionDecomposerContainsNullable(set *jutil.LinkedHashSet[string], s *string) bool {
-	return s != nil && set.Contains(*s)
 }
