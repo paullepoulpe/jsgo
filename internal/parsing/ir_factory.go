@@ -85,8 +85,6 @@ type IRFactory struct {
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
-	jsdocSlabsVal            rhino.JSDocBuilderSlabs
-	jsdocSlabs               *rhino.JSDocBuilderSlabs
 	jsdocStream              JsDocTokenStream
 	jsdocParser              JsDocInfoParser
 	transformDispatcherVal   IRFactory_TransformDispatcher
@@ -233,24 +231,7 @@ func NewIRFactory(
 	comments []*parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
-	return NewIRFactoryWithSlabs(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil)
-}
-
-// NewIRFactoryWithSlabs constructs an IRFactory using optional external JSDoc builder slabs.
-func NewIRFactoryWithSlabs(
-	sourceFile rhino.StaticSourceFile,
-	config *Config,
-	errorReporter rhino.ErrorReporter,
-	comments []*parser.Comment,
-	fileWithContent *parser.SourceFile,
-	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
-	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	f := &IRFactory{}
-	if jsdocSlabs != nil {
-		f.jsdocSlabs = jsdocSlabs
-	} else {
-		f.jsdocSlabs = &f.jsdocSlabsVal
-	}
 	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {
 		f.parsedCommentBits = f.parsedCommentBitsBuf[:nWords]
 	} else {
@@ -414,23 +395,12 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
-	return IRFactory_TransformTreeWithSlabs(tree, sourceFile, config, errorReporter, file, nil)
-}
-
-// IRFactory_TransformTreeWithSlabs transforms tree into an IR AST using optional external JSDoc builder slabs.
-func IRFactory_TransformTreeWithSlabs(
-	tree *parser.ProgramTree,
-	sourceFile rhino.StaticSourceFile,
-	config *Config,
-	errorReporter rhino.ErrorReporter,
-	file *parser.SourceFile,
-	jsdocSlabs *rhino.JSDocBuilderSlabs) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
-	irFactory := NewIRFactoryWithSlabs(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, jsdocSlabs)
+	irFactory := NewIRFactory(
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
@@ -1479,8 +1449,7 @@ func (f *IRFactory) CreateJsDocInfoParserWithLicensesOnlyConfig(node *parser.Com
 		f.templateNode,
 		config,
 		f.jsDocSourceKind,
-		f.errorReporter,
-		f.jsdocSlabs)
+		f.errorReporter)
 	jsdocParser.SetFileOverviewJSDocInfo(f.firstFileoverview)
 	if node.Type == parser.Comment_Type_IMPORTANT && len(node.Value) > 0 {
 		jsdocParser.ParseImportantComment()
@@ -1516,8 +1485,7 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 		f.templateNode,
 		f.config,
 		f.jsDocSourceKind,
-		f.errorReporter,
-		f.jsdocSlabs)
+		f.errorReporter)
 	return parser_.ParseInlineTypeDoc()
 }
 

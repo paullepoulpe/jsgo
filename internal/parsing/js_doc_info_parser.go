@@ -35,7 +35,6 @@ type JsDocInfoParser struct {
 	stream          *JsDocTokenStream
 	jsdocBuilder    *rhino.JSDocInfo_Builder
 	jsdocBuilderVal rhino.JSDocInfo_Builder
-	jsdocSlabs      *rhino.JSDocBuilderSlabs
 	errorReporter   rhino.ErrorReporter
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind
 
@@ -251,7 +250,7 @@ func NewJsDocInfoParser(
 	errorReporter rhino.ErrorReporter,
 ) *JsDocInfoParser {
 	p := &JsDocInfoParser{}
-	p.Init(stream, comment, commentPosition, templateNode, config, jsDocSourceKind, errorReporter, nil)
+	p.Init(stream, comment, commentPosition, templateNode, config, jsDocSourceKind, errorReporter)
 	return p
 }
 
@@ -264,13 +263,10 @@ func (p *JsDocInfoParser) Init(
 	config *Config,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
 	errorReporter rhino.ErrorReporter,
-	jsdocSlabs *rhino.JSDocBuilderSlabs,
 ) {
 	p.stream = stream
-	p.jsdocSlabs = jsdocSlabs
 	p.jsdocBuilder = &p.jsdocBuilderVal
 	p.jsdocBuilder.Reset()
-	p.jsdocBuilder.SetSlabs(jsdocSlabs)
 
 	parseDocumentation := config.JsDocParsingMode().ShouldParseDescriptions()
 	if parseDocumentation {
@@ -1792,9 +1788,6 @@ func (p *JsDocInfoParser) ToStringToken(token JsDocToken) string {
 func (p *JsDocInfoParser) CreateJSTypeExpression(n *rhino.Node) *rhino.JSTypeExpression {
 	if n == nil {
 		return nil
-	}
-	if p.jsdocSlabs != nil {
-		return p.jsdocSlabs.TypeExprSlab.New().Init(n, p.GetSourceName())
 	}
 	return rhino.NewJSTypeExpression(n, p.GetSourceName())
 }

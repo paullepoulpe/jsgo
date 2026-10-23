@@ -119,16 +119,6 @@ func ParserRunner_Parse(
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
-	return ParserRunner_ParseWithSlabs(sourceFile, sourceString, config, errorReporter, nil)
-}
-
-// ParserRunner_ParseWithSlabs parses sourceString using optional worker-scoped JSDoc builder slabs.
-func ParserRunner_ParseWithSlabs(
-	sourceFile rhino.StaticSourceFile,
-	sourceString string,
-	config *Config,
-	errorReporter rhino.ErrorReporter,
-	jsdocSlabs *rhino.JSDocBuilderSlabs) *ParserRunner_ParseResult {
 	// TODO(johnlenz): unify "SourceFile", "Es6ErrorReporter" and "Config"
 
 	sourceName := sourceFile.GetName()
@@ -146,8 +136,8 @@ func ParserRunner_ParseWithSlabs(
 		topLevelStatementRanges := []parser.SourceRange{}
 		features := p.GetFeatures()
 		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
-			factory := IRFactory_TransformTreeWithSlabs(
-				tree, sourceFile, config, errorReporter, file, jsdocSlabs)
+			factory := IRFactory_TransformTree(
+				tree, sourceFile, config, errorReporter, file)
 			root = factory.GetResultNode()
 			features = features.Union(factory.GetFeatures())
 			root.PutProp(rhino.Node_FEATURE_SET, features)

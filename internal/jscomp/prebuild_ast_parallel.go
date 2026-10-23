@@ -62,7 +62,6 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
 	}
 	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		jsdocSlabs := rhino.NewJSDocBuilderSlabs()
 		for {
 			index, ok := claim()
 			if !ok {
@@ -90,8 +89,8 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				if input.sourceFile.IsExtern() {
 					config = extern
 				}
-				result.parsed = parsing.ParserRunner_ParseWithSlabs(
-					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors, &jsdocSlabs)
+				result.parsed = parsing.ParserRunner_Parse(
+					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
 			}, func(t jutil.Throwable) {
 				outcomes[index].scriptDeserializer = nil
 				outcomes[index].deserializer = nil
