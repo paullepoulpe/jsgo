@@ -4189,36 +4189,6 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_COMPUTED_PROP_GETTER |
 	propFlag_COMPUTED_PROP_SETTER
 
-const rhinoByteSlabSize = 32764
-
-type rhinoByteSlab struct {
-	buf  [rhinoByteSlabSize]byte
-	used atomic.Uint32
-}
-
-var currentRhinoByteSlab atomic.Pointer[rhinoByteSlab]
-
-func rhinoAllocStringBytes(n int) []byte {
-	if n <= 0 || n > rhinoByteSlabSize/4 {
-		return make([]byte, 0, n)
-	}
-	for {
-		s := currentRhinoByteSlab.Load()
-		if s != nil {
-			end := s.used.Add(uint32(n))
-			if int(end) <= rhinoByteSlabSize {
-				start := int(end) - n
-				return s.buf[start:start:end]
-			}
-		}
-		newSlab := &rhinoByteSlab{}
-		newSlab.used.Store(uint32(n))
-		if currentRhinoByteSlab.CompareAndSwap(s, newSlab) {
-			return newSlab.buf[0:0:n]
-		}
-	}
-}
-
 // GetQualifiedName takes a set of GETPROP nodes and produces a string that
 // is each property separated by dots. If the node ultimately under the left
 // sub-tree is not a simple name, this is not a valid qualified name.
@@ -4308,7 +4278,7 @@ func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 		if !ok {
 			return nil
 		}
-		builder = rhinoAllocStringBytes(len(left) + reserve)
+		builder = make([]byte, 0, len(left)+reserve)
 		builder = append(builder, left...)
 	}
 	builder = append(builder, '.')
