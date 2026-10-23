@@ -22,6 +22,7 @@ import (
 	"embed"
 	"io/fs"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -31,15 +32,26 @@ import (
 // pinned closure-compiler jar (polyfills.txt, transpilation_libs.txt and the
 // runtime library .js files), extracted with their original paths, and the
 // jar's root-level externs.zip (the builtin externs that
-// AbstractCommandLineRunner.getBuiltinExterns reads) and
-// /runtime_libs.typedast (the precompiled runtime libraries that
-// Compiler.initRuntimeLibraryTypedAsts reads through
-// Class.getResourceAsStream).
+// AbstractCommandLineRunner.getBuiltinExterns reads). The jar's
+// /runtime_libs.typedast is resourceLoader_runtimeLibsTypedAst.
 //
 // Go-only: language-adapter — classpath resources via go:embed.
 //
-//go:embed com externs.zip runtime_libs.typedast
+//go:embed com externs.zip
 var resourceLoader_classpath embed.FS
+
+// resourceLoader_runtimeLibsTypedAst is /runtime_libs.typedast, the
+// precompiled runtime libraries that Compiler.initRuntimeLibraryTypedAsts
+// reads through Class.getResourceAsStream.
+//
+// Go-only: performance — embedded as a string so that it is read in place:
+// fs.ReadFile would copy its 3.5 MB onto the heap, where the runtime library
+// TypedASTs keep it alive for the whole compilation.
+//
+//go:embed runtime_libs.typedast
+var resourceLoader_runtimeLibsTypedAst string
+
+const resourceLoader_runtimeLibsTypedAstName = "runtime_libs.typedast"
 
 // ResourceLoader loads text resources from the classpath.
 //
@@ -119,6 +131,10 @@ func resourceLoader_resolveName(clazz string, name string) string {
 // Go-only: language-adapter — ClassLoader.getResource over the embedded
 // resources.
 func resourceLoader_getResource(name string) ([]byte, bool) {
+	if name == resourceLoader_runtimeLibsTypedAstName {
+		// Read-only memory: the callers only read it.
+		return unsafe.Slice(unsafe.StringData(resourceLoader_runtimeLibsTypedAst), len(resourceLoader_runtimeLibsTypedAst)), true
+	}
 	if data, err := fs.ReadFile(resourceLoader_classpath, name); err == nil {
 		return data, true
 	}
