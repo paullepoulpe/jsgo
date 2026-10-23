@@ -182,6 +182,11 @@ type Compiler struct {
 	// typeRegistryReleased.
 	clearedTypeRegistry weak.Pointer[rhino.JSTypeRegistry]
 
+	// Go-only: the node tables this compilation's Nodes refer to their
+	// colors, JSDoc and cold properties through (rhino/node_tables.go);
+	// released when the Compiler is collected.
+	nodeTables *rhino.NodeTables
+
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
 
@@ -393,7 +398,7 @@ func (c *Compiler) initFields() {
 	c.typeCheckingHasRun = false
 	c.asErrorHandler = &compiler_errorHandler{c: c}
 	c.asSourceFileMapping = &compiler_sourceFileMapping{c: c}
-	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
+	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(&compiler_weakErrorHandler{c: weak.Make(c)})
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
 	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
@@ -434,6 +439,12 @@ func NewCompiler() *Compiler {
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
 	c := &Compiler{}
+	c.nodeTables = rhino.NewNodeTables()
+	c.nodeTables.Install()
+	// The tables hold everything a Node refers to by handle; nothing in them
+	// may reach the Compiler (the registry reports through a weak reference),
+	// so the Compiler is collectable and this frees them.
+	runtime.AddCleanup(c, func(t *rhino.NodeTables) { t.Release() }, c.nodeTables)
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())
@@ -460,6 +471,21 @@ type compiler_errorHandler struct {
 // Report is Compiler.report(CheckLevel, JSError).
 func (h *compiler_errorHandler) Report(level *CheckLevel, error *JSError) {
 	h.c.ReportWithLevel(level, error)
+}
+
+// compiler_weakErrorHandler is compiler_errorHandler through a weak
+// reference: the JSTypeRegistry's reporter. Every JSType reaches its
+// registry, and the node type table reaches every JSType a Node referred
+// to, so a strong reference here would keep a Compiler alive (and its node
+// tables unreleased) for as long as any of its types is registered.
+type compiler_weakErrorHandler struct {
+	c weak.Pointer[Compiler]
+}
+
+func (h *compiler_weakErrorHandler) Report(level *CheckLevel, error *JSError) {
+	if c := h.c.Value(); c != nil {
+		c.ReportWithLevel(level, error)
+	}
 }
 
 // compiler_sourceFileMapping is the Compiler as a SourceFileMapping.
@@ -2191,11 +2217,22 @@ func (c *Compiler) GetChunks() []*JSChunk {
 func (c *Compiler) ClearJSTypeRegistry() {
 	if c.typeRegistry != nil {
 		c.clearedTypeRegistry = weak.Make(c.typeRegistry)
+		// Drop the type column: every type a Node referred to is released
+		// here, whether or not the node is still reachable.
+		c.typeRegistry.ReleaseNodeTypeHandles()
 	}
 	c.typeRegistry = nil
 	c.typeValidator = nil
 	c.abstractInterpreter = nil
+	if AfterTypesToColorsHook != nil {
+		AfterTypesToColorsHook()
+	}
 }
+
+// AfterTypesToColorsHook, when set, runs at the end of ClearJSTypeRegistry.
+//
+// Go-only: measurement aid (cmd/jsgo records the live heap there).
+var AfterTypesToColorsHook func()
 
 // typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
 // dropped has been garbage collected. Every JSType points to its registry,
