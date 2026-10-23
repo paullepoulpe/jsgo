@@ -1172,6 +1172,15 @@ All **22 of 22 (`11 benchmarks × {t=1, t=4}`)** configurations improved in Roun
 | **`downlevel-simple`** (2.1 MB) | 1.09 s / 0.98 s | **1.01 s** / **0.90 s** | — | **−7.41%** / **−8.16%** | **−14.29%** (**−0.15 s**) | **196** / 204 MiB (**−0.74%** `t=1`) | `MATCH` |
 | **`downlevel-whitespace`** (2.1 MB) | 0.54 s / 0.45 s | **0.52 s** / **0.43 s** | — | **−3.34%** / **−3.69%** | **−6.52%** (**−0.03 s**) | **148** / **155 MiB** (**−8.54%** / **−2.33%**) | `MATCH` |
 
+## Memory round 1 (2026-10-23): peak heap and pointers instead of wall time
+
+Slabs, arenas, pools and cross-pass caches from the earlier rounds were the
+main source of excess heap: removing them (plus fixing several retention
+leaks and shrinking the type structs) cut the peak live heap by 34–62 % on
+all 11 benchmarks, byte-identical with Java, at the cost of more allocation
+(wall time +8–13 % on the large tasks with Go 1.27.3). Details, numbers and
+the round-2 plan: [memory-research/round1-results.md](memory-research/round1-results.md).
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
