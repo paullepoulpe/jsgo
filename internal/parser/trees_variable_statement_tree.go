@@ -28,7 +28,7 @@ type VariableStatementTree struct {
 // NewVariableStatementTree constructs a VariableStatementTree.
 //
 // Java: VariableStatementTree(SourceRange, VariableDeclarationListTree)
-func NewVariableStatementTree(location *SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
+func NewVariableStatementTree(location SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
 	t := &VariableStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_STATEMENT, location)
 	t.Declarations = declarations

@@ -29,7 +29,7 @@ type MemberLookupExpressionTree struct {
 // NewMemberLookupExpressionTree constructs a MemberLookupExpressionTree.
 //
 // Java: MemberLookupExpressionTree(SourceRange, ParseTree, ParseTree)
-func NewMemberLookupExpressionTree(location *SourceRange, operand ParseTree, memberExpression ParseTree) *MemberLookupExpressionTree {
+func NewMemberLookupExpressionTree(location SourceRange, operand ParseTree, memberExpression ParseTree) *MemberLookupExpressionTree {
 	t := &MemberLookupExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_MEMBER_LOOKUP_EXPRESSION, location)
 	t.Operand = operand

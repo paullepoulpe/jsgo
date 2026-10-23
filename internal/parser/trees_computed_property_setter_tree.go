@@ -31,7 +31,7 @@ type ComputedPropertySetterTree struct {
 // NewComputedPropertySetterTree constructs a ComputedPropertySetterTree.
 //
 // Java: ComputedPropertySetterTree(SourceRange, ParseTree, boolean, FormalParameterListTree, BlockTree)
-func NewComputedPropertySetterTree(location *SourceRange, property ParseTree, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *ComputedPropertySetterTree {
+func NewComputedPropertySetterTree(location SourceRange, property ParseTree, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *ComputedPropertySetterTree {
 	t := &ComputedPropertySetterTree{}
 	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_SETTER, location)
 	t.Property = property

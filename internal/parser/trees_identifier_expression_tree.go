@@ -28,7 +28,7 @@ type IdentifierExpressionTree struct {
 // NewIdentifierExpressionTree constructs a IdentifierExpressionTree.
 //
 // Java: IdentifierExpressionTree(SourceRange, IdentifierToken)
-func NewIdentifierExpressionTree(location *SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
+func NewIdentifierExpressionTree(location SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
 	t := &IdentifierExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_IDENTIFIER_EXPRESSION, location)
 	t.IdentifierToken = identifierToken

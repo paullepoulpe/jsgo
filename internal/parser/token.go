@@ -25,7 +25,7 @@ package parser
 // Java: class Token (with subclasses IdentifierToken and LiteralToken).
 type Token interface {
 	GetTokenBase() *TokenBase
-	GetStart() *SourcePosition
+	GetStart() SourcePosition
 	String() string
 	AsIdentifier() *IdentifierToken
 	AsLiteral() LiteralToken
@@ -37,14 +37,14 @@ type Token interface {
 type TokenBase struct {
 	self Token
 
-	Location *SourceRange
+	Location SourceRange
 	Type     TokenType
 }
 
 // NewToken constructs a plain Token.
 //
 // Java: Token(TokenType, SourceRange)
-func NewToken(type_ TokenType, location *SourceRange) *TokenBase {
+func NewToken(type_ TokenType, location SourceRange) *TokenBase {
 	t := &TokenBase{}
 	t.InitTokenBase(t, type_, location)
 	return t
@@ -53,7 +53,7 @@ func NewToken(type_ TokenType, location *SourceRange) *TokenBase {
 // InitTokenBase is the Go form of the Token constructor for subclasses.
 //
 // Java: Token(TokenType, SourceRange)
-func (t *TokenBase) InitTokenBase(self Token, type_ TokenType, location *SourceRange) {
+func (t *TokenBase) InitTokenBase(self Token, type_ TokenType, location SourceRange) {
 	t.self = self
 	t.Type = type_
 	t.Location = location
@@ -69,7 +69,7 @@ func (t *TokenBase) GetTokenBase() *TokenBase {
 // GetStart returns the start position.
 //
 // Java: Token.getStart()
-func (t *TokenBase) GetStart() *SourcePosition {
+func (t *TokenBase) GetStart() SourcePosition {
 	return t.Location.Start
 }
 

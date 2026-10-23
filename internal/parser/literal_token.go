@@ -46,7 +46,7 @@ type LiteralTokenBase struct {
 // NewLiteralToken constructs a plain LiteralToken.
 //
 // Java: LiteralToken(TokenType, String, SourceRange)
-func NewLiteralToken(type_ TokenType, value string, location *SourceRange) *LiteralTokenBase {
+func NewLiteralToken(type_ TokenType, value string, location SourceRange) *LiteralTokenBase {
 	t := &LiteralTokenBase{}
 	t.InitLiteralTokenBase(t, type_, value, location)
 	return t
@@ -56,7 +56,7 @@ func NewLiteralToken(type_ TokenType, value string, location *SourceRange) *Lite
 // subclasses.
 //
 // Java: LiteralToken(TokenType, String, SourceRange)
-func (t *LiteralTokenBase) InitLiteralTokenBase(self LiteralToken, type_ TokenType, value string, location *SourceRange) {
+func (t *LiteralTokenBase) InitLiteralTokenBase(self LiteralToken, type_ TokenType, value string, location SourceRange) {
 	t.InitTokenBase(self, type_, location)
 	t.Value = value
 }

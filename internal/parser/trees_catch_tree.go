@@ -29,7 +29,7 @@ type CatchTree struct {
 // NewCatchTree constructs a CatchTree.
 //
 // Java: CatchTree(SourceRange, ParseTree, ParseTree)
-func NewCatchTree(location *SourceRange, exception ParseTree, catchBody ParseTree) *CatchTree {
+func NewCatchTree(location SourceRange, exception ParseTree, catchBody ParseTree) *CatchTree {
 	t := &CatchTree{}
 	t.InitParseTreeBase(t, ParseTreeType_CATCH, location)
 	t.Exception = exception

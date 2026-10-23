@@ -26,7 +26,7 @@ type DebuggerStatementTree struct {
 // NewDebuggerStatementTree constructs a DebuggerStatementTree.
 //
 // Java: DebuggerStatementTree(SourceRange)
-func NewDebuggerStatementTree(location *SourceRange) *DebuggerStatementTree {
+func NewDebuggerStatementTree(location SourceRange) *DebuggerStatementTree {
 	t := &DebuggerStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_DEBUGGER_STATEMENT, location)
 	return t

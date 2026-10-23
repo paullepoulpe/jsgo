@@ -32,7 +32,7 @@ type OptionalMemberExpressionTree struct {
 // NewOptionalMemberExpressionTree constructs a OptionalMemberExpressionTree.
 //
 // Java: OptionalMemberExpressionTree(SourceRange, ParseTree, IdentifierToken, boolean)
-func NewOptionalMemberExpressionTree(location *SourceRange, operand ParseTree, memberName *IdentifierToken, isStartOfOptionalChain bool) *OptionalMemberExpressionTree {
+func NewOptionalMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken, isStartOfOptionalChain bool) *OptionalMemberExpressionTree {
 	t := &OptionalMemberExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_OPT_CHAIN_MEMBER_EXPRESSION, location)
 	t.Operand = operand

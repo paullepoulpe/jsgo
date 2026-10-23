@@ -2038,11 +2038,11 @@ func (g *CodeGeneratorBase) AddNonJsDoc_nonTrailing(node *rhino.Node, nonJSDocCo
 	if nonJSDocComment.IsEndingAsLineComment() {
 		// Non trailing line comments can not be on the same line as the node.
 		jutil.CheckStateMsg(
-			g.gentsMode || commentEndPosition.Line < nodeLineNumber,
+			g.gentsMode || int(commentEndPosition.Line) < nodeLineNumber,
 			"Non trailing line comments can not be on the same line as the node.")
 		g.self.Add(content + "\n")
 	} else {
-		if nodeLineNumber == commentEndPosition.Line {
+		if nodeLineNumber == int(commentEndPosition.Line) {
 			// e.g. ``` /* comment */ let x; ```
 			g.self.Add(content + " ")
 		} else {

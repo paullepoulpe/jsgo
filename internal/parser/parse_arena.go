@@ -96,64 +96,62 @@ func (s *arenaSlab[T]) reset() {
 type ParseArena struct {
 	utf16Buf []uint16
 
-	// Scanner / LineNumberScanner / Parser position, range, and token slabs.
-	positions      arenaSlab[SourcePosition]
-	ranges         arenaSlab[SourceRange]
+	// Scanner token slabs.
 	tokens         arenaSlab[TokenBase]
 	identifiers    arenaSlab[IdentifierToken]
 	literals       arenaSlab[LiteralTokenBase]
 	stringLiterals arenaSlab[StringLiteralToken]
 
 	// High-frequency ParseTree slabs.
-	programs                    arenaSlab[ProgramTree]
-	functionBuilders            arenaSlab[FunctionDeclarationTree_Builder]
-	functionDeclarations        arenaSlab[FunctionDeclarationTree]
-	formalParameterLists        arenaSlab[FormalParameterListTree]
-	blocks                      arenaSlab[BlockTree]
-	variableStatements          arenaSlab[VariableStatementTree]
-	variableDeclarationLists    arenaSlab[VariableDeclarationListTree]
-	variableDeclarations        arenaSlab[VariableDeclarationTree]
-	emptyStatements             arenaSlab[EmptyStatementTree]
-	expressionStatements        arenaSlab[ExpressionStatementTree]
-	ifStatements                arenaSlab[IfStatementTree]
-	nullTrees                   arenaSlab[NullTree]
-	returnStatements            arenaSlab[ReturnStatementTree]
-	thisExpressions             arenaSlab[ThisExpressionTree]
-	identifierExpressions       arenaSlab[IdentifierExpressionTree]
-	literalExpressions          arenaSlab[LiteralExpressionTree]
-	arrayLiteralExpressions     arenaSlab[ArrayLiteralExpressionTree]
-	objectLiteralExpressions    arenaSlab[ObjectLiteralExpressionTree]
-	propertyNameAssignments     arenaSlab[PropertyNameAssignmentTree]
-	commaExpressions            arenaSlab[CommaExpressionTree]
-	parenExpressions            arenaSlab[ParenExpressionTree]
-	binaryOperators             arenaSlab[BinaryOperatorTree]
-	conditionalExpressions      arenaSlab[ConditionalExpressionTree]
-	unaryExpressions            arenaSlab[UnaryExpressionTree]
-	updateExpressions           arenaSlab[UpdateExpressionTree]
-	callExpressions             arenaSlab[CallExpressionTree]
-	memberLookupExpressions     arenaSlab[MemberLookupExpressionTree]
-	memberExpressions           arenaSlab[MemberExpressionTree]
-	newExpressions              arenaSlab[NewExpressionTree]
-	argumentLists               arenaSlab[ArgumentListTree]
-	classDeclarations           arenaSlab[ClassDeclarationTree]
-	computedPropertyMethods     arenaSlab[ComputedPropertyMethodTree]
-	whileStatements             arenaSlab[WhileStatementTree]
-	forOfStatements             arenaSlab[ForOfStatementTree]
-	forStatements               arenaSlab[ForStatementTree]
-	forInStatements             arenaSlab[ForInStatementTree]
-	continueStatements          arenaSlab[ContinueStatementTree]
-	breakStatements             arenaSlab[BreakStatementTree]
-	switchStatements            arenaSlab[SwitchStatementTree]
-	caseClauses                 arenaSlab[CaseClauseTree]
-	throwStatements             arenaSlab[ThrowStatementTree]
-	tryStatements               arenaSlab[TryStatementTree]
-	catchTrees                  arenaSlab[CatchTree]
+	programs                 arenaSlab[ProgramTree]
+	functionBuilders         arenaSlab[FunctionDeclarationTree_Builder]
+	functionDeclarations     arenaSlab[FunctionDeclarationTree]
+	formalParameterLists     arenaSlab[FormalParameterListTree]
+	blocks                   arenaSlab[BlockTree]
+	variableStatements       arenaSlab[VariableStatementTree]
+	variableDeclarationLists arenaSlab[VariableDeclarationListTree]
+	variableDeclarations     arenaSlab[VariableDeclarationTree]
+	emptyStatements          arenaSlab[EmptyStatementTree]
+	expressionStatements     arenaSlab[ExpressionStatementTree]
+	ifStatements             arenaSlab[IfStatementTree]
+	nullTrees                arenaSlab[NullTree]
+	returnStatements         arenaSlab[ReturnStatementTree]
+	thisExpressions          arenaSlab[ThisExpressionTree]
+	identifierExpressions    arenaSlab[IdentifierExpressionTree]
+	literalExpressions       arenaSlab[LiteralExpressionTree]
+	arrayLiteralExpressions  arenaSlab[ArrayLiteralExpressionTree]
+	objectLiteralExpressions arenaSlab[ObjectLiteralExpressionTree]
+	propertyNameAssignments  arenaSlab[PropertyNameAssignmentTree]
+	commaExpressions         arenaSlab[CommaExpressionTree]
+	parenExpressions         arenaSlab[ParenExpressionTree]
+	binaryOperators          arenaSlab[BinaryOperatorTree]
+	conditionalExpressions   arenaSlab[ConditionalExpressionTree]
+	unaryExpressions         arenaSlab[UnaryExpressionTree]
+	updateExpressions        arenaSlab[UpdateExpressionTree]
+	callExpressions          arenaSlab[CallExpressionTree]
+	memberLookupExpressions  arenaSlab[MemberLookupExpressionTree]
+	memberExpressions        arenaSlab[MemberExpressionTree]
+	newExpressions           arenaSlab[NewExpressionTree]
+	argumentLists            arenaSlab[ArgumentListTree]
+	classDeclarations        arenaSlab[ClassDeclarationTree]
+	computedPropertyMethods  arenaSlab[ComputedPropertyMethodTree]
+	whileStatements          arenaSlab[WhileStatementTree]
+	forOfStatements          arenaSlab[ForOfStatementTree]
+	forStatements            arenaSlab[ForStatementTree]
+	forInStatements          arenaSlab[ForInStatementTree]
+	continueStatements       arenaSlab[ContinueStatementTree]
+	breakStatements          arenaSlab[BreakStatementTree]
+	switchStatements         arenaSlab[SwitchStatementTree]
+	caseClauses              arenaSlab[CaseClauseTree]
+	throwStatements          arenaSlab[ThrowStatementTree]
+	tryStatements            arenaSlab[TryStatementTree]
+	catchTrees               arenaSlab[CatchTree]
 
 	// Transient slice and comment slabs.
 	treeStack         []ParseTree
 	treeSlices        arenaSlab[ParseTree]
-	posStack          []*SourcePosition
-	posSlices         arenaSlab[*SourcePosition]
+	posStack          []SourcePosition
+	posSlices         arenaSlab[SourcePosition]
 	varDeclStack      []*VariableDeclarationTree
 	varDeclSlices     arenaSlab[*VariableDeclarationTree]
 	comments          arenaSlab[Comment]
@@ -163,7 +161,7 @@ type ParseArena struct {
 
 var (
 	emptyParseTrees   = []ParseTree{}
-	emptySourcePos    = []*SourcePosition{}
+	emptySourcePos    = []SourcePosition{}
 	emptyVarDeclTrees = []*VariableDeclarationTree{}
 )
 
@@ -175,7 +173,7 @@ func (a *ParseArena) finishTrees(base int) []ParseTree {
 	return res
 }
 
-func (a *ParseArena) finishPositions(base int) []*SourcePosition {
+func (a *ParseArena) finishPositions(base int) []SourcePosition {
 	s := a.posStack[base:]
 	res := a.posSlices.allocSlice(s, emptySourcePos)
 	clear(s)
@@ -238,8 +236,6 @@ func (a *ParseArena) reset() {
 	} else {
 		a.utf16Buf = nil
 	}
-	a.positions.reset()
-	a.ranges.reset()
 	a.tokens.reset()
 	a.identifiers.reset()
 	a.literals.reset()
@@ -366,14 +362,7 @@ func decodeWTF8InArena(s string) (r rune, size int) {
 	return utf8.DecodeRuneInString(s)
 }
 
-func (p *Parser) newSourceRange(start, end *SourcePosition) *SourceRange {
-	r := p.arena.ranges.New()
-	r.Start = start
-	r.End = end
-	return r
-}
-
-func (p *Parser) newProgramTree(location *SourceRange, sourceElements []ParseTree, sourceComments []*Comment) *ProgramTree {
+func (p *Parser) newProgramTree(location SourceRange, sourceElements []ParseTree, sourceComments []*Comment) *ProgramTree {
 	t := p.arena.programs.New()
 	t.InitParseTreeBase(t, ParseTreeType_PROGRAM, location)
 	t.SourceElements = sourceElements
@@ -388,7 +377,7 @@ func (p *Parser) newFunctionBuilder(kind FunctionDeclarationTree_Kind) *Function
 	return b
 }
 
-func (p *Parser) newFormalParameterListTree(location *SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []*SourcePosition) *FormalParameterListTree {
+func (p *Parser) newFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
 	t := p.arena.formalParameterLists.New()
 	t.InitParseTreeBase(t, ParseTreeType_FORMAL_PARAMETER_LIST, location)
 	numParams := len(parameters)
@@ -405,21 +394,21 @@ func (p *Parser) newFormalParameterListTree(location *SourceRange, parameters []
 	return t
 }
 
-func (p *Parser) newBlockTree(location *SourceRange, statements []ParseTree) *BlockTree {
+func (p *Parser) newBlockTree(location SourceRange, statements []ParseTree) *BlockTree {
 	t := p.arena.blocks.New()
 	t.InitParseTreeBase(t, ParseTreeType_BLOCK, location)
 	t.Statements = statements
 	return t
 }
 
-func (p *Parser) newVariableStatementTree(location *SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
+func (p *Parser) newVariableStatementTree(location SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
 	t := p.arena.variableStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_STATEMENT, location)
 	t.Declarations = declarations
 	return t
 }
 
-func (p *Parser) newVariableDeclarationListTree(location *SourceRange, declarationType TokenType, declarations []*VariableDeclarationTree) *VariableDeclarationListTree {
+func (p *Parser) newVariableDeclarationListTree(location SourceRange, declarationType TokenType, declarations []*VariableDeclarationTree) *VariableDeclarationListTree {
 	t := p.arena.variableDeclarationLists.New()
 	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_DECLARATION_LIST, location)
 	t.DeclarationType = declarationType
@@ -427,7 +416,7 @@ func (p *Parser) newVariableDeclarationListTree(location *SourceRange, declarati
 	return t
 }
 
-func (p *Parser) newVariableDeclarationTree(location *SourceRange, lvalue ParseTree, initializer ParseTree) *VariableDeclarationTree {
+func (p *Parser) newVariableDeclarationTree(location SourceRange, lvalue ParseTree, initializer ParseTree) *VariableDeclarationTree {
 	t := p.arena.variableDeclarations.New()
 	t.InitParseTreeBase(t, ParseTreeType_VARIABLE_DECLARATION, location)
 	t.Lvalue = lvalue
@@ -435,20 +424,20 @@ func (p *Parser) newVariableDeclarationTree(location *SourceRange, lvalue ParseT
 	return t
 }
 
-func (p *Parser) newEmptyStatementTree(location *SourceRange) *EmptyStatementTree {
+func (p *Parser) newEmptyStatementTree(location SourceRange) *EmptyStatementTree {
 	t := p.arena.emptyStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_EMPTY_STATEMENT, location)
 	return t
 }
 
-func (p *Parser) newExpressionStatementTree(location *SourceRange, expression ParseTree) *ExpressionStatementTree {
+func (p *Parser) newExpressionStatementTree(location SourceRange, expression ParseTree) *ExpressionStatementTree {
 	t := p.arena.expressionStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_EXPRESSION_STATEMENT, location)
 	t.Expression = expression
 	return t
 }
 
-func (p *Parser) newIfStatementTree(location *SourceRange, condition ParseTree, ifClause ParseTree, elseClause ParseTree) *IfStatementTree {
+func (p *Parser) newIfStatementTree(location SourceRange, condition ParseTree, ifClause ParseTree, elseClause ParseTree) *IfStatementTree {
 	t := p.arena.ifStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_IF_STATEMENT, location)
 	t.Condition = condition
@@ -457,40 +446,40 @@ func (p *Parser) newIfStatementTree(location *SourceRange, condition ParseTree, 
 	return t
 }
 
-func (p *Parser) newNullTree(location *SourceRange) *NullTree {
+func (p *Parser) newNullTree(location SourceRange) *NullTree {
 	t := p.arena.nullTrees.New()
 	t.InitParseTreeBase(t, ParseTreeType_NULL, location)
 	return t
 }
 
-func (p *Parser) newReturnStatementTree(location *SourceRange, expression ParseTree) *ReturnStatementTree {
+func (p *Parser) newReturnStatementTree(location SourceRange, expression ParseTree) *ReturnStatementTree {
 	t := p.arena.returnStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_RETURN_STATEMENT, location)
 	t.Expression = expression
 	return t
 }
 
-func (p *Parser) newThisExpressionTree(location *SourceRange) *ThisExpressionTree {
+func (p *Parser) newThisExpressionTree(location SourceRange) *ThisExpressionTree {
 	t := p.arena.thisExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_THIS_EXPRESSION, location)
 	return t
 }
 
-func (p *Parser) newIdentifierExpressionTree(location *SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
+func (p *Parser) newIdentifierExpressionTree(location SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
 	t := p.arena.identifierExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_IDENTIFIER_EXPRESSION, location)
 	t.IdentifierToken = identifierToken
 	return t
 }
 
-func (p *Parser) newLiteralExpressionTree(location *SourceRange, literalToken Token) *LiteralExpressionTree {
+func (p *Parser) newLiteralExpressionTree(location SourceRange, literalToken Token) *LiteralExpressionTree {
 	t := p.arena.literalExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_LITERAL_EXPRESSION, location)
 	t.LiteralToken = literalToken
 	return t
 }
 
-func (p *Parser) newArrayLiteralExpressionTree(location *SourceRange, elements []ParseTree, hasTrailingComma bool) *ArrayLiteralExpressionTree {
+func (p *Parser) newArrayLiteralExpressionTree(location SourceRange, elements []ParseTree, hasTrailingComma bool) *ArrayLiteralExpressionTree {
 	t := p.arena.arrayLiteralExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_ARRAY_LITERAL_EXPRESSION, location)
 	t.Elements = elements
@@ -498,7 +487,7 @@ func (p *Parser) newArrayLiteralExpressionTree(location *SourceRange, elements [
 	return t
 }
 
-func (p *Parser) newObjectLiteralExpressionTree(location *SourceRange, propertyNameAndValues []ParseTree, hasTrailingComma bool) *ObjectLiteralExpressionTree {
+func (p *Parser) newObjectLiteralExpressionTree(location SourceRange, propertyNameAndValues []ParseTree, hasTrailingComma bool) *ObjectLiteralExpressionTree {
 	t := p.arena.objectLiteralExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_OBJECT_LITERAL_EXPRESSION, location)
 	t.PropertyNameAndValues = propertyNameAndValues
@@ -506,7 +495,7 @@ func (p *Parser) newObjectLiteralExpressionTree(location *SourceRange, propertyN
 	return t
 }
 
-func (p *Parser) newPropertyNameAssignmentTree(location *SourceRange, name Token, value ParseTree) *PropertyNameAssignmentTree {
+func (p *Parser) newPropertyNameAssignmentTree(location SourceRange, name Token, value ParseTree) *PropertyNameAssignmentTree {
 	t := p.arena.propertyNameAssignments.New()
 	t.InitParseTreeBase(t, ParseTreeType_PROPERTY_NAME_ASSIGNMENT, location)
 	t.Name = name
@@ -514,21 +503,21 @@ func (p *Parser) newPropertyNameAssignmentTree(location *SourceRange, name Token
 	return t
 }
 
-func (p *Parser) newCommaExpressionTree(location *SourceRange, expressions []ParseTree) *CommaExpressionTree {
+func (p *Parser) newCommaExpressionTree(location SourceRange, expressions []ParseTree) *CommaExpressionTree {
 	t := p.arena.commaExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_COMMA_EXPRESSION, location)
 	t.Expressions = expressions
 	return t
 }
 
-func (p *Parser) newParenExpressionTree(location *SourceRange, expression ParseTree) *ParenExpressionTree {
+func (p *Parser) newParenExpressionTree(location SourceRange, expression ParseTree) *ParenExpressionTree {
 	t := p.arena.parenExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_PAREN_EXPRESSION, location)
 	t.Expression = expression
 	return t
 }
 
-func (p *Parser) newBinaryOperatorTree(location *SourceRange, left ParseTree, operator Token, right ParseTree) *BinaryOperatorTree {
+func (p *Parser) newBinaryOperatorTree(location SourceRange, left ParseTree, operator Token, right ParseTree) *BinaryOperatorTree {
 	t := p.arena.binaryOperators.New()
 	t.InitParseTreeBase(t, ParseTreeType_BINARY_OPERATOR, location)
 	t.Left = left
@@ -537,7 +526,7 @@ func (p *Parser) newBinaryOperatorTree(location *SourceRange, left ParseTree, op
 	return t
 }
 
-func (p *Parser) newConditionalExpressionTree(location *SourceRange, condition ParseTree, left ParseTree, right ParseTree) *ConditionalExpressionTree {
+func (p *Parser) newConditionalExpressionTree(location SourceRange, condition ParseTree, left ParseTree, right ParseTree) *ConditionalExpressionTree {
 	t := p.arena.conditionalExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_CONDITIONAL_EXPRESSION, location)
 	t.Condition = condition
@@ -546,7 +535,7 @@ func (p *Parser) newConditionalExpressionTree(location *SourceRange, condition P
 	return t
 }
 
-func (p *Parser) newUnaryExpressionTree(location *SourceRange, operator Token, operand ParseTree) *UnaryExpressionTree {
+func (p *Parser) newUnaryExpressionTree(location SourceRange, operator Token, operand ParseTree) *UnaryExpressionTree {
 	t := p.arena.unaryExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_UNARY_EXPRESSION, location)
 	t.Operator = operator
@@ -554,7 +543,7 @@ func (p *Parser) newUnaryExpressionTree(location *SourceRange, operator Token, o
 	return t
 }
 
-func (p *Parser) newUpdateExpressionTreePrefix(location *SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
+func (p *Parser) newUpdateExpressionTreePrefix(location SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
 	t := p.arena.updateExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_UPDATE_EXPRESSION, location)
 	t.Operator = operator
@@ -563,7 +552,7 @@ func (p *Parser) newUpdateExpressionTreePrefix(location *SourceRange, operator T
 	return t
 }
 
-func (p *Parser) newUpdateExpressionTreePostfix(location *SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
+func (p *Parser) newUpdateExpressionTreePostfix(location SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
 	t := p.arena.updateExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_UPDATE_EXPRESSION, location)
 	t.Operator = operator
@@ -572,7 +561,7 @@ func (p *Parser) newUpdateExpressionTreePostfix(location *SourceRange, operator 
 	return t
 }
 
-func (p *Parser) newCallExpressionTree(location *SourceRange, operand ParseTree, arguments *ArgumentListTree) *CallExpressionTree {
+func (p *Parser) newCallExpressionTree(location SourceRange, operand ParseTree, arguments *ArgumentListTree) *CallExpressionTree {
 	t := p.arena.callExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_CALL_EXPRESSION, location)
 	t.Operand = operand
@@ -580,7 +569,7 @@ func (p *Parser) newCallExpressionTree(location *SourceRange, operand ParseTree,
 	return t
 }
 
-func (p *Parser) newMemberLookupExpressionTree(location *SourceRange, operand ParseTree, memberExpression ParseTree) *MemberLookupExpressionTree {
+func (p *Parser) newMemberLookupExpressionTree(location SourceRange, operand ParseTree, memberExpression ParseTree) *MemberLookupExpressionTree {
 	t := p.arena.memberLookupExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_MEMBER_LOOKUP_EXPRESSION, location)
 	t.Operand = operand
@@ -588,7 +577,7 @@ func (p *Parser) newMemberLookupExpressionTree(location *SourceRange, operand Pa
 	return t
 }
 
-func (p *Parser) newMemberExpressionTree(location *SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
+func (p *Parser) newMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
 	t := p.arena.memberExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_MEMBER_EXPRESSION, location)
 	t.Operand = operand
@@ -596,7 +585,7 @@ func (p *Parser) newMemberExpressionTree(location *SourceRange, operand ParseTre
 	return t
 }
 
-func (p *Parser) newNewExpressionTree(location *SourceRange, operand ParseTree, arguments *ArgumentListTree, hasTrailingComma bool) *NewExpressionTree {
+func (p *Parser) newNewExpressionTree(location SourceRange, operand ParseTree, arguments *ArgumentListTree, hasTrailingComma bool) *NewExpressionTree {
 	t := p.arena.newExpressions.New()
 	t.InitParseTreeBase(t, ParseTreeType_NEW_EXPRESSION, location)
 	t.Operand = operand
@@ -605,7 +594,7 @@ func (p *Parser) newNewExpressionTree(location *SourceRange, operand ParseTree, 
 	return t
 }
 
-func (p *Parser) newArgumentListTree(location *SourceRange, arguments []ParseTree, hasTrailingComma bool, commaPositions []*SourcePosition) *ArgumentListTree {
+func (p *Parser) newArgumentListTree(location SourceRange, arguments []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *ArgumentListTree {
 	t := p.arena.argumentLists.New()
 	t.InitParseTreeBase(t, ParseTreeType_ARGUMENT_LIST, location)
 	t.Arguments = arguments
@@ -614,7 +603,7 @@ func (p *Parser) newArgumentListTree(location *SourceRange, arguments []ParseTre
 	return t
 }
 
-func (p *Parser) newClassDeclarationTree(location *SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
+func (p *Parser) newClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
 	t := p.arena.classDeclarations.New()
 	t.InitParseTreeBase(t, ParseTreeType_CLASS_DECLARATION, location)
 	t.Name = name
@@ -623,7 +612,7 @@ func (p *Parser) newClassDeclarationTree(location *SourceRange, name *Identifier
 	return t
 }
 
-func (p *Parser) newComputedPropertyMethodTree(location *SourceRange, property ParseTree, method ParseTree) *ComputedPropertyMethodTree {
+func (p *Parser) newComputedPropertyMethodTree(location SourceRange, property ParseTree, method ParseTree) *ComputedPropertyMethodTree {
 	t := p.arena.computedPropertyMethods.New()
 	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_METHOD, location)
 	t.Property = property
@@ -631,7 +620,7 @@ func (p *Parser) newComputedPropertyMethodTree(location *SourceRange, property P
 	return t
 }
 
-func (p *Parser) newWhileStatementTree(location *SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
+func (p *Parser) newWhileStatementTree(location SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
 	t := p.arena.whileStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_WHILE_STATEMENT, location)
 	t.Condition = condition
@@ -639,7 +628,7 @@ func (p *Parser) newWhileStatementTree(location *SourceRange, condition ParseTre
 	return t
 }
 
-func (p *Parser) newForOfStatementTree(location *SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForOfStatementTree {
+func (p *Parser) newForOfStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForOfStatementTree {
 	t := p.arena.forOfStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_FOR_OF_STATEMENT, location)
 	t.Initializer = initializer
@@ -648,7 +637,7 @@ func (p *Parser) newForOfStatementTree(location *SourceRange, initializer ParseT
 	return t
 }
 
-func (p *Parser) newForStatementTree(location *SourceRange, variables ParseTree, condition ParseTree, increment ParseTree, body ParseTree) *ForStatementTree {
+func (p *Parser) newForStatementTree(location SourceRange, variables ParseTree, condition ParseTree, increment ParseTree, body ParseTree) *ForStatementTree {
 	t := p.arena.forStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_FOR_STATEMENT, location)
 	t.Initializer = variables
@@ -658,7 +647,7 @@ func (p *Parser) newForStatementTree(location *SourceRange, variables ParseTree,
 	return t
 }
 
-func (p *Parser) newForInStatementTree(location *SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForInStatementTree {
+func (p *Parser) newForInStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForInStatementTree {
 	t := p.arena.forInStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_FOR_IN_STATEMENT, location)
 	t.Initializer = initializer
@@ -667,21 +656,21 @@ func (p *Parser) newForInStatementTree(location *SourceRange, initializer ParseT
 	return t
 }
 
-func (p *Parser) newContinueStatementTree(location *SourceRange, name *IdentifierToken) *ContinueStatementTree {
+func (p *Parser) newContinueStatementTree(location SourceRange, name *IdentifierToken) *ContinueStatementTree {
 	t := p.arena.continueStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_CONTINUE_STATEMENT, location)
 	t.Name = name
 	return t
 }
 
-func (p *Parser) newBreakStatementTree(location *SourceRange, name *IdentifierToken) *BreakStatementTree {
+func (p *Parser) newBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakStatementTree {
 	t := p.arena.breakStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_BREAK_STATEMENT, location)
 	t.Name = name
 	return t
 }
 
-func (p *Parser) newSwitchStatementTree(location *SourceRange, expression ParseTree, caseClauses []ParseTree) *SwitchStatementTree {
+func (p *Parser) newSwitchStatementTree(location SourceRange, expression ParseTree, caseClauses []ParseTree) *SwitchStatementTree {
 	t := p.arena.switchStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_SWITCH_STATEMENT, location)
 	t.Expression = expression
@@ -689,7 +678,7 @@ func (p *Parser) newSwitchStatementTree(location *SourceRange, expression ParseT
 	return t
 }
 
-func (p *Parser) newCaseClauseTree(location *SourceRange, expression ParseTree, statements []ParseTree) *CaseClauseTree {
+func (p *Parser) newCaseClauseTree(location SourceRange, expression ParseTree, statements []ParseTree) *CaseClauseTree {
 	t := p.arena.caseClauses.New()
 	t.InitParseTreeBase(t, ParseTreeType_CASE_CLAUSE, location)
 	t.Expression = expression
@@ -697,14 +686,14 @@ func (p *Parser) newCaseClauseTree(location *SourceRange, expression ParseTree, 
 	return t
 }
 
-func (p *Parser) newThrowStatementTree(location *SourceRange, value ParseTree) *ThrowStatementTree {
+func (p *Parser) newThrowStatementTree(location SourceRange, value ParseTree) *ThrowStatementTree {
 	t := p.arena.throwStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_THROW_STATEMENT, location)
 	t.Value = value
 	return t
 }
 
-func (p *Parser) newTryStatementTree(location *SourceRange, body ParseTree, catchBlock ParseTree, finallyBlock ParseTree) *TryStatementTree {
+func (p *Parser) newTryStatementTree(location SourceRange, body ParseTree, catchBlock ParseTree, finallyBlock ParseTree) *TryStatementTree {
 	t := p.arena.tryStatements.New()
 	t.InitParseTreeBase(t, ParseTreeType_TRY_STATEMENT, location)
 	t.Body = body
@@ -713,7 +702,7 @@ func (p *Parser) newTryStatementTree(location *SourceRange, body ParseTree, catc
 	return t
 }
 
-func (p *Parser) newCatchTree(location *SourceRange, exception ParseTree, catchBody ParseTree) *CatchTree {
+func (p *Parser) newCatchTree(location SourceRange, exception ParseTree, catchBody ParseTree) *CatchTree {
 	t := p.arena.catchTrees.New()
 	t.InitParseTreeBase(t, ParseTreeType_CATCH, location)
 	t.Exception = exception

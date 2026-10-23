@@ -39,8 +39,8 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // through GetParseTreeBase().
 type ParseTree interface {
 	GetParseTreeBase() *ParseTreeBase
-	GetStart() *SourcePosition
-	GetEnd() *SourcePosition
+	GetStart() SourcePosition
+	GetEnd() SourcePosition
 	AsArrayLiteralExpression() *ArrayLiteralExpressionTree
 	AsArrayPattern() *ArrayPatternTree
 	AsBinaryOperator() *BinaryOperatorTree
@@ -135,14 +135,14 @@ type ParseTreeBase struct {
 	self ParseTree
 
 	Type     ParseTreeType
-	Location *SourceRange
+	Location SourceRange
 }
 
 // InitParseTreeBase is the Go form of the (protected) ParseTree
 // constructor; self is the concrete tree.
 //
 // Java: ParseTree(ParseTreeType, SourceRange)
-func (t *ParseTreeBase) InitParseTreeBase(self ParseTree, type_ ParseTreeType, location *SourceRange) {
+func (t *ParseTreeBase) InitParseTreeBase(self ParseTree, type_ ParseTreeType, location SourceRange) {
 	t.self = self
 	t.Type = type_
 	t.Location = location
@@ -159,14 +159,14 @@ func (t *ParseTreeBase) GetParseTreeBase() *ParseTreeBase {
 // GetStart returns the start position.
 //
 // Java: ParseTree.getStart()
-func (t *ParseTreeBase) GetStart() *SourcePosition {
+func (t *ParseTreeBase) GetStart() SourcePosition {
 	return t.Location.Start
 }
 
 // GetEnd returns the end position.
 //
 // Java: ParseTree.getEnd()
-func (t *ParseTreeBase) GetEnd() *SourcePosition {
+func (t *ParseTreeBase) GetEnd() SourcePosition {
 	return t.Location.End
 }
 

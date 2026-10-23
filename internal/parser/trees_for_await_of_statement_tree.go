@@ -30,7 +30,7 @@ type ForAwaitOfStatementTree struct {
 // NewForAwaitOfStatementTree constructs a ForAwaitOfStatementTree.
 //
 // Java: ForAwaitOfStatementTree(SourceRange, ParseTree, ParseTree, ParseTree)
-func NewForAwaitOfStatementTree(location *SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForAwaitOfStatementTree {
+func NewForAwaitOfStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForAwaitOfStatementTree {
 	t := &ForAwaitOfStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_FOR_AWAIT_OF_STATEMENT, location)
 	t.Initializer = initializer

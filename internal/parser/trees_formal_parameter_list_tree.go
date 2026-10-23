@@ -26,13 +26,13 @@ type FormalParameterListTree struct {
 
 	Parameters       []ParseTree
 	HasTrailingComma bool
-	CommaPositions   []*SourcePosition
+	CommaPositions   []SourcePosition
 }
 
 // NewFormalParameterListTree constructs a FormalParameterListTree.
 //
 // Java: FormalParameterListTree(SourceRange, ImmutableList, boolean, ImmutableList)
-func NewFormalParameterListTree(location *SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []*SourcePosition) *FormalParameterListTree {
+func NewFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
 	t := &FormalParameterListTree{}
 	t.InitParseTreeBase(t, ParseTreeType_FORMAL_PARAMETER_LIST, location)
 	numParams := len(parameters)

@@ -30,7 +30,7 @@ type ForOfStatementTree struct {
 // NewForOfStatementTree constructs a ForOfStatementTree.
 //
 // Java: ForOfStatementTree(SourceRange, ParseTree, ParseTree, ParseTree)
-func NewForOfStatementTree(location *SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForOfStatementTree {
+func NewForOfStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForOfStatementTree {
 	t := &ForOfStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_FOR_OF_STATEMENT, location)
 	t.Initializer = initializer

@@ -24,13 +24,13 @@ type ArgumentListTree struct {
 
 	Arguments        []ParseTree
 	HasTrailingComma bool
-	CommaPositions   []*SourcePosition
+	CommaPositions   []SourcePosition
 }
 
 // NewArgumentListTree constructs a ArgumentListTree.
 //
 // Java: ArgumentListTree(SourceRange, ImmutableList, boolean, ImmutableList)
-func NewArgumentListTree(location *SourceRange, arguments []ParseTree, hasTrailingComma bool, commaPositions []*SourcePosition) *ArgumentListTree {
+func NewArgumentListTree(location SourceRange, arguments []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *ArgumentListTree {
 	t := &ArgumentListTree{}
 	t.InitParseTreeBase(t, ParseTreeType_ARGUMENT_LIST, location)
 	t.Arguments = arguments

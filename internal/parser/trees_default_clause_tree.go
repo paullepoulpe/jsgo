@@ -28,7 +28,7 @@ type DefaultClauseTree struct {
 // NewDefaultClauseTree constructs a DefaultClauseTree.
 //
 // Java: DefaultClauseTree(SourceRange, ImmutableList)
-func NewDefaultClauseTree(location *SourceRange, statements []ParseTree) *DefaultClauseTree {
+func NewDefaultClauseTree(location SourceRange, statements []ParseTree) *DefaultClauseTree {
 	t := &DefaultClauseTree{}
 	t.InitParseTreeBase(t, ParseTreeType_DEFAULT_CLAUSE, location)
 	t.Statements = statements

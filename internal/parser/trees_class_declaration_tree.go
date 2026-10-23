@@ -30,7 +30,7 @@ type ClassDeclarationTree struct {
 // NewClassDeclarationTree constructs a ClassDeclarationTree.
 //
 // Java: ClassDeclarationTree(SourceRange, IdentifierToken, ParseTree, ImmutableList)
-func NewClassDeclarationTree(location *SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
+func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
 	t := &ClassDeclarationTree{}
 	t.InitParseTreeBase(t, ParseTreeType_CLASS_DECLARATION, location)
 	t.Name = name

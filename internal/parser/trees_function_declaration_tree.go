@@ -113,7 +113,7 @@ type FunctionDeclarationTree_Builder struct {
 	isGenerator         bool
 	isOptional          bool
 	isAsync             bool
-	location            *SourceRange
+	location            SourceRange
 	arena               *ParseArena
 }
 
@@ -210,7 +210,7 @@ func (b *FunctionDeclarationTree_Builder) SetAsync(isAsync bool) *FunctionDeclar
 // calculated until the whole function has been parsed.
 //
 // Java: FunctionDeclarationTree.Builder.build(SourceRange)
-func (b *FunctionDeclarationTree_Builder) Build(location *SourceRange) *FunctionDeclarationTree {
+func (b *FunctionDeclarationTree_Builder) Build(location SourceRange) *FunctionDeclarationTree {
 	b.location = location
 	if b.arena != nil {
 		t := b.arena.functionDeclarations.New()

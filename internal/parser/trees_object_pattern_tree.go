@@ -28,7 +28,7 @@ type ObjectPatternTree struct {
 // NewObjectPatternTree constructs a ObjectPatternTree.
 //
 // Java: ObjectPatternTree(SourceRange, ImmutableList)
-func NewObjectPatternTree(location *SourceRange, fields []ParseTree) *ObjectPatternTree {
+func NewObjectPatternTree(location SourceRange, fields []ParseTree) *ObjectPatternTree {
 	t := &ObjectPatternTree{}
 	t.InitParseTreeBase(t, ParseTreeType_OBJECT_PATTERN, location)
 	t.Fields = fields

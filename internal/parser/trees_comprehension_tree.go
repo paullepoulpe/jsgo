@@ -62,7 +62,7 @@ func (t ComprehensionTree_ComprehensionType) String() string { return t.Name() }
 // NewComprehensionTree constructs a ComprehensionTree.
 //
 // Java: ComprehensionTree(SourceRange, ComprehensionType, ImmutableList, ParseTree)
-func NewComprehensionTree(location *SourceRange, type_ ComprehensionTree_ComprehensionType, children []ParseTree, tailExpression ParseTree) *ComprehensionTree {
+func NewComprehensionTree(location SourceRange, type_ ComprehensionTree_ComprehensionType, children []ParseTree, tailExpression ParseTree) *ComprehensionTree {
 	t := &ComprehensionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_COMPREHENSION, location)
 	t.Type = type_

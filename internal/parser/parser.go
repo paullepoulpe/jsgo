@@ -66,11 +66,10 @@ type Parser struct {
 	errorReporter        ErrorReporter
 	config               *Parser_Config
 	commentRecorder      *Parser_CommentRecorder
-	commentRecorderVal   Parser_CommentRecorder
 	functionContextStack []Parser_FunctionFlavor
 	functionContextBuf   [8]Parser_FunctionFlavor
 	features             *FeatureSet
-	lastSourcePosition   *SourcePosition
+	lastSourcePosition   SourcePosition
 	// Go-only: language-adapter — nil is Java null.
 	sourceMapURL *string
 
@@ -134,8 +133,7 @@ func NewParserInArena(config *Parser_Config, errorReporter ErrorReporter, source
 		arena = &ParseArena{}
 	}
 	p := &Parser{arena: arena}
-	p.commentRecorderVal.this = p
-	p.commentRecorder = &p.commentRecorderVal
+	p.commentRecorder = NewParser_CommentRecorder(p)
 	p.functionContextStack = p.functionContextBuf[:0]
 	p.features = FeatureSet_BARE_MINIMUM
 	p.config = config
@@ -219,25 +217,27 @@ type Parser_CommentRecorder struct {
 	// inner class.
 	this *Parser
 
-	comments               []*Comment
-	lastCommentEndPosition *SourcePosition
+	comments []*Comment
+	// Go-only: language-adapter — the offset of Java's
+	// lastCommentEndPosition, -1 for null.
+	lastCommentEndOffset int32
 }
 
 // NewParser_CommentRecorder constructs the comment recorder of parser.
 //
 // Java: Parser.CommentRecorder()
 func NewParser_CommentRecorder(this *Parser) *Parser_CommentRecorder {
-	return &Parser_CommentRecorder{this: this, comments: []*Comment{}}
+	return &Parser_CommentRecorder{this: this, comments: []*Comment{}, lastCommentEndOffset: -1}
 }
 
 // RecordComment records a comment the scanner passed.
 //
 // Java: Parser.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
-func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ *SourceRange, value string) {
+func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ SourceRange, value string) {
 	// If we rewind the token stream, the scanner might pass comments that we've already seen.
 	// Only record comments past the furthest comment end position we've seen.
 	// NB: this assumes the CommentRecorder is used for at most one source file.
-	if c.lastCommentEndPosition == nil || range_.End.Offset > c.lastCommentEndPosition.Offset {
+	if range_.End.Offset > c.lastCommentEndOffset {
 		value = jutil.StringTrim(value)
 		if strings.HasPrefix(value, Parser_SOURCE_MAPPING_URL_PREFIX) {
 			sourceMapURL := value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
@@ -253,7 +253,7 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ *Sourc
 		} else {
 			c.comments = append(c.comments, NewComment(value, range_, type_))
 		}
-		c.lastCommentEndPosition = range_.End
+		c.lastCommentEndOffset = range_.End.Offset
 	}
 }
 
@@ -1519,7 +1519,7 @@ func (p *Parser) ParseForStatement() ParseTree {
 // for  (  { let | var }?  identifier  of  expression  )  statement
 
 // Java: Parser.parseForOfStatement(SourcePosition, ParseTree)
-func (p *Parser) ParseForOfStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+func (p *Parser) ParseForOfStatement(start SourcePosition, initializer ParseTree) ParseTree {
 	p.EatPredefinedString(PredefinedName_OF)
 	collection := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
@@ -1528,7 +1528,7 @@ func (p *Parser) ParseForOfStatement(start *SourcePosition, initializer ParseTre
 }
 
 // Java: Parser.parseForAwaitOfStatement(SourcePosition, ParseTree)
-func (p *Parser) ParseForAwaitOfStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+func (p *Parser) ParseForAwaitOfStatement(start SourcePosition, initializer ParseTree) ParseTree {
 	p.EatPredefinedString(PredefinedName_OF)
 	collection := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
@@ -1573,9 +1573,9 @@ func (p *Parser) PeekVariableDeclarationList() bool {
 // 12.6.3 The for Statement
 
 // Java: Parser.parseForStatement(SourcePosition, ParseTree)
-func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initializer ParseTree) ParseTree {
+func (p *Parser) ParseForStatementWithInitializer(start SourcePosition, initializer ParseTree) ParseTree {
 	if initializer == nil {
-		initializer = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		initializer = p.newNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_SEMI_COLON)
 
@@ -1583,7 +1583,7 @@ func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initial
 	if !p.Peek(TokenType_SEMI_COLON) {
 		condition = p.ParseExpression()
 	} else {
-		condition = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		condition = p.newNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_SEMI_COLON)
 
@@ -1591,7 +1591,7 @@ func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initial
 	if !p.Peek(TokenType_CLOSE_PAREN) {
 		increment = p.ParseExpression()
 	} else {
-		increment = p.newNullTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+		increment = p.newNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
 	body := p.ParseStatement()
@@ -1601,7 +1601,7 @@ func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initial
 // 12.6.4 The for-in Statement
 
 // Java: Parser.parseForInStatement(SourcePosition, ParseTree)
-func (p *Parser) ParseForInStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+func (p *Parser) ParseForInStatement(start SourcePosition, initializer ParseTree) ParseTree {
 	p.Eat(TokenType_IN)
 	collection := p.ParseExpression()
 	p.Eat(TokenType_CLOSE_PAREN)
@@ -1773,7 +1773,7 @@ func (p *Parser) ParseCatch() *CatchTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_CATCH)
 
-	var exception ParseTree = p.newEmptyStatementTree(p.newSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+	var exception ParseTree = p.newEmptyStatementTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 
 	if p.PeekToken().GetTokenBase().Type == TokenType_OPEN_PAREN {
 		p.Eat(TokenType_OPEN_PAREN)
@@ -1918,7 +1918,7 @@ func (p *Parser) ParseLiteralExpression() *LiteralExpressionTree {
 //
 // Java: Parser.parseTemplateLiteral(ParseTree)
 func (p *Parser) ParseTemplateLiteral(operand ParseTree) *TemplateLiteralExpressionTree {
-	var start *SourcePosition
+	var start SourcePosition
 	if operand == nil {
 		start = p.GetTreeStartLocation()
 	} else {
@@ -2073,7 +2073,7 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 			commaStart := p.GetTreeStartLocation()
 			trailingCommaToken = p.Eat(TokenType_COMMA)
 			// Consider the empty element to start & end immediately before the comma token.
-			elements = append(elements, p.newNullTree(p.newSourceRange(commaStart, commaStart)))
+			elements = append(elements, p.newNullTree(NewSourceRange(commaStart, commaStart)))
 
 		} else {
 			if p.Peek(TokenType_ELLIPSIS) {
@@ -2376,7 +2376,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 				p.GetTreeLocation(start),
 				[]ParseTree{},
 				/* hasTrailingComma= */ false,
-				[]*SourcePosition{})
+				[]SourcePosition{})
 		} else {
 			p.ReportError("invalid parenthesized expression")
 			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
@@ -2391,7 +2391,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 				p.GetTreeLocation(start),
 				params,
 				/* hasTrailingComma= */ false,
-				[]*SourcePosition{})
+				[]SourcePosition{})
 		} else {
 			p.ReportError("invalid parenthesized expression")
 			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
@@ -2653,7 +2653,7 @@ func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *Formal
 			leftOfArrow.GetParseTreeBase().Location,
 			[]ParseTree{leftOfArrow},
 			/* hasTrailingComma= */ false,
-			[]*SourcePosition{})
+			[]SourcePosition{})
 	case ParseTreeType_ARGUMENT_LIST, ParseTreeType_PAREN_EXPRESSION:
 		// e.g. (x) => x + 1
 		p.ResetScannerToTree(leftOfArrow)
@@ -2704,7 +2704,7 @@ func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTr
 			singleParameter.Location,
 			[]ParseTree{singleParameter},
 			/* hasTrailingComma= */ false,
-			[]*SourcePosition{})
+			[]SourcePosition{})
 	}
 	if p.PeekImplicitSemiColon() {
 		p.ReportError("No newline allowed before '=>'")
@@ -2733,12 +2733,12 @@ func (p *Parser) ParseArrowFunctionBody(expressionIn Parser_Expression, function
 }
 
 // Java: Parser.newEmptyFormalParameterList(SourceRange)
-func Parser_NewEmptyFormalParameterList(location *SourceRange) *FormalParameterListTree {
+func Parser_NewEmptyFormalParameterList(location SourceRange) *FormalParameterListTree {
 	return NewFormalParameterListTree(
 		location,
 		[]ParseTree{},
 		/* hasTrailingComma= */ false,
-		[]*SourcePosition{})
+		[]SourcePosition{})
 }
 
 // TransformLeftHandSideExpression transforms a LeftHandSideExpression into
@@ -2764,7 +2764,7 @@ func (p *Parser) ParseLeftHandSidePattern() ParseTree {
 }
 
 // Java: Parser.resetScanner(SourcePosition)
-func (p *Parser) ResetScanner(start *SourcePosition) {
+func (p *Parser) ResetScanner(start SourcePosition) {
 	// TODO(bradfordcsmith): lastSourcePosition should really point to the end of the last token
 	//     before the tree to correctly detect implicit semicolons, but it doesn't matter for the
 	//     current use case.
@@ -2870,7 +2870,7 @@ func (p *Parser) ParseShortCircuit(expressionIn Parser_Expression) ParseTree {
 }
 
 // Java: Parser.parseNullishCoalesce(Expression, ParseTree, SourcePosition)
-func (p *Parser) ParseNullishCoalesce(expressionIn Parser_Expression, left ParseTree, start *SourcePosition) ParseTree {
+func (p *Parser) ParseNullishCoalesce(expressionIn Parser_Expression, left ParseTree, start SourcePosition) ParseTree {
 	for p.Peek(TokenType_QUESTION_QUESTION) {
 		operator := p.Eat(TokenType_QUESTION_QUESTION)
 		right := p.ParseBitwiseOR(expressionIn)
@@ -3787,14 +3787,14 @@ func (p *Parser) PeekImplicitSemiColonAt(index int) bool {
 //
 // Java: Parser.getLastLine()
 func (p *Parser) GetLastLine() int {
-	return p.lastSourcePosition.Line
+	return int(p.lastSourcePosition.Line)
 }
 
 // GetNextLine returns the line number of the next token.
 //
 // Java: Parser.getNextLine()
 func (p *Parser) GetNextLine() int {
-	return p.PeekToken().GetTokenBase().Location.Start.Line
+	return int(p.PeekToken().GetTokenBase().Location.Start.Line)
 }
 
 // EatOpt consumes the next token if it is of the expected type. Otherwise
@@ -3945,7 +3945,7 @@ func (p *Parser) ReportExpectedError(token Token, expected any) {
 // tree that starts at the current location.
 //
 // Java: Parser.getTreeStartLocation()
-func (p *Parser) GetTreeStartLocation() *SourcePosition {
+func (p *Parser) GetTreeStartLocation() SourcePosition {
 	return p.PeekToken().GetTokenBase().Location.Start
 }
 
@@ -3953,7 +3953,7 @@ func (p *Parser) GetTreeStartLocation() *SourcePosition {
 // that ends at the current location.
 //
 // Java: Parser.getTreeEndLocation()
-func (p *Parser) GetTreeEndLocation() *SourcePosition {
+func (p *Parser) GetTreeEndLocation() SourcePosition {
 	return p.lastSourcePosition
 }
 
@@ -3961,12 +3961,8 @@ func (p *Parser) GetTreeEndLocation() *SourcePosition {
 // {start} and ends at the current location.
 //
 // Java: Parser.getTreeLocation(SourcePosition)
-func (p *Parser) GetTreeLocation(start *SourcePosition) *SourceRange {
-	// Go-only: performance — one range per parse tree, from a slab like the
-	// tokens' (see LineNumberScanner.getTokenSourcePosition).
-	r := p.arena.ranges.New()
-	r.Start, r.End = start, p.GetTreeEndLocation()
-	return r
+func (p *Parser) GetTreeLocation(start SourcePosition) SourceRange {
+	return NewSourceRange(start, p.GetTreeEndLocation())
 }
 
 // NextToken consumes the next token and returns it. Will return a never
@@ -4097,7 +4093,7 @@ func (p *Parser) ReportError(message string, arguments ...any) {
 // format.
 //
 // Java: Parser.reportError(SourcePosition, String, Object...)
-func (p *Parser) ReportErrorAtPosition(position *SourcePosition, message string, arguments ...any) {
+func (p *Parser) ReportErrorAtPosition(position SourcePosition, message string, arguments ...any) {
 	p.errorReporter.ReportErrorFormat(position, message, arguments...)
 }
 

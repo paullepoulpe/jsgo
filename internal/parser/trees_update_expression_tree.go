@@ -65,7 +65,7 @@ func (p UpdateExpressionTree_OperatorPosition) String() string { return p.Name()
 // NewUpdateExpressionTree constructs a UpdateExpressionTree.
 //
 // Java: UpdateExpressionTree(SourceRange, Token, OperatorPosition, ParseTree)
-func NewUpdateExpressionTree(location *SourceRange, operator Token, operatorPosition UpdateExpressionTree_OperatorPosition, operand ParseTree) *UpdateExpressionTree {
+func NewUpdateExpressionTree(location SourceRange, operator Token, operatorPosition UpdateExpressionTree_OperatorPosition, operand ParseTree) *UpdateExpressionTree {
 	t := &UpdateExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_UPDATE_EXPRESSION, location)
 	t.Operator = operator
@@ -77,13 +77,13 @@ func NewUpdateExpressionTree(location *SourceRange, operator Token, operatorPosi
 // UpdateExpressionTree_Prefix creates a prefix update expression.
 //
 // Java: UpdateExpressionTree.prefix(SourceRange, Token, ParseTree)
-func UpdateExpressionTree_Prefix(location *SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
+func UpdateExpressionTree_Prefix(location SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
 	return NewUpdateExpressionTree(location, operator, UpdateExpressionTree_OperatorPosition_PREFIX, operand)
 }
 
 // UpdateExpressionTree_Postfix creates a postfix update expression.
 //
 // Java: UpdateExpressionTree.postfix(SourceRange, Token, ParseTree)
-func UpdateExpressionTree_Postfix(location *SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
+func UpdateExpressionTree_Postfix(location SourceRange, operator Token, operand ParseTree) *UpdateExpressionTree {
 	return NewUpdateExpressionTree(location, operator, UpdateExpressionTree_OperatorPosition_POSTFIX, operand)
 }

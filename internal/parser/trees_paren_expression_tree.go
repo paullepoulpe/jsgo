@@ -28,7 +28,7 @@ type ParenExpressionTree struct {
 // NewParenExpressionTree constructs a ParenExpressionTree.
 //
 // Java: ParenExpressionTree(SourceRange, ParseTree)
-func NewParenExpressionTree(location *SourceRange, expression ParseTree) *ParenExpressionTree {
+func NewParenExpressionTree(location SourceRange, expression ParseTree) *ParenExpressionTree {
 	t := &ParenExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_PAREN_EXPRESSION, location)
 	t.Expression = expression

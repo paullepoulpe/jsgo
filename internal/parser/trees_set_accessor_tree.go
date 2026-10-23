@@ -32,7 +32,7 @@ type SetAccessorTree struct {
 // NewSetAccessorTree constructs a SetAccessorTree.
 //
 // Java: SetAccessorTree(SourceRange, Token, boolean, boolean, FormalParameterListTree, BlockTree)
-func NewSetAccessorTree(location *SourceRange, propertyName Token, isClassMember bool, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *SetAccessorTree {
+func NewSetAccessorTree(location SourceRange, propertyName Token, isClassMember bool, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *SetAccessorTree {
 	t := &SetAccessorTree{}
 	t.InitParseTreeBase(t, ParseTreeType_SET_ACCESSOR, location)
 	t.PropertyName = propertyName

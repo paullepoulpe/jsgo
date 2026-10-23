@@ -26,7 +26,7 @@ type SuperExpressionTree struct {
 // NewSuperExpressionTree constructs a SuperExpressionTree.
 //
 // Java: SuperExpressionTree(SourceRange)
-func NewSuperExpressionTree(location *SourceRange) *SuperExpressionTree {
+func NewSuperExpressionTree(location SourceRange) *SuperExpressionTree {
 	t := &SuperExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_SUPER_EXPRESSION, location)
 	return t

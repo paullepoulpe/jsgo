@@ -28,7 +28,7 @@ type IterSpreadTree struct {
 // NewIterSpreadTree constructs a IterSpreadTree.
 //
 // Java: IterSpreadTree(SourceRange, ParseTree)
-func NewIterSpreadTree(location *SourceRange, expression ParseTree) *IterSpreadTree {
+func NewIterSpreadTree(location SourceRange, expression ParseTree) *IterSpreadTree {
 	t := &IterSpreadTree{}
 	t.InitParseTreeBase(t, ParseTreeType_ITER_SPREAD, location)
 	t.Expression = expression

@@ -29,7 +29,7 @@ type TemplateSubstitutionTree struct {
 // NewTemplateSubstitutionTree constructs a TemplateSubstitutionTree.
 //
 // Java: TemplateSubstitutionTree(SourceRange, ParseTree)
-func NewTemplateSubstitutionTree(location *SourceRange, expression ParseTree) *TemplateSubstitutionTree {
+func NewTemplateSubstitutionTree(location SourceRange, expression ParseTree) *TemplateSubstitutionTree {
 	t := &TemplateSubstitutionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_TEMPLATE_SUBSTITUTION, location)
 	t.Expression = expression

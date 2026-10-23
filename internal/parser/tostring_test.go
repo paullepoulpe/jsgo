@@ -9,19 +9,16 @@ import (
 
 // Expected strings were printed by the pinned Java classes (toString() of
 // SourcePosition, SourceRange, ParseTree, the tokens and FeatureSet, and the
-// FormalParameterListTree checkArgument message).
+// FormalParameterListTree checkArgument message). Go positions carry no
+// source file, so they print like Java positions whose file name is empty.
 func TestToStringMatchesJava(t *testing.T) {
-	f := NewSourceFile("dir/sub/a.js", "x")
-	p0 := NewSourcePosition(f, 0, 0, 0)
-	p5 := NewSourcePosition(f, 5, 1, 2)
+	p0 := NewSourcePosition(0, 0, 0)
+	p5 := NewSourcePosition(5, 1, 2)
 	r := NewSourceRange(p0, p5)
 	cases := []struct{ got, want string }{
-		{p5.String(), "a.js(2, 3)"},
-		{NewSourcePosition(nil, 5, 1, 2).String(), "(2, 3)"},
-		{NewSourcePosition(NewSourceFile("trailing/", ""), 0, 0, 0).String(), "(1, 1)"},
-		{r.String(), "<a.js(1, 1) - a.js(2, 3)>"},
-		{NewBlockTree(r, []ParseTree{}).String(), "BLOCK@<a.js(1, 1) - a.js(2, 3)>"},
-		{NewEmptyStatementTree(nil).String(), "EMPTY_STATEMENT@null"},
+		{p5.String(), "(2, 3)"},
+		{r.String(), "<(1, 1) - (2, 3)>"},
+		{NewBlockTree(r, []ParseTree{}).String(), "BLOCK@<(1, 1) - (2, 3)>"},
 		{NewToken(TokenType_OPEN_CURLY, r).String(), "{"},
 		{NewToken(TokenType_VAR, r).String(), "var"},
 		{NewToken(TokenType_END_OF_FILE, r).String(), "End of File"},
@@ -36,9 +33,9 @@ func TestToStringMatchesJava(t *testing.T) {
 	}
 	var msg string
 	jutil.Try(func() {
-		NewFormalParameterListTree(r, []ParseTree{}, false, []*SourcePosition{p0, p5})
+		NewFormalParameterListTree(r, []ParseTree{}, false, []SourcePosition{p0, p5})
 	}, func(e jutil.IIllegalArgumentException) { msg = e.GetMessage() })
-	if want := "Unexpected # of comma and formal params.|params: []|comma positions: [a.js(1, 1), a.js(2, 3)]"; strings.ReplaceAll(msg, "\n", "|") != want {
+	if want := "Unexpected # of comma and formal params.|params: []|comma positions: [(1, 1), (2, 3)]"; strings.ReplaceAll(msg, "\n", "|") != want {
 		t.Errorf("checkArgument message %q, Java %q", msg, want)
 	}
 	// Token casts go through the Java object (self), like Java's (T) this.

@@ -28,7 +28,7 @@ type IterRestTree struct {
 // NewIterRestTree constructs a IterRestTree.
 //
 // Java: IterRestTree(SourceRange, ParseTree)
-func NewIterRestTree(location *SourceRange, assignmentTarget ParseTree) *IterRestTree {
+func NewIterRestTree(location SourceRange, assignmentTarget ParseTree) *IterRestTree {
 	t := &IterRestTree{}
 	t.InitParseTreeBase(t, ParseTreeType_ITER_REST, location)
 	t.AssignmentTarget = assignmentTarget

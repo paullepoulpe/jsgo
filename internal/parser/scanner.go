@@ -60,10 +60,9 @@ func (s *Scanner) sliceString(start, end int) string {
 
 // newToken is `new Token(type, location)` for the scanner's plain tokens.
 //
-// Go-only: performance — tokens come from a slab (jutil.Slab), like their
-// positions (see LineNumberScanner.getTokenSourcePosition): they become
-// garbage with the parse trees.
-func (s *Scanner) newToken(type_ TokenType, location *SourceRange) *TokenBase {
+// Go-only: performance — tokens come from a slab of the ParseArena: they
+// become garbage with the parse trees.
+func (s *Scanner) newToken(type_ TokenType, location SourceRange) *TokenBase {
 	t := s.arena.tokens.New()
 	t.InitTokenBase(t, type_, location)
 	return t
@@ -73,7 +72,7 @@ func (s *Scanner) newToken(type_ TokenType, location *SourceRange) *TokenBase {
 // scanner's identifiers.
 //
 // Go-only: performance — see newToken.
-func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *IdentifierToken {
+func (s *Scanner) newIdentifierToken(location SourceRange, value string) *IdentifierToken {
 	t := s.arena.identifiers.New()
 	t.InitIdentifierToken(location, value)
 	return t
@@ -83,7 +82,7 @@ func (s *Scanner) newIdentifierToken(location *SourceRange, value string) *Ident
 // scanner's numeric and regex literals.
 //
 // Go-only: performance — see newToken.
-func (s *Scanner) newLiteralToken(type_ TokenType, value string, location *SourceRange) *LiteralTokenBase {
+func (s *Scanner) newLiteralToken(type_ TokenType, value string, location SourceRange) *LiteralTokenBase {
 	t := s.arena.literals.New()
 	t.InitLiteralTokenBase(t, type_, value, location)
 	return t
@@ -93,7 +92,7 @@ func (s *Scanner) newLiteralToken(type_ TokenType, value string, location *Sourc
 // string literals.
 //
 // Go-only: performance — see newToken.
-func (s *Scanner) newStringLiteralToken(value string, location *SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
+func (s *Scanner) newStringLiteralToken(value string, location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
 	t := s.arena.stringLiterals.New()
 	t.InitLiteralTokenBase(t, TokenType_STRING, value, location)
 	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
@@ -117,7 +116,7 @@ func NewScannerInArena(errorReporter ErrorReporter, commentRecorder Scanner_Comm
 	s.errorReporter = errorReporter
 	s.commentRecorder = commentRecorder
 	s.source = file
-	s.lineNumberScanner = NewLineNumberScannerInArena(s.source, arena)
+	s.lineNumberScanner = NewLineNumberScanner(s.source)
 	// To help reason about the expected JVM performance unwrap "file" values.
 	// The scanner is key to the parsing speed.
 	s.contents = file.ContentsUTF16
@@ -132,7 +131,7 @@ func NewScannerInArena(errorReporter ErrorReporter, commentRecorder Scanner_Comm
 // Scanner_CommentRecorder is Scanner.CommentRecorder.
 type Scanner_CommentRecorder interface {
 	// Java: Scanner.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
-	RecordComment(type_ Comment_Type, range_ *SourceRange, value string)
+	RecordComment(type_ Comment_Type, range_ SourceRange, value string)
 }
 
 // GetFile returns the source file.
@@ -149,23 +148,23 @@ func (s *Scanner) GetOffset() int {
 	if len(s.lookahead) == 0 {
 		return s.index
 	}
-	return s.lookahead[0].GetTokenBase().Location.Start.Offset
+	return int(s.lookahead[0].GetTokenBase().Location.Start.Offset)
 }
 
 // SetPosition moves the scanner to position, dropping any lookahead.
 //
 // Java: Scanner.setPosition(SourcePosition)
-func (s *Scanner) SetPosition(position *SourcePosition) {
+func (s *Scanner) SetPosition(position SourcePosition) {
 	s.lineNumberScanner.RewindTo(position)
 	clear(s.lookahead)
 	s.lookahead = s.lookahead[:0]
-	s.index = position.Offset
+	s.index = int(position.Offset)
 }
 
 // GetPosition returns the position of the next token.
 //
 // Java: Scanner.getPosition()
-func (s *Scanner) GetPosition() *SourcePosition {
+func (s *Scanner) GetPosition() SourcePosition {
 	if len(s.lookahead) == 0 {
 		return s.GetPositionAt(s.index)
 	}
@@ -175,27 +174,24 @@ func (s *Scanner) GetPosition() *SourcePosition {
 // GetPositionAt returns the source position of offset.
 //
 // Java: Scanner.getPosition(int)
-func (s *Scanner) GetPositionAt(offset int) *SourcePosition {
-	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
-	return s.lineNumberScanner.getTokenSourcePosition(offset)
+func (s *Scanner) GetPositionAt(offset int) SourcePosition {
+	return s.lineNumberScanner.GetSourcePosition(offset)
 }
 
 // GetTokenRange returns the range from startOffset to the current index.
 //
 // Java: Scanner.getTokenRange(int)
-func (s *Scanner) GetTokenRange(startOffset int) *SourceRange {
-	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
-	return s.lineNumberScanner.getTokenSourceRange(startOffset, s.index)
+func (s *Scanner) GetTokenRange(startOffset int) SourceRange {
+	return s.lineNumberScanner.GetSourceRange(startOffset, s.index)
 }
 
 // GetTokenRangeFromPosition: prefer this to GetTokenRange(int) when the
 // token might span multiple lines.
 //
 // Java: Scanner.getTokenRange(SourcePosition)
-func (s *Scanner) GetTokenRangeFromPosition(position *SourcePosition) *SourceRange {
+func (s *Scanner) GetTokenRangeFromPosition(position SourcePosition) SourceRange {
 	s.lineNumberScanner.RewindTo(position)
-	// Go-only: performance — slab-allocated (see getTokenSourcePosition).
-	return s.lineNumberScanner.getTokenSourceRange(position.Offset, s.index)
+	return s.lineNumberScanner.GetSourceRange(int(position.Offset), s.index)
 }
 
 // NextToken consumes and returns the next token.
@@ -548,13 +544,13 @@ func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
 	}
-	range_ := s.lineNumberScanner.getCommentSourceRange(startOffset, s.index)
+	range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
 	value := s.sliceString(startOffset, s.index)
 	s.RecordComment(type_, range_, value)
 }
 
 // Java: Scanner.recordComment(Comment.Type, SourceRange, String)
-func (s *Scanner) RecordComment(type_ Comment_Type, range_ *SourceRange, value string) {
+func (s *Scanner) RecordComment(type_ Comment_Type, range_ SourceRange, value string) {
 	s.commentRecorder.RecordComment(type_, range_, value)
 }
 
@@ -577,7 +573,7 @@ func (s *Scanner) SkipMultiLineComment() {
 				type_ = Comment_Type_IMPORTANT
 			}
 		}
-		range_ := s.lineNumberScanner.getCommentSourceRange(startOffset, s.index)
+		range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
 		value := s.sliceString(startOffset, s.index)
 		s.RecordComment(type_, range_, value)
 	} else {
@@ -1578,7 +1574,7 @@ func (s *Scanner) ReportError(format string, arguments ...any) {
 }
 
 // Java: Scanner.reportError(SourcePosition, String, Object...)
-func (s *Scanner) ReportErrorAtPosition(position *SourcePosition, format string, arguments ...any) {
+func (s *Scanner) ReportErrorAtPosition(position SourcePosition, format string, arguments ...any) {
 	s.errorReporter.ReportErrorFormat(position, format, arguments...)
 }
 
@@ -1606,13 +1602,13 @@ func (s *Scanner) CreateSkipTemplateCharactersResult(message *string, errorLevel
 type Scanner_SkipTemplateCharactersResult struct {
 	// Go-only: language-adapter — nil is Java null.
 	errorMessage *string
-	position     *SourcePosition
+	position     SourcePosition
 	// Go-only: language-adapter — nil is Java null.
 	errorLevel *TemplateLiteralToken_ErrorLevel
 }
 
 // Java: Scanner.SkipTemplateCharactersResult(String, ErrorLevel, SourcePosition)
-func NewScanner_SkipTemplateCharactersResult(message *string, errorLevel *TemplateLiteralToken_ErrorLevel, position *SourcePosition) *Scanner_SkipTemplateCharactersResult {
+func NewScanner_SkipTemplateCharactersResult(message *string, errorLevel *TemplateLiteralToken_ErrorLevel, position SourcePosition) *Scanner_SkipTemplateCharactersResult {
 	r := &Scanner_SkipTemplateCharactersResult{}
 	r.errorMessage = message
 	r.errorLevel = errorLevel
@@ -1631,7 +1627,7 @@ func (r *Scanner_SkipTemplateCharactersResult) GetErrorLevel() *TemplateLiteralT
 }
 
 // Java: Scanner.SkipTemplateCharactersResult.getPosition()
-func (r *Scanner_SkipTemplateCharactersResult) GetPosition() *SourcePosition {
+func (r *Scanner_SkipTemplateCharactersResult) GetPosition() SourcePosition {
 	return r.position
 }
 

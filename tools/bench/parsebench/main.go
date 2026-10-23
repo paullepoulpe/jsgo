@@ -46,11 +46,11 @@ type countingReporter struct {
 	errors int
 }
 
-func (r *countingReporter) ReportError(location *parser.SourcePosition, message string) {
+func (r *countingReporter) ReportError(location parser.SourcePosition, message string) {
 	r.errors++
 }
 
-func (r *countingReporter) ReportWarning(location *parser.SourcePosition, message string) {}
+func (r *countingReporter) ReportWarning(location parser.SourcePosition, message string) {}
 
 func processCPU() time.Duration {
 	var ru syscall.Rusage

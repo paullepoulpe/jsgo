@@ -45,22 +45,21 @@ func defaultParserConfig() *Parser_Config {
 
 type recordingErrorReporter struct {
 	ErrorReporterBase
-	file  *SourceFile
 	lines []string
 }
 
-func newRecordingErrorReporter(file *SourceFile) *recordingErrorReporter {
-	r := &recordingErrorReporter{file: file}
+func newRecordingErrorReporter() *recordingErrorReporter {
+	r := &recordingErrorReporter{}
 	r.InitErrorReporterBase(r)
 	return r
 }
 
-func (r *recordingErrorReporter) ReportError(location *SourcePosition, message string) {
-	r.lines = append(r.lines, "ERROR "+dumpPosition(location, r.file)+" "+dumpQuote(message))
+func (r *recordingErrorReporter) ReportError(location SourcePosition, message string) {
+	r.lines = append(r.lines, "ERROR "+dumpPosition(location)+" "+dumpQuote(message))
 }
 
-func (r *recordingErrorReporter) ReportWarning(location *SourcePosition, message string) {
-	r.lines = append(r.lines, "WARNING "+dumpPosition(location, r.file)+" "+dumpQuote(message))
+func (r *recordingErrorReporter) ReportWarning(location SourcePosition, message string) {
+	r.lines = append(r.lines, "WARNING "+dumpPosition(location)+" "+dumpQuote(message))
 }
 
 // configFromDump returns the Parser.Config whose fields the "# config" line
@@ -93,7 +92,7 @@ func configFromDump(dump string) *Parser_Config {
 func dumpParseTree(name, src string, config *Parser_Config) string {
 	var sb strings.Builder
 	file := NewSourceFile(name, src)
-	reporter := newRecordingErrorReporter(file)
+	reporter := newRecordingErrorReporter()
 	sb.WriteString("# config")
 	cv := reflect.ValueOf(config).Elem()
 	for _, f := range sortedStructFields(cv.Type()) {
@@ -127,7 +126,7 @@ func dumpParseTree(name, src string, config *Parser_Config) string {
 		sb.WriteString("# sourceMapURL " + dumpQuote(*url) + "\n")
 	}
 	sb.WriteString("# comments\n")
-	d := &dumper{sb: &sb, file: file}
+	d := &dumper{sb: &sb}
 	d.render(reflect.ValueOf(p.GetComments()), 0, "")
 	sb.WriteString("# tree\n")
 	if tree == nil {
@@ -155,8 +154,7 @@ func describePanic(r any) string {
 }
 
 type dumper struct {
-	sb   *strings.Builder
-	file *SourceFile
+	sb *strings.Builder
 }
 
 func (d *dumper) line(depth int, label, text string) {
@@ -172,8 +170,8 @@ var (
 	parseTreeType     = reflect.TypeOf((*ParseTree)(nil)).Elem()
 	tokenType         = reflect.TypeOf((*Token)(nil)).Elem()
 	commentPtrType    = reflect.TypeOf((*Comment)(nil))
-	positionPtrType   = reflect.TypeOf((*SourcePosition)(nil))
-	rangePtrType      = reflect.TypeOf((*SourceRange)(nil))
+	positionType      = reflect.TypeOf(SourcePosition{})
+	rangeType         = reflect.TypeOf(SourceRange{})
 	parseTreeBaseType = reflect.TypeOf(ParseTreeBase{})
 	tokenBaseType     = reflect.TypeOf(TokenBase{})
 )
@@ -220,11 +218,11 @@ func (d *dumper) render(v reflect.Value, depth int, label string) {
 	switch {
 	case t.Implements(parseTreeType):
 		pt := v.Interface().(ParseTree).GetParseTreeBase()
-		d.line(depth, label, javaSimpleName(t)+" "+pt.Type.Name()+" "+dumpRange(pt.Location, d.file))
+		d.line(depth, label, javaSimpleName(t)+" "+pt.Type.Name()+" "+dumpRange(pt.Location))
 		d.fields(v.Elem(), depth+1)
 	case t.Implements(tokenType):
 		tb := v.Interface().(Token).GetTokenBase()
-		d.line(depth, label, javaSimpleName(t)+" "+tb.Type.Name()+" "+dumpRange(tb.Location, d.file))
+		d.line(depth, label, javaSimpleName(t)+" "+tb.Type.Name()+" "+dumpRange(tb.Location))
 		d.fields(v.Elem(), depth+1)
 	case t == commentPtrType:
 		d.line(depth, label, "Comment")
@@ -255,10 +253,10 @@ func (d *dumper) fields(sv reflect.Value, depth int) {
 
 func (d *dumper) scalar(v reflect.Value) string {
 	switch {
-	case v.Type() == positionPtrType:
-		return dumpPosition(v.Interface().(*SourcePosition), d.file)
-	case v.Type() == rangePtrType:
-		return dumpRange(v.Interface().(*SourceRange), d.file)
+	case v.Type() == positionType:
+		return dumpPosition(v.Interface().(SourcePosition))
+	case v.Type() == rangeType:
+		return dumpRange(v.Interface().(SourceRange))
 	}
 	if v.Kind() == reflect.Pointer {
 		// Go-only nullable scalars (*string, *enum) are non-nil here.
@@ -337,22 +335,12 @@ func javaSimpleName(t reflect.Type) string {
 	return strings.TrimSuffix(t.Name(), "Base")
 }
 
-func dumpRange(r *SourceRange, file *SourceFile) string {
-	if r == nil {
-		return "null"
-	}
-	return dumpPosition(r.Start, file) + "-" + dumpPosition(r.End, file)
+func dumpRange(r SourceRange) string {
+	return dumpPosition(r.Start) + "-" + dumpPosition(r.End)
 }
 
-func dumpPosition(p *SourcePosition, file *SourceFile) string {
-	if p == nil {
-		return "null"
-	}
-	s := fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
-	if p.Source != file {
-		s += "!src"
-	}
-	return s
+func dumpPosition(p SourcePosition) string {
+	return fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
 }
 
 // dumpQuote quotes s like ParseTreeDump.quote: \" \\ and \uXXXX for every

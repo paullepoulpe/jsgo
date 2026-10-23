@@ -30,7 +30,7 @@ type PropertyNameAssignmentTree struct {
 // NewPropertyNameAssignmentTree constructs a PropertyNameAssignmentTree.
 //
 // Java: PropertyNameAssignmentTree(SourceRange, Token, ParseTree)
-func NewPropertyNameAssignmentTree(location *SourceRange, name Token, value ParseTree) *PropertyNameAssignmentTree {
+func NewPropertyNameAssignmentTree(location SourceRange, name Token, value ParseTree) *PropertyNameAssignmentTree {
 	t := &PropertyNameAssignmentTree{}
 	t.InitParseTreeBase(t, ParseTreeType_PROPERTY_NAME_ASSIGNMENT, location)
 	t.Name = name

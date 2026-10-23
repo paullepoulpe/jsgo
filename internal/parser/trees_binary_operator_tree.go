@@ -30,7 +30,7 @@ type BinaryOperatorTree struct {
 // NewBinaryOperatorTree constructs a BinaryOperatorTree.
 //
 // Java: BinaryOperatorTree(SourceRange, ParseTree, Token, ParseTree)
-func NewBinaryOperatorTree(location *SourceRange, left ParseTree, operator Token, right ParseTree) *BinaryOperatorTree {
+func NewBinaryOperatorTree(location SourceRange, left ParseTree, operator Token, right ParseTree) *BinaryOperatorTree {
 	t := &BinaryOperatorTree{}
 	t.InitParseTreeBase(t, ParseTreeType_BINARY_OPERATOR, location)
 	t.Left = left

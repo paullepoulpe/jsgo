@@ -31,7 +31,7 @@ type GetAccessorTree struct {
 // NewGetAccessorTree constructs a GetAccessorTree.
 //
 // Java: GetAccessorTree(SourceRange, Token, boolean, boolean, BlockTree)
-func NewGetAccessorTree(location *SourceRange, propertyName Token, isClassMember bool, isStatic bool, body *BlockTree) *GetAccessorTree {
+func NewGetAccessorTree(location SourceRange, propertyName Token, isClassMember bool, isStatic bool, body *BlockTree) *GetAccessorTree {
 	t := &GetAccessorTree{}
 	t.InitParseTreeBase(t, ParseTreeType_GET_ACCESSOR, location)
 	t.PropertyName = propertyName

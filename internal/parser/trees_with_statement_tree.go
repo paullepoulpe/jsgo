@@ -29,7 +29,7 @@ type WithStatementTree struct {
 // NewWithStatementTree constructs a WithStatementTree.
 //
 // Java: WithStatementTree(SourceRange, ParseTree, ParseTree)
-func NewWithStatementTree(location *SourceRange, expression ParseTree, body ParseTree) *WithStatementTree {
+func NewWithStatementTree(location SourceRange, expression ParseTree, body ParseTree) *WithStatementTree {
 	t := &WithStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_WITH_STATEMENT, location)
 	t.Expression = expression

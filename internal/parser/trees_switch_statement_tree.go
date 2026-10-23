@@ -29,7 +29,7 @@ type SwitchStatementTree struct {
 // NewSwitchStatementTree constructs a SwitchStatementTree.
 //
 // Java: SwitchStatementTree(SourceRange, ParseTree, ImmutableList)
-func NewSwitchStatementTree(location *SourceRange, expression ParseTree, caseClauses []ParseTree) *SwitchStatementTree {
+func NewSwitchStatementTree(location SourceRange, expression ParseTree, caseClauses []ParseTree) *SwitchStatementTree {
 	t := &SwitchStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_SWITCH_STATEMENT, location)
 	t.Expression = expression

@@ -146,12 +146,13 @@ func ParserRunner_ParseWithSlabs(
 		}()
 		keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
 		es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
+		es6ErrorReporter.sourceName = sourceName
 		es6config := ParserRunner_NewParserConfig(config)
 		p := parser.NewParserInArena(es6config, es6ErrorReporter, file, arena)
 		tree := p.ParseProgram()
 		var root *rhino.Node
 		comments := []*parser.Comment{}
-		topLevelStatementRanges := []*parser.SourceRange{}
+		topLevelStatementRanges := []parser.SourceRange{}
 		features := p.GetFeatures()
 		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
 			factory := IRFactory_TransformTreeWithSlabs(
@@ -162,13 +163,9 @@ func ParserRunner_ParseWithSlabs(
 
 			if config.JsDocParsingMode().ShouldParseDescriptions() {
 				comments = p.GetComments()
-				builder := make([]*parser.SourceRange, 0, len(tree.SourceElements))
+				builder := make([]parser.SourceRange, 0, len(tree.SourceElements))
 				for _, element := range tree.SourceElements {
-					loc := element.GetParseTreeBase().Location
-					builder = append(builder, parser.NewSourceRange(
-						parser.NewSourcePosition(loc.Start.Source, loc.Start.Offset, loc.Start.Line, loc.Start.Column),
-						parser.NewSourcePosition(loc.End.Source, loc.End.Offset, loc.End.Line, loc.End.Column),
-					))
+					builder = append(builder, element.GetParseTreeBase().Location)
 				}
 				topLevelStatementRanges = builder
 			}
@@ -221,6 +218,9 @@ type ParserRunner_Es6ErrorReporter struct {
 	reporter        rhino.ErrorReporter
 	errorSeen       bool
 	reportAllErrors bool
+	// Go-only: language-adapter — the name Java reads from location.source
+	// (parser positions carry no source file, see parser.SourcePosition).
+	sourceName string
 }
 
 // Java: ParserRunner.Es6ErrorReporter(ErrorReporter, boolean)
@@ -233,18 +233,18 @@ func NewParserRunner_Es6ErrorReporter(reporter rhino.ErrorReporter, reportAllErr
 }
 
 // Java: ParserRunner.Es6ErrorReporter.reportError(SourcePosition, String)
-func (r *ParserRunner_Es6ErrorReporter) ReportError(location *parser.SourcePosition, message string) {
+func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.SourcePosition, message string) {
 	// In normal usage, only the first parse error should be reported, but
 	// sometimes it is useful to keep going.
 	if r.reportAllErrors || !r.errorSeen {
 		r.errorSeen = true
-		r.reporter.Error(message, location.Source.Name, location.Line+1, location.Column)
+		r.reporter.Error(message, r.sourceName, int(location.Line)+1, int(location.Column))
 	}
 }
 
 // Java: ParserRunner.Es6ErrorReporter.reportWarning(SourcePosition, String)
-func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location *parser.SourcePosition, message string) {
-	r.reporter.Warning(message, location.Source.Name, location.Line+1, location.Column)
+func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.SourcePosition, message string) {
+	r.reporter.Warning(message, r.sourceName, int(location.Line)+1, int(location.Column))
 }
 
 // ParserRunner_ParseResult holds results of parsing.
@@ -260,7 +260,7 @@ type ParserRunner_ParseResult struct {
 	//
 	// Unlike Node#getSourceOffset, these offsets are exact for any file size
 	// and line length.
-	TopLevelStatementRanges []*parser.SourceRange
+	TopLevelStatementRanges []parser.SourceRange
 
 	Features *parser.FeatureSet
 	// Go-only: language-adapter — nil is Java null.
@@ -269,11 +269,11 @@ type ParserRunner_ParseResult struct {
 
 // Java: ParserRunner.ParseResult(Node, List<Comment>, FeatureSet, String)
 func NewParserRunner_ParseResult(ast *rhino.Node, comments []*parser.Comment, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
-	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []*parser.SourceRange{}, features, sourceMapURL)
+	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL)
 }
 
 // Java: ParserRunner.ParseResult(Node, List<Comment>, ImmutableList<SourceRange>, FeatureSet, String)
-func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast *rhino.Node, comments []*parser.Comment, topLevelStatementRanges []*parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast *rhino.Node, comments []*parser.Comment, topLevelStatementRanges []parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	r := &ParserRunner_ParseResult{}
 	r.Ast = ast
 	r.Comments = comments

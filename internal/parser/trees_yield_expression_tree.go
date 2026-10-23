@@ -29,7 +29,7 @@ type YieldExpressionTree struct {
 // NewYieldExpressionTree constructs a YieldExpressionTree.
 //
 // Java: YieldExpressionTree(SourceRange, boolean, ParseTree)
-func NewYieldExpressionTree(location *SourceRange, isYieldAll bool, expression ParseTree) *YieldExpressionTree {
+func NewYieldExpressionTree(location SourceRange, isYieldAll bool, expression ParseTree) *YieldExpressionTree {
 	t := &YieldExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_YIELD_EXPRESSION, location)
 	t.IsYieldAll = isYieldAll

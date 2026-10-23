@@ -26,7 +26,7 @@ type ImportMetaExpressionTree struct {
 // NewImportMetaExpressionTree constructs a ImportMetaExpressionTree.
 //
 // Java: ImportMetaExpressionTree(SourceRange)
-func NewImportMetaExpressionTree(location *SourceRange) *ImportMetaExpressionTree {
+func NewImportMetaExpressionTree(location SourceRange) *ImportMetaExpressionTree {
 	t := &ImportMetaExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_IMPORT_META_EXPRESSION, location)
 	return t

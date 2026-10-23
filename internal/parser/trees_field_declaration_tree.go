@@ -30,7 +30,7 @@ type FieldDeclarationTree struct {
 // NewFieldDeclarationTree constructs a FieldDeclarationTree.
 //
 // Java: FieldDeclarationTree(SourceRange, IdentifierToken, boolean, ParseTree)
-func NewFieldDeclarationTree(location *SourceRange, name *IdentifierToken, isStatic bool, initializer ParseTree) *FieldDeclarationTree {
+func NewFieldDeclarationTree(location SourceRange, name *IdentifierToken, isStatic bool, initializer ParseTree) *FieldDeclarationTree {
 	t := &FieldDeclarationTree{}
 	t.InitParseTreeBase(t, ParseTreeType_FIELD_DECLARATION, location)
 	t.Name = name

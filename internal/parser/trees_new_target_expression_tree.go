@@ -26,7 +26,7 @@ type NewTargetExpressionTree struct {
 // NewNewTargetExpressionTree constructs a NewTargetExpressionTree.
 //
 // Java: NewTargetExpressionTree(SourceRange)
-func NewNewTargetExpressionTree(location *SourceRange) *NewTargetExpressionTree {
+func NewNewTargetExpressionTree(location SourceRange) *NewTargetExpressionTree {
 	t := &NewTargetExpressionTree{}
 	t.InitParseTreeBase(t, ParseTreeType_NEW_TARGET_EXPRESSION, location)
 	return t

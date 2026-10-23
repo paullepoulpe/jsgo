@@ -23,24 +23,23 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // SourceRange is a range of positions in a source string.
 // Start is inclusive.
 // End is exclusive.
+//
+// Go-only: performance — a pointer-free value (see SourcePosition).
 type SourceRange struct {
-	Start *SourcePosition
-	End   *SourcePosition
+	Start SourcePosition
+	End   SourcePosition
 }
 
 // NewSourceRange constructs a SourceRange.
 //
 // Java: SourceRange(SourcePosition, SourcePosition)
-func NewSourceRange(start, end *SourcePosition) *SourceRange {
-	s := &SourceRange{}
-	s.Start = start
-	s.End = end
-	return s
+func NewSourceRange(start, end SourcePosition) SourceRange {
+	return SourceRange{Start: start, End: end}
 }
 
 // String renders the range as "<start - end>".
 //
 // Java: SourceRange.toString()
-func (s *SourceRange) String() string {
+func (s SourceRange) String() string {
 	return jutil.StringFormat("<%s - %s>", s.Start, s.End)
 }

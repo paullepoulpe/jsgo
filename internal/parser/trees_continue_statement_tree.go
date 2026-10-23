@@ -28,7 +28,7 @@ type ContinueStatementTree struct {
 // NewContinueStatementTree constructs a ContinueStatementTree.
 //
 // Java: ContinueStatementTree(SourceRange, IdentifierToken)
-func NewContinueStatementTree(location *SourceRange, name *IdentifierToken) *ContinueStatementTree {
+func NewContinueStatementTree(location SourceRange, name *IdentifierToken) *ContinueStatementTree {
 	t := &ContinueStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_CONTINUE_STATEMENT, location)
 	t.Name = name

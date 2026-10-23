@@ -29,7 +29,7 @@ type WhileStatementTree struct {
 // NewWhileStatementTree constructs a WhileStatementTree.
 //
 // Java: WhileStatementTree(SourceRange, ParseTree, ParseTree)
-func NewWhileStatementTree(location *SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
+func NewWhileStatementTree(location SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
 	t := &WhileStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_WHILE_STATEMENT, location)
 	t.Condition = condition

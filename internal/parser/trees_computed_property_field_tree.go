@@ -30,7 +30,7 @@ type ComputedPropertyFieldTree struct {
 // NewComputedPropertyFieldTree constructs a ComputedPropertyFieldTree.
 //
 // Java: ComputedPropertyFieldTree(SourceRange, ParseTree, boolean, ParseTree)
-func NewComputedPropertyFieldTree(location *SourceRange, property ParseTree, isStatic bool, initializer ParseTree) *ComputedPropertyFieldTree {
+func NewComputedPropertyFieldTree(location SourceRange, property ParseTree, isStatic bool, initializer ParseTree) *ComputedPropertyFieldTree {
 	t := &ComputedPropertyFieldTree{}
 	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_FIELD, location)
 	t.Property = property

@@ -32,7 +32,7 @@ type TemplateLiteralToken struct {
 
 	// Go-only: language-adapter — nil is Java null.
 	ErrorMessage  *string
-	ErrorPosition *SourcePosition
+	ErrorPosition SourcePosition
 	// Go-only: language-adapter — nil is Java null (no error).
 	ErrorLevel *TemplateLiteralToken_ErrorLevel
 }
@@ -69,7 +69,7 @@ func (e TemplateLiteralToken_ErrorLevel) String() string { return e.Name() }
 // NewTemplateLiteralToken constructs a TemplateLiteralToken.
 //
 // Java: TemplateLiteralToken(TokenType, String, String, ErrorLevel, SourcePosition, SourceRange)
-func NewTemplateLiteralToken(type_ TokenType, value string, errorMsg *string, errorLevel *TemplateLiteralToken_ErrorLevel, position *SourcePosition, location *SourceRange) *TemplateLiteralToken {
+func NewTemplateLiteralToken(type_ TokenType, value string, errorMsg *string, errorLevel *TemplateLiteralToken_ErrorLevel, position SourcePosition, location SourceRange) *TemplateLiteralToken {
 	t := &TemplateLiteralToken{}
 	t.InitLiteralTokenBase(t, type_, value, location)
 	t.ErrorMessage = errorMsg

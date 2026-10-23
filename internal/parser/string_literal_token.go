@@ -28,7 +28,7 @@ type StringLiteralToken struct {
 // NewStringLiteralToken constructs a StringLiteralToken.
 //
 // Java: StringLiteralToken(String, SourceRange, boolean)
-func NewStringLiteralToken(value string, location *SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
+func NewStringLiteralToken(value string, location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
 	t := &StringLiteralToken{}
 	t.InitLiteralTokenBase(t, TokenType_STRING, value, location)
 	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator

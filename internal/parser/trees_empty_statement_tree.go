@@ -26,7 +26,7 @@ type EmptyStatementTree struct {
 // NewEmptyStatementTree constructs a EmptyStatementTree.
 //
 // Java: EmptyStatementTree(SourceRange)
-func NewEmptyStatementTree(location *SourceRange) *EmptyStatementTree {
+func NewEmptyStatementTree(location SourceRange) *EmptyStatementTree {
 	t := &EmptyStatementTree{}
 	t.InitParseTreeBase(t, ParseTreeType_EMPTY_STATEMENT, location)
 	return t

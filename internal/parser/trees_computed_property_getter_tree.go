@@ -30,7 +30,7 @@ type ComputedPropertyGetterTree struct {
 // NewComputedPropertyGetterTree constructs a ComputedPropertyGetterTree.
 //
 // Java: ComputedPropertyGetterTree(SourceRange, ParseTree, boolean, BlockTree)
-func NewComputedPropertyGetterTree(location *SourceRange, property ParseTree, isStatic bool, body *BlockTree) *ComputedPropertyGetterTree {
+func NewComputedPropertyGetterTree(location SourceRange, property ParseTree, isStatic bool, body *BlockTree) *ComputedPropertyGetterTree {
 	t := &ComputedPropertyGetterTree{}
 	t.InitParseTreeBase(t, ParseTreeType_COMPUTED_PROPERTY_GETTER, location)
 	t.Property = property

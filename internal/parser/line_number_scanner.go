@@ -33,28 +33,13 @@ type LineNumberScanner struct {
 	lastLine      int
 	lastLineStart int
 	nextLineStart int
-
-	// Go-only: performance — the positions and ranges of the scanner's
-	// tokens (see getTokenSourcePosition).
-	// Last token position only: token/tree locations are immutable and nearby
-	// queries often repeat the same offset. Comments keep independent positions.
-	lastTokenPosition *SourcePosition
-	arena             *ParseArena
 }
 
 // NewLineNumberScanner constructs a LineNumberScanner.
 //
 // Java: LineNumberScanner(SourceFile)
 func NewLineNumberScanner(sourceFile *SourceFile) *LineNumberScanner {
-	return NewLineNumberScannerInArena(sourceFile, nil)
-}
-
-// NewLineNumberScannerInArena constructs a LineNumberScanner backed by arena.
-func NewLineNumberScannerInArena(sourceFile *SourceFile, arena *ParseArena) *LineNumberScanner {
-	if arena == nil {
-		arena = &ParseArena{}
-	}
-	l := &LineNumberScanner{lastLine: -1, lastLineStart: -1, nextLineStart: 0, arena: arena}
+	l := &LineNumberScanner{lastLine: -1, lastLineStart: -1, nextLineStart: 0}
 	l.sourceFile = sourceFile
 	l.contents = sourceFile.ContentsUTF16
 	l.sourceLength = len(l.contents)
@@ -67,15 +52,7 @@ func NewLineNumberScannerInArena(sourceFile *SourceFile, arena *ParseArena) *Lin
 // to a previous line.
 //
 // Java: LineNumberScanner.getSourcePosition(int)
-func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
-	return l.getSourcePosition(offset, false)
-}
-
-// getSourcePosition is getSourcePosition(int); the position comes from the
-// tokenPositions slab if forToken is set.
-//
-// Go-only: performance — see getTokenSourcePosition.
-func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *SourcePosition {
+func (l *LineNumberScanner) GetSourcePosition(offset int) SourcePosition {
 	if offset < l.lastLineStart {
 		jutil.CheckArgumentMsg2(
 			false,
@@ -86,125 +63,26 @@ func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *Source
 	for offset >= l.nextLineStart {
 		l.AdvanceLine()
 	}
-	if forToken {
-		if p := l.lastTokenPosition; p != nil && p.Offset == offset {
-			return p
-		}
-		p := l.arena.positions.New()
-		p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
-		l.lastTokenPosition = p
-		return p
-	}
-	return NewSourcePosition(l.sourceFile, offset, l.lastLine, offset-l.lastLineStart)
+	return NewSourcePosition(offset, l.lastLine, offset-l.lastLineStart)
 }
 
 // GetSourceRange returns the range between two offsets.
 //
 // Java: LineNumberScanner.getSourceRange(int, int)
-func (l *LineNumberScanner) GetSourceRange(startOffset, endOffset int) *SourceRange {
+func (l *LineNumberScanner) GetSourceRange(startOffset, endOffset int) SourceRange {
 	return NewSourceRange(l.GetSourcePosition(startOffset), l.GetSourcePosition(endOffset))
-}
-
-func (l *LineNumberScanner) getCommentSourcePosition(offset int) *SourcePosition {
-	if offset < l.lastLineStart {
-		jutil.CheckArgumentMsg2(
-			false,
-			"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
-			offset,
-			l.lastLineStart)
-	}
-	for offset >= l.nextLineStart {
-		l.AdvanceLine()
-	}
-	p := l.arena.positions.New()
-	p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
-	return p
-}
-
-func (l *LineNumberScanner) getCommentSourceRange(startOffset, endOffset int) *SourceRange {
-	arena := l.arena
-	if arena == nil || !arena.TransientComments {
-		return l.GetSourceRange(startOffset, endOffset)
-	}
-	if startOffset >= l.lastLineStart && endOffset >= startOffset && endOffset < l.nextLineStart {
-		line := l.lastLine
-		lineStart := l.lastLineStart
-		start := arena.positions.New()
-		start.Source, start.Offset, start.Line, start.Column = l.sourceFile, startOffset, line, startOffset-lineStart
-		var end *SourcePosition
-		if endOffset == startOffset {
-			end = start
-		} else {
-			end = arena.positions.New()
-			end.Source, end.Offset, end.Line, end.Column = l.sourceFile, endOffset, line, endOffset-lineStart
-		}
-		r := arena.ranges.New()
-		r.Start, r.End = start, end
-		return r
-	}
-	start := l.getCommentSourcePosition(startOffset)
-	end := l.getCommentSourcePosition(endOffset)
-	r := arena.ranges.New()
-	r.Start, r.End = start, end
-	return r
-}
-
-// getTokenSourcePosition is GetSourcePosition for the Scanner's tokens and
-// for the positions it hands the Parser.
-//
-// Go-only: performance — a parse creates two positions and a range per
-// token, which were ~half of the front end's allocations. These come from
-// slabs instead (jutil.Slab): they become garbage with the tokens and parse
-// trees, after IRFactory has read them. Comments keep using
-// GetSourcePosition and GetSourceRange: IDE mode and NonJSDocComment keep
-// their positions for the whole compilation, which would pin whole chunks.
-func (l *LineNumberScanner) getTokenSourcePosition(offset int) *SourcePosition {
-	return l.getSourcePosition(offset, true)
-}
-
-// getTokenSourceRange is GetSourceRange for the Scanner's tokens.
-//
-// Go-only: performance — see getTokenSourcePosition.
-func (l *LineNumberScanner) getTokenSourceRange(startOffset, endOffset int) *SourceRange {
-	if startOffset >= l.lastLineStart && endOffset >= startOffset && endOffset < l.nextLineStart {
-		arena := l.arena
-		line := l.lastLine
-		lineStart := l.lastLineStart
-		var start *SourcePosition
-		if p := l.lastTokenPosition; p != nil && p.Offset == startOffset {
-			start = p
-		} else {
-			start = arena.positions.New()
-			start.Source, start.Offset, start.Line, start.Column = l.sourceFile, startOffset, line, startOffset-lineStart
-		}
-		var end *SourcePosition
-		if endOffset == startOffset {
-			end = start
-		} else {
-			end = arena.positions.New()
-			end.Source, end.Offset, end.Line, end.Column = l.sourceFile, endOffset, line, endOffset-lineStart
-		}
-		l.lastTokenPosition = end
-		r := arena.ranges.New()
-		r.Start, r.End = start, end
-		return r
-	}
-	start := l.getTokenSourcePosition(startOffset)
-	end := l.getTokenSourcePosition(endOffset)
-	r := l.arena.ranges.New()
-	r.Start, r.End = start, end
-	return r
 }
 
 // RewindTo rewinds the scanner to an earlier position in the source file.
 // This is necessary if backing up to a previous line.
 //
 // Java: LineNumberScanner.rewindTo(SourcePosition)
-func (l *LineNumberScanner) RewindTo(position *SourcePosition) {
-	jutil.CheckArgument(position.Source == l.sourceFile)
-	if position.Offset < l.lastLineStart {
-		l.lastLine = position.Line - 1
-		l.nextLineStart = position.Offset - position.Column
+func (l *LineNumberScanner) RewindTo(position SourcePosition) {
+	// Java: checkArgument(position.source == sourceFile) — Go-only:
+	// language-adapter — positions carry no source (see SourcePosition).
+	if offset := int(position.Offset); offset < l.lastLineStart {
+		l.lastLine = int(position.Line) - 1
+		l.nextLineStart = offset - int(position.Column)
 		l.AdvanceLine()
 	}
 }

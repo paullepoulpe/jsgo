@@ -29,7 +29,7 @@ type ExportSpecifierTree struct {
 // NewExportSpecifierTree constructs a ExportSpecifierTree.
 //
 // Java: ExportSpecifierTree(SourceRange, IdentifierToken, IdentifierToken)
-func NewExportSpecifierTree(location *SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ExportSpecifierTree {
+func NewExportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ExportSpecifierTree {
 	t := &ExportSpecifierTree{}
 	t.InitParseTreeBase(t, ParseTreeType_EXPORT_SPECIFIER, location)
 	t.ImportedName = importedName
