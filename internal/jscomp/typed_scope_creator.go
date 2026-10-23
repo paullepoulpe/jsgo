@@ -604,7 +604,10 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 		SetScopeCreator(scopeCreator).
 		TraverseRoots(root.GetFirstChild(), root.GetLastChild())
 
-	s := TypedScope_CreateGlobalScope(root)
+	c.GatherAllProvides(root)
+
+	globalVarCap := 48 + analyzer.globalDeclEstimate + c.providedNamesFromCall.Size()
+	s := newGlobalTypedScopeWithCapacity(root, globalVarCap)
 	s.arena = &c.arena
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_ARRAY_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE)
@@ -621,8 +624,6 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE)
 	c.DeclareNativeValueType(s, "undefined", rhino.JSTypeNative_VOID_TYPE)
 	c.AddWellKnownSymbols(s)
-
-	c.GatherAllProvides(root)
 
 	// Memoize the global scope so that module scope creation can access it. See
 	// AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
@@ -4241,6 +4242,7 @@ type TypedScopeCreator_FirstOrderFunctionAnalyzer struct {
 	outer                    *TypedScopeCreator
 	identifyEnumsAndTypedefs TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable
 	localContainerDepth      int
+	globalDeclEstimate       int
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer()
@@ -4345,6 +4347,10 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		a.identifyEnumsAndTypedefs.Visit(t, n, parent)
 	}
 	if t.InGlobalScope() {
+		switch n.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_ASSIGN:
+			a.globalDeclEstimate++
+		}
 		// The first-order function analyzer looks at two types of variables:
 		//
 		// 1) Local variables that are assigned in inner scopes ("escaped vars")

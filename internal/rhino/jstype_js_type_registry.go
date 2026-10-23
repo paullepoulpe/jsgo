@@ -254,6 +254,27 @@ type JSTypeRegistry struct {
 	leastSupertypeGen       uint32
 	leastSupertypeCache     *[jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry
 	templateTypeMapCache    *[jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry
+	objectDocInfo           map[*ObjectTypeBase]*JSDocInfo
+}
+
+func (r *JSTypeRegistry) getObjectDocInfo(o *ObjectTypeBase) *JSDocInfo {
+	if r == nil || r.objectDocInfo == nil {
+		return nil
+	}
+	return r.objectDocInfo[o]
+}
+
+func (r *JSTypeRegistry) setObjectDocInfo(o *ObjectTypeBase, info *JSDocInfo) {
+	if r.objectDocInfo == nil {
+		r.objectDocInfo = make(map[*ObjectTypeBase]*JSDocInfo, 64)
+	}
+	r.objectDocInfo[o] = info
+}
+
+func (r *JSTypeRegistry) deleteObjectDocInfo(o *ObjectTypeBase) {
+	if r != nil && r.objectDocInfo != nil {
+		delete(r.objectDocInfo, o)
+	}
 }
 
 func (r *JSTypeRegistry) acquireFunctionBuilder() *FunctionType_Builder {

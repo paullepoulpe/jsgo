@@ -287,7 +287,37 @@ func (c *ControlFlowAnalysis) putFinally(jump *rhino.Node, target *rhino.Node) {
 	c.finallyMap.Put(jump, target)
 }
 
-func (c *ControlFlowAnalysis) resetPosTable() {
+func estimateRootCfgNodes(root *rhino.Node) int {
+	count := 4
+	for c1 := root.GetFirstChild(); c1 != nil; c1 = c1.GetNext() {
+		count++
+		if c1.IsRoot() {
+			for script := c1.GetFirstChild(); script != nil; script = script.GetNext() {
+				count++
+				for stmt := script.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+					count++
+					if stmt.IsModuleBody() {
+						for mc := stmt.GetFirstChild(); mc != nil; mc = mc.GetNext() {
+							count++
+						}
+					}
+				}
+			}
+		} else if c1.IsScript() {
+			for stmt := c1.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+				count++
+				if stmt.IsModuleBody() {
+					for mc := stmt.GetFirstChild(); mc != nil; mc = mc.GetNext() {
+						count++
+					}
+				}
+			}
+		}
+	}
+	return count
+}
+
+func (c *ControlFlowAnalysis) resetPosTable(expectedNodes int) {
 	c.posGen++
 	if c.posGen == 0 {
 		clear(c.posTable)
@@ -295,8 +325,16 @@ func (c *ControlFlowAnalysis) resetPosTable() {
 	}
 	c.posCount = 0
 	c.nilPos = -1
-	if len(c.posTable) == 0 {
-		c.posTable = make([]cfaPosEntry, 256)
+	minLen := 256
+	if expectedNodes > 190 {
+		need := (expectedNodes*4)/3 + 1
+		for minLen < need {
+			minLen *= 2
+		}
+	}
+	if len(c.posTable) < minLen {
+		c.posTable = make([]cfaPosEntry, minLen)
+		c.posGen = 1
 	}
 }
 
@@ -472,14 +510,19 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
 	isRoot := root.IsRoot()
-	c.resetPosTable()
+	expectedNodes := 0
+	if isRoot {
+		est := estimateRootCfgNodes(root)
+		expectedNodes = est + est/8 + 8
+	}
+	c.resetPosTable(expectedNodes)
 	c.astPositionCounter = 0
 	entryNode := ControlFlowAnalysis_ComputeFallThrough(root)
 	if c.cfgStorage != nil {
-		c.cfgStorage.Reset(entryNode, c.edgeAnnotations)
+		c.cfgStorage.Reset(entryNode, isRoot, expectedNodes+expectedNodes/8, c.edgeAnnotations)
 		c.cfg = c.cfgStorage
 	} else {
-		c.cfg = newControlFlowAnalysis_AstControlFlowGraph(entryNode, c.edgeAnnotations)
+		c.cfg = newControlFlowAnalysis_AstControlFlowGraphWithExpectedSize(entryNode, expectedNodes+expectedNodes/8, c.edgeAnnotations)
 	}
 
 	// Traverse the graph.
@@ -509,6 +552,11 @@ func (c *ControlFlowAnalysis) computeCfg(root *rhino.Node) {
 
 	// Free our large table now that it is no longer needed
 	c.astPositionCounter = 0
+	if len(c.posTable) > 8192 {
+		c.posTable = nil
+		c.posGen = 0
+		c.posCount = 0
+	}
 
 	if c.cfgStorage != nil {
 		if isRoot {
@@ -1663,8 +1711,18 @@ type ControlFlowAnalysis_AstControlFlowGraph struct {
 //
 // Java: ControlFlowAnalysis.AstControlFlowGraph(Node, boolean)
 func newControlFlowAnalysis_AstControlFlowGraph(entry *rhino.Node, edgeAnnotations bool) *ControlFlowAnalysis_AstControlFlowGraph {
+	return newControlFlowAnalysis_AstControlFlowGraphWithExpectedSize(entry, 0, edgeAnnotations)
+}
+
+func newControlFlowAnalysis_AstControlFlowGraphWithExpectedSize(entry *rhino.Node, expectedNodes int, edgeAnnotations bool) *ControlFlowAnalysis_AstControlFlowGraph {
 	g := &ControlFlowAnalysis_AstControlFlowGraph{}
-	g.InitControlFlowGraphBase(g, entry /* nodeAnnotations= */, true, edgeAnnotations)
+	g.self = g
+	g.InitLinkedDirectedGraph(g /* useNodeAnnotations= */, true, edgeAnnotations)
+	if expectedNodes > 16 {
+		g.nodes = *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]](expectedNodes)
+	}
+	g.implicitReturn = g.CreateDiGraphNode(nil)
+	g.entry = g.CreateDiGraphNode(entry)
 	return g
 }
 
@@ -1682,14 +1740,18 @@ func (g *ControlFlowAnalysis_AstControlFlowGraph) ReleaseRootNodes() {
 }
 
 // Reset resets g for reuse on a new CFG root while retaining node/edge slabs.
-func (g *ControlFlowAnalysis_AstControlFlowGraph) Reset(entry *rhino.Node, edgeAnnotations bool) {
+func (g *ControlFlowAnalysis_AstControlFlowGraph) Reset(entry *rhino.Node, isRoot bool, expectedNodes int, edgeAnnotations bool) {
 	g.self = g
 	g.ReleaseRootNodes()
 	g.ResetLinkedDirectedGraph(g /* useNodeAnnotations= */, true, edgeAnnotations)
-	if entry != nil && entry.IsRoot() {
-		if pooled, ok := cfaRootNodesPool.Get().(jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]); ok && pooled.HasBacking() {
+	if isRoot {
+		if expectedNodes > 4096 {
+			g.nodes = *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]](expectedNodes)
+		} else if pooled, ok := cfaRootNodesPool.Get().(jutil.LinkedHashMap[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]]); ok && pooled.HasBacking() {
 			pooled.Clear()
 			g.nodes = pooled
+		} else if expectedNodes > 16 {
+			g.nodes = *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]](expectedNodes)
 		}
 	}
 	g.implicitReturn = g.CreateDiGraphNode(nil)

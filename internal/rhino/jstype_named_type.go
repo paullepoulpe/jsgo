@@ -116,6 +116,7 @@ func NamedType_NominalHashCode(type_ ObjectType) int32 {
 // Java: NamedType(Builder)
 func NewNamedType(builder *NamedType_Builder) *NamedType {
 	t := builder.registry.allocNamedType()
+	t.objFlags = objKindNamed
 	t.InitProxyObjectTypeBase(t, builder.registry, builder.referencedType)
 	jutil.CheckState(builder.hasReferenceName)
 	jutil.CheckState(builder.hasResolutionKind)

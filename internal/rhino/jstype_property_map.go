@@ -37,11 +37,15 @@ package rhino
 
 import (
 	"slices"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+const _ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.ObjectTypeBase))
+
 type propMapExt struct {
+	parentSource             ObjectType
 	byID                     map[rhinoStringID]*Property
 	knownSymbols             *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]
 	cachedKeySet             []string
@@ -51,12 +55,6 @@ type propMapExt struct {
 // PropertyMap is the representation for a collection of properties on an
 // object.
 type PropertyMap struct {
-	// A place to get the inheritance structure. Because the extended
-	// interfaces are resolved dynamically, this gets messy :(. If
-	// type-resolution was more well-defined, we could just reference primary
-	// parents and secondary parents directly.
-	parentSource ObjectType
-
 	// Own string properties. Small maps (<=24 entries) scan entries directly
 	// by 32-bit rhinoStringID; larger maps maintain ext.byID for O(1) lookup and
 	// sort entries by StringCompareTo lazily when key-ordered iteration is
@@ -75,9 +73,21 @@ type PropertyMap struct {
 
 	// Go-only: language-adapter — EMPTY_MAP is built from ImmutableMaps,
 	// whose put() throws UnsupportedOperationException.
-	immutable   bool
-	sorted      bool
-	hasNonASCII bool
+	immutable       bool
+	sorted          bool
+	hasNonASCII     bool
+	embeddedInProto bool
+}
+
+func (m *PropertyMap) getParentSource() ObjectType {
+	if m.embeddedInProto {
+		o := (*ObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
+		return o.selfObj()
+	}
+	if m.ext != nil {
+		return m.ext.parentSource
+	}
+	return nil
 }
 
 func (m *PropertyMap) ensureExt() *propMapExt {
@@ -131,14 +141,22 @@ func (m *PropertyMap) SetParentSource(ownerType ObjectType) {
 	if m == PropertyMap_EMPTY_MAP {
 		return
 	}
-
-	m.parentSource = ownerType
+	if m.embeddedInProto {
+		o := (*ObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
+		if o.selfObj() == ownerType {
+			m.IncrementCachedKeySetCounter()
+			return
+		}
+		m.embeddedInProto = false
+	}
+	m.ensureExt().parentSource = ownerType
 	m.IncrementCachedKeySetCounter()
 }
 
 // Java: PropertyMap.setParentForTesting(PropertyMap)
 func (m *PropertyMap) SetParentForTesting(parent *PropertyMap) {
-	m.parentSource = parent.parentSource
+	m.embeddedInProto = false
+	m.ensureExt().parentSource = parent.getParentSource()
 	m.IncrementCachedKeySetCounter()
 }
 
@@ -146,10 +164,27 @@ func (m *PropertyMap) SetParentForTesting(parent *PropertyMap) {
 //
 // Java: PropertyMap.getPrimaryParent()
 func (m *PropertyMap) GetPrimaryParent() *PropertyMap {
-	if m.parentSource == nil {
+	if m.embeddedInProto {
+		p := (*PrototypeObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
+		var iProto ObjectType
+		switch p.objFlags & objKindMask {
+		case objKindPrototype, objKindFunction:
+			iProto = p.implicitPrototypeFallback
+		case objKindInstance:
+			iProto = (*InstanceObjectType)(unsafe.Pointer(p)).GetImplicitPrototype()
+		default:
+			iProto = p.selfObj().GetImplicitPrototype()
+		}
+		if iProto == nil {
+			return nil
+		}
+		return iProto.GetPropertyMap()
+	}
+	parentSource := m.getParentSource()
+	if parentSource == nil {
 		return nil
 	}
-	iProto := m.parentSource.GetImplicitPrototype()
+	iProto := parentSource.GetImplicitPrototype()
 	if iProto == nil {
 		return nil
 	}
@@ -162,13 +197,14 @@ func (m *PropertyMap) GetPrimaryParent() *PropertyMap {
 //
 // Java: PropertyMap.GetSecondaryParentObjects()
 func (m *PropertyMap) GetSecondaryParentObjects() []ObjectType {
-	if m.parentSource == nil {
+	parentSource := m.getParentSource()
+	if parentSource == nil {
 		return nil
 	}
-	if m.parentSource.GetConstructor() != nil && m.parentSource.GetConstructor().IsAbstract() {
-		return m.parentSource.GetConstructor().GetOwnImplementedInterfaces()
+	if ctor := parentSource.GetConstructor(); ctor != nil && ctor.IsAbstract() {
+		return ctor.GetOwnImplementedInterfaces()
 	}
-	return m.parentSource.GetCtorExtendedInterfaces()
+	return parentSource.GetCtorExtendedInterfaces()
 }
 
 // Java: PropertyMap.findClosest(String)
@@ -183,7 +219,7 @@ func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Prop
 		str := name.String_()
 		if len(m.entries) == 1 && !m.hasNonASCII {
 			if p := m.entries[0]; rhinoStringFromID(p.nameID) == str {
-				return m.parentSource, p
+				return m.getParentSource(), p
 			}
 		}
 		return m.findClosestPairByStringID(str, rhinoStringPoolLookup(str))
@@ -192,7 +228,7 @@ func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Prop
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
 		if pm.ext != nil && pm.ext.knownSymbols != nil {
 			if prop := pm.ext.knownSymbols.Get(name.Symbol()); prop != nil {
-				return pm.parentSource, prop
+				return pm.getParentSource(), prop
 			}
 		}
 	}
@@ -216,7 +252,7 @@ func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Prop
 func (m *PropertyMap) findClosestPairByStringID(str string, id rhinoStringID) (ObjectType, *Property) {
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
 		if prop := pm.getOwnPropertyByID(str, id); prop != nil {
-			return pm.parentSource, prop
+			return pm.getParentSource(), prop
 		}
 	}
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {

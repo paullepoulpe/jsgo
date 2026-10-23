@@ -71,7 +71,12 @@ const RecordType_TYPE_CLASS = JSTypeClass_RECORD
 // Java: RecordType(JSTypeRegistry, Map<String, RecordProperty>, boolean)
 func NewRecordType(registry *JSTypeRegistry, properties *jutil.TreeMap[string, *RecordTypeBuilder_RecordProperty], declared bool) *RecordType {
 	t := &RecordType{}
-	t.InitPrototypeObjectTypeBase(t, PrototypeObjectType_Builder_(registry).GetBuilderFields())
+	t.objFlags = objKindRecord
+	builderFields := PrototypeObjectType_BuilderFields{
+		registry:        registry,
+		templateTypeMap: registry.GetEmptyTemplateTypeMap(),
+	}
+	t.InitPrototypeObjectTypeBase(t, &builderFields)
 	t.SetPrettyPrint(true)
 	t.declared = declared
 

@@ -257,7 +257,24 @@ type JSTypeBase struct {
 	visited        bool
 	unknown        bool
 	resolvedToSelf bool
+	objFlags       uint8
 }
+
+const (
+	objKindFallback uint8 = iota
+	objKindFunction
+	objKindPrototype
+	objKindInstance
+	objKindNamed
+	objKindTemplatized
+	objKindRecord
+	objKindEnum
+)
+
+const (
+	objKindMask   uint8 = 0x7f
+	objHasDocFlag uint8 = 0x80
+)
 
 // Java: JSType.serialVersionUID
 const JSType_serialVersionUID int64 = 1

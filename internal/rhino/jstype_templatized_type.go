@@ -54,6 +54,7 @@ const TemplatizedType_TYPE_CLASS = JSTypeClass_TEMPLATIZED
 // Java: TemplatizedType(JSTypeRegistry, ObjectType, ImmutableList<JSType>)
 func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templateTypes []JSType) *TemplatizedType {
 	t := registry.allocTemplatizedType()
+	t.objFlags = objKindTemplatized
 	ttm := objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes)
 	t.InitProxyObjectTypeBaseWithTemplateTypeMap(t, registry, objectType, ttm)
 

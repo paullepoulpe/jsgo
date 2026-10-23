@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -250,11 +251,9 @@ type abstractScopeBound[S any, V any] interface {
 }
 
 // AbstractScopeBase holds the fields and the implementations of
-// AbstractScope; Scope and TypedScope embed it and call
+// AbstractScope; Scope and TypedScope embed it at offset 0 and call
 // InitAbstractScopeBase with themselves.
 type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	self S
-
 	// Go-only: language-adapter — the EnumMap<ImplicitVar, V>, indexed by
 	// ordinal (a zero V is an absent key, as EnumMap.computeIfAbsent never
 	// stores null); nil is the ImmutableMap.of() sentinel.
@@ -267,6 +266,18 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	isBottom        bool
 	hasImplicitVars bool
 	scanDone        bool
+}
+
+var (
+	_ [0]struct{} = [unsafe.Offsetof(Scope{}.AbstractScopeBase)]struct{}{}
+	_ [0]struct{} = [unsafe.Offsetof(TypedScope{}.AbstractScopeBase)]struct{}{}
+	_ [0]struct{} = [unsafe.Sizeof((*Scope)(nil)) - unsafe.Sizeof(uintptr(0))]struct{}{}
+	_ [0]struct{} = [unsafe.Sizeof((*TypedScope)(nil)) - unsafe.Sizeof(uintptr(0))]struct{}{}
+)
+
+func (b *AbstractScopeBase[S, V]) selfS() S {
+	p := unsafe.Pointer(b)
+	return *(*S)(unsafe.Pointer(&p))
 }
 
 // Java: AbstractScope.getDepth()
@@ -290,8 +301,7 @@ func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S)
 // concrete scope.
 //
 // Java: AbstractScope(Node)
-func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(self S, rootNode *rhino.Node) {
-	b.self = self
+func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(_ S, rootNode *rhino.Node) {
 	b.varsInitialized = false
 	b.isBottom = false
 	b.hasImplicitVars = false
@@ -324,9 +334,10 @@ func (b *AbstractScopeBase[S, V]) Typed() *TypedScope {
 // Java: AbstractScope.contains(S)
 func (b *AbstractScopeBase[S, V]) Contains(other S) bool {
 	var null S
+	self := b.selfS()
 	s := jutil.CheckNotNull(other)
 	for s != null {
-		if s == b.self {
+		if s == self {
 			return true
 		}
 		s = s.GetParent()
@@ -360,7 +371,7 @@ func (b *AbstractScopeBase[S, V]) GetGlobalScope() S {
 // Java: AbstractScope.getParentScope()
 func (b *AbstractScopeBase[S, V]) GetParentScope() rhino.StaticScope {
 	var null S
-	if p := b.self.GetParent(); p != null {
+	if p := b.selfS().GetParent(); p != null {
 		return p
 	}
 	return nil
@@ -371,7 +382,7 @@ func (b *AbstractScopeBase[S, V]) GetParentScope() rhino.StaticScope {
 //
 // Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
 func (b *AbstractScopeBase[S, V]) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
-	return name != nil && name.IsMadeByScope(abstractScope_of(b.self))
+	return name != nil && name.IsMadeByScope(abstractScope_of(b.selfS()))
 }
 
 // HasSlot returns true if a variable is declared in this or any parent
@@ -390,7 +401,8 @@ func (b *AbstractScopeBase[S, V]) HasSlot(name string) bool {
 
 // Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
 func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) V {
-	if !b.self.HasOwnImplicitSlot(name) {
+	self := b.selfS()
+	if !self.HasOwnImplicitSlot(name) {
 		var null V
 		return null
 	}
@@ -404,7 +416,7 @@ func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_Implici
 	if v := b.implicitVars[*name]; v != null {
 		return v
 	}
-	v := b.self.MakeImplicitVar(*name)
+	v := self.MakeImplicitVar(*name)
 	if v != null {
 		b.implicitVars[*name] = v
 	}
@@ -417,7 +429,7 @@ func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_Implici
 // Java: AbstractScope.getOwnSlot(String)
 func (b *AbstractScopeBase[S, V]) GetOwnSlot(name string) rhino.StaticSlot {
 	var null V
-	if v := b.self.getOwnSlotV(name); v != null {
+	if v := b.selfS().getOwnSlotV(name); v != null {
 		return v
 	}
 	return nil
@@ -439,7 +451,7 @@ func (b *AbstractScopeBase[S, V]) GetSlot(name string) rhino.StaticSlot {
 //
 // Go-only: language-adapter — see GetSlot.
 func (b *AbstractScopeBase[S, V]) getSlotV(name string) V {
-	return b.self.GetVar(name)
+	return b.selfS().GetVar(name)
 }
 
 // GetVar returns the variable, may be null.
@@ -484,9 +496,10 @@ func (b *AbstractScopeBase[S, V]) GetArgumentsVar() V {
 //
 // Java: AbstractScope.canDeclare(String)
 func (b *AbstractScopeBase[S, V]) CanDeclare(name string) bool {
-	return !b.self.HasOwnSlot(name) &&
-		(!b.self.IsFunctionBlockScope() ||
-			!b.self.GetParent().HasOwnSlot(name) ||
+	self := b.selfS()
+	return !self.HasOwnSlot(name) &&
+		(!self.IsFunctionBlockScope() ||
+			!self.GetParent().HasOwnSlot(name) ||
 			b.IsBleedingFunctionName(name))
 }
 
@@ -498,7 +511,7 @@ func (b *AbstractScopeBase[S, V]) CanDeclare(name string) bool {
 // Java: AbstractScope.isBleedingFunctionName(String)
 func (b *AbstractScopeBase[S, V]) IsBleedingFunctionName(name string) bool {
 	var null V
-	var_ := b.self.GetVar(name)
+	var_ := b.selfS().GetVar(name)
 	return var_ != null &&
 		var_.GetNode() != nil &&
 		var_.GetNode().GetParent().IsFunction()
@@ -536,7 +549,7 @@ func (b *AbstractScopeBase[S, V]) GetAllAccessibleVariables() iter.Seq[V] {
 // Java: AbstractScope.isGlobal()
 func (b *AbstractScopeBase[S, V]) IsGlobal() bool {
 	var null S
-	return b.self.GetParent() == null
+	return b.selfS().GetParent() == null
 }
 
 // IsLocal returns whether this is a local scope (i.e. not the global scope).
@@ -544,7 +557,7 @@ func (b *AbstractScopeBase[S, V]) IsGlobal() bool {
 // Java: AbstractScope.isLocal()
 func (b *AbstractScopeBase[S, V]) IsLocal() bool {
 	var null S
-	return b.self.GetParent() != null
+	return b.selfS().GetParent() != null
 }
 
 // Java: AbstractScope.isBlockScope()
@@ -604,11 +617,12 @@ func (b *AbstractScopeBase[S, V]) IsCfgRootScope() bool {
 //
 // Java: AbstractScope.isHoistScope()
 func (b *AbstractScopeBase[S, V]) IsHoistScope() bool {
-	return b.self.IsFunctionScope() ||
-		b.self.IsFunctionBlockScope() ||
-		b.self.IsGlobal() ||
-		b.self.IsModuleScope() ||
-		b.self.IsStaticBlockScope()
+	self := b.selfS()
+	return self.IsFunctionScope() ||
+		self.IsFunctionBlockScope() ||
+		self.IsGlobal() ||
+		self.IsModuleScope() ||
+		self.IsStaticBlockScope()
 }
 
 // GetClosestHoistScope returns, if a var were declared in this scope, the
@@ -664,7 +678,7 @@ func (b *AbstractScopeBase[S, V]) GetClosestContainerScope() S {
 //
 // Java: AbstractScope.thisScope()
 func (b *AbstractScopeBase[S, V]) ThisScope() S {
-	return b.self
+	return b.selfS()
 }
 
 // CheckChildScope performs simple validity checks on when constructing a
@@ -726,7 +740,7 @@ func (b *AbstractScopeBase[S, V]) GetCommonParent(other S) S {
 // Java: AbstractScope.hasSameContainerScope(S)
 func (b *AbstractScopeBase[S, V]) HasSameContainerScope(other S) bool {
 	// Do identity check first as a shortcut.
-	return b.self == other || b.GetClosestContainerScope() == other.GetClosestContainerScope()
+	return b.selfS() == other || b.GetClosestContainerScope() == other.GetClosestContainerScope()
 }
 
 // GetScopeOfThis returns the closest scope upon which `this` is defined,
@@ -746,7 +760,7 @@ func (b *AbstractScopeBase[S, V]) GetScopeOfThis() S {
 //
 // Java: StaticScope.getTopmostScopeOfEventualDeclaration(String) (default method)
 func (b *AbstractScopeBase[S, V]) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(b.self, name)
+	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(b.selfS(), name)
 }
 
 // AbstractScope_ImplicitVar is the three implicit var types, which are

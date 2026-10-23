@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"iter"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -155,12 +156,40 @@ type ObjectType interface {
 }
 
 // ObjectTypeBase holds the fields and base method implementations of
-// ObjectType; self (shadowing JSTypeBase.self) dispatches ObjectType's
-// virtual methods.
+// ObjectType.
 type ObjectTypeBase struct {
 	JSTypeBase
-	self    ObjectType
-	docInfo *JSDocInfo
+}
+
+const (
+	_ = -uint(unsafe.Offsetof(FunctionTypeBase{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(InstanceObjectType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(NamedType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(TemplatizedType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(RecordType{}.ObjectTypeBase))
+	_ = -uint(unsafe.Offsetof(EnumType{}.ObjectTypeBase))
+)
+
+func (o *ObjectTypeBase) selfObj() ObjectType {
+	switch o.objFlags & objKindMask {
+	case objKindFunction:
+		return (*FunctionTypeBase)(unsafe.Pointer(o))
+	case objKindPrototype:
+		return (*PrototypeObjectTypeBase)(unsafe.Pointer(o))
+	case objKindInstance:
+		return (*InstanceObjectType)(unsafe.Pointer(o))
+	case objKindNamed:
+		return (*NamedType)(unsafe.Pointer(o))
+	case objKindTemplatized:
+		return (*TemplatizedType)(unsafe.Pointer(o))
+	case objKindRecord:
+		return (*RecordType)(unsafe.Pointer(o))
+	case objKindEnum:
+		return (*EnumType)(unsafe.Pointer(o))
+	default:
+		return o.self.(ObjectType)
+	}
 }
 
 // InitObjectTypeBase is the Go form of the ObjectType(JSTypeRegistry)
@@ -168,7 +197,6 @@ type ObjectTypeBase struct {
 //
 // Java: ObjectType(JSTypeRegistry)
 func (o *ObjectTypeBase) InitObjectTypeBase(self ObjectType, registry *JSTypeRegistry) {
-	o.self = self
 	o.unknown = true
 	o.InitJSTypeBase(self, registry)
 }
@@ -179,7 +207,6 @@ func (o *ObjectTypeBase) InitObjectTypeBase(self ObjectType, registry *JSTypeReg
 // Java: ObjectType(JSTypeRegistry, TemplateTypeMap)
 func (o *ObjectTypeBase) InitObjectTypeBaseWithTemplateTypeMap(
 	self ObjectType, registry *JSTypeRegistry, templateTypeMap *TemplateTypeMap) {
-	o.self = self
 	o.unknown = true
 	o.InitJSTypeBaseWithTemplateTypeMap(self, registry, templateTypeMap)
 }
@@ -202,23 +229,23 @@ func (o *ObjectTypeBase) GetPropertyMap() *PropertyMap {
 //
 // Java: ObjectType.getSlot(Property.Key)
 func (o *ObjectTypeBase) GetSlotByKey(name Property_Key) *Property {
-	_, prop := o.self.GetPropertyMap().findClosestPairByKey(name)
+	_, prop := o.selfObj().GetPropertyMap().findClosestPairByKey(name)
 	return prop
 }
 
 // Java: ObjectType.getSlot(String)
 func (o *ObjectTypeBase) GetSlot(name string) *Property {
-	return o.self.GetSlotByKey(NewProperty_StringKey(name))
+	return o.selfObj().GetSlotByKey(NewProperty_StringKey(name))
 }
 
 // Java: ObjectType.getOwnSlot(String)
 func (o *ObjectTypeBase) GetOwnSlot(name string) *Property {
-	return o.self.GetPropertyMap().GetOwnProperty(name)
+	return o.selfObj().GetPropertyMap().GetOwnProperty(name)
 }
 
 // Java: ObjectType.getOwnSlot(Property.Key)
 func (o *ObjectTypeBase) GetOwnSlotByKey(name Property_Key) *Property {
-	return o.self.GetPropertyMap().GetOwnPropertyByKey(name)
+	return o.selfObj().GetPropertyMap().GetOwnPropertyByKey(name)
 }
 
 // Java: ObjectType.getTypeOfThis()
@@ -237,7 +264,10 @@ func (o *ObjectTypeBase) GetTemplateTypes() []JSType {
 //
 // Java: ObjectType.getJSDocInfo()
 func (o *ObjectTypeBase) GetJSDocInfo() *JSDocInfo {
-	return o.docInfo
+	if o.objFlags&objHasDocFlag == 0 {
+		return nil
+	}
+	return o.registry.getObjectDocInfo(o)
 }
 
 // SetJSDocInfo sets the docInfo for this type from the given JSDocInfo. The
@@ -245,7 +275,15 @@ func (o *ObjectTypeBase) GetJSDocInfo() *JSDocInfo {
 //
 // Java: ObjectType.setJSDocInfo(JSDocInfo)
 func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
-	o.docInfo = info
+	if info == nil {
+		if o.objFlags&objHasDocFlag != 0 {
+			o.objFlags &^= objHasDocFlag
+			o.registry.deleteObjectDocInfo(o)
+		}
+		return
+	}
+	o.objFlags |= objHasDocFlag
+	o.registry.setObjectDocInfo(o, info)
 }
 
 // DetectImplicitPrototypeCycle detects a cycle in the implicit prototype
@@ -258,8 +296,9 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 // Java: ObjectType.detectImplicitPrototypeCycle()
 func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 	// detecting cycle
+	self := o.selfObj()
 	o.visited = true
-	p := o.self.GetImplicitPrototype()
+	p := self.GetImplicitPrototype()
 	for p != nil {
 		if p.GetObjectTypeBase().visited {
 			return true
@@ -270,7 +309,7 @@ func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 	}
 
 	// clean up
-	p = o.self
+	p = self
 	for {
 		p.GetObjectTypeBase().visited = false
 		p = p.GetImplicitPrototype()
@@ -288,11 +327,12 @@ func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 //
 // Java: ObjectType.detectInheritanceCycle()
 func (o *ObjectTypeBase) DetectInheritanceCycle() bool {
-	if o.self.DetectImplicitPrototypeCycle() ||
-		objectTypeIterablesContains(o.self.GetCtorImplementedInterfaces(), o.self) {
+	self := o.selfObj()
+	if self.DetectImplicitPrototypeCycle() ||
+		objectTypeIterablesContains(self.GetCtorImplementedInterfaces(), self) {
 		return true
 	}
-	fnType := o.self.GetConstructor()
+	fnType := self.GetConstructor()
 	return fnType != nil && fnType.CheckExtendsLoop() != nil
 }
 
@@ -314,7 +354,7 @@ func objectTypeIterablesContains(iterable []ObjectType, element ObjectType) bool
 //
 // Java: ObjectType.hasReferenceName()
 func (o *ObjectTypeBase) HasReferenceName() bool {
-	return o.self.GetReferenceName() != nil
+	return o.selfObj().GetReferenceName() != nil
 }
 
 // GetNormalizedReferenceName: due to the complexity of some of our internal
@@ -330,7 +370,7 @@ func (o *ObjectTypeBase) HasReferenceName() bool {
 //
 // Java: ObjectType.getNormalizedReferenceName()
 func (o *ObjectTypeBase) GetNormalizedReferenceName() *string {
-	name := o.self.GetReferenceName()
+	name := o.selfObj().GetReferenceName()
 	if name != nil {
 		start := jutil.StringIndexOfChar(*name, '(')
 		if start != -1 {
@@ -351,7 +391,7 @@ func (o *ObjectTypeBase) GetNormalizedReferenceName() *string {
 
 // Java: ObjectType.getDisplayName()
 func (o *ObjectTypeBase) GetDisplayName() *string {
-	return o.self.GetNormalizedReferenceName()
+	return o.selfObj().GetNormalizedReferenceName()
 }
 
 // ObjectType_CreateDelegateSuffix creates a suffix for a proxy delegate.
@@ -365,7 +405,7 @@ func ObjectType_CreateDelegateSuffix(suffix string) string {
 func (o *ObjectTypeBase) GetRawType() ObjectType {
 	t := o.self.ToMaybeTemplatizedType()
 	if t == nil {
-		return o.self
+		return o.selfObj()
 	}
 	return t.GetReferencedType()
 }
@@ -397,7 +437,7 @@ func (o *ObjectTypeBase) TestForEquality(that JSType) base.Tri {
 
 // Java: ObjectType.getSuperClassConstructor()
 func (o *ObjectTypeBase) GetSuperClassConstructor() FunctionType {
-	iproto := o.self.GetImplicitPrototype()
+	iproto := o.selfObj().GetImplicitPrototype()
 	if iproto == nil {
 		return nil
 	}
@@ -413,7 +453,7 @@ func (o *ObjectTypeBase) GetSuperClassConstructor() FunctionType {
 //
 // Java: ObjectType.getClosestDefiningType(String)
 func (o *ObjectTypeBase) GetClosestDefiningType(propertyName string) ObjectType {
-	owner, _ := o.self.GetPropertyMap().findClosestPairByKey(NewProperty_StringKey(propertyName))
+	owner, _ := o.selfObj().GetPropertyMap().findClosestPairByKey(NewProperty_StringKey(propertyName))
 	return owner
 }
 
@@ -422,12 +462,12 @@ func (o *ObjectTypeBase) GetClosestDefiningType(propertyName string) ObjectType 
 //
 // Java: ObjectType.findClosestDefinition(String)
 func (o *ObjectTypeBase) FindClosestDefinition(propertyName string) *Property_OwnedProperty {
-	return o.self.FindClosestDefinitionByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().FindClosestDefinitionByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.findClosestDefinition(Property.Key)
 func (o *ObjectTypeBase) FindClosestDefinitionByKey(propertyName Property_Key) *Property_OwnedProperty {
-	return o.self.GetPropertyMap().FindClosestByKey(propertyName)
+	return o.selfObj().GetPropertyMap().FindClosestByKey(propertyName)
 }
 
 // GetImplicitPrototypeChain returns a lazy, dynamic Iterable for the types
@@ -442,7 +482,7 @@ func (o *ObjectTypeBase) FindClosestDefinitionByKey(propertyName Property_Key) *
 //
 // Java: ObjectType.getImplicitPrototypeChain()
 func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
-	self := o.self
+	self := o.selfObj()
 
 	return func(yield func(ObjectType) bool) {
 		next := self // We increment past this type before first access.
@@ -464,18 +504,19 @@ func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
 //
 // Java: ObjectType.defineDeclaredProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
-	return o.self.DefineDeclaredPropertyByKey(NewProperty_StringKey(propertyName), type_, propertyNode)
+	return o.selfObj().DefineDeclaredPropertyByKey(NewProperty_StringKey(propertyName), type_, propertyNode)
 }
 
 // Java: ObjectType.defineDeclaredProperty(Property.Key, JSType, Node)
 func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool {
-	result := o.self.DefinePropertyByKey(propertyName, type_ /* inferred= */, false, propertyNode)
+	self := o.selfObj()
+	result := self.DefinePropertyByKey(propertyName, type_ /* inferred= */, false, propertyNode)
 	if propertyName.Kind() == Property_KeyKind_STRING {
 		// All property definitions go through this method or
 		// defineInferredProperty. Because the properties defined an an object
 		// can affect subtyping, it's slightly more efficient to register this
 		// after defining the property.
-		o.registry.RegisterPropertyOnType(propertyName.String_(), o.self)
+		o.registry.RegisterPropertyOnType(propertyName.String_(), self)
 	}
 	return result
 }
@@ -486,7 +527,7 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 //
 // Java: ObjectType.defineSynthesizedProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
-	return o.self.DefineProperty(propertyName, type_, false, propertyNode)
+	return o.selfObj().DefineProperty(propertyName, type_, false, propertyNode)
 }
 
 // DefineInferredPropertyByKey defines a property whose type is inferred.
@@ -499,7 +540,7 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 	name := propertyName.String_()
 	jutil.CheckArgumentMsg(
 		true, "Symbol-based property keys are not supported for inferred properties.")
-	return o.self.DefineInferredProperty(name, type_, propertyNode)
+	return o.selfObj().DefineInferredProperty(name, type_, propertyNode)
 }
 
 // DefineInferredProperty defines a property whose type is inferred.
@@ -510,26 +551,27 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 //
 // Java: ObjectType.defineInferredProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
+	self := o.selfObj()
 	if o.self.HasProperty(propertyName) {
-		if o.self.IsPropertyTypeDeclared(propertyName) {
+		if self.IsPropertyTypeDeclared(propertyName) {
 			// We never want to hide a declared property with an inferred
 			// property.
 			return true
 		}
-		originalType := jutil.CheckNotNull(o.self.GetPropertyType(propertyName))
+		originalType := jutil.CheckNotNull(self.GetPropertyType(propertyName))
 		type_ = originalType.GetLeastSupertype(type_)
 	}
 	// TODO(b/140764208): verify that if isResolved() then type.isResolved().
 	// Defining unresolved properties on resolved types is dangerous because
 	// the property type may never be resolved.
 
-	result := o.self.DefineProperty(propertyName, type_, true, propertyNode)
+	result := self.DefineProperty(propertyName, type_, true, propertyNode)
 
 	// All property definitions go through this method or
 	// defineDeclaredProperty. Because the properties defined an an object can
 	// affect subtyping, it's slightly more efficient to register this after
 	// defining the property.
-	o.registry.RegisterPropertyOnType(propertyName, o.self)
+	o.registry.RegisterPropertyOnType(propertyName, self)
 
 	return result
 }
@@ -550,7 +592,7 @@ func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSTyp
 //
 // Java: ObjectType.defineProperty(String, JSType, boolean, Node)
 func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode *Node) bool {
-	return o.self.DefinePropertyByKey(NewProperty_StringKey(propertyName), type_, inferred, propertyNode)
+	return o.selfObj().DefinePropertyByKey(NewProperty_StringKey(propertyName), type_, inferred, propertyNode)
 }
 
 // GetPropertyNode gets the node corresponding to the definition of the
@@ -565,12 +607,12 @@ func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, infer
 //
 // Java: ObjectType.getPropertyNode(String)
 func (o *ObjectTypeBase) GetPropertyNode(propertyName string) *Node {
-	return o.self.GetPropertyNodeByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyNodeByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyNode(Property.Key)
 func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) *Node {
-	p := o.self.GetSlotByKey(propertyName)
+	p := o.selfObj().GetSlotByKey(propertyName)
 	if p == nil {
 		return nil
 	}
@@ -579,22 +621,22 @@ func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) *Node {
 
 // Java: ObjectType.getPropertyDefSite(String)
 func (o *ObjectTypeBase) GetPropertyDefSite(propertyName string) *Node {
-	return o.self.GetPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyDefSite(Property.Key)
 func (o *ObjectTypeBase) GetPropertyDefSiteByKey(propertyName Property_Key) *Node {
-	return o.self.GetPropertyNodeByKey(propertyName)
+	return o.selfObj().GetPropertyNodeByKey(propertyName)
 }
 
 // Java: ObjectType.getPropertyJSDocInfo(String)
 func (o *ObjectTypeBase) GetPropertyJSDocInfo(propertyName string) *JSDocInfo {
-	return o.self.GetPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyJSDocInfo(Property.Key)
 func (o *ObjectTypeBase) GetPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo {
-	p := o.self.GetSlotByKey(propertyName)
+	p := o.selfObj().GetSlotByKey(propertyName)
 	if p == nil {
 		return nil
 	}
@@ -608,12 +650,12 @@ func (o *ObjectTypeBase) GetPropertyJSDocInfoByKey(propertyName Property_Key) *J
 //
 // Java: ObjectType.getOwnPropertyJSDocInfo(String)
 func (o *ObjectTypeBase) GetOwnPropertyJSDocInfo(propertyName string) *JSDocInfo {
-	return o.self.GetOwnPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyJSDocInfo(Property.Key)
 func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo {
-	p := o.self.GetOwnSlotByKey(propertyName)
+	p := o.selfObj().GetOwnSlotByKey(propertyName)
 	if p == nil {
 		return nil
 	}
@@ -622,12 +664,12 @@ func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key)
 
 // Java: ObjectType.getOwnPropertyDefSite(String)
 func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) *Node {
-	return o.self.GetOwnPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyDefSite(Property.Key)
 func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) *Node {
-	p := o.self.GetOwnSlotByKey(propertyName)
+	p := o.selfObj().GetOwnSlotByKey(propertyName)
 	if p == nil {
 		return nil
 	}
@@ -639,7 +681,7 @@ func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) *
 //
 // Java: ObjectType.setPropertyJSDocInfo(String, JSDocInfo)
 func (o *ObjectTypeBase) SetPropertyJSDocInfo(propertyName string, info *JSDocInfo) {
-	o.self.SetPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName), info)
+	o.selfObj().SetPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName), info)
 }
 
 // Java: ObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo)
@@ -651,7 +693,7 @@ func (o *ObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, in
 //
 // Java: ObjectType.setPropertyNode(String, Node)
 func (o *ObjectTypeBase) SetPropertyNode(propertyName string, defSite *Node) {
-	o.self.SetPropertyNodeByKey(NewProperty_StringKey(propertyName), defSite)
+	o.selfObj().SetPropertyNodeByKey(NewProperty_StringKey(propertyName), defSite)
 }
 
 // Java: ObjectType.setPropertyNode(Property.Key, Node)
@@ -662,7 +704,7 @@ func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite
 // Java: ObjectType.findPropertyTypeWithoutConsideringTemplateTypes(Property.Key)
 func (o *ObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
 	if o.self.HasPropertyByKey(propertyName) {
-		return o.self.GetPropertyTypeByKey(propertyName)
+		return o.selfObj().GetPropertyTypeByKey(propertyName)
 	}
 	return nil
 }
@@ -680,12 +722,12 @@ func (o *ObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes(propert
 //
 // Java: ObjectType.getPropertyType(String)
 func (o *ObjectTypeBase) GetPropertyType(propertyName string) JSType {
-	return o.self.GetPropertyTypeByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyTypeByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyType(Property.Key)
 func (o *ObjectTypeBase) GetPropertyTypeByKey(propertyName Property_Key) JSType {
-	slot := o.self.GetSlotByKey(propertyName)
+	slot := o.selfObj().GetSlotByKey(propertyName)
 	return o.GetPropertyTypeFromSlot(slot)
 }
 
@@ -705,7 +747,7 @@ func (o *ObjectTypeBase) GetPropertyTypeFromSlot(slot *Property) JSType {
 // Java: ObjectType.getPropertyKind(Property.Key, boolean)
 func (o *ObjectTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
 	// Unknown types have all properties.
-	return JSType_HasPropertyKind_Of(o.self.IsEmptyType() || o.self.IsUnknownType() || o.self.GetSlotByKey(propertyName) != nil)
+	return JSType_HasPropertyKind_Of(o.self.IsEmptyType() || o.self.IsUnknownType() || o.selfObj().GetSlotByKey(propertyName) != nil)
 }
 
 // GetOwnPropertyKind checks whether the property whose name is given is
@@ -714,12 +756,12 @@ func (o *ObjectTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_K
 //
 // Java: ObjectType.getOwnPropertyKind(String)
 func (o *ObjectTypeBase) GetOwnPropertyKind(propertyName string) JSType_HasPropertyKind {
-	return o.self.GetOwnPropertyKindByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyKindByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyKind(Property.Key)
 func (o *ObjectTypeBase) GetOwnPropertyKindByKey(propertyName Property_Key) JSType_HasPropertyKind {
-	if o.self.GetOwnSlotByKey(propertyName) != nil {
+	if o.selfObj().GetOwnSlotByKey(propertyName) != nil {
 		return JSType_HasPropertyKind_KNOWN_PRESENT
 	}
 	return JSType_HasPropertyKind_ABSENT
@@ -731,17 +773,17 @@ func (o *ObjectTypeBase) GetOwnPropertyKindByKey(propertyName Property_Key) JSTy
 //
 // Java: ObjectType.hasOwnProperty(String)
 func (o *ObjectTypeBase) HasOwnProperty(propertyName string) bool {
-	return o.self.HasOwnPropertyByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().HasOwnPropertyByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.hasOwnProperty(Property.Key)
 func (o *ObjectTypeBase) HasOwnPropertyByKey(propertyName Property_Key) bool {
-	return o.self.GetOwnPropertyKindByKey(propertyName) != JSType_HasPropertyKind_ABSENT
+	return o.selfObj().GetOwnPropertyKindByKey(propertyName) != JSType_HasPropertyKind_ABSENT
 }
 
 // Java: ObjectType.getOwnPropertyKnownSymbols()
 func (o *ObjectTypeBase) GetOwnPropertyKnownSymbols() []*KnownSymbolType {
-	return o.self.GetPropertyMap().GetOwnKnownSymbols()
+	return o.selfObj().GetPropertyMap().GetOwnKnownSymbols()
 }
 
 // GetOwnPropertyNames returns the names of all the properties directly on
@@ -755,7 +797,7 @@ func (o *ObjectTypeBase) GetOwnPropertyNames() []string {
 	// properties, but currently it does not. Check if this is a constructor
 	// and add them, but this could possibly break things so it should be done
 	// separately.
-	return o.self.GetPropertyMap().GetOwnPropertyNames()
+	return o.selfObj().GetPropertyMap().GetOwnPropertyNames()
 }
 
 // GetOwnPropertyKeys returns the names of all the properties directly on
@@ -763,8 +805,9 @@ func (o *ObjectTypeBase) GetOwnPropertyNames() []string {
 //
 // Java: ObjectType.getOwnPropertyKeys()
 func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
-	ownPropertyNames := o.self.GetOwnPropertyNames()
-	ownSymbols := o.self.GetOwnPropertyKnownSymbols()
+	self := o.selfObj()
+	ownPropertyNames := self.GetOwnPropertyNames()
+	ownSymbols := self.GetOwnPropertyKnownSymbols()
 	ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
 	for _, propertyName := range ownPropertyNames {
 		ownPropertyKeys.Add(NewProperty_StringKey(propertyName))
@@ -779,12 +822,12 @@ func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
 //
 // Java: ObjectType.isPropertyTypeInferred(String)
 func (o *ObjectTypeBase) IsPropertyTypeInferred(propertyName string) bool {
-	return o.self.IsPropertyTypeInferredByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().IsPropertyTypeInferredByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.isPropertyTypeInferred(Property.Key)
 func (o *ObjectTypeBase) IsPropertyTypeInferredByKey(propertyName Property_Key) bool {
-	slot := o.self.GetSlotByKey(propertyName)
+	slot := o.selfObj().GetSlotByKey(propertyName)
 	if slot == nil {
 		return false
 	}
@@ -795,12 +838,12 @@ func (o *ObjectTypeBase) IsPropertyTypeInferredByKey(propertyName Property_Key) 
 //
 // Java: ObjectType.isPropertyTypeDeclared(String)
 func (o *ObjectTypeBase) IsPropertyTypeDeclared(propertyName string) bool {
-	return o.self.IsPropertyTypeDeclaredByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().IsPropertyTypeDeclaredByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.isPropertyTypeDeclared(Property.Key)
 func (o *ObjectTypeBase) IsPropertyTypeDeclaredByKey(propertyName Property_Key) bool {
-	slot := o.self.GetSlotByKey(propertyName)
+	slot := o.selfObj().GetSlotByKey(propertyName)
 	if slot == nil {
 		return false
 	}
@@ -809,7 +852,7 @@ func (o *ObjectTypeBase) IsPropertyTypeDeclaredByKey(propertyName Property_Key) 
 
 // Java: ObjectType.isStructuralType()
 func (o *ObjectTypeBase) IsStructuralType() bool {
-	constructor := o.self.GetConstructor()
+	constructor := o.selfObj().GetConstructor()
 	return constructor != nil && constructor.IsStructuralInterface()
 }
 
@@ -818,12 +861,14 @@ func (o *ObjectTypeBase) IsStructuralType() bool {
 //
 // Java: ObjectType.hasOwnDeclaredProperty(String)
 func (o *ObjectTypeBase) HasOwnDeclaredProperty(name string) bool {
-	return o.self.HasOwnProperty(name) && o.self.IsPropertyTypeDeclared(name)
+	self := o.selfObj()
+	return self.HasOwnProperty(name) && self.IsPropertyTypeDeclared(name)
 }
 
 // Java: ObjectType.hasOwnDeclaredProperty(Property.Key)
 func (o *ObjectTypeBase) HasOwnDeclaredPropertyByKey(name Property_Key) bool {
-	return o.self.HasOwnPropertyByKey(name) && o.self.IsPropertyTypeDeclaredByKey(name)
+	self := o.selfObj()
+	return self.HasOwnPropertyByKey(name) && self.IsPropertyTypeDeclaredByKey(name)
 }
 
 // IsPropertyInExterns checks whether the property was defined in the
@@ -831,7 +876,7 @@ func (o *ObjectTypeBase) HasOwnDeclaredPropertyByKey(name Property_Key) bool {
 //
 // Java: ObjectType.isPropertyInExterns(String)
 func (o *ObjectTypeBase) IsPropertyInExterns(propertyName string) bool {
-	p := o.self.GetSlot(propertyName)
+	p := o.selfObj().GetSlot(propertyName)
 	if p == nil {
 		return false
 	}
@@ -842,7 +887,7 @@ func (o *ObjectTypeBase) IsPropertyInExterns(propertyName string) bool {
 //
 // Java: ObjectType.getPropertiesCount()
 func (o *ObjectTypeBase) GetPropertiesCount() int {
-	return o.self.GetPropertyMap().GetPropertiesCount()
+	return o.selfObj().GetPropertyMap().GetPropertiesCount()
 }
 
 // GetPropertyNames returns a list of properties defined or inferred on this
@@ -850,7 +895,7 @@ func (o *ObjectTypeBase) GetPropertiesCount() int {
 //
 // Java: ObjectType.getPropertyNames()
 func (o *ObjectTypeBase) GetPropertyNames() []string {
-	return o.self.GetPropertyMap().GetAllKeys().StringKeys()
+	return o.selfObj().GetPropertyMap().GetAllKeys().StringKeys()
 }
 
 // GetAllKeys returns a set of all KnownSymbolTypes properties defined on
@@ -858,17 +903,17 @@ func (o *ObjectTypeBase) GetPropertyNames() []string {
 //
 // Java: ObjectType.getAllKeys()
 func (o *ObjectTypeBase) GetAllKeys() *PropertyMap_AllKeys {
-	return o.self.GetPropertyMap().GetAllKeys()
+	return o.selfObj().GetPropertyMap().GetAllKeys()
 }
 
 // Java: ObjectType.visit(Visitor<T>)
 func (o *ObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseObjectType(o.self)
+	return visitor.CaseObjectType(o.selfObj())
 }
 
 // Java: ObjectType.visit(RelationshipVisitor<T>, JSType)
 func (o *ObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseObjectType(o.self, that)
+	return visitor.CaseObjectType(o.selfObj(), that)
 }
 
 // IsImplicitPrototypeOf returns whether this is on the implicit prototype
@@ -878,7 +923,7 @@ func (o *ObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JST
 //
 // Java: ObjectType.isImplicitPrototypeOf(ObjectType)
 func (o *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
-	unwrappedThis := ObjectType_DeeplyUnwrap(o.self)
+	unwrappedThis := ObjectType_DeeplyUnwrap(o.selfObj())
 
 	for other = ObjectType_DeeplyUnwrap(other); other != nil; other = ObjectType_DeeplyUnwrap(other.GetImplicitPrototype()) {
 		// The prototype should match exactly. NOTE: the use of "==" here rather
@@ -936,10 +981,11 @@ func (o *ObjectTypeBase) IsUnknownType() bool {
 	// If the object is unknown now, check the supertype again, because it
 	// might have been resolved since the last check.
 	if o.unknown {
-		implicitProto := o.self.GetImplicitPrototype()
+		self := o.selfObj()
+		implicitProto := self.GetImplicitPrototype()
 		if implicitProto == nil || implicitProto.IsNativeObjectType() {
 			o.unknown = false
-			for _, interfaceType := range o.self.GetCtorExtendedInterfaces() {
+			for _, interfaceType := range self.GetCtorExtendedInterfaces() {
 				if interfaceType.IsUnknownType() {
 					o.unknown = true
 					break
@@ -998,7 +1044,7 @@ func ObjectType_Cast(type_ JSType) ObjectType {
 
 // Java: ObjectType.isFunctionPrototypeType()
 func (o *ObjectTypeBase) IsFunctionPrototypeType() bool {
-	return o.self.GetOwnerFunction() != nil
+	return o.selfObj().GetOwnerFunction() != nil
 }
 
 // Java: ObjectType.getOwnerFunction()
@@ -1033,13 +1079,14 @@ func (o *ObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 //
 // Java: ObjectType.getPropertyTypeMap()
 func (o *ObjectTypeBase) GetPropertyTypeMap() *jutil.LinkedHashMap[string, JSType] {
+	self := o.selfObj()
 	propTypeMap := jutil.NewLinkedHashMap[string, JSType]()
-	for _, name := range o.self.GetPropertyNames() {
+	for _, name := range self.GetPropertyNames() {
 		if propTypeMap.ContainsKey(name) {
 			// ImmutableMap.Builder.buildOrThrow() rejects duplicate keys.
 			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + name))
 		}
-		propTypeMap.Put(name, o.self.GetPropertyType(name))
+		propTypeMap.Put(name, self.GetPropertyType(name))
 	}
 	return propTypeMap
 }

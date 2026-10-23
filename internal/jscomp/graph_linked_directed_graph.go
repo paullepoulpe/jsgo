@@ -845,19 +845,19 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 	// The overwhelming majority of nodes have in/out degree == 1.
 	// Initialize our lists to account for that.
 	//
-	// Go-only: performance — the lists and their capacity-2 arrays are held
+	// Go-only: performance — the lists and their capacity-1 arrays are held
 	// in the node (ArrayList.InitWithBuffer): one allocation per graph node
-	// instead of five.
-	inEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
-
-	outEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
-
-	inEdgeBuffer, outEdgeBuffer [2]DiGraph_DiGraphEdge[N, E]
-
-	value N
+	// instead of five, and scalar fields sit at the tail to minimize GC ptrdata.
+	inEdgeBuffer, outEdgeBuffer [1]DiGraph_DiGraphEdge[N, E]
 
 	// AnnotatedLinkedDiGraphNode
 	annotation Annotation
+
+	value N
+
+	inEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
+
+	outEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
 
 	priority  int32
 	annotated bool

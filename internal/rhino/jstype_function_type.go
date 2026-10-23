@@ -146,10 +146,10 @@ type FunctionTypeBase struct {
 }
 
 func (f *FunctionTypeBase) selfFunc() FunctionType {
-	if f.call.fnKind == FunctionType_Kind_NONE {
-		return f.ObjectTypeBase.self.(FunctionType)
+	if f.objFlags&objKindMask == objKindFunction {
+		return f
 	}
-	return f
+	return f.self.(FunctionType)
 }
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
@@ -242,6 +242,7 @@ var (
 // Java: FunctionType(Builder)
 func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
 	t := builder.registry.allocFunctionType()
+	t.objFlags = objKindFunction
 	t.InitFunctionTypeBase(t, builder)
 	return t
 }

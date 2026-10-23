@@ -37,6 +37,7 @@ type GraphReachability[N comparable, E any] struct {
 
 	edgePredicate func(*GraphReachability_EdgeTuple[N, E]) bool
 	edgeTuple     GraphReachability_EdgeTuple[N, E]
+	queue         []DiGraph_DiGraphNode[N, E]
 }
 
 // Java: GraphReachability(DiGraph<N, E>)
@@ -68,9 +69,13 @@ func (r *GraphReachability[N, E]) getNode(value N) DiGraph_DiGraphNode[N, E] {
 }
 
 func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N, E]) {
-	var queueBuf [16]DiGraph_DiGraphNode[N, E]
-	queue := queueBuf[:1]
-	queue[0] = startNode
+	var queue []DiGraph_DiGraphNode[N, E]
+	if cap(r.queue) > 0 {
+		queue = append(r.queue[:0], startNode)
+	} else {
+		queue = make([]DiGraph_DiGraphNode[N, E], 1, 32)
+		queue[0] = startNode
+	}
 	pred := r.edgePredicate
 	for head := 0; head < len(queue); head++ {
 		node := queue[head]
@@ -93,6 +98,12 @@ func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N,
 			destNode.SetAnnotation(GraphReachability_REACHABLE)
 			queue = append(queue, destNode)
 		}
+	}
+	clear(queue)
+	if cap(queue) <= 8192 {
+		r.queue = queue[:0]
+	} else {
+		r.queue = nil
 	}
 }
 

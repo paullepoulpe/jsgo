@@ -121,6 +121,7 @@ func (b *EnumType_Builder) Build() *EnumType {
 // Java: EnumType(Builder)
 func NewEnumType(builder *EnumType_Builder) *EnumType {
 	t := &EnumType{}
+	t.objFlags = objKindEnum
 	t.elements = jutil.NewLinkedHashSet[string]()
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
 	t.elementType = NewEnumElementType(builder.registry, builder.elementType, builder.elementName, t)

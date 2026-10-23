@@ -549,7 +549,6 @@ func (c *ReferenceCollector) getDummyFnScope(t *NodeTraversal) *Scope {
 	s.lookupParent = gs
 	s.depth = 1
 	s.scanDone = true
-	s.self = s
 	return s
 }
 

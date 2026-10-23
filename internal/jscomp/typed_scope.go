@@ -144,20 +144,22 @@ func (a *typedScopeArena) allocNames(n int) []string {
 type TypedScope struct {
 	AbstractScopeBase[*TypedScope, *TypedVar]
 
-	// Go-only: performance — held by value so declaring the first variable
-	// in a scope does not allocate a separate LinkedHashMap header.
-	vars jutil.LinkedHashMap[string, *TypedVar]
-
-	parent   *TypedScope
-	module   *Module
-	arena    *typedScopeArena
-	varBloom uint64
+	parent *TypedScope
+	module *Module
+	arena  *typedScopeArena
 
 	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
 	// elements from an empty set)
 	//
 	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
 	reservedNames []string
+
+	// Go-only: performance — held by value so declaring the first variable
+	// in a scope does not allocate a separate LinkedHashMap header; placed
+	// before varBloom so trailing scalar fields lie past GC ptrdata.
+	vars jutil.LinkedHashMap[string, *TypedVar]
+
+	varBloom uint64
 
 	// Scope.java contains an arguments field.
 	// We haven't added it here because it's unused by the passes that need typed scopes.
@@ -209,24 +211,8 @@ func newTypedScopeOwnedReservedNames(
 	s.InitAbstractScopeBase(s, rootNode)
 	if arena != nil {
 		slotCap := len(reservedNames)
-		if rootNode != nil {
-			if rootNode.IsFunction() {
-				if params := rootNode.GetSecondChild(); params != nil {
-					for p := params.GetFirstChild(); p != nil; p = p.GetNext() {
-						slotCap++
-					}
-				}
-				slotCap++
-			} else if rootNode.IsBlock() || rootNode.IsModuleBody() || rootNode.IsScript() {
-				for c := rootNode.GetFirstChild(); c != nil; c = c.GetNext() {
-					if c.IsLet() || c.IsConst() || c.IsClass() {
-						slotCap++
-					}
-				}
-				if slotCap > 0 || NodeUtil_IsFunctionBlock(rootNode) {
-					slotCap += 4
-				}
-			}
+		if module != nil {
+			slotCap += 4
 		}
 		if slotCap > 0 {
 			s.vars.InitWithBuffer(arena.allocVarSlots(slotCap))
@@ -263,6 +249,23 @@ func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope 
 	s.parent = nil
 	s.depth = 0
 	s.isBottom = isBottom
+	s.reservedNames = nil
+	s.module = nil
+	return s
+}
+
+func newGlobalTypedScopeWithCapacity(rootNode *rhino.Node, varCap int) *TypedScope {
+	s := &TypedScope{}
+	s.InitAbstractScopeBase(s, rootNode)
+	if varCap > 0 {
+		s.vars = *jutil.NewLinkedHashMapWithCapacity[string, *TypedVar](varCap)
+	} else {
+		s.vars.InitWithBuffer(nil)
+	}
+	s.CheckRootScope()
+	s.parent = nil
+	s.depth = 0
+	s.isBottom = false
 	s.reservedNames = nil
 	s.module = nil
 	return s

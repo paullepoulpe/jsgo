@@ -78,8 +78,7 @@ type PrototypeObjectType interface {
 type PrototypeObjectTypeBase struct {
 	ObjectTypeBase
 
-	className  *string
-	properties PropertyMap
+	className *string
 
 	// NOTE(nicksantos): The implicit prototype can change over time.
 	// Modeling this is a bear. Always call getImplicitPrototype(), because
@@ -91,6 +90,8 @@ type PrototypeObjectTypeBase struct {
 	// try to do this for multiple functions, then we'll have to create a new
 	// one.
 	ownerFunction *FunctionTypeBase
+
+	properties PropertyMap
 
 	templateParamCount int32
 	nativeType         bool
@@ -114,6 +115,7 @@ const PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
 // Java: PrototypeObjectType(Builder<?>)
 func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *PrototypeObjectTypeBase {
 	t := builder.registry.allocPrototypeObjectType()
+	t.objFlags = objKindPrototype
 	t.InitPrototypeObjectTypeBase(t, builder)
 	return t
 }
@@ -130,7 +132,9 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	p.nativeType = builder.nativeType
 	p.anonymousType = builder.anonymousType
 
-	p.properties.SetParentSource(self)
+	p.properties.sorted = true
+	p.properties.embeddedInProto = true
+	p.properties.cachedKeySetCounter = 1
 
 	if p.nativeType || builder.implicitPrototype != nil {
 		p.SetImplicitPrototype(builder.implicitPrototype)
@@ -277,7 +281,7 @@ func (p *PrototypeObjectTypeBase) GetPropertyMap() *PropertyMap {
 
 // Java: PrototypeObjectType.defineProperty(Property.Key, JSType, boolean, Node)
 func (p *PrototypeObjectTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
-	if p.self.HasOwnDeclaredPropertyByKey(name) {
+	if p.selfObj().HasOwnDeclaredPropertyByKey(name) {
 		return false
 	}
 	newProp := NewPropertyByKey(name, type_, inferred, propertyNode)
@@ -293,7 +297,8 @@ func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Propert
 			// If docInfo was attached, but the type of the property was not
 			// defined anywhere, then we consider this an explicit declaration of
 			// the property.
-			p.self.DefineInferredPropertyByKey(propertyName, p.self.GetPropertyTypeByKey(propertyName), nil)
+			self := p.selfObj()
+			self.DefineInferredPropertyByKey(propertyName, self.GetPropertyTypeByKey(propertyName), nil)
 			property = p.properties.GetOwnPropertyByKey(propertyName)
 		}
 
@@ -351,7 +356,7 @@ func (p *PrototypeObjectTypeBase) HasOverriddenNativeProperty(propertyName strin
 		return false
 	}
 
-	propertyType := p.self.GetPropertyType(propertyName)
+	propertyType := p.selfObj().GetPropertyType(propertyName)
 	var nativeType ObjectType
 	if p.self.IsFunctionType() {
 		nativeType = p.registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE)
@@ -413,11 +418,12 @@ func PrototypeObjectType_PROP_COMPARATOR(thisProp, otherProp PrototypeObjectType
 
 // Java: PrototypeObjectType.appendTo(TypeStringBuilder)
 func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
-	if p.self.HasReferenceName() {
+	self := p.selfObj()
+	if self.HasReferenceName() {
 		if sb.IsForAnnotations() {
-			sb.Append(*p.self.GetNormalizedReferenceName())
+			sb.Append(*self.GetNormalizedReferenceName())
 		} else {
-			sb.Append(*p.self.GetReferenceName())
+			sb.Append(*self.GetReferenceName())
 		}
 		return
 	}
@@ -436,7 +442,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 
 	// Use a tree set so that the properties are sorted.
 	properties := jutil.NewTreeSet[PrototypeObjectType_PropertyForPrettyPrinting](PrototypeObjectType_PROP_COMPARATOR)
-	for current := ObjectType(p.self); current != nil; current = current.GetImplicitPrototype() {
+	for current := self; current != nil; current = current.GetImplicitPrototype() {
 		if current.IsNativeObjectType() || properties.Size() > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
 			break
 		}
@@ -513,7 +519,7 @@ func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
 //
 // Java: PrototypeObjectType.setImplicitPrototype(ObjectType)
 func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectType) {
-	jutil.CheckState(!p.self.HasCachedValues())
+	jutil.CheckState(!p.selfObj().HasCachedValues())
 	p.implicitPrototypeFallback = implicitPrototype
 	if p.registry != nil {
 		p.registry.leastSupertypeGen++
@@ -578,7 +584,7 @@ func (p *PrototypeObjectTypeBase) GetOwnerFunction() FunctionType {
 // Java: PrototypeObjectType.getCtorImplementedInterfaces()
 func (p *PrototypeObjectTypeBase) GetCtorImplementedInterfaces() []ObjectType {
 	if p.self.IsFunctionPrototypeType() {
-		return p.self.GetOwnerFunction().GetImplementedInterfaces()
+		return p.selfObj().GetOwnerFunction().GetImplementedInterfaces()
 	}
 	return []ObjectType{}
 }
@@ -586,14 +592,14 @@ func (p *PrototypeObjectTypeBase) GetCtorImplementedInterfaces() []ObjectType {
 // Java: PrototypeObjectType.getCtorExtendedInterfaces()
 func (p *PrototypeObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 	if p.self.IsFunctionPrototypeType() {
-		return p.self.GetOwnerFunction().GetExtendedInterfaces()
+		return p.selfObj().GetOwnerFunction().GetExtendedInterfaces()
 	}
 	return []ObjectType{}
 }
 
 // Java: PrototypeObjectType.resolveInternal(ErrorReporter)
 func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
-	implicitPrototype := p.self.GetImplicitPrototype()
+	implicitPrototype := p.selfObj().GetImplicitPrototype()
 	if implicitPrototype != nil {
 		p.implicitPrototypeFallback = implicitPrototype.Resolve(reporter).(ObjectType)
 	}
@@ -608,7 +614,7 @@ func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType
 // Java: PrototypeObjectType.matchConstraint(JSType)
 func (p *PrototypeObjectTypeBase) MatchConstraint(constraint JSType) {
 	// We only want to match constraints on anonymous types.
-	if p.self.HasReferenceName() {
+	if p.selfObj().HasReferenceName() {
 		return
 	}
 
@@ -634,14 +640,15 @@ func (p *PrototypeObjectTypeBase) MatchConstraint(constraint JSType) {
 
 // Java: PrototypeObjectType.matchRecordTypeConstraint(ObjectType)
 func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj ObjectType) {
+	self := p.selfObj()
 	for _, prop := range constraintObj.GetOwnPropertyNames() {
 		propType := constraintObj.GetPropertyType(prop)
-		if !p.self.IsPropertyTypeDeclared(prop) {
+		if !self.IsPropertyTypeDeclared(prop) {
 			typeToInfer := propType
 			if !p.self.HasProperty(prop) {
 				typeToInfer = p.GetNativeType(JSTypeNative_VOID_TYPE).GetLeastSupertype(propType)
 			}
-			p.self.DefineInferredProperty(prop, typeToInfer, nil)
+			self.DefineInferredProperty(prop, typeToInfer, nil)
 		}
 	}
 }

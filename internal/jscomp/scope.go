@@ -672,7 +672,6 @@ func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.LenientFormat("rootNode should not be the parent's root node: %s", rootNode)))
 	}
-	s.self = s
 	s.rootNode = rootNode
 	s.parent = parent
 	s.depth = parent.depth + 1
@@ -725,7 +724,6 @@ func initScope(s *Scope, rootNode *rhino.Node) {
 	if !NodeUtil_CreatesScope(rootNode) && !rootNode.IsScript() && !rootNode.IsRoot() {
 		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", rootNode)))
 	}
-	s.self = s
 	s.rootNode = rootNode
 	s.initLookupChain(nil)
 }
