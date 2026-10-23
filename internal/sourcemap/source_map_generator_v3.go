@@ -19,10 +19,10 @@
 package sourcemap
 
 import (
+	"encoding/binary"
 	"io"
 	"strconv"
 	"strings"
-	"sync"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -55,8 +55,12 @@ type SourceMapGeneratorV3 struct {
 	hasLastSymbolName   bool
 	lastSymbolNameIndex int
 
-	// For validation store the last mapping added.
-	lastMapping *SourceMapGeneratorV3_Mapping
+	// The mappings, in the order they were added.
+	//
+	// Go-only: performance — stored delta-encoded (see
+	// sourceMapGeneratorV3_mappingStore) rather than as Mapping objects: a
+	// big build keeps millions of them alive through the whole output.
+	mappings sourceMapGeneratorV3_mappingStore
 
 	// The position that the current source map is offset in the buffer being
 	// used to generated the compiled source file.
@@ -75,8 +79,6 @@ type SourceMapGeneratorV3 struct {
 	// values on the source entry.
 	sourceRootPath *string
 
-	mappingChunks          [][]SourceMapGeneratorV3_Mapping
-	mappingSlab            []SourceMapGeneratorV3_Mapping
 	addedSourceFiles       []string
 	addedSourceFileIndex   map[string]int32
 	sourceIdxToFileId      []int32
@@ -91,18 +93,91 @@ type SourceMapGeneratorV3 struct {
 	lastAddedSymbolName    string
 	hasLastAddedSymbolName bool
 	lastAddedSymbolNameIdx int32
-	mappingChunksBuf       [16][]SourceMapGeneratorV3_Mapping
 	addedSourceFilesBuf    [16]string
 	addedSymbolNamesBuf    [16]string
-	mappingBuf             [16]SourceMapGeneratorV3_Mapping
 }
 
-const sourceMapGeneratorV3_mappingSlabSize = 16384
+// sourceMapGeneratorV3_mappingStore holds a sequence of mappings, each one
+// encoded as the zigzag varint differences of its fields from those of the
+// previous mapping (about 10 bytes instead of 32).
+//
+// Go-only: performance.
+type sourceMapGeneratorV3_mappingStore struct {
+	blocks [][]byte // full blocks, then cur
+	cur    []byte
+	n      int
+	last   SourceMapGeneratorV3_Mapping // the last mapping added
+}
 
-var sourceMapGeneratorV3_mappingSlabPool = sync.Pool{
-	New: func() any {
-		return new([sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)
-	},
+const (
+	sourceMapGeneratorV3_mappingBlockSize  = 64 << 10
+	sourceMapGeneratorV3_maxEncodedMapping = 8 * binary.MaxVarintLen64
+)
+
+func (s *sourceMapGeneratorV3_mappingStore) reset() {
+	*s = sourceMapGeneratorV3_mappingStore{}
+}
+
+func (s *sourceMapGeneratorV3_mappingStore) add(m *SourceMapGeneratorV3_Mapping) {
+	if cap(s.cur)-len(s.cur) < sourceMapGeneratorV3_maxEncodedMapping {
+		if s.cur != nil {
+			s.blocks = append(s.blocks, s.cur)
+		}
+		s.cur = make([]byte, 0, sourceMapGeneratorV3_mappingBlockSize)
+	}
+	p := &s.last
+	b := s.cur
+	b = binary.AppendVarint(b, int64(m.startLine)-int64(p.startLine))
+	b = binary.AppendVarint(b, int64(m.startCol)-int64(p.startCol))
+	b = binary.AppendVarint(b, int64(m.endLine)-int64(m.startLine))
+	b = binary.AppendVarint(b, int64(m.endCol)-int64(m.startCol))
+	b = binary.AppendVarint(b, int64(m.sourceFileIdx)-int64(p.sourceFileIdx))
+	b = binary.AppendVarint(b, int64(m.originalLine)-int64(p.originalLine))
+	b = binary.AppendVarint(b, int64(m.originalCol)-int64(p.originalCol))
+	b = binary.AppendVarint(b, int64(m.originalNameIdx)-int64(p.originalNameIdx))
+	s.cur = b
+	s.last = *m
+	s.n++
+}
+
+// sourceMapGeneratorV3_mappingReader decodes a mappingStore in order.
+type sourceMapGeneratorV3_mappingReader struct {
+	store *sourceMapGeneratorV3_mappingStore
+	block int
+	buf   []byte
+	prev  SourceMapGeneratorV3_Mapping
+}
+
+func (r *sourceMapGeneratorV3_mappingReader) varint() int32 {
+	v, n := binary.Varint(r.buf)
+	r.buf = r.buf[n:]
+	return int32(v)
+}
+
+// next decodes the next mapping into m, and reports whether there was one.
+func (r *sourceMapGeneratorV3_mappingReader) next(m *SourceMapGeneratorV3_Mapping) bool {
+	for len(r.buf) == 0 {
+		switch {
+		case r.block < len(r.store.blocks):
+			r.buf = r.store.blocks[r.block]
+		case r.block == len(r.store.blocks):
+			r.buf = r.store.cur
+		default:
+			return false
+		}
+		r.block++
+	}
+	p := &r.prev
+	m.startLine = p.startLine + r.varint()
+	m.startCol = p.startCol + r.varint()
+	m.endLine = m.startLine + r.varint()
+	m.endCol = m.startCol + r.varint()
+	m.sourceFileIdx = p.sourceFileIdx + r.varint()
+	m.originalLine = p.originalLine + r.varint()
+	m.originalCol = p.originalCol + r.varint()
+	m.originalNameIdx = p.originalNameIdx + r.varint()
+	*p = *m
+	return true
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -128,8 +203,6 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 // Java: SourceMapGeneratorV3()
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g := &SourceMapGeneratorV3{}
-	g.mappingChunks = g.mappingChunksBuf[:0:len(g.mappingChunksBuf)]
-	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
 	g.addedSourceFiles = g.addedSourceFilesBuf[:0:len(g.addedSourceFilesBuf)]
 	g.lastAddedSourceFileIdx = -1
 	g.addedSymbolNames = g.addedSymbolNamesBuf[:0:len(g.addedSymbolNamesBuf)]
@@ -150,18 +223,7 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 // Java: SourceMapGeneratorV3.reset()
 func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
-	for i, chunk := range g.mappingChunks {
-		if cap(chunk) == sourceMapGeneratorV3_mappingSlabSize {
-			sourceMapGeneratorV3_mappingSlabPool.Put((*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)(chunk[:cap(chunk)]))
-		}
-		g.mappingChunks[i] = nil
-	}
-	g.mappingChunks = g.mappingChunks[:0]
-	if cap(g.mappingSlab) == sourceMapGeneratorV3_mappingSlabSize {
-		sourceMapGeneratorV3_mappingSlabPool.Put((*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)(g.mappingSlab[:cap(g.mappingSlab)]))
-	}
-	clear(g.mappingBuf[:])
-	g.mappingSlab = g.mappingBuf[:0:len(g.mappingBuf)]
+	g.mappings.reset()
 	clear(g.addedSourceFiles)
 	g.addedSourceFiles = g.addedSourceFiles[:0]
 	clear(g.addedSourceFileIndex)
@@ -180,7 +242,6 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastAddedSymbolName = ""
 	g.hasLastAddedSymbolName = false
 	g.lastAddedSymbolNameIdx = -1
-	g.lastMapping = nil
 	if g.sourceFileMap != nil {
 		g.sourceFileMap.Clear()
 	}
@@ -195,24 +256,6 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastSymbolNameIndex = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
-}
-
-func (g *SourceMapGeneratorV3) allocMapping() *SourceMapGeneratorV3_Mapping {
-	if len(g.mappingSlab) == cap(g.mappingSlab) {
-		if len(g.mappingSlab) > 0 {
-			g.mappingChunks = append(g.mappingChunks, g.mappingSlab)
-		}
-		newCap := min(max(cap(g.mappingSlab)*4, 64), sourceMapGeneratorV3_mappingSlabSize)
-		if newCap == sourceMapGeneratorV3_mappingSlabSize {
-			arr := sourceMapGeneratorV3_mappingSlabPool.Get().(*[sourceMapGeneratorV3_mappingSlabSize]SourceMapGeneratorV3_Mapping)
-			g.mappingSlab = arr[:0:sourceMapGeneratorV3_mappingSlabSize]
-		} else {
-			g.mappingSlab = make([]SourceMapGeneratorV3_Mapping, 0, newCap)
-		}
-	}
-	i := len(g.mappingSlab)
-	g.mappingSlab = g.mappingSlab[:i+1]
-	return &g.mappingSlab[i]
 }
 
 // Validate sets whether to perform (potentially costly) validation on the
@@ -315,9 +358,9 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	}
 
 	// Validate the mappings are in a proper order.
-	if g.lastMapping != nil {
-		lastLine := g.lastMapping.startLine
-		lastColumn := g.lastMapping.startCol
+	if g.mappings.n > 0 {
+		lastLine := g.mappings.last.startLine
+		lastColumn := g.mappings.last.startCol
 		nextLine := int32(adjustedStart.GetLine())
 		nextColumn := int32(adjustedStart.GetColumn())
 		// Go-only: language-adapter — the message arguments are boxed only on
@@ -413,17 +456,17 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	}
 
 	// Create the new mapping.
-	mapping := g.allocMapping()
-	mapping.sourceFileIdx = sourceFileIdx
-	mapping.originalLine = int32(sourceStartPosition.GetLine())
-	mapping.originalCol = int32(sourceStartPosition.GetColumn())
-	mapping.originalNameIdx = originalNameIdx
-	mapping.startLine = int32(adjustedStart.GetLine())
-	mapping.startCol = int32(adjustedStart.GetColumn())
-	mapping.endLine = int32(adjustedEnd.GetLine())
-	mapping.endCol = int32(adjustedEnd.GetColumn())
-
-	g.lastMapping = mapping
+	mapping := SourceMapGeneratorV3_Mapping{
+		sourceFileIdx:   sourceFileIdx,
+		originalLine:    int32(sourceStartPosition.GetLine()),
+		originalCol:     int32(sourceStartPosition.GetColumn()),
+		originalNameIdx: originalNameIdx,
+		startLine:       int32(adjustedStart.GetLine()),
+		startCol:        int32(adjustedStart.GetColumn()),
+		endLine:         int32(adjustedEnd.GetLine()),
+		endCol:          int32(adjustedEnd.GetColumn()),
+	}
+	g.mappings.add(&mapping)
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
@@ -875,6 +918,12 @@ type SourceMapGeneratorV3_MappingTraversal struct {
 	// The last line and column written
 	line int
 	col  int
+
+	// Go-only: performance — the decoded mapping being visited, the one
+	// being closed, and the stack of open ones (fields, so that taking
+	// their addresses does not allocate per mapping).
+	cur, closing SourceMapGeneratorV3_Mapping
+	stack        []SourceMapGeneratorV3_Mapping
 }
 
 // Java: SourceMapGeneratorV3.MappingTraversal()
@@ -889,53 +938,37 @@ func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_
 	// The mapping list is ordered as a pre-order traversal. The mapping
 	// positions give us enough information to rebuild the stack and this
 	// allows the building of the source map in O(n) time.
-	var stackBuf [64]*SourceMapGeneratorV3_Mapping
-	stack := stackBuf[:0]
-	for _, chunk := range t.outer.mappingChunks {
-		for i := range chunk {
-			m := &chunk[i]
-			for len(stack) > 0 && !t.IsOverlapped(stack[len(stack)-1], m) {
-				previous := stack[len(stack)-1]
-				stack = stack[:len(stack)-1]
-				t.MaybeVisit(v, previous)
-			}
-			var parent *SourceMapGeneratorV3_Mapping
-			if len(stack) > 0 {
-				parent = stack[len(stack)-1]
-			}
-			t.MaybeVisitParent(v, parent, m)
-			stack = append(stack, m)
-		}
-	}
-	for i := range t.outer.mappingSlab {
-		m := &t.outer.mappingSlab[i]
+	t.stack = t.stack[:0]
+	r := sourceMapGeneratorV3_mappingReader{store: &t.outer.mappings}
+	for r.next(&t.cur) {
+		m := &t.cur
 		// Find the closest ancestor of the current mapping:
 		// An overlapping mapping is an ancestor of the current mapping, any
 		// non-overlapping mappings are siblings (or cousins) and must be
 		// closed in the reverse order of when they encountered.
-		for len(stack) > 0 && !t.IsOverlapped(stack[len(stack)-1], m) {
-			previous := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			t.MaybeVisit(v, previous)
+		for len(t.stack) > 0 && !t.IsOverlapped(&t.stack[len(t.stack)-1], m) {
+			t.closing = t.stack[len(t.stack)-1]
+			t.stack = t.stack[:len(t.stack)-1]
+			t.MaybeVisit(v, &t.closing)
 		}
 
 		// Any gaps between the current line position and the start of the
 		// current mapping belong to the parent.
 		var parent *SourceMapGeneratorV3_Mapping
-		if len(stack) > 0 {
-			parent = stack[len(stack)-1]
+		if len(t.stack) > 0 {
+			parent = &t.stack[len(t.stack)-1]
 		}
 		t.MaybeVisitParent(v, parent, m)
 
-		stack = append(stack, m)
+		t.stack = append(t.stack, *m)
 	}
 
 	// There are no more children to be had, simply close the remaining
 	// mappings in the reverse order of when they encountered.
-	for len(stack) > 0 {
-		m := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		t.MaybeVisit(v, m)
+	for len(t.stack) > 0 {
+		t.closing = t.stack[len(t.stack)-1]
+		t.stack = t.stack[:len(t.stack)-1]
+		t.MaybeVisit(v, &t.closing)
 	}
 }
 

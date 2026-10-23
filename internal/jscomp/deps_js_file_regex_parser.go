@@ -371,7 +371,10 @@ func (p *JsFileRegexParser) applyGoogMatcher(line string) bool {
 
 		if providesNamespace || isRequire {
 			// Parse the param.
-			arg := p.ParseJsString(line[m[2*jsFileRegexParser_googArgsGroup]:m[2*jsFileRegexParser_googArgsGroup+1]])
+			//
+			// Go-only: performance — clone the name: a substring would keep
+			// the whole file text alive as long as the DependencyInfo.
+			arg := strings.Clone(p.ParseJsString(line[m[2*jsFileRegexParser_googArgsGroup]:m[2*jsFileRegexParser_googArgsGroup+1]]))
 			// Add the dependency.
 			if isRequire {
 				if methodName == "requireType" {
@@ -435,7 +438,8 @@ func (p *JsFileRegexParser) ParseLine(line string) bool {
 				lineHasProvidesOrRequires = true
 
 				if m[2] >= 0 {
-					arg := line[6+m[2] : 6+m[3]]
+					// Go-only: performance — cloned, as in applyGoogMatcher.
+					arg := strings.Clone(line[6+m[2] : 6+m[3]])
 					if strings.HasPrefix(arg, "goog:") {
 						// cut off the "goog:" prefix
 						p.requires = append(p.requires, DependencyInfo_Require_GoogRequireSymbol(arg[5:]))
