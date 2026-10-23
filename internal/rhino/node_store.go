@@ -229,3 +229,16 @@ func NodeChunksAllocated() int {
 
 // NodeChunkCapacity is the number of nodes a chunk holds.
 const NodeChunkCapacity = nodeChunkSlots - 1
+
+// NodeChunksLive returns the number of chunks whose table slot is still
+// set, i.e. chunks of generations that have not been released (for tests:
+// a generation is released once nothing references any of its nodes).
+func NodeChunksLive() int {
+	live := 0
+	for k := uint32(1); k < nodeChunkNext.Load(); k++ {
+		if nodeChunkSlot(k).Load() != nil {
+			live++
+		}
+	}
+	return live
+}

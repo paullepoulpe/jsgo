@@ -436,6 +436,9 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
+	// Go-only: the nodes of this compilation get their own generation
+	// (rhino/node_store.go); compaction later replaces it.
+	rhino.NewNodeGeneration()
 	c := &Compiler{}
 	c.InitAbstractCompilerBase(c)
 	c.initFields()

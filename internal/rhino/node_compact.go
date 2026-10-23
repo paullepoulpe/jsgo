@@ -75,7 +75,12 @@ func (k *Compactor) copyNode(old *Node) *Node {
 	g := k.genOf(old)
 	if _, seen := k.old[g]; !seen {
 		if g == nodeInitialGen && NodePoisonMode {
-			panic("rhino.Compactor: a node of the initial generation (a package-level sentinel) is in the compacted tree")
+			r := old
+			for r.parent != 0 {
+				r = nodeAt(r.parent)
+			}
+			panic(fmt.Sprintf("rhino.Compactor: a node of the initial generation (a package-level sentinel) is in the compacted tree: %s (root %s, source %s, extra root: %v)",
+				old, r, r.GetSourceFileName(), k.inExtra))
 		}
 		k.old[g] = struct{}{}
 	}
@@ -178,7 +183,9 @@ func (k *Compactor) Forward(n *Node) *Node {
 	if n.previous == nodeForwardMarker {
 		return nodeAt(n.next)
 	}
-	if k.genOf(n) == k.gen {
+	if g := k.genOf(n); g == k.gen || g == nodeInitialGen {
+		// Already copied, or a package-level sentinel (the initial
+		// generation is never released, so holders may keep it).
 		return n
 	}
 	r := n
@@ -189,7 +196,9 @@ func (k *Compactor) Forward(n *Node) *Node {
 		}
 	}
 	before := k.Copied
+	k.inExtra = true
 	k.copyTree(r)
+	k.inExtra = false
 	k.ExtraRoots++
 	k.ExtraNodes += k.Copied - before
 	return nodeAt(n.next)
