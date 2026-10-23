@@ -34,7 +34,7 @@ func NewMaxSlab[T any](maxChunk int) Slab[T] {
 }
 
 const (
-	slabMinChunk = 16
+	slabMinChunk = 4
 	slabMaxChunk = 128
 )
 
@@ -51,7 +51,8 @@ func (s *Slab[T]) New() *T {
 
 // grow starts a new chunk, twice the size of the last one up to
 // slabMaxChunk (or s.maxChunk) elements, so that a slab that serves few
-// objects stays small. The chunk gets every element its allocation's size
+// objects stays small (many slabs serve only a handful: a scope creator's
+// scopes for one function, say). The chunk gets every element its allocation's size
 // class holds: Go rounds an allocation up to a size class (after putting an
 // 8-byte header in front of a pointerful one over 512 bytes), so make([]T, n)
 // would leave up to 15% of the chunk's memory unused.
@@ -64,7 +65,14 @@ func (s *Slab[T]) grow() {
 		}
 		n = min(max(2*len(s.chunk), slabMinChunk), maxC)
 	}
-	s.chunk = slices.Grow([]T(nil), n)
-	s.chunk = s.chunk[:cap(s.chunk)]
+	s.chunk = SlabChunk[T](n)
 	s.used = 0
+}
+
+// SlabChunk returns a zeroed []T of at least n elements, as many as the
+// allocation's size class holds (see Slab.grow), for callers that carve
+// small slices out of shared chunks.
+func SlabChunk[T any](n int) []T {
+	c := slices.Grow([]T(nil), n)
+	return c[:cap(c)]
 }

@@ -83,6 +83,17 @@ type ReferenceCollector struct {
 	lastCollection  *ReferenceCollection
 	lastRejectedVar *Var
 
+	// Go-only: performance — the references, their collections, the first
+	// slots of each reference list and the basic blocks are allocated in
+	// slabs owned by this collector: they are created together and die
+	// together with refs (see jutil.Slab). Those of local vars (index
+	// rcLocal) are kept apart from those of global vars (rcGlobal), so that
+	// reclaiming a function's locals frees their chunks.
+	refSlab [2]jutil.Slab[Reference]
+	colSlab [2]jutil.Slab[ReferenceCollection]
+	refBufs [2][]*Reference
+	blocks  jutil.Slab[BasicBlock]
+
 	// The stack of basic blocks and scopes the current traversal is in.
 	//
 	// Go-only: language-adapter — the ArrayDeque, first element first. Go-only:
@@ -172,7 +183,13 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	key := scopedVarKeyOf(v)
 	col := c.refs[key]
 	if col == nil {
-		col = &ReferenceCollection{varScope: v.scope}
+		k := rcGlobal
+		if v.scope.parent != nil {
+			k = rcLocal
+		}
+		col = c.colSlab[k].New()
+		col.varScope = v.scope
+		col.references.InitWithBuffer(c.newRefBuffer(k))
 		if c.refs == nil {
 			c.refs = make(map[scopedVarKey]*ReferenceCollection)
 		}
@@ -186,6 +203,28 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 	c.lastVar = v
 	c.lastCollection = col
 	return col
+}
+
+const (
+	rcGlobal = 0 // slabs of the global scope's vars
+	rcLocal  = 1 // slabs of local vars, reclaimed with their function
+
+	// rcRefBufSlots is how many *Reference slots a new reference list gets
+	// (most vars have a few references); rcRefBufChunk is the size of the
+	// pointer chunks those slots are carved from.
+	rcRefBufSlots = 4
+	rcRefBufChunk = 252 // 2 KB with the 8-byte header of a pointerful allocation
+)
+
+// newRefBuffer returns the initial buffer of a reference list, carved from
+// a shared chunk; a list that outgrows it moves to its own array.
+func (c *ReferenceCollector) newRefBuffer(k int) []*Reference {
+	buf := c.refBufs[k]
+	if len(buf) < rcRefBufSlots {
+		buf = jutil.SlabChunk[*Reference](rcRefBufChunk)
+	}
+	c.refBufs[k] = buf[rcRefBufSlots:]
+	return buf[:rcRefBufSlots:rcRefBufSlots]
 }
 
 func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot *rhino.Node, nameID uint32) *ReferenceCollection {
@@ -449,7 +488,7 @@ func (c *ReferenceCollector) materializeBlock(idx int) *BasicBlock {
 		parent = c.blockStack[i-1].block
 	}
 	for ; i <= idx; i++ {
-		parent = NewBasicBlock(parent, c.blockStack[i].root)
+		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
 		c.blockStack[i].block = parent
 	}
 	return parent
@@ -652,7 +691,13 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *Nod
 	if t.compilerInput == nil {
 		inputId = t.GetInput().GetInputId()
 	}
-	collection.Add(newReferenceWithScopeAndInputId(n, c.getCurrentBlock(), scope, inputId))
+	k := rcGlobal
+	if collection.varScope.parent != nil {
+		k = rcLocal
+	}
+	r := c.refSlab[k].New()
+	*r = Reference{nameNode: n, basicBlock: c.getCurrentBlock(), scope: scope, inputId: inputId}
+	collection.Add(r)
 }
 
 // ReferenceCollector_ReferenceMapWrapper is the ReferenceMap handed to

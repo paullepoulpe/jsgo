@@ -98,6 +98,11 @@ type CrossChunkReferenceCollector struct {
 	blockStack    []*BasicBlock
 	blockStackBuf [16]*BasicBlock
 
+	// Go-only: performance — one collection's blocks and references die
+	// together with it (see jutil.Slab).
+	blocks  jutil.Slab[BasicBlock]
+	refSlab jutil.Slab[Reference]
+
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
 
@@ -577,7 +582,8 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, pa
 							c.lastCollection = col
 						}
 					}
-					reference := newReferenceWithScopeAndInputId(n, crossChunkReferenceCollector_peek(c.blockStack), scope, t.GetInput().GetInputId())
+					reference := c.refSlab.New()
+					*reference = Reference{nameNode: n, basicBlock: crossChunkReferenceCollector_peek(c.blockStack), scope: scope, inputId: t.GetInput().GetInputId()}
 					if n == c.topLevelStatementDraft.declaredNameNode {
 						c.topLevelStatementDraft.declaredNameReference = reference
 						c.topLevelStatementDraft.declaredVar = v
@@ -609,7 +615,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, NewBasicBlock(parent, n))
+		c.blockStack = append(c.blockStack, initBasicBlock(c.blocks.New(), parent, n))
 	}
 }
 
@@ -630,7 +636,7 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, NewBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
+		c.blockStack = append(c.blockStack, initBasicBlock(c.blocks.New(), crossChunkReferenceCollector_peek(c.blockStack), n))
 	}
 	return true
 }

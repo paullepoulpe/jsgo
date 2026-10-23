@@ -39,9 +39,32 @@ type SyntacticScopeCreator struct {
 	// garbage with its scopes at the end of a pass, are allocated in chunks;
 	// varScratch collects a scope's vars while it is scanned, so that its
 	// varList is allocated once, at its final size.
+	// scopes and varLists do the same for the scopes themselves and for the
+	// var lists of small scopes (carved from shared pointer chunks); a Var
+	// keeps its Scope alive anyway, so the scopes die with the vars.
 	vars       jutil.Slab[Var]
+	scopes     jutil.Slab[Scope]
+	varLists   []*Var
 	varScratch []*Var
 	scanning   bool
+}
+
+// syntacticScopeCreator_varListChunk is the size of the pointer chunks var
+// lists are carved from; a list longer than a quarter of it is allocated on
+// its own.
+const syntacticScopeCreator_varListChunk = 508 // 4 KB with the 8-byte header of a pointerful allocation
+
+// newVarList returns a zeroed []*Var of length and capacity n.
+func (c *SyntacticScopeCreator) newVarList(n int) []*Var {
+	if n > syntacticScopeCreator_varListChunk/4 {
+		return make([]*Var, n)
+	}
+	if len(c.varLists) < n {
+		c.varLists = jutil.SlabChunk[*Var](syntacticScopeCreator_varListChunk)
+	}
+	l := c.varLists[:n:n]
+	c.varLists = c.varLists[n:]
+	return l
 }
 
 // The arguments variable is special, in that it's declared for every function,
@@ -100,7 +123,7 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 	if parent == nil {
 		scope = newScope(n)
 	} else {
-		scope = newScopeWithParent(parent, n)
+		scope = initScopeWithParent(c.scopes.New(), parent, n)
 	}
 	// Go-only: performance — the scanner, which nothing keeps, is a local
 	// variable rather than a heap object (one per scope created).
@@ -116,7 +139,7 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 		vs := scope.varList
 		scope.varList = nil
 		if len(vs) > 0 {
-			scope.varList = make([]*Var, len(vs))
+			scope.varList = c.newVarList(len(vs))
 			copy(scope.varList, vs)
 			clear(vs)
 		}

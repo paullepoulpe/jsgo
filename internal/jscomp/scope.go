@@ -117,7 +117,7 @@ type Scope struct {
 	parent       *Scope
 	lookupParent *Scope
 	varList      []*Var
-	varIndex     map[uint32]int32
+	varIndex     []int32 // see ownIndex
 	varBloom     uint64
 }
 
@@ -143,7 +143,13 @@ func newScopeWithParent(parent *Scope, rootNode *rhino.Node) *Scope {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.LenientFormat("rootNode should not be the parent's root node: %s", rootNode)))
 	}
-	s := &Scope{parent: parent}
+	return initScopeWithParent(new(Scope), parent, rootNode)
+}
+
+// initScopeWithParent is newScopeWithParent on a zero Scope (one a
+// SyntacticScopeCreator's slab handed out).
+func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) *Scope {
+	s.parent = parent
 	s.rootNode = rootNode
 	s.depth = parent.depth + 1
 	s.initLookupChain(parent)
@@ -266,10 +272,19 @@ func (s *Scope) ownIndex(id uint32, bloom uint64) int {
 		return -1
 	}
 	if s.varIndex != nil {
-		if i, ok := s.varIndex[id]; ok {
-			return int(i)
+		// Go-only: performance — an open-addressing table of varList
+		// positions + 1 (0 = empty), pointer-free and one allocation, at
+		// most half full.
+		mask := uint32(len(s.varIndex) - 1)
+		for slot := scopeIDHash(id) & mask; ; slot = (slot + 1) & mask {
+			e := s.varIndex[slot]
+			if e == 0 {
+				return -1
+			}
+			if s.varList[e-1].nameID == id {
+				return int(e - 1)
+			}
 		}
-		return -1
 	}
 	for i, v := range s.varList {
 		if v.nameID == id {
@@ -468,10 +483,7 @@ func (s *Scope) UndeclareInteral(var_ *Var) {
 	}
 	s.varList = slices.Delete(s.varList, i, i+1)
 	if s.varIndex != nil {
-		delete(s.varIndex, id)
-		for j := i; j < len(s.varList); j++ {
-			s.varIndex[s.varList[j].nameID] = int32(j)
-		}
+		s.rebuildVarIndex()
 	}
 	if len(s.varList) == 0 {
 		s.varBloom = 0
@@ -483,13 +495,35 @@ func (s *Scope) addVar(var_ *Var) {
 	s.varsInitialized = true
 	s.varBloom |= scopeBloomFromID(var_.nameID)
 	s.varList = append(s.varList, var_)
-	if s.varIndex != nil {
-		s.varIndex[var_.nameID] = int32(len(s.varList) - 1)
+	if len(s.varList)*2 <= len(s.varIndex) {
+		s.indexVar(len(s.varList) - 1)
 	} else if len(s.varList) > scopeSmallVars {
-		s.varIndex = make(map[uint32]int32, len(s.varList))
-		for i, v := range s.varList {
-			s.varIndex[v.nameID] = int32(i)
-		}
+		s.rebuildVarIndex()
+	}
+}
+
+// indexVar adds varList[i] to varIndex.
+func (s *Scope) indexVar(i int) {
+	mask := uint32(len(s.varIndex) - 1)
+	slot := scopeIDHash(s.varList[i].nameID) & mask
+	for s.varIndex[slot] != 0 {
+		slot = (slot + 1) & mask
+	}
+	s.varIndex[slot] = int32(i + 1)
+}
+
+func (s *Scope) rebuildVarIndex() {
+	if len(s.varList) <= scopeSmallVars {
+		s.varIndex = nil
+		return
+	}
+	n := 32
+	for n < 4*len(s.varList) {
+		n *= 2
+	}
+	s.varIndex = make([]int32, n)
+	for i := range s.varList {
+		s.indexVar(i)
 	}
 }
 
