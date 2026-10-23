@@ -194,6 +194,20 @@ func (tl *Timeline[T]) Unmark(timeName string) {
 	tl.freeEvent = id
 }
 
+// Values calls yield for every value in the timeline, oldest first.
+//
+// Go-only: lets ConvertTypesToColors reach the detached scope roots the
+// timeline still references.
+func (tl *Timeline[T]) Values(yield func(T) bool) {
+	for id := uint32(1); id != 0; {
+		e := tl.event(id)
+		if !e.isTime() && !yield(e.value) {
+			return
+		}
+		id = e.next
+	}
+}
+
 // GetSince returns the values added since the named time, or nil (Java
 // null) if the time was never marked.
 //

@@ -1686,7 +1686,15 @@ func (c *Compiler) BeforePass(passName string) {
 // Java: Compiler.afterPass(String)
 func (c *Compiler) AfterPass(passName string) {
 	c.maybePrintSourceAfterEachPass(passName)
+	if DebugAfterPassHook != nil {
+		DebugAfterPassHook(c, passName)
+	}
 }
+
+// DebugAfterPassHook, when set, is called after every pass with the pass
+// name. Go-only: lets cmd/jsgo write a heap profile after a named pass
+// (JSGO_HEAP_PROFILE_AFTER_PASS) for memory investigations.
+var DebugAfterPassHook func(c *Compiler, passName string)
 
 // GetLifeCycleStage returns the current life-cycle stage of the AST we're
 // working on.
@@ -2195,6 +2203,8 @@ func (c *Compiler) ClearJSTypeRegistry() {
 	c.typeRegistry = nil
 	c.typeValidator = nil
 	c.abstractInterpreter = nil
+	// Go-only: the cached analyzer holds the registry it was built with.
+	c.cachedAstAnalyzer = nil
 }
 
 // typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
@@ -2210,6 +2220,10 @@ func (c *Compiler) typeRegistryReleased() bool {
 	runtime.GC()
 	return c.clearedTypeRegistry.Value() == nil
 }
+
+// TypeRegistryReleased is typeRegistryReleased for cmd/jsgo's debugging
+// hook (Go-only).
+func (c *Compiler) TypeRegistryReleased() bool { return c.typeRegistryReleased() }
 
 // Java: Compiler.isTypeRegistryCleared()
 func (c *Compiler) IsTypeRegistryCleared() bool {
