@@ -21,39 +21,10 @@ package jscomp
 import (
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-var renamePropsNodeListPool sync.Pool
-
-func acquireRenamePropsNodeList() *jutil.ArrayList[*rhino.Node] {
-	if l := cachedPropNodesToRename.Swap(nil); l != nil {
-		return l
-	}
-	if v := renamePropsNodeListPool.Get(); v != nil {
-		return v.(*jutil.ArrayList[*rhino.Node])
-	}
-	if v := ambiguateNodesToRenamePool.Get(); v != nil {
-		return v.(*jutil.ArrayList[*rhino.Node])
-	}
-	return jutil.NewArrayListWithCapacity[*rhino.Node](4096)
-}
-
-func releaseRenamePropsNodeList(r *RenameProperties) {
-	l := r.stringNodesToRename
-	if l == nil {
-		return
-	}
-	r.stringNodesToRename = nil
-	clear(l.Slice())
-	l.Clear()
-	if cap(l.Slice()) <= 1048576 {
-		renamePropsNodeListPool.Put(l)
-	}
-}
 
 // RenameProperties renames properties (including methods) of all JavaScript
 // objects. This includes prototypes, functions, object literals, etc.
@@ -204,7 +175,7 @@ func NewRenamePropertiesWithFilter(
 		generatePseudoNames:             generatePseudoNames,
 		prevUsedPropertyMap:             prevUsedPropertyMap,
 		toRemove:                        jutil.NewArrayList[*rhino.Node](),
-		stringNodesToRename:             acquireRenamePropsNodeList(),
+		stringNodesToRename:             jutil.NewArrayList[*rhino.Node](),
 		callNodeToParentMap:             jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *rhino.Node](256),
 		reservedFirstCharacters:         reservedFirstCharacters,
 		reservedNonFirstCharacters:      reservedNonFirstCharacters,
@@ -222,7 +193,7 @@ func NewRenamePropertiesWithFilter(
 func (r *RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	if r.stringNodesToRename == nil {
-		r.stringNodesToRename = acquireRenamePropsNodeList()
+		r.stringNodesToRename = jutil.NewArrayList[*rhino.Node]()
 	}
 
 	NodeTraversal_Traverse(r.compiler, root, &RenameProperties_ProcessProperties{outer: r})
@@ -267,7 +238,7 @@ func (r *RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			}
 		}
 	}
-	releaseRenamePropsNodeList(r)
+	r.stringNodesToRename = nil
 
 	// Update the call nodes.
 	for key, parent := range r.callNodeToParentMap.All() {
@@ -501,7 +472,7 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n *rhino.Node) {
 		if !r.propertyRenameEligibilityFilter(n) {
 			r.filteredOutNames.Add(n.GetString())
 		}
-		addPropNodeToRename(r.stringNodesToRename, n)
+		listAddDoubling(r.stringNodesToRename, n)
 		p.CountPropertyOccurrence(name)
 	}
 }

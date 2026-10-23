@@ -21,66 +21,12 @@ package jscomp
 import (
 	"reflect"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-var _ [unsafe.Sizeof([]*rhino.Node(nil))]byte = [unsafe.Sizeof(jutil.ArrayList[*rhino.Node]{})]byte{}
-
-var ambiguateNodesToRenamePool sync.Pool
-var cachedPropNodesToRename atomic.Pointer[jutil.ArrayList[*rhino.Node]]
-
-func acquireAmbiguateNodesToRename() *jutil.ArrayList[*rhino.Node] {
-	if l := cachedPropNodesToRename.Swap(nil); l != nil {
-		return l
-	}
-	if v := ambiguateNodesToRenamePool.Get(); v != nil {
-		return v.(*jutil.ArrayList[*rhino.Node])
-	}
-	if v := renamePropsNodeListPool.Get(); v != nil {
-		return v.(*jutil.ArrayList[*rhino.Node])
-	}
-	return jutil.NewArrayListWithCapacity[*rhino.Node](4096)
-}
-
-func releaseAmbiguateNodesToRename(a *AmbiguateProperties) {
-	l := a.stringNodesToRename
-	if l == nil {
-		return
-	}
-	a.stringNodesToRename = nil
-	clear(l.Slice())
-	l.Clear()
-	if cap(l.Slice()) <= 1048576 {
-		if !cachedPropNodesToRename.CompareAndSwap(nil, l) {
-			ambiguateNodesToRenamePool.Put(l)
-		}
-	}
-}
-
-func addPropNodeToRename(list *jutil.ArrayList[*rhino.Node], n *rhino.Node) {
-	s := (*[]*rhino.Node)(unsafe.Pointer(list))
-	if len(*s) == cap(*s) {
-		oldCap := cap(*s)
-		var newCap int
-		if oldCap < 4096 {
-			newCap = 4096
-		} else if oldCap < 262144 {
-			newCap = oldCap * 4
-		} else {
-			newCap = oldCap * 2
-		}
-		next := make([]*rhino.Node, len(*s), newCap)
-		copy(next, *s)
-		*s = next
-	}
-	*s = append(*s, n)
-}
 
 func newLinkedHashSetWithCapacity[T comparable](cap int) *jutil.LinkedHashSet[T] {
 	return (*jutil.LinkedHashSet[T])(unsafe.Pointer(jutil.NewLinkedHashMapWithCapacity[T, struct{}](cap)))
@@ -131,8 +77,6 @@ type AmbiguateProperties struct {
 	renamingMap *jutil.LinkedHashMap[string, string] // may be nil
 
 	graphNodeFactory *ColorGraphNodeFactory // may be nil
-
-	propertySlab []AmbiguateProperties_Property
 }
 
 var ambiguateProperties_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.disambiguate.AmbiguateProperties")
@@ -164,7 +108,7 @@ func NewAmbiguateProperties(
 	}
 	a := &AmbiguateProperties{
 		compiler:                   compiler,
-		stringNodesToRename:        acquireAmbiguateNodesToRename(),
+		stringNodesToRename:        jutil.NewArrayList[*rhino.Node](),
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
@@ -198,7 +142,7 @@ func (a *AmbiguateProperties) GetRenamingMap() *jutil.LinkedHashMap[string, stri
 // Java: AmbiguateProperties.process(Node, Node)
 func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	if a.stringNodesToRename == nil {
-		a.stringNodesToRename = acquireAmbiguateNodesToRename()
+		a.stringNodesToRename = jutil.NewArrayList[*rhino.Node]()
 	}
 	a.graphNodeFactory = ColorGraphNodeFactory_CreateFactory(a.colorRegistry)
 
@@ -350,7 +294,7 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 			}
 		}
 	}
-	releaseAmbiguateNodesToRename(a)
+	a.stringNodesToRename = nil
 
 	// We may have renamed getter / setter properties.
 	// TODO(b/161947315): this shouldn't be the responsibility of AmbiguateProperties
@@ -704,7 +648,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidat
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
-		addPropNodeToRename(a.stringNodesToRename, n)
+		listAddDoubling(a.stringNodesToRename, n)
 		p.RecordProperty(name, type_)
 	}
 }
@@ -727,20 +671,7 @@ func (a *AmbiguateProperties) GetProperty(name string) *AmbiguateProperties_Prop
 }
 
 func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Property {
-	if len(a.propertySlab) == cap(a.propertySlab) {
-		newCap := 256
-		if cap(a.propertySlab) >= 256 {
-			newCap = min(cap(a.propertySlab)*2, 2048)
-		}
-		a.propertySlab = make([]AmbiguateProperties_Property, 0, newCap)
-	}
-	idx := len(a.propertySlab)
-	a.propertySlab = a.propertySlab[:idx+1]
-	prop := &a.propertySlab[idx]
-	prop.outer = a
-	prop.oldName = name
-	prop.singleColorIndex = -1
-	return prop
+	return &AmbiguateProperties_Property{outer: a, oldName: name, singleColorIndex: -1}
 }
 
 // GetColor gets the Color from the Node argument or UNKNOWN if not present.

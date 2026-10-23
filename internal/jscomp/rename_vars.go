@@ -84,7 +84,6 @@ type RenameVars struct {
 	assignments    *jutil.LinkedHashMap[string, *RenameVars_Assignment]
 	localByIndex   []*RenameVars_Assignment
 	varAssignments []*RenameVars_Assignment
-	assignmentSlab []RenameVars_Assignment
 
 	// Whether renaming should apply to local variables only.
 	localRenamingOnly bool
@@ -118,21 +117,11 @@ func NewRenameVars_Assignment(outer *RenameVars, name string) *RenameVars_Assign
 }
 
 func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assignment {
-	if len(r.assignmentSlab) == cap(r.assignmentSlab) {
-		newCap := 64
-		if cap(r.assignmentSlab) >= 64 {
-			newCap = min(cap(r.assignmentSlab)*2, 4096)
-		}
-		r.assignmentSlab = make([]RenameVars_Assignment, 0, newCap)
+	a := &RenameVars_Assignment{
+		isLocal:           isLocal,
+		oldName:           name,
+		orderOfOccurrence: r.assignmentCount,
 	}
-	idx := len(r.assignmentSlab)
-	r.assignmentSlab = r.assignmentSlab[:idx+1]
-	a := &r.assignmentSlab[idx]
-	a.isLocal = isLocal
-	a.oldName = name
-	a.newName = nil
-	a.count = 0
-	a.orderOfOccurrence = r.assignmentCount
 	r.assignmentCount++
 	if cap(r.varAssignments) == 0 {
 		r.varAssignments = make([]*RenameVars_Assignment, 0, 256)
