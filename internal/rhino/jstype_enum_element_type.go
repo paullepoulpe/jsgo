@@ -273,7 +273,7 @@ func EnumElementType_GetGreatestSubtype(element *EnumElementType, that JSType) J
 	if meetPrimitive.IsEmptyType() {
 		return nil
 	} else {
-		return NewEnumElementType(element.registry, meetPrimitive, element.name, element.GetEnumType())
+		return NewEnumElementType(element.GetRegistry(), meetPrimitive, element.name, element.GetEnumType())
 	}
 }
 

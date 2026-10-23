@@ -128,7 +128,7 @@ func NewEnumType(builder *EnumType_Builder) *EnumType {
 	t.source = builder.source
 	t.googModuleId = builder.googModuleId
 
-	t.registry.GetResolver().ResolveIfClosed(t, EnumType_TYPE_CLASS)
+	t.GetRegistry().GetResolver().ResolveIfClosed(t, EnumType_TYPE_CLASS)
 	return t
 }
 
@@ -149,7 +149,7 @@ func (t *EnumType) ToMaybeEnumType() *EnumType {
 
 // Java: EnumType.getImplicitPrototype()
 func (t *EnumType) GetImplicitPrototype() ObjectType {
-	return t.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
+	return t.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
 }
 
 // GetElements gets the elements defined on this enum. The returned set is

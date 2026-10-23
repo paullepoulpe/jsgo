@@ -137,7 +137,10 @@ type FunctionTypeBase struct {
 	call ArrowType
 
 	// The type of this in the scope of this function.
-	typeOfThis JSType
+	//
+	// Go-only: performance — the type's base (8 bytes) rather than a JSType
+	// interface (16).
+	typeOfThis *JSTypeBase
 
 	// The function node which this type represents. It may be null.
 	source *Node
@@ -149,12 +152,12 @@ func (f *FunctionTypeBase) selfFunc() FunctionType {
 	if f.objFlags&objKindMask == objKindFunction {
 		return f
 	}
-	return f.self.(FunctionType)
+	return f.self().(FunctionType)
 }
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
 	if f.ext == nil {
-		f.ext = f.registry.allocFunctionTypeExt()
+		f.ext = &functionTypeExt{}
 	}
 	return f.ext
 }
@@ -241,7 +244,7 @@ var (
 //
 // Java: FunctionType(Builder)
 func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
-	t := builder.registry.allocFunctionType()
+	t := &FunctionTypeBase{}
 	t.objFlags = objKindFunction
 	t.InitFunctionTypeBase(t, builder)
 	return t
@@ -268,12 +271,12 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	}
 
 	if builder.typeOfThis != nil {
-		f.typeOfThis = builder.typeOfThis
+		f.typeOfThis = jsTypeBase(builder.typeOfThis)
 	} else {
 		switch f.call.fnKind {
 		case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 			var typeOfThisBuilder InstanceObjectType_Builder
-			typeOfThisBuilder.registry = f.registry
+			typeOfThisBuilder.registry = f.GetRegistry()
 			typeOfThisBuilder.className = self.GetReferenceName()
 			typeOfThisBuilder.nativeType = self.IsNativeObjectType()
 			typeOfThisBuilder.anonymousType = self.IsAnonymous()
@@ -287,11 +290,11 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - ctorKeys.Size()
 			}
 
-			f.typeOfThis = NewInstanceObjectType(&typeOfThisBuilder)
+			f.typeOfThis = NewInstanceObjectType(&typeOfThisBuilder).GetJSTypeBase()
 		case FunctionType_Kind_ORDINARY:
-			f.typeOfThis = f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)
+			f.typeOfThis = f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE).GetJSTypeBase()
 		case FunctionType_Kind_NONE:
-			f.typeOfThis = self
+			f.typeOfThis = self.GetJSTypeBase()
 		}
 	}
 
@@ -301,13 +304,13 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 
 	var returnType JSType
 	if builder.returnsOwnInstanceType {
-		returnType = f.typeOfThis
+		returnType = jsTypeOf(f.typeOfThis)
 	} else {
 		returnType = builder.returnType
 	}
-	f.call.init(f.registry, builder.parameters, returnType, builder.returnTypeIsInferred)
-	if f.registry.GetResolver().state != JSTypeResolver_State_OPEN {
-		f.call.resolveInternal(f.registry.GetErrorReporter())
+	f.call.init(f.GetRegistry(), builder.parameters, returnType, builder.returnTypeIsInferred)
+	if f.GetRegistry().GetResolver().state != JSTypeResolver_State_OPEN {
+		f.call.resolveInternal(f.GetRegistry().GetErrorReporter())
 	}
 
 	if builder.primitiveId != nil {
@@ -327,7 +330,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 		f.selfFunc().SetPrototypeBasedOn(builder.setPrototypeBasedOn)
 	}
 
-	f.registry.GetResolver().ResolveIfClosed(self, FunctionType_TYPE_CLASS)
+	f.GetRegistry().GetResolver().ResolveIfClosed(self, FunctionType_TYPE_CLASS)
 }
 
 // GetFunctionTypeBase gives access to the base through the interface.
@@ -344,14 +347,14 @@ func (f *FunctionTypeBase) GetTypeClass() JSTypeClass {
 func (f *FunctionTypeBase) GetConstructor() FunctionType {
 	// Every function type, including `Function`, is constructed by
 	// `(typeof Function)`.
-	return jutil.CheckNotNull(f.registry.GetNativeFunctionType(JSTypeNative_FUNCTION_FUNCTION_TYPE))
+	return jutil.CheckNotNull(f.GetRegistry().GetNativeFunctionType(JSTypeNative_FUNCTION_FUNCTION_TYPE))
 }
 
 // Java: FunctionType.isInstanceType()
 func (f *FunctionTypeBase) IsInstanceType() bool {
 	// Only `Function` is both a function type and the intance type of a
 	// nominal constructor.
-	return JSType(f.selfFunc()) == f.registry.GetNativeType(JSTypeNative_FUNCTION_TYPE)
+	return JSType(f.selfFunc()) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE)
 }
 
 // Java: FunctionType.isConstructor()
@@ -579,15 +582,15 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
 			// then it would propagate to all structural functions.
-			f.SetPrototypeNoCheck(f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
+			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
 		} else {
 			name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
 			fields := PrototypeObjectType_BuilderFields{
-				registry:          f.registry,
+				registry:          f.GetRegistry(),
 				className:         &name,
-				implicitPrototype: f.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
+				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
 				nativeType:        f.selfFunc().IsNativeObjectType(),
-				templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
+				templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 			}
 			f.selfFunc().SetPrototype(
 				NewPrototypeObjectType(&fields),
@@ -642,10 +645,10 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 		}
 		name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
 		fields := PrototypeObjectType_BuilderFields{
-			registry:          f.registry,
+			registry:          f.GetRegistry(),
 			className:         &name,
 			implicitPrototype: baseType,
-			templateTypeMap:   f.registry.GetEmptyTemplateTypeMap(),
+			templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 		}
 		baseType = NewPrototypeObjectType(&fields)
 	}
@@ -693,8 +696,8 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	if replacedPrototype {
 		f.selfFunc().ClearCachedValues()
 	}
-	if f.registry != nil {
-		f.registry.leastSupertypeGen++
+	if f.GetRegistry() != nil {
+		f.GetRegistry().leastSupertypeGen++
 	}
 
 	return true
@@ -791,7 +794,7 @@ func (f *FunctionTypeBase) SetImplementedInterfaces(implementedInterfaces []Obje
 		f.ensureExt().implementedInterfaces = copied
 	}
 	for _, type_ := range implementedInterfaces {
-		f.typeOfThis.MergeSupertypeTemplateTypes(type_)
+		f.typeOfThis.self().MergeSupertypeTemplateTypes(type_)
 	}
 }
 
@@ -842,7 +845,7 @@ func (f *FunctionTypeBase) SetExtendedInterfaces(extendedInterfaces []ObjectType
 		f.ensureExt().extendedInterfaces = copied
 	}
 	for _, extendedInterface := range extendedInterfaces {
-		f.typeOfThis.MergeSupertypeTemplateTypes(extendedInterface)
+		f.typeOfThis.self().MergeSupertypeTemplateTypes(extendedInterface)
 	}
 }
 
@@ -856,19 +859,19 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 			f.selfFunc().DefineDeclaredPropertyByKey(name, f.GetCallOrBindSignature(isCall), f.source)
 		} else if name.Matches("apply") {
 			// Define the "apply" function lazily.
-			builder := NewFunctionParamBuilder(f.registry)
+			builder := NewFunctionParamBuilder(f.GetRegistry())
 
 			// ECMA-262 says that apply's second argument must be an Array or an
 			// arguments object. We don't model the arguments object, so let's
 			// just be forgiving for now.
 			// TODO(nicksantos): Model the Arguments object.
 			builder.AddOptionalParams(
-				f.registry.CreateNullableType(f.selfFunc().GetTypeOfThis()),
-				f.registry.CreateNullableType(f.registry.GetNativeType(JSTypeNative_OBJECT_TYPE)))
+				f.GetRegistry().CreateNullableType(f.selfFunc().GetTypeOfThis()),
+				f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
 
 			f.selfFunc().DefineDeclaredPropertyByKey(
 				name,
-				FunctionType_Builder_(f.registry).
+				FunctionType_Builder_(f.GetRegistry()).
 					WithParametersOfList(builder.Build()).
 					WithReturnType(f.selfFunc().GetReturnType()).
 					WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys()).
@@ -888,7 +891,7 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 //
 // Java: FunctionType.getBindReturnType(int)
 func (f *FunctionTypeBase) GetBindReturnType(argsToBind int) FunctionType {
-	builder := FunctionType_Builder_(f.registry).
+	builder := FunctionType_Builder_(f.GetRegistry()).
 		WithReturnType(f.selfFunc().GetReturnType()).
 		WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys())
 	if argsToBind < 0 {
@@ -920,7 +923,7 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 	} else {
 		returnType = f.selfFunc().GetBindReturnType(-1)
 	}
-	builder := FunctionType_Builder_(f.registry).
+	builder := FunctionType_Builder_(f.GetRegistry()).
 		WithReturnType(returnType).
 		WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys())
 
@@ -929,7 +932,7 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 	params := append([]*FunctionType_Parameter{}, origParams...)
 
 	thisType := FunctionType_Parameter_Create(
-		f.registry.CreateOptionalNullableType(f.selfFunc().GetTypeOfThis()),
+		f.GetRegistry().CreateOptionalNullableType(f.selfFunc().GetTypeOfThis()),
 		/* isOptional= */ false,
 		/* isVariadic= */ false)
 	params = append([]*FunctionType_Parameter{thisType}, params...)
@@ -1042,7 +1045,7 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 
 	// The function instance type is a special case that lives above the rest
 	// of the lattice.
-	functionInstance := f.registry.GetNativeType(JSTypeNative_FUNCTION_TYPE)
+	functionInstance := f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE)
 	if functionInstance.Equals(that) {
 		if leastSuper {
 			return that
@@ -1061,8 +1064,8 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 	// all parameters register a type warning.
 	//
 	// Instead, we use the U2U ctor type, which has unknown type args.
-	greatestFn := f.registry.GetNativeFunctionType(JSTypeNative_FUNCTION_TYPE)
-	leastFn := f.registry.GetNativeFunctionType(JSTypeNative_LEAST_FUNCTION_TYPE)
+	greatestFn := f.GetRegistry().GetNativeFunctionType(JSTypeNative_FUNCTION_TYPE)
+	leastFn := f.GetRegistry().GetNativeFunctionType(JSTypeNative_LEAST_FUNCTION_TYPE)
 	if leastSuper {
 		return greatestFn
 	}
@@ -1094,21 +1097,21 @@ func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSu
 	}
 
 	var newTypeOfThis JSType
-	if jutil.ObjectsEquals(f.typeOfThis, otherBase.typeOfThis) {
-		newTypeOfThis = f.typeOfThis
+	if jutil.ObjectsEquals(jsTypeOf(f.typeOfThis), jsTypeOf(otherBase.typeOfThis)) {
+		newTypeOfThis = jsTypeOf(f.typeOfThis)
 	} else {
 		var maybeNewTypeOfThis JSType
 		if leastSuper {
-			maybeNewTypeOfThis = f.typeOfThis.GetLeastSupertype(otherBase.typeOfThis)
+			maybeNewTypeOfThis = f.typeOfThis.self().GetLeastSupertype(jsTypeOf(otherBase.typeOfThis))
 		} else {
-			maybeNewTypeOfThis = f.typeOfThis.GetGreatestSubtype(otherBase.typeOfThis)
+			maybeNewTypeOfThis = f.typeOfThis.self().GetGreatestSubtype(jsTypeOf(otherBase.typeOfThis))
 		}
 		newTypeOfThis = maybeNewTypeOfThis
 	}
 
 	newReturnTypeInferred := f.call.returnTypeInferred || otherBase.call.returnTypeInferred
 
-	return FunctionType_Builder_(f.registry).
+	return FunctionType_Builder_(f.GetRegistry()).
 		WithParametersOfList(newParamsNode).
 		WithReturnTypeWithInferred(newReturnType, newReturnTypeInferred).
 		WithTypeOfThis(newTypeOfThis).
@@ -1138,7 +1141,7 @@ func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 		return 31*hc + jutil.IdentityHashCode(f.selfFunc())
 	case FunctionType_Kind_ORDINARY:
-		hc = 31*hc + f.typeOfThis.HashCode()
+		hc = 31*hc + f.typeOfThis.self().HashCode()
 		hc = 31*hc + f.call.HashCode()
 		hc = 31*hc + functionTypeClosurePrimitiveHashCode(f.selfFunc().GetClosurePrimitive())
 		return hc
@@ -1167,7 +1170,7 @@ func (f *FunctionTypeBase) HasEqualCallType(that FunctionType) bool {
 //
 // Java: FunctionType.appendTo(TypeStringBuilder)
 func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
-	if !f.selfFunc().IsPrettyPrint() || JSType(f.selfFunc()) == f.registry.GetNativeType(JSTypeNative_FUNCTION_TYPE) {
+	if !f.selfFunc().IsPrettyPrint() || JSType(f.selfFunc()) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
 		if sb.IsForAnnotations() {
 			sb.Append("!Function")
 		} else {
@@ -1189,7 +1192,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 
 	sb.Append("function(")
 	paramNum := len(f.call.GetParameterList())
-	_, isUnknown := f.typeOfThis.(*UnknownType)
+	_, isUnknown := jsTypeOf(f.typeOfThis).(*UnknownType)
 	hasKnownTypeOfThis := !isUnknown
 	if hasKnownTypeOfThis {
 		if f.selfFunc().IsConstructor() {
@@ -1197,7 +1200,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		} else {
 			sb.Append("this:")
 		}
-		sb.AppendType(f.typeOfThis)
+		sb.AppendType(jsTypeOf(f.typeOfThis))
 	}
 	if paramNum > 0 {
 		if hasKnownTypeOfThis {
@@ -1245,7 +1248,7 @@ func (f *FunctionTypeBase) AppendOptionalArgString(sb *TypeStringBuilder, paramT
 		// Remove the optionality from the var arg.
 		paramType = paramType.
 			ToMaybeUnionType().
-			GetRestrictedUnion(f.registry.GetNativeType(JSTypeNative_VOID_TYPE))
+			GetRestrictedUnion(f.GetRegistry().GetNativeType(JSTypeNative_VOID_TYPE))
 	}
 	sb.AppendNonNull(paramType).Append("=")
 }
@@ -1271,7 +1274,7 @@ func (f *FunctionTypeBase) VisitRelationship(visitor RelationshipVisitor, that J
 func (f *FunctionTypeBase) GetInstanceType() ObjectType {
 	jutil.CheckState(f.selfFunc().HasInstanceType())
 
-	return f.typeOfThis.ToObjectType()
+	return f.typeOfThis.self().ToObjectType()
 }
 
 // HasInstanceType returns whether this function type has an instance type.
@@ -1285,10 +1288,10 @@ func (f *FunctionTypeBase) HasInstanceType() bool {
 //
 // Java: FunctionType.getTypeOfThis()
 func (f *FunctionTypeBase) GetTypeOfThis() JSType {
-	if f.typeOfThis.IsEmptyType() {
-		return f.registry.GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)
+	if f.typeOfThis.self().IsEmptyType() {
+		return f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE)
 	}
-	return f.typeOfThis
+	return f.typeOfThis.self()
 }
 
 // GetSource gets the source node or null if this is an unknown function.
@@ -1365,14 +1368,14 @@ func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 	// handled further upstream.
 	//
 	// TODO(nicksantos): Handle this correctly if we have a UnionType.
-	maybeTypeOfThis := JSType_SafeResolve(f.typeOfThis, reporter)
+	maybeTypeOfThis := JSType_SafeResolve(jsTypeOf(f.typeOfThis), reporter)
 	if maybeTypeOfThis != nil {
 		if maybeTypeOfThis.IsNullType() || maybeTypeOfThis.IsVoidType() {
-			f.typeOfThis = maybeTypeOfThis
+			f.typeOfThis = maybeTypeOfThis.GetJSTypeBase()
 		} else {
 			maybeTypeOfThis = jsTypeOrNil(ObjectType_Cast(maybeTypeOfThis.RestrictByNotNullOrUndefined()))
 			if maybeTypeOfThis != nil {
-				f.typeOfThis = maybeTypeOfThis
+				f.typeOfThis = maybeTypeOfThis.GetJSTypeBase()
 			}
 		}
 	}
@@ -1445,7 +1448,7 @@ func jsTypeDerefString(s *string) string {
 // Java: FunctionType.hasAnyTemplateTypesInternal()
 func (f *FunctionTypeBase) HasAnyTemplateTypesInternal() bool {
 	return f.selfFunc().GetTemplateParamCount() > 0 ||
-		f.typeOfThis.HasAnyTemplateTypes() ||
+		f.typeOfThis.self().HasAnyTemplateTypes() ||
 		f.call.HasAnyTemplateTypes()
 }
 
@@ -1596,7 +1599,7 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 //
 // Java: FunctionType.forgetParameterAndReturnTypes()
 func (f *FunctionTypeBase) ForgetParameterAndReturnTypes() FunctionType {
-	result := FunctionType_Builder_(f.registry).
+	result := FunctionType_Builder_(f.GetRegistry()).
 		WithName(f.selfFunc().GetReferenceName()).
 		WithSourceNode(f.source).
 		WithTypeOfThis(f.selfFunc().GetInstanceType()).
@@ -1713,8 +1716,8 @@ func FunctionType_Builder_(registry *JSTypeRegistry) *FunctionType_Builder {
 }
 
 func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
-	b.registry = f.registry
-	b.implicitPrototype = jutil.CheckNotNull(f.registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
+	b.registry = f.GetRegistry()
+	b.implicitPrototype = jutil.CheckNotNull(f.GetRegistry().GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
 	b.googModuleId = f.selfFunc().GetGoogModuleId()
 	b.className = f.selfFunc().GetReferenceName()
 	b.nativeType = f.selfFunc().IsNativeObjectType()
@@ -1740,7 +1743,7 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 //
 // Java: FunctionType.toBuilder()
 func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
-	b := f.registry.acquireFunctionBuilder()
+	b := f.GetRegistry().acquireFunctionBuilder()
 	b.self = b
 	f.initBuilder(b)
 	return b
@@ -2045,7 +2048,9 @@ func (f *FunctionTypeBase) GetCanonicalRepresentation() FunctionType {
 // AutoValue_FunctionType_Parameter implementation (fields, equals, hashCode,
 // toString) folded in.
 type FunctionType_Parameter struct {
-	jSType   JSType
+	// Go-only: performance — the type's base (8 bytes) rather than a JSType
+	// interface (16); GetJSType returns its self().
+	jSType   *JSTypeBase
 	optional bool
 	variadic bool
 }
@@ -2055,12 +2060,12 @@ func FunctionType_Parameter_Create(type_ JSType, isOptional bool, isVariadic boo
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null JSType"))
 	}
-	return &FunctionType_Parameter{jSType: type_, optional: isOptional, variadic: isVariadic}
+	return &FunctionType_Parameter{jSType: type_.GetJSTypeBase(), optional: isOptional, variadic: isVariadic}
 }
 
 // Java: FunctionType.Parameter.getJSType()
 func (p *FunctionType_Parameter) GetJSType() JSType {
-	return p.jSType
+	return p.jSType.self()
 }
 
 // Java: FunctionType.Parameter.isOptional()
@@ -2076,7 +2081,7 @@ func (p *FunctionType_Parameter) IsVariadic() bool {
 // Java: AutoValue_FunctionType_Parameter.toString()
 func (p *FunctionType_Parameter) String() string {
 	return "Parameter{" +
-		"JSType=" + p.jSType.String() + ", " +
+		"JSType=" + p.jSType.self().String() + ", " +
 		"optional=" + jutil.ToJavaString(p.optional) + ", " +
 		"variadic=" + jutil.ToJavaString(p.variadic) +
 		"}"
@@ -2088,7 +2093,7 @@ func (p *FunctionType_Parameter) Equals(o any) bool {
 		return true
 	}
 	if that, ok := o.(*FunctionType_Parameter); ok && that != nil {
-		return p.jSType.Equals(that.GetJSType()) &&
+		return p.jSType.self().Equals(that.GetJSType()) &&
 			p.optional == that.IsOptional() &&
 			p.variadic == that.IsVariadic()
 	}
@@ -2099,7 +2104,7 @@ func (p *FunctionType_Parameter) Equals(o any) bool {
 func (p *FunctionType_Parameter) HashCode() int32 {
 	var h int32 = 1
 	h *= 1000003
-	h ^= p.jSType.HashCode()
+	h ^= p.jSType.self().HashCode()
 	h *= 1000003
 	h ^= jutil.ObjectHashCode(p.optional)
 	h *= 1000003

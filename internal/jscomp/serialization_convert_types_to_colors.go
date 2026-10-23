@@ -125,8 +125,8 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node
 	if oldType != nil {
 		var c *colors.Color
 		if r.jstypeReconserializer != nil {
-			if oldType.SerialGen == r.jstypeReconserializer.serialGen {
-				c = r.colorPoolShard.GetColor(int(oldType.SerialPointer))
+			if pointer, ok := r.jstypeReconserializer.typePointers[oldType]; ok {
+				c = r.colorPoolShard.GetColor(int(pointer))
 			}
 		} else if r.typePointersByJstype != nil {
 			if pointer, ok := r.typePointersByJstype.Lookup(oldType.Self()); ok {

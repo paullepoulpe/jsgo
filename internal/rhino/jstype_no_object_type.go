@@ -152,7 +152,7 @@ func (t *NoObjectTypeBase) MatchesSymbolContext() bool {
 
 // Java: NoObjectType.recursionUnsafeHashCode()
 func (t *NoObjectTypeBase) RecursionUnsafeHashCode() int32 {
-	return jutil.IdentityHashCode(t.ObjectTypeBase.self)
+	return jutil.IdentityHashCode(t.ObjectTypeBase.self())
 }
 
 // Java: NoObjectType.defineProperty(Property.Key, JSType, boolean, Node)

@@ -106,7 +106,7 @@ func JSTypeIterations_MapTypes[S JSType, T any](mapper func(S) T, types []S) []T
 //
 // Java: JSTypeIterations.mapTypes(Function<? super JSType, ? extends JSType>, UnionType)
 func JSTypeIterations_MapTypesInUnion(mapper func(JSType) JSType, union *UnionType) JSType {
-	b := UnionType_Builder_(union.registry)
+	b := UnionType_Builder_(union.GetRegistry())
 	for _, alt := range union.GetAlternates() {
 		b.AddAlternate(mapper(alt))
 	}

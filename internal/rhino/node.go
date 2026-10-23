@@ -1844,7 +1844,7 @@ func (n *Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if tbc := (*nodeExtBox)(n.typeOrColor).typeBeforeCast; tbc != nil {
 			return &Node_PropListItem{
 				propType:    int8(Node_Prop_TYPE_BEFORE_CAST),
-				objectValue: tbc.self,
+				objectValue: tbc.self(),
 				isObject:    true,
 				shared:      true,
 			}
@@ -2030,7 +2030,7 @@ func (n *Node) GetProp(propType Node_Prop) any {
 			return nil
 		}
 		if tbc := (*nodeExtBox)(n.typeOrColor).typeBeforeCast; tbc != nil {
-			return tbc.self
+			return tbc.self()
 		}
 	} else if mask := nodePropBitMask[propType]; mask != 0 {
 		if (n.propFlags & mask) == 0 {
@@ -2686,7 +2686,7 @@ func (n *Node) GetJSTypeBeforeCast() JSType {
 func (n *Node) getJSTypeBeforeCastBoxed() JSType {
 	box := (*nodeExtBox)(n.typeOrColor)
 	if box.typeBeforeCast != nil {
-		return box.typeBeforeCast.self
+		return box.typeBeforeCast.self()
 	}
 	if box.propListHead != nil {
 		return node_cast[JSType](n.GetProp(Node_Prop_TYPE_BEFORE_CAST))
@@ -4655,9 +4655,9 @@ func (n *Node) GetJSType() JSType {
 		return nil
 	}
 	if (n.kindFlags & kindFlagHasExtBox) == 0 {
-		return (*JSTypeBase)(n.typeOrColor).self
+		return (*JSTypeBase)(n.typeOrColor).self()
 	}
-	return (*JSTypeBase)((*nodeExtBox)(n.typeOrColor).typeOrColor).self
+	return (*JSTypeBase)((*nodeExtBox)(n.typeOrColor).typeOrColor).self()
 }
 
 // GetJSTypeBase returns the JSTypeBase on this node without constructing the
@@ -6103,7 +6103,7 @@ func (n *Node) typeOrColorValue() any {
 	if (n.kindFlags & kindFlagTypeIsColor) != 0 {
 		return (*colors.Color)(raw)
 	}
-	return (*JSTypeBase)(raw).self
+	return (*JSTypeBase)(raw).self()
 }
 
 func (n *Node) nodeStringValue() string {

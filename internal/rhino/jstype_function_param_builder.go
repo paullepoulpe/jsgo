@@ -35,6 +35,8 @@
 
 package rhino
 
+import "slices"
+
 // FunctionParamBuilder is a builder for the list representing FunctionType
 // Parameters.
 type FunctionParamBuilder struct {
@@ -150,8 +152,7 @@ func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Paramete
 //
 // Java: FunctionParamBuilder.NewParameter(JSType, boolean, boolean)
 func (b *FunctionParamBuilder) NewParameter(type_ JSType, isOptional bool, isVariadic bool) {
-	parameter := b.registry.allocFunctionParam(type_, isOptional, isVariadic)
-	b.parameters = append(b.parameters, parameter)
+	b.parameters = append(b.parameters, FunctionType_Parameter_Create(type_, isOptional, isVariadic))
 }
 
 // Java: FunctionParamBuilder.HasOptionalOrVarArgs()
@@ -173,7 +174,5 @@ func (b *FunctionParamBuilder) Build() []*FunctionType_Parameter {
 	if len(b.parameters) == 0 {
 		return emptyFunctionTypeParams
 	}
-	out := b.registry.allocFunctionParamPtrSlice(len(b.parameters))
-	copy(out, b.parameters)
-	return out
+	return slices.Clone(b.parameters)
 }
