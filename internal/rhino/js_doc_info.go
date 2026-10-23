@@ -68,10 +68,14 @@ type JSDocInfo struct {
 	propertyKeysBitset int64
 
 	// This value will be `null` if there is no property, a literal value if
-	// there is only one, or an `Object[]` ([]any) if there are multiple.
+	// there is only one, or an `Object[]` if there are multiple.
 	//
 	// This is meant to elide eager allocation of single-valued or empty
 	// lists.
+	//
+	// Go-only: performance — the Object[] is a *any to the first element of
+	// an exact-size array (its length is the popcount of
+	// propertyKeysBitset), so no slice header is boxed.
 	propertyValues any
 }
 
@@ -601,50 +605,7 @@ func newJSDocInfo(bits_ int64, props *jutil.TreeMap[JSDocInfo_Property, any]) *J
 	}
 }
 
-type jsdocTypeMapWithBuf struct {
-	m   jutil.LinkedHashMap[string, *JSTypeExpression]
-	buf [4]jutil.LhmSlot[string, *JSTypeExpression]
-}
-
-// JSDocBuilderSlabs holds worker-scoped slab allocators for JSDocInfo,
-// JSTypeExpression, and multi-property JSDocInfo value slices (all <= 32 KiB).
-type JSDocBuilderSlabs struct {
-	InfoSlab     jutil.Slab[JSDocInfo]
-	TypeExprSlab jutil.Slab[JSTypeExpression]
-	TypeMapSlab  jutil.Slab[jsdocTypeMapWithBuf]
-	AnySliceSlab []any
-}
-
-func NewJSDocBuilderSlabs() JSDocBuilderSlabs {
-	return JSDocBuilderSlabs{
-		InfoSlab:     jutil.NewFixedSlab[JSDocInfo](1024),            // 32 KiB
-		TypeExprSlab: jutil.NewFixedSlab[JSTypeExpression](1024),     // 24 KiB
-		TypeMapSlab:  jutil.NewFixedSlab[jsdocTypeMapWithBuf](240),   // 32.6 KiB
-	}
-}
-
-func (s *JSDocBuilderSlabs) allocTypeMap() *jutil.LinkedHashMap[string, *JSTypeExpression] {
-	if s == nil {
-		return jutil.NewLinkedHashMap[string, *JSTypeExpression]()
-	}
-	w := s.TypeMapSlab.New()
-	w.m.InitWithBuffer(w.buf[:])
-	return &w.m
-}
-
-func (s *JSDocBuilderSlabs) allocAnySlice(n int) []any {
-	if s == nil || n > 64 {
-		return make([]any, n)
-	}
-	if len(s.AnySliceSlab) < n {
-		s.AnySliceSlab = make([]any, 2048) // 32 KiB
-	}
-	out := s.AnySliceSlab[:n:n]
-	s.AnySliceSlab = s.AnySliceSlab[n:]
-	return out
-}
-
-func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any, slabs *JSDocBuilderSlabs) *JSDocInfo {
+func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocInfo {
 	var keys int64 = 0
 	var valsBuf [8]any
 	values := valsBuf[:0]
@@ -662,16 +623,11 @@ func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any, slabs *
 			values = append(values, value)
 		}
 	}
-	var info *JSDocInfo
-	if slabs != nil {
-		info = slabs.InfoSlab.New()
-	} else {
-		info = &JSDocInfo{}
+	return &JSDocInfo{
+		propertyBits:       bits_,
+		propertyKeysBitset: keys,
+		propertyValues:     JSDocInfo_PackPropertyValues(values),
 	}
-	info.propertyBits = bits_
-	info.propertyKeysBitset = keys
-	info.propertyValues = jsdocPackPropertyValuesWithSlabs(values, slabs)
-	return info
 }
 
 // Java: JSDocInfo.checkBit(Bit)
@@ -2567,17 +2523,13 @@ func (i *JSDocInfo) GetPropertyValueByIndex(index int) any {
 
 // Java: JSDocInfo.packPropertyValues(List<Object>)
 func JSDocInfo_PackPropertyValues(values []any) any {
-	return jsdocPackPropertyValuesWithSlabs(values, nil)
-}
-
-func jsdocPackPropertyValuesWithSlabs(values []any, slabs *JSDocBuilderSlabs) any {
 	if len(values) == 0 {
 		return nil
 	}
 	if len(values) == 1 {
 		return values[0]
 	}
-	out := slabs.allocAnySlice(len(values))
+	out := make([]any, len(values))
 	copy(out, values)
 	return &out[0]
 }
@@ -2591,7 +2543,6 @@ type JSDocInfo_Builder struct {
 	entries    []any
 	entriesBuf [4]any
 	bits       int64
-	slabs      *JSDocBuilderSlabs
 
 	// whether the current JSDocInfo has valuable information
 	populated bool
@@ -2599,11 +2550,6 @@ type JSDocInfo_Builder struct {
 	currentMarker *JSDocInfo_Marker
 	// the set of unique license texts
 	licenseTexts *jutil.LinkedHashSet[string]
-}
-
-// SetSlabs attaches optional worker-scoped JSDoc slabs to b.
-func (b *JSDocInfo_Builder) SetSlabs(slabs *JSDocBuilderSlabs) {
-	b.slabs = slabs
 }
 
 // NewJSDocInfo_Builder is the implicit Builder constructor.
@@ -2779,7 +2725,7 @@ func (b *JSDocInfo_Builder) Build() *JSDocInfo {
 // Java: JSDocInfo.Builder.build(boolean)
 func (b *JSDocInfo_Builder) BuildWithAlways(always bool) *JSDocInfo {
 	if b.populated || always {
-		info := newJSDocInfoFromBuilder(b.bits, b.propMask, b.entries, b.slabs)
+		info := newJSDocInfoFromBuilder(b.bits, b.propMask, b.entries)
 		b.populated = false
 		return info
 	}
@@ -2968,7 +2914,7 @@ func (b *JSDocInfo_Builder) populateTypeMapEntry(prop JSDocInfo_Property, key st
 	raw := b.GetProp(prop)
 	var m *jutil.LinkedHashMap[string, *JSTypeExpression]
 	if raw == nil {
-		m = b.slabs.allocTypeMap()
+		m = jutil.NewLinkedHashMap[string, *JSTypeExpression]()
 		b.SetProp(prop, m)
 	} else {
 		m = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](raw)
