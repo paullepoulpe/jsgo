@@ -19,10 +19,14 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads and edits the tree through the typed view of
+// package ast (ifs.Then(), try.Catch()...) instead of child positions.
 
 // MinimizeExitPoints transforms the structure of the AST so that the number
 // of explicit exits are minimized and instead flows to implicit exits
@@ -41,32 +45,26 @@ func NewMinimizeExitPoints() *MinimizeExitPoints {
 // Java: MinimizeExitPoints.optimizeSubtree(Node)
 func (m *MinimizeExitPoints) OptimizeSubtree(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg(m.IsASTNormalized(), "MinimizeExitPoints requires the AST to be normalized")
-	switch n.GetToken() {
-	case rhino.Token_LABEL:
-		labelName := n.GetFirstChild().GetString()
-		m.TryMinimizeExits(n.GetLastChild(), rhino.Token_BREAK, &labelName)
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE:
-		m.TryMinimizeExits(NodeUtil_GetLoopCodeBlock(n), rhino.Token_CONTINUE, nil)
-	case rhino.Token_DO:
-		m.TryMinimizeExits(NodeUtil_GetLoopCodeBlock(n), rhino.Token_CONTINUE, nil)
-
-		cond := NodeUtil_GetConditionExpression(n)
-		if m.GetSideEffectFreeBooleanValue(cond) == base.Tri_FALSE {
+	if label, ok := ast.AsLabel(n); ok {
+		labelName := label.Name().Ident()
+		m.TryMinimizeExits(label.Body(), rhino.Token_BREAK, &labelName)
+	} else if loop, ok := ast.AsLoop(n); ok {
+		m.TryMinimizeExits(loop.Body().AsStatement(), rhino.Token_CONTINUE, nil)
+		if do, ok := loop.AsDo(); ok && m.GetSideEffectFreeBooleanValue(do.Cond().Node()) == base.Tri_FALSE {
 			// Normally, we wouldn't be able to optimize BREAKs inside a loop
 			// but as we know the condition will always be false, we can treat them
 			// as we would a CONTINUE.
-			m.TryMinimizeExits(n.GetFirstChild(), rhino.Token_BREAK, nil)
+			m.TryMinimizeExits(do.Body().AsStatement(), rhino.Token_BREAK, nil)
 		}
-	case rhino.Token_BLOCK:
+	} else if block, ok := ast.AsBlock(n); ok {
 		if n.HasParent() && n.GetParent().IsFunction() {
-			m.TryMinimizeExits(n, rhino.Token_RETURN, nil)
+			m.TryMinimizeExits(block.AsStatement(), rhino.Token_RETURN, nil)
 		}
-	case rhino.Token_SWITCH:
-		m.TryMinimizeSwitchExits(n, rhino.Token_BREAK, nil)
+	} else if sw, ok := ast.AsSwitch(n); ok {
+		m.TryMinimizeSwitchExits(sw, rhino.Token_BREAK, nil)
+	}
 	// TODO(johnlenz): Minimize any block that ends in a optimizable statements:
 	//   break, continue, return
-	default:
-	}
 	return n
 }
 
@@ -96,57 +94,51 @@ func (m *MinimizeExitPoints) OptimizeSubtree(n rhino.Node) rhino.Node {
 // to look for, null otherwise. Non-null only for breaks within labels.
 //
 // Java: MinimizeExitPoints.tryMinimizeExits(Node, Token, String)
-func (m *MinimizeExitPoints) TryMinimizeExits(n rhino.Node, exitType rhino.Token, labelName *string) {
-
+func (m *MinimizeExitPoints) TryMinimizeExits(n ast.Statement, exitType rhino.Token, labelName *string) {
 	// Just an 'exit'.
 	if MinimizeExitPoints_MatchingExitNode(n, exitType, labelName) {
-		m.ReportChangeToEnclosingScope(n)
-		NodeUtil_RemoveChild(n.GetParent(), n)
+		m.ReportChangeToEnclosingScope(n.Node())
+		NodeUtil_RemoveChild(n.Node().GetParent(), n.Node())
 		return
 	}
 
 	// Just an 'if'.
-	if n.IsIf() {
-		ifBlock := n.GetSecondChild()
-		m.TryMinimizeExits(ifBlock, exitType, labelName)
-		elseBlock := ifBlock.GetNext()
-		if !elseBlock.IsNil() {
-			m.TryMinimizeExits(elseBlock, exitType, labelName)
+	if ifs, ok := n.AsIf(); ok {
+		m.TryMinimizeExits(ifs.Then().AsStatement(), exitType, labelName)
+		if els, ok := ifs.Else(); ok {
+			m.TryMinimizeExits(els.AsStatement(), exitType, labelName)
 		}
 		return
 	}
 
 	// Just a 'try/catch/finally'.
-	if n.IsTry() {
-		tryBlock := n.GetFirstChild()
-		m.TryMinimizeExits(tryBlock, exitType, labelName)
-		allCatchNodes := NodeUtil_GetCatchBlock(n)
-		if NodeUtil_HasCatchHandler(allCatchNodes) {
-			jutil.CheckState(allCatchNodes.HasOneChild())
-			catchNode := allCatchNodes.GetFirstChild()
-			catchCodeBlock := catchNode.GetLastChild()
-			m.TryMinimizeExits(catchCodeBlock, exitType, labelName)
+	if try, ok := n.AsTry(); ok {
+		m.TryMinimizeExits(try.Body().AsStatement(), exitType, labelName)
+		if catch, ok := try.Catch(); ok {
+			m.TryMinimizeExits(catch.Body().AsStatement(), exitType, labelName)
 		}
 		/* Don't try to minimize the exits of finally blocks, as this
 		 * can cause problems if it changes the completion type of the finally
 		 * block. See ECMA 262 Sections 8.9 & 12.14
 		 */
+		return
 	}
 
 	// Just a 'label'.
-	if n.IsLabel() {
-		labelBlock := n.GetLastChild()
-		m.TryMinimizeExits(labelBlock, exitType, labelName)
+	if label, ok := n.AsLabel(); ok {
+		m.TryMinimizeExits(label.Body(), exitType, labelName)
+		return
 	}
 
 	// We can only minimize switch cases if we are not trying to remove unlabeled breaks.
-	if n.IsSwitch() && (exitType != rhino.Token_BREAK || labelName != nil) {
-		m.TryMinimizeSwitchExits(n, exitType, labelName)
+	if sw, ok := n.AsSwitch(); ok && (exitType != rhino.Token_BREAK || labelName != nil) {
+		m.TryMinimizeSwitchExits(sw, exitType, labelName)
 		return
 	}
 
 	// The rest assumes a block with at least one child, bail on anything else.
-	if !n.IsBlock() || !n.HasChildren() {
+	block, ok := n.AsBlock()
+	if !ok || !block.HasStatements() {
 		return
 	}
 
@@ -154,54 +146,43 @@ func (m *MinimizeExitPoints) TryMinimizeExits(n rhino.Node, exitType rhino.Token
 	// Convert "if (blah) break;  if (blah2) break; other_stmt;" to
 	// become "if (blah); else { if (blah2); else { other_stmt; } }"
 	// which will get converted to "if (!blah && !blah2) { other_stmt; }".
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range block.Statements() {
 		// An 'if' block to process below.
-		if c.IsIf() {
-			ifTree := c
-
+		if ifs, ok := c.AsIf(); ok {
 			// First, the true condition block.
-			trueBlock := ifTree.GetSecondChild()
-			falseBlock := trueBlock.GetNext()
-			m.TryMinimizeIfBlockExits(trueBlock, falseBlock,
-				ifTree, exitType, labelName)
-
-			// Now the else block.
-			// The if blocks may have changed, get them again.
-			trueBlock = ifTree.GetSecondChild()
-			falseBlock = trueBlock.GetNext()
-			if !falseBlock.IsNil() {
-				m.TryMinimizeIfBlockExits(falseBlock, trueBlock,
-					ifTree, exitType, labelName)
+			m.TryMinimizeIfBlockExits(ifs, true, exitType, labelName)
+			// Now the else block (the if may have one now).
+			if _, ok := ifs.Else(); ok {
+				m.TryMinimizeIfBlockExits(ifs, false, exitType, labelName)
 			}
 		}
 
-		if c == n.GetLastChild() {
+		if last, _ := block.LastStatement(); c == last {
 			break
 		}
 	}
 
 	// Now try to minimize the exits of the last child, if it is removed
 	// look at what has become the last child.
-	for c := n.GetLastChild(); !c.IsNil(); c = n.GetLastChild() {
+	for c, ok := block.LastStatement(); ok; c, ok = block.LastStatement() {
 		m.TryMinimizeExits(c, exitType, labelName)
 		// If the node is still the last child, we are done.
-		if c == n.GetLastChild() {
+		if last, _ := block.LastStatement(); c == last {
 			break
 		}
 	}
 }
 
 // Java: MinimizeExitPoints.tryMinimizeSwitchExits(Node, Token, String)
-func (m *MinimizeExitPoints) TryMinimizeSwitchExits(n rhino.Node, exitType rhino.Token, labelName *string) {
-	jutil.CheckState(n.IsSwitch())
-	// Skipping the switch condition, visit all the children.
-	switchBody := n.GetSecondChild()
-	for c := switchBody.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c != switchBody.GetLastChild() {
+func (m *MinimizeExitPoints) TryMinimizeSwitchExits(n ast.Switch, exitType rhino.Token, labelName *string) {
+	// Skipping the switch condition, visit all the cases.
+	cases := n.Body()
+	for c := range cases.Cases() {
+		if last, _ := cases.LastCase(); c != last {
 			m.TryMinimizeSwitchCaseExits(c, exitType, labelName)
 		} else {
 			// Last case, the last case block can be optimized more aggressively.
-			m.TryMinimizeExits(c.GetLastChild(), exitType, labelName)
+			m.TryMinimizeExits(c.Body().AsStatement(), exitType, labelName)
 		}
 	}
 }
@@ -210,93 +191,85 @@ func (m *MinimizeExitPoints) TryMinimizeSwitchExits(n rhino.Node, exitType rhino
 // cases that also occur implicitly after the switch.
 //
 // Java: MinimizeExitPoints.tryMinimizeSwitchCaseExits(Node, Token, String)
-func (m *MinimizeExitPoints) TryMinimizeSwitchCaseExits(n rhino.Node, exitType rhino.Token, labelName *string) {
-	jutil.CheckState(NodeUtil_IsSwitchCase(n))
-
-	jutil.CheckState(n != n.GetParent().GetLastChild())
-	block := n.GetLastChild()
-	maybeBreak := block.GetLastChild()
-	if maybeBreak.IsNil() || !maybeBreak.IsBreak() || maybeBreak.HasChildren() {
+func (m *MinimizeExitPoints) TryMinimizeSwitchCaseExits(n ast.SwitchCase, exitType rhino.Token, labelName *string) {
+	_, hasNext := n.Next()
+	jutil.CheckState(hasNext)
+	maybeBreak, ok := n.Body().LastStatement()
+	if !ok {
+		return
+	}
+	if brk, ok := maybeBreak.AsBreak(); !ok || hasLabel(brk) {
 		// Can not minimize exits from a case without an explicit break from the switch.
 		return
 	}
 
 	// Now try to minimize the exits of the last child before the break, if it is removed
 	// look at what has become the child before the break.
-	childBeforeBreak := maybeBreak.GetPrevious()
-	for !childBeforeBreak.IsNil() {
-		c := childBeforeBreak
+	c, ok := maybeBreak.Previous()
+	for ok {
 		m.TryMinimizeExits(c, exitType, labelName)
-		// If the node is still the last child, we are done.
-		childBeforeBreak = maybeBreak.GetPrevious()
-		if c == childBeforeBreak {
+		// If the node is still the last child before the break, we are done.
+		before, stillOne := maybeBreak.Previous()
+		if !stillOne || before == c {
 			break
 		}
+		c = before
 	}
 }
 
+func hasLabel(brk ast.Break) bool {
+	_, ok := brk.Label()
+	return ok
+}
+
 // TryMinimizeIfBlockExits looks for exits (returns, breaks, or continues,
-// depending on the context) at the end of a block and removes them by moving
-// the if node's siblings, if any, into the opposite condition block.
+// depending on the context) at the end of a branch of ifNode and removes
+// them by moving the if node's siblings, if any, into the other branch.
 //
-// srcBlock is the block to inspect; destBlock is the block to move sibling
-// nodes into; ifNode is the if node to work with; exitType is the type of
-// exit to look for; labelName is the name associated with the exit, if any.
-// null for anything excepted for named-break associated with a label.
+// thenBranch says which branch to inspect; exitType is the type of exit to
+// look for; labelName is the name associated with the exit, if any. null
+// for anything excepted for named-break associated with a label.
 //
 // Java: MinimizeExitPoints.tryMinimizeIfBlockExits(Node, Node, Node, Token, String)
-func (m *MinimizeExitPoints) TryMinimizeIfBlockExits(srcBlock rhino.Node, destBlock rhino.Node,
-	ifNode rhino.Node, exitType rhino.Token, labelName *string) {
-	var exitNodeParent rhino.Node
-	var exitNode rhino.Node
-
-	// Pick an exit node candidate.
-	if srcBlock.IsBlock() {
-		if !srcBlock.HasChildren() {
-			return
-		}
-		exitNodeParent = srcBlock
-		exitNode = exitNodeParent.GetLastChild()
-	} else {
-		// Just a single statement, if it isn't an exit bail.
-		exitNodeParent = ifNode
-		exitNode = srcBlock
+// (Go: the branch is named by thenBranch; it is always a block, and so is
+// the other branch, when there is one.)
+func (m *MinimizeExitPoints) TryMinimizeIfBlockExits(ifNode ast.If, thenBranch bool,
+	exitType rhino.Token, labelName *string) {
+	src := ifNode.Then()
+	if !thenBranch {
+		src, _ = ifNode.Else()
 	}
-	_ = exitNodeParent
 
-	// Verify the candidate.
-	if !MinimizeExitPoints_MatchingExitNode(exitNode, exitType, labelName) {
+	// Pick an exit node candidate, and verify it.
+	exitNode, ok := src.LastStatement()
+	if !ok || !MinimizeExitPoints_MatchingExitNode(exitNode, exitType, labelName) {
 		return
 	}
 
 	// Ensure no block-scoped declarations are moved into an inner block.
-	if !MinimizeExitPoints_TryConvertAllBlockScopedFollowing(ifNode) {
+	if !MinimizeExitPoints_TryConvertAllBlockScopedFollowing(ifNode.AsStatement()) {
 		return
 	}
 
 	// Take case of the if nodes siblings, if any.
-	if !ifNode.GetNext().IsNil() {
+	if _, ok := ifNode.AsStatement().Next(); ok {
 		// Move siblings of the if block into the opposite
 		// logic block of the exit.
-		newDestBlock := rhino.IR_Block().Srcref(ifNode)
-		if destBlock.IsNil() {
-			// Only possible if this is the false block.
-			ifNode.AddChildToBack(newDestBlock)
-		} else if destBlock.IsEmpty() {
-			// Use the new block.
-			destBlock.ReplaceWith(newDestBlock)
-		} else if destBlock.IsBlock() {
+		var dest ast.Block
+		if !thenBranch {
+			dest = ifNode.Then()
+		} else if els, ok := ifNode.Else(); ok {
 			// Reuse the existing block.
-			newDestBlock = destBlock
+			dest = els
 		} else {
-			// Add the existing statement to the new block.
-			destBlock.ReplaceWith(newDestBlock)
-			newDestBlock.AddChildToBack(destBlock)
+			dest = ast.NewBlock()
+			dest.Node().Srcref(ifNode.Node())
+			ifNode.SetElse(dest)
 		}
 
 		// Move all the if node's following siblings.
-		MinimizeExitPoints_MoveAllFollowing(ifNode, newDestBlock)
-		m.ReportChangeToEnclosingScope(ifNode)
+		MinimizeExitPoints_MoveAllFollowing(ifNode.AsStatement(), dest)
+		m.ReportChangeToEnclosingScope(ifNode.Node())
 	}
 }
 
@@ -305,44 +278,44 @@ func (m *MinimizeExitPoints) TryMinimizeIfBlockExits(srcBlock rhino.Node, destBl
 //   - return without values
 //   - continues and breaks with or without names.
 //
-// n is the node to inspect; type_ is the Token type to look for; labelName is
-// the name that must be associated with the exit type, non-null only for
-// breaks associated with labels. Returns whether the node matches the
-// specified block-exit type.
+// n is the node to inspect; exitType is the Token type to look for;
+// labelName is the name that must be associated with the exit type, non-null
+// only for breaks associated with labels. Returns whether the node matches
+// the specified block-exit type.
 //
 // Java: MinimizeExitPoints.matchingExitNode(Node, Token, String)
-func MinimizeExitPoints_MatchingExitNode(n rhino.Node, type_ rhino.Token, labelName *string) bool {
-	if n.GetToken() == type_ {
-		if type_ == rhino.Token_RETURN {
-			// only returns without expressions.
-			return !n.HasChildren()
-		} else {
-			if labelName == nil {
-				return !n.HasChildren()
-			} else {
-				return n.HasChildren() &&
-					*labelName == n.GetFirstChild().GetString()
-			}
-		}
+func MinimizeExitPoints_MatchingExitNode(n ast.Statement, exitType rhino.Token, labelName *string) bool {
+	if n.Node().GetToken() != exitType {
+		return false
 	}
-	return false
+	if ret, ok := n.AsReturn(); ok {
+		// only returns without expressions.
+		_, hasValue := ret.Value()
+		return !hasValue
+	}
+	jump, ok := n.AsJump()
+	if !ok {
+		return false
+	}
+	label, hasLabel := jump.Label()
+	if labelName == nil {
+		return !hasLabel
+	}
+	return hasLabel && *labelName == label.Ident()
 }
 
-// MinimizeExitPoints_MoveAllFollowing moves all the child nodes following
-// start in srcParent to the end of destParent's child list.
-//
-// start is the start point in the srcParent child list; destParent is the
-// destination node.
+// MinimizeExitPoints_MoveAllFollowing moves all the statements following
+// start to the end of dest (function declarations to its start).
 //
 // Java: MinimizeExitPoints.moveAllFollowing(Node, Node)
-func MinimizeExitPoints_MoveAllFollowing(start rhino.Node, destParent rhino.Node) {
-	for n := start.GetNext(); !n.IsNil(); n = start.GetNext() {
-		isFunctionDeclaration := NodeUtil_IsFunctionDeclaration(n)
-		n.Detach()
+func MinimizeExitPoints_MoveAllFollowing(start ast.Statement, dest ast.Block) {
+	for n, ok := start.Next(); ok; n, ok = start.Next() {
+		isFunctionDeclaration := NodeUtil_IsFunctionDeclaration(n.Node())
+		n.Node().Detach()
 		if isFunctionDeclaration {
-			destParent.AddChildToFront(n)
+			dest.PrependStatement(n)
 		} else {
-			destParent.AddChildToBack(n)
+			dest.AppendStatement(n)
 		}
 	}
 }
@@ -359,14 +332,14 @@ func MinimizeExitPoints_MoveAllFollowing(start rhino.Node, destParent rhino.Node
 // have been converted.
 //
 // Java: MinimizeExitPoints.tryConvertAllBlockScopedFollowing(Node)
-func MinimizeExitPoints_TryConvertAllBlockScopedFollowing(start rhino.Node) bool {
-	if NodeUtil_IsWithinLoop(start) {
+func MinimizeExitPoints_TryConvertAllBlockScopedFollowing(start ast.Statement) bool {
+	if NodeUtil_IsWithinLoop(start.Node()) {
 		// If in a loop, don't convert anything to a var. Return true only if there are no let/consts.
 		return !MinimizeExitPoints_HasBlockScopedVarsFollowing(start)
 	}
-	for n := start.GetNext(); !n.IsNil(); n = n.GetNext() {
-		if n.IsLet() || n.IsConst() {
-			n.SetToken(rhino.Token_VAR)
+	for n, ok := start.Next(); ok; n, ok = n.Next() {
+		if decl, ok := n.AsNameDeclaration(); ok && decl.Token() != rhino.Token_VAR {
+			decl.Node().SetToken(rhino.Token_VAR)
 		}
 	}
 	return true
@@ -376,9 +349,9 @@ func MinimizeExitPoints_TryConvertAllBlockScopedFollowing(start rhino.Node) bool
 // declarations that are younger siblings of the given starting point.
 //
 // Java: MinimizeExitPoints.hasBlockScopedVarsFollowing(Node)
-func MinimizeExitPoints_HasBlockScopedVarsFollowing(start rhino.Node) bool {
-	for n := start.GetNext(); !n.IsNil(); n = n.GetNext() {
-		if n.IsLet() || n.IsConst() {
+func MinimizeExitPoints_HasBlockScopedVarsFollowing(start ast.Statement) bool {
+	for n, ok := start.Next(); ok; n, ok = n.Next() {
+		if decl, ok := n.AsNameDeclaration(); ok && decl.Token() != rhino.Token_VAR {
 			return true
 		}
 	}

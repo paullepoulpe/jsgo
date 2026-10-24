@@ -1,0 +1,331 @@
+# The JavaScript AST, one node kind per line.
+#
+# This file is the source of internal/ast/nodes.gen.go (go generate
+# ./internal/ast). It describes the trees the parser builds and every pass
+# keeps valid; the same rules are checked by jscomp's AstValidator, from
+# which they were transcribed.
+#
+# A node kind:
+#
+#   Kind  TOKEN[,TOKEN...]  child child ...
+#
+# gives the rhino tokens a node of that kind can have, and its children in
+# order, each as role:Type:
+#
+#   role:Type     a child that is always there
+#   role:Type?    an optional child, absent when missing (only at the end)
+#   role:Type~    a child that is an EMPTY node when missing
+#   roles:Type*   all the remaining children (a list)
+#   $Accessor     the node's string (not a child), read with Accessor()
+#
+# A role starting with _ gets an unexported accessor; custom.go wraps it.
+# Type is a node kind, a category, or Node (any node, not checked).
+# A token marked with ! is a kind that only appears in one place (its
+# parent's role says where), so AsKind does not recognize it on its own.
+#
+# A category is a set of kinds (and other categories) that can appear in
+# the same place:
+#
+#   Category = Kind | Category | ...
+#
+# A line starting with ## documents the next kind or category.
+
+## Statement is any statement.
+Statement = Label | Block | Function | With | For | ForIn | ForOf | ForAwaitOf | While | Do | Switch | If | NameDeclaration | ExprStmt | Return | Throw | Try | Break | Continue | Empty | Debugger | Class | Import | Export | Interface | Enum | TypeAlias | Declare | Namespace
+
+## Expr is any expression. Super is one too, although it may only be a
+## callee or the object of a property access.
+Expr = Name | This | Super | True | False | Null | NewTarget | ImportMeta | StringLit | Number | BigInt | RegExp | TemplateLit | TaggedTemplateLit | ArrayLit | ObjectLit | Function | Class | Unary | Cast | DynamicImport | IncDec | Assign | AssignOp | Binary | Hook | GetProp | OptChainGetProp | GetElem | OptChainGetElem | Call | OptChainCall | New | Yield | Await
+
+## Target is what can be assigned to: the left side of an assignment, a
+## declaration or a for-in/of loop.
+Target = Name | ArrayPattern | ObjectPattern | GetProp | GetElem | Cast
+
+## Pattern is a destructuring pattern.
+Pattern = ArrayPattern | ObjectPattern
+
+## Param is a function parameter.
+Param = Name | ArrayPattern | ObjectPattern | DefaultValue | IterRest
+
+## Arg is a call argument.
+Arg = Expr | IterSpread
+
+## ArrayElem is an element of an array literal (Empty for a hole).
+ArrayElem = Expr | IterSpread | Empty
+
+## ArrayPatternElem is an element of an array pattern (Empty for a hole).
+ArrayPatternElem = Target | DefaultValue | IterRest | Empty
+
+## ObjectPatternProp is a property of an object pattern.
+ObjectPatternProp = StringKey | ObjectRest | ComputedProp
+
+## PropValue is the value of a StringKey or ComputedProp: an expression in
+## an object literal or a class, a target in an object pattern.
+PropValue = Expr | Pattern | DefaultValue
+
+## ObjectMember is a member of an object literal.
+ObjectMember = StringKey | GetterDef | SetterDef | MemberFunctionDef | ComputedProp | ObjectSpread
+
+## ClassMember is a member of a class body (Block for a static block).
+ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | ComputedProp | MemberFieldDef | ComputedFieldDef | IndexSignature | CallSignature | Block | Empty
+
+## Loop is a loop statement.
+Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
+
+## Jump is break or continue.
+Jump = Break | Continue
+
+## SwitchCase is a case of a switch.
+SwitchCase = Case | DefaultCase
+
+## Declarator is one declared name of a var, let or const, with its value.
+Declarator = Name | DestructuringLhs
+
+## ForInit is the first part of a for loop.
+ForInit = NameDeclaration | Expr
+
+## ForTarget is what a for-in or for-of loop assigns.
+ForTarget = NameDeclaration | Target
+
+## CatchParam is the binding of a catch clause.
+CatchParam = Name | Pattern
+
+## FunctionBody is a function's body: a block, an expression (an arrow
+## function), or Empty (a declaration without body, in type summaries).
+FunctionBody = Block | Expr | Empty
+
+## TemplatePart is a part of a template literal.
+TemplatePart = TemplateLitString | TemplateLitSub
+
+## ImportBindings is what an import binds besides its default.
+ImportBindings = ImportSpecs | ImportStar
+
+## ExportBody is what an export exports: a declaration, an expression
+## (export default), specifiers, or Empty (export * from).
+ExportBody = Statement | Expr | ExportSpecs | Empty
+
+## ScriptItem is a child of a script: statements, or one module body.
+ScriptItem = Statement | ModuleBody
+
+## RootItem is a child of a root: a script, or a root (the top root holds
+## the externs root and the code root).
+RootItem = Root | Script
+
+# --- Programs ---
+
+## Root holds scripts (or, at the top, the externs root and the code root).
+Root               ROOT                  items:RootItem*
+## Script is one input file.
+Script             SCRIPT                items:ScriptItem*
+## ModuleBody holds the statements of a module script.
+ModuleBody         MODULE_BODY           statements:Statement*
+
+# --- Statements ---
+
+## Block is { statements }.
+Block              BLOCK                 statements:Statement*
+## Label is name: body.
+Label              LABEL                 name:LabelName body:Statement
+## LabelName is the name of a label, or the label of a break or continue.
+LabelName          LABEL_NAME            $Ident
+## If is if (cond) then else else.
+If                 IF                    cond:Expr then:Block else:Block?
+## For is for (init; cond; update) body.
+For                FOR                   init:ForInit~ cond:Expr~ update:Expr~ body:Block
+## ForIn is for (target in object) body.
+ForIn              FOR_IN                target:ForTarget object:Expr body:Block
+## ForOf is for (target of iterable) body.
+ForOf              FOR_OF                target:ForTarget iterable:Expr body:Block
+## ForAwaitOf is for await (target of iterable) body.
+ForAwaitOf         FOR_AWAIT_OF          target:ForTarget iterable:Expr body:Block
+## While is while (cond) body.
+While              WHILE                 cond:Expr body:Block
+## Do is do body while (cond).
+Do                 DO                    body:Block cond:Expr
+## With is with (object) body.
+With               WITH                  object:Expr body:Block
+## Switch is switch (discriminant) { cases }.
+Switch             SWITCH                discriminant:Expr body:SwitchBody
+## SwitchBody holds the cases of a switch.
+SwitchBody         SWITCH_BODY           cases:SwitchCase*
+## Case is case value: body.
+Case               CASE                  value:Expr body:Block
+## DefaultCase is default: body.
+DefaultCase        DEFAULT_CASE          body:Block
+## Try is try body catch finally (with a catch, a finally, or both).
+Try                TRY                   body:Block _catches:TryCatches finally:Block?
+## TryCatches holds the catch clause of a try, if it has one.
+TryCatches         BLOCK!                catch:Catch?
+## Catch is catch (param) body; the param is missing in catch { }.
+Catch              CATCH                 param:CatchParam~ body:Block
+## NameDeclaration is var, let or const, with one or more declarators.
+NameDeclaration    VAR,LET,CONST         declarators:Declarator*
+## DestructuringLhs is a pattern being declared, with its value: the
+## {a, b} = value of let {a, b} = value.
+DestructuringLhs   DESTRUCTURING_LHS     pattern:Pattern init:Expr?
+## ExprStmt is an expression used as a statement.
+ExprStmt           EXPR_RESULT           expr:Expr
+## Return is return value.
+Return             RETURN                value:Expr?
+## Throw is throw value.
+Throw              THROW                 value:Expr
+## Break is break label.
+Break              BREAK                 label:LabelName?
+## Continue is continue label.
+Continue           CONTINUE              label:LabelName?
+## Empty is an empty statement, or a placeholder for a missing part.
+Empty              EMPTY
+## Debugger is the debugger statement.
+Debugger           DEBUGGER
+
+# --- Functions and classes ---
+
+## Function is a function, an arrow function, a method's function or a
+## generator: function name(params) body.
+Function           FUNCTION              _name:Name params:ParamList body:FunctionBody
+## ParamList holds the parameters of a function.
+ParamList          PARAM_LIST            params:Param*
+## DefaultValue is target = value, in a parameter list or a pattern.
+DefaultValue       DEFAULT_VALUE         target:Target value:Expr
+## IterRest is ...target, at the end of a parameter list or array pattern.
+IterRest           ITER_REST             target:Target
+## ObjectRest is ...target, at the end of an object pattern.
+ObjectRest         OBJECT_REST           target:Target
+## IterSpread is ...expr, in a call or an array literal.
+IterSpread         ITER_SPREAD           expr:Expr
+## ObjectSpread is ...expr, in an object literal.
+ObjectSpread       OBJECT_SPREAD         expr:Expr
+## ArrayPattern is [elements], destructuring.
+ArrayPattern       ARRAY_PATTERN         elements:ArrayPatternElem*
+## ObjectPattern is {props}, destructuring.
+ObjectPattern      OBJECT_PATTERN        props:ObjectPatternProp*
+## Class is class name extends superclass { body }.
+Class              CLASS                 name:Name~ extends:Expr~ body:ClassBody
+## ClassBody holds the members of a class.
+ClassBody          CLASS_MEMBERS         members:ClassMember*
+## MemberFunctionDef is a method: key(params) { body }.
+MemberFunctionDef  MEMBER_FUNCTION_DEF   $Key function:Function
+## GetterDef is get key() { body }.
+GetterDef          GETTER_DEF            $Key function:Function
+## SetterDef is set key(param) { body }.
+SetterDef          SETTER_DEF            $Key function:Function
+## MemberFieldDef is a class field: key = value.
+MemberFieldDef     MEMBER_FIELD_DEF      $Key value:Expr?
+## ComputedFieldDef is a class field with a computed key: [key] = value.
+ComputedFieldDef   COMPUTED_FIELD_DEF    key:Expr value:Expr?
+## ComputedProp is [key]: value in an object literal or pattern, or a
+## method with a computed key in a class.
+ComputedProp       COMPUTED_PROP         key:Expr value:PropValue?
+## MemberVariableDef is a member variable of a type summary.
+MemberVariableDef  MEMBER_VARIABLE_DEF   $Key
+## IndexSignature is an index signature of a type summary.
+IndexSignature     INDEX_SIGNATURE       children:Node*
+## CallSignature is a call signature of a type summary.
+CallSignature      CALL_SIGNATURE        children:Node*
+
+# --- Expressions ---
+
+## Name is an identifier. In a var, let or const, its child is the
+## declared value.
+Name               NAME                  $Ident init:Expr?
+## This is this.
+This               THIS
+## Super is super.
+Super              SUPER
+## True is true.
+True               TRUE
+## False is false.
+False              FALSE
+## Null is null.
+Null               NULL
+## NewTarget is new.target.
+NewTarget          NEW_TARGET
+## ImportMeta is import.meta.
+ImportMeta         IMPORT_META
+## StringLit is a string literal.
+StringLit          STRINGLIT             $Value
+## Number is a number literal.
+Number             NUMBER
+## BigInt is a bigint literal.
+BigInt             BIGINT
+## RegExp is /pattern/flags.
+RegExp             REGEXP                pattern:StringLit flags:StringLit?
+## TemplateLit is a template literal: `parts`.
+TemplateLit        TEMPLATELIT           parts:TemplatePart*
+## TemplateLitString is the text of a template literal between
+## substitutions.
+TemplateLitString  TEMPLATELIT_STRING
+## TemplateLitSub is ${expr} in a template literal.
+TemplateLitSub     TEMPLATELIT_SUB       expr:Expr
+## TaggedTemplateLit is tag`template`.
+TaggedTemplateLit  TAGGED_TEMPLATELIT    tag:Expr template:TemplateLit
+## ArrayLit is [elements].
+ArrayLit           ARRAYLIT              elements:ArrayElem*
+## ObjectLit is {members}.
+ObjectLit          OBJECTLIT             members:ObjectMember*
+## StringKey is key: value in an object literal or pattern.
+StringKey          STRING_KEY            $Key value:PropValue
+## Unary is op operand: delete, +, -, !, typeof, void, ~.
+Unary              DELPROP,POS,NEG,NOT,TYPEOF,VOID,BITNOT  operand:Expr
+## Cast is a type cast: /** @type {T} */ (expr).
+Cast               CAST                  expr:Expr
+## DynamicImport is import(specifier).
+DynamicImport      DYNAMIC_IMPORT        specifier:Expr
+## IncDec is ++target, target++, --target or target--.
+IncDec             INC,DEC               target:Target
+## Assign is target = value.
+Assign             ASSIGN                target:Target value:Expr
+## AssignOp is target op= value.
+AssignOp           ASSIGN_BITOR,ASSIGN_BITXOR,ASSIGN_BITAND,ASSIGN_LSH,ASSIGN_RSH,ASSIGN_URSH,ASSIGN_ADD,ASSIGN_SUB,ASSIGN_MUL,ASSIGN_DIV,ASSIGN_MOD,ASSIGN_EXPONENT,ASSIGN_OR,ASSIGN_AND,ASSIGN_COALESCE  target:Target value:Expr
+## Binary is left op right.
+Binary             COMMA,OR,AND,COALESCE,BITOR,BITXOR,BITAND,EQ,NE,SHEQ,SHNE,LT,GT,LE,GE,INSTANCEOF,IN,LSH,RSH,URSH,SUB,ADD,MUL,MOD,DIV,EXPONENT  left:Expr right:Expr
+## Hook is cond ? then : else.
+Hook               HOOK                  cond:Expr then:Expr else:Expr
+## GetProp is object.property.
+GetProp            GETPROP               object:Expr $Property
+## OptChainGetProp is object?.property.
+OptChainGetProp    OPTCHAIN_GETPROP      object:Expr $Property
+## GetElem is object[index].
+GetElem            GETELEM               object:Expr index:Expr
+## OptChainGetElem is object?.[index].
+OptChainGetElem    OPTCHAIN_GETELEM      object:Expr index:Expr
+## Call is callee(args).
+Call               CALL                  callee:Expr args:Arg*
+## OptChainCall is callee?.(args).
+OptChainCall       OPTCHAIN_CALL         callee:Expr args:Arg*
+## New is new callee(args).
+New                NEW                   callee:Expr args:Arg*
+## Yield is yield value.
+Yield              YIELD                 value:Expr?
+## Await is await value.
+Await              AWAIT                 value:Expr
+
+# --- Modules ---
+
+## Import is import default, bindings from source.
+Import             IMPORT                default:Name~ bindings:ImportBindings~ source:StringLit
+## ImportSpecs is the {specs} of an import.
+ImportSpecs        IMPORT_SPECS          specs:ImportSpec*
+## ImportSpec is imported as local.
+ImportSpec         IMPORT_SPEC           imported:Name local:Name
+## ImportStar is * as name.
+ImportStar         IMPORT_STAR           $Ident
+## Export is export body, or export body from source.
+Export             EXPORT                body:ExportBody source:StringLit?
+## ExportSpecs is the {specs} of an export.
+ExportSpecs        EXPORT_SPECS          specs:ExportSpec*
+## ExportSpec is local as exported.
+ExportSpec         EXPORT_SPEC           local:Name exported:Name
+
+# --- Type summaries (.i.js and TypeScript-like declarations) ---
+
+## Interface is an interface declaration.
+Interface          INTERFACE             children:Node*
+## Enum is an enum declaration.
+Enum               ENUM                  children:Node*
+## TypeAlias is a type alias declaration.
+TypeAlias          TYPE_ALIAS            children:Node*
+## Declare is an ambient declaration.
+Declare            DECLARE               children:Node*
+## Namespace is a namespace declaration.
+Namespace          NAMESPACE             children:Node*

@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -152,10 +153,23 @@ func (v *AstValidator) SetTypeValidationMode(mode AstValidator_TypeInfoValidatio
 func (v *AstValidator) Process(externs rhino.Node, root rhino.Node) {
 	if !externs.IsNil() {
 		v.ValidateCodeRoot(externs)
+		v.checkGrammar(externs)
 	}
 	if !root.IsNil() {
 		v.ValidateCodeRoot(root)
+		v.checkGrammar(root)
 	}
+}
+
+// checkGrammar reports the nodes that do not follow the grammar of the
+// typed AST view (internal/ast/grammar.txt), so that the grammar stays true
+// to the trees the compiler builds.
+//
+// Go-only: the typed view is not in Java.
+func (v *AstValidator) checkGrammar(root rhino.Node) {
+	ast.Check(root, func(n rhino.Node, problem string) {
+		v.Violation("AST grammar (internal/ast/grammar.txt): "+problem, n)
+	})
 }
 
 // Java: AstValidator.validateRoot(Node)
@@ -165,6 +179,7 @@ func (v *AstValidator) ValidateRoot(n rhino.Node) {
 	v.ValidateChildCountWithExpected(n, 2)
 	v.ValidateCodeRoot(n.GetFirstChild())
 	v.ValidateCodeRoot(n.GetLastChild())
+	v.checkGrammar(n)
 }
 
 // Java: AstValidator.validateCodeRoot(Node)
