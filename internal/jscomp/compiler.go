@@ -597,7 +597,7 @@ func (c *Compiler) InitOptions(options *CompilerOptions) {
 		options.SetRuntimeLibraryMode(RuntimeJsLibManager_RuntimeLibraryMode_NO_OP)
 	}
 
-	c.moduleLoader = ModuleLoader_EMPTY
+	c.moduleLoader = moduleLoader_NewEmpty()
 
 	c.ReconcileOptionsWithGuards()
 	switch options.GetShouldValidateRequiredInlinings() {
@@ -2538,7 +2538,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 		c.InitializeModuleLoader()
 	} else {
 		// Use an empty module loader if we're not actually dealing with modules.
-		c.moduleLoader = ModuleLoader_EMPTY
+		c.moduleLoader = moduleLoader_NewEmpty()
 	}
 
 	if c.options.GetDependencyOptions().NeedsManagement() {

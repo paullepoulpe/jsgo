@@ -529,11 +529,21 @@ func (moduleLoader_noopErrorHandler) Report(level *CheckLevel, error *JSError) {
 var moduleLoader_NOOP_ERROR_HANDER ErrorHandler = moduleLoader_noopErrorHandler{}
 
 // ModuleLoader_EMPTY is a trivial module loader with no roots.
-var ModuleLoader_EMPTY = ModuleLoader_Builder_().
-	SetModuleRoots([]string{}).
-	SetInputs([]DependencyInfo{}).
-	SetFactory(BrowserModuleResolver_FACTORY).
-	Build()
+var ModuleLoader_EMPTY = moduleLoader_NewEmpty()
+
+// moduleLoader_NewEmpty returns a new trivial module loader with no roots.
+//
+// Go-only: a Compiler uses its own instead of the shared ModuleLoader_EMPTY
+// (Java's Compiler uses ModuleLoader.EMPTY): the Compiler sets its error
+// handler on its loader, and on a shared one that would send a later
+// compiler's module errors to an earlier one.
+func moduleLoader_NewEmpty() *ModuleLoader {
+	return ModuleLoader_Builder_().
+		SetModuleRoots([]string{}).
+		SetInputs([]DependencyInfo{}).
+		SetFactory(BrowserModuleResolver_FACTORY).
+		Build()
+}
 
 // ModuleLoader_ResolutionMode lists the standard path base resolution
 // algorithms that are accepted as a command line flag.
