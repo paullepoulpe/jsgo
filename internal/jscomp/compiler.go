@@ -1695,9 +1695,6 @@ func (c *Compiler) BeforePass(passName string) {
 
 // Java: Compiler.afterPass(String)
 func (c *Compiler) AfterPass(passName string) {
-	// Go-only: fold the nodes this pass allocated into the node store's
-	// slice (rhino/node_store.go); between passes nothing holds the slice.
-	rhino.SettleCurrentNodeStore(false)
 	c.maybePrintSourceAfterEachPass(passName)
 	if DebugAfterPassHook != nil {
 		DebugAfterPassHook(c, passName)
@@ -2483,34 +2480,6 @@ func (c *Compiler) InitializeModuleLoader() {
 // Returns a synthetic root node whose two children are the externs root
 // and the main root
 //
-// compilerSourceBytesPerNode estimates how many bytes of source one AST node
-// stands for (typed Closure code: about 15, plain bundles: about 10; the
-// lower bound, so that parsing rarely outgrows the reservation).
-const compilerSourceBytesPerNode = 10
-
-// reserveNodesForParsing sizes the node store for the inputs about to be
-// parsed, from their file sizes, so that parsing fills the store's slice
-// instead of overflow segments.
-//
-// Go-only: performance (rhino/node_store.go).
-func (c *Compiler) reserveNodesForParsing() {
-	bytes := 0
-	add := func(in *CompilerInput) {
-		if in != nil && in.GetSourceFile() != nil {
-			bytes += in.GetSourceFile().estimatedNumBytes()
-		}
-	}
-	for in := range c.externs.All() {
-		add(in)
-	}
-	if c.chunkGraph != nil {
-		for _, in := range c.chunkGraph.GetAllInputs() {
-			add(in)
-		}
-	}
-	rhino.ReserveNodes(bytes / compilerSourceBytesPerNode)
-}
-
 // Java: Compiler.parseInputs()
 func (c *Compiler) ParseInputs() (result rhino.Node) {
 	devMode := c.options.GetDevMode() != CompilerOptions_DevMode_OFF
@@ -2520,7 +2489,6 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	c.externsRoot.DetachChildren()
 	c.jsRoot.DetachChildren()
 	c.scriptNodeByFilename.Clear()
-	c.reserveNodesForParsing()
 
 	tracer := c.NewTracer(PassNames_PARSE_INPUTS)
 	c.BeforePass(PassNames_PARSE_INPUTS)
@@ -2535,7 +2503,6 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	}
 	for input := range c.externs.All() {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
-		rhino.SettleCurrentNodeStore(true)
 		if c.HasErrors() {
 			return rhino.NilNode
 		}
@@ -2628,7 +2595,6 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 
 	for _, input := range allInputs {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
-		rhino.SettleCurrentNodeStore(true)
 		if devMode {
 			c.runValidityCheck()
 			if c.HasErrors() {

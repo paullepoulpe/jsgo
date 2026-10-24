@@ -35,47 +35,19 @@ type Compactor struct {
 
 // NewCompactor creates a new store after the current one, makes it current
 // (new nodes are allocated in it from now on) and returns the compactor
-// that fills it. The old store stays readable until Finish. The new store's
-// slice is sized for the tree under root plus a quarter for the nodes the
-// following passes allocate (compaction runs again about when that is
-// used up).
-func NewCompactor(root Node) *Compactor {
+// that fills it. The old store stays readable until Finish.
+func NewCompactor() *Compactor {
 	src := current
 	if src == nil {
 		panic("rhino.Compactor: no current node store")
 	}
-	size := src.NodeCount()
-	if root != 0 {
-		size = countTree(root)
-	}
-	raiseDynamicIDs(src.idEnd())
-	dst := newNodeStore(false, dynamicIDs.Load(), size+size/4+4096)
+	dst := NewNodeStore()
 	compactSource = src
 	SetCurrentNodeStore(dst)
 	return &Compactor{
 		src:  src,
 		dst:  dst,
 		docs: make(map[*JSDocInfo]struct{}, 1024),
-	}
-}
-
-// countTree returns the number of nodes in the tree under root.
-func countTree(root Node) int {
-	count := 0
-	n := root
-	for {
-		count++
-		if c := n.firstNode(); c != 0 {
-			n = c
-			continue
-		}
-		for n != root && n.nextNode() == 0 {
-			n = n.parentNode()
-		}
-		if n == root {
-			return count
-		}
-		n = n.nextNode()
 	}
 }
 
@@ -240,7 +212,6 @@ func (k *Compactor) ForwardSlice(s []Node) {
 // ids fail like nil pointers from now on) and is freed once the GC sees
 // nothing refers to it.
 func (k *Compactor) Finish() {
-	SettleCurrentNodeStore(false)
 	k.src.unregister()
 	compactSource = nil
 	k.src = nil
