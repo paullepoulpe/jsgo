@@ -414,6 +414,9 @@ func (w *gen) kind(k *kind) {
 	w.p("// Node returns x as a rhino.Node.")
 	w.p("func (x %s) Node() rhino.Node { return x.node }", k.name)
 	w.p("")
+	w.p("// Is reports whether x is the node n.")
+	w.p("func (x %s) Is(n rhino.Node) bool { return x.node == n }", k.name)
+	w.p("")
 	if len(k.tokens) > 1 {
 		w.p("// Token returns which of %s x is.", strings.Join(k.tokens, ", "))
 		w.p("func (x %s) Token() rhino.Token { return x.node.GetToken() }", k.name)
@@ -644,6 +647,9 @@ func (w *gen) category(c *category) {
 	w.p("")
 	w.p("// Node returns x as a rhino.Node.")
 	w.p("func (x %s) Node() rhino.Node { return x.node }", c.name)
+	w.p("")
+	w.p("// Is reports whether x is the node n.")
+	w.p("func (x %s) Is(n rhino.Node) bool { return x.node == n }", c.name)
 	w.p("")
 	for _, kn := range c.kinds {
 		w.p("// As%s returns x as %s; ok is false if it is not one.", kn, a(kn))

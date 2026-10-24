@@ -1,8 +1,9 @@
 # A typed view of the AST
 
 Status: prototype. Package `internal/ast`, generated from
-`internal/ast/grammar.txt`; two passes use it (`MinimizeExitPoints`, and
-`ConvertToDottedProperties` with a typed visitor).
+`internal/ast/grammar.txt`; three passes use it (`MinimizeExitPoints`,
+`ConvertToDottedProperties` with a typed visitor, and the parts of the hot
+`InlineVariables` that read tree shapes).
 
 ## Why
 
@@ -181,6 +182,54 @@ One trap showed up while porting: accessors are positional underneath, so
 `x.Value()` (the second child) is wrong once `x.Key()` (the first) has been
 detached. Read the children you need before editing the node: the same rule
 as with the rhino API, but less visible when the positions are hidden.
+
+## Third port: InlineVariables
+
+A hot pass (about 1.1 s on bundle, 1.8 s on typed-full) of 1,700 lines,
+most of it reference bookkeeping that never touches the tree. The eight
+places that read shapes around a reference now use the typed view:
+
+```go
+// before
+callNode := n.GetParent()
+if NodeUtil_IsNormalOrOptChainCall(callNode) {
+	calleeNode := callNode.GetFirstChild()
+	if NodeUtil_IsNormalOrOptChainGetProp(calleeNode) {
+		if calleeNode.GetString() == "apply" {
+			thisArgNode := calleeNode.GetNext()
+			...
+// after
+call, ok := ast.AsNormalOrOptChainCall(n.GetParent())
+if !ok { return false }
+callee, ok := call.Callee().AsNormalOrOptChainGetProp()
+if !ok || callee.Property() != "apply" { return false }
+thisArg, ok := call.FirstArg()
+if !ok { return false }
+secondArg, ok := thisArg.Next()
+return ok && secondArg.Is(n)
+```
+
+Output and source maps byte-identical, same pass time (medians of 11-19
+interleaved runs within 1.2%). It added to the API: categories for
+NodeUtil's `isNormalOrOptChain*` predicates (`NormalOrOptChainCall`,
+`...GetProp`, `...Get`), list accessors shared by a category's kinds
+(`call.Args()` on both calls), `Function.RemoveName()`, and `x.Is(n)` on
+every view.
+
+Its feedback on the API:
+
+- Checked conversions do not chain: "is the declared value a name?" is
+  three comma-ok steps; small helpers per pass are the answer today.
+- Code that looks up from a node ("is n the callee of its parent?") reads
+  `AsCall(n.GetParent())` then compares; parent-role queries would help.
+- A switch that groups kinds by "the first child is the declared name"
+  (VAR, LET, CONST, FUNCTION, CLASS) is not clearer typed: each kind names
+  that child differently.
+- `fn, _ := ast.AsFunction(x)` after a NodeUtil check is safe but a bad
+  pattern to copy; typed versions of the common NodeUtil predicates, which
+  return the view, would avoid it.
+- Some typed helpers exceed Go's inlining budget (each accessor brings in
+  the record lookup); fine per variable, to watch in per-node loops.
 
 ## Performance outlook
 

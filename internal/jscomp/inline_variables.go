@@ -1335,7 +1335,7 @@ func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode rh
 // Java: InlineVariables.InliningBehavior.isTargetOfPropertyRead(Node)
 func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n rhino.Node) bool {
 	get, ok := ast.AsNormalOrOptChainGet(n.GetParent())
-	return ok && get.Object().Node() == n && !NodeUtil_IsLValue(get.Node())
+	return ok && get.Object().Is(n) && !NodeUtil_IsLValue(get.Node())
 }
 
 // IsSecondArgumentToDotApplyMethod: true if `n` is being used in a call like
@@ -1356,7 +1356,7 @@ func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n rh
 		return false
 	}
 	secondArg, ok := thisArg.Next()
-	return ok && secondArg.Node() == n
+	return ok && secondArg.Is(n)
 }
 
 // Inline does the actual work of inlining a single declaration into a
@@ -1487,7 +1487,7 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 	// is OK.
 	jutil.CheckState(!initValue.IsNil())
 	call, isCall := ast.AsCall(reference.GetParent())
-	if initValue.IsGetProp() && isCall && call.Callee().Node() == reference.GetNode() {
+	if initValue.IsGetProp() && isCall && call.Callee().Is(reference.GetNode()) {
 		return false
 	}
 
@@ -1588,7 +1588,7 @@ func (b *InlineVariables_InliningBehavior) IsValidInitialization(initialization 
 		}
 	} else {
 		assign, ok := ast.AsAssign(initialization.GetParent())
-		jutil.CheckState(ok && assign.Target().Node() == initialization.GetNode())
+		jutil.CheckState(ok && assign.Target().Is(initialization.GetNode()))
 	}
 
 	return true

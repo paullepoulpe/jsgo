@@ -24,6 +24,9 @@ func AsRoot(n rhino.Node) (x Root, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Root) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Root) Is(n rhino.Node) bool { return x.node == n }
+
 // Items iterates over the items of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -85,6 +88,9 @@ func AsScript(n rhino.Node) (x Script, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Script) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Script) Is(n rhino.Node) bool { return x.node == n }
 
 // Items iterates over the items of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -148,6 +154,9 @@ func AsModuleBody(n rhino.Node) (x ModuleBody, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ModuleBody) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ModuleBody) Is(n rhino.Node) bool { return x.node == n }
+
 // Statements iterates over the statements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -209,6 +218,9 @@ func AsBlock(n rhino.Node) (x Block, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Block) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Block) Is(n rhino.Node) bool { return x.node == n }
 
 // Statements iterates over the statements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -284,6 +296,9 @@ func AsLabel(n rhino.Node) (x Label, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Label) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Label) Is(n rhino.Node) bool { return x.node == n }
+
 // Name returns the name of x.
 func (x Label) Name() LabelName { return LabelName{x.node.GetFirstChild()} }
 
@@ -329,6 +344,9 @@ func AsLabelName(n rhino.Node) (x LabelName, ok bool) {
 // Node returns x as a rhino.Node.
 func (x LabelName) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x LabelName) Is(n rhino.Node) bool { return x.node == n }
+
 // Ident returns the node's string.
 func (x LabelName) Ident() string { return x.node.GetString() }
 
@@ -350,6 +368,9 @@ func AsIf(n rhino.Node) (x If, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x If) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x If) Is(n rhino.Node) bool { return x.node == n }
 
 // Cond returns the cond of x.
 func (x If) Cond() Expr { return Expr{x.node.GetFirstChild()} }
@@ -417,6 +438,9 @@ func AsFor(n rhino.Node) (x For, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x For) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x For) Is(n rhino.Node) bool { return x.node == n }
 
 // Init returns the init of x; ok is false if x has none (the child is an EMPTY node).
 func (x For) Init() (v ForInit, ok bool) {
@@ -488,6 +512,9 @@ func AsForIn(n rhino.Node) (x ForIn, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ForIn) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ForIn) Is(n rhino.Node) bool { return x.node == n }
+
 // Target returns the target of x.
 func (x ForIn) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
 
@@ -542,6 +569,9 @@ func AsForOf(n rhino.Node) (x ForOf, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ForOf) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ForOf) Is(n rhino.Node) bool { return x.node == n }
 
 // Target returns the target of x.
 func (x ForOf) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
@@ -598,6 +628,9 @@ func AsForAwaitOf(n rhino.Node) (x ForAwaitOf, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ForAwaitOf) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ForAwaitOf) Is(n rhino.Node) bool { return x.node == n }
+
 // Target returns the target of x.
 func (x ForAwaitOf) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
 
@@ -653,6 +686,9 @@ func AsWhile(n rhino.Node) (x While, ok bool) {
 // Node returns x as a rhino.Node.
 func (x While) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x While) Is(n rhino.Node) bool { return x.node == n }
+
 // Cond returns the cond of x.
 func (x While) Cond() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -700,6 +736,9 @@ func AsDo(n rhino.Node) (x Do, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Do) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Do) Is(n rhino.Node) bool { return x.node == n }
 
 // Body returns the body of x.
 func (x Do) Body() Block { return Block{x.node.GetFirstChild()} }
@@ -749,6 +788,9 @@ func AsWith(n rhino.Node) (x With, ok bool) {
 // Node returns x as a rhino.Node.
 func (x With) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x With) Is(n rhino.Node) bool { return x.node == n }
+
 // Object returns the object of x.
 func (x With) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -794,6 +836,9 @@ func AsSwitch(n rhino.Node) (x Switch, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Switch) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Switch) Is(n rhino.Node) bool { return x.node == n }
+
 // Discriminant returns the discriminant of x.
 func (x Switch) Discriminant() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -838,6 +883,9 @@ func AsSwitchBody(n rhino.Node) (x SwitchBody, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x SwitchBody) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x SwitchBody) Is(n rhino.Node) bool { return x.node == n }
 
 // Cases iterates over the cases of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -898,6 +946,9 @@ func AsCase(n rhino.Node) (x Case, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Case) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Case) Is(n rhino.Node) bool { return x.node == n }
+
 // Value returns the value of x.
 func (x Case) Value() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -937,6 +988,9 @@ func AsDefaultCase(n rhino.Node) (x DefaultCase, ok bool) {
 // Node returns x as a rhino.Node.
 func (x DefaultCase) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x DefaultCase) Is(n rhino.Node) bool { return x.node == n }
+
 // Body returns the body of x.
 func (x DefaultCase) Body() Block { return Block{x.node.GetFirstChild()} }
 
@@ -968,6 +1022,9 @@ func AsTry(n rhino.Node) (x Try, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Try) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Try) Is(n rhino.Node) bool { return x.node == n }
 
 // Body returns the body of x.
 func (x Try) Body() Block { return Block{x.node.GetFirstChild()} }
@@ -1017,6 +1074,9 @@ type TryCatches struct{ node rhino.Node }
 // Node returns x as a rhino.Node.
 func (x TryCatches) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x TryCatches) Is(n rhino.Node) bool { return x.node == n }
+
 // Catch returns the catch of x; ok is false if x has none.
 func (x TryCatches) Catch() (v Catch, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1055,6 +1115,9 @@ func AsCatch(n rhino.Node) (x Catch, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Catch) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Catch) Is(n rhino.Node) bool { return x.node == n }
+
 // Param returns the param of x; ok is false if x has none (the child is an EMPTY node).
 func (x Catch) Param() (v CatchParam, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1092,6 +1155,9 @@ func AsNameDeclaration(n rhino.Node) (x NameDeclaration, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x NameDeclaration) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NameDeclaration) Is(n rhino.Node) bool { return x.node == n }
 
 // Token returns which of VAR, LET, CONST x is.
 func (x NameDeclaration) Token() rhino.Token { return x.node.GetToken() }
@@ -1176,6 +1242,9 @@ func AsDestructuringLhs(n rhino.Node) (x DestructuringLhs, ok bool) {
 // Node returns x as a rhino.Node.
 func (x DestructuringLhs) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x DestructuringLhs) Is(n rhino.Node) bool { return x.node == n }
+
 // Pattern returns the pattern of x.
 func (x DestructuringLhs) Pattern() Pattern { return Pattern{x.node.GetFirstChild()} }
 
@@ -1230,6 +1299,9 @@ func AsExprStmt(n rhino.Node) (x ExprStmt, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ExprStmt) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ExprStmt) Is(n rhino.Node) bool { return x.node == n }
+
 // Expr returns the expr of x.
 func (x ExprStmt) Expr() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1267,6 +1339,9 @@ func AsReturn(n rhino.Node) (x Return, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Return) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Return) Is(n rhino.Node) bool { return x.node == n }
 
 // Value returns the value of x; ok is false if x has none.
 func (x Return) Value() (v Expr, ok bool) {
@@ -1321,6 +1396,9 @@ func AsThrow(n rhino.Node) (x Throw, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Throw) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Throw) Is(n rhino.Node) bool { return x.node == n }
+
 // Value returns the value of x.
 func (x Throw) Value() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1358,6 +1436,9 @@ func AsBreak(n rhino.Node) (x Break, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Break) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Break) Is(n rhino.Node) bool { return x.node == n }
 
 // Label returns the label of x; ok is false if x has none.
 func (x Break) Label() (v LabelName, ok bool) {
@@ -1415,6 +1496,9 @@ func AsContinue(n rhino.Node) (x Continue, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Continue) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Continue) Is(n rhino.Node) bool { return x.node == n }
+
 // Label returns the label of x; ok is false if x has none.
 func (x Continue) Label() (v LabelName, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1471,6 +1555,9 @@ func AsEmpty(n rhino.Node) (x Empty, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Empty) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Empty) Is(n rhino.Node) bool { return x.node == n }
+
 // NewEmpty returns a new Empty.
 func NewEmpty() Empty {
 	n := rhino.NewNode(rhino.Token_EMPTY)
@@ -1514,6 +1601,9 @@ func AsDebugger(n rhino.Node) (x Debugger, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Debugger) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Debugger) Is(n rhino.Node) bool { return x.node == n }
+
 // NewDebugger returns a new Debugger.
 func NewDebugger() Debugger {
 	n := rhino.NewNode(rhino.Token_DEBUGGER)
@@ -1545,6 +1635,9 @@ func AsFunction(n rhino.Node) (x Function, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Function) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Function) Is(n rhino.Node) bool { return x.node == n }
 
 // name returns the name of x.
 func (x Function) name() Name { return Name{x.node.GetFirstChild()} }
@@ -1603,6 +1696,9 @@ func AsParamList(n rhino.Node) (x ParamList, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ParamList) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ParamList) Is(n rhino.Node) bool { return x.node == n }
 
 // Params iterates over the params of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -1663,6 +1759,9 @@ func AsDefaultValue(n rhino.Node) (x DefaultValue, ok bool) {
 // Node returns x as a rhino.Node.
 func (x DefaultValue) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x DefaultValue) Is(n rhino.Node) bool { return x.node == n }
+
 // Target returns the target of x.
 func (x DefaultValue) Target() Target { return Target{x.node.GetFirstChild()} }
 
@@ -1708,6 +1807,9 @@ func AsIterRest(n rhino.Node) (x IterRest, ok bool) {
 // Node returns x as a rhino.Node.
 func (x IterRest) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x IterRest) Is(n rhino.Node) bool { return x.node == n }
+
 // Target returns the target of x.
 func (x IterRest) Target() Target { return Target{x.node.GetFirstChild()} }
 
@@ -1743,6 +1845,9 @@ func AsObjectRest(n rhino.Node) (x ObjectRest, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectRest) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectRest) Is(n rhino.Node) bool { return x.node == n }
+
 // Target returns the target of x.
 func (x ObjectRest) Target() Target { return Target{x.node.GetFirstChild()} }
 
@@ -1774,6 +1879,9 @@ func AsIterSpread(n rhino.Node) (x IterSpread, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x IterSpread) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x IterSpread) Is(n rhino.Node) bool { return x.node == n }
 
 // Expr returns the expr of x.
 func (x IterSpread) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -1810,6 +1918,9 @@ func AsObjectSpread(n rhino.Node) (x ObjectSpread, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectSpread) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectSpread) Is(n rhino.Node) bool { return x.node == n }
+
 // Expr returns the expr of x.
 func (x ObjectSpread) Expr() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1841,6 +1952,9 @@ func AsArrayPattern(n rhino.Node) (x ArrayPattern, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ArrayPattern) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ArrayPattern) Is(n rhino.Node) bool { return x.node == n }
 
 // Elements iterates over the elements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -1922,6 +2036,9 @@ func AsObjectPattern(n rhino.Node) (x ObjectPattern, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectPattern) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectPattern) Is(n rhino.Node) bool { return x.node == n }
+
 // Props iterates over the props of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2002,6 +2119,9 @@ func AsClass(n rhino.Node) (x Class, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Class) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Class) Is(n rhino.Node) bool { return x.node == n }
+
 // Name returns the name of x; ok is false if x has none (the child is an EMPTY node).
 func (x Class) Name() (v Name, ok bool) {
 	c := x.node.GetFirstChild()
@@ -2075,6 +2195,9 @@ func AsClassBody(n rhino.Node) (x ClassBody, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ClassBody) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ClassBody) Is(n rhino.Node) bool { return x.node == n }
+
 // Members iterates over the members of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2134,6 +2257,9 @@ func AsMemberFunctionDef(n rhino.Node) (x MemberFunctionDef, ok bool) {
 // Node returns x as a rhino.Node.
 func (x MemberFunctionDef) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x MemberFunctionDef) Is(n rhino.Node) bool { return x.node == n }
+
 // Key returns the node's string.
 func (x MemberFunctionDef) Key() string { return x.node.GetString() }
 
@@ -2167,6 +2293,9 @@ func AsGetterDef(n rhino.Node) (x GetterDef, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x GetterDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x GetterDef) Is(n rhino.Node) bool { return x.node == n }
 
 // Key returns the node's string.
 func (x GetterDef) Key() string { return x.node.GetString() }
@@ -2202,6 +2331,9 @@ func AsSetterDef(n rhino.Node) (x SetterDef, ok bool) {
 // Node returns x as a rhino.Node.
 func (x SetterDef) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x SetterDef) Is(n rhino.Node) bool { return x.node == n }
+
 // Key returns the node's string.
 func (x SetterDef) Key() string { return x.node.GetString() }
 
@@ -2235,6 +2367,9 @@ func AsMemberFieldDef(n rhino.Node) (x MemberFieldDef, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x MemberFieldDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x MemberFieldDef) Is(n rhino.Node) bool { return x.node == n }
 
 // Key returns the node's string.
 func (x MemberFieldDef) Key() string { return x.node.GetString() }
@@ -2282,6 +2417,9 @@ func AsComputedFieldDef(n rhino.Node) (x ComputedFieldDef, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ComputedFieldDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ComputedFieldDef) Is(n rhino.Node) bool { return x.node == n }
 
 // Key returns the key of x.
 func (x ComputedFieldDef) Key() Expr { return Expr{x.node.GetFirstChild()} }
@@ -2337,6 +2475,9 @@ func AsComputedProp(n rhino.Node) (x ComputedProp, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ComputedProp) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ComputedProp) Is(n rhino.Node) bool { return x.node == n }
 
 // Key returns the key of x.
 func (x ComputedProp) Key() Expr { return Expr{x.node.GetFirstChild()} }
@@ -2398,6 +2539,9 @@ func AsMemberVariableDef(n rhino.Node) (x MemberVariableDef, ok bool) {
 // Node returns x as a rhino.Node.
 func (x MemberVariableDef) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x MemberVariableDef) Is(n rhino.Node) bool { return x.node == n }
+
 // Key returns the node's string.
 func (x MemberVariableDef) Key() string { return x.node.GetString() }
 
@@ -2422,6 +2566,9 @@ func AsIndexSignature(n rhino.Node) (x IndexSignature, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x IndexSignature) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x IndexSignature) Is(n rhino.Node) bool { return x.node == n }
 
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -2485,6 +2632,9 @@ func AsCallSignature(n rhino.Node) (x CallSignature, ok bool) {
 // Node returns x as a rhino.Node.
 func (x CallSignature) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x CallSignature) Is(n rhino.Node) bool { return x.node == n }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2547,6 +2697,9 @@ func AsName(n rhino.Node) (x Name, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Name) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Name) Is(n rhino.Node) bool { return x.node == n }
 
 // Ident returns the node's string.
 func (x Name) Ident() string { return x.node.GetString() }
@@ -2631,6 +2784,9 @@ func AsThis(n rhino.Node) (x This, ok bool) {
 // Node returns x as a rhino.Node.
 func (x This) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x This) Is(n rhino.Node) bool { return x.node == n }
+
 // NewThis returns a new This.
 func NewThis() This {
 	n := rhino.NewNode(rhino.Token_THIS)
@@ -2673,6 +2829,9 @@ func AsSuper(n rhino.Node) (x Super, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Super) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Super) Is(n rhino.Node) bool { return x.node == n }
 
 // NewSuper returns a new Super.
 func NewSuper() Super {
@@ -2717,6 +2876,9 @@ func AsTrue(n rhino.Node) (x True, ok bool) {
 // Node returns x as a rhino.Node.
 func (x True) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x True) Is(n rhino.Node) bool { return x.node == n }
+
 // NewTrue returns a new True.
 func NewTrue() True {
 	n := rhino.NewNode(rhino.Token_TRUE)
@@ -2759,6 +2921,9 @@ func AsFalse(n rhino.Node) (x False, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x False) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x False) Is(n rhino.Node) bool { return x.node == n }
 
 // NewFalse returns a new False.
 func NewFalse() False {
@@ -2803,6 +2968,9 @@ func AsNull(n rhino.Node) (x Null, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Null) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Null) Is(n rhino.Node) bool { return x.node == n }
+
 // NewNull returns a new Null.
 func NewNull() Null {
 	n := rhino.NewNode(rhino.Token_NULL)
@@ -2845,6 +3013,9 @@ func AsNewTarget(n rhino.Node) (x NewTarget, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x NewTarget) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NewTarget) Is(n rhino.Node) bool { return x.node == n }
 
 // NewNewTarget returns a new NewTarget.
 func NewNewTarget() NewTarget {
@@ -2889,6 +3060,9 @@ func AsImportMeta(n rhino.Node) (x ImportMeta, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ImportMeta) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ImportMeta) Is(n rhino.Node) bool { return x.node == n }
+
 // NewImportMeta returns a new ImportMeta.
 func NewImportMeta() ImportMeta {
 	n := rhino.NewNode(rhino.Token_IMPORT_META)
@@ -2931,6 +3105,9 @@ func AsStringLit(n rhino.Node) (x StringLit, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x StringLit) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x StringLit) Is(n rhino.Node) bool { return x.node == n }
 
 // Value returns the node's string.
 func (x StringLit) Value() string { return x.node.GetString() }
@@ -2975,6 +3152,9 @@ func AsNumber(n rhino.Node) (x Number, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Number) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Number) Is(n rhino.Node) bool { return x.node == n }
+
 // NewNumber returns a new Number.
 func NewNumber() Number {
 	n := rhino.NewNode(rhino.Token_NUMBER)
@@ -3018,6 +3198,9 @@ func AsBigInt(n rhino.Node) (x BigInt, ok bool) {
 // Node returns x as a rhino.Node.
 func (x BigInt) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x BigInt) Is(n rhino.Node) bool { return x.node == n }
+
 // NewBigInt returns a new BigInt.
 func NewBigInt() BigInt {
 	n := rhino.NewNode(rhino.Token_BIGINT)
@@ -3060,6 +3243,9 @@ func AsRegExp(n rhino.Node) (x RegExp, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x RegExp) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x RegExp) Is(n rhino.Node) bool { return x.node == n }
 
 // Pattern returns the pattern of x.
 func (x RegExp) Pattern() StringLit { return StringLit{x.node.GetFirstChild()} }
@@ -3132,6 +3318,9 @@ func AsTemplateLit(n rhino.Node) (x TemplateLit, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x TemplateLit) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x TemplateLit) Is(n rhino.Node) bool { return x.node == n }
 
 // Parts iterates over the parts of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -3214,6 +3403,9 @@ func AsTemplateLitString(n rhino.Node) (x TemplateLitString, ok bool) {
 // Node returns x as a rhino.Node.
 func (x TemplateLitString) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x TemplateLitString) Is(n rhino.Node) bool { return x.node == n }
+
 // NewTemplateLitString returns a new TemplateLitString.
 func NewTemplateLitString() TemplateLitString {
 	n := rhino.NewNode(rhino.Token_TEMPLATELIT_STRING)
@@ -3238,6 +3430,9 @@ func AsTemplateLitSub(n rhino.Node) (x TemplateLitSub, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x TemplateLitSub) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x TemplateLitSub) Is(n rhino.Node) bool { return x.node == n }
 
 // Expr returns the expr of x.
 func (x TemplateLitSub) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3270,6 +3465,9 @@ func AsTaggedTemplateLit(n rhino.Node) (x TaggedTemplateLit, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x TaggedTemplateLit) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x TaggedTemplateLit) Is(n rhino.Node) bool { return x.node == n }
 
 // Tag returns the tag of x.
 func (x TaggedTemplateLit) Tag() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3327,6 +3525,9 @@ func AsArrayLit(n rhino.Node) (x ArrayLit, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ArrayLit) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ArrayLit) Is(n rhino.Node) bool { return x.node == n }
 
 // Elements iterates over the elements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -3408,6 +3609,9 @@ func AsObjectLit(n rhino.Node) (x ObjectLit, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectLit) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectLit) Is(n rhino.Node) bool { return x.node == n }
+
 // Members iterates over the members of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -3488,6 +3692,9 @@ func AsStringKey(n rhino.Node) (x StringKey, ok bool) {
 // Node returns x as a rhino.Node.
 func (x StringKey) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x StringKey) Is(n rhino.Node) bool { return x.node == n }
+
 // Key returns the node's string.
 func (x StringKey) Key() string { return x.node.GetString() }
 
@@ -3525,6 +3732,9 @@ func AsUnary(n rhino.Node) (x Unary, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Unary) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Unary) Is(n rhino.Node) bool { return x.node == n }
 
 // Token returns which of DELPROP, POS, NEG, NOT, TYPEOF, VOID, BITNOT x is.
 func (x Unary) Token() rhino.Token { return x.node.GetToken() }
@@ -3583,6 +3793,9 @@ func AsCast(n rhino.Node) (x Cast, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Cast) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Cast) Is(n rhino.Node) bool { return x.node == n }
 
 // Expr returns the expr of x.
 func (x Cast) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3643,6 +3856,9 @@ func AsDynamicImport(n rhino.Node) (x DynamicImport, ok bool) {
 // Node returns x as a rhino.Node.
 func (x DynamicImport) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x DynamicImport) Is(n rhino.Node) bool { return x.node == n }
+
 // Specifier returns the specifier of x.
 func (x DynamicImport) Specifier() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -3696,6 +3912,9 @@ func AsIncDec(n rhino.Node) (x IncDec, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x IncDec) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x IncDec) Is(n rhino.Node) bool { return x.node == n }
 
 // Token returns which of INC, DEC x is.
 func (x IncDec) Token() rhino.Token { return x.node.GetToken() }
@@ -3754,6 +3973,9 @@ func AsAssign(n rhino.Node) (x Assign, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Assign) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Assign) Is(n rhino.Node) bool { return x.node == n }
 
 // Target returns the target of x.
 func (x Assign) Target() Target { return Target{x.node.GetFirstChild()} }
@@ -3815,6 +4037,9 @@ func AsAssignOp(n rhino.Node) (x AssignOp, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x AssignOp) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x AssignOp) Is(n rhino.Node) bool { return x.node == n }
 
 // Token returns which of ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_BITAND, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH, ASSIGN_ADD, ASSIGN_SUB, ASSIGN_MUL, ASSIGN_DIV, ASSIGN_MOD, ASSIGN_EXPONENT, ASSIGN_OR, ASSIGN_AND, ASSIGN_COALESCE x is.
 func (x AssignOp) Token() rhino.Token { return x.node.GetToken() }
@@ -3885,6 +4110,9 @@ func AsBinary(n rhino.Node) (x Binary, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Binary) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Binary) Is(n rhino.Node) bool { return x.node == n }
+
 // Token returns which of COMMA, OR, AND, COALESCE, BITOR, BITXOR, BITAND, EQ, NE, SHEQ, SHNE, LT, GT, LE, GE, INSTANCEOF, IN, LSH, RSH, URSH, SUB, ADD, MUL, MOD, DIV, EXPONENT x is.
 func (x Binary) Token() rhino.Token { return x.node.GetToken() }
 
@@ -3950,6 +4178,9 @@ func AsHook(n rhino.Node) (x Hook, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Hook) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Hook) Is(n rhino.Node) bool { return x.node == n }
+
 // Cond returns the cond of x.
 func (x Hook) Cond() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4013,6 +4244,9 @@ func AsGetProp(n rhino.Node) (x GetProp, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x GetProp) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x GetProp) Is(n rhino.Node) bool { return x.node == n }
 
 // Property returns the node's string.
 func (x GetProp) Property() string { return x.node.GetString() }
@@ -4080,6 +4314,9 @@ func AsOptChainGetProp(n rhino.Node) (x OptChainGetProp, ok bool) {
 // Node returns x as a rhino.Node.
 func (x OptChainGetProp) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x OptChainGetProp) Is(n rhino.Node) bool { return x.node == n }
+
 // Property returns the node's string.
 func (x OptChainGetProp) Property() string { return x.node.GetString() }
 
@@ -4138,6 +4375,9 @@ func AsGetElem(n rhino.Node) (x GetElem, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x GetElem) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x GetElem) Is(n rhino.Node) bool { return x.node == n }
 
 // Object returns the object of x.
 func (x GetElem) Object() Expr { return Expr{x.node.GetFirstChild()} }
@@ -4208,6 +4448,9 @@ func AsOptChainGetElem(n rhino.Node) (x OptChainGetElem, ok bool) {
 // Node returns x as a rhino.Node.
 func (x OptChainGetElem) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x OptChainGetElem) Is(n rhino.Node) bool { return x.node == n }
+
 // Object returns the object of x.
 func (x OptChainGetElem) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4269,6 +4512,9 @@ func AsCall(n rhino.Node) (x Call, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Call) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Call) Is(n rhino.Node) bool { return x.node == n }
 
 // Callee returns the callee of x.
 func (x Call) Callee() Expr { return Expr{x.node.GetFirstChild()} }
@@ -4359,6 +4605,9 @@ func AsOptChainCall(n rhino.Node) (x OptChainCall, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x OptChainCall) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x OptChainCall) Is(n rhino.Node) bool { return x.node == n }
 
 // Callee returns the callee of x.
 func (x OptChainCall) Callee() Expr { return Expr{x.node.GetFirstChild()} }
@@ -4452,6 +4701,9 @@ func AsNew(n rhino.Node) (x New, ok bool) {
 // Node returns x as a rhino.Node.
 func (x New) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x New) Is(n rhino.Node) bool { return x.node == n }
+
 // Callee returns the callee of x.
 func (x New) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4539,6 +4791,9 @@ func AsYield(n rhino.Node) (x Yield, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Yield) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Yield) Is(n rhino.Node) bool { return x.node == n }
+
 // Value returns the value of x; ok is false if x has none.
 func (x Yield) Value() (v Expr, ok bool) {
 	c := x.node.GetFirstChild()
@@ -4604,6 +4859,9 @@ func AsAwait(n rhino.Node) (x Await, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Await) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Await) Is(n rhino.Node) bool { return x.node == n }
+
 // Value returns the value of x.
 func (x Await) Value() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4653,6 +4911,9 @@ func AsImport(n rhino.Node) (x Import, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Import) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Import) Is(n rhino.Node) bool { return x.node == n }
 
 // Default returns the default of x; ok is false if x has none (the child is an EMPTY node).
 func (x Import) Default() (v Name, ok bool) {
@@ -4708,6 +4969,9 @@ func AsImportSpecs(n rhino.Node) (x ImportSpecs, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ImportSpecs) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ImportSpecs) Is(n rhino.Node) bool { return x.node == n }
 
 // Specs iterates over the specs of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -4771,6 +5035,9 @@ func AsImportSpec(n rhino.Node) (x ImportSpec, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ImportSpec) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ImportSpec) Is(n rhino.Node) bool { return x.node == n }
+
 // Imported returns the imported of x.
 func (x ImportSpec) Imported() Name { return Name{x.node.GetFirstChild()} }
 
@@ -4807,6 +5074,9 @@ func AsImportStar(n rhino.Node) (x ImportStar, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ImportStar) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ImportStar) Is(n rhino.Node) bool { return x.node == n }
+
 // Ident returns the node's string.
 func (x ImportStar) Ident() string { return x.node.GetString() }
 
@@ -4831,6 +5101,9 @@ func AsExport(n rhino.Node) (x Export, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Export) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Export) Is(n rhino.Node) bool { return x.node == n }
 
 // Body returns the body of x.
 func (x Export) Body() ExportBody { return ExportBody{x.node.GetFirstChild()} }
@@ -4891,6 +5164,9 @@ func AsExportSpecs(n rhino.Node) (x ExportSpecs, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ExportSpecs) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ExportSpecs) Is(n rhino.Node) bool { return x.node == n }
 
 // Specs iterates over the specs of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -4954,6 +5230,9 @@ func AsExportSpec(n rhino.Node) (x ExportSpec, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ExportSpec) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ExportSpec) Is(n rhino.Node) bool { return x.node == n }
+
 // Local returns the local of x.
 func (x ExportSpec) Local() Name { return Name{x.node.GetFirstChild()} }
 
@@ -4989,6 +5268,9 @@ func AsInterface(n rhino.Node) (x Interface, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Interface) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Interface) Is(n rhino.Node) bool { return x.node == n }
 
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -5058,6 +5340,9 @@ func AsEnum(n rhino.Node) (x Enum, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Enum) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Enum) Is(n rhino.Node) bool { return x.node == n }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5125,6 +5410,9 @@ func AsTypeAlias(n rhino.Node) (x TypeAlias, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x TypeAlias) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x TypeAlias) Is(n rhino.Node) bool { return x.node == n }
 
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -5194,6 +5482,9 @@ func AsDeclare(n rhino.Node) (x Declare, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Declare) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Declare) Is(n rhino.Node) bool { return x.node == n }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5261,6 +5552,9 @@ func AsNamespace(n rhino.Node) (x Namespace, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Namespace) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Namespace) Is(n rhino.Node) bool { return x.node == n }
 
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
@@ -5333,6 +5627,9 @@ func AsStatement(n rhino.Node) (x Statement, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Statement) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Statement) Is(n rhino.Node) bool { return x.node == n }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x Statement) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -5453,6 +5750,9 @@ func AsExpr(n rhino.Node) (x Expr, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Expr) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Expr) Is(n rhino.Node) bool { return x.node == n }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Expr) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -5613,6 +5913,9 @@ func AsTarget(n rhino.Node) (x Target, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Target) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Target) Is(n rhino.Node) bool { return x.node == n }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Target) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -5666,6 +5969,9 @@ func AsPattern(n rhino.Node) (x Pattern, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Pattern) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Pattern) Is(n rhino.Node) bool { return x.node == n }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Pattern) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -5710,6 +6016,9 @@ func AsParam(n rhino.Node) (x Param, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Param) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Param) Is(n rhino.Node) bool { return x.node == n }
+
 // AsDefaultValue returns x as a DefaultValue; ok is false if it is not one.
 func (x Param) AsDefaultValue() (DefaultValue, bool) { return AsDefaultValue(x.node) }
 
@@ -5753,6 +6062,9 @@ func AsArg(n rhino.Node) (x Arg, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x Arg) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Arg) Is(n rhino.Node) bool { return x.node == n }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Arg) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -5902,6 +6214,9 @@ func AsArrayElem(n rhino.Node) (x ArrayElem, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ArrayElem) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ArrayElem) Is(n rhino.Node) bool { return x.node == n }
 
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
@@ -6057,6 +6372,9 @@ func AsArrayPatternElem(n rhino.Node) (x ArrayPatternElem, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ArrayPatternElem) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ArrayPatternElem) Is(n rhino.Node) bool { return x.node == n }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayPatternElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
 
@@ -6116,6 +6434,9 @@ func AsObjectPatternProp(n rhino.Node) (x ObjectPatternProp, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectPatternProp) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectPatternProp) Is(n rhino.Node) bool { return x.node == n }
+
 // AsObjectRest returns x as an ObjectRest; ok is false if it is not one.
 func (x ObjectPatternProp) AsObjectRest() (ObjectRest, bool) { return AsObjectRest(x.node) }
 
@@ -6145,6 +6466,9 @@ func AsPropValue(n rhino.Node) (x PropValue, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x PropValue) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x PropValue) Is(n rhino.Node) bool { return x.node == n }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x PropValue) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -6309,6 +6633,9 @@ func AsObjectMember(n rhino.Node) (x ObjectMember, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ObjectMember) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ObjectMember) Is(n rhino.Node) bool { return x.node == n }
+
 // AsObjectSpread returns x as an ObjectSpread; ok is false if it is not one.
 func (x ObjectMember) AsObjectSpread() (ObjectSpread, bool) { return AsObjectSpread(x.node) }
 
@@ -6348,6 +6675,9 @@ func AsClassMember(n rhino.Node) (x ClassMember, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ClassMember) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ClassMember) Is(n rhino.Node) bool { return x.node == n }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ClassMember) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -6406,6 +6736,9 @@ func AsLoop(n rhino.Node) (x Loop, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Loop) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Loop) Is(n rhino.Node) bool { return x.node == n }
+
 // AsFor returns x as a For; ok is false if it is not one.
 func (x Loop) AsFor() (For, bool) { return AsFor(x.node) }
 
@@ -6453,6 +6786,9 @@ func AsJump(n rhino.Node) (x Jump, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Jump) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Jump) Is(n rhino.Node) bool { return x.node == n }
+
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x Jump) AsBreak() (Break, bool) { return AsBreak(x.node) }
 
@@ -6494,6 +6830,9 @@ func AsSwitchCase(n rhino.Node) (x SwitchCase, ok bool) {
 // Node returns x as a rhino.Node.
 func (x SwitchCase) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x SwitchCase) Is(n rhino.Node) bool { return x.node == n }
+
 // AsCase returns x as a Case; ok is false if it is not one.
 func (x SwitchCase) AsCase() (Case, bool) { return AsCase(x.node) }
 
@@ -6523,6 +6862,9 @@ func AsDeclarator(n rhino.Node) (x Declarator, ok bool) {
 // Node returns x as a rhino.Node.
 func (x Declarator) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x Declarator) Is(n rhino.Node) bool { return x.node == n }
+
 // AsDestructuringLhs returns x as a DestructuringLhs; ok is false if it is not one.
 func (x Declarator) AsDestructuringLhs() (DestructuringLhs, bool) { return AsDestructuringLhs(x.node) }
 
@@ -6548,6 +6890,9 @@ func AsForInit(n rhino.Node) (x ForInit, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ForInit) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ForInit) Is(n rhino.Node) bool { return x.node == n }
 
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForInit) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
@@ -6698,6 +7043,9 @@ func AsForTarget(n rhino.Node) (x ForTarget, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ForTarget) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ForTarget) Is(n rhino.Node) bool { return x.node == n }
+
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForTarget) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
@@ -6748,6 +7096,9 @@ func AsCatchParam(n rhino.Node) (x CatchParam, ok bool) {
 // Node returns x as a rhino.Node.
 func (x CatchParam) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x CatchParam) Is(n rhino.Node) bool { return x.node == n }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x CatchParam) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -6795,6 +7146,9 @@ func AsFunctionBody(n rhino.Node) (x FunctionBody, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x FunctionBody) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x FunctionBody) Is(n rhino.Node) bool { return x.node == n }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x FunctionBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -6950,6 +7304,9 @@ func AsTemplatePart(n rhino.Node) (x TemplatePart, ok bool) {
 // Node returns x as a rhino.Node.
 func (x TemplatePart) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x TemplatePart) Is(n rhino.Node) bool { return x.node == n }
+
 // AsTemplateLitString returns x as a TemplateLitString; ok is false if it is not one.
 func (x TemplatePart) AsTemplateLitString() (TemplateLitString, bool) {
 	return AsTemplateLitString(x.node)
@@ -6978,6 +7335,9 @@ func AsImportBindings(n rhino.Node) (x ImportBindings, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ImportBindings) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ImportBindings) Is(n rhino.Node) bool { return x.node == n }
+
 // AsImportSpecs returns x as an ImportSpecs; ok is false if it is not one.
 func (x ImportBindings) AsImportSpecs() (ImportSpecs, bool) { return AsImportSpecs(x.node) }
 
@@ -7004,6 +7364,9 @@ func AsExportBody(n rhino.Node) (x ExportBody, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x ExportBody) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ExportBody) Is(n rhino.Node) bool { return x.node == n }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ExportBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -7249,6 +7612,9 @@ func AsScriptItem(n rhino.Node) (x ScriptItem, ok bool) {
 // Node returns x as a rhino.Node.
 func (x ScriptItem) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x ScriptItem) Is(n rhino.Node) bool { return x.node == n }
+
 // AsModuleBody returns x as a ModuleBody; ok is false if it is not one.
 func (x ScriptItem) AsModuleBody() (ModuleBody, bool) { return AsModuleBody(x.node) }
 
@@ -7369,6 +7735,9 @@ func AsRootItem(n rhino.Node) (x RootItem, ok bool) {
 // Node returns x as a rhino.Node.
 func (x RootItem) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x RootItem) Is(n rhino.Node) bool { return x.node == n }
+
 // AsRoot returns x as a Root; ok is false if it is not one.
 func (x RootItem) AsRoot() (Root, bool) { return AsRoot(x.node) }
 
@@ -7395,6 +7764,9 @@ func AsNormalOrOptChainCall(n rhino.Node) (x NormalOrOptChainCall, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainCall) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NormalOrOptChainCall) Is(n rhino.Node) bool { return x.node == n }
 
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x NormalOrOptChainCall) AsCall() (Call, bool) { return AsCall(x.node) }
@@ -7484,6 +7856,9 @@ func AsNormalOrOptChainGetProp(n rhino.Node) (x NormalOrOptChainGetProp, ok bool
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainGetProp) Node() rhino.Node { return x.node }
 
+// Is reports whether x is the node n.
+func (x NormalOrOptChainGetProp) Is(n rhino.Node) bool { return x.node == n }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGetProp) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
@@ -7545,6 +7920,9 @@ func AsNormalOrOptChainGet(n rhino.Node) (x NormalOrOptChainGet, ok bool) {
 
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainGet) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NormalOrOptChainGet) Is(n rhino.Node) bool { return x.node == n }
 
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }

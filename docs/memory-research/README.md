@@ -38,3 +38,7 @@ pointer on every cycle. Types are 2–3× Java's size. So: make the long-lived
 AST pointer-free (int32 links, type/color handles) with explicit reclamation
 (copying compaction at safe points), shrink the type structs, store positions
 as offsets with line tables, and never let per-pass arenas outlive their pass.
+
+## Later rounds
+
+- [round4-heap-peaks.md](round4-heap-peaks.md): where the heap peaks per workload, compaction in place, the 36-byte node record.
