@@ -11,7 +11,7 @@ import (
 
 // Go-only: node storage.
 //
-// A Node is a 32-bit id. The node's data (nodeData, 40 bytes, no Go
+// A Node is a 32-bit id. The node's data (nodeData, 36 bytes, no Go
 // pointers: links are ids too) lives in a NodeStore, which belongs to one
 // compilation, so the garbage collector never traces the AST.
 //
@@ -53,7 +53,7 @@ const NilNode Node = 0
 const (
 	staticBit = 1 << 31 // ids of the static store
 
-	blockShift = 14 // 16384 records (640 KiB) per block
+	blockShift = 14 // 16384 records (576 KiB) per block
 	blockLen   = 1 << blockShift
 	blockMask  = blockLen - 1
 	numBlocks  = 1 << (32 - blockShift)
@@ -76,10 +76,11 @@ type NodeStore struct {
 
 	mu sync.Mutex // guards block creation and the side tables' growth
 
-	tcs    []*tcColumn // the JSType/Color handle columns of the blocks (node_tables.go)
-	aux    [auxShards]auxShard
-	types  handleTable[*JSTypeBase]
-	colors handleTable[*colors.Color]
+	tcs       []*nodeColumn // the JSType/Color handle columns of the blocks (node_tables.go)
+	origNames []*nodeColumn // the original-name columns of the blocks
+	aux       [auxShards]auxShard
+	types     handleTable[*JSTypeBase]
+	colors    handleTable[*colors.Color]
 }
 
 var (
@@ -116,28 +117,24 @@ func (s *NodeStore) setBase(base uint32) {
 	s.next.Store(base)
 }
 
-// register puts s's blocks (and their tc columns) in the directories.
+// register puts s's blocks (and their columns) in the directories.
 func (s *NodeStore) register() {
+	first := s.base >> blockShift
 	for k, b := range s.blocks {
-		nodeBlocks[s.base>>blockShift+uint32(k)].Store(b)
+		nodeBlocks[first+uint32(k)].Store(b)
 	}
-	for k, c := range s.tcs {
-		if c != nil {
-			nodeTCs[s.base>>blockShift+uint32(k)].Store(c)
-		}
-	}
+	tcField.register(first, s.tcs)
+	origNameField.register(first, s.origNames)
 }
 
-// unregister takes s's blocks (and their tc columns) out of the directories.
+// unregister takes s's blocks (and their columns) out of the directories.
 func (s *NodeStore) unregister() {
+	first := s.base >> blockShift
 	for k, b := range s.blocks {
-		nodeBlocks[s.base>>blockShift+uint32(k)].CompareAndSwap(b, nil)
+		nodeBlocks[first+uint32(k)].CompareAndSwap(b, nil)
 	}
-	for k, c := range s.tcs {
-		if c != nil {
-			nodeTCs[s.base>>blockShift+uint32(k)].CompareAndSwap(c, nil)
-		}
-	}
+	tcField.unregister(first, s.tcs)
+	origNameField.unregister(first, s.origNames)
 }
 
 // blockEnd returns the first block number after the blocks of s.

@@ -108,7 +108,7 @@ func (k *Compactor) markTree(n Node) {
 	}
 	k.marks[i>>6] |= 1 << (i & 63)
 	r := n.rec()
-	if r.propFlags&propFlagHasJSDoc != 0 {
+	if r.propFlags.has(propFlagHasJSDoc) {
 		if info := n.GetJSDocInfo(); info != nil {
 			if _, done := k.docs[info]; !done {
 				k.docs[info] = struct{}{}
@@ -179,7 +179,7 @@ func (k *Compactor) Slide() {
 	raiseNextBlock(s.blockEnd())
 	k.newBase = nextBlock.Load() << blockShift
 
-	// Move the records, and their type/color handles, down. A node's new
+	// Move the records, and their column values, down. A node's new
 	// position is never after its old one, so going up in id order never
 	// overwrites a record before it has moved.
 	pos := uint32(0)
@@ -190,7 +190,8 @@ func (k *Compactor) Slide() {
 			r.next, r.first = k.link(r.next), k.link(r.first)
 			r.parent, r.previous = k.link(r.parent), k.link(r.previous)
 			s.blocks[pos>>blockShift][pos&blockMask] = r
-			s.setTCAt(pos, s.tcAt(i))
+			setColumnAt(&s.tcs, pos, columnAt(s.tcs, i))
+			setColumnAt(&s.origNames, pos, columnAt(s.origNames, i))
 			pos++
 		}
 	}
@@ -200,14 +201,17 @@ func (k *Compactor) Slide() {
 	keep := int((live + blockLen - 1) >> blockShift)
 	for p := live; p < uint32(keep)<<blockShift; p++ {
 		s.blocks[p>>blockShift][p&blockMask] = nodeData{}
-		s.setTCAt(p, 0)
+		setColumnAt(&s.tcs, p, 0)
+		setColumnAt(&s.origNames, p, 0)
 	}
 	s.unregister()
 	clear(s.blocks[keep:])
 	s.blocks = s.blocks[:keep]
-	if len(s.tcs) > keep {
-		clear(s.tcs[keep:])
-		s.tcs = s.tcs[:keep]
+	for _, cols := range []*[]*nodeColumn{&s.tcs, &s.origNames} {
+		if len(*cols) > keep {
+			clear((*cols)[keep:])
+			*cols = (*cols)[:keep]
+		}
 	}
 	s.base = k.newBase
 	s.next.Store(k.newBase + live)

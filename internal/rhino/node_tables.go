@@ -193,7 +193,7 @@ type auxShard struct {
 // hasAux reports whether the record's flags say n may have cold data.
 func (n Node) hasAux() bool {
 	r := n.rec()
-	return r.propFlags&propFlagHasJSDoc != 0 || r.kindFlags&kindFlagHasExtBox != 0
+	return r.propFlags.has(propFlagHasJSDoc) || r.kindFlags&kindFlagHasExtBox != 0
 }
 
 // auxOf returns a copy of the node's cold-data entry, or nil if it has none.
@@ -241,78 +241,117 @@ func (n Node) auxValue() nodeAux {
 	return nodeAux{}
 }
 
-// --- tc ---
+// --- columns ---
 
-// A node's JSType or Color handle lives in a column beside its block (a
-// uint32 per record), allocated for a block when the first node in it gets
-// a type or color: untyped compilations never allocate one.
+// A column holds a uint32 per record of a block, beside the block, for a
+// field that many nodes do not have: a block's column is allocated when the
+// first node in it gets a non-zero value. Two fields live in columns:
+//
+//   - tc: a node's JSType or Color handle (untyped compilations never
+//     allocate a tc column);
+//   - origName: a node's original name (the name before renaming, for
+//     source maps), when it is not simply the node's own string (see
+//     kindFlagOrigNameIsString).
+//
+// A process-wide directory per field maps a block number to its column, as
+// nodeBlocks does for the records; the store owns the columns of its blocks.
 
-type tcColumn [blockLen]uint32
+type nodeColumn [blockLen]uint32
 
-// nodeTCs is the column directory, parallel to nodeBlocks.
-var nodeTCs [numBlocks]atomic.Pointer[tcColumn]
+// columnField is one column-stored field: the directory of its columns.
+type columnField struct {
+	dir [numBlocks]atomic.Pointer[nodeColumn]
+}
 
-// tc returns n's JSType or Color handle (0: none).
-func (n Node) tc() uint32 {
-	if c := nodeTCs[uint32(n)>>blockShift].Load(); c != nil {
+var tcField, origNameField columnField
+
+// get returns n's value (0: none).
+func (f *columnField) get(n Node) uint32 {
+	if c := f.dir[uint32(n)>>blockShift].Load(); c != nil {
 		return c[uint32(n)&blockMask]
 	}
 	return 0
 }
 
-// setTC sets n's JSType or Color handle.
-func (n Node) setTC(h uint32) {
-	c := nodeTCs[uint32(n)>>blockShift].Load()
+// set sets n's value; cols is the store's slice of columns for f.
+func (f *columnField) set(n Node, cols *[]*nodeColumn, v uint32) {
+	c := f.dir[uint32(n)>>blockShift].Load()
 	if c == nil {
-		if h == 0 {
+		if v == 0 {
 			return
 		}
-		c = n.store().addTCColumn(uint32(n))
+		c = n.store().addColumn(f, cols, uint32(n))
 	}
-	c[uint32(n)&blockMask] = h
+	c[uint32(n)&blockMask] = v
 }
 
-// addTCColumn creates the tc column of id's block (unless another goroutine
-// just did).
+// addColumn creates the column of f for id's block (unless another
+// goroutine just did).
 //
 //go:noinline
-func (s *NodeStore) addTCColumn(id uint32) *tcColumn {
+func (s *NodeStore) addColumn(f *columnField, cols *[]*nodeColumn, id uint32) *nodeColumn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := int((id - s.base) >> blockShift)
-	for len(s.tcs) <= k {
-		s.tcs = append(s.tcs, nil)
+	for len(*cols) <= k {
+		*cols = append(*cols, nil)
 	}
-	if s.tcs[k] == nil {
-		s.tcs[k] = new(tcColumn)
-		nodeTCs[id>>blockShift].Store(s.tcs[k])
+	if (*cols)[k] == nil {
+		(*cols)[k] = new(nodeColumn)
+		f.dir[id>>blockShift].Store((*cols)[k])
 	}
-	return s.tcs[k]
+	return (*cols)[k]
 }
 
-// tcAt returns the tc handle of the node at index i of s.
-func (s *NodeStore) tcAt(i uint32) uint32 {
-	if k := int(i >> blockShift); k < len(s.tcs) && s.tcs[k] != nil {
-		return s.tcs[k][i&blockMask]
+// registerColumns puts the columns cols of the blocks starting at block
+// number first in f's directory.
+func (f *columnField) register(first uint32, cols []*nodeColumn) {
+	for k, c := range cols {
+		if c != nil {
+			f.dir[first+uint32(k)].Store(c)
+		}
+	}
+}
+
+// unregister takes the columns cols of the blocks starting at block number
+// first out of f's directory.
+func (f *columnField) unregister(first uint32, cols []*nodeColumn) {
+	for k, c := range cols {
+		if c != nil {
+			f.dir[first+uint32(k)].CompareAndSwap(c, nil)
+		}
+	}
+}
+
+// columnAt returns the value at index i of a store's columns (for
+// compaction: the columns are not in the directory then).
+func columnAt(cols []*nodeColumn, i uint32) uint32 {
+	if k := int(i >> blockShift); k < len(cols) && cols[k] != nil {
+		return cols[k][i&blockMask]
 	}
 	return 0
 }
 
-// setTCAt sets the tc handle of the node at index i of s (for compaction:
-// the column is not registered in the directory yet).
-func (s *NodeStore) setTCAt(i uint32, h uint32) {
+// setColumnAt sets the value at index i of a store's columns (see columnAt).
+func setColumnAt(cols *[]*nodeColumn, i uint32, v uint32) {
 	k := int(i >> blockShift)
-	if k >= len(s.tcs) || s.tcs[k] == nil {
-		if h == 0 {
+	if k >= len(*cols) || (*cols)[k] == nil {
+		if v == 0 {
 			return
 		}
-		for len(s.tcs) <= k {
-			s.tcs = append(s.tcs, nil)
+		for len(*cols) <= k {
+			*cols = append(*cols, nil)
 		}
-		s.tcs[k] = new(tcColumn)
+		(*cols)[k] = new(nodeColumn)
 	}
-	s.tcs[k][i&blockMask] = h
+	(*cols)[k][i&blockMask] = v
 }
+
+// tc returns n's JSType or Color handle (0: none).
+func (n Node) tc() uint32 { return tcField.get(n) }
+
+// setTC sets n's JSType or Color handle.
+func (n Node) setTC(h uint32) { tcField.set(n, &n.store().tcs, h) }
 
 // translateTC returns the tc handle in s for the JSType or Color that tc
 // names in from (the same handle when from is s).

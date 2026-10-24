@@ -348,7 +348,7 @@ func (n Node) SetIsParenthesized(b bool) {
 //
 // Java: Node.getIsParenthesized()
 func (n Node) GetIsParenthesized() bool {
-	return (n.rec().propFlags & propFlag_IS_PARENTHESIZED) != 0
+	return (n.rec().propFlags.get() & propFlag_IS_PARENTHESIZED) != 0
 }
 
 // TODO(sdh): Get rid of these by using accessor methods instead.
@@ -405,6 +405,9 @@ const (
 	// property that is normally stored inline (e.g. an int value other than
 	// 1 for a boolean property, or CHANGE_TIME of a non-Node kind).
 	kindFlagHasExtra uint8 = 1 << 5
+	// kindFlagOrigNameIsString: the original name of this string node is its
+	// own string (node_payload.go).
+	kindFlagOrigNameIsString uint8 = 1 << 6
 	// kindFlagHasExtBox: the aux entry holds a *nodeExtBox (otherwise the
 	// *JSDocInfo when propFlagHasJSDoc is set).
 	kindFlagHasExtBox uint8 = 1 << 7
@@ -604,7 +607,8 @@ type nodeExtBox struct {
 	propListHead   *Node_PropListItem // remaining cold properties
 	typeBeforeCast uint32             // node type handle of the canonical TYPE_BEFORE_CAST (0 iff not present as JSType)
 	length         int32              // the length, when Node.length16 is 0xFFFF
-	origNameID     rhinoStringID      // the originalName of a NUMBER or TEMPLATELIT_STRING node
+	cookedID       rhinoStringID      // the cooked string of a TEMPLATELIT_STRING, when it is not the raw one
+	cookedNil      bool               // the TEMPLATELIT_STRING has no cooked string
 }
 
 var singleProcessCLI atomic.Bool
@@ -708,7 +712,7 @@ func (n Node) ensureExtBox() *nodeExtBox {
 		return n.extBox()
 	}
 	box := &nodeExtBox{}
-	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		box.jsDocInfo = n.jsDocAux()
 	}
 	n.rec().kindFlags |= kindFlagHasExtBox
@@ -723,17 +727,17 @@ func (n Node) maybeCollapseExtBox(box *nodeExtBox) {
 		return
 	}
 	n.rec().kindFlags &^= kindFlagHasExtBox
-	if (n.rec().propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo != nil {
+	if (n.rec().propFlags.get()&propFlagHasJSDoc) != 0 && box.jsDocInfo != nil {
 		n.setAux(nodeAux{jsDoc: box.jsDocInfo})
 	} else {
 		n.setAux(nodeAux{})
 	}
 }
 
-// extBoxHoldsNodeFields reports whether box holds a length or an original
-// name that does not fit in the Node itself.
+// extBoxHoldsNodeFields reports whether box holds a length or a cooked
+// string that does not fit in the Node itself.
 func (n Node) extBoxHoldsNodeFields(box *nodeExtBox) bool {
-	return n.rec().length16 == 0xFFFF || box.origNameID != 0
+	return n.rec().length16 == 0xFFFF || box.cookedID != 0 || box.cookedNil
 }
 
 func (n Node) coldPropListHead() *Node_PropListItem {
@@ -781,7 +785,7 @@ func (n Node) copyTemplateColdProps(template Node) {
 		}
 		return
 	}
-	if (template.rec().propFlags & propFlagHasJSDoc) != 0 {
+	if (template.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{jsDoc: template.jsDocAux()})
 	}
 }
@@ -899,7 +903,7 @@ func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
 		cookedID = rhinoStringPoolIntern(*cooked)
 	}
 	rawID := rhinoStringPoolIntern(raw)
-	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.initTemplateLitPayload(cookedID, rawID)
 	return n
 }
 
@@ -916,7 +920,7 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
 	}
 	rawID := stringPool.GetID(rawOffset)
-	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.initTemplateLitPayload(cookedID, rawID)
 	return n
 }
 
@@ -1051,7 +1055,7 @@ func (n Node) Init(token Token) Node {
 func (n Node) InitFromTemplate(token Token, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1065,7 +1069,7 @@ func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) 
 	}
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	n.rec().first = n.ref(child)
 	child.rec().previous = child.ref(child)
 	child.rec().parent = child.ref(n)
@@ -1076,7 +1080,7 @@ func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) 
 func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1091,7 +1095,7 @@ func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template No
 func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1112,7 +1116,7 @@ func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, 
 func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, right Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1139,7 +1143,7 @@ func (n Node) initStringPayloadAndCold(str string, template Node) {
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec().payload = uint64(rhinoStringPoolIntern(str))
+	n.rec().payload = uint32(rhinoStringPoolIntern(str))
 }
 
 // InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
@@ -1147,7 +1151,7 @@ func (n Node) InitStringFromTemplate(token Token, str string, template Node) Nod
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindString)
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	n.initStringPayloadAndCold(str, template)
 	return n
 }
@@ -1155,14 +1159,14 @@ func (n Node) InitStringFromTemplate(token Token, str string, template Node) Nod
 // SetStringID sets the interned string payload on a freshly initialized Node.
 func (n Node) SetStringID(id rhinoStringID) Node {
 	n.rec().kindFlags |= uint8(node_kindString)
-	n.rec().payload = uint64(id)
+	n.rec().payload = uint32(id)
 	return n
 }
 
 // SetNumberRaw sets the float64 payload on a freshly initialized Node.
 func (n Node) SetNumberRaw(number float64) Node {
 	n.rec().kindFlags |= uint8(node_kindNumber)
-	n.rec().payload = math.Float64bits(number)
+	n.rec().payload = numberPayload(number)
 	return n
 }
 
@@ -1182,7 +1186,7 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	n.rec().token = Token_TEMPLATELIT_STRING
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1191,7 +1195,7 @@ func (n Node) InitTemplateLitStringFromStringPool(
 		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
 	}
 	rawID := stringPool.GetID(rawOffset)
-	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.initTemplateLitPayload(cookedID, rawID)
 	return n
 }
 
@@ -1199,7 +1203,7 @@ func (n Node) InitTemplateLitStringFromStringPool(
 func (n Node) InitNumberFromTemplate(number float64, template Node) Node {
 	n.InitFromTemplate(Token_NUMBER, template)
 	n.rec().kindFlags |= uint8(node_kindNumber)
-	n.rec().payload = math.Float64bits(number)
+	n.rec().payload = numberPayload(number)
 	return n
 }
 
@@ -1208,7 +1212,7 @@ func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
 	n.rec().token = Token_BIGINT
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindBigInt)
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1221,7 +1225,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 	n.rec().token = Token_TEMPLATELIT_STRING
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.rec().propFlags = template.rec().propFlags
+	n.rec().propFlags.set(template.rec().propFlags.get())
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1230,7 +1234,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 		cookedID = rhinoStringPoolIntern(*cooked)
 	}
 	rawID := rhinoStringPoolIntern(raw)
-	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.initTemplateLitPayload(cookedID, rawID)
 	return n
 }
 
@@ -1409,9 +1413,9 @@ func (n Node) GetClosureUnawareShadow() Node {
 
 // Java: Node.setIsInClosureUnawareSubtree(boolean)
 func (n Node) SetIsInClosureUnawareSubtree(value bool) {
-	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 	cold := n.coldPropListHead()
-	hasOnlySourceFile := (n.rec().propFlags&nodePropAllNonSourceFileMask) == 0 &&
+	hasOnlySourceFile := (n.rec().propFlags.get()&nodePropAllNonSourceFileMask) == 0 &&
 		n.typeBeforeCastBase() == nil &&
 		(n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) &&
 		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
@@ -1428,7 +1432,7 @@ func (n Node) SetIsInClosureUnawareSubtree(value bool) {
 
 // Java: Node.getIsInClosureUnawareSubtree()
 func (n Node) GetIsInClosureUnawareSubtree() bool {
-	return (n.rec().propFlags & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
+	return (n.rec().propFlags.get() & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
 }
 
 // GetChildAtIndex gets the ith child, note that this is O(N) where N is the
@@ -1784,7 +1788,7 @@ func (n Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
 // Java: Node.lookupProperty(Prop)
 func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.rec().propFlags & mask) == 0 {
+		if (n.rec().propFlags.get() & mask) == 0 {
 			return nil
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
@@ -1796,7 +1800,7 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return nil
 		}
@@ -1804,21 +1808,21 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 			return sourceFilePropItem(sfID)
 		}
 	case Node_Prop_CONSTANT_VAR_FLAGS:
-		if v := (n.rec().propFlags >> nodePropConstVarShift) & 3; v != 0 {
+		if v := (n.rec().propFlags.get() >> nodePropConstVarShift) & 3; v != 0 {
 			return &staticConstVarPropItems[v]
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return nil
 		}
 	case Node_Prop_SIDE_EFFECT_FLAGS:
-		if v := (n.rec().propFlags >> nodePropSideEffectShift) & 15; v != 0 {
+		if v := (n.rec().propFlags.get() >> nodePropSideEffectShift) & 15; v != 0 {
 			return &staticSideEffectPropItems[v]
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return nil
 		}
 	case Node_Prop_JSDOC_INFO:
-		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags.get() & propFlagHasJSDoc) == 0 {
 			return nil
 		}
 		var jsdoc *JSDocInfo
@@ -1872,7 +1876,7 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 // Java: Node.clonePropsFrom(Node)
 func (n Node) ClonePropsFrom(other Node) Node {
 	jutil.CheckStateMsg(
-		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.rec().propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
+		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.rec().propFlags.get() == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
 		"Node has existing properties.")
 	if otherBox := other.extBoxOrNil(); otherBox != nil {
 		if otherBox.propListHead != nil {
@@ -1886,14 +1890,14 @@ func (n Node) ClonePropsFrom(other Node) Node {
 			box.typeBeforeCast = n.store().translateTypeHandle(other.store(), otherBox.typeBeforeCast)
 			box.propListHead = otherBox.propListHead
 		}
-	} else if (other.rec().propFlags & propFlagHasJSDoc) != 0 {
+	} else if (other.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{jsDoc: other.jsDocAux()})
 		} else {
 			n.ensureExtBox().jsDocInfo = other.jsDocAux()
 		}
 	}
-	n.rec().propFlags = other.rec().propFlags
+	n.rec().propFlags.set(other.rec().propFlags.get())
 	if (other.rec().kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
 		n.rec().kindFlags |= kindFlagHasExtra
 	}
@@ -1903,7 +1907,7 @@ func (n Node) ClonePropsFrom(other Node) Node {
 		}
 	} else if n.nodeKind() == node_kindNode && other.coldPropListHead() != nil {
 		if x := n.lookupPropListHead(Node_Prop_CHANGE_TIME); x != nil && !x.isObject {
-			n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(x.intValue))
+			n.rec().payload = uint32(x.intValue)
 			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_CHANGE_TIME))
 		}
 	}
@@ -1927,7 +1931,7 @@ const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.rec().propFlags == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
+	if n.rec().propFlags.get() == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return
 	}
 
@@ -1936,7 +1940,7 @@ func (n Node) ValidateProperties(violationMessageConsumer func(string)) {
 		violationMessageConsumer("ROOT has properties")
 	}
 
-	flags := n.rec().propFlags
+	flags := n.rec().propFlags.get()
 	if (flags & nodeValidatedPropsMask) != 0 {
 		if (flags&propFlag_IS_PARENTHESIZED) != 0 && !IR_MayBeExpression(n) {
 			violationMessageConsumer("non-expression is parenthesized")
@@ -2006,7 +2010,7 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 // Java: Node.getProp(Prop)
 func (n Node) GetProp(propType Node_Prop) any {
 	if propType == Node_Prop_SOURCE_FILE {
-		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return nil
 		}
@@ -2014,7 +2018,7 @@ func (n Node) GetProp(propType Node_Prop) any {
 			return sourceFilePropItem(sfID).objectValue
 		}
 	} else if propType == Node_Prop_JSDOC_INFO {
-		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags.get() & propFlagHasJSDoc) == 0 {
 			return nil
 		}
 		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
@@ -2035,7 +2039,7 @@ func (n Node) GetProp(propType Node_Prop) any {
 			return tbc.self()
 		}
 	} else if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.rec().propFlags & mask) == 0 {
+		if (n.rec().propFlags.get() & mask) == 0 {
 			return nil
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
@@ -2045,11 +2049,11 @@ func (n Node) GetProp(propType Node_Prop) any {
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if (n.rec().propFlags & nodePropConstVarMask) != 0 {
+		if (n.rec().propFlags.get() & nodePropConstVarMask) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if (n.rec().propFlags & nodePropSideEffectMask) != 0 {
+		if (n.rec().propFlags.get() & nodePropSideEffectMask) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	} else if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
@@ -2064,7 +2068,7 @@ func (n Node) GetProp(propType Node_Prop) any {
 // Java: Node.getBooleanProp(Prop)
 func (n Node) GetBooleanProp(propType Node_Prop) bool {
 	if mask := nodePropBitMask[propType]; mask != 0 {
-		return (n.rec().propFlags & mask) != 0
+		return (n.rec().propFlags.get() & mask) != 0
 	}
 	return n.GetIntProp(propType) != 0
 }
@@ -2075,7 +2079,7 @@ func (n Node) GetBooleanProp(propType Node_Prop) bool {
 // Java: Node.getIntProp(Prop)
 func (n Node) GetIntProp(propType Node_Prop) int32 {
 	if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.rec().propFlags & mask) == 0 {
+		if (n.rec().propFlags.get() & mask) == 0 {
 			return 0
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
@@ -2093,26 +2097,26 @@ func (n Node) GetIntProp(propType Node_Prop) int32 {
 			return 0
 		}
 	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if v := int32((n.rec().propFlags >> nodePropConstVarShift) & 3); v != 0 {
+		if v := int32((n.rec().propFlags.get() >> nodePropConstVarShift) & 3); v != 0 {
 			return v
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if v := int32((n.rec().propFlags >> nodePropSideEffectShift) & 15); v != 0 {
+		if v := int32((n.rec().propFlags.get() >> nodePropSideEffectShift) & 15); v != 0 {
 			return v
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	} else if propType == Node_Prop_SOURCE_FILE {
-		if (n.rec().propFlags >> nodePropSourceFileShift) != 0 {
+		if (n.rec().propFlags.get() >> nodePropSourceFileShift) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
 	} else if propType == Node_Prop_JSDOC_INFO {
-		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags.get() & propFlagHasJSDoc) == 0 {
 			return 0
 		}
 		if box := n.extBoxOrNil(); (n.rec().kindFlags&kindFlagHasExtBox) == 0 || (box != nil && box.jsDocInfo != nil) {
@@ -2146,13 +2150,13 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 	}
 	if prop == Node_Prop_SOURCE_FILE {
 		if id, ok := allocSourceFilePropID(value); ok {
-			if (n.rec().propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+			if (n.rec().propFlags.get() >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), prop))
 			}
-			n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift)
+			n.rec().propFlags.set((n.rec().propFlags.get() & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift))
 			return
 		}
-		n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+		n.rec().propFlags.set((n.rec().propFlags.get() & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if info, ok := value.(*JSDocInfo); ok {
 			n.SetJSDocInfo(info)
@@ -2160,7 +2164,7 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		}
 		box := n.ensureExtBox()
 		box.jsDocInfo = nil
-		n.rec().propFlags |= propFlagHasJSDoc
+		n.rec().propFlags.or(propFlagHasJSDoc)
 	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
 		if t, ok := value.(JSType); ok {
 			n.SetJSTypeBeforeCast(t)
@@ -2169,10 +2173,10 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		box := n.ensureExtBox()
 		box.typeBeforeCast = 0
 	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec().payload &= 0xFFFFFFFF00000000
+		n.rec().payload = 0
 		n.rec().kindFlags |= kindFlagHasExtra
 	} else if mask := nodePropBitMask[prop]; mask != 0 {
-		n.rec().propFlags |= mask
+		n.rec().propFlags.or(mask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	}
 	head := n.coldPropListHead()
@@ -2190,17 +2194,17 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 	if mask := nodePropBitMask[propType]; mask != 0 {
 		if value {
-			n.rec().propFlags |= mask
+			n.rec().propFlags.or(mask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
 				}
 			}
 		} else {
-			if (n.rec().propFlags & mask) == 0 {
+			if (n.rec().propFlags.get() & mask) == 0 {
 				return
 			}
-			n.rec().propFlags &^= mask
+			n.rec().propFlags.andNot(mask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
@@ -2220,10 +2224,10 @@ func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 func (n Node) PutIntProp(prop Node_Prop, value int32) {
 	if mask := nodePropBitMask[prop]; mask != 0 {
 		if value == 0 {
-			if (n.rec().propFlags & mask) == 0 {
+			if (n.rec().propFlags.get() & mask) == 0 {
 				return
 			}
-			n.rec().propFlags &^= mask
+			n.rec().propFlags.andNot(mask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2232,7 +2236,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value == 1 {
-			n.rec().propFlags |= mask
+			n.rec().propFlags.or(mask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2240,10 +2244,10 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			}
 			return
 		}
-		n.rec().propFlags |= mask
+		n.rec().propFlags.or(mask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(value))
+		n.rec().payload = uint32(value)
 		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if head := n.coldPropListHead(); head != nil {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2252,7 +2256,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		return
 	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 		if value == 0 {
-			n.rec().propFlags &^= nodePropConstVarMask
+			n.rec().propFlags.andNot(nodePropConstVarMask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2261,7 +2265,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value&^3 == 0 {
-			n.rec().propFlags = (n.rec().propFlags &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift)
+			n.rec().propFlags.set((n.rec().propFlags.get() &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift))
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2269,11 +2273,11 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			}
 			return
 		}
-		n.rec().propFlags &^= nodePropConstVarMask
+		n.rec().propFlags.andNot(nodePropConstVarMask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
 		if value == 0 {
-			n.rec().propFlags &^= nodePropSideEffectMask
+			n.rec().propFlags.andNot(nodePropSideEffectMask)
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2282,7 +2286,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value&^15 == 0 {
-			n.rec().propFlags = (n.rec().propFlags &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift)
+			n.rec().propFlags.set((n.rec().propFlags.get() &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift))
 			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2290,12 +2294,12 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			}
 			return
 		}
-		n.rec().propFlags &^= nodePropSideEffectMask
+		n.rec().propFlags.andNot(nodePropSideEffectMask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_SOURCE_FILE {
-		n.rec().propFlags &= nodePropAllNonSourceFileMask
+		n.rec().propFlags.and(nodePropAllNonSourceFileMask)
 		if value != 0 {
-			n.rec().propFlags |= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+			n.rec().propFlags.or(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 		}
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if value == 0 {
@@ -2304,7 +2308,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		}
 		box := n.ensureExtBox()
 		box.jsDocInfo = nil
-		n.rec().propFlags |= propFlagHasJSDoc
+		n.rec().propFlags.or(propFlagHasJSDoc)
 	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
 		if value == 0 {
 			n.RemoveProp(prop)
@@ -2328,10 +2332,10 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 // Java: Node.removeProp(Prop)
 func (n Node) RemoveProp(prop Node_Prop) {
 	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.rec().propFlags & mask) == 0 {
+		if (n.rec().propFlags.get() & mask) == 0 {
 			return
 		}
-		n.rec().propFlags &^= mask
+		n.rec().propFlags.andNot(mask)
 		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if head := n.coldPropListHead(); head != nil {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
@@ -2341,36 +2345,36 @@ func (n Node) RemoveProp(prop Node_Prop) {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return
 		}
-		n.rec().propFlags &= nodePropAllNonSourceFileMask
+		n.rec().propFlags.and(nodePropAllNonSourceFileMask)
 		if sfID != nodePropSourceFileOverflow {
 			return
 		}
 	case Node_Prop_CHANGE_TIME:
 		if n.nodeKind() == node_kindNode {
-			n.rec().payload &= 0xFFFFFFFF00000000
+			n.rec().payload = 0
 			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 				return
 			}
 		}
 	case Node_Prop_CONSTANT_VAR_FLAGS:
-		n.rec().propFlags &^= nodePropConstVarMask
+		n.rec().propFlags.andNot(nodePropConstVarMask)
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return
 		}
 	case Node_Prop_SIDE_EFFECT_FLAGS:
-		n.rec().propFlags &^= nodePropSideEffectMask
+		n.rec().propFlags.andNot(nodePropSideEffectMask)
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return
 		}
 	case Node_Prop_JSDOC_INFO:
-		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags.get() & propFlagHasJSDoc) == 0 {
 			return
 		}
-		n.rec().propFlags &^= propFlagHasJSDoc
+		n.rec().propFlags.andNot(propFlagHasJSDoc)
 		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{})
 			return
@@ -2398,26 +2402,26 @@ func (n Node) RemoveProp(prop Node_Prop) {
 }
 
 func (n Node) presentNodePropsMask() uint64 {
-	if n.rec().propFlags == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
+	if n.rec().propFlags.get() == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return 0
 	}
 	var mask uint64
-	boolBits := n.rec().propFlags & nodePropBoolMask
+	boolBits := n.rec().propFlags.get() & nodePropBoolMask
 	for boolBits != 0 {
 		b := bits.TrailingZeros64(boolBits)
 		boolBits &^= uint64(1) << uint(b)
 		mask |= uint64(1) << uint(nodeBitToProp[b])
 	}
-	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_JSDOC_INFO)
 	}
-	if (n.rec().propFlags & nodePropConstVarMask) != 0 {
+	if (n.rec().propFlags.get() & nodePropConstVarMask) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_CONSTANT_VAR_FLAGS)
 	}
-	if (n.rec().propFlags & nodePropSideEffectMask) != 0 {
+	if (n.rec().propFlags.get() & nodePropSideEffectMask) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SIDE_EFFECT_FLAGS)
 	}
-	if (n.rec().propFlags >> nodePropSourceFileShift) != 0 {
+	if (n.rec().propFlags.get() >> nodePropSourceFileShift) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SOURCE_FILE)
 	}
 	if n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
@@ -2473,7 +2477,7 @@ const nodePropNonSerializedMask = (uint64(1) << uint(Node_Prop_SOURCE_FILE)) |
 
 // Java: Node.serializeProperties()
 func (n Node) SerializeProperties() int64 {
-	if (n.rec().propFlags&nodePropAllNonSourceFileMask) == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
+	if (n.rec().propFlags.get()&nodePropAllNonSourceFileMask) == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 		return 0
 	}
 	bitsMask := n.presentNodePropsMask() &^ nodePropNonSerializedMask
@@ -2577,7 +2581,7 @@ func (n Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.rec().propFlags == 0 && uint32(n.rec().payload) == 0, "%s", n.coldPropListHead())
+		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.rec().propFlags.get() == 0 && uint32(n.rec().payload) == 0, "%s", n.coldPropListHead())
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
@@ -2618,7 +2622,7 @@ func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree boo
 				panic(jutil.NewIllegalStateExceptionMsg("Can not translate " + nodeProperty.String() + " to AST Prop"))
 			}
 			if mask := nodePropBitMask[*prop]; mask != 0 {
-				n.rec().propFlags |= mask
+				n.rec().propFlags.or(mask)
 			} else {
 				n.PutBooleanProp(*prop, true)
 			}
@@ -2626,13 +2630,13 @@ func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree boo
 	}
 
 	if constantVarFlags != 0 {
-		n.rec().propFlags = (n.rec().propFlags &^ nodePropConstVarMask) |
-			(uint64(constantVarFlags&3) << nodePropConstVarShift)
+		n.rec().propFlags.set((n.rec().propFlags.get() &^ nodePropConstVarMask) |
+			(uint64(constantVarFlags&3) << nodePropConstVarShift))
 	}
 
 	if sideEffectFlags != 0 {
-		n.rec().propFlags = (n.rec().propFlags &^ nodePropSideEffectMask) |
-			(uint64(sideEffectFlags&15) << nodePropSideEffectShift)
+		n.rec().propFlags.set((n.rec().propFlags.get() &^ nodePropSideEffectMask) |
+			(uint64(sideEffectFlags&15) << nodePropSideEffectShift))
 	}
 
 	// Make sure the deserialized properties are valid.
@@ -2748,7 +2752,7 @@ func (n Node) SetDouble(x float64) {
 	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
 	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
-	n.rec().payload = math.Float64bits(x)
+	n.rec().payload = numberPayload(x)
 }
 
 var (
@@ -2785,8 +2789,7 @@ func (n Node) SetBigInt(number *big.Int) {
 	jutil.CheckNotNull(number)
 	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
-	id := rhinoInternBigInt(number)
-	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.rec().payload = rhinoInternBigInt(number)
 }
 
 // Java: Node.getString()
@@ -2823,15 +2826,13 @@ func (n Node) GetStringID() uint32 {
 // Java: Node.setString(String)
 func (n Node) SetString(str string) {
 	n.node_castKind(node_kindString)
-	id := rhinoStringPoolIntern(str)
-	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.setStringPayload(rhinoStringPoolIntern(str))
 }
 
 // Java: Node.setStringFromStringPool(RhinoStringPool.LazyInternedStringList, int)
 func (n Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
 	n.node_castKind(node_kindString)
-	id := stringPool.GetID(offset)
-	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.setStringPayload(stringPool.GetID(offset))
 }
 
 // Java: Node.getRawString()
@@ -2858,7 +2859,7 @@ func (n Node) GetCookedString() *string {
 // GetCookedStringID returns the 32-bit interned cooked string ID of a TemplateLiteralSubstringNode, or 0 if unset.
 func (n Node) GetCookedStringID() uint32 {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return uint32(n.rec().payload >> 32)
+	return uint32(n.node_cookedID())
 }
 
 // Java: Node.toString()
@@ -3092,15 +3093,15 @@ func Node_ToJsonTreeHelper(n Node, appendable io.StringWriter) {
 // nodeData is the record of an AST node (fields as declared in Java, plus
 // the folded subclass payloads); a Node is a handle to one (node_store.go).
 //
-// Go-only: performance. 40 bytes, no Go pointers: the tree links are node
-// ids. The JSType or Color handle and the cold data are kept beside the
-// record (node_tables.go): most nodes have no cold data, and untyped
-// compilations have no types or colors. Leaf payloads (float64 numbers, 32-bit interned
-// StringIDs for str/originalName/raw/cooked, BigInt IDs) live inline in
-// `payload uint64`, and all 40 boolean properties + CONSTANT_VAR_FLAGS +
-// SIDE_EFFECT_FLAGS + 17-bit SourceFileID live in `propFlags uint64`
-// without heap allocations. The cold data (JSDocInfo, remaining
-// properties, overflow length and original name: about 1% of nodes) is in a
+// Go-only: performance. 36 bytes, no Go pointers, 4-byte aligned: the
+// tree links are node ids; the leaf payload is one 32-bit value whose
+// meaning depends on the kind (a string id, a number, a change time...;
+// node_payload.go); the 40 boolean properties, CONSTANT_VAR_FLAGS,
+// SIDE_EFFECT_FLAGS and the 17-bit SourceFileID share the 64 property bits.
+// What most nodes do not have is kept beside the record (node_tables.go):
+// the JSType or Color handle and the original name in per-block columns,
+// the cold data (JSDocInfo, remaining properties, overflow length, a cooked
+// template string that differs from the raw one: about 1% of nodes) in a
 // map of the store, looked up only when the record's flags say the node has
 // some.
 type nodeData struct {
@@ -3109,12 +3110,12 @@ type nodeData struct {
 	parent   nodeID // parent node
 	previous nodeID // previous sibling, a circular linked list
 
-	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
-	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
-	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
-	length16     uint16 // code length (0..65534 inline; 65535: in the nodeExtBox)
-	token        Token  // token kind (uint8)
-	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: unused; bit 7: hasExtBox
+	payload      uint32   // one value whose meaning depends on the kind (node_payload.go)
+	propFlags    propBits // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
+	linenoCharno int32    // line (upper 20 bits) and column (low 12 bits)
+	length16     uint16   // code length (0..65534 inline; 65535: in the nodeExtBox)
+	token        Token    // token kind (uint8)
+	kindFlags    uint8    // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: origNameIsString; bit 7: hasExtBox
 }
 
 func (n Node) HasNoBlockScopeDecls() bool {
@@ -3129,40 +3130,14 @@ func (n Node) ClearNoBlockScopeDecls() {
 	n.rec().kindFlags &^= kindFlagNoBlockDecl
 }
 
-func (n Node) node_originalNameID() rhinoStringID {
-	k := n.nodeKind()
-	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
-		return rhinoStringID(n.rec().payload >> 32)
-	}
-	if box := n.extBoxOrNil(); box != nil {
-		return box.origNameID
-	}
-	return 0
-}
-
-func (n Node) node_setOriginalNameID(id rhinoStringID) {
-	k := n.nodeKind()
-	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
-		n.rec().payload = (n.rec().payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
-		return
-	}
-	if id != 0 {
-		n.ensureExtBox().origNameID = id
-	} else if n.rec().kindFlags&kindFlagHasExtBox != 0 {
-		box := n.extBox()
-		box.origNameID = 0
-		n.maybeCollapseExtBox(box)
-	}
-}
-
 // node_number is the NumberNode.number field.
 func (n Node) node_number() float64 {
-	return math.Float64frombits(n.rec().payload)
+	return payloadNumber(n.rec().payload)
 }
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n Node) node_cooked() *string {
-	return rhinoStringPtrFromID(rhinoStringID(n.rec().payload >> 32))
+	return rhinoStringPtrFromID(n.node_cookedID())
 }
 
 // ==========================================================================
@@ -3170,12 +3145,12 @@ func (n Node) node_cooked() *string {
 
 // Java: Node.setStaticSourceFileFrom(Node)
 func (n Node) SetStaticSourceFileFrom(other Node) {
-	sfID := uint32(other.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(other.rec().propFlags.get() >> nodePropSourceFileShift)
 	if sfID != nodePropSourceFileOverflow {
-		if (n.rec().propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+		if (n.rec().propFlags.get() >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
 			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_SOURCE_FILE))
 		}
-		n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift)
+		n.rec().propFlags.set((n.rec().propFlags.get() & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift))
 		return
 	}
 	otherCold := other.coldPropListHead()
@@ -3193,7 +3168,7 @@ func (n Node) SetStaticSourceFileFrom(other Node) {
 				tail.shared = true
 			}
 			n.setColdPropListHead(tail)
-			n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+			n.rec().propFlags.set((n.rec().propFlags.get() & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
 			return
 		}
 	}
@@ -3218,7 +3193,7 @@ func (n Node) SetSourceFileForTesting(name string) {
 //
 // Java: Node.getSourceFileName()
 func (n Node) GetSourceFileName() *string {
-	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 	if sfID == 0 {
 		return nil
 	}
@@ -3242,7 +3217,7 @@ func (n Node) GetSourceFileName() *string {
 //
 // Java: Node.getStaticSourceFile()
 func (n Node) GetStaticSourceFile() StaticSourceFile {
-	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 	if sfID == 0 {
 		return nil
 	}
@@ -3508,7 +3483,7 @@ type NodePropListHandleForTesting struct {
 
 // Java: Node.getPropListHeadForTesting()
 func (n Node) GetPropListHeadForTesting() NodePropListHandleForTesting {
-	return NodePropListHandleForTesting{head: n.coldPropListHead(), flags: n.rec().propFlags}
+	return NodePropListHandleForTesting{head: n.coldPropListHead(), flags: n.rec().propFlags.get()}
 }
 
 // Java: Node.setPropListHead(PropListItem)
@@ -3517,10 +3492,10 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 		box := n.extBox()
 		box.jsDocInfo = nil
 		box.typeBeforeCast = 0
-	} else if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	} else if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
-	n.rec().propFlags = 0
+	n.rec().propFlags.set(0)
 	propListHead.markShared()
 	n.setColdPropListHead(propListHead)
 	var flags uint64
@@ -3558,7 +3533,7 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 			}
 		}
 	}
-	n.rec().propFlags = flags
+	n.rec().propFlags.set(flags)
 }
 
 // Java: Node.getParent()
@@ -3902,7 +3877,7 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 	if n.GetIsInClosureUnawareSubtree() {
 		return &staticBoolPropItems[Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE]
 	}
-	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 	propListItem := n.coldPropListHead()
 	if sfID != 0 && sfID != nodePropSourceFileOverflow {
 		if propListItem == nil {
@@ -3924,7 +3899,7 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 
 // Java: Node.getLastPropListItem()
 func (n Node) GetLastPropListItem() *Node_PropListItem {
-	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags.get() >> nodePropSourceFileShift)
 	if sfID != 0 && sfID != nodePropSourceFileOverflow {
 		return sourceFilePropItem(sfID)
 	}
@@ -4067,7 +4042,7 @@ func (n Node) IsEquivalentToWithModes(
 		if !n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) {
 			return false
 		}
-		return n.rec().payload == node.rec().payload
+		return n.rec().payload == node.rec().payload && n.node_cookedID() == node.node_cookedID()
 	}
 	return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig)
 }
@@ -4108,7 +4083,7 @@ func (n Node) isEquivalentToBase(
 		return false
 	}
 
-	if (n.rec().propFlags & node_propEqualityMask) != (node.rec().propFlags & node_propEqualityMask) {
+	if (n.rec().propFlags.get() & node_propEqualityMask) != (node.rec().propFlags.get() & node_propEqualityMask) {
 		return false
 	}
 	if ((n.rec().kindFlags | node.rec().kindFlags) & kindFlagHasExtra) != 0 {
@@ -4563,7 +4538,7 @@ func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 	}
 	dest.copyLengthFrom(source)
 	dest.node_setOriginalNameID(source.node_originalNameID())
-	dest.rec().propFlags = source.rec().propFlags
+	dest.rec().propFlags.set(source.rec().propFlags.get())
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
 	if cloneTypeExprs {
@@ -4639,7 +4614,7 @@ func (n Node) SrcrefTree(other Node) Node {
 //
 // Java: Node.srcrefIfMissing(Node)
 func (n Node) SrcrefIfMissing(other Node) Node {
-	if (n.rec().propFlags >> nodePropSourceFileShift) == 0 {
+	if (n.rec().propFlags.get() >> nodePropSourceFileShift) == 0 {
 		n.SetStaticSourceFileFrom(other)
 		n.rec().linenoCharno = other.rec().linenoCharno
 		n.copyLengthFrom(other)
@@ -4750,7 +4725,7 @@ func (n Node) CopyTypeFrom(other Node) Node {
 //
 // Java: Node.getJSDocInfo()
 func (n Node) GetJSDocInfo() *JSDocInfo {
-	if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) == 0 {
 		return nil
 	}
 	a := n.auxOf()
@@ -4783,15 +4758,15 @@ func (n Node) SetJSDocInfo(info *JSDocInfo) Node {
 		return n
 	}
 	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
-		n.rec().propFlags |= propFlagHasJSDoc
+		n.rec().propFlags.or(propFlagHasJSDoc)
 		n.setAux(nodeAux{jsDoc: info})
 		return n
 	}
 	box := n.extBox()
-	if (n.rec().propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo == nil && box.propListHead != nil {
+	if (n.rec().propFlags.get()&propFlagHasJSDoc) != 0 && box.jsDocInfo == nil && box.propListHead != nil {
 		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_JSDOC_INFO)
 	}
-	n.rec().propFlags |= propFlagHasJSDoc
+	n.rec().propFlags.or(propFlagHasJSDoc)
 	box.jsDocInfo = info
 	return n
 }
@@ -4801,7 +4776,7 @@ func (n Node) SetJSDocInfo(info *JSDocInfo) Node {
 // Java: Node.setChangeTime(int)
 func (n Node) SetChangeTime(time int32) {
 	if n.nodeKind() == node_kindNode && (n.rec().kindFlags&kindFlagHasExtra) == 0 {
-		n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(time))
+		n.rec().payload = uint32(time)
 		return
 	}
 	n.PutIntProp(Node_Prop_CHANGE_TIME, time)
@@ -4856,7 +4831,7 @@ func (n Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBef
 		n.setTC(0)
 	}
 	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
-		if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+		if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 			jsdoc = n.jsDocAux()
 		}
 		return oldType, false, jsdoc
@@ -5138,7 +5113,7 @@ func (n Node) IsAsyncFunction() bool {
 // Java: Node.isAsyncGeneratorFunction()
 func (n Node) IsAsyncGeneratorFunction() bool {
 	const mask = propFlag_ASYNC_FN | propFlag_GENERATOR_FN
-	return n.rec().token == Token_FUNCTION && (n.rec().propFlags&mask) == mask
+	return n.rec().token == Token_FUNCTION && (n.rec().propFlags.get()&mask) == mask
 }
 
 // SetYieldAll sets whether this node is a generator node. This method is
@@ -5203,7 +5178,7 @@ func (n Node) GetSideEffectFlags() int32 {
 	// Int props default to 0, but we want the default for side-effect flags to
 	// be all 1s. Therefore, we invert the value returned here. This is correct
 	// for non-defaults because we also invert when setting the flags.
-	return ^int32((n.rec().propFlags>>nodePropSideEffectShift)&15) & Node_SideEffectFlags_USED_BITS_MASK
+	return ^int32((n.rec().propFlags.get()>>nodePropSideEffectShift)&15) & Node_SideEffectFlags_USED_BITS_MASK
 }
 
 // Node_SideEffectFlags is a helper class for getting and setting invocation
@@ -5400,12 +5375,12 @@ func NewNode_ConstantVarFlags() *Node_ConstantVarFlags { return &Node_ConstantVa
 
 // Java: Node.getConstantVarFlags()
 func (n Node) GetConstantVarFlags() int32 {
-	return int32((n.rec().propFlags >> nodePropConstVarShift) & 3)
+	return int32((n.rec().propFlags.get() >> nodePropConstVarShift) & 3)
 }
 
 // Java: Node.setConstantVarFlag(int, boolean)
 func (n Node) SetConstantVarFlag(flag int32, value bool) {
-	flags := int32((n.rec().propFlags >> nodePropConstVarShift) & 3)
+	flags := int32((n.rec().propFlags.get() >> nodePropConstVarShift) & 3)
 	if value {
 		flags = flags | flag
 	} else {
@@ -5432,7 +5407,7 @@ func (n Node) IsDeclaredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return (n.rec().propFlags & (uint64(Node_ConstantVarFlags_DECLARED) << nodePropConstVarShift)) != 0
+	return (n.rec().propFlags.get() & (uint64(Node_ConstantVarFlags_DECLARED) << nodePropConstVarShift)) != 0
 }
 
 // SetDeclaredConstantVar sets this variable to be a declared constant.
@@ -5467,7 +5442,7 @@ func (n Node) IsInferredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return (n.rec().propFlags & (uint64(Node_ConstantVarFlags_INFERRED) << nodePropConstVarShift)) != 0
+	return (n.rec().propFlags.get() & (uint64(Node_ConstantVarFlags_INFERRED) << nodePropConstVarShift)) != 0
 }
 
 // SetInferredConstantVar sets this variable to be an inferred constant.
@@ -6138,7 +6113,7 @@ func (n Node) nodeStringValue() string {
 // mutation exact.
 func (n Node) CanResetInPlace() bool {
 	return (n.rec().kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
-		uint32(n.rec().propFlags>>nodePropSourceFileShift) != nodePropSourceFileOverflow
+		uint32(n.rec().propFlags.get()>>nodePropSourceFileShift) != nodePropSourceFileOverflow
 }
 
 // PinForDiagnostic marks n so later optimization passes do not recycle n
@@ -6161,17 +6136,18 @@ func (n Node) MutateGetPropToNameInPlace(name string, originalName string, isCon
 	}
 	nameID := rhinoStringPoolIntern(name)
 	origID := rhinoStringPoolIntern(originalName)
-	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	flags := n.rec().propFlags & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
+	flags := n.rec().propFlags.get() & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec().propFlags = flags
-	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().propFlags.set(flags)
+	n.rec().payload = uint32(nameID)
+	n.node_setOriginalNameID(origID)
 	return true
 }
 
@@ -6185,18 +6161,19 @@ func (n Node) MutateCallTargetGetPropToNameInPlace(call Node, receiver Node, new
 	n.DetachChildren()
 	receiver.SrcrefIfMissing(n)
 	nameID := rhinoStringPoolIntern(newMethodName)
-	origID := rhinoStringID(n.rec().payload >> 32)
-	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	origID := n.node_originalNameID()
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	flags := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := n.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec().propFlags = flags
-	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().propFlags.set(flags)
+	n.rec().payload = uint32(nameID)
+	n.node_setOriginalNameID(origID)
 	receiver.InsertAfter(n)
 	return true
 }
@@ -6210,29 +6187,31 @@ func (n Node) MutateThisToNameIDInPlace(nameID uint32) bool {
 	if n.rec().parent != 0 {
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags.get() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
-	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(nameID)
+	n.rec().propFlags.and(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().payload = uint32(nameID)
 	return true
 }
 
 // ResetDetachedGetPropToNameID resets a detached GETPROP node (CanResetInPlace)
 // into IR_Name(nameID).SrcrefIfMissing(self), optionally setting IS_CONSTANT_NAME.
 func (n Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) {
+	origID := n.node_originalNameID()
 	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
-	flags := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := n.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec().propFlags = flags
-	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(nameID)
+	n.rec().propFlags.set(flags)
+	n.rec().payload = uint32(nameID)
+	n.node_setOriginalNameID(origID)
 }
 
 // MutateAttachedStmtToVarFromSrcref resets an attached childless statement node
@@ -6241,12 +6220,14 @@ func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsd
 	if n.rec().parent != 0 {
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
+	origID := srcref.node_originalNameID() // before n changes: srcref may be n
 	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
-	n.rec().propFlags = srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec().payload = uint64(srcref.node_originalNameID()) << 32
+	n.rec().propFlags.set(srcref.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+	n.rec().payload = 0
+	n.node_setOriginalNameID(origID)
 	n.rec().linenoCharno = srcref.rec().linenoCharno
 	n.rec().length16 = srcref.rec().length16
 	n.AddChildToFront(nameChild)
@@ -6262,8 +6243,9 @@ func (n Node) ResetDetachedToFreshNameID(nameID uint32) Node {
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
-	n.rec().propFlags = 0
-	n.rec().payload = uint64(nameID)
+	n.rec().propFlags.set(0)
+	n.rec().payload = uint32(nameID)
+	n.node_setOriginalNameID(0)
 	n.rec().linenoCharno = -1
 	n.rec().length16 = 0
 	return n
@@ -6284,23 +6266,25 @@ func (n Node) OverwriteLeafFromClone(src Node) {
 	if n.rec().parent != 0 {
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	oldSF := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	oldSF := n.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	oldOrigID := n.node_originalNameID()
+	srcOrigID := src.node_originalNameID()
 	n.rec().token = src.rec().token
 	n.rec().kindFlags = src.rec().kindFlags & (kindMask | kindFlagTypeIsColor)
 	n.setTC(n.store().translateTC(src.store(), src.tc(), src.rec().kindFlags&kindFlagTypeIsColor != 0))
 	n.setAux(src.auxValue())
-	n.rec().propFlags = src.rec().propFlags
+	n.rec().propFlags.set(src.rec().propFlags.get())
 	n.rec().payload = src.rec().payload
-	if (src.rec().propFlags >> nodePropSourceFileShift) == 0 {
-		n.rec().propFlags |= oldSF
+	if (src.rec().propFlags.get() >> nodePropSourceFileShift) == 0 {
+		n.rec().propFlags.or(oldSF)
 	} else {
 		n.rec().linenoCharno = src.rec().linenoCharno
 		n.rec().length16 = src.rec().length16
 	}
-	if oldOrigID != 0 && n.node_originalNameID() == 0 {
-		n.node_setOriginalNameID(oldOrigID)
+	if srcOrigID == 0 {
+		srcOrigID = oldOrigID
 	}
+	n.node_setOriginalNameID(srcOrigID)
 }
 
 // ResetTemplateUndefinedSrcref updates a detached 2-node `void 0` template in
@@ -6316,37 +6300,41 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		n.setTC(0)
 		n.setAux(nodeAux{})
 		n.rec().kindFlags = 0
-		n.rec().propFlags = 0
+		n.rec().propFlags.set(0)
 		n.rec().payload = 0
 		n.rec().linenoCharno = -1
 		n.rec().length16 = 0
 		num.setTC(0)
 		num.setAux(nodeAux{})
 		num.rec().kindFlags = uint8(node_kindNumber)
-		num.rec().propFlags = 0
+		num.rec().propFlags.set(0)
 		num.rec().payload = 0
 		num.rec().linenoCharno = -1
 		num.rec().length16 = 0
+		n.node_setOriginalNameID(0)
+		num.node_setOriginalNameID(0)
 		return true
 	}
 	if !src.CanResetInPlace() || src.node_originalNameID() != 0 {
 		return false
 	}
-	sfFlags := src.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	sfFlags := src.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().kindFlags = 0
-	n.rec().propFlags = sfFlags
+	n.rec().propFlags.set(sfFlags)
 	n.rec().payload = 0
 	n.rec().linenoCharno = src.rec().linenoCharno
 	n.rec().length16 = src.rec().length16
 	num.setTC(0)
 	num.setAux(nodeAux{})
 	num.rec().kindFlags = uint8(node_kindNumber)
-	num.rec().propFlags = sfFlags
+	num.rec().propFlags.set(sfFlags)
 	num.rec().payload = 0
 	num.rec().linenoCharno = src.rec().linenoCharno
 	num.rec().length16 = src.rec().length16
+	n.node_setOriginalNameID(0)
+	num.node_setOriginalNameID(0)
 	return true
 }
 
@@ -6363,8 +6351,9 @@ func (n Node) MutateAttachedToFreshVarInPlace(nameChild Node, jsdoc *JSDocInfo) 
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
-	n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
-	n.rec().payload = uint64(origID) << 32
+	n.rec().propFlags.and(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().payload = 0
+	n.node_setOriginalNameID(origID)
 	if !nameChild.IsNil() {
 		n.AddChildToFront(nameChild)
 	}
@@ -6384,12 +6373,13 @@ func (n Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalNa
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
-	flags := srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := srcref.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec().propFlags = flags
-	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().propFlags.set(flags)
+	n.rec().payload = uint32(nameID)
+	n.node_setOriginalNameID(origID)
 	n.rec().linenoCharno = srcref.rec().linenoCharno
 	n.rec().length16 = srcref.rec().length16
 	return n
@@ -6412,14 +6402,15 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 	n.setAux(nodeAux{})
 	n.rec().token = Token_EXPR_RESULT
 	n.rec().kindFlags = 0
-	if (exprChild.rec().propFlags >> nodePropSourceFileShift) != 0 {
-		n.rec().propFlags = exprChild.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	if (exprChild.rec().propFlags.get() >> nodePropSourceFileShift) != 0 {
+		n.rec().propFlags.set(exprChild.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
 		n.rec().linenoCharno = exprChild.rec().linenoCharno
 		n.rec().length16 = exprChild.rec().length16
 	} else {
-		n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+		n.rec().propFlags.and(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	}
-	n.rec().payload = uint64(origID) << 32
+	n.rec().payload = 0
+	n.node_setOriginalNameID(origID)
 	n.AddChildToFront(exprChild)
 	return n
 }
@@ -6429,12 +6420,14 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 // must satisfy CanResetInPlace; left and right must be detached).
 func (n Node) ResetDetachedToBinaryOpFromSrcref(op Token, left Node, right Node, srcref Node) Node {
 	n.DetachChildren()
+	origID := srcref.node_originalNameID() // before n changes: srcref may be n
 	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = op
 	n.rec().kindFlags = 0
-	n.rec().propFlags = srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec().payload = uint64(srcref.node_originalNameID()) << 32
+	n.rec().propFlags.set(srcref.rec().propFlags.get() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+	n.rec().payload = 0
+	n.node_setOriginalNameID(origID)
 	n.rec().linenoCharno = srcref.rec().linenoCharno
 	n.rec().length16 = srcref.rec().length16
 	n.AddChildToFront(left)

@@ -80,12 +80,12 @@ func TestNodeHasNoPointers(t *testing.T) {
 	typ := reflect.TypeOf(nodeData{})
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
-		if f.Type.Kind() == reflect.Pointer || f.Type.Kind() == reflect.UnsafePointer {
+		if k := f.Type.Kind(); k == reflect.Pointer || k == reflect.UnsafePointer || k == reflect.Slice || k == reflect.Map || k == reflect.Interface || k == reflect.String {
 			t.Errorf("field %s is a pointer", f.Name)
 		}
 	}
-	if typ.Size() != 40 {
-		t.Errorf("nodeData is %d bytes, want 40", typ.Size())
+	if typ.Size() != 36 {
+		t.Errorf("nodeData is %d bytes, want 36", typ.Size())
 	}
 	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", s)
