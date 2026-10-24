@@ -186,8 +186,10 @@ type Compiler struct {
 
 	// Go-only: the node tables this compilation's Nodes refer to their
 	// colors, JSDoc and cold properties through (rhino/node_tables.go);
-	// released when the Compiler is collected.
-	nodeTables *rhino.NodeTables
+	// released once neither the Compiler nor any of its nodes is reachable
+	// (nodeTablesLease).
+	nodeTables      *rhino.NodeTables
+	nodeTablesLease *rhino.NodeTablesLease
 
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
@@ -440,16 +442,19 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
-	// Go-only: the nodes of this compilation get their own generation
-	// (rhino/node_store.go); compaction later replaces it.
-	rhino.NewNodeGeneration()
 	c := &Compiler{}
 	c.nodeTables = rhino.NewNodeTables()
 	c.nodeTables.Install()
-	// The tables hold everything a Node refers to by handle; nothing in them
-	// may reach the Compiler (the registry reports through a weak reference),
-	// so the Compiler is collectable and this frees them.
-	runtime.AddCleanup(c, func(t *rhino.NodeTables) { t.Release() }, c.nodeTables)
+	// Go-only: the nodes of this compilation get their own generation
+	// (rhino/node_store.go); compaction later replaces it. The generation
+	// and the Compiler hold the tables' lease, so the tables are released
+	// once neither the Compiler nor any of its nodes is reachable (a caller
+	// may keep the AST after the Compiler). Nothing in the tables may reach
+	// the lease or the Compiler (the registry reports through a weak
+	// reference).
+	c.nodeTablesLease = rhino.NewNodeTablesLease()
+	rhino.NewNodeGenerationFor(c.nodeTablesLease)
+	runtime.AddCleanup(c.nodeTablesLease, func(t *rhino.NodeTables) { t.Release() }, c.nodeTables)
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())

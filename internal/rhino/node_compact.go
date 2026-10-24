@@ -89,6 +89,7 @@ func (k *Compactor) copyNode(old *Node) *Node {
 				old, r, src, k.inExtra))
 		}
 		k.old[g] = struct{}{}
+		k.gen.adoptLeases(g)
 	}
 	nw := allocNode()
 	self := nw.self
