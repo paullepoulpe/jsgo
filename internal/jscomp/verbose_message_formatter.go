@@ -64,9 +64,9 @@ func (f *VerboseMessageFormatter) Format(message *JSError) string {
 	if sourceName != nil && *sourceName != "" {
 		source = *sourceName
 	}
-	line := "(unknown line)"
+	line := strconv.Itoa(lineNumber)
 	if lineNumber < 0 {
-		line = strconv.Itoa(lineNumber)
+		line = "(unknown line)"
 	}
 	excerpt := "."
 	if lineSource != nil {
