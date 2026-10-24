@@ -96,13 +96,49 @@ func NewCheckSuper(compiler AbstractCompiler) *CheckSuper {
 
 // Java: CheckSuper.process(Node, Node)
 func (c *CheckSuper) Process(externs *rhino.Node, root *rhino.Node) {
-
+	if c.processParallel(root) {
+		return
+	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 	// Java: checkState(this.contextStack.isEmpty(), ImmutableList.of(this.contextStack));
 	// the message is only built on failure.
 	if len(c.contextStack) != 0 {
 		jutil.CheckStateMsg1(false, "%s", "["+c.contextStackString()+"]")
 	}
+}
+
+func (c *CheckSuper) processParallel(root *rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(c.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+	prewarmCompilerForParallelReads(c.compiler)
+	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass *CheckSuper
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerPass == nil || workerRC != rc {
+				workerRC = rc
+				workerPass = NewCheckSuper(rc)
+			}
+			b := NodeTraversal_Builder{
+				compiler: rc,
+				callback: workerPass,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
+			releaseNodeTraversal(t)
+			if len(workerPass.contextStack) != 0 {
+				jutil.CheckStateMsg1(false, "%s", "["+workerPass.contextStackString()+"]")
+			}
+		}
+		return runItem, nil
+	}, false)
+	return true
 }
 
 // contextStackString renders the context stack the way ArrayDeque.toString()

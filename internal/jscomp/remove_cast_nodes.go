@@ -34,7 +34,44 @@ func NewRemoveCastNodes(compiler AbstractCompiler) *RemoveCastNodes {
 
 // Java: RemoveCastNodes.process(Node, Node)
 func (r *RemoveCastNodes) Process(externs *rhino.Node, root *rhino.Node) {
+	if r.processParallel(externs, root) {
+		return
+	}
 	NodeTraversal_TraverseRoots(r.compiler, &RemoveCastNodes_RemoveCastsCallback{outer: r}, externs, root)
+}
+
+func (r *RemoveCastNodes) processParallel(externs *rhino.Node, root *rhino.Node) bool {
+	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(r.compiler, len(items))
+	if numWorkers <= 1 {
+		return false
+	}
+	prewarmCompilerForParallelReads(r.compiler)
+	runParallelWork(r.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerCb *RemoveCastNodes_RemoveCastsCallback
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerCb == nil || workerRC != rc {
+				workerRC = rc
+				workerCb = &RemoveCastNodes_RemoveCastsCallback{
+					outer: &RemoveCastNodes{compiler: rc},
+				}
+			}
+			item := items[idx]
+			b := NodeTraversal_Builder{
+				compiler: rc,
+				callback: workerCb,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, scopeRoot, item.parent, item.script, nil)
+			releaseNodeTraversal(t)
+		}
+		return runItem, nil
+	}, false)
+	return true
 }
 
 // RemoveCastNodes_RemoveCastsCallback is the inner class RemoveCastsCallback.

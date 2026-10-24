@@ -84,13 +84,15 @@ func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffe
 func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
 
-	sc := NewSyntacticScopeCreator(c.compiler)
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: sc,
+	if !c.processRootParallel(root) {
+		sc := NewSyntacticScopeCreator(c.compiler)
+		b := NodeTraversal_Builder{
+			compiler:     c.compiler,
+			callback:     c,
+			scopeCreator: sc,
+		}
+		b.Traverse(root)
 	}
-	b.Traverse(root)
 
 	// Code with hidden side-effect code is common, for example
 	// accessing "el.offsetWidth" forces a reflow in browsers, to allow this
@@ -101,6 +103,65 @@ func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
 	if c.protectSideEffectFreeCode {
 		c.ProtectSideEffects()
 	}
+}
+
+func (c *CheckSideEffects) processRootParallel(root *rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(c.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(c.compiler)
+	lazyGlobal := newLazyGlobalScope(c.compiler, root)
+
+	problemsByScript := make([][]*rhino.Node, len(scripts))
+	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass *CheckSideEffects
+		var sc *SyntacticScopeCreator
+
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerPass == nil || workerRC != rc {
+				workerRC = rc
+				workerPass = &CheckSideEffects{
+					report:                    c.report,
+					noSideEffectExterns:       c.noSideEffectExterns,
+					compiler:                  rc,
+					protectSideEffectFreeCode: c.protectSideEffectFreeCode,
+					preserveFunctionInjected:  c.preserveFunctionInjected,
+				}
+				sc = NewSyntacticScopeCreator(rc)
+			} else {
+				workerPass.problemNodes = workerPass.problemNodes[:0]
+			}
+			b := NodeTraversal_Builder{
+				compiler:     rc,
+				callback:     workerPass,
+				scopeCreator: sc,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
+			releaseNodeTraversal(t)
+			if len(workerPass.problemNodes) != 0 {
+				copied := make([]*rhino.Node, len(workerPass.problemNodes))
+				copy(copied, workerPass.problemNodes)
+				problemsByScript[idx] = copied
+				workerPass.problemNodes = workerPass.problemNodes[:0]
+			}
+		}
+		return runItem, nil
+	}, false)
+
+	for _, probs := range problemsByScript {
+		if len(probs) != 0 {
+			c.problemNodes = append(c.problemNodes, probs...)
+		}
+	}
+	return true
 }
 
 // Java: CheckSideEffects.visit(NodeTraversal, Node, Node)
@@ -244,7 +305,41 @@ func NewCheckSideEffects_StripProtection(compiler AbstractCompiler) *CheckSideEf
 
 // Java: CheckSideEffects.StripProtection.process(Node, Node)
 func (s *CheckSideEffects_StripProtection) Process(externs *rhino.Node, root *rhino.Node) {
+	if s.processParallel(root) {
+		return
+	}
 	NodeTraversal_Traverse(s.compiler, root, s)
+}
+
+func (s *CheckSideEffects_StripProtection) processParallel(root *rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(s.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+	prewarmCompilerForParallelReads(s.compiler)
+	runParallelWork(s.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass *CheckSideEffects_StripProtection
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerPass == nil || workerRC != rc {
+				workerRC = rc
+				workerPass = NewCheckSideEffects_StripProtection(rc)
+			}
+			b := NodeTraversal_Builder{
+				compiler: rc,
+				callback: workerPass,
+			}
+			t := acquireNodeTraversal(&b)
+			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
+			releaseNodeTraversal(t)
+		}
+		return runItem, nil
+	}, false)
+	return true
 }
 
 // Java: CheckSideEffects.StripProtection.visit(NodeTraversal, Node, Node)

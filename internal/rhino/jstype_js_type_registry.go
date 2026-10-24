@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -254,6 +255,23 @@ type JSTypeRegistry struct {
 	leastSupertypeCache  *[jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry
 	templateTypeMapCache *[jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry
 	objectDocInfo        map[*ObjectTypeBase]*JSDocInfo
+	parallelReadOnly     bool
+	parallelMu           sync.Mutex
+}
+
+// SetParallelReadOnly toggles concurrent read-only query mode on JSTypeRegistry,
+// bypassing single-threaded builder/cache mutations and guarding union
+// dropped-property sets with a mutex. Returns the previous mode.
+func (r *JSTypeRegistry) SetParallelReadOnly(enabled bool) bool {
+	if r == nil {
+		return false
+	}
+	if enabled {
+		_ = r.GetSentinelObjectLiteral()
+	}
+	prev := r.parallelReadOnly
+	r.parallelReadOnly = enabled
+	return prev
 }
 
 func (r *JSTypeRegistry) getObjectDocInfo(o *ObjectTypeBase) *JSDocInfo {
@@ -277,7 +295,7 @@ func (r *JSTypeRegistry) deleteObjectDocInfo(o *ObjectTypeBase) {
 }
 
 func (r *JSTypeRegistry) acquireFunctionBuilder() *FunctionType_Builder {
-	if r != nil && r.fnBuilderDepth < len(r.fnBuilderStack) {
+	if r != nil && !r.parallelReadOnly && r.fnBuilderDepth < len(r.fnBuilderStack) {
 		b := &r.fnBuilderStack[r.fnBuilderDepth]
 		r.fnBuilderDepth++
 		*b = FunctionType_Builder{}
@@ -288,14 +306,14 @@ func (r *JSTypeRegistry) acquireFunctionBuilder() *FunctionType_Builder {
 }
 
 func (r *JSTypeRegistry) releaseFunctionBuilder(b *FunctionType_Builder) {
-	if b.pooled && r != nil && r.fnBuilderDepth > 0 && b == &r.fnBuilderStack[r.fnBuilderDepth-1] {
+	if b.pooled && r != nil && !r.parallelReadOnly && r.fnBuilderDepth > 0 && b == &r.fnBuilderStack[r.fnBuilderDepth-1] {
 		b.pooled = false
 		r.fnBuilderDepth--
 	}
 }
 
 func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
-	if r.unionBuilderDepth < len(r.unionBuilderStack) {
+	if r != nil && !r.parallelReadOnly && r.unionBuilderDepth < len(r.unionBuilderStack) {
 		b := &r.unionBuilderStack[r.unionBuilderDepth]
 		r.unionBuilderDepth++
 		initUnionType_Builder(b, r)
@@ -305,7 +323,7 @@ func (r *JSTypeRegistry) acquireUnionBuilder() *UnionType_Builder {
 }
 
 func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
-	if r.unionBuilderDepth > 0 && b == &r.unionBuilderStack[r.unionBuilderDepth-1] {
+	if r != nil && !r.parallelReadOnly && r.unionBuilderDepth > 0 && b == &r.unionBuilderStack[r.unionBuilderDepth-1] {
 		switch b.inlineLen {
 		case 0:
 		case 1:
@@ -331,7 +349,7 @@ func jsTypeBasePairHash(a, b *JSTypeBase) uintptr {
 }
 
 func (r *JSTypeRegistry) lookupLeastSupertype(a, b *JSTypeBase) JSType {
-	if r.leastSupertypeCache == nil {
+	if r.parallelReadOnly || r.leastSupertypeCache == nil {
 		return nil
 	}
 	idx := jsTypeBasePairHash(a, b) & (jsTypeRegistryLeastSupertypeCacheSize - 1)
@@ -343,6 +361,9 @@ func (r *JSTypeRegistry) lookupLeastSupertype(a, b *JSTypeBase) JSType {
 }
 
 func (r *JSTypeRegistry) storeLeastSupertype(a, b *JSTypeBase, res JSType) {
+	if r.parallelReadOnly {
+		return
+	}
 	if r.leastSupertypeCache == nil {
 		r.leastSupertypeCache = new([jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry)
 	}
@@ -1590,6 +1611,10 @@ func JSTypeRegistry_IsObjectLiteralThatCanBeSkipped(t JSType) bool {
 
 // Java: JSTypeRegistry.registerDroppedPropertiesInUnion(RecordType, RecordType)
 func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, supertype *RecordType) {
+	if r.parallelReadOnly {
+		r.parallelMu.Lock()
+		defer r.parallelMu.Unlock()
+	}
 	foundDroppedProperty := false
 	subMap := subtype.GetPropertyMap()
 	subMap.ensureSorted()
@@ -1744,12 +1769,25 @@ func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string)
 			}
 		}
 
-		if rec := type_.ToMaybeRecordType(); rec != nil && r.droppedPropertiesOfUnions.Contains(propertyName) {
-			propMap := rec.GetPropertyMap()
-			for i := 0; i < len(propMap.entries()); i++ {
-				if r.propertiesOfSupertypesInUnions.Contains(rhinoStringFromID(propMap.entries()[i].nameID)) {
-					return JSTypeRegistry_PropDefinitionKind_LOOSE
+		if rec := type_.ToMaybeRecordType(); rec != nil {
+			if r.parallelReadOnly {
+				r.parallelMu.Lock()
+			}
+			loose := false
+			if r.droppedPropertiesOfUnions.Contains(propertyName) {
+				propMap := rec.GetPropertyMap()
+				for i := 0; i < len(propMap.entries()); i++ {
+					if r.propertiesOfSupertypesInUnions.Contains(rhinoStringFromID(propMap.entries()[i].nameID)) {
+						loose = true
+						break
+					}
 				}
+			}
+			if r.parallelReadOnly {
+				r.parallelMu.Unlock()
+			}
+			if loose {
+				return JSTypeRegistry_PropDefinitionKind_LOOSE
 			}
 		}
 	}

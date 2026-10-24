@@ -6356,7 +6356,12 @@ func NodeUtil_CreateSynthesizedExternsSymbol(compiler AbstractCompiler, nameToAd
 //
 // Java: NodeUtil.markNewScopesChanged(Node, AbstractCompiler)
 func NodeUtil_MarkNewScopesChanged(node *rhino.Node, compiler AbstractCompiler) {
-	compiler.GetChangeTracker().MarkNewScopesChanged(node)
+	if node.IsFunction() {
+		compiler.ReportChangeToChangeScope(node)
+	}
+	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+		NodeUtil_MarkNewScopesChanged(child, compiler)
+	}
 }
 
 // NodeUtil_MarkFunctionsDeleted recurses through a tree, marking all

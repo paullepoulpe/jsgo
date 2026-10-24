@@ -28,11 +28,12 @@ import (
 type CheckUnreachableCode struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
-	compiler            AbstractCompiler
-	reachability        GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
-	hasUnreachableStack []bool
-	hasUnreachableBuf   [8]bool
-	scriptCheckCfg      ReusableCfg
+	compiler             AbstractCompiler
+	reachability         GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
+	hasUnreachableStack  []bool
+	hasUnreachableBuf    [8]bool
+	scriptCheckCfg       ReusableCfg
+	rootHasNoUnreachable bool
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -159,6 +160,9 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot *rhino.Node) b
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
 		return isStraightLineScript(scopeRoot)
 	case rhino.Token_ROOT:
+		if c.rootHasNoUnreachable {
+			return true
+		}
 		for s := scopeRoot.GetFirstChild(); s != nil; s = s.GetNext() {
 			if !s.IsScript() {
 				return false

@@ -144,7 +144,10 @@ func NewPropertyMap() *PropertyMap {
 }
 
 func (m *PropertyMap) ensureSorted() {
-	if m.sorted || len(m.entries()) <= 1 {
+	if m.sorted {
+		return
+	}
+	if len(m.entries()) <= 1 {
 		m.sorted = true
 		return
 	}

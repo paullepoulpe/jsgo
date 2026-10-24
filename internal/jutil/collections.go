@@ -5,6 +5,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"unsafe"
 )
 
 // Go-only: language-adapter — java.util / Guava collections with Java
@@ -356,14 +358,17 @@ func (h *LinkedHashMap[K, V]) ValueAtSlot(i int) V {
 	return h.slots[i].value
 }
 
+func (h *LinkedHashMap[K, V]) loadIndex() *lhmIndex {
+	return (*lhmIndex)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&h.m))))
+}
+
 // find returns k's slot index in h.slots, or -1 if absent.
 func (h *LinkedHashMap[K, V]) find(k K) int {
-	if h.m != nil {
-		return h.lookup(k)
+	if m := h.loadIndex(); m != nil {
+		return h.lookupIn(m, k)
 	}
 	if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
-		h.buildIndex()
-		return h.lookup(k)
+		return h.lookupIn(h.buildIndexShared(), k)
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
 		if h.slots[i].key == k {
@@ -375,7 +380,11 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 
 // lookup is find through the index.
 func (h *LinkedHashMap[K, V]) lookup(k K) int {
-	t := h.m.table
+	return h.lookupIn(h.m, k)
+}
+
+func (h *LinkedHashMap[K, V]) lookupIn(m *lhmIndex, k K) int {
+	t := m.table
 	mask := uint(len(t) - 1)
 	for b := lhmHash(k) & mask; ; b = (b + 1) & mask {
 		switch e := t[b]; e {
@@ -498,8 +507,29 @@ func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 //
 //go:noinline
 func (h *LinkedHashMap[K, V]) buildIndex() {
-	h.m = &lhmIndex{}
-	h.reindex()
+	x := &lhmIndex{}
+	x.reset(lhmTableLen(int(h.size)))
+	for i := int(h.first); i < len(h.slots); i++ {
+		x.insert(lhmHash(h.slots[i].key), i)
+	}
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&h.m)), unsafe.Pointer(x))
+}
+
+// buildIndexShared builds an index of h's live slots and publishes it
+// atomically so concurrent read-only lookups on an unindexed map are race-free.
+//
+//go:noinline
+func (h *LinkedHashMap[K, V]) buildIndexShared() *lhmIndex {
+	x := &lhmIndex{}
+	x.reset(lhmTableLen(int(h.size)))
+	for i := int(h.first); i < len(h.slots); i++ {
+		x.insert(lhmHash(h.slots[i].key), i)
+	}
+	p := (*unsafe.Pointer)(unsafe.Pointer(&h.m))
+	if atomic.CompareAndSwapPointer(p, nil, unsafe.Pointer(x)) {
+		return x
+	}
+	return (*lhmIndex)(atomic.LoadPointer(p))
 }
 
 // reindex rebuilds the index table from the live slots, sized for them.
@@ -641,7 +671,7 @@ func (h *LinkedHashMap[K, V]) ForEachValue(fn func(V)) {
 		return
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
-		if i < int(h.first) || (h.m != nil && i < len(h.m.removed) && h.m.removed[i]) {
+		if m := h.loadIndex(); i < int(h.first) || (m != nil && i < len(m.removed) && m.removed[i]) {
 			continue
 		}
 		fn(h.slots[i].value)
@@ -668,7 +698,7 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
+			if m := h.loadIndex(); i < int(h.first) || m != nil && m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key, h.slots[i].value) {
@@ -684,12 +714,13 @@ func (h *LinkedHashMap[K, V]) KeyAt(index int) (K, bool) {
 	if h == nil || index < 0 || index >= int(h.size) {
 		return zero, false
 	}
-	if h.first == 0 && (h.m == nil || len(h.m.removed) == 0) {
+	m := h.loadIndex()
+	if h.first == 0 && (m == nil || len(m.removed) == 0) {
 		return h.slots[index].key, true
 	}
 	cur := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m != nil && h.m.isRemoved(i) {
+		if m != nil && m.isRemoved(i) {
 			continue
 		}
 		if cur == index {
@@ -706,12 +737,13 @@ func (h *LinkedHashMap[K, V]) ValueAt(index int) (V, bool) {
 	if h == nil || index < 0 || index >= int(h.size) {
 		return zero, false
 	}
-	if h.first == 0 && (h.m == nil || len(h.m.removed) == 0) {
+	m := h.loadIndex()
+	if h.first == 0 && (m == nil || len(m.removed) == 0) {
 		return h.slots[index].value, true
 	}
 	cur := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m != nil && h.m.isRemoved(i) {
+		if m != nil && m.isRemoved(i) {
 			continue
 		}
 		if cur == index {
@@ -733,8 +765,9 @@ func (h *LinkedHashMap[K, V]) NextSlotValue(slot int) (V, int, bool) {
 	if slot < int(h.first) {
 		slot = int(h.first)
 	}
+	m := h.loadIndex()
 	for i := slot; i < len(h.slots); i++ {
-		if h.m != nil && h.m.isRemoved(i) {
+		if m != nil && m.isRemoved(i) {
 			continue
 		}
 		return h.slots[i].value, i + 1, true
@@ -754,7 +787,7 @@ func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
+			if m := h.loadIndex(); i < int(h.first) || m != nil && m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key) {
@@ -771,7 +804,7 @@ func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
+			if m := h.loadIndex(); i < int(h.first) || m != nil && m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].value) {
@@ -795,8 +828,9 @@ func (h *LinkedHashMap[K, V]) KeySlice() []K {
 		}
 		return out
 	}
+	m := h.loadIndex()
 	for i := int(h.first); i < len(slots); i++ {
-		if h.m == nil || !h.m.isRemoved(i) {
+		if m == nil || !m.isRemoved(i) {
 			out = append(out, slots[i].key)
 		}
 	}
@@ -906,7 +940,7 @@ func (s *LinkedHashSet[T]) All() iter.Seq[T] {
 			return
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < int(h.first) || h.m != nil && h.m.isRemoved(i) {
+			if m := h.loadIndex(); i < int(h.first) || m != nil && m.isRemoved(i) {
 				continue
 			}
 			if !yield(h.slots[i].key) {
@@ -928,11 +962,12 @@ func (s *LinkedHashSet[T]) ToSlice() []T {
 func (s *LinkedHashSet[T]) First() (T, bool) {
 	if s != nil && s.m.size > 0 {
 		h := &s.m
-		if h.m == nil || len(h.m.removed) == 0 {
+		m := h.loadIndex()
+		if m == nil || len(m.removed) == 0 {
 			return h.slots[h.first].key, true
 		}
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i >= len(h.m.removed) || !h.m.removed[i] {
+			if i >= len(m.removed) || !m.removed[i] {
 				return h.slots[i].key, true
 			}
 		}
@@ -945,14 +980,15 @@ func (s *LinkedHashSet[T]) First() (T, bool) {
 func (s *LinkedHashSet[T]) FirstTwo() (T, T, bool) {
 	if s != nil && s.m.size >= 2 {
 		h := &s.m
-		if h.m == nil || len(h.m.removed) == 0 {
+		m := h.loadIndex()
+		if m == nil || len(m.removed) == 0 {
 			f := int(h.first)
 			return h.slots[f].key, h.slots[f+1].key, true
 		}
 		var a T
 		gotFirst := false
 		for i := int(h.first); i < len(h.slots); i++ {
-			if i < len(h.m.removed) && h.m.removed[i] {
+			if i < len(m.removed) && m.removed[i] {
 				continue
 			}
 			if !gotFirst {
@@ -974,8 +1010,9 @@ func (s *LinkedHashSet[T]) CopyTo(dst []T) int {
 		return 0
 	}
 	h := &s.m
+	m := h.loadIndex()
 	n := 0
-	if h.m == nil || len(h.m.removed) == 0 {
+	if m == nil || len(m.removed) == 0 {
 		for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
 			dst[n] = h.slots[i].key
 			n++
@@ -983,7 +1020,7 @@ func (s *LinkedHashSet[T]) CopyTo(dst []T) int {
 		return n
 	}
 	for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
-		if i < len(h.m.removed) && h.m.removed[i] {
+		if i < len(m.removed) && m.removed[i] {
 			continue
 		}
 		dst[n] = h.slots[i].key
@@ -1101,8 +1138,8 @@ func (s *LinkedHashSet[T]) HashCode() int32 {
 	}
 	var h int32
 	var removed []bool
-	if s.m.m != nil {
-		removed = s.m.m.removed
+	if m := s.m.loadIndex(); m != nil {
+		removed = m.removed
 	}
 	for i := int(s.m.first); i < len(s.m.slots); i++ {
 		if i < len(removed) && removed[i] {
@@ -1153,8 +1190,8 @@ func (h *LinkedHashMap[K, V]) HashCode() int32 {
 	}
 	var sum int32
 	var removed []bool
-	if h.m != nil {
-		removed = h.m.removed
+	if m := h.loadIndex(); m != nil {
+		removed = m.removed
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
 		if i < len(removed) && removed[i] {
