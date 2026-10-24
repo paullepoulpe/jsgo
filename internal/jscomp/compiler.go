@@ -574,7 +574,7 @@ func (c *Compiler) InitOptions(options *CompilerOptions) {
 		options.SetRuntimeLibraryMode(RuntimeJsLibManager_RuntimeLibraryMode_NO_OP)
 	}
 
-	c.moduleLoader = ModuleLoader_EMPTY
+	c.moduleLoader = moduleLoader_NewEmpty()
 
 	c.ReconcileOptionsWithGuards()
 	switch options.GetShouldValidateRequiredInlinings() {
@@ -1695,6 +1695,9 @@ func (c *Compiler) BeforePass(passName string) {
 
 // Java: Compiler.afterPass(String)
 func (c *Compiler) AfterPass(passName string) {
+	// Go-only: fold the nodes this pass allocated into the node store's
+	// slice (rhino/node_store.go); between passes nothing holds the slice.
+	rhino.SettleCurrentNodeStore(false)
 	c.maybePrintSourceAfterEachPass(passName)
 	if DebugAfterPassHook != nil {
 		DebugAfterPassHook(c, passName)
@@ -2503,6 +2506,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	}
 	for input := range c.externs.All() {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
+		rhino.SettleCurrentNodeStore(true)
 		if c.HasErrors() {
 			return rhino.NilNode
 		}
@@ -2515,7 +2519,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 		c.InitializeModuleLoader()
 	} else {
 		// Use an empty module loader if we're not actually dealing with modules.
-		c.moduleLoader = ModuleLoader_EMPTY
+		c.moduleLoader = moduleLoader_NewEmpty()
 	}
 
 	if c.options.GetDependencyOptions().NeedsManagement() {
@@ -2595,6 +2599,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 
 	for _, input := range allInputs {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
+		rhino.SettleCurrentNodeStore(true)
 		if devMode {
 			c.runValidityCheck()
 			if c.HasErrors() {

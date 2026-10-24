@@ -374,10 +374,10 @@ const (
 const (
 	_ = uintptr(32) - unsafe.Sizeof(JSTypeBase{})
 	_ = uintptr(96) - unsafe.Sizeof(PrototypeObjectTypeBase{})
-	_ = uintptr(176) - unsafe.Sizeof(FunctionTypeBase{})
+	_ = uintptr(160) - unsafe.Sizeof(FunctionTypeBase{})
 	_ = uintptr(96) - unsafe.Sizeof(UnionType{})
 	_ = uintptr(96) - unsafe.Sizeof(TemplatizedType{})
-	_ = uintptr(48) - unsafe.Sizeof(Property{})
+	_ = uintptr(32) - unsafe.Sizeof(Property{})
 	_ = uintptr(16) - unsafe.Sizeof(FunctionType_Parameter{})
 )
 

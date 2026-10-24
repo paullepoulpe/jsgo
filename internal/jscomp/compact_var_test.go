@@ -7,12 +7,11 @@ import (
 )
 
 func TestCompactVarCrossClassEquality(t *testing.T) {
-	// 48: the name node is a 16-byte handle (rhino/node_store.go).
-	if unsafe.Sizeof(Var{}) != 48 {
-		t.Fatalf("Var has %d bytes, want 48", unsafe.Sizeof(Var{}))
+	if unsafe.Sizeof(Var{}) != 40 {
+		t.Fatalf("Var has %d bytes, want 40", unsafe.Sizeof(Var{}))
 	}
-	if unsafe.Sizeof(TypedVar{}) != 72 {
-		t.Fatalf("TypedVar has %d bytes, want 72", unsafe.Sizeof(TypedVar{}))
+	if unsafe.Sizeof(TypedVar{}) != 64 {
+		t.Fatalf("TypedVar has %d bytes, want 64", unsafe.Sizeof(TypedVar{}))
 	}
 	root := rhino.IR_Root()
 	scope := Scope_CreateGlobalScope(root)

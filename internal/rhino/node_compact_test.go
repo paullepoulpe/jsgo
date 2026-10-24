@@ -1,6 +1,7 @@
 package rhino
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -143,7 +144,11 @@ func TestNodeStoreIsolation(t *testing.T) {
 		defer func() {
 			t.Helper()
 			r := recover()
-			if s, _ := r.(string); !strings.Contains(s, msg) {
+			s := fmt.Sprint(r)
+			if npe, ok := r.(*jutil.NullPointerException); ok {
+				s = "nil node: " + npe.GetMessage()
+			}
+			if !strings.Contains(s, msg) {
 				t.Fatalf("%s: expected a panic containing %q, got %v", what, msg, r)
 			}
 		}()

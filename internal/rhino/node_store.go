@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: node storage.
@@ -254,6 +255,21 @@ func (s *NodeStore) Settle() {
 	s.grow(0)
 }
 
+// SettleCurrentNodeStore settles the current store (none: nothing to do).
+// With onlyIfLarge it settles only when many nodes went to overflow
+// segments: parsing calls it between files, so that most lookups stay an
+// index without copying the slice after every file.
+func SettleCurrentNodeStore(onlyIfLarge bool) {
+	s := current
+	if s == nil || !s.overflowed.Load() {
+		return
+	}
+	if onlyIfLarge && int(s.next.Load()-s.overBase) < max(len(s.recs)/4, overflowLen) {
+		return
+	}
+	s.grow(0)
+}
+
 // Reserve makes room for n more nodes in the slice (call it between passes,
 // before allocating many nodes, e.g. before parsing).
 func (s *NodeStore) Reserve(n int) {
@@ -316,7 +332,8 @@ func (n Node) store() *NodeStore {
 	case compactSource.contains(id):
 		return compactSource
 	case id == 0:
-		panic("rhino.Node: use of the nil node")
+		// Java's NullPointerException, like a nil pointer dereference.
+		panic(jutil.NewNullPointerException())
 	}
 	panic(fmt.Sprintf("rhino.Node: node id %d is not in the current node store (a node kept from a store that compaction or a new test replaced)", id))
 }
