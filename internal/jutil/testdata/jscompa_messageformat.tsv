@@ -106,9 +106,9 @@
 @constructor annotations are redundant on classes.	0	@constructor annotations are redundant on classes.
 @constructor annotations are redundant on classes.	4	@constructor annotations are redundant on classes.
 @constructor annotations are redundant on classes.	3	@constructor annotations are redundant on classes.
-@define must be initalized on a static qualified name in global or module scope	0	@define must be initalized on a static qualified name in global or module scope
-@define must be initalized on a static qualified name in global or module scope	4	@define must be initalized on a static qualified name in global or module scope
-@define must be initalized on a static qualified name in global or module scope	3	@define must be initalized on a static qualified name in global or module scope
+@define must be initialized on a static qualified name in global or module scope	0	@define must be initialized on a static qualified name in global or module scope
+@define must be initialized on a static qualified name in global or module scope	4	@define must be initialized on a static qualified name in global or module scope
+@define must be initialized on a static qualified name in global or module scope	3	@define must be initialized on a static qualified name in global or module scope
 @define tag only permits primitive types	0	@define tag only permits primitive types
 @define tag only permits primitive types	4	@define tag only permits primitive types
 @define tag only permits primitive types	3	@define tag only permits primitive types
@@ -346,9 +346,6 @@ Cannot import Closure files by path. Use either import 'goog:namespace' or goog.
 Cannot import file "{0}" because it is not an ES6 module.	0	Cannot import file "{0}" because it is not an ES6 module.
 Cannot import file "{0}" because it is not an ES6 module.	4	Cannot import file "A" because it is not an ES6 module.
 Cannot import file "{0}" because it is not an ES6 module.	3	Cannot import file "x'y" because it is not an ES6 module.
-Cannot override the default value of tweak {0} after it has been registered	0	Cannot override the default value of tweak {0} after it has been registered
-Cannot override the default value of tweak {0} after it has been registered	4	Cannot override the default value of tweak A after it has been registered
-Cannot override the default value of tweak {0} after it has been registered	3	Cannot override the default value of tweak x'y after it has been registered
 Cannot read file {0}: {1}	0	Cannot read file {0}: {1}
 Cannot read file {0}: {1}	4	Cannot read file A: B
 Cannot read file {0}: {1}	3	Cannot read file x'y: {0}
@@ -364,6 +361,9 @@ Cannot transpile `**` operator applied to BigInt operands.	3	Cannot transpile `*
 Cannot use the IN operator with structs	0	Cannot use the IN operator with structs
 Cannot use the IN operator with structs	4	Cannot use the IN operator with structs
 Cannot use the IN operator with structs	3	Cannot use the IN operator with structs
+Class constructors may only return an object or undefined	0	Class constructors may only return an object or undefined
+Class constructors may only return an object or undefined	4	Class constructors may only return an object or undefined
+Class constructors may only return an object or undefined	3	Class constructors may only return an object or undefined
 Class level JSDocs (@interface, @extends, etc.) are not allowed on class members	0	Class level JSDocs (@interface, @extends, etc.) are not allowed on class members
 Class level JSDocs (@interface, @extends, etc.) are not allowed on class members	4	Class level JSDocs (@interface, @extends, etc.) are not allowed on class members
 Class level JSDocs (@interface, @extends, etc.) are not allowed on class members	3	Class level JSDocs (@interface, @extends, etc.) are not allowed on class members
@@ -511,9 +511,6 @@ ES6 modules should import other ES6 modules rather than goog.require them.	3	ES6
 Enum string values must be statically initialized as per the style guide.	0	Enum string values must be statically initialized as per the style guide.
 Enum string values must be statically initialized as per the style guide.	4	Enum string values must be statically initialized as per the style guide.
 Enum string values must be statically initialized as per the style guide.	3	Enum string values must be statically initialized as per the style guide.
-Es6RewriteDestructuring not expecting object pattern rest parameter	0	Es6RewriteDestructuring not expecting object pattern rest parameter
-Es6RewriteDestructuring not expecting object pattern rest parameter	4	Es6RewriteDestructuring not expecting object pattern rest parameter
-Es6RewriteDestructuring not expecting object pattern rest parameter	3	Es6RewriteDestructuring not expecting object pattern rest parameter
 Expected a constructor type, found {0}	0	Expected a constructor type, found {0}
 Expected a constructor type, found {0}	4	Expected a constructor type, found A
 Expected a constructor type, found {0}	3	Expected a constructor type, found x'y
@@ -577,9 +574,6 @@ Found multiple goog.require statements importing identifier ''{0}''.	3	Found mul
 Fractional bitwise operand: {0}	0	Fractional bitwise operand: {0}
 Fractional bitwise operand: {0}	4	Fractional bitwise operand: A
 Fractional bitwise operand: {0}	3	Fractional bitwise operand: x'y
-Function literal argument refers to undefined this argument	0	Function literal argument refers to undefined this argument
-Function literal argument refers to undefined this argument	4	Function literal argument refers to undefined this argument
-Function literal argument refers to undefined this argument	3	Function literal argument refers to undefined this argument
 Function must have JSDoc.	0	Function must have JSDoc.
 Function must have JSDoc.	4	Function must have JSDoc.
 Function must have JSDoc.	3	Function must have JSDoc.
@@ -673,15 +667,9 @@ Interface/Record class should use the `@extends` annotation instead of extends k
 Internal Error: TypeCheck doesn''t know how to handle {0}	0	Internal Error: TypeCheck doesn't know how to handle {0}
 Internal Error: TypeCheck doesn''t know how to handle {0}	4	Internal Error: TypeCheck doesn't know how to handle A
 Internal Error: TypeCheck doesn''t know how to handle {0}	3	Internal Error: TypeCheck doesn't know how to handle x'y
-Internal compiler error. Cannot parse generated code: {0}	0	Internal compiler error. Cannot parse generated code: {0}
-Internal compiler error. Cannot parse generated code: {0}	4	Internal compiler error. Cannot parse generated code: A
-Internal compiler error. Cannot parse generated code: {0}	3	Internal compiler error. Cannot parse generated code: x'y
 Internal compiler error. Extern properties modified from:\n{0}\nto:\n{1}	0	Internal compiler error. Extern properties modified from:\n{0}\nto:\n{1}
 Internal compiler error. Extern properties modified from:\n{0}\nto:\n{1}	4	Internal compiler error. Extern properties modified from:\nA\nto:\nB
 Internal compiler error. Extern properties modified from:\n{0}\nto:\n{1}	3	Internal compiler error. Extern properties modified from:\nx'y\nto:\n{0}
-Internal compiler error. Generated bad code.----------------------------------------\nExpected:\n{0}\n----------------------------------------\nActual:\n{1}	0	Internal compiler error. Generated bad code.----------------------------------------\nExpected:\n{0}\n----------------------------------------\nActual:\n{1}
-Internal compiler error. Generated bad code.----------------------------------------\nExpected:\n{0}\n----------------------------------------\nActual:\n{1}	4	Internal compiler error. Generated bad code.----------------------------------------\nExpected:\nA\n----------------------------------------\nActual:\nB
-Internal compiler error. Generated bad code.----------------------------------------\nExpected:\n{0}\n----------------------------------------\nActual:\n{1}	3	Internal compiler error. Generated bad code.----------------------------------------\nExpected:\nx'y\n----------------------------------------\nActual:\n{0}
 Internal compiler error: rewritten module global name {0} is already in use.\nOriginal definition: {1}	0	Internal compiler error: rewritten module global name {0} is already in use.\nOriginal definition: {1}
 Internal compiler error: rewritten module global name {0} is already in use.\nOriginal definition: {1}	4	Internal compiler error: rewritten module global name A is already in use.\nOriginal definition: B
 Internal compiler error: rewritten module global name {0} is already in use.\nOriginal definition: {1}	3	Internal compiler error: rewritten module global name x'y is already in use.\nOriginal definition: {0}
@@ -691,6 +679,9 @@ Invalid CLOSURE_DEFINES definition	3	Invalid CLOSURE_DEFINES definition
 Invalid CSS name map style {0}	0	Invalid CSS name map style {0}
 Invalid CSS name map style {0}	4	Invalid CSS name map style A
 Invalid CSS name map style {0}	3	Invalid CSS name map style x'y
+Invalid assignment to private method ''#{0}''. Private methods cannot be reassigned.	0	Invalid assignment to private method '#{0}'. Private methods cannot be reassigned.
+Invalid assignment to private method ''#{0}''. Private methods cannot be reassigned.	4	Invalid assignment to private method '#A'. Private methods cannot be reassigned.
+Invalid assignment to private method ''#{0}''. Private methods cannot be reassigned.	3	Invalid assignment to private method '#x'y'. Private methods cannot be reassigned.
 Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "{0}".	0	Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "{0}".
 Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "{0}".	4	Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "A".
 Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "{0}".	3	Invalid cr.PropertyKind passed to cr.defineProperty(): expected ATTR, BOOL_ATTR or JS, found "x'y".
@@ -700,9 +691,6 @@ Invalid entries in css renaming map: {0}	3	Invalid entries in css renaming map: 
 Invalid first argument for cr.define(). It should be called like this: cr.define('name.space', function() '{ ... return {Export: Internal}; }');	0	Invalid first argument for cr.define(). It should be called like this: cr.define(name.space, function() { ... return {Export: Internal}; });
 Invalid first argument for cr.define(). It should be called like this: cr.define('name.space', function() '{ ... return {Export: Internal}; }');	4	Invalid first argument for cr.define(). It should be called like this: cr.define(name.space, function() { ... return {Export: Internal}; });
 Invalid first argument for cr.define(). It should be called like this: cr.define('name.space', function() '{ ... return {Export: Internal}; }');	3	Invalid first argument for cr.define(). It should be called like this: cr.define(name.space, function() { ... return {Export: Internal}; });
-Invalid generator id mapping. {0}	0	Invalid generator id mapping. {0}
-Invalid generator id mapping. {0}	4	Invalid generator id mapping. A
-Invalid generator id mapping. {0}	3	Invalid generator id mapping. x'y
 Invalid module path "{0}" for resolution mode "{1}"	0	Invalid module path "{0}" for resolution mode "{1}"
 Invalid module path "{0}" for resolution mode "{1}"	4	Invalid module path "A" for resolution mode "B"
 Invalid module path "{0}" for resolution mode "{1}"	3	Invalid module path "x'y" for resolution mode "{0}"
@@ -754,6 +742,9 @@ Message with id = {0} could not be found in replacement bundle	3	Message with id
 Message {0} has no description. Add @desc JsDoc tag.	0	Message {0} has no description. Add @desc JsDoc tag.
 Message {0} has no description. Add @desc JsDoc tag.	4	Message A has no description. Add @desc JsDoc tag.
 Message {0} has no description. Add @desc JsDoc tag.	3	Message x'y has no description. Add @desc JsDoc tag.
+Misplaced @tsType annotation. {0}	0	Misplaced @tsType annotation. {0}
+Misplaced @tsType annotation. {0}	4	Misplaced @tsType annotation. A
+Misplaced @tsType annotation. {0}	3	Misplaced @tsType annotation. x'y
 Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with 'MSG_'.	0	Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with MSG_.
 Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with 'MSG_'.	4	Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with MSG_.
 Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with 'MSG_'.	3	Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with MSG_.
@@ -1063,6 +1054,9 @@ The class definition has too many arguments.	3	The class definition has too many
 The class descriptor must include an ''is'' property.	0	The class descriptor must include an 'is' property.
 The class descriptor must include an ''is'' property.	4	The class descriptor must include an 'is' property.
 The class descriptor must include an ''is'' property.	3	The class descriptor must include an 'is' property.
+The const declaration for @define ''{0}'' must be initialized with a call to goog.define().	0	The const declaration for @define '{0}' must be initialized with a call to goog.define().
+The const declaration for @define ''{0}'' must be initialized with a call to goog.define().	4	The const declaration for @define 'A' must be initialized with a call to goog.define().
+The const declaration for @define ''{0}'' must be initialized with a call to goog.define().	3	The const declaration for @define 'x'y' must be initialized with a call to goog.define().
 The export "{0}" is ambiguous.	0	The export "{0}" is ambiguous.
 The export "{0}" is ambiguous.	4	The export "A" is ambiguous.
 The export "{0}" is ambiguous.	3	The export "x'y" is ambiguous.
@@ -1282,6 +1276,9 @@ constant {0} assigned a value more than once.\nOriginal definition at {1}	3	cons
 constructor is missing a call to super()	0	constructor is missing a call to super()
 constructor is missing a call to super()	4	constructor is missing a call to super()
 constructor is missing a call to super()	3	constructor is missing a call to super()
+constructor must unconditionally call super() in a root-level statement before any return	0	constructor must unconditionally call super() in a root-level statement before any return
+constructor must unconditionally call super() in a root-level statement before any return	4	constructor must unconditionally call super() in a root-level statement before any return
+constructor must unconditionally call super() in a root-level statement before any return	3	constructor must unconditionally call super() in a root-level statement before any return
 could not determine the type of this expression	0	could not determine the type of this expression
 could not determine the type of this expression	4	could not determine the type of this expression
 could not determine the type of this expression	3	could not determine the type of this expression
@@ -1393,6 +1390,9 @@ goog.module.declareLegacyNamespace() must be immediately after the goog.module('
 goog.module.declareLegacyNamespace() takes no arguments	0	goog.module.declareLegacyNamespace() takes no arguments
 goog.module.declareLegacyNamespace() takes no arguments	4	goog.module.declareLegacyNamespace() takes no arguments
 goog.module.declareLegacyNamespace() takes no arguments	3	goog.module.declareLegacyNamespace() takes no arguments
+goog.module.get of "{0}" references a namespace that is only imported by goog.requireType.	0	goog.module.get of "{0}" references a namespace that is only imported by goog.requireType.
+goog.module.get of "{0}" references a namespace that is only imported by goog.requireType.	4	goog.module.get of "A" references a namespace that is only imported by goog.requireType.
+goog.module.get of "{0}" references a namespace that is only imported by goog.requireType.	3	goog.module.get of "x'y" references a namespace that is only imported by goog.requireType.
 goog.module.get parameter must be a string literal.	0	goog.module.get parameter must be a string literal.
 goog.module.get parameter must be a string literal.	4	goog.module.get parameter must be a string literal.
 goog.module.get parameter must be a string literal.	3	goog.module.get parameter must be a string literal.
@@ -1426,9 +1426,6 @@ goog.require() and goog.requireType() statements are not in recommended format. 
 goog.require() must be called at file scope.	0	goog.require() must be called at file scope.
 goog.require() must be called at file scope.	4	goog.require() must be called at file scope.
 goog.require() must be called at file scope.	3	goog.require() must be called at file scope.
-goog.require(Type) and goog.forwardDeclare can not be in an 'await' expression.	0	goog.require(Type) and goog.forwardDeclare can not be in an await expression.
-goog.require(Type) and goog.forwardDeclare can not be in an 'await' expression.	4	goog.require(Type) and goog.forwardDeclare can not be in an await expression.
-goog.require(Type) and goog.forwardDeclare can not be in an 'await' expression.	3	goog.require(Type) and goog.forwardDeclare can not be in an await expression.
 goog.requireDynamic parameter must be a string literal.	0	goog.requireDynamic parameter must be a string literal.
 goog.requireDynamic parameter must be a string literal.	4	goog.requireDynamic parameter must be a string literal.
 goog.requireDynamic parameter must be a string literal.	3	goog.requireDynamic parameter must be a string literal.
@@ -1507,9 +1504,6 @@ namespace "{0}" is required in chunk {2} but provided in chunk {1}. Is chunk {2}
 namespace {0} should not be redefined	0	namespace {0} should not be redefined
 namespace {0} should not be redefined	4	namespace A should not be redefined
 namespace {0} should not be redefined	3	namespace x'y should not be redefined
-no tweak registered with ID {0}	0	no tweak registered with ID {0}
-no tweak registered with ID {0}	4	no tweak registered with ID A
-no tweak registered with ID {0}	3	no tweak registered with ID x'y
 null deepest common chunk	0	null deepest common chunk
 null deepest common chunk	4	null deepest common chunk
 null deepest common chunk	3	null deepest common chunk
