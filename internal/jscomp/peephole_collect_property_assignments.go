@@ -316,6 +316,11 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 			if propertyName != nil && currentPropertyName == *propertyName {
 				return false
 			}
+		} else if currentProperty.IsComputedProp() {
+			keyNode := currentProperty.GetFirstChild()
+			if !keyNode.IsStringLit() || (propertyName != nil && keyNode.GetString() == *propertyName) {
+				return false
+			}
 		}
 	}
 
