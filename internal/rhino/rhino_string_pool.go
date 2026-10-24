@@ -35,7 +35,9 @@
 package rhino
 
 import (
+	"hash/maphash"
 	"iter"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -83,39 +85,11 @@ var (
 	rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
 	rhinoStringPoolCleared bool
 	rhinoEmptyString       = ""
+	rhinoStringPoolSeed    = maphash.MakeSeed()
 )
 
 func rhinoStringPoolHash(s string) uint64 {
-	n := len(s)
-	if n == 0 {
-		return 0
-	}
-	p := unsafe.Pointer(unsafe.StringData(s))
-	var h uint64
-	if n >= 8 {
-		v0 := *(*uint64)(p)
-		v1 := *(*uint64)(unsafe.Add(p, n-8))
-		if n <= 16 {
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
-		} else {
-			v2 := *(*uint64)(unsafe.Add(p, n-16))
-			v3 := *(*uint64)(unsafe.Add(p, n>>1))
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) +
-				(v2*0x94d049bb133111eb ^ v3*0x2545f4914f6cdd1d) + uint64(n)
-		}
-	} else if n >= 4 {
-		v0 := uint64(*(*uint32)(p))
-		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
-		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
-	} else {
-		u := uint64(uint32(s[0])|(uint32(s[n>>1])<<8)|(uint32(s[n-1])<<16)|(uint32(n)<<24)) * 0x9e3779b97f4a7c15
-		u ^= u >> 33
-		u *= 0xff51afd7ed558ccd
-		return u ^ (u >> 32)
-	}
-	h ^= h >> 33
-	h *= 0xff51afd7ed558ccd
-	return h ^ (h >> 32)
+	return maphash.String(rhinoStringPoolSeed, s)
 }
 
 func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
@@ -140,9 +114,7 @@ func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	if n > rhinoStringPageSize || (s.hasCurPage && int(s.curPageOff)+n > rhinoStringPageSize && int(s.curPageIdx)+1 >= len(s.pages)) {
 		largeIdx := uint32(len(s.largeStrings))
 		// Copy string bytes so substring slices don't pin large source buffers.
-		b := make([]byte, n)
-		copy(b, str)
-		s.largeStrings = append(s.largeStrings, unsafe.String(unsafe.SliceData(b), n))
+		s.largeStrings = append(s.largeStrings, strings.Clone(str))
 		s.spanChunks[chunkIdx][localIdx&2047] = (uint64(1) << 63) | uint64(largeIdx)
 		return localIdx
 	}

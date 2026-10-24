@@ -616,7 +616,7 @@ func inlineFunctions_analyzeBodyNode(
 			name := n.GetString()
 			if m := scopeBloomMask(name); paramBloom&m == m {
 				for _, p := range paramNames {
-					if scopeNameEq(p, name) {
+					if p == name {
 						if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n) {
 							if res.namesToAlias == nil {
 								res.namesToAlias = jutil.NewLinkedHashSet[string]()
@@ -642,7 +642,7 @@ func inlineFunctions_analyzeBodyNode(
 					name := c.GetString()
 					if m := scopeBloomMask(name); paramBloom&m == m {
 						for _, p := range paramNames {
-							if scopeNameEq(p, name) {
+							if p == name {
 								if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(c) {
 									if res.namesToAlias == nil {
 										res.namesToAlias = jutil.NewLinkedHashSet[string]()

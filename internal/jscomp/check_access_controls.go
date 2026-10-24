@@ -251,10 +251,10 @@ func (c *CheckAccessControls) lookupVar(scope *Scope, name string) *Var {
 	}
 	idx := (h ^ (h >> 8)) & uint32(len(c.varCache)-1)
 	bucket := &c.varCache[idx]
-	if e := &bucket[0]; e.scope == scope && scopeNameEq(e.name, name) {
+	if e := &bucket[0]; e.scope == scope && e.name == name {
 		return e.v
 	}
-	if e := &bucket[1]; e.scope == scope && scopeNameEq(e.name, name) {
+	if e := &bucket[1]; e.scope == scope && e.name == name {
 		v := e.v
 		*e = bucket[0]
 		bucket[0] = cacVarCacheEntry{scope: scope, name: name, v: v}

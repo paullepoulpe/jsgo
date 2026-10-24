@@ -19,55 +19,21 @@
 package jscomp
 
 import (
+	"hash/maphash"
 	"iter"
 	"slices"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func scopeNameEq(a, b string) bool {
-	return len(a) == len(b) && (unsafe.StringData(a) == unsafe.StringData(b) || (len(a) > 0 && a[0] == b[0] && a == b))
-}
+var scopeHashSeed = maphash.MakeSeed()
 
 func scopeNameHash(s string) uint32 {
-	n := len(s)
-	if n == 0 {
+	if s == "" {
 		return 0
 	}
-	p := unsafe.Pointer(unsafe.StringData(s))
-	var h uint64
-	if n >= 8 {
-		v0 := *(*uint64)(p)
-		v1 := *(*uint64)(unsafe.Add(p, n-8))
-		if n <= 16 {
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
-		} else if n <= 32 {
-			v2 := *(*uint64)(unsafe.Add(p, 8))
-			v3 := *(*uint64)(unsafe.Add(p, n-16))
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) +
-				(v2*0x94d049bb133111eb ^ v3*0x2545f4914f6cdd1d) + uint64(n)
-		} else {
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
-			for off := 8; off+8 < n; off += 8 {
-				h = (h ^ *(*uint64)(unsafe.Add(p, off))) * 0x9e3779b97f4a7c15
-			}
-		}
-	} else if n >= 4 {
-		v0 := uint64(*(*uint32)(p))
-		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
-		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
-	} else {
-		b0 := uint32(*(*byte)(p))
-		b1 := uint32(*(*byte)(unsafe.Add(p, n>>1)))
-		b2 := uint32(*(*byte)(unsafe.Add(p, n-1)))
-		u := (b0 | (b1 << 8) | (b2 << 16) | (uint32(n) << 24)) * 0xcc9e2d51
-		return u ^ (u >> 16)
-	}
-	h ^= h >> 33
-	h *= 0xff51afd7ed558ccd
-	return uint32(h ^ (h >> 32))
+	return uint32(maphash.String(scopeHashSeed, s))
 }
 
 func scopeBloomFromHash(h uint32) uint64 {

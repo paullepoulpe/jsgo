@@ -3153,10 +3153,10 @@ func (ti *TypeInference) lookupQNameCache(a, b string) (string, bool) {
 	h := gnConcatHash(a, b)
 	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
 	bucket := &ti.qnameCache[idx]
-	if e := &bucket[0]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
+	if e := &bucket[0]; e.res != "" && e.a == a && e.b == b {
 		return e.res, true
 	}
-	if e := &bucket[1]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
+	if e := &bucket[1]; e.res != "" && e.a == a && e.b == b {
 		res := e.res
 		*e = bucket[0]
 		bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
