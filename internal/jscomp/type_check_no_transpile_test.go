@@ -21,6 +21,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // TypeCheckNoTranspileTest tests the type checker.
@@ -4833,8 +4835,12 @@ required: number
 
 // Java: TypeCheckNoTranspileTest.testClassNewTargetInArrowFunction()
 func (c *TypeCheckNoTranspileTest) TestClassNewTargetInArrowFunction() {
-	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("const f = () => { const /** null */ x = new.target; };").
-		Run()
+	// `new.target` in an arrow function with no enclosing non-arrow function is a parse error, so
+	// `run()` fails before type checking.
+	e :=
+		AssertThrows[*jutil.AssertionError](
+			TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("const f = () => { const /** null */ x = new.target; };").Run)
+	AssertThat(e.GetMessage()).Contains("Parse error. new.target must be inside a function")
 }
 
 // Java: TypeCheckNoTranspileTest.testClassNewTargetInMethod()
