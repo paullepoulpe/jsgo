@@ -73,6 +73,10 @@ import (
 type SymbolTable struct {
 	// All symbols in the program, uniquely identified by the node where
 	// they're declared and their name.
+	//
+	// Go-only: language-adapter — Tables.newCustomTable(new LinkedHashMap<>(),
+	// LinkedHashMap::new) is the StandardTable over LinkedHashMaps that
+	// jutil.HashBasedTable implements.
 	symbols *jutil.HashBasedTable[*rhino.Node, string, *SymbolTable_Symbol]
 
 	// All syntactic scopes in the program, uniquely identified by the node
@@ -1647,6 +1651,9 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 	// To find duplicated symbols we rely on the fact that duplicated symbol share the same
 	// source position as original symbol and going to use filename => sourcePosition => symbol
 	// table.
+	//
+	// Go-only: language-adapter — Tables.newCustomTable(new LinkedHashMap<>(),
+	// LinkedHashMap::new), as for the symbols field.
 	externSymbols := jutil.HashBasedTable_Create[string, int, *SymbolTable_Symbol]()
 	for _, symbol := range t.symbols.ValueSlice() {
 		if symbol.GetDeclarationNode() == nil ||
@@ -1656,7 +1663,7 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 		}
 		sourceFilePtr := symbol.GetSourceFileName()
 		if sourceFilePtr == nil {
-			// Java: HashBasedTable.put(null, ...) throws NullPointerException.
+			// Java: Table.put(null, ...) throws NullPointerException.
 			panic(jutil.NewNullPointerException())
 		}
 		sourceFile := *sourceFilePtr
@@ -2671,7 +2678,26 @@ func (t *SymbolTable) initOrderings() {
 
 		// After than, just use lexicographic ordering.
 		// This ensures "a.b" comes before "a.b.c".
-		return jutil.StringCompareTo(a.GetName(), b.GetName())
+		result = jutil.StringCompareTo(a.GetName(), b.GetName())
+		if result != 0 {
+			return result
+		}
+
+		if scopeA.IsLexicalScope() && scopeB.IsLexicalScope() {
+			return t.lexicalScopeOrdering(scopeA, scopeB)
+		}
+		// nodeOrdering.nullsFirst()
+		declA, declB := a.GetDeclarationNode(), b.GetDeclarationNode()
+		if declA == declB {
+			return 0
+		}
+		if declA == nil {
+			return -1
+		}
+		if declB == nil {
+			return 1
+		}
+		return t.nodeOrdering(declA, declB)
 	}
 }
 

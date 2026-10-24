@@ -46,8 +46,9 @@ type CheckAccessControls struct {
 	// Go-only: language-adapter — the Deque is a slice whose last element is
 	// the head (push/pop at the end); iteration runs from the end.
 	currentClassStack []rhino.ObjectType
-	// Go-only: language-adapter — Guava HashBasedTable<JSType, String,
-	// ConstantDeclaration>: the row keys hash and compare with
+	// Go-only: language-adapter — the Guava Table<JSType, String,
+	// ConstantDeclaration> of Tables.newCustomTable(new LinkedHashMap<>(),
+	// LinkedHashMap::new): the row keys hash and compare with
 	// JSType.hashCode()/equals() (ObjectLinkedHashMap); the table is only
 	// looked up, never iterated.
 	constPropertyInits *jutil.ObjectLinkedHashMap[rhino.JSType, *jutil.LinkedHashMap[string, *CheckAccessControls_ConstantDeclaration]]
@@ -838,7 +839,7 @@ func (c *CheckAccessControls) CheckConstantProperty(
 	c.RecordConstPropertyInit(propRef, objectType, constness)
 }
 
-// checkAccessControls_tableGet is HashBasedTable.get(rowKey, columnKey).
+// checkAccessControls_tableGet is Table.get(rowKey, columnKey).
 //
 // Go-only: language-adapter — see the constPropertyInits field.
 func (c *CheckAccessControls) checkAccessControls_tableGet(rowKey rhino.JSType, columnKey string) *CheckAccessControls_ConstantDeclaration {
@@ -850,7 +851,7 @@ func (c *CheckAccessControls) checkAccessControls_tableGet(rowKey rhino.JSType, 
 }
 
 // checkAccessControls_tableRowPutIfAbsent is
-// HashBasedTable.row(rowKey).putIfAbsent(columnKey, value).
+// Table.row(rowKey).putIfAbsent(columnKey, value).
 //
 // Go-only: language-adapter — see the constPropertyInits field.
 func (c *CheckAccessControls) checkAccessControls_tableRowPutIfAbsent(
