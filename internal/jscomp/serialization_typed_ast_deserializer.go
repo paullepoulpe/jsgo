@@ -27,7 +27,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -1316,11 +1315,7 @@ func typedAstDeserializer_streamLargeShard(
 						if len(raw) > maxAsciiLen {
 							maxAsciiLen = len(raw)
 						}
-						var str string
-						if len(raw) > 0 {
-							str = unsafe.String(unsafe.SliceData(raw), len(raw))
-						}
-						stringIDs = append(stringIDs, rhino.RhinoStringPool_InternID(str))
+						stringIDs = append(stringIDs, rhino.RhinoStringPool_InternBytesID(raw))
 					} else {
 						stringIDs = append(stringIDs, 0)
 						deferred = append(deferred, deferredWtf8{idx: len(stringIDs) - 1, data: bytes.Clone(raw)})
@@ -1423,7 +1418,7 @@ func typedAstDeserializer_streamLargeShard(
 			if len(deferred) > 0 {
 				decoder := Wtf8_Decoder_(int(maxLength))
 				for _, d := range deferred {
-					stringIDs[d.idx] = rhino.RhinoStringPool_InternID(decoder.DecodeView(d.data))
+					stringIDs[d.idx] = decoder.DecodeInternID(d.data)
 				}
 			}
 			stringShard = &StringPool{

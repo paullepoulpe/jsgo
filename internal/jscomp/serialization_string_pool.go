@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -46,7 +44,7 @@ func StringPool_FromProto(proto *StringPoolProto) *StringPool {
 	ids := make([]uint32, len(stringsList)+1)
 	ids[0] = rhino.RhinoStringPool_InternID("")
 	for i := 0; i < len(stringsList); i++ {
-		ids[i+1] = rhino.RhinoStringPool_InternID(decoder.DecodeView(stringsList[i]))
+		ids[i+1] = decoder.DecodeInternID(stringsList[i])
 	}
 
 	return &StringPool{
@@ -86,12 +84,7 @@ func (p *StringPool) ToProto() *StringPoolProto {
 	if n > 1 {
 		strings = make([][]byte, n-1)
 		for i := 1; i < n; i++ {
-			s := p.pool.Get(i)
-			if jutil.IsASCII(s) {
-				strings[i-1] = unsafe.Slice(unsafe.StringData(s), len(s))
-			} else {
-				strings[i-1] = Wtf8_EncodeToWtf8(s)
-			}
+			strings[i-1] = Wtf8_EncodeToWtf8(p.pool.Get(i))
 		}
 	}
 	return &StringPoolProto{

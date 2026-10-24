@@ -373,6 +373,40 @@ func RhinoStringPool_InternID(s string) uint32 {
 	return uint32(rhinoStringPoolIntern(s))
 }
 
+// RhinoStringPool_InternBytesID interns b and returns its 32-bit pointer-free ID
+// without allocating a string when b is already interned.
+func RhinoStringPool_InternBytesID(b []byte) uint32 {
+	if len(b) == 0 {
+		return 1
+	}
+	h := maphash.Bytes(rhinoStringPoolSeed, b)
+	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
+	hash32 := uint32(h >> 32)
+	shard := &rhinoStringPool_shards[shardIdx]
+
+	shard.mu.RLock()
+	if tbl := shard.table; len(tbl) > 0 {
+		mask := uint32(len(tbl) - 1)
+		slot := hash32 & mask
+		for {
+			entry := tbl[slot]
+			if entry == 0 {
+				break
+			}
+			if uint32(entry>>32) == hash32 {
+				localIdx := uint32(entry) - 1
+				if shard.stringAtLocked(localIdx) == string(b) {
+					shard.mu.RUnlock()
+					return ((localIdx << 6) | shardIdx) + 2
+				}
+			}
+			slot = (slot + 1) & mask
+		}
+	}
+	shard.mu.RUnlock()
+	return uint32(rhinoStringPoolIntern(string(b)))
+}
+
 // RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
 func RhinoStringPool_LookupID(s string) uint32 {
 	return uint32(rhinoStringPoolLookup(s))
