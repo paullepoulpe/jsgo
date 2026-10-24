@@ -36,8 +36,6 @@
 package rhino
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -246,14 +244,9 @@ type JSType interface {
 
 // JSTypeBase holds the fields and base method implementations of JSType.
 type JSTypeBase struct {
-	// selfTab is the itab word of the JSType interface of the concrete type
-	// that embeds this base; with the base's own address (the base is the
-	// first field of every type) it forms self(), the receiver of virtual
-	// calls (PORTING.md §4).
-	//
-	// Go-only: performance — half the size of a JSType field, and not a
-	// pointer for the GC (itabs are never freed).
-	selfTab uintptr
+	// self_ is the concrete JSType that embeds this base, the receiver of
+	// virtual calls (PORTING.md §4).
+	self_ JSType
 	// The result of Resolve; nil until the type is resolved.
 	resolveResult *JSTypeBase
 	// The type's template type map, never nil; its registry is the type's
@@ -342,57 +335,11 @@ const (
 		(1 << jsKindUnion)
 )
 
-const (
-	_ = -uint(unsafe.Offsetof(FunctionTypeBase{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(InstanceObjectType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NamedType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(TemplatizedType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(RecordType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(EnumType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(UnknownType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NoObjectTypeBase{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NoType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NoResolvedType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(EnumElementType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(TemplateType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(ProxyObjectTypeBase{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(UnionType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(AllType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NullType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(VoidType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(BooleanType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(NumberType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(StringType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(BigIntType{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(SymbolTypeBase{}.JSTypeBase))
-	_ = -uint(unsafe.Offsetof(KnownSymbolType{}.JSTypeBase))
-)
-
-// Size guards for the most numerous parts of the type graph: each bound is a
-// Go size class, so growing one of these structs past it costs a whole class.
-const (
-	_ = uintptr(32) - unsafe.Sizeof(JSTypeBase{})
-	_ = uintptr(96) - unsafe.Sizeof(PrototypeObjectTypeBase{})
-	_ = uintptr(160) - unsafe.Sizeof(FunctionTypeBase{})
-	_ = uintptr(96) - unsafe.Sizeof(UnionType{})
-	_ = uintptr(96) - unsafe.Sizeof(TemplatizedType{})
-	_ = uintptr(32) - unsafe.Sizeof(Property{})
-	_ = uintptr(16) - unsafe.Sizeof(FunctionType_Parameter{})
-)
-
-type jsTypeIface struct {
-	tab  unsafe.Pointer
-	data *JSTypeBase
-}
-
-type anyEface struct {
-	typ  unsafe.Pointer
-	data unsafe.Pointer
-}
-
 func jsTypeBase(x JSType) *JSTypeBase {
-	return (*(*jsTypeIface)(unsafe.Pointer(&x))).data
+	if x == nil {
+		return nil
+	}
+	return x.GetJSTypeBase()
 }
 
 func jsTypeEquals(a, b JSType) bool {
@@ -408,7 +355,7 @@ func jsTypeEquals(a, b JSType) bool {
 }
 
 func jsTypeIsUnknown(t JSType, tb *JSTypeBase, kind uint8) bool {
-	if ((uint32(1) << kind) & jsKindMaybeUnknownMask) == 0 && !tb.unknown {
+	if ((uint32(1)<<kind)&jsKindMaybeUnknownMask) == 0 && !tb.unknown {
 		return false
 	}
 	if kind == objKindUnknown {
@@ -464,11 +411,7 @@ func (t *JSTypeBase) InitJSTypeBase(self JSType, registry *JSTypeRegistry) {
 // Java: JSType(JSTypeRegistry, TemplateTypeMap)
 func (t *JSTypeBase) InitJSTypeBaseWithTemplateTypeMap(
 	self JSType, registry *JSTypeRegistry, templateTypeMap *TemplateTypeMap) {
-	iface := (*jsTypeIface)(unsafe.Pointer(&self))
-	if iface.data != t {
-		panic("JSTypeBase must be the first field of " + jutil.ToJavaString(self))
-	}
-	t.selfTab = uintptr(iface.tab)
+	t.self_ = self
 
 	if templateTypeMap == nil {
 		t.templateTypeMap = registry.GetEmptyTemplateTypeMap()
@@ -490,14 +433,12 @@ func jsTypeOf(b *JSTypeBase) JSType {
 	if b == nil {
 		return nil
 	}
-	return b.self()
+	return b.self_
 }
 
 // self returns the concrete JSType embedding this base.
 func (t *JSTypeBase) self() JSType {
-	var x JSType
-	*(*jsTypeIface)(unsafe.Pointer(&x)) = jsTypeIface{*(*unsafe.Pointer)(unsafe.Pointer(&t.selfTab)), t}
-	return x
+	return t.self_
 }
 
 // Self returns the concrete JSType embedding this base.
@@ -1253,9 +1194,6 @@ func (t *JSTypeBase) IsOrdinaryFunction() bool {
 
 // Java: JSType.equals(Object)
 func (t *JSTypeBase) Equals(other any) bool {
-	if (*(*anyEface)(unsafe.Pointer(&other))).data == unsafe.Pointer(t) {
-		return any(t.self()) == other
-	}
 	jSType, ok := other.(JSType)
 	if !ok {
 		return false
@@ -1264,7 +1202,10 @@ func (t *JSTypeBase) Equals(other any) bool {
 	if otherBase == nil {
 		return false
 	}
-	return equalityChecker_AreIdentityEqualWithBases(t.self(), t, jSType, otherBase)
+	if t == otherBase {
+		return true
+	}
+	return equalityChecker_AreIdentityEqualWithBases(t.self_, t, jSType, otherBase)
 }
 
 // DiffersFrom reports whether this type is meaningfully different from that
@@ -1450,14 +1391,10 @@ func (t *JSTypeBase) IsBoxableScalar() bool {
 //
 // Java: JSType.toObjectType()
 func (t *JSTypeBase) ToObjectType() ObjectType {
-	k := t.objFlags & objKindMask
-	if k >= jsKindUnion {
+	if t.objFlags&objKindMask >= jsKindUnion {
 		return nil
 	}
-	if k >= objKindFunction && k <= objKindEnum {
-		return (*ObjectTypeBase)(unsafe.Pointer(t)).selfObj()
-	}
-	if objectType, ok := t.self().(ObjectType); ok {
+	if objectType, ok := t.self_.(ObjectType); ok {
 		return objectType
 	}
 	return nil

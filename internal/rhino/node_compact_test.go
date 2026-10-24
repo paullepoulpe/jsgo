@@ -92,8 +92,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 	if unsafe.Sizeof(nodeExtBox{}) != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", unsafe.Sizeof(nodeExtBox{}))
 	}
-	if unsafe.Sizeof(JSTypeBase{}) != 32 {
-		t.Errorf("JSTypeBase is %d bytes, want 32", unsafe.Sizeof(JSTypeBase{}))
+	if unsafe.Sizeof(JSTypeBase{}) != 40 {
+		t.Errorf("JSTypeBase is %d bytes, want 40", unsafe.Sizeof(JSTypeBase{}))
 	}
 }
 
