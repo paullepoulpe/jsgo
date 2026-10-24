@@ -264,3 +264,22 @@ against the code before the migration):
   reserved capacity, no copying and no overflow path.
 
 Live heap after types-to-colors (bundle): 67 MB, was 76 MB (-12 %).
+
+### Result against main
+
+`main` (e6f5f084) against this branch (round 2 + the node-id store),
+both built with a PGO profile regenerated on this machine by
+tools/bench/pgo.py (the branch's is committed as cmd/jsgo/default.pgo:
+node methods changed names, so main's profile no longer matched). Linux
+amd64, 4 cores, default flags, medians of 5 interleaved runs, outputs
+identical.
+
+| Task | Wall | CPU | Peak RSS |
+|---|---|---|---|
+| typed-app | 3.37 → 2.97 s (−12.0 %) | 3.76 → 3.09 s (−17.8 %) | 180 → 168 MB (−6.5 %) |
+| checks-only | 5.70 → 5.37 s (−5.8 %) | 6.56 → 5.55 s (−15.4 %) | 333 → 270 MB (−18.8 %) |
+| bundle | 10.89 → 9.81 s (−9.9 %) | 12.59 → 10.11 s (−19.7 %) | 279 → 284 MB (+1.6 %) |
+| typed-full | 30.15 → 24.63 s (−18.3 %) | 33.98 → 25.37 s (−25.3 %) | 552 → 426 MB (−22.8 %) |
+| typed-mega | 51.83 → 43.22 s (−16.6 %) | 58.90 → 44.06 s (−25.2 %) | 875 → 724 MB (−17.2 %) |
+
+bundle-mega was not run (its corpus inputs are not in this environment).
