@@ -82,6 +82,35 @@ func (v *TypedVar) GetName() string {
 	return v.name
 }
 
+// Java: ScopedName.hashCode()
+func (v *TypedVar) HashCode() int32 {
+	return v.hashCode(v.GetName)
+}
+
+// Java: ScopedName.equals(Object)
+func (v *TypedVar) Equals(other any) bool {
+	return v.equals(v.name, other)
+}
+
+func (v *TypedVar) IsVar() bool                   { return v.isDeclarationType(v, v.name, rhino.Token_VAR) }
+func (v *TypedVar) IsCatch() bool                 { return v.isDeclarationType(v, v.name, rhino.Token_CATCH) }
+func (v *TypedVar) IsLet() bool                   { return v.isDeclarationType(v, v.name, rhino.Token_LET) }
+func (v *TypedVar) IsConst() bool                 { return v.isDeclarationType(v, v.name, rhino.Token_CONST) }
+func (v *TypedVar) IsClass() bool                 { return v.isDeclarationType(v, v.name, rhino.Token_CLASS) }
+func (v *TypedVar) IsParam() bool                 { return v.isDeclarationType(v, v.name, rhino.Token_PARAM_LIST) }
+func (v *TypedVar) IsImport() bool                { return v.isDeclarationType(v, v.name, rhino.Token_IMPORT) }
+func (v *TypedVar) IsArguments() bool             { return v.isArguments(v.name) }
+func (v *TypedVar) IsGoogModuleExports() bool     { return v.isGoogModuleExports(v.name) }
+func (v *TypedVar) IsThis() bool                  { return v.isThis(v.name) }
+func (v *TypedVar) IsImplicit() bool              { return v.isImplicit(v.name) }
+func (v *TypedVar) DeclarationType() *rhino.Token { return v.declarationType(v, v.name) }
+func (v *TypedVar) AddImplicitGoogNamespaceDefinition(definition *rhino.Node) {
+	v.addImplicitGoogNamespaceDefinition(v, definition)
+}
+func (v *TypedVar) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
+	return v.getImplicitGoogNamespaceStrength(v)
+}
+
 // Java: AbstractVar.getSymbol()
 func (v *TypedVar) GetSymbol() rhino.StaticSlot {
 	return v

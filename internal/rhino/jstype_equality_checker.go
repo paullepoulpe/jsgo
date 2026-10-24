@@ -36,8 +36,6 @@
 package rhino
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -170,6 +168,9 @@ func equalityChecker_AreIdentityEqual(left JSType, right JSType) bool {
 }
 
 func equalityChecker_AreIdentityEqualWithBases(left JSType, lb *JSTypeBase, right JSType, rb *JSTypeBase) bool {
+	if lb == rb {
+		return true
+	}
 	lk := lb.objFlags & objKindMask
 	rk := rb.objFlags & objKindMask
 	if (((uint32(1)<<lk)|(uint32(1)<<rk))&jsKindComplexEqMask) == 0 &&
@@ -180,31 +181,14 @@ func equalityChecker_AreIdentityEqualWithBases(left JSType, lb *JSTypeBase, righ
 		}
 		switch lk {
 		case objKindFunction:
-			lf := (*FunctionTypeBase)(unsafe.Pointer(lb))
-			rf := (*FunctionTypeBase)(unsafe.Pointer(rb))
-			if lf.call.fnKind != rf.call.fnKind {
+			lf := left.(FunctionType).GetFunctionTypeBase()
+			rf := right.(FunctionType).GetFunctionTypeBase()
+			if lf.call.fnKind != rf.call.fnKind ||
+				lf.call.fnKind == FunctionType_Kind_CONSTRUCTOR ||
+				lf.call.fnKind == FunctionType_Kind_INTERFACE {
 				return false
 			}
-			if lf.call.fnKind == FunctionType_Kind_CONSTRUCTOR || lf.call.fnKind == FunctionType_Kind_INTERFACE {
-				return false
-			}
-			c := EqualityChecker{
-				eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_IDENTITY],
-				hasRun:   true,
-			}
-			return c.AreFunctionEqual(lf, rf)
-		case objKindRecord:
-			c := EqualityChecker{
-				eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_IDENTITY],
-				hasRun:   true,
-			}
-			if !c.AreTypeMapEqual(lb.templateTypeMap, rb.templateTypeMap) {
-				return false
-			}
-			return c.AreRecordEqual((*RecordType)(unsafe.Pointer(lb)), (*RecordType)(unsafe.Pointer(rb)))
-		case objKindNoResolved:
-			return (*NoResolvedType)(unsafe.Pointer(lb)).referenceName ==
-				(*NoResolvedType)(unsafe.Pointer(rb)).referenceName
+		case objKindRecord, objKindNoResolved:
 		default:
 			return false
 		}
@@ -289,15 +273,14 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 		}
 		switch lk {
 		case objKindFunction:
-			return c.AreFunctionEqual((*FunctionTypeBase)(unsafe.Pointer(lb)), (*FunctionTypeBase)(unsafe.Pointer(rb)))
-		case objKindRecord:
-			if !c.AreTypeMapEqual(lb.templateTypeMap, rb.templateTypeMap) {
+			lf := left.(FunctionType).GetFunctionTypeBase()
+			rf := right.(FunctionType).GetFunctionTypeBase()
+			if lf.call.fnKind != rf.call.fnKind ||
+				lf.call.fnKind == FunctionType_Kind_CONSTRUCTOR ||
+				lf.call.fnKind == FunctionType_Kind_INTERFACE {
 				return false
 			}
-			return c.AreRecordEqual((*RecordType)(unsafe.Pointer(lb)), (*RecordType)(unsafe.Pointer(rb)))
-		case objKindNoResolved:
-			return (*NoResolvedType)(unsafe.Pointer(lb)).referenceName ==
-				(*NoResolvedType)(unsafe.Pointer(rb)).referenceName
+		case objKindRecord, objKindNoResolved:
 		default:
 			return false
 		}

@@ -104,7 +104,7 @@ func (g *LinkedUndirectedGraph[N, E]) clearForReuse() {
 	g.nodeAnnotationStack = nil
 	g.edgeAnnotationStack = nil
 	if g.nodes.Size() > linkedDirectedGraphReuseMaxNodes {
-		g.nodes = jutil.LinkedHashMap[N, *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]{}
+		g.nodes.Reset()
 	} else {
 		g.nodes.Clear()
 	}

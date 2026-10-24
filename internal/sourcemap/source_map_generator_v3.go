@@ -23,7 +23,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -375,13 +374,13 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	}
 
 	var sourceFileIdx int32
-	if g.hasLastAddedSourceFile && len(g.lastAddedSourceFile) == len(sourceName) && (unsafe.StringData(g.lastAddedSourceFile) == unsafe.StringData(sourceName) || g.lastAddedSourceFile == sourceName) {
+	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
 		sourceFileIdx = g.lastAddedSourceFileIdx
 	} else {
 		if len(g.addedSourceFiles) < 16 {
 			found := false
 			for i, s := range g.addedSourceFiles {
-				if len(s) == len(sourceName) && (unsafe.StringData(s) == unsafe.StringData(sourceName) || s == sourceName) {
+				if s == sourceName {
 					sourceFileIdx = int32(i)
 					found = true
 					break
@@ -416,13 +415,13 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	originalNameIdx := int32(-1)
 	if symbolName != nil {
 		name := *symbolName
-		if g.hasLastAddedSymbolName && len(g.lastAddedSymbolName) == len(name) && (unsafe.StringData(g.lastAddedSymbolName) == unsafe.StringData(name) || g.lastAddedSymbolName == name) {
+		if g.hasLastAddedSymbolName && g.lastAddedSymbolName == name {
 			originalNameIdx = g.lastAddedSymbolNameIdx
 		} else {
 			if len(g.addedSymbolNames) < 16 {
 				found := false
 				for i, s := range g.addedSymbolNames {
-					if len(s) == len(name) && (unsafe.StringData(s) == unsafe.StringData(name) || s == name) {
+					if s == name {
 						originalNameIdx = int32(i)
 						found = true
 						break
@@ -732,7 +731,7 @@ func SourceMapGeneratorV3_AddNameSlice(out io.StringWriter, names []string) {
 	for i, key := range names {
 		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
 			if bufLen+len(key)+3 > len(buf) {
-				appendString(out, unsafe.String(&buf[0], bufLen))
+				appendBytes(out, buf[:bufLen])
 				bufLen = 0
 			}
 			if i != 0 {
@@ -747,7 +746,7 @@ func SourceMapGeneratorV3_AddNameSlice(out io.StringWriter, names []string) {
 			bufLen++
 		} else {
 			if bufLen > 0 {
-				appendString(out, unsafe.String(&buf[0], bufLen))
+				appendBytes(out, buf[:bufLen])
 				bufLen = 0
 			}
 			if i != 0 {
@@ -757,7 +756,7 @@ func SourceMapGeneratorV3_AddNameSlice(out io.StringWriter, names []string) {
 		}
 	}
 	if bufLen > 0 {
-		appendString(out, unsafe.String(&buf[0], bufLen))
+		appendBytes(out, buf[:bufLen])
 	}
 }
 
@@ -769,7 +768,7 @@ func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap
 	for key := range m.Keys() {
 		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
 			if bufLen+len(key)+3 > len(buf) {
-				appendString(out, unsafe.String(&buf[0], bufLen))
+				appendBytes(out, buf[:bufLen])
 				bufLen = 0
 			}
 			if i != 0 {
@@ -784,7 +783,7 @@ func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap
 			bufLen++
 		} else {
 			if bufLen > 0 {
-				appendString(out, unsafe.String(&buf[0], bufLen))
+				appendBytes(out, buf[:bufLen])
 				bufLen = 0
 			}
 			if i != 0 {
@@ -795,7 +794,7 @@ func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap
 		i++
 	}
 	if bufLen > 0 {
-		appendString(out, unsafe.String(&buf[0], bufLen))
+		appendBytes(out, buf[:bufLen])
 	}
 }
 
@@ -1186,16 +1185,14 @@ func NewSourceMapGeneratorV3_LineMapper(outer *SourceMapGeneratorV3, out io.Stri
 
 func (l *SourceMapGeneratorV3_LineMapper) flush() {
 	if l.bufLen > 0 {
-		appendString(l.out, unsafe.String(&l.buf[0], l.bufLen))
+		appendBytes(l.out, l.buf[:l.bufLen])
 		l.bufLen = 0
 	}
 }
 
 func (l *SourceMapGeneratorV3_LineMapper) writeByte(b byte) {
 	if !l.buffering {
-		var tmp [1]byte
-		tmp[0] = b
-		appendString(l.out, unsafe.String(&tmp[0], 1))
+		appendByte(l.out, b)
 		return
 	}
 	if l.bufLen >= len(l.buf) {

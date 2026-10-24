@@ -22,7 +22,6 @@ import (
 	"embed"
 	"io/fs"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -44,12 +43,12 @@ var resourceLoader_classpath embed.FS
 // precompiled runtime libraries that Compiler.initRuntimeLibraryTypedAsts
 // reads through Class.getResourceAsStream.
 //
-// Go-only: performance — embedded as a string so that it is read in place:
-// fs.ReadFile would copy its 3.5 MB onto the heap, where the runtime library
-// TypedASTs keep it alive for the whole compilation.
+// Go-only: performance — embedded directly as []byte so that it is read in
+// place: fs.ReadFile would copy its 3.5 MB onto the heap, where the runtime
+// library TypedASTs keep it alive for the whole compilation.
 //
 //go:embed runtime_libs.typedast
-var resourceLoader_runtimeLibsTypedAst string
+var resourceLoader_runtimeLibsTypedAst []byte
 
 const resourceLoader_runtimeLibsTypedAstName = "runtime_libs.typedast"
 
@@ -133,7 +132,7 @@ func resourceLoader_resolveName(clazz string, name string) string {
 func resourceLoader_getResource(name string) ([]byte, bool) {
 	if name == resourceLoader_runtimeLibsTypedAstName {
 		// Read-only memory: the callers only read it.
-		return unsafe.Slice(unsafe.StringData(resourceLoader_runtimeLibsTypedAst), len(resourceLoader_runtimeLibsTypedAst)), true
+		return resourceLoader_runtimeLibsTypedAst, true
 	}
 	if data, err := fs.ReadFile(resourceLoader_classpath, name); err == nil {
 		return data, true

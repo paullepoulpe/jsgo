@@ -12,7 +12,7 @@ import (
 
 // ImmutableMultiset is com.google.common.collect.ImmutableMultiset.
 type ImmutableMultiset[T comparable] struct {
-	counts LinkedHashMap[T, int]
+	counts *LinkedHashMap[T, int]
 	size   int
 }
 
@@ -35,7 +35,7 @@ func ImmutableMultiset_Of[T comparable](elems ...T) *ImmutableMultiset[T] {
 
 // ImmutableMultiset_Builder is ImmutableMultiset.Builder.
 type ImmutableMultiset_Builder[T comparable] struct {
-	counts LinkedHashMap[T, int]
+	counts *LinkedHashMap[T, int]
 	size   int
 	built  bool
 }
@@ -50,8 +50,10 @@ func (b *ImmutableMultiset_Builder[T]) Add(e T) *ImmutableMultiset_Builder[T] {
 	if IsNil(any(e)) {
 		panic(NewNullPointerException())
 	}
-	if b.built {
-		b.counts = *NewLinkedHashMapFrom(&b.counts)
+	if b.counts == nil {
+		b.counts = NewLinkedHashMap[T, int]()
+	} else if b.built {
+		b.counts = NewLinkedHashMapFrom(b.counts)
 		b.built = false
 	}
 	b.counts.Put(e, b.counts.Get(e)+1)

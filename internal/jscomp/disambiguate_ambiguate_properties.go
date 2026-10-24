@@ -21,16 +21,11 @@ package jscomp
 import (
 	"reflect"
 	"strconv"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-func newLinkedHashSetWithCapacity[T comparable](cap int) *jutil.LinkedHashSet[T] {
-	return (*jutil.LinkedHashSet[T])(unsafe.Pointer(jutil.NewLinkedHashMapWithCapacity[T, struct{}](cap)))
-}
 
 // AmbiguateProperties renames unrelated properties to the same name, using
 // Colors provided by the typechecker. This allows better compression as more
@@ -101,7 +96,7 @@ func NewAmbiguateProperties(
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
-	externedNames := newLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
+	externedNames := jutil.NewLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
 	externedNames.Add("prototype")
 	for name := range externProperties.All() {
 		externedNames.Add(name)
@@ -113,7 +108,7 @@ func NewAmbiguateProperties(
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
 		externedNames:              externedNames,
-		quotedNames:                newLinkedHashSetWithCapacity[string](256),
+		quotedNames:                jutil.NewLinkedHashSetWithCapacity[string](256),
 		colorRegistry:              compiler.GetColorRegistry(),
 		renamingMap:                nil,
 		graphNodeFactory:           nil,
@@ -232,7 +227,7 @@ func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
 	numProperties := a.propertyMap.Size()
-	reservedNames := newLinkedHashSetWithCapacity[string](a.externedNames.Size() + a.quotedNames.Size() + numProperties + 256)
+	reservedNames := jutil.NewLinkedHashSetWithCapacity[string](a.externedNames.Size() + a.quotedNames.Size() + numProperties + 256)
 	for name := range a.externedNames.All() {
 		reservedNames.Add(name)
 	}

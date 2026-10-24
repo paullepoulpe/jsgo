@@ -806,7 +806,6 @@ func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, referen
 }
 
 func (*OptimizeCalls_ReferenceMapBuildingCallback) onlyNameLeaves()                {}
-func (*OptimizeCalls_ReferenceMapBuildingCallback) noShouldTraverse()              {}
 func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse() {}
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {

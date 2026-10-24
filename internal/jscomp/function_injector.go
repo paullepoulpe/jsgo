@@ -289,10 +289,10 @@ func functionInjector_blocksMinimumRequirements(n *rhino.Node, fnName, fnRecursi
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		s := n.GetString()
-		if (checkArguments && scopeNameEq(s, "arguments")) ||
-			scopeNameEq(s, "eval") ||
-			(fnName != "" && scopeNameEq(s, fnName)) ||
-			(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
+		if (checkArguments && s == "arguments") ||
+			s == "eval" ||
+			(fnName != "" && s == fnName) ||
+			(fnRecursionName != "" && s == fnRecursionName) {
 			return true
 		}
 	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -307,10 +307,10 @@ func functionInjector_blocksMinimumRequirements(n *rhino.Node, fnName, fnRecursi
 			switch c.GetToken() {
 			case rhino.Token_NAME:
 				s := c.GetString()
-				if (checkArguments && scopeNameEq(s, "arguments")) ||
-					scopeNameEq(s, "eval") ||
-					(fnName != "" && scopeNameEq(s, fnName)) ||
-					(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
+				if (checkArguments && s == "arguments") ||
+					s == "eval" ||
+					(fnName != "" && s == fnName) ||
+					(fnRecursionName != "" && s == fnRecursionName) {
 					return true
 				}
 			case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -344,7 +344,7 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 
 	fnRecursionName := fnNode.GetFirstChild().GetString()
 	// Java checkState(fnRecursionName != null): a Go string is never null.
-	if scopeNameEq(fnRecursionName, fnName) {
+	if fnRecursionName == fnName {
 		fnRecursionName = ""
 	}
 
@@ -914,7 +914,7 @@ func functionInjector_countShallowReturns(n *rhino.Node) int {
 }
 
 func functionInjector_referencesEval(n *rhino.Node, rootFn *rhino.Node) bool {
-	if n.IsName() && scopeNameEq(n.GetString(), "eval") {
+	if n.IsName() && n.GetString() == "eval" {
 		return true
 	}
 	if n.IsFunction() && n != rootFn {
@@ -922,7 +922,7 @@ func functionInjector_referencesEval(n *rhino.Node, rootFn *rhino.Node) bool {
 	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 		if c.GetFirstChild() == nil {
-			if c.IsName() && scopeNameEq(c.GetString(), "eval") {
+			if c.IsName() && c.GetString() == "eval" {
 				return true
 			}
 			continue

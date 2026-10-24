@@ -5,7 +5,6 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
-	"unsafe"
 )
 
 // Go-only: language-adapter — Java String semantics (UTF-16 code units) on Go
@@ -27,13 +26,12 @@ func StringFromUTF16(units []uint16) string {
 		if len(units) == 0 {
 			return ""
 		}
-		b := make([]byte, len(units))
-		for i, u := range units {
-			b[i] = byte(u)
+		var sb strings.Builder
+		sb.Grow(len(units))
+		for _, u := range units {
+			sb.WriteByte(byte(u))
 		}
-		// b is never written again, so it can back the string directly
-		// (one allocation instead of two).
-		return unsafe.String(unsafe.SliceData(b), len(b))
+		return sb.String()
 	}
 	var sb strings.Builder
 	sb.Grow(len(units) * 2)
@@ -93,12 +91,9 @@ func IsASCII(s string) bool {
 // (len(s) if s is entirely ASCII).
 func ASCIIPrefixLen(s string) int {
 	i := 0
-	if len(s) >= 8 {
-		p := unsafe.Pointer(unsafe.StringData(s))
-		for ; i+8 <= len(s); i += 8 {
-			if *(*uint64)(unsafe.Add(p, i))&0x8080808080808080 != 0 {
-				break
-			}
+	for ; i+8 <= len(s); i += 8 {
+		if (s[i] | s[i+1] | s[i+2] | s[i+3] | s[i+4] | s[i+5] | s[i+6] | s[i+7]) >= 0x80 {
+			break
 		}
 	}
 	for ; i < len(s); i++ {
@@ -324,13 +319,17 @@ func StringHashCode(s string) int32 {
 func StringToLowerCaseASCII(s string) string {
 	for i := 0; i < len(s); i++ {
 		if c := s[i]; c >= 'A' && c <= 'Z' {
-			b := []byte(s)
-			for ; i < len(b); i++ {
-				if c := b[i]; c >= 'A' && c <= 'Z' {
-					b[i] = c + ('a' - 'A')
+			var sb strings.Builder
+			sb.Grow(len(s))
+			sb.WriteString(s[:i])
+			for ; i < len(s); i++ {
+				if c := s[i]; c >= 'A' && c <= 'Z' {
+					sb.WriteByte(c + ('a' - 'A'))
+				} else {
+					sb.WriteByte(c)
 				}
 			}
-			return unsafe.String(unsafe.SliceData(b), len(b))
+			return sb.String()
 		}
 	}
 	return s
@@ -340,13 +339,17 @@ func StringToLowerCaseASCII(s string) string {
 func StringToUpperCaseASCII(s string) string {
 	for i := 0; i < len(s); i++ {
 		if c := s[i]; c >= 'a' && c <= 'z' {
-			b := []byte(s)
-			for ; i < len(b); i++ {
-				if c := b[i]; c >= 'a' && c <= 'z' {
-					b[i] = c - ('a' - 'A')
+			var sb strings.Builder
+			sb.Grow(len(s))
+			sb.WriteString(s[:i])
+			for ; i < len(s); i++ {
+				if c := s[i]; c >= 'a' && c <= 'z' {
+					sb.WriteByte(c - ('a' - 'A'))
+				} else {
+					sb.WriteByte(c)
 				}
 			}
-			return unsafe.String(unsafe.SliceData(b), len(b))
+			return sb.String()
 		}
 	}
 	return s

@@ -36,8 +36,6 @@
 package rhino
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -227,22 +225,21 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 //
 // Java: SubtypeChecker.isSubtypeDispatching(JSType, JSType)
 func (c *SubtypeChecker) IsSubtypeDispatching(subtype JSType, supertype JSType) bool {
-	subBase := jsTypeBase(subtype)
-	switch subBase.objFlags & objKindMask {
+	switch jsTypeBase(subtype).objFlags & objKindMask {
 	case objKindEnumElement:
-		return c.IsEnumElementSubtype((*EnumElementType)(unsafe.Pointer(subBase)), supertype)
+		return c.IsEnumElementSubtype(subtype.(*EnumElementType), supertype)
 	case objKindEnum:
-		return c.IsEnumSubtype((*EnumType)(unsafe.Pointer(subBase)), supertype)
+		return c.IsEnumSubtype(subtype.(*EnumType), supertype)
 	case objKindNoObject, objKindNo:
 		return c.IsVariousBottomsSubtype(subtype, supertype)
 	case objKindFunction:
-		return c.IsFunctionSubtype((*FunctionTypeBase)(unsafe.Pointer(subBase)), supertype)
+		return c.IsFunctionSubtype(subtype.(FunctionType), supertype)
 	case objKindTemplate:
-		return c.IsTemplateSubtype((*TemplateType)(unsafe.Pointer(subBase)), supertype)
+		return c.IsTemplateSubtype(subtype.(*TemplateType), supertype)
 	case objKindProxy:
-		return c.IsProxyObjectSubtype((*ProxyObjectTypeBase)(unsafe.Pointer(subBase)), supertype)
+		return c.IsProxyObjectSubtype(subtype.(ProxyObjectType), supertype)
 	case jsKindKnownSymbol:
-		return c.IsWellKnownSymbolSubtype((*KnownSymbolType)(unsafe.Pointer(subBase)), supertype)
+		return c.IsWellKnownSymbolSubtype(subtype.(*KnownSymbolType), supertype)
 	case objKindFallback:
 		switch subtype.GetTypeClass() {
 		case JSTypeClass_ENUM_ELEMENT:
@@ -260,7 +257,6 @@ func (c *SubtypeChecker) IsSubtypeDispatching(subtype JSType, supertype JSType) 
 		case JSTypeClass_WELL_KNOWN_SYMBOL:
 			return c.IsWellKnownSymbolSubtype(subtype.(*KnownSymbolType), supertype)
 		}
-		return c.IsSubtypeHelper(subtype, supertype)
 	}
 	return c.IsSubtypeHelper(subtype, supertype)
 }
@@ -337,9 +333,9 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 	// We don't want to check the cache here. Since `NamedType`s are generally
 	// equal to their referenced types, we'd get a false cache hit.
 	if subKind == objKindNamed {
-		return c.IsSubtypeDispatching((*NamedType)(unsafe.Pointer(subBase)).GetReferencedType(), supertype)
+		return c.IsSubtypeDispatching(subtype.(*NamedType).GetReferencedType(), supertype)
 	} else if supKind == objKindNamed {
-		return c.IsSubtypeDispatching(subtype, (*NamedType)(unsafe.Pointer(supBase)).GetReferencedType())
+		return c.IsSubtypeDispatching(subtype, supertype.(*NamedType).GetReferencedType())
 	}
 
 	// Union decomposition.

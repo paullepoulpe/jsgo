@@ -23,7 +23,6 @@ package jutil
 import (
 	"strings"
 	"unicode/utf16"
-	"unsafe"
 )
 
 // Go-only: language-adapter — Gson is a library dependency of Closure; it is
@@ -870,11 +869,12 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 							}
 						}
 						if remASCII {
-							b := make([]byte, (p-start)+qIdx)
-							for i, u := range buffer[start:p] {
-								b[i] = byte(u)
+							var sb strings.Builder
+							sb.Grow((p - start) + qIdx)
+							for _, u := range buffer[start:p] {
+								sb.WriteByte(byte(u))
 							}
-							copy(b[p-start:], rem[:qIdx])
+							sb.WriteString(rem[:qIdx])
 							fullChunks := qIdx / jsonReader_BUFFER_SIZE
 							if fullChunks > 0 {
 								r.lineStart -= p + (fullChunks-1)*jsonReader_BUFFER_SIZE
@@ -887,7 +887,7 @@ func (r *JsonReader) nextQuotedValue(quote uint16) string {
 							}
 							r.fillBuffer(1)
 							r.pos = (qIdx % jsonReader_BUFFER_SIZE) + 1
-							return unsafe.String(unsafe.SliceData(b), len(b))
+							return sb.String()
 						}
 					}
 				}

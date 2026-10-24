@@ -19,10 +19,10 @@
 package jscomp
 
 import (
+	"hash/maphash"
 	"iter"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -34,35 +34,10 @@ import (
 const gnConcatCacheSize = 16384
 
 func gnHashStr(s string) uint64 {
-	n := len(s)
-	if n == 0 {
+	if s == "" {
 		return 0
 	}
-	p := unsafe.Pointer(unsafe.StringData(s))
-	h := uint64(n) * 0x9e3779b97f4a7c15
-	if n >= 8 {
-		w0 := *(*uint64)(p)
-		w1 := *(*uint64)(unsafe.Add(p, n-8))
-		w2 := *(*uint64)(unsafe.Add(p, (n-8)>>1))
-		h ^= w0*0xbf58476d1ce4e5b9 ^ w1*0x94d049bb133111eb ^ w2*0x9ddfea08eb382d69
-		if n > 16 {
-			w3 := *(*uint64)(unsafe.Add(p, n>>2))
-			w4 := *(*uint64)(unsafe.Add(p, n>>1))
-			w5 := *(*uint64)(unsafe.Add(p, n-16))
-			h ^= w3*0xff51afd7ed558ccd ^ w4*0xc4ceb9fe1a85ec53 ^ w5*0x27d4eb2f165667c5
-			if n > 32 {
-				w6 := *(*uint64)(unsafe.Add(p, (n*3)>>2))
-				h ^= w6 * 0x85ebca6b9e3779b1
-			}
-		}
-		return h
-	}
-	if n >= 4 {
-		w0 := uint64(*(*uint32)(p))
-		w1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
-		return h ^ (w0|(w1<<32))*0xbf58476d1ce4e5b9
-	}
-	return h ^ (uint64(s[0])|(uint64(s[n>>1])<<8)|(uint64(s[n-1])<<16))*0xbf58476d1ce4e5b9
+	return maphash.String(scopeHashSeed, s)
 }
 
 func gnConcatHash(a, b string) uint32 {
@@ -76,7 +51,7 @@ func gnConcatHash(a, b string) uint32 {
 func gnConcatMatch(res, a, b string) bool {
 	la := len(a)
 	return len(res) == la+1+len(b) && res[la] == '.' &&
-		(unsafe.StringData(res) == unsafe.StringData(a) || res[:la] == a) &&
+		res[:la] == a &&
 		res[la+1:] == b
 }
 
