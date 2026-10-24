@@ -1986,7 +1986,7 @@ func (p *Parser) ParsePrimaryExpression() ParseTree {
 	case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
 		return p.ParseTemplateLiteral(nil)
 	case TokenType_OPEN_SQUARE:
-		return p.ParseArrayInitializer()
+		return p.ParseArrayLiteral()
 	case TokenType_OPEN_CURLY:
 		return p.ParseObjectLiteral()
 	case TokenType_OPEN_PAREN:
@@ -2129,76 +2129,6 @@ func (p *Parser) ParseRegularExpressionLiteral() ParseTree {
 	literal := p.NextRegularExpressionLiteralToken()
 	p.RecordFeatureUsed(FeatureSet_Feature_REGEXP_SYNTAX)
 	return p.newLiteralExpressionTree(p.GetTreeLocation(start), literal)
-}
-
-// Java: Parser.parseArrayInitializer()
-func (p *Parser) ParseArrayInitializer() ParseTree {
-	if p.PeekTypeAt(1) == TokenType_FOR {
-		return p.ParseArrayComprehension()
-	} else {
-		return p.ParseArrayLiteral()
-	}
-}
-
-// Java: Parser.parseGeneratorComprehension()
-func (p *Parser) ParseGeneratorComprehension() ParseTree {
-	return p.ParseComprehension(
-		ComprehensionTree_ComprehensionType_GENERATOR, TokenType_OPEN_PAREN, TokenType_CLOSE_PAREN)
-}
-
-// Java: Parser.parseArrayComprehension()
-func (p *Parser) ParseArrayComprehension() ParseTree {
-	return p.ParseComprehension(
-		ComprehensionTree_ComprehensionType_ARRAY, TokenType_OPEN_SQUARE, TokenType_CLOSE_SQUARE)
-}
-
-// Java: Parser.parseComprehension(ComprehensionTree.ComprehensionType, TokenType, TokenType)
-func (p *Parser) ParseComprehension(type_ ComprehensionTree_ComprehensionType, startToken, endToken TokenType) ParseTree {
-	start := p.GetTreeStartLocation()
-	p.Eat(startToken)
-
-	children := []ParseTree{}
-	for p.Peek(TokenType_FOR) || p.Peek(TokenType_IF) {
-		if p.Peek(TokenType_FOR) {
-			children = append(children, p.ParseComprehensionFor())
-		} else {
-			children = append(children, p.ParseComprehensionIf())
-		}
-	}
-
-	tailExpression := p.ParseAssignmentExpression()
-	p.Eat(endToken)
-
-	return NewComprehensionTree(p.GetTreeLocation(start), type_, children, tailExpression)
-}
-
-// Java: Parser.parseComprehensionFor()
-func (p *Parser) ParseComprehensionFor() ParseTree {
-	start := p.GetTreeStartLocation()
-	p.Eat(TokenType_FOR)
-	p.Eat(TokenType_OPEN_PAREN)
-
-	var initializer ParseTree
-	if p.PeekId() {
-		initializer = p.ParseIdentifierExpression()
-	} else {
-		initializer = p.ParsePattern(Parser_PatternKind_ANY)
-	}
-
-	p.EatPredefinedString(PredefinedName_OF)
-	collection := p.ParseAssignmentExpression()
-	p.Eat(TokenType_CLOSE_PAREN)
-	return NewComprehensionForTree(p.GetTreeLocation(start), initializer, collection)
-}
-
-// Java: Parser.parseComprehensionIf()
-func (p *Parser) ParseComprehensionIf() ParseTree {
-	start := p.GetTreeStartLocation()
-	p.Eat(TokenType_IF)
-	p.Eat(TokenType_OPEN_PAREN)
-	initializer := p.ParseAssignmentExpression()
-	p.Eat(TokenType_CLOSE_PAREN)
-	return NewComprehensionIfTree(p.GetTreeLocation(start), initializer)
 }
 
 // 11.1.4 Array Literal Expression
@@ -2517,10 +2447,6 @@ func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
 
 // Java: Parser.parseCoverParenthesizedExpressionAndArrowParameterList()
 func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseTree {
-	if p.PeekTypeAt(1) == TokenType_FOR {
-		return p.ParseGeneratorComprehension()
-	}
-
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_OPEN_PAREN)
 	// Case ( )

@@ -4164,26 +4164,6 @@ func TestDestructuringNoRHS(t *testing.T) {
 	pt.parseError("const [x, y];", "const variables must have an initializer")
 }
 
-// Java: ParserTest.testComprehensions()
-func TestComprehensions(t *testing.T) {
-	pt := newParserTest(t)
-
-	pt.strictMode = Config_StrictMode_SLOPPY
-	error := "unsupported language feature:" + " array/generator comprehensions"
-
-	// array comprehensions
-	pt.parseError("[for (x of y) z];", error)
-	pt.parseError("[for ({x,y} of z) x+y];", error)
-	pt.parseError("[for (x of y) if (x<10) z];", error)
-	pt.parseError("[for (a = 5 of v) a];", "'identifier' expected")
-
-	// generator comprehensions
-	pt.parseError("(for (x of y) z);", error)
-	pt.parseError("(for ({x,y} of z) x+y);", error)
-	pt.parseError("(for (x of y) if (x<10) z);", error)
-	pt.parseError("(for (a = 5 of v) a);", "'identifier' expected")
-}
-
 // Java: ParserTest.testLetForbidden1()
 func TestLetForbidden1(t *testing.T) {
 	pt := newParserTest(t)
@@ -5206,6 +5186,29 @@ func TestOctalEscapes(t *testing.T) {
 	assertNode(t, n.GetFirstFirstChild().GetFirstChild()).IsString("This is a \u00a9 copyright symbol.")
 }
 
+// Java: ParserTest.testOctalEscapeWithLeadingDigitFourToSeven()
+func TestOctalEscapeWithLeadingDigitFourToSeven(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT5
+	pt.strictMode = Config_StrictMode_SLOPPY
+	// When the leading octal digit is 4-7 only two digits are part of the escape, so "\777" is
+	// "\77" (U+003F '?') followed by a literal '7' (ECMAScript Annex B.1.2). It was previously read
+	// as a single three digit escape that overflowed past \377 into U+01FF.
+	n := pt.parseWarning("var x = '\\777'", "Unnecessary escape: '\\7' is equivalent to just '7'")
+	assertNode(t, n.GetFirstFirstChild().GetFirstChild()).IsString("?7")
+
+	n = pt.parseWarning("var x = '\\500'", "Unnecessary escape: '\\5' is equivalent to just '5'")
+	assertNode(t, n.GetFirstFirstChild().GetFirstChild()).IsString("(0")
+
+	n = pt.parseWarning("var x = '\\400'", "Unnecessary escape: '\\4' is equivalent to just '4'")
+	assertNode(t, n.GetFirstFirstChild().GetFirstChild()).IsString(" 0")
+
+	// A leading digit of 0-3 still consumes up to three octal digits.
+	n = pt.parseWarning("var x = '\\251'", "Unnecessary escape: '\\2' is equivalent to just '2'")
+	assertNode(t, n.GetFirstFirstChild().GetFirstChild()).IsString("\u00a9")
+}
+
 // Java: ParserTest.testOldStyleOctalLiterals()
 func TestOldStyleOctalLiterals(t *testing.T) {
 	pt := newParserTest(t)
@@ -5871,7 +5874,15 @@ func TestInvalidUnicodePointEscapeInIdentifiers(t *testing.T) {
 	pt.parseError("Js\\u{}ompiler", "Invalid escape sequence")
 	// Legal unicode but invalid in identifier
 	pt.parseError("Js\\u{99}ompiler", "Invalid escape sequence")
+	// Won't fix (b/573608398): U+10000, U+16978 and U+10041 are valid identifier characters outside
+	// the BMP, but the compiler doesn't support astral-plane characters in identifiers, whether
+	// they are written as escapes or literally, and rejects them. We decided not to support them,
+	// since that would add complexity to the scanner and the code printer.
 	pt.parseError("Js\\u{10000}ompiler", "Invalid escape sequence")
+	pt.parseError("var _\\u{16978}", "Invalid escape sequence")
+	pt.parseError(
+		"var _\U00016978",
+		"Character '"+jutil.StringFromUTF16([]uint16{0xD81A})+"' (U+D81A) is not a valid identifier start char")
 	// Code points outside the BMP must not be truncated to their low 16 bits. U+10041 shares its
 	// low bits with U+0041 ('A') and U+110041 is above the U+10FFFF maximum; both used to be
 	// silently accepted.
@@ -8004,8 +8015,10 @@ func TestNewTarget(t *testing.T) {
 	pt.strictMode = Config_StrictMode_SLOPPY
 
 	pt.parseError("new.target;", "new.target must be inside a function")
+	pt.parseError("() => new.target;", "new.target must be inside a function")
 
 	pt.parse("function f() { new.target; };")
+	pt.parse("function f() { () => new.target; };")
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.parseWarning(
@@ -8024,6 +8037,29 @@ func TestNewTarget(t *testing.T) {
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_MEMBER_DECLARATIONS, parser.FeatureSet_Feature_NEW_TARGET)
 	pt.parse("class C { f() { new.target; } }")
+}
+
+// Java: ParserTest.testNewTargetInFieldInitializersAndStaticBlocks()
+func TestNewTargetInFieldInitializersAndStaticBlocks(t *testing.T) {
+	pt := newParserTest(t)
+
+	// `new.target` is always `undefined` in field initializers and static blocks, also in arrow
+	// functions nested in them, so it is an error there.
+	error := IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK
+	pt.parseError("class C { x = new.target; }", error)
+	pt.parseError("class C { static x = new.target; }", error)
+	pt.parseError("class C { ['x'] = new.target; }", error)
+	pt.parseError("class C { static { new.target; } }", error)
+	pt.parseError("class C { x = () => new.target; }", error)
+	pt.parseError("function f() { class C { x = new.target; static { new.target; } } }", error, error)
+	// A nested non-arrow function has its own `new.target`.
+	pt.parse("class C { x = function() { return new.target; }; }")
+
+	// A computed key is not part of the initializer, so it may use `new.target` only inside a
+	// non-arrow function.
+	pt.parseError("class C { [new.target] = 1; }", "new.target must be inside a function")
+	pt.parseError("() => class C { [new.target] = 1; };", "new.target must be inside a function")
+	pt.parse("function f() { class C { [new.target] = 1; } }")
 }
 
 // Java: ParserTest.testNewDotSomethingInvalid()
@@ -9809,6 +9845,54 @@ let string1 = "ClosureAwareString";
 		rhino.Node_ValidateMemorySensitivePropertyGuarantees(
 			firstUnawareFunctionFunctionNode, true, awareLet, false)).
 		IsTrue()
+}
+
+// Java: ParserTest.testNewTargetInClassFieldInitializer()
+func TestNewTargetInClassFieldInitializer(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2022
+	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS, parser.FeatureSet_Feature_NEW_TARGET)
+	pt.parseError(
+		"class C { x = new.target; static s = new.target; }",
+		IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+		IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK)
+}
+
+// Java: ParserTest.testNewTargetInClassFieldInitializer_inArrowFn()
+func TestNewTargetInClassFieldInitializer_inArrowFn(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2022
+	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS, parser.FeatureSet_Feature_NEW_TARGET)
+	pt.parseError(
+		"class C { x = () => new.target; static s = () => new.target; }",
+		IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+		IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK)
+}
+
+// Java: ParserTest.testNewTargetInClassComputedPropertyName()
+func TestNewTargetInClassComputedPropertyName(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2022
+	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS, parser.FeatureSet_Feature_NEW_TARGET)
+	// Correct behavior - property names are evaluated in the enclosing scope.
+	pt.parseError(
+		"class C { [new.target] = 1; static [new.target] = 1; }",
+		"new.target must be inside a function",
+		"new.target must be inside a function")
+}
+
+// Java: ParserTest.testNewTargetInClassStaticBlock()
+func TestNewTargetInClassStaticBlock(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2022
+	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_CLASS_STATIC_BLOCK, parser.FeatureSet_Feature_NEW_TARGET)
+	pt.parseError(
+		"class C { static { new.target; } }",
+		IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK)
 }
 
 // Java: ParserTest.closureUnawareAnnotation_specifyMinificationLevel_inFileOverview_succeeds()

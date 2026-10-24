@@ -72,6 +72,9 @@ var JSTypeExpression_IMPLICIT_TEMPLATE_BOUND = func() *JSTypeExpression {
 
 // Java: JSTypeExpression(Node, String)
 func NewJSTypeExpression(root *Node, sourceName string) *JSTypeExpression {
+	if root.GetParent() != nil {
+		root = root.CloneTree()
+	}
 	return &JSTypeExpression{root: root, sourceName: sourceName}
 }
 
@@ -170,7 +173,7 @@ func JSTypeExpression_MakeOptionalArg(expr *JSTypeExpression) *JSTypeExpression 
 	if expr.IsOptionalArg() || expr.IsVarArgs() {
 		return expr
 	} else {
-		equals := NewNodeWithChild(Token_EQUALS, expr.root)
+		equals := NewNodeWithChild(Token_EQUALS, expr.root.CloneTree())
 		equals.ClonePropsFrom(expr.root)
 		return NewJSTypeExpression(equals, expr.sourceName)
 	}
@@ -184,7 +187,7 @@ func JSTypeExpression_MakeVarArgs(expr *JSTypeExpression) *JSTypeExpression {
 	if expr.IsOptionalArg() || expr.IsVarArgs() {
 		return expr
 	} else {
-		equals := NewNodeWithChild(Token_ITER_REST, expr.root)
+		equals := NewNodeWithChild(Token_ITER_REST, expr.root.CloneTree())
 		equals.ClonePropsFrom(expr.root)
 		return NewJSTypeExpression(equals, expr.sourceName)
 	}

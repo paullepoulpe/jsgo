@@ -530,7 +530,6 @@ func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlineProperties
 	if i.injector == nil {
 		i.injector = NewFunctionInjector_Builder(i.outer.outer.compiler).
 			AssumeStrictThis(true).
-			AssumeMinimumCapture(true).
 			Build()
 	}
 	return i.injector

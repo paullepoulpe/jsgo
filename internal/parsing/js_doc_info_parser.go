@@ -1463,6 +1463,7 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 		var suppressBuf [8]string
 		suppressions := suppressBuf[:0]
 		for {
+			p.SkipEOLs()
 			if p.Match(JsDocToken_STRING) {
 				name := p.stream.GetString()
 				if !p.suppressionNames.Contains(name) {
@@ -1476,6 +1477,7 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 				return token
 			}
 
+			p.SkipEOLs()
 			if p.MatchEither(JsDocToken_PIPE, JsDocToken_COMMA) {
 				token = p.Next()
 			} else {

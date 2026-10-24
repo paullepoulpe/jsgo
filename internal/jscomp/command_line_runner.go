@@ -209,7 +209,7 @@ type commandLineRunner_Flags struct {
 	isolatePolyfills                   bool
 	printSourceAfterEachPass           bool
 	moduleResolutionMode               ModuleLoader_ResolutionMode
-	browserResolverPrefixReplacements  *jutil.JavaHashMap[string, *string]
+	browserResolverPrefixReplacements  *jutil.LinkedHashMap[string, *string]
 	packageJsonEntryNames              *string
 	errorFormat                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption
 	renaming                           bool
@@ -348,7 +348,7 @@ func newCommandLineRunner_Flags() *commandLineRunner_Flags {
 		isolatePolyfills:                   false,
 		printSourceAfterEachPass:           false,
 		moduleResolutionMode:               ModuleLoader_ResolutionMode_BROWSER,
-		browserResolverPrefixReplacements:  jutil.NewJavaHashMap[string, *string](),
+		browserResolverPrefixReplacements:  jutil.NewLinkedHashMap[string, *string](),
 		packageJsonEntryNames:              nil,
 		errorFormat:                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_STANDARD,
 		renaming:                           true,
@@ -557,7 +557,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 		{Option: &args4j.Option{Name: "--module_resolution", Usage: "Specifies how the compiler locates modules. BROWSER requires all module imports to begin with a '.' or '/' and have a file extension. NODE uses the node module rules. WEBPACK looks up modules from a special lookup map."},
 			Field: args4j.EnumField(c, "moduleResolutionMode", commandLineRunner_ModuleLoader_ResolutionMode_class, &f.moduleResolutionMode)},
 		{Option: &args4j.Option{Name: "--browser_resolver_prefix_replacements", Usage: "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect."},
-			Field: args4j.StringMapField(c, "browserResolverPrefixReplacements", &f.browserResolverPrefixReplacements)},
+			Field: args4j.LinkedStringMapField(c, "browserResolverPrefixReplacements", &f.browserResolverPrefixReplacements)},
 		{Option: &args4j.Option{Name: "--package_json_entry_names", Usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\"."},
 			Field: args4j.NullableStringField(c, "packageJsonEntryNames", &f.packageJsonEntryNames)},
 		{Option: &args4j.Option{Name: "--error_format", Usage: "Specifies format for error messages."},
@@ -1864,11 +1864,11 @@ func commandLineRunner_j2clPassModeValueOf(name string) CompilerOptions_J2clPass
 }
 
 // commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of a
-// HashMap<String, String>: its entries in the HashMap's iteration order.
+// LinkedHashMap<String, String>: its entries in insertion order.
 //
 // Go-only: language-adapter — args4j's MapOptionHandler stores String
 // values boxed (*string).
-func commandLineRunner_immutableMapCopyOf(m *jutil.JavaHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
+func commandLineRunner_immutableMapCopyOf(m *jutil.LinkedHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
 	result := jutil.NewImmutableMapBuilder[string, string]()
 	for k, v := range m.All() {
 		if v == nil {

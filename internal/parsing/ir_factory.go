@@ -129,6 +129,7 @@ const IRFactory_UNEXPECTED_YIELD = "yield must be inside generator function"
 const IRFactory_UNEXPECTED_AWAIT = "await must be inside asynchronous function"
 const IRFactory_UNEXPECTED_FOR_AWAIT_OF = "'for-await-of' used in a non-async function context"
 const IRFactory_UNEXPECTED_NEW_DOT_TARGET = "new.target must be inside a function"
+const IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK = "new.target is not supported in class field initializers or static blocks"
 const IRFactory_UNDEFINED_LABEL = "undefined label \"%s\""
 
 var IRFactory_ES5_RESERVED_KEYWORDS = jutil.NewLinkedHashSet(
@@ -630,13 +631,22 @@ func (f *IRFactory) ValidateNewDotTarget(n *rhino.Node) {
 		return
 	}
 
-	parent := n
-	for {
-		parent = parent.GetParent()
-		if parent == nil {
-			break
+	child := n
+	for parent := n.GetParent(); parent != nil; child, parent = parent, parent.GetParent() {
+		// Skip arrow functions, which use the `new.target` of the code around them.
+		if parent.IsFunction() && !parent.IsArrowFunction() {
+			return
 		}
-		if parent.IsFunction() {
+		if parent.IsMemberFieldDef() ||
+			(parent.IsComputedFieldDef() && child.IsSecondChildOf(parent)) ||
+			(parent.IsClassMembers() && child.IsBlock()) {
+			// Class field initializers and static blocks run with no [[NewTarget]], so `new.target` is
+			// always `undefined` there. That is rarely what the code means, so it is an error.
+			f.errorReporter.Error(
+				IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+				f.sourceName,
+				n.GetLineno(),
+				n.GetCharno())
 			return
 		}
 	}
@@ -1714,21 +1724,6 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 	d.SetSourceInfoFromToken(node, literal)
 	node.PutBooleanProp(rhino.Node_QUOTED_PROP, true)
 	return node
-}
-
-// Java: IRFactory.TransformDispatcher.processComprehension(ComprehensionTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehension(tree *parser.ComprehensionTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
-}
-
-// Java: IRFactory.TransformDispatcher.processComprehensionFor(ComprehensionForTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionFor(tree *parser.ComprehensionForTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
-}
-
-// Java: IRFactory.TransformDispatcher.processComprehensionIf(ComprehensionIfTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionIf(tree *parser.ComprehensionIfTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
 }
 
 // Java: IRFactory.TransformDispatcher.processArrayLiteral(ArrayLiteralExpressionTree)
@@ -3962,13 +3957,6 @@ func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, 
 	}
 }
 
-// Java: IRFactory.TransformDispatcher.unsupportedLanguageFeature(ParseTree, String)
-func (d *IRFactory_TransformDispatcher) UnsupportedLanguageFeature(node parser.ParseTree, feature string) *rhino.Node {
-	d.errorReporter.Error(
-		"unsupported language feature: "+feature, d.sourceName, IRFactory_Lineno(node), IRFactory_Charno(node))
-	return d.CreateMissingExpressionNode()
-}
-
 // Java: IRFactory.TransformDispatcher.processLiteralExpression(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessLiteralExpression(expr *parser.LiteralExpressionTree) *rhino.Node {
 	switch expr.LiteralToken.GetTokenBase().Type {
@@ -4160,12 +4148,6 @@ func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) *rhino.No
 		return d.ProcessArrayPattern(node.(*parser.ArrayPatternTree))
 	case parser.ParseTreeType_OBJECT_PATTERN:
 		return d.ProcessObjectPattern(node.(*parser.ObjectPatternTree))
-	case parser.ParseTreeType_COMPREHENSION:
-		return d.ProcessComprehension(node.(*parser.ComprehensionTree))
-	case parser.ParseTreeType_COMPREHENSION_FOR:
-		return d.ProcessComprehensionFor(node.(*parser.ComprehensionForTree))
-	case parser.ParseTreeType_COMPREHENSION_IF:
-		return d.ProcessComprehensionIf(node.(*parser.ComprehensionIfTree))
 	case parser.ParseTreeType_DEFAULT_PARAMETER:
 		return d.ProcessDefaultParameter(node.(*parser.DefaultParameterTree))
 	case parser.ParseTreeType_ITER_REST:
@@ -4400,7 +4382,11 @@ func (f *IRFactory) NormalizeString(token parser.LiteralToken, templateLiteral b
 			var numDigits int
 
 			if cur+1 < len(units) && IRFactory_IsOctalDigit(units[cur+1]) {
-				if cur+2 < len(units) && IRFactory_IsOctalDigit(units[cur+2]) {
+				// A three digit escape is only legal when the leading digit is 0-3; with a leading
+				// digit of 4-7 the value would exceed \377, so only two digits are consumed and the
+				// third octal digit is a literal character (ECMAScript Annex B.1.2
+				// LegacyOctalEscapeSequence).
+				if c <= '3' && cur+2 < len(units) && IRFactory_IsOctalDigit(units[cur+2]) {
 					numDigits = 3
 				} else {
 					numDigits = 2

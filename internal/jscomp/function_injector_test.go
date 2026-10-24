@@ -40,9 +40,6 @@ var FunctionInjectorTest_INLINE_DIRECT = FunctionInjector_InliningMode_DIRECT
 // Java: FunctionInjectorTest.INLINE_BLOCK
 var FunctionInjectorTest_INLINE_BLOCK = FunctionInjector_InliningMode_BLOCK
 
-// Java: FunctionInjectorTest.ASSUME_MINIMUM_CAPTURE
-const FunctionInjectorTest_ASSUME_MINIMUM_CAPTURE = false
-
 // TODO(johnlenz): remove this constant once this has been proven in
 // production code.
 //
@@ -2094,7 +2091,6 @@ func (c *FunctionInjectorTest) HelperCanInlineReferenceToFunction(
 		NewFunctionInjector_Builder(compiler).
 			AllowDecomposition(c.allowDecomposition).
 			AssumeStrictThis(c.assumeStrictThis).
-			AssumeMinimumCapture(FunctionInjectorTest_ASSUME_MINIMUM_CAPTURE).
 			FunctionArgumentInjector(functionArgumentInjector).
 			Build()
 	tree := FunctionInjectorTest_Parse(compiler, code)
@@ -2154,7 +2150,6 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 		NewFunctionInjector_Builder(compiler).
 			AllowDecomposition(c.allowDecomposition).
 			AssumeStrictThis(c.assumeStrictThis).
-			AssumeMinimumCapture(FunctionInjectorTest_ASSUME_MINIMUM_CAPTURE).
 			FunctionArgumentInjector(functionArgumentInjector).
 			Build()
 
@@ -2240,7 +2235,6 @@ func (c *FunctionInjectorTest) DoesFunctionMeetMinimumRequirements(code string, 
 		NewFunctionInjector_Builder(compiler).
 			AllowDecomposition(c.allowDecomposition).
 			AssumeStrictThis(c.assumeStrictThis).
-			AssumeMinimumCapture(FunctionInjectorTest_ASSUME_MINIMUM_CAPTURE).
 			Build()
 	tree := FunctionInjectorTest_Parse(compiler, code)
 

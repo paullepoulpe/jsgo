@@ -21,6 +21,7 @@ package jscomp
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -2485,6 +2486,37 @@ func (c *CodePrinterTest) TestExponents() {
 
 	c.AssertPrintNumber(".01", 0.01)
 	c.AssertPrintNumber("1.01", 1.01)
+}
+
+// Java: CodePrinterTest.testFormatNumber()
+func (c *CodePrinterTest) TestFormatNumber() {
+	// Schubfach boundary values
+	AssertThat(CodeConsumer_FormatNumber(2.0e-3)).IsEqualTo(".002")
+	AssertThat(CodeConsumer_FormatNumber(1.0e23)).IsEqualTo("1E23")
+	AssertThat(CodeConsumer_FormatNumber(jutil.DoubleParseDouble("9.007199254740993e15"))).
+		IsEqualTo("9007199254740992")
+
+	// Subnormals and MAX_VALUE
+	AssertThat(CodeConsumer_FormatNumber(math.SmallestNonzeroFloat64)).IsEqualTo("4.9E-324")
+	AssertThat(CodeConsumer_FormatNumber(math.MaxFloat64)).IsEqualTo("1.7976931348623157E308")
+
+	// Powers of 10
+	AssertThat(CodeConsumer_FormatNumber(100)).IsEqualTo("100")
+	AssertThat(CodeConsumer_FormatNumber(1000)).IsEqualTo("1E3")
+	AssertThat(CodeConsumer_FormatNumber(1e12)).IsEqualTo("1E12")
+	AssertThat(CodeConsumer_FormatNumber(1e13)).IsEqualTo("1E13")
+
+	// Hex-vs-decimal crossover integers around 1000000000000L
+	AssertThat(CodeConsumer_FormatNumber(float64(int64(1000000000000)))).IsEqualTo("1E12")
+	AssertThat(CodeConsumer_FormatNumber(float64(int64(1000000000001)))).IsEqualTo("0xe8d4a51001")
+
+	// Leading-zero fractions
+	AssertThat(CodeConsumer_FormatNumber(0.5)).IsEqualTo(".5")
+	AssertThat(CodeConsumer_FormatNumber(0.002)).IsEqualTo(".002")
+	AssertThat(CodeConsumer_FormatNumber(0.0001)).IsEqualTo("1E-4")
+
+	// .0E stripping
+	AssertThat(CodeConsumer_FormatNumber(1.0e21)).IsEqualTo("1E21")
 }
 
 // Java: CodePrinterTest.testBiggerThanMaxLongNumericLiterals()
