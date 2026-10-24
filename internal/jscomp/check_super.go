@@ -48,6 +48,16 @@ type CheckSuper struct {
 // Java: CheckSuper.MISSING_CALL_TO_SUPER
 var CheckSuper_MISSING_CALL_TO_SUPER = DiagnosticType_Error("JSC_MISSING_CALL_TO_SUPER", "constructor is missing a call to super()")
 
+// For a derived class constructor that has a `super()` call or returns a value, but might still
+// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
+// the constructor might intentionally return a different object.
+//
+// Java: CheckSuper.MISSING_ROOT_LEVEL_CALL_TO_SUPER
+var CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER = DiagnosticType_Error(
+	"JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
+	"constructor must unconditionally call super() in a root-level statement before any"+
+		" return")
+
 // Java: CheckSuper.THIS_BEFORE_SUPER
 var CheckSuper_THIS_BEFORE_SUPER = DiagnosticType_Error("JSC_THIS_BEFORE_SUPER", "cannot access this before calling super()")
 

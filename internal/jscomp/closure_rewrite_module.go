@@ -1693,7 +1693,9 @@ func (m *ClosureRewriteModule) UpdateGoogRequireDynamicCallInAwait(call *rhino.N
 
 	// `module$exports$a$b$c`
 	exportedNamespaceNameNode :=
-		m.astFactory.CreateQName(m.globalTypedStaticScope(), *exportedNamespace).SrcrefTree(call)
+		m.astFactory.
+			CreateQNameUsingJSTypeInfo(m.globalTypedScope, *exportedNamespace).
+			SrcrefTree(call)
 	exportedNamespaceNameNode.SetJSType(m.rewriteState.GetGoogModuleNamespaceType(namespaceId))
 	exportedNamespaceNameNode.SetOriginalName(&namespaceId)
 
@@ -2015,7 +2017,7 @@ func (m *ClosureRewriteModule) MaybeUpdateExportNameRef(t *NodeTraversal, n *rhi
 	if m.currentScript.declareLegacyNamespace {
 		legacyQname :=
 			m.astFactory.
-				CreateQName(m.globalTypedStaticScope(), *m.currentScript.namespaceId).
+				CreateQNameUsingJSTypeInfo(m.globalTypedScope, *m.currentScript.namespaceId).
 				SrcrefTree(n)
 		legacyQname.SetJSType(n.GetJSType())
 		n.ReplaceWith(legacyQname)

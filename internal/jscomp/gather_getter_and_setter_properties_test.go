@@ -318,6 +318,43 @@ func (c *GatherGetterAndSetterPropertiesTest) TestDetectDefinePropertiesMemberFu
 		IsEqualTo(AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER)
 }
 
+// Java: GatherGetterAndSetterPropertiesTest.detectObjectCreateWithProperties()
+func (c *GatherGetterAndSetterPropertiesTest) TestDetectObjectCreateWithProperties() {
+	// Getters and setters in the descriptors of `Object.create(proto, descriptors)` are collected
+	// like those of `Object.defineProperties`.
+	c.TestSame(
+		`Object.create(null, {
+  prop: {
+    get() {},
+  }
+});
+`)
+
+	AssertThat(c.GetLastAccessorSummary().GetKind("prop")).IsEqualTo(AccessorSummary_PropertyAccessKind_GETTER_ONLY)
+
+	c.TestSame(
+		`Object.create(proto, {
+  prop: {
+    get: function() {},
+    set: function(v) {},
+  }
+});
+`)
+
+	AssertThat(c.GetLastAccessorSummary().GetKind("prop")).
+		IsEqualTo(AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER)
+
+	c.TestSame(
+		`other.Object.create(null, {
+  prop: {
+    get() {},
+  }
+});
+`)
+
+	AssertThat(c.GetLastAccessorSummary().GetKind("prop")).IsEqualTo(AccessorSummary_PropertyAccessKind_NORMAL)
+}
+
 // Java: GatherGetterAndSetterPropertiesTest.detectJscompGlobalObject()
 func (c *GatherGetterAndSetterPropertiesTest) TestDetectJscompGlobalObject() {
 	c.TestSame(

@@ -3037,6 +3037,56 @@ func TestNodeUtil_AssortedTests_TestIsNotLValue(t *testing.T) {
 	nuh_assertNotLValueNamedX(t, x)
 }
 
+func nuh_assertDeclarationLValueNamedX(t *testing.T, js string) {
+	x := nuh_getNameNode(t, nuParse(t, js), "x")
+	nuAssertThat(t, NodeUtil_IsDeclarationLValue(x)).IsTrue()
+}
+
+func nuh_assertNotDeclarationLValueNamedX(t *testing.T, js string) {
+	x := nuh_getNameNode(t, nuParse(t, js), "x")
+	nuAssertThat(t, NodeUtil_IsDeclarationLValue(x)).IsFalse()
+}
+
+func TestNodeUtil_AssortedTests_TestIsDeclarationLValue(t *testing.T) {
+	nuh_assertDeclarationLValueNamedX(t, "var x;")
+	nuh_assertDeclarationLValueNamedX(t, "let x = 1;")
+	nuh_assertDeclarationLValueNamedX(t, "const x = 1;")
+	nuh_assertDeclarationLValueNamedX(t, "const [x] = arr;")
+	nuh_assertDeclarationLValueNamedX(t, "const [[x]] = arr;")
+	nuh_assertDeclarationLValueNamedX(t, "const {y: x} = obj;")
+	nuh_assertDeclarationLValueNamedX(t, "const {z: {y: x}} = obj;")
+	nuh_assertDeclarationLValueNamedX(t, "const [x = 1] = arr;")
+	nuh_assertDeclarationLValueNamedX(t, "const [...x] = arr;")
+	nuh_assertDeclarationLValueNamedX(t, "const {...x} = obj;")
+	nuh_assertDeclarationLValueNamedX(t, "const {[k]: x} = obj;")
+	nuh_assertDeclarationLValueNamedX(t, "const {[k]: [x = 1]} = obj;")
+	nuh_assertDeclarationLValueNamedX(t, "for (const [x] of arr) {}")
+	nuh_assertDeclarationLValueNamedX(t, "for (const [[x]] of arr) {}")
+	nuh_assertDeclarationLValueNamedX(t, "function f(x) {}")
+	nuh_assertDeclarationLValueNamedX(t, "function f(x = 1) {}")
+	nuh_assertDeclarationLValueNamedX(t, "function f(...x) {}")
+	nuh_assertDeclarationLValueNamedX(t, "function f({z: [x = 1]} = {}) {}")
+	nuh_assertDeclarationLValueNamedX(t, "try {} catch ({y: [x]}) {}")
+}
+
+func TestNodeUtil_AssortedTests_TestIsNotDeclarationLValue(t *testing.T) {
+	nuh_assertNotDeclarationLValueNamedX(t, "x = 1;")
+	nuh_assertNotDeclarationLValueNamedX(t, "x++;")
+	nuh_assertNotDeclarationLValueNamedX(t, "([x] = arr);")
+	nuh_assertNotDeclarationLValueNamedX(t, "([[x]] = arr);")
+	nuh_assertNotDeclarationLValueNamedX(t, "({y: x} = obj);")
+	nuh_assertNotDeclarationLValueNamedX(t, "({z: {y: x}} = obj);")
+	nuh_assertNotDeclarationLValueNamedX(t, "([x = 1] = arr);")
+	nuh_assertNotDeclarationLValueNamedX(t, "([...x] = arr);")
+	nuh_assertNotDeclarationLValueNamedX(t, "({...x} = obj);")
+	nuh_assertNotDeclarationLValueNamedX(t, "({[k]: x} = obj);")
+	nuh_assertNotDeclarationLValueNamedX(t, "for ([x] of arr) {}")
+	nuh_assertNotDeclarationLValueNamedX(t, "for ([[x]] of arr) {}")
+	nuh_assertNotDeclarationLValueNamedX(t, "var a = x;")
+	nuh_assertNotDeclarationLValueNamedX(t, "const [a = x] = arr;")
+	nuh_assertNotDeclarationLValueNamedX(t, "const {[x]: a} = obj;")
+}
+
 func TestNodeUtil_AssortedTests_TestGetBestJsDocInfoNodeStrict_declaredName_doesNotThrow(t *testing.T) {
 	aName := nuParse(t, "/** some */ let A;").GetFirstFirstChild()
 	nuAssertThat(t, aName.IsName()).IsTrue()
@@ -4258,6 +4308,22 @@ func TestNodeUtil_AssortedTests_TestIsObjectDefinePropertiesDefinition(t *testin
 	nuAssertThat(t,
 		NodeUtil_IsObjectDefinePropertiesDefinition(
 			nuParseFirst(t, rhino.Token_CALL, "Object.defineProperties();"))).IsFalse()
+}
+
+func TestNodeUtil_AssortedTests_TestIsObjectCreateWithPropertiesDefinition(t *testing.T) {
+	nuAssertThat(t,
+		NodeUtil_IsObjectCreateWithPropertiesDefinition(
+			nuParseFirst(t, rhino.Token_CALL, "Object.create(null, {});"))).IsTrue()
+	nuAssertThat(t,
+		NodeUtil_IsObjectCreateWithPropertiesDefinition(
+			nuParseFirst(t, rhino.Token_CALL, "$jscomp.global.Object.create(proto, foo);"))).IsTrue()
+
+	nuAssertThat(t,
+		NodeUtil_IsObjectCreateWithPropertiesDefinition(
+			nuParseFirst(t, rhino.Token_CALL, "Object.create(proto);"))).IsFalse()
+	nuAssertThat(t,
+		NodeUtil_IsObjectCreateWithPropertiesDefinition(
+			nuParseFirst(t, rhino.Token_CALL, "other.Object.create(proto, {});"))).IsFalse()
 }
 
 func TestNodeUtil_AssortedTests_TestIsObjectDefinePropertyDefinition(t *testing.T) {

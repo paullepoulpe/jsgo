@@ -76,7 +76,7 @@ WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:4:3
 ERROR JSC_BAD_PROPERTY_OVERRIDE_IN_FILE_WITH_FILEOVERVIEW_VISIBILITY w5/access/other/fileoverview_user.js:4:40 @106+6 Overridden property method in file with fileoverview visibility PACKAGE must explicitly redeclare superclass visibility
 ## CheckConformance example
 ## CheckConformance all
-ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchRule\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
 WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:14:19 @560+19 Violation: BanGlobalVars
@@ -182,7 +182,7 @@ WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/x.min.js:1:0 @0+4 Violation: ev
 ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:15:0 @530+10 Violation: BANNED_NAME_CALL
 ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:16:0 @560+5 Violation: BANNED_NAME_CALL
 ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:64:21 @1983+12 Violation: BanThrowOfNonErrorTypes
-ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchRule\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
 WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:21:3 @721+9 Possible violation: BANNED_PROPERTY_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
@@ -312,7 +312,7 @@ WARNING JSC_NOT_FUNCTION_TYPE w5/jsdoc.js:71:22 @2312+17 number expressions are 
 ## CheckAccessControls
 ## CheckConformance example
 ## CheckConformance all
-ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchRule\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
 WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:10:20 @330+21 Violation: BanGlobalVars
@@ -438,7 +438,7 @@ WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:37:23 @459+1 Property p never 
 ## CheckAccessControls
 ## CheckConformance example
 ## CheckConformance all
-ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchRule\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
 WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:10:0 @96+24 Violation: BanGlobalVars
@@ -515,7 +515,7 @@ WARNING JSC_INEXISTENT_PROPERTY w5/varref/mod.js:2:8 @31+1 Property x never defi
 ## CheckAccessControls
 ## CheckConformance example
 ## CheckConformance all
-ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchRule\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
 ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
 WARNING JSC_CONFORMANCE_VIOLATION w5/varref/es.js:1:0 @0+103 Violation: RequireUseStrict

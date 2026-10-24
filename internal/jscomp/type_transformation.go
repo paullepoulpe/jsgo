@@ -871,7 +871,8 @@ func (t *TypeTransformation) evalInstanceOf(ttlAst *rhino.Node, nameResolver *ty
 
 // Java: TypeTransformation.evalNativeTypeExpr(Node)
 func (t *TypeTransformation) evalNativeTypeExpr(ttlAst *rhino.Node) rhino.JSType {
-	expr := rhino.NewJSTypeExpression(t.getCallArgument(ttlAst, 0), typeTransformation_VIRTUAL_FILE)
+	expr :=
+		rhino.NewJSTypeExpression(t.getCallArgument(ttlAst, 0).CloneTree(), typeTransformation_VIRTUAL_FILE)
 	return t.registry.EvaluateTypeExpression(expr, t.typeEnv)
 }
 
