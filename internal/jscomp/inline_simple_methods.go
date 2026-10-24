@@ -139,8 +139,7 @@ func NewInlineSimpleMethods_InlineTrivialAccessors(outer *InlineSimpleMethods) *
 	return a
 }
 
-func (*InlineSimpleMethods_InlineTrivialAccessors) noVisitLeaves()    {}
-func (*InlineSimpleMethods_InlineTrivialAccessors) noShouldTraverse() {}
+func (*InlineSimpleMethods_InlineTrivialAccessors) noVisitLeaves() {}
 
 func (a *InlineSimpleMethods_InlineTrivialAccessors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	if !n.IsCall() {
@@ -454,8 +453,7 @@ func NewInlineSimpleMethods_GatherSignatures(outer *InlineSimpleMethods) *Inline
 	return &InlineSimpleMethods_GatherSignatures{outer: outer}
 }
 
-func (*InlineSimpleMethods_GatherSignatures) noVisitLeaves()    {}
-func (*InlineSimpleMethods_GatherSignatures) noShouldTraverse() {}
+func (*InlineSimpleMethods_GatherSignatures) noVisitLeaves() {}
 
 // Java: InlineSimpleMethods.GatherSignatures.visit(NodeTraversal, Node, Node)
 func (g *InlineSimpleMethods_GatherSignatures) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
