@@ -640,7 +640,7 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 				}
 			}
 		case rhino.Token_EXPR_RESULT:
-			switch currentNode.GetFirstChild().GetToken() {
+			switch expr := currentNode.GetFirstChild(); expr.GetToken() {
 			case rhino.Token_ASSIGN,
 				rhino.Token_ASSIGN_BITOR,
 				rhino.Token_ASSIGN_BITXOR,
@@ -656,8 +656,15 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 				rhino.Token_ASSIGN_EXPONENT,
 				rhino.Token_ASSIGN_OR,
 				rhino.Token_ASSIGN_AND,
-				rhino.Token_ASSIGN_COALESCE,
-				rhino.Token_INC,
+				rhino.Token_ASSIGN_COALESCE:
+				// An assignment is a statement the standard optimizations
+				// leave alone only if it certainly changes state: dead-code
+				// removal drops a side-effect-free one (`[1].a = 2`), as
+				// AstAnalyzer.checkAssignmentForChangeState decides.
+				if peepholeAssignmentCertainlyChangesState(expr) {
+					return
+				}
+			case rhino.Token_INC,
 				rhino.Token_DEC,
 				rhino.Token_DELPROP,
 				rhino.Token_YIELD,
@@ -776,4 +783,31 @@ func (p *PeepholeOptimizationsPass) EndTraversal() {
 	for _, optimization := range p.peepholeOptimizations {
 		optimization.EndTraversal()
 	}
+}
+
+// peepholeAssignmentCertainlyChangesState reports whether the assignment
+// assign has side effects whatever its operands are: the conditions under
+// which AstAnalyzer.checkAssignmentForChangeState returns true before
+// looking at the operands' own side effects (a name target, or a property
+// of a receiver that is neither a local value nor rooted in a literal).
+// When it returns false, the assignment may be side-effect free and the
+// standard optimizations must see it.
+//
+// Go-only: performance — the PeepCallback prefilter.
+func peepholeAssignmentCertainlyChangesState(assign *rhino.Node) bool {
+	target := assign.GetFirstChild()
+	if target.IsName() {
+		return true
+	}
+	if !NodeUtil_IsNormalGet(target) {
+		return false
+	}
+	current := target.GetFirstChild()
+	if NodeUtil_EvaluatesToLocalValue(current) {
+		return false
+	}
+	for NodeUtil_IsNormalGet(current) {
+		current = current.GetFirstChild()
+	}
+	return !NodeUtil_IsLiteralValue(current, true)
 }

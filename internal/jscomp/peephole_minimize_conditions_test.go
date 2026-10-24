@@ -1042,3 +1042,18 @@ func (c *PeepholeMinimizeConditionsTest) TestBatchE_booleanAbsorptionAndContextS
 	c.TestSame("x = foo() || (foo() && b);")
 	c.TestSame("function f(Boolean) { Boolean(x) ? a : b; }")
 }
+
+// Go-only: PeepholeOptimizationsPass's prefilter skips assignment statements
+// that certainly change state, and must let the others through: Java folds
+// a side-effect-free assignment to a property of a literal (the test262
+// files pass/d96153b59454dddd.js and pass-explicit/687f678cde900411.js);
+// the expectations are PeepholeDump's output with the v20261015 jar.
+func (c *PeepholeMinimizeConditionsTest) TestGoOnlyPrefilterLetsSideEffectFreeAssignmentsThrough() {
+	c.Fold("[1].a = 2", "1")
+	c.Fold("([1]).a = (2)", "1")
+	c.Fold("/x/.lastIndex = 0", "0")
+	c.FoldSame("({x: 1}).y += 3")
+	c.FoldSame("x.y.z = 1")
+	c.FoldSame("this.q = 2")
+	c.FoldSame("[1][0] = f()")
+}
