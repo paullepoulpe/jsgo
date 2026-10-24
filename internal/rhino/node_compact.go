@@ -76,8 +76,7 @@ func (k *Compactor) copyNode(old Node) Node {
 	nr := nw.rec()
 	*nr = *or
 	nr.next, nr.first, nr.parent, nr.previous = 0, 0, 0, 0
-	nr.tc = k.dst.translateTC(k.src, or.tc, or.kindFlags&kindFlagTypeIsColor != 0)
-	nr.aux = 0
+	nw.setTC(k.dst.translateTC(k.src, old.tc(), or.kindFlags&kindFlagTypeIsColor != 0))
 	if a := old.auxValue(); a != (nodeAux{}) {
 		if a.ext != nil && a.ext.typeBeforeCast != 0 {
 			a.ext.typeBeforeCast = k.dst.translateTypeHandle(k.src, a.ext.typeBeforeCast)

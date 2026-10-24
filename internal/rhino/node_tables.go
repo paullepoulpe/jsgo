@@ -9,23 +9,25 @@ import (
 
 // Go-only: the side tables of a NodeStore.
 //
-// A node record refers to its JSType or Color (nodeData.tc) and to its cold
-// data (nodeData.aux: JSDoc and the rarely set fields, see nodeAux) through
-// 32-bit handles into its store's tables instead of pointers, so the record
-// holds no pointer for the GC to trace, and the type column can be dropped
-// wholesale at types-to-colors.
+// What most nodes do not have is kept beside the record instead of in it,
+// so the record stays small and holds no pointer for the GC to trace:
+//
+//   - tc: a node's JSType or Color, as a 32-bit handle into the store's
+//     types or colors table, in a column per block (see "tc" below).
+//   - aux: a node's cold data (JSDoc and the rarely set fields, see
+//     nodeAux), in a map of the store (see "aux" below).
+//
+// The handle tables:
 //
 //   - types: a JSType remembers its handle (JSTypeBase.nodeHandle); the
 //     registry that owns the types clears their entries with
 //     ReleaseNodeTypeHandles (called when the compiler drops its registry),
 //     after which GetJSType on a node that still refers to one returns nil.
 //   - colors: a Color remembers (store id, handle).
-//   - aux: one entry per node that has cold data; dead nodes' entries stay
-//     until compaction copies the live nodes into a new store.
 //
-// Concurrency: lookups take no lock; a table only grows (under the store's
-// mutex), its blocks never move, and a handle is published (stored in a
-// record) only after its entry was written.
+// Concurrency: handle and column lookups take no lock; a table only grows
+// (under the store's mutex), its blocks never move, and a handle is
+// published (stored in a column) only after its entry was written.
 
 const (
 	tableBlockShift = 12
@@ -174,30 +176,61 @@ func (s *NodeStore) colorAt(h uint32) *colors.Color {
 
 // --- aux ---
 
-// auxOf returns the node's cold-data entry, or nil if it has none.
-func (n Node) auxOf() *nodeAux {
-	h := n.rec().aux
-	if h == 0 {
-		return nil
-	}
-	return n.store().aux.at(h)
+// The cold data of the few nodes that have some (about 1 %) is kept in a
+// map per store instead of a field in every record. The map is split in
+// shards, each with its own lock, because parallel parsing attaches JSDoc
+// from several goroutines; readers only look when the record's flags say
+// the node has cold data (propFlagHasJSDoc, kindFlagHasExtBox). Entries of
+// dead nodes stay until compaction copies the live nodes into a new store.
+
+const auxShards = 16
+
+type auxShard struct {
+	mu sync.RWMutex
+	m  map[uint32]nodeAux
 }
 
-// setAux stores a as the node's cold data, reusing the node's entry when it
-// has one; the zero nodeAux clears it.
-func (n Node) setAux(a nodeAux) {
+// hasAux reports whether the record's flags say n may have cold data.
+func (n Node) hasAux() bool {
 	r := n.rec()
-	if r.aux != 0 {
-		*n.store().aux.at(r.aux) = a
-		if a == (nodeAux{}) {
-			r.aux = 0
+	return r.propFlags&propFlagHasJSDoc != 0 || r.kindFlags&kindFlagHasExtBox != 0
+}
+
+// auxOf returns a copy of the node's cold-data entry, or nil if it has none.
+func (n Node) auxOf() *nodeAux {
+	if !n.hasAux() {
+		return nil
+	}
+	a, ok := n.store().auxGet(uint32(n))
+	if !ok {
+		return nil
+	}
+	return &a
+}
+
+func (s *NodeStore) auxGet(id uint32) (nodeAux, bool) {
+	sh := &s.aux[id%auxShards]
+	sh.mu.RLock()
+	a, ok := sh.m[id]
+	sh.mu.RUnlock()
+	return a, ok
+}
+
+// setAux stores a as the node's cold data; the zero nodeAux clears it.
+func (n Node) setAux(a nodeAux) {
+	s := n.store()
+	id := uint32(n)
+	sh := &s.aux[id%auxShards]
+	sh.mu.Lock()
+	if a == (nodeAux{}) {
+		delete(sh.m, id)
+	} else {
+		if sh.m == nil {
+			sh.m = make(map[uint32]nodeAux)
 		}
-		return
+		sh.m[id] = a
 	}
-	if a != (nodeAux{}) {
-		s := n.store()
-		r.aux = s.aux.add(&s.mu, a)
-	}
+	sh.mu.Unlock()
 }
 
 // auxValue returns a copy of the node's cold-data entry (zero if none).
@@ -206,6 +239,55 @@ func (n Node) auxValue() nodeAux {
 		return *a
 	}
 	return nodeAux{}
+}
+
+// --- tc ---
+
+// A node's JSType or Color handle lives in a column beside its block (a
+// uint32 per record), allocated for a block when the first node in it gets
+// a type or color: untyped compilations never allocate one.
+
+type tcColumn [blockLen]uint32
+
+// nodeTCs is the column directory, parallel to nodeBlocks.
+var nodeTCs [numBlocks]atomic.Pointer[tcColumn]
+
+// tc returns n's JSType or Color handle (0: none).
+func (n Node) tc() uint32 {
+	if c := nodeTCs[uint32(n)>>blockShift].Load(); c != nil {
+		return c[uint32(n)&blockMask]
+	}
+	return 0
+}
+
+// setTC sets n's JSType or Color handle.
+func (n Node) setTC(h uint32) {
+	c := nodeTCs[uint32(n)>>blockShift].Load()
+	if c == nil {
+		if h == 0 {
+			return
+		}
+		c = n.store().addTCColumn(uint32(n))
+	}
+	c[uint32(n)&blockMask] = h
+}
+
+// addTCColumn creates the tc column of id's block (unless another goroutine
+// just did).
+//
+//go:noinline
+func (s *NodeStore) addTCColumn(id uint32) *tcColumn {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := int((id - s.base) >> blockShift)
+	for len(s.tcs) <= k {
+		s.tcs = append(s.tcs, nil)
+	}
+	if s.tcs[k] == nil {
+		s.tcs[k] = new(tcColumn)
+		nodeTCs[id>>blockShift].Store(s.tcs[k])
+	}
+	return s.tcs[k]
 }
 
 // translateTC returns the tc handle in s for the JSType or Color that tc

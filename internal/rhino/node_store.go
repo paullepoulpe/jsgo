@@ -11,7 +11,7 @@ import (
 
 // Go-only: node storage.
 //
-// A Node is a 32-bit id. The node's data (nodeData, 48 bytes, no Go
+// A Node is a 32-bit id. The node's data (nodeData, 40 bytes, no Go
 // pointers: links are ids too) lives in a NodeStore, which belongs to one
 // compilation, so the garbage collector never traces the AST.
 //
@@ -53,7 +53,7 @@ const NilNode Node = 0
 const (
 	staticBit = 1 << 31 // ids of the static store
 
-	blockShift = 14 // 16384 records (768 KiB) per block
+	blockShift = 14 // 16384 records (640 KiB) per block
 	blockLen   = 1 << blockShift
 	blockMask  = blockLen - 1
 	numBlocks  = 1 << (32 - blockShift)
@@ -76,9 +76,10 @@ type NodeStore struct {
 
 	mu sync.Mutex // guards block creation and the side tables' growth
 
+	tcs    []*tcColumn // the JSType/Color handle columns of the blocks (node_tables.go)
+	aux    [auxShards]auxShard
 	types  handleTable[*JSTypeBase]
 	colors handleTable[*colors.Color]
-	aux    handleTable[nodeAux]
 }
 
 var (
@@ -108,7 +109,6 @@ func newNodeStore(static bool) *NodeStore {
 	s := &NodeStore{id: nodeStoreLastID.Add(1), static: static}
 	s.types.init()
 	s.colors.init()
-	s.aux.init()
 	if static {
 		s.setBase(staticBit)
 	}
@@ -120,17 +120,27 @@ func (s *NodeStore) setBase(base uint32) {
 	s.next.Store(base)
 }
 
-// register puts s's blocks in the directory.
+// register puts s's blocks (and their tc columns) in the directories.
 func (s *NodeStore) register() {
 	for k, b := range s.blocks {
 		nodeBlocks[s.base>>blockShift+uint32(k)].Store(b)
 	}
+	for k, c := range s.tcs {
+		if c != nil {
+			nodeTCs[s.base>>blockShift+uint32(k)].Store(c)
+		}
+	}
 }
 
-// unregister takes s's blocks out of the directory.
+// unregister takes s's blocks (and their tc columns) out of the directories.
 func (s *NodeStore) unregister() {
 	for k, b := range s.blocks {
 		nodeBlocks[s.base>>blockShift+uint32(k)].CompareAndSwap(b, nil)
+	}
+	for k, c := range s.tcs {
+		if c != nil {
+			nodeTCs[s.base>>blockShift+uint32(k)].CompareAndSwap(c, nil)
+		}
 	}
 }
 

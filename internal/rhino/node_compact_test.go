@@ -67,7 +67,7 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	if n.GetLength() != 7 || n.GetOriginalName() != nil || n.GetJSDocInfo() != nil {
 		t.Fatal("cleared fields are still set")
 	}
-	if n.rec().kindFlags&kindFlagHasExtBox != 0 || n.rec().aux != 0 {
+	if n.hasAux() || n.auxOf() != nil {
 		t.Fatal("empty nodeExtBox was not released")
 	}
 }
@@ -84,8 +84,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 			t.Errorf("field %s is a pointer", f.Name)
 		}
 	}
-	if typ.Size() != 48 {
-		t.Errorf("nodeData is %d bytes, want 48", typ.Size())
+	if typ.Size() != 40 {
+		t.Errorf("nodeData is %d bytes, want 40", typ.Size())
 	}
 	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", s)

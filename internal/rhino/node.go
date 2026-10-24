@@ -600,8 +600,8 @@ var nodeBitToProp = [propBitCount]Node_Prop{
 	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 }
 
-// nodeExtBox holds the rarely-set parts of a node, behind Node.aux (see
-// node_tables.go).
+// nodeExtBox holds the rarely-set parts of a node, in its store's cold-data
+// map (node_tables.go).
 type nodeExtBox struct {
 	jsDocInfo      *JSDocInfo         // canonical *JSDocInfo (valid iff propFlagHasJSDoc != 0 && jsDocInfo != nil)
 	propListHead   *Node_PropListItem // remaining cold properties
@@ -1055,7 +1055,7 @@ func (n Node) InitFromTemplate(token Token, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	return n
@@ -1063,7 +1063,7 @@ func (n Node) InitFromTemplate(token Token, template Node) Node {
 
 // InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
 func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) Node {
-	if child.rec().parent != 0 || child.rec().next != 0 || child.rec().previous != 0 || template.rec().aux != 0 {
+	if child.rec().parent != 0 || child.rec().next != 0 || child.rec().previous != 0 || template.hasAux() {
 		return n.initWithChildFromTemplateSlow(token, child, template)
 	}
 	n.rec().token = token
@@ -1080,7 +1080,7 @@ func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template No
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	n.rec().first = n.ref(child)
@@ -1095,7 +1095,7 @@ func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, 
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	n.rec().first = n.ref(left)
@@ -1116,7 +1116,7 @@ func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, ri
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	n.rec().first = n.ref(left)
@@ -1139,7 +1139,7 @@ func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, ri
 
 //go:noinline
 func (n Node) initStringPayloadAndCold(str string, template Node) {
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	n.rec().payload = uint64(rhinoStringPoolIntern(str))
@@ -1186,7 +1186,7 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -1212,7 +1212,7 @@ func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindBigInt)
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	n.SetBigInt(bigint)
@@ -1225,7 +1225,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	n.rec().propFlags = template.rec().propFlags
-	if template.rec().aux != 0 {
+	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -2934,7 +2934,7 @@ func (n Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotatio
 		}
 	}
 
-	if printType && n.rec().tc != 0 {
+	if printType && n.tc() != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.WriteString(" : ")
 		sb.WriteString(typeString)
@@ -3022,7 +3022,7 @@ func (n Node) ToJson(appendable io.StringWriter) {
 		sb.append("}")
 	}
 
-	if n.rec().tc != 0 {
+	if n.tc() != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
@@ -3095,15 +3095,17 @@ func Node_ToJsonTreeHelper(n Node, appendable io.StringWriter) {
 // nodeData is the record of an AST node (fields as declared in Java, plus
 // the folded subclass payloads); a Node is a handle to one (node_store.go).
 //
-// Go-only: performance. 48 bytes, no Go pointers: the tree links are node
-// ids. Leaf payloads (float64 numbers, 32-bit interned
+// Go-only: performance. 40 bytes, no Go pointers: the tree links are node
+// ids. The JSType or Color handle and the cold data are kept beside the
+// record (node_tables.go): most nodes have no cold data, and untyped
+// compilations have no types or colors. Leaf payloads (float64 numbers, 32-bit interned
 // StringIDs for str/originalName/raw/cooked, BigInt IDs) live inline in
 // `payload uint64`, and all 40 boolean properties + CONSTANT_VAR_FLAGS +
 // SIDE_EFFECT_FLAGS + 17-bit SourceFileID live in `propFlags uint64`
-// without heap allocations. The JSType or Color and the cold data
-// (JSDocInfo, remaining properties, overflow length and original name: ~2%
-// of nodes) are reached through the 32-bit handles `tc` and `aux` into the
-// store's tables (node_tables.go).
+// without heap allocations. The cold data (JSDocInfo, remaining
+// properties, overflow length and original name: about 1% of nodes) is in a
+// map of the store, looked up only when the record's flags say the node has
+// some.
 type nodeData struct {
 	next     nodeID // next sibling, a linked list (0 = none)
 	first    nodeID // first element of a linked list of children
@@ -3113,8 +3115,6 @@ type nodeData struct {
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
 	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
 	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
-	tc           uint32 // handle of the JSType (kindFlagTypeIsColor clear) or Color (set) in the store's tables; 0: none
-	aux          uint32 // handle of the cold data (nodeAux) in the store's tables; 0: none
 	length16     uint16 // code length (0..65534 inline; 65535: in the nodeExtBox)
 	token        Token  // token kind (uint8)
 	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: forwarded (compaction); bit 7: hasExtBox
@@ -4550,7 +4550,7 @@ func (n Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) Node {
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
 func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 	dest.rec().linenoCharno = source.rec().linenoCharno
-	dest.rec().tc = dest.store().translateTC(source.store(), source.rec().tc, source.rec().kindFlags&kindFlagTypeIsColor != 0)
+	dest.setTC(dest.store().translateTC(source.store(), source.tc(), source.rec().kindFlags&kindFlagTypeIsColor != 0))
 	dest.rec().kindFlags = (dest.rec().kindFlags &^ (kindFlagTypeIsColor | kindFlagHasExtBox | kindFlagHasExtra)) |
 		(source.rec().kindFlags & (kindFlagTypeIsColor | kindFlagHasExtBox))
 	if srcBox := source.extBoxOrNil(); srcBox != nil {
@@ -4679,19 +4679,19 @@ func (n Node) SrcrefTreeIfMissing(other Node) Node {
 //
 // Java: Node.getJSType()
 func (n Node) GetJSType() JSType {
-	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
+	if n.tc() == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
 		return nil
 	}
-	return jsTypeOf(n.store().typeAt(n.rec().tc))
+	return jsTypeOf(n.store().typeAt(n.tc()))
 }
 
 // GetJSTypeBase returns the JSTypeBase on this node without constructing the
 // JSType interface value, or nil if no JSType is attached.
 func (n Node) GetJSTypeBase() *JSTypeBase {
-	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
+	if n.tc() == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
 		return nil
 	}
-	return n.store().typeAt(n.rec().tc)
+	return n.store().typeAt(n.tc())
 }
 
 // GetJSTypeRequired returns the compiled inferred type on this node, or
@@ -4704,11 +4704,11 @@ func (n Node) GetJSTypeRequired() JSType {
 
 // Java: Node.setJSType(JSType)
 func (n Node) SetJSType(x JSType) Node {
-	jutil.CheckStateMsg1(n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0, "%s", n)
+	jutil.CheckStateMsg1(n.tc() == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0, "%s", n)
 	if b := jsTypeBase(x); b != nil {
-		n.rec().tc = n.store().typeHandle(b)
+		n.setTC(n.store().typeHandle(b))
 	} else {
-		n.rec().tc = 0
+		n.setTC(0)
 	}
 	n.rec().kindFlags &^= kindFlagTypeIsColor
 	return n
@@ -4720,20 +4720,20 @@ func (n Node) SetJSType(x JSType) Node {
 //
 // Java: Node.getColor()
 func (n Node) GetColor() *colors.Color {
-	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0 {
+	if n.tc() == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0 {
 		return nil
 	}
-	return n.store().colorAt(n.rec().tc)
+	return n.store().colorAt(n.tc())
 }
 
 // Java: Node.setColor(Color)
 func (n Node) SetColor(x *colors.Color) Node {
-	jutil.CheckStateMsg1(n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0, "%s", n)
+	jutil.CheckStateMsg1(n.tc() == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0, "%s", n)
 	if x != nil {
-		n.rec().tc = n.store().colorHandle(x)
+		n.setTC(n.store().colorHandle(x))
 		n.rec().kindFlags |= kindFlagTypeIsColor
 	} else {
-		n.rec().tc = 0
+		n.setTC(0)
 		n.rec().kindFlags &^= kindFlagTypeIsColor
 	}
 	return n
@@ -4743,7 +4743,7 @@ func (n Node) SetColor(x *colors.Color) Node {
 //
 // Java: Node.copyTypeFrom(Node)
 func (n Node) CopyTypeFrom(other Node) Node {
-	n.rec().tc = n.store().translateTC(other.store(), other.rec().tc, other.rec().kindFlags&kindFlagTypeIsColor != 0)
+	n.setTC(n.store().translateTC(other.store(), other.tc(), other.rec().kindFlags&kindFlagTypeIsColor != 0))
 	n.rec().kindFlags = (n.rec().kindFlags &^ kindFlagTypeIsColor) | (other.rec().kindFlags & kindFlagTypeIsColor)
 	return n
 }
@@ -4851,12 +4851,12 @@ func (n Node) GetTypedefTypeProp() JSType {
 // pass over propListHead, returning the old JSTypeBase, whether TYPE_BEFORE_CAST
 // was present, and the node's JSDocInfo if any.
 func (n Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBeforeCast bool, jsdoc *JSDocInfo) {
-	if n.rec().tc != 0 {
+	if n.tc() != 0 {
 		if (n.rec().kindFlags & kindFlagTypeIsColor) != 0 {
 			jutil.CheckStateMsg1(false, "%s", n)
 		}
-		oldType = n.store().typeAt(n.rec().tc)
-		n.rec().tc = 0
+		oldType = n.store().typeAt(n.tc())
+		n.setTC(0)
 	}
 	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 		if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
@@ -6120,16 +6120,16 @@ func (n Node) IsDeclare() bool {
 // Go-only: language-adapter — recover the Java Object field only for printing
 // and equality; hot getters use the tagged pointer directly.
 func (n Node) typeOrColorValue() any {
-	if n.rec().tc == 0 {
+	if n.tc() == 0 {
 		return nil
 	}
 	if (n.rec().kindFlags & kindFlagTypeIsColor) != 0 {
-		if c := n.store().colorAt(n.rec().tc); c != nil {
+		if c := n.store().colorAt(n.tc()); c != nil {
 			return c
 		}
 		return nil
 	}
-	return jsTypeOf(n.store().typeAt(n.rec().tc))
+	return jsTypeOf(n.store().typeAt(n.tc()))
 }
 
 func (n Node) nodeStringValue() string {
@@ -6226,7 +6226,7 @@ func (n Node) MutateThisToNameIDInPlace(nameID uint32) bool {
 // ResetDetachedGetPropToNameID resets a detached GETPROP node (CanResetInPlace)
 // into IR_Name(nameID).SrcrefIfMissing(self), optionally setting IS_CONSTANT_NAME.
 func (n Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) {
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
@@ -6244,7 +6244,7 @@ func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsd
 	if n.rec().parent != 0 {
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
@@ -6261,7 +6261,7 @@ func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsd
 // ResetDetachedToFreshNameID resets a detached childless node (CanResetInPlace)
 // into a fresh IR_Name(nameID) with unset source location.
 func (n Node) ResetDetachedToFreshNameID(nameID uint32) Node {
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
@@ -6291,7 +6291,7 @@ func (n Node) OverwriteLeafFromClone(src Node) {
 	oldOrigID := n.node_originalNameID()
 	n.rec().token = src.rec().token
 	n.rec().kindFlags = src.rec().kindFlags & (kindMask | kindFlagTypeIsColor)
-	n.rec().tc = n.store().translateTC(src.store(), src.rec().tc, src.rec().kindFlags&kindFlagTypeIsColor != 0)
+	n.setTC(n.store().translateTC(src.store(), src.tc(), src.rec().kindFlags&kindFlagTypeIsColor != 0))
 	n.setAux(src.auxValue())
 	n.rec().propFlags = src.rec().propFlags
 	n.rec().payload = src.rec().payload
@@ -6316,14 +6316,14 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		return false
 	}
 	if src.IsNil() {
-		n.rec().tc = 0
+		n.setTC(0)
 		n.setAux(nodeAux{})
 		n.rec().kindFlags = 0
 		n.rec().propFlags = 0
 		n.rec().payload = 0
 		n.rec().linenoCharno = -1
 		n.rec().length16 = 0
-		num.rec().tc = 0
+		num.setTC(0)
 		num.setAux(nodeAux{})
 		num.rec().kindFlags = uint8(node_kindNumber)
 		num.rec().propFlags = 0
@@ -6336,14 +6336,14 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		return false
 	}
 	sfFlags := src.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().kindFlags = 0
 	n.rec().propFlags = sfFlags
 	n.rec().payload = 0
 	n.rec().linenoCharno = src.rec().linenoCharno
 	n.rec().length16 = src.rec().length16
-	num.rec().tc = 0
+	num.setTC(0)
 	num.setAux(nodeAux{})
 	num.rec().kindFlags = uint8(node_kindNumber)
 	num.rec().propFlags = sfFlags
@@ -6362,7 +6362,7 @@ func (n Node) MutateAttachedToFreshVarInPlace(nameChild Node, jsdoc *JSDocInfo) 
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 	origID := n.node_originalNameID()
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
@@ -6383,7 +6383,7 @@ func (n Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalNa
 	n.DetachChildren()
 	nameID := rhinoStringPoolIntern(name)
 	origID := rhinoStringPoolIntern(originalName)
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
@@ -6411,7 +6411,7 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 	if origID == 0 {
 		origID = n.node_originalNameID()
 	}
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = Token_EXPR_RESULT
 	n.rec().kindFlags = 0
@@ -6432,7 +6432,7 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 // must satisfy CanResetInPlace; left and right must be detached).
 func (n Node) ResetDetachedToBinaryOpFromSrcref(op Token, left Node, right Node, srcref Node) Node {
 	n.DetachChildren()
-	n.rec().tc = 0
+	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().token = op
 	n.rec().kindFlags = 0
