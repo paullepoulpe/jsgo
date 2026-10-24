@@ -528,16 +528,19 @@ func jsFileLineParser_check(condition bool, message string) {
 // jsFileLineParser_stringLiteralMatcher is the java.util.regex.Matcher of
 // STRING_LITERAL_PATTERN:
 //
-//	\s*(?:'((?:\\'|[^'])*?)'|"((?:\\"|[^"])*?)")\s*
+//	\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)")\s*
 //
 // Go-only: language-adapter — Java regex. JsFileLineParser relies on
 // Matcher.hitEnd() and Matcher.region(), which RE2 cannot provide, so this
 // adapter runs the pattern with Java's backtracking order (greedy \s*, the
-// first alternative before the second, the lazy loop trying the closing
-// quote before the escape before any other character) and records hitEnd
+// first alternative before the second, the greedy loop trying the escape
+// before any other character, then the closing quote) and records hitEnd
 // whenever Java's engine would read at the region end. \s is Java's
-// [ \t\n\x0B\f\r]. Positions are byte offsets: the pattern only ever
-// compares ASCII characters, so byte and UTF-16 matching agree.
+// [ \t\n\x0B\f\r], and . any character but a line terminator (\n, \r,
+// U+0085, U+2028, U+2029). Positions are byte offsets: apart from those
+// line terminators the pattern only ever compares ASCII characters, and a
+// region always starts and ends next to one, so byte and UTF-16 matching
+// agree.
 type jsFileLineParser_stringLiteralMatcher struct {
 	input  string
 	from   int // region start
@@ -674,7 +677,7 @@ func (m *jsFileLineParser_stringLiteralMatcher) match(requireEnd bool) bool {
 	return false
 }
 
-// quoted matches the alternative quote((?:\\quote|[^quote])*?)quote\s* at p.
+// quoted matches the alternative quote((?:\\.|[^quote\\])*)quote\s* at p.
 func (m *jsFileLineParser_stringLiteralMatcher) quoted(p int, quote byte, group int) bool {
 	if p >= m.to {
 		m.hitEnd = true
@@ -683,39 +686,66 @@ func (m *jsFileLineParser_stringLiteralMatcher) quoted(p int, quote byte, group 
 	if m.input[p] != quote {
 		return false
 	}
-	return m.lazyLoop(p+1, p+1, quote, group)
+	return m.greedyLoop(p+1, p+1, quote, group)
 }
 
-// lazyLoop is the lazy loop (?:\\quote|[^quote])*? at q, followed by the
+// greedyLoop is the greedy loop (?:\\.|[^quote\\])* at q, followed by the
 // closing quote, \s* and the end of the pattern.
-func (m *jsFileLineParser_stringLiteralMatcher) lazyLoop(groupStart int, q int, quote byte, group int) bool {
+//
+// The two body alternatives never both match at one position (the first
+// starts with a backslash, the second excludes it), so the loop takes the
+// longest run of iterations and then tries the closing quote. When that
+// fails, Java backtracks to fewer iterations and tries the closing quote at
+// the start of each one; those characters are a backslash or not the quote,
+// and lie before the region end, so that backtracking neither matches nor
+// sets hitEnd.
+func (m *jsFileLineParser_stringLiteralMatcher) greedyLoop(groupStart int, q int, quote byte, group int) bool {
 	for {
-		// Try to finish the match first.
-		if m.closing(groupStart, q, quote, group) {
-			return true
-		}
-		// Body alternative 1: the two-character escape.
+		// Body alternative 1: a backslash and any character but a line
+		// terminator.
 		if q >= m.to {
+			// Both alternatives read at the region end.
 			m.hitEnd = true
-		} else if m.input[q] == '\\' {
+			break
+		}
+		c := m.input[q]
+		if c == '\\' {
 			if q+1 >= m.to {
 				m.hitEnd = true
-			} else if m.input[q+1] == quote {
-				if m.lazyLoop(groupStart, q+2, quote, group) {
-					return true
-				}
+				break
 			}
+			if jsFileLineParser_isJavaLineTerminatorAt(m.input, q+1) {
+				// Body alternative 2 rejects the backslash.
+				break
+			}
+			// Stepping over the first byte of the escaped character is
+			// enough: the bytes left of a multi-byte character are not ASCII,
+			// so body alternative 2 consumes them.
+			q += 2
+			continue
 		}
-		// Body alternative 2: any other character.
-		if q >= m.to {
-			m.hitEnd = true
-			return false
-		}
-		if m.input[q] == quote {
-			return false
+		// Body alternative 2: any character but the quote and a backslash.
+		if c == quote {
+			break
 		}
 		q++
 	}
+	return m.closing(groupStart, q, quote, group)
+}
+
+// jsFileLineParser_isJavaLineTerminatorAt reports whether the character at
+// byte offset i of s is one that Java's . does not match: \n, \r, U+0085,
+// U+2028 or U+2029.
+func jsFileLineParser_isJavaLineTerminatorAt(s string, i int) bool {
+	switch s[i] {
+	case '\n', '\r':
+		return true
+	case 0xC2: // U+0085 is C2 85.
+		return i+1 < len(s) && s[i+1] == 0x85
+	case 0xE2: // U+2028 and U+2029 are E2 80 A8 and E2 80 A9.
+		return i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xA8 || s[i+2] == 0xA9)
+	}
+	return false
 }
 
 // closing matches quote\s* at q and accepts.
