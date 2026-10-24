@@ -67,8 +67,7 @@ type InlineFunctions struct {
 	injector                 *FunctionInjector
 	functionArgumentInjector *FunctionArgumentInjector
 
-	reach                CompilerOptions_Reach
-	assumeMinimumCapture bool
+	reach CompilerOptions_Reach
 
 	enforceMaxSizeAfterInlining bool
 	maxSizeAfterInlining        int
@@ -86,13 +85,12 @@ var InlineFunctions_MISSED_REQUIRED_INLINING = DiagnosticType_Warning(
 	"JSC_MISSED_REQUIRED_INLINING",
 	"function {1} annotated @requireInlining could not be inlined here")
 
-// Java: InlineFunctions(AbstractCompiler, Supplier<String>, Reach, boolean, boolean, int)
+// Java: InlineFunctions(AbstractCompiler, Supplier<String>, Reach, boolean, int)
 func NewInlineFunctions(
 	compiler AbstractCompiler,
 	safeNameIdSupplier func() string,
 	reach CompilerOptions_Reach,
 	assumeStrictThis bool,
-	assumeMinimumCapture bool,
 	maxSizeAfterInlining int) *InlineFunctions {
 	jutil.CheckArgument(compiler != nil)
 	jutil.CheckArgument(safeNameIdSupplier != nil)
@@ -102,7 +100,6 @@ func NewInlineFunctions(
 	f.compiler = compiler
 
 	f.reach = reach
-	f.assumeMinimumCapture = assumeMinimumCapture
 
 	f.maxSizeAfterInlining = maxSizeAfterInlining
 	f.enforceMaxSizeAfterInlining =
@@ -118,7 +115,6 @@ func NewInlineFunctions(
 	f.injector = NewFunctionInjector_Builder(compiler).
 		SafeNameIdSupplier(safeNameIdSupplier).
 		AssumeStrictThis(assumeStrictThis).
-		AssumeMinimumCapture(assumeMinimumCapture).
 		FunctionArgumentInjector(f.functionArgumentInjector).
 		Build()
 	f.injector.mutator.onMovedArg = func(arg *rhino.Node) {
@@ -519,7 +515,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 				// TODO(johnlenz): this can be improved by looking at the possible
 				// values for locals.  If there are simple values, or constants
 				// we could still inline.
-				if !f.assumeMinimumCapture && InlineFunctions_HasLocalNames(fnNode) {
+				if InlineFunctions_HasLocalNames(fnNode) {
 					functionState.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES)
 				}
 			}
@@ -1231,7 +1227,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node *rhino.N
 	cand.referencesThis = referencesThis
 	if hasInnerClosures {
 		cand.hasInnerClosures = true
-		if !f.assumeMinimumCapture && InlineFunctions_HasLocalNames(fnNode) {
+		if InlineFunctions_HasLocalNames(fnNode) {
 			cand.hasDisallow = true
 			cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
 			return cand
@@ -1677,7 +1673,6 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) boo
 					SafeNameIdSupplier(localSafeSupplier).
 					AllowDecomposition(f.injector.allowDecomposition).
 					AssumeStrictThis(f.injector.assumeStrictThis).
-					AssumeMinimumCapture(f.injector.assumeMinimumCapture).
 					FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer()))
 				cb.injector = injBuilder.Build()
 				cb.injector.SetKnownConstantFunctions(f.injector.knownConstantFunctions)

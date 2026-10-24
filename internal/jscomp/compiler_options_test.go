@@ -221,3 +221,27 @@ func TestCompilerOptions_TranspilePublicClassFields(t *testing.T) {
 		t.Error("getOutputFeatureSet().has(PUBLIC_CLASS_FIELDS): got false, want true")
 	}
 }
+
+// Java: CompilerOptionsTest.testRequiresTypesForOptimization()
+func TestCompilerOptions_RequiresTypesForOptimization(t *testing.T) {
+	options := NewCompilerOptions()
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(false)
+	options.SetRemoveClosureAsserts(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetRemoveClosureAsserts(false)
+	options.SetRemoveAbstractMethods(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
+
+	options.SetRemoveAbstractMethods(false)
+	options.SetRemoveClosureAsserts(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
+}

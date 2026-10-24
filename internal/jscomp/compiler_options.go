@@ -123,8 +123,6 @@ type CompilerOptions struct {
 	inlineConstantVars bool
 	// For projects that want to avoid the creation of giant functions after inlining.
 	maxFunctionSizeAfterInlining int
-	// More aggressive function inlining
-	assumeClosuresOnlyCaptureReferences bool
 	// Inlines properties
 	inlineProperties bool
 	// Move code to a deeper chunk
@@ -1496,7 +1494,6 @@ func NewCompilerOptions() *CompilerOptions {
 	o.inlineFunctionsLevel = CompilerOptions_Reach_NONE
 	o.maxFunctionSizeAfterInlining = CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING
 	o.assumeStrictThis = false
-	o.assumeClosuresOnlyCaptureReferences = false
 	o.inlineProperties = false
 	o.crossChunkCodeMotion = false
 	o.parentChunkCanSeeSymbolsDeclaredInChildren = false
@@ -2366,21 +2363,6 @@ func (o *CompilerOptions) SetAssumeStrictThis(enable bool) {
 	o.assumeStrictThis = enable
 }
 
-// @return Whether assumeClosuresOnlyCaptureReferences is set.
-//
-// Java: CompilerOptions.assumeClosuresOnlyCaptureReferences()
-func (o *CompilerOptions) AssumeClosuresOnlyCaptureReferences() bool {
-	return o.assumeClosuresOnlyCaptureReferences
-}
-
-// Whether to assume closures capture only what they reference. This allows more aggressive
-// function inlining.
-//
-// Java: CompilerOptions.setAssumeClosuresOnlyCaptureReferences(boolean)
-func (o *CompilerOptions) SetAssumeClosuresOnlyCaptureReferences(enable bool) {
-	o.assumeClosuresOnlyCaptureReferences = enable
-}
-
 // Sets the list of properties that we report property invalidation errors for.
 //
 // Java: CompilerOptions.setPropertiesThatMustDisambiguate(Set<String>)
@@ -2799,7 +2781,8 @@ func (o *CompilerOptions) RequiresTypesForOptimization() bool {
 	return o.disambiguateProperties ||
 		o.ambiguateProperties ||
 		o.inlineProperties ||
-		o.useTypesForLocalOptimization
+		o.useTypesForLocalOptimization ||
+		(o.closurePass && (o.removeAbstractMethods || o.removeClosureAsserts))
 }
 
 // Java: CompilerOptions.setRewriteFunctionExpressions(boolean)
@@ -3865,7 +3848,6 @@ func (o *CompilerOptions) String() string {
 	h.Add("aliasStringsMode", compilerOptions_valueOf(o.GetAliasStringsMode()))
 	h.AddBool("ambiguateProperties", o.ambiguateProperties)
 	h.AddBool("angularPass", o.angularPass)
-	h.AddBool("assumeClosuresOnlyCaptureReferences", o.assumeClosuresOnlyCaptureReferences)
 	h.AddBool("assumeGettersArePure", o.assumeGettersArePure)
 	h.AddBool("assumePropertiesAreStaticallyAnalyzable", o.assumePropertiesAreStaticallyAnalyzable)
 	h.AddBool("assumeStrictThis", o.AssumeStrictThis())
@@ -4163,6 +4145,21 @@ func (e CompilerOptions_OptimizeLocalAccess) String() string {
 
 // Ordinal is Enum.ordinal().
 func (e CompilerOptions_OptimizeLocalAccess) Ordinal() int { return int(e) }
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldOptimize()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimize() bool {
+	return e != CompilerOptions_OptimizeLocalAccess_DISABLED
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldOptimizeAllChunks()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimizeAllChunks() bool {
+	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS.Ordinal()
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldWrapReassignableSymbols()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldWrapReassignableSymbols() bool {
+	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.Ordinal()
+}
 
 // CompilerOptions_LanguageMode is a language mode applies to the whole compilation job. As a result, the
 // compiler does not support mixed strict and non-strict in the same compilation

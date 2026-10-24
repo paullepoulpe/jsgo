@@ -131,8 +131,7 @@ func (r *RescopeGlobalSymbols) Process(externs *rhino.Node, root *rhino.Node) {
 	// Find global names that are used in more than one chunk. Those that
 	// are have to be rewritten.
 	findCrossChunkNames :=
-		NewRescopeGlobalSymbols_FindCrossChunkNamesCallback(
-			r.optimizeLocalAccess != CompilerOptions_OptimizeLocalAccess_DISABLED)
+		NewRescopeGlobalSymbols_FindCrossChunkNamesCallback(r.optimizeLocalAccess.ShouldOptimize())
 
 	// And find names that may refer to functions that reference this.
 	findNamesReferencingThis := NewRescopeGlobalSymbols_FindNamesReferencingThis()

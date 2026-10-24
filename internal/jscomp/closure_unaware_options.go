@@ -109,7 +109,6 @@ func (c *ClosureUnawareOptions) SetSafeOptimizationAssumptions() {
 	c.shadowOptions.SetCodingConvention(CodingConventions_GetDefault())
 	c.shadowOptions.SetRemoveClosureAsserts(false)
 
-	c.shadowOptions.SetAssumeClosuresOnlyCaptureReferences(false)
 	c.shadowOptions.SetAssumeGettersArePure(false)
 	c.shadowOptions.SetAssumePropertiesAreStaticallyAnalyzable(false)
 	c.shadowOptions.SetAssumeStaticInheritanceIsNotUsed(false)

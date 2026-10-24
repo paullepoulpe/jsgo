@@ -1285,7 +1285,6 @@ func (c *DefaultPassConfig) initFields() {
 						compiler.GetUniqueNameIdSupplier(),
 						options.GetInlineFunctionsLevel(),
 						options.AssumeStrictThis() || options.ExpectStrictModeInput(),
-						options.AssumeClosuresOnlyCaptureReferences(),
 						options.GetMaxFunctionSizeAfterInlining())
 				}).
 			Build()

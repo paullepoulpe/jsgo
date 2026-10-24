@@ -93,7 +93,6 @@ func inlineOracleNewPass(name string, c *Compiler) CompilerPass {
 			c.GetUniqueNameIdSupplier(),
 			CompilerOptions_Reach_ALL,
 			/* assumeStrictThis= */ false,
-			/* assumeMinimumCapture= */ false,
 			CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING)
 	case "collapse-all":
 		return InlineAndCollapseProperties_Builder_(c).

@@ -422,7 +422,6 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setPreferSingleQuotes", (*CompilerOptions).SetPreferSingleQuotes),
 		coreG3BoolOp("setQuoteKeywordProperties", (*CompilerOptions).SetQuoteKeywordProperties),
 		coreG3BoolOp("setAssumeStrictThis", (*CompilerOptions).SetAssumeStrictThis),
-		coreG3BoolOp("setAssumeClosuresOnlyCaptureReferences", (*CompilerOptions).SetAssumeClosuresOnlyCaptureReferences),
 		coreG3BoolOp("setProtectHiddenSideEffects", (*CompilerOptions).SetProtectHiddenSideEffects),
 		coreG3BoolOp("setAssumeGettersArePure", (*CompilerOptions).SetAssumeGettersArePure),
 		coreG3EnumOp("setDevMode", CompilerOptions_DevMode_values(), (*CompilerOptions).SetDevMode),
