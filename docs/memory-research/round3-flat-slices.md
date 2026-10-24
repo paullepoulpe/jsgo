@@ -6,7 +6,8 @@ chunk table so that `*Node` stays a valid handle. Would plain slices
 file (cheap, local, parallel-friendly) that becomes one unified slice only
 when cross-file optimizations need it?
 
-Spike code: `internal/rhino/node_flat_spike.go` (copies a parsed tree into
+Spike code (removed by the migration, see section 8; in git history at
+2d9eaf68): `internal/rhino/node_flat_spike.go` (copies a parsed tree into
 slices, walk kernels) and `internal/rhino/flatspike/` (benchmarks on real
 inputs). Not used by the compiler.
 
@@ -208,3 +209,58 @@ machine and are not comparable. Main's GC work shows as CPU minus wall
 
 Race check: a `-race` build with `--num_parallel_threads=4` on typed-app
 and bundle reports no race and matches main's serial output.
+
+## 8. The migration: `rhino.Node` is a 32-bit id (2026-10-24)
+
+What was built (internal/rhino/node_store.go, node_tables.go,
+node_compact.go):
+
+- `type Node uint32`. Call sites keep `n.GetNext()`, `n.GetToken()`, ...;
+  `n == nil` became `n.IsNil()` and `nil` became `rhino.NilNode` (a
+  type-aware rewrite tool did the 10,000 type changes, 2,700 nil checks and
+  950 nil literals).
+- The record (`nodeData`) is 48 bytes (was 56: the `self` field went, a
+  node's id is its handle) and holds no Go pointer.
+- A `NodeStore` per compilation keeps records in 16384-record blocks
+  allocated as it fills up, plus typed side tables for JSTypes, Colors and
+  cold data (no `unsafe.Pointer`). A process-wide block directory maps
+  `id>>14` to a block, so `n.rec()` is two loads with no branch and every
+  node method inlines.
+- No `unsafe`, `uintptr` addresses, `runtime.AddCleanup`, generations or
+  ties: a store is freed by the GC once it is no longer current (switching
+  stores takes its blocks out of the directory). The first Compiler starts
+  a store, later ones share it, tests start each test with a fresh one.
+- Ids are never reused and a new store's ids start after the previous
+  store's blocks, so an id kept past compaction or from a previous test
+  fails like a nil pointer instead of reading another node. This check
+  found a real bug: the shared `ModuleLoader_EMPTY` kept the error handler
+  of whichever compiler set it last, sending module errors to an earlier
+  compiler (each Compiler now has its own empty loader).
+- Node references shrink from 8 bytes (pointer) to 4: `Var` 40 bytes,
+  `TypedVar` 64, `Property` 32 (back under their size-class guards).
+
+What was tried and dropped, with the measurements (no PGO, medians of 5,
+against the code before the migration):
+
+| Variant | typed-full time / RSS | bundle time / RSS |
+|---|---|---|
+| 16-byte handle (record pointer + store) | +4 % / +8 % | +4 % / +12 % |
+| 32-bit id, flat slice, lookup through package variables | +17 % / +8 % | +27 % / +31 % |
+| same, slice sized from the input files before parsing | +17 % / -2 % | +21 % / +28 % |
+| 32-bit id, block directory (inlined lookups) + flat slice | -0.5 % / +24 % | -0.5 % / +31 % |
+| same, slice passed explicitly to the traversal loops | -0.4 % / +24 % | +1 % / +31 % |
+| **32-bit id, on-demand blocks (kept)** | **-1.0 % / -3.2 %** | **-1.2 % / +4.5 %** |
+
+- The 16-byte handle doubled the size of every node reference and put a
+  16-byte value in every `any` (allocations).
+- The first 32-bit version was slow because the lookup (with its
+  slow-path call) pushed every node method over Go's inlining budget
+  (`GetToken` cost 82 against 80): they all became function calls. With the
+  block directory the lookup costs 20.
+- Passing the slice explicitly to the hottest loops bought nothing once the
+  lookups inline, so it is not worth changing 4,700 functions for.
+- A flat slice's reserved capacity counts as live heap: the GC ran a third
+  less often and peak RSS rose by a quarter. On-demand blocks have no
+  reserved capacity, no copying and no overflow path.
+
+Live heap after types-to-colors (bundle): 67 MB, was 76 MB (-12 %).
