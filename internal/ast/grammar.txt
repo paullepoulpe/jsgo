@@ -111,6 +111,20 @@ ScriptItem = Statement | ModuleBody
 ## the externs root and the code root).
 RootItem = Root | Script
 
+## NormalOrOptChainCall is a call, in an optional chain or not:
+## callee(args) or callee?.(args) (NodeUtil.isNormalOrOptChainCall).
+NormalOrOptChainCall = Call | OptChainCall
+
+## NormalOrOptChainGetProp is a property access with a dot, in an optional
+## chain or not: object.property or object?.property
+## (NodeUtil.isNormalOrOptChainGetProp).
+NormalOrOptChainGetProp = GetProp | OptChainGetProp
+
+## NormalOrOptChainGet is a property access, in an optional chain or not:
+## object.property, object[index], object?.property or object?.[index]
+## (NodeUtil.isNormalOrOptChainGet).
+NormalOrOptChainGet = GetProp | GetElem | OptChainGetProp | OptChainGetElem
+
 # --- Programs ---
 
 ## Root holds scripts (or, at the top, the externs root and the code root).

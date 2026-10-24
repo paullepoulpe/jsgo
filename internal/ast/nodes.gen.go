@@ -4056,6 +4056,14 @@ func (x GetProp) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 // AsExportBody returns x as an ExportBody.
 func (x GetProp) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp.
+func (x GetProp) AsNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return NormalOrOptChainGetProp{x.node}
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x GetProp) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
+
 // OptChainGetProp is object?.property.
 //
 // Grammar: OptChainGetProp = OPTCHAIN_GETPROP  object:Expr $Property
@@ -4104,6 +4112,16 @@ func (x OptChainGetProp) AsFunctionBody() FunctionBody { return FunctionBody{x.n
 
 // AsExportBody returns x as an ExportBody.
 func (x OptChainGetProp) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp.
+func (x OptChainGetProp) AsNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return NormalOrOptChainGetProp{x.node}
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x OptChainGetProp) AsNormalOrOptChainGet() NormalOrOptChainGet {
+	return NormalOrOptChainGet{x.node}
+}
 
 // GetElem is object[index].
 //
@@ -4171,6 +4189,9 @@ func (x GetElem) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 // AsExportBody returns x as an ExportBody.
 func (x GetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x GetElem) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
+
 // OptChainGetElem is object?.[index].
 //
 // Grammar: OptChainGetElem = OPTCHAIN_GETELEM  object:Expr index:Expr
@@ -4227,6 +4248,11 @@ func (x OptChainGetElem) AsFunctionBody() FunctionBody { return FunctionBody{x.n
 
 // AsExportBody returns x as an ExportBody.
 func (x OptChainGetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x OptChainGetElem) AsNormalOrOptChainGet() NormalOrOptChainGet {
+	return NormalOrOptChainGet{x.node}
+}
 
 // Call is callee(args).
 //
@@ -4315,6 +4341,9 @@ func (x Call) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 // AsExportBody returns x as an ExportBody.
 func (x Call) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall.
+func (x Call) AsNormalOrOptChainCall() NormalOrOptChainCall { return NormalOrOptChainCall{x.node} }
+
 // OptChainCall is callee?.(args).
 //
 // Grammar: OptChainCall = OPTCHAIN_CALL  callee:Expr args:Arg*
@@ -4401,6 +4430,11 @@ func (x OptChainCall) AsFunctionBody() FunctionBody { return FunctionBody{x.node
 
 // AsExportBody returns x as an ExportBody.
 func (x OptChainCall) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall.
+func (x OptChainCall) AsNormalOrOptChainCall() NormalOrOptChainCall {
+	return NormalOrOptChainCall{x.node}
+}
 
 // New is new callee(args).
 //
@@ -5543,6 +5577,21 @@ func (x Expr) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 // AsExportBody returns x as an ExportBody.
 func (x Expr) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x Expr) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x Expr) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x Expr) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
+
 // Target is what can be assigned to: the left side of an assignment, a
 // declaration or a for-in/of loop.
 //
@@ -5819,6 +5868,21 @@ func (x Arg) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 // AsArrayElem returns x as an ArrayElem.
 func (x Arg) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
 
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x Arg) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x Arg) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x Arg) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
+
 // ArrayElem is an element of an array literal (Empty for a hole).
 //
 // Grammar: ArrayElem = Expr | IterSpread | Empty
@@ -5957,6 +6021,21 @@ func (x ArrayElem) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 
 // AsArg returns x as an Arg; ok is false if it is not one.
 func (x ArrayElem) AsArg() (Arg, bool) { return AsArg(x.node) }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x ArrayElem) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x ArrayElem) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
 
 // ArrayPatternElem is an element of an array pattern (Empty for a hole).
 //
@@ -6194,6 +6273,21 @@ func (x PropValue) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x PropValue) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x PropValue) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x PropValue) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
 
 // ObjectMember is a member of an object literal.
 //
@@ -6569,6 +6663,21 @@ func (x ForInit) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 // AsExportBody returns x as an ExportBody.
 func (x ForInit) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x ForInit) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x ForInit) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x ForInit) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
+
 // ForTarget is what a for-in or for-of loop assigns.
 //
 // Grammar: ForTarget = NameDeclaration | Target
@@ -6805,6 +6914,21 @@ func (x FunctionBody) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 
 // AsExportBody returns x as an ExportBody.
 func (x FunctionBody) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x FunctionBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x FunctionBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
 
 // TemplatePart is a part of a template literal.
 //
@@ -7090,6 +7214,21 @@ func (x ExportBody) AsForInit() (ForInit, bool) { return AsForInit(x.node) }
 // AsFunctionBody returns x as a FunctionBody; ok is false if it is not one.
 func (x ExportBody) AsFunctionBody() (FunctionBody, bool) { return AsFunctionBody(x.node) }
 
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x ExportBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
+func (x ExportBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
+	return AsNormalOrOptChainGet(x.node)
+}
+
 // ScriptItem is a child of a script: statements, or one module body.
 //
 // Grammar: ScriptItem = Statement | ModuleBody
@@ -7235,6 +7374,222 @@ func (x RootItem) AsRoot() (Root, bool) { return AsRoot(x.node) }
 
 // AsScript returns x as a Script; ok is false if it is not one.
 func (x RootItem) AsScript() (Script, bool) { return AsScript(x.node) }
+
+// NormalOrOptChainCall is a call, in an optional chain or not:
+// callee(args) or callee?.(args) (NodeUtil.isNormalOrOptChainCall).
+//
+// Grammar: NormalOrOptChainCall = Call | OptChainCall
+type NormalOrOptChainCall struct{ node rhino.Node }
+
+// AsNormalOrOptChainCall returns n as a NormalOrOptChainCall; ok is false if n is not one (or is the nil node).
+func AsNormalOrOptChainCall(n rhino.Node) (x NormalOrOptChainCall, ok bool) {
+	if n == rhino.NilNode {
+		return NormalOrOptChainCall{}, false
+	}
+	switch n.GetToken() {
+	case rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
+		return NormalOrOptChainCall{n}, true
+	}
+	return NormalOrOptChainCall{}, false
+}
+
+// Node returns x as a rhino.Node.
+func (x NormalOrOptChainCall) Node() rhino.Node { return x.node }
+
+// AsCall returns x as a Call; ok is false if it is not one.
+func (x NormalOrOptChainCall) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
+func (x NormalOrOptChainCall) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x NormalOrOptChainCall) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x NormalOrOptChainCall) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x NormalOrOptChainCall) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x NormalOrOptChainCall) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x NormalOrOptChainCall) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x NormalOrOptChainCall) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x NormalOrOptChainCall) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// Callee returns the callee of x.
+func (x NormalOrOptChainCall) Callee() Expr { return Expr{x.node.GetFirstChild()} }
+
+// Args iterates over the args of x. Like a for loop over GetNext, it reads the next
+// element after the loop body ran: a body that moves the current element elsewhere
+// ends the loop early.
+func (x NormalOrOptChainCall) Args() iter.Seq[Arg] {
+	return func(yield func(Arg) bool) {
+		for c := x.node.GetFirstChild().GetNext(); c != rhino.NilNode; c = c.GetNext() {
+			if !yield(Arg{c}) {
+				return
+			}
+		}
+	}
+}
+
+// FirstArg returns the first of the args of x; ok is false if there is none.
+func (x NormalOrOptChainCall) FirstArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode
+}
+
+// LastArg returns the last of the args of x; ok is false if there is none.
+func (x NormalOrOptChainCall) LastArg() (v Arg, ok bool) {
+	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
+		return Arg{}, false
+	}
+	c := x.node.GetLastChild()
+	return Arg{c}, c != rhino.NilNode
+}
+
+// HasArgs reports whether x has any args.
+func (x NormalOrOptChainCall) HasArgs() bool {
+	return x.node.GetFirstChild().GetNext() != rhino.NilNode
+}
+
+// AppendArg adds v (which must not be in a tree) after the args of x.
+func (x NormalOrOptChainCall) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
+
+// NormalOrOptChainGetProp is a property access with a dot, in an optional
+// chain or not: object.property or object?.property
+// (NodeUtil.isNormalOrOptChainGetProp).
+//
+// Grammar: NormalOrOptChainGetProp = GetProp | OptChainGetProp
+type NormalOrOptChainGetProp struct{ node rhino.Node }
+
+// AsNormalOrOptChainGetProp returns n as a NormalOrOptChainGetProp; ok is false if n is not one (or is the nil node).
+func AsNormalOrOptChainGetProp(n rhino.Node) (x NormalOrOptChainGetProp, ok bool) {
+	if n == rhino.NilNode {
+		return NormalOrOptChainGetProp{}, false
+	}
+	switch n.GetToken() {
+	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
+		return NormalOrOptChainGetProp{n}, true
+	}
+	return NormalOrOptChainGetProp{}, false
+}
+
+// Node returns x as a rhino.Node.
+func (x NormalOrOptChainGetProp) Node() rhino.Node { return x.node }
+
+// AsGetProp returns x as a GetProp; ok is false if it is not one.
+func (x NormalOrOptChainGetProp) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
+func (x NormalOrOptChainGetProp) AsOptChainGetProp() (OptChainGetProp, bool) {
+	return AsOptChainGetProp(x.node)
+}
+
+// AsExpr returns x as an Expr.
+func (x NormalOrOptChainGetProp) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x NormalOrOptChainGetProp) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x NormalOrOptChainGetProp) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x NormalOrOptChainGetProp) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x NormalOrOptChainGetProp) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x NormalOrOptChainGetProp) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x NormalOrOptChainGetProp) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x NormalOrOptChainGetProp) AsNormalOrOptChainGet() NormalOrOptChainGet {
+	return NormalOrOptChainGet{x.node}
+}
+
+// Object returns the object of x.
+func (x NormalOrOptChainGetProp) Object() Expr { return Expr{x.node.GetFirstChild()} }
+
+// Property returns the node's string.
+func (x NormalOrOptChainGetProp) Property() string { return x.node.GetString() }
+
+// NormalOrOptChainGet is a property access, in an optional chain or not:
+// object.property, object[index], object?.property or object?.[index]
+// (NodeUtil.isNormalOrOptChainGet).
+//
+// Grammar: NormalOrOptChainGet = GetProp | GetElem | OptChainGetProp | OptChainGetElem
+type NormalOrOptChainGet struct{ node rhino.Node }
+
+// AsNormalOrOptChainGet returns n as a NormalOrOptChainGet; ok is false if n is not one (or is the nil node).
+func AsNormalOrOptChainGet(n rhino.Node) (x NormalOrOptChainGet, ok bool) {
+	if n == rhino.NilNode {
+		return NormalOrOptChainGet{}, false
+	}
+	switch n.GetToken() {
+	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
+		return NormalOrOptChainGet{n}, true
+	}
+	return NormalOrOptChainGet{}, false
+}
+
+// Node returns x as a rhino.Node.
+func (x NormalOrOptChainGet) Node() rhino.Node { return x.node }
+
+// AsGetProp returns x as a GetProp; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsOptChainGetProp() (OptChainGetProp, bool) {
+	return AsOptChainGetProp(x.node)
+}
+
+// AsGetElem returns x as a GetElem; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsOptChainGetElem() (OptChainGetElem, bool) {
+	return AsOptChainGetElem(x.node)
+}
+
+// AsExpr returns x as an Expr.
+func (x NormalOrOptChainGet) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x NormalOrOptChainGet) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x NormalOrOptChainGet) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x NormalOrOptChainGet) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x NormalOrOptChainGet) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x NormalOrOptChainGet) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x NormalOrOptChainGet) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
+	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// Object returns the object of x.
+func (x NormalOrOptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x RootItem) Next() (RootItem, bool) { c := x.node.GetNext(); return AsRootItem(c) }
@@ -8290,29 +8645,32 @@ var grammarKinds = []kindSpec{
 
 // grammarCategories maps each category to its kinds, for Check.
 var grammarCategories = map[string][]string{
-	"Statement":         {"Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Import", "Export", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
-	"Expr":              {"Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"Target":            {"ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
-	"Pattern":           {"ArrayPattern", "ObjectPattern"},
-	"Param":             {"DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name"},
-	"Arg":               {"Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"ArrayElem":         {"Empty", "Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"ArrayPatternElem":  {"Empty", "DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
-	"ObjectPatternProp": {"ObjectRest", "ComputedProp", "StringKey"},
-	"PropValue":         {"Function", "DefaultValue", "ArrayPattern", "ObjectPattern", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"ObjectMember":      {"ObjectSpread", "MemberFunctionDef", "GetterDef", "SetterDef", "ComputedProp", "StringKey"},
-	"ClassMember":       {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
-	"Loop":              {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
-	"Jump":              {"Break", "Continue"},
-	"SwitchCase":        {"Case", "DefaultCase"},
-	"Declarator":        {"DestructuringLhs", "Name"},
-	"ForInit":           {"NameDeclaration", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"ForTarget":         {"NameDeclaration", "ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
-	"CatchParam":        {"ArrayPattern", "ObjectPattern", "Name"},
-	"FunctionBody":      {"Block", "Empty", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
-	"TemplatePart":      {"TemplateLitString", "TemplateLitSub"},
-	"ImportBindings":    {"ImportSpecs", "ImportStar"},
-	"ExportBody":        {"Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await", "Import", "Export", "ExportSpecs", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
-	"ScriptItem":        {"ModuleBody", "Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Import", "Export", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
-	"RootItem":          {"Root", "Script"},
+	"Statement":               {"Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Import", "Export", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
+	"Expr":                    {"Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"Target":                  {"ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
+	"Pattern":                 {"ArrayPattern", "ObjectPattern"},
+	"Param":                   {"DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name"},
+	"Arg":                     {"Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"ArrayElem":               {"Empty", "Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"ArrayPatternElem":        {"Empty", "DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
+	"ObjectPatternProp":       {"ObjectRest", "ComputedProp", "StringKey"},
+	"PropValue":               {"Function", "DefaultValue", "ArrayPattern", "ObjectPattern", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"ObjectMember":            {"ObjectSpread", "MemberFunctionDef", "GetterDef", "SetterDef", "ComputedProp", "StringKey"},
+	"ClassMember":             {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
+	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
+	"Jump":                    {"Break", "Continue"},
+	"SwitchCase":              {"Case", "DefaultCase"},
+	"Declarator":              {"DestructuringLhs", "Name"},
+	"ForInit":                 {"NameDeclaration", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"ForTarget":               {"NameDeclaration", "ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
+	"CatchParam":              {"ArrayPattern", "ObjectPattern", "Name"},
+	"FunctionBody":            {"Block", "Empty", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
+	"TemplatePart":            {"TemplateLitString", "TemplateLitSub"},
+	"ImportBindings":          {"ImportSpecs", "ImportStar"},
+	"ExportBody":              {"Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await", "Import", "Export", "ExportSpecs", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
+	"ScriptItem":              {"ModuleBody", "Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Import", "Export", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
+	"RootItem":                {"Root", "Script"},
+	"NormalOrOptChainCall":    {"Call", "OptChainCall"},
+	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
+	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
 }

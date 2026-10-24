@@ -488,50 +488,70 @@ func (w *gen) childAccessors(k *kind, c child) {
 			w.p("")
 		}
 	case list:
-		one := upper(singular(c.role))
-		start := "x.node.GetFirstChild()"
-		if c.index > 0 {
-			start = childExpr(&kind{children: k.children[:c.index]}, c.index-1) + ".GetNext()"
-		}
-		w.p("// %s iterates over the %s of x. Like a for loop over GetNext, it reads the next", name, c.role)
-		w.p("// element after the loop body ran: a body that moves the current element elsewhere")
-		w.p("// ends the loop early.")
-		w.p("func (x %s) %s() iter.Seq[%s] {", k.name, name, typ)
-		w.p("return func(yield func(%s) bool) {", typ)
-		w.p("for c := %s; c != rhino.NilNode; c = c.GetNext() {", start)
-		w.p("if !yield(%s) { return }", wrap(c.typ, "c"))
-		w.p("}")
-		w.p("}")
-		w.p("}")
+		w.listAccessors(k.name, c)
+	}
+}
+
+// indexExpr returns the Go expression for the child at index i of x.node,
+// by position only (unlike childExpr, never as the last child).
+func indexExpr(i int) string {
+	switch i {
+	case 0:
+		return "x.node.GetFirstChild()"
+	case 1:
+		return "x.node.GetSecondChild()"
+	}
+	return fmt.Sprintf("x.node.GetChildAtIndex(%d)", i)
+}
+
+// listAccessors writes the accessors of the list c for the type recv (a
+// kind, or a category whose kinds all have c at the same index).
+func (w *gen) listAccessors(recv string, c child) {
+	name := accessorName(c)
+	typ := goType(c.typ)
+	one := upper(singular(c.role))
+	start := "x.node.GetFirstChild()"
+	if c.index > 0 {
+		start = indexExpr(c.index-1) + ".GetNext()"
+	}
+	w.p("// %s iterates over the %s of x. Like a for loop over GetNext, it reads the next", name, c.role)
+	w.p("// element after the loop body ran: a body that moves the current element elsewhere")
+	w.p("// ends the loop early.")
+	w.p("func (x %s) %s() iter.Seq[%s] {", recv, name, typ)
+	w.p("return func(yield func(%s) bool) {", typ)
+	w.p("for c := %s; c != rhino.NilNode; c = c.GetNext() {", start)
+	w.p("if !yield(%s) { return }", wrap(c.typ, "c"))
+	w.p("}")
+	w.p("}")
+	w.p("}")
+	w.p("")
+	w.p("// First%s returns the first of the %s of x; ok is false if there is none.", one, c.role)
+	w.p("func (x %s) First%s() (v %s, ok bool) {", recv, one, typ)
+	w.p("c := %s", start)
+	w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
+	w.p("}")
+	w.p("")
+	w.p("// Last%s returns the last of the %s of x; ok is false if there is none.", one, c.role)
+	w.p("func (x %s) Last%s() (v %s, ok bool) {", recv, one, typ)
+	if c.index == 0 {
+		w.p("c := x.node.GetLastChild()")
+	} else {
+		w.p("if %s == rhino.NilNode { return %s, false }", start, zero(c.typ))
+		w.p("c := x.node.GetLastChild()")
+	}
+	w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
+	w.p("}")
+	w.p("")
+	w.p("// Has%s reports whether x has any %s.", upper(c.role), c.role)
+	w.p("func (x %s) Has%s() bool { return %s != rhino.NilNode }", recv, upper(c.role), start)
+	w.p("")
+	w.p("// Append%s adds v (which must not be in a tree) after the %s of x.", one, c.role)
+	w.p("func (x %s) Append%s(v %s) { x.node.AddChildToBack(%s) }", recv, one, typ, unwrap(c.typ, "v"))
+	w.p("")
+	if c.index == 0 {
+		w.p("// Prepend%s adds v (which must not be in a tree) before the %s of x.", one, c.role)
+		w.p("func (x %s) Prepend%s(v %s) { x.node.AddChildToFront(%s) }", recv, one, typ, unwrap(c.typ, "v"))
 		w.p("")
-		w.p("// First%s returns the first of the %s of x; ok is false if there is none.", one, c.role)
-		w.p("func (x %s) First%s() (v %s, ok bool) {", k.name, one, typ)
-		w.p("c := %s", start)
-		w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
-		w.p("}")
-		w.p("")
-		w.p("// Last%s returns the last of the %s of x; ok is false if there is none.", one, c.role)
-		w.p("func (x %s) Last%s() (v %s, ok bool) {", k.name, one, typ)
-		if c.index == 0 {
-			w.p("c := x.node.GetLastChild()")
-		} else {
-			w.p("if %s == rhino.NilNode { return %s, false }", start, zero(c.typ))
-			w.p("c := x.node.GetLastChild()")
-		}
-		w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
-		w.p("}")
-		w.p("")
-		w.p("// Has%s reports whether x has any %s.", upper(c.role), c.role)
-		w.p("func (x %s) Has%s() bool { return %s != rhino.NilNode }", k.name, upper(c.role), start)
-		w.p("")
-		w.p("// Append%s adds v (which must not be in a tree) after the %s of x.", one, c.role)
-		w.p("func (x %s) Append%s(v %s) { x.node.AddChildToBack(%s) }", k.name, one, typ, unwrap(c.typ, "v"))
-		w.p("")
-		if c.index == 0 {
-			w.p("// Prepend%s adds v (which must not be in a tree) before the %s of x.", one, c.role)
-			w.p("func (x %s) Prepend%s(v %s) { x.node.AddChildToFront(%s) }", k.name, one, typ, unwrap(c.typ, "v"))
-			w.p("")
-		}
 	}
 }
 
@@ -648,21 +668,25 @@ func (w *gen) category(c *category) {
 }
 
 // sharedAccessors gives a category the accessors that all its kinds have
-// in the same place (e.g. the body of Case and DefaultCase).
+// in the same place: at the same index (e.g. the object of GetProp and
+// GetElem, the args of Call and New), or last (e.g. the body of Case and
+// DefaultCase).
 func (w *gen) sharedAccessors(c *category) {
 	first := w.g.kindByName[c.kinds[0]]
 	for _, ch := range first.children {
-		if !ch.exported || (ch.mode != required && ch.mode != optional) {
+		if !ch.exported || ch.mode == emptyOr {
 			continue
 		}
-		key := positionKey(first, ch.index)
+		sameIndex, allLast := true, positionKey(first, ch.index) == "last"
 		shared := true
 		for _, kn := range c.kinds[1:] {
 			k := w.g.kindByName[kn]
 			found := false
 			for _, o := range k.children {
-				if o.role == ch.role && o.exported && o.typ == ch.typ && o.mode == ch.mode && positionKey(k, o.index) == key {
+				if o.role == ch.role && o.exported && o.typ == ch.typ && o.mode == ch.mode {
 					found = true
+					sameIndex = sameIndex && o.index == ch.index
+					allLast = allLast && positionKey(k, o.index) == "last"
 				}
 			}
 			if !found {
@@ -670,12 +694,18 @@ func (w *gen) sharedAccessors(c *category) {
 				break
 			}
 		}
-		if !shared {
+		// Read the child by its index if it has the same one in every kind,
+		// else as the last child if it is last in every kind.
+		if !shared || !(sameIndex || allLast) {
 			continue
 		}
-		e := childExpr(first, ch.index)
-		if key == "last" {
-			e = "x.node.GetLastChild()"
+		if ch.mode == list { // never "last", so here at the same index
+			w.listAccessors(c.name, ch)
+			continue
+		}
+		e := "x.node.GetLastChild()"
+		if sameIndex {
+			e = indexExpr(ch.index)
 		}
 		name := accessorName(ch)
 		if ch.mode == required {

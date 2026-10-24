@@ -19,9 +19,15 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads the declarations, calls and property accesses
+// around a reference through the typed AST view (internal/ast:
+// name.Init(), call.Callee(), assign.Target()...) instead of child
+// positions.
 
 // InlineVariables uses the infrastructure provided by ReferenceCollector to
 // identify variables that are used in a way that is safe to move, and then
@@ -914,11 +920,14 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 	if InlineVariables_HasNoInlineAnnotation(e.v) || e.IsReferencedWeakly() {
 		return e.GetNegativeInlineVarAnalysis()
 	}
+	// Go-only: a variable whose only reference is its declaration can only
+	// be removed as an alias (var a = b; see ReanalyzeAfterAliasedVar), so
+	// the others skip the analysis.
 	if e.referenceInfo.references.Size() == 1 && !e.isDeclaredOrInferredConstant {
 		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 			return e.GetNegativeInlineVarAnalysis()
 		}
-		if firstChild := e.declaration.nameNode.GetFirstChild(); firstChild.IsNil() || !firstChild.IsName() {
+		if !inlineVariables_isDeclaredAsAlias(e.declaration.nameNode) {
 			return e.GetNegativeInlineVarAnalysis()
 		}
 	}
@@ -953,6 +962,21 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 	}
 
 	return e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
+}
+
+// inlineVariables_isDeclaredAsAlias reports whether n is a name declared
+// with another name as its value: the a of var a = b.
+func inlineVariables_isDeclaredAsAlias(n rhino.Node) bool {
+	name, ok := ast.AsName(n)
+	if !ok {
+		return false
+	}
+	value, ok := name.Init()
+	if !ok {
+		return false
+	}
+	_, ok = value.AsName()
+	return ok
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyzeWithInitialValue(Reference, Node, InitialValueAnalysis)
@@ -1145,8 +1169,8 @@ func (a *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis
 	if a.aliasedVar.IsKnown() {
 		return a.aliasedVar.GetKnownValue()
 	} else {
-		if !a.value.IsNil() && a.value.IsName() {
-			aliasedName := a.value.GetString()
+		if name, ok := ast.AsName(a.value); ok {
+			aliasedName := name.Ident()
 			// Never consider this variable to be an alias of itself.
 			if aliasedName == a.outer.v.GetName() {
 				return a.aliasedVar.SetKnownValueOnce(nil)
@@ -1310,10 +1334,8 @@ func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode rh
 //
 // Java: InlineVariables.InliningBehavior.isTargetOfPropertyRead(Node)
 func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n rhino.Node) bool {
-	getNode := n.GetParent()
-	return n.IsFirstChildOf(getNode) &&
-		NodeUtil_IsNormalOrOptChainGet(getNode) &&
-		!NodeUtil_IsLValue(getNode)
+	get, ok := ast.AsNormalOrOptChainGet(n.GetParent())
+	return ok && get.Object().Node() == n && !NodeUtil_IsLValue(get.Node())
 }
 
 // IsSecondArgumentToDotApplyMethod: true if `n` is being used in a call like
@@ -1321,19 +1343,20 @@ func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n rhino.Node) 
 //
 // Java: InlineVariables.InliningBehavior.isSecondArgumentToDotApplyMethod(Node)
 func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n rhino.Node) bool {
-	callNode := n.GetParent()
-	if NodeUtil_IsNormalOrOptChainCall(callNode) {
-		calleeNode := callNode.GetFirstChild()
-		if NodeUtil_IsNormalOrOptChainGetProp(calleeNode) {
-			if calleeNode.GetString() == "apply" {
-				thisArgNode := calleeNode.GetNext()
-				if !thisArgNode.IsNil() {
-					return thisArgNode.GetNext() == n
-				}
-			}
-		}
+	call, ok := ast.AsNormalOrOptChainCall(n.GetParent())
+	if !ok {
+		return false
 	}
-	return false
+	callee, ok := call.Callee().AsNormalOrOptChainGetProp()
+	if !ok || callee.Property() != "apply" {
+		return false
+	}
+	thisArg, ok := call.FirstArg()
+	if !ok {
+		return false
+	}
+	secondArg, ok := thisArg.Next()
+	return ok && secondArg.Node() == n
 }
 
 // Inline does the actual work of inlining a single declaration into a
@@ -1349,10 +1372,8 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 		// We're inlining this function declaration because there was only one reference to it,
 		// probably the rhs of an assignment statement. Since we're eliminating the only
 		// reference, we can get rid of it. See b/277538101.
-		funcName := value.GetFirstChild()
-		rhino.CheckNotNull(funcName)
-		jutil.CheckState(funcName.IsName())
-		funcName.SetString("")
+		fn, _ := ast.AsFunction(value) // a function declaration is a function
+		fn.RemoveName()
 
 		// In addition to changing the containing scope, inlining function declarations also changes
 		// the function name scope from the containing scope to the inner scope.
@@ -1411,15 +1432,15 @@ func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, val
 //
 // Java: InlineVariables.InliningBehavior.removeDeclaration(Reference)
 func (b *InlineVariables_InliningBehavior) RemoveDeclaration(decl *Reference) {
-	varNode := decl.GetParent()
-	jutil.CheckStateMsg1(NodeUtil_IsNameDeclaration(varNode), "%s", varNode)
+	varNode, ok := ast.AsNameDeclaration(decl.GetParent())
+	jutil.CheckStateMsg1(ok, "%s", decl.GetParent())
 	grandparent := decl.GetGrandparent()
 
 	b.outer.compiler.ReportChangeToEnclosingScope(decl.GetNode())
 	decl.GetNode().Detach()
 	// Remove var node if empty
-	if !varNode.HasChildren() {
-		NodeUtil_RemoveChild(grandparent, varNode)
+	if !varNode.HasDeclarators() {
+		NodeUtil_RemoveChild(grandparent, varNode.Node())
 	}
 }
 
@@ -1465,28 +1486,24 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 	//   f(a)
 	// is OK.
 	jutil.CheckState(!initValue.IsNil())
-	if initValue.IsGetProp() &&
-		reference.GetParent().IsCall() &&
-		reference.GetParent().GetFirstChild() == reference.GetNode() {
+	call, isCall := ast.AsCall(reference.GetParent())
+	if initValue.IsGetProp() && isCall && call.Callee().Node() == reference.GetNode() {
 		return false
 	}
 
-	if initValue.IsFunction() {
-		callNode := reference.GetParent()
-		if reference.GetParent().IsCall() {
-			convention := b.outer.compiler.GetCodingConvention()
-			// Bug 2388531: Don't inline subclass definitions into class defining
-			// calls as this confused class removing logic.
-			relationship := convention.GetClassesDefinedByCall(callNode)
-			if relationship != nil {
-				return false
-			}
+	if initValue.IsFunction() && isCall {
+		convention := b.outer.compiler.GetCodingConvention()
+		// Bug 2388531: Don't inline subclass definitions into class defining
+		// calls as this confused class removing logic.
+		relationship := convention.GetClassesDefinedByCall(call.Node())
+		if relationship != nil {
+			return false
+		}
 
-			// issue 668: Don't inline singleton getter methods
-			// calls as this confused class removing logic.
-			if convention.GetSingletonGetterClassName(callNode) != nil {
-				return false
-			}
+		// issue 668: Don't inline singleton getter methods
+		// calls as this confused class removing logic.
+		if convention.GetSingletonGetterClassName(call.Node()) != nil {
+			return false
 		}
 	}
 
@@ -1570,8 +1587,8 @@ func (b *InlineVariables_InliningBehavior) IsValidInitialization(initialization 
 			return false
 		}
 	} else {
-		parent := initialization.GetParent()
-		jutil.CheckState(parent.IsAssign() && parent.GetFirstChild() == initialization.GetNode())
+		assign, ok := ast.AsAssign(initialization.GetParent())
+		jutil.CheckState(ok && assign.Target().Node() == initialization.GetNode())
 	}
 
 	return true

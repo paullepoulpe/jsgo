@@ -97,6 +97,65 @@ func TestListsAndNavigation(t *testing.T) {
 	}
 }
 
+// A category has the accessors that all its kinds share: the object of a
+// GetProp (its only child) and of a GetElem (its first one), the args of a
+// Call and of an OptChainCall.
+func TestCategorySharedAccessors(t *testing.T) {
+	newStore(t)
+	for _, n := range []rhino.Node{
+		NewGetProp(NewName("o").AsExpr(), "p").Node(),
+		NewGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+		NewOptChainGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+	} {
+		get, ok := AsNormalOrOptChainGet(n)
+		if !ok {
+			t.Fatalf("AsNormalOrOptChainGet(%s) failed", n.GetToken())
+		}
+		if obj, ok := get.Object().AsName(); !ok || obj.Ident() != "o" {
+			t.Fatalf("Object() of a %s is not its object", n.GetToken())
+		}
+	}
+
+	for _, n := range []rhino.Node{
+		NewCall(NewName("f").AsExpr(), NewName("x").AsArg(), NewName("y").AsArg()).Node(),
+		NewOptChainCall(NewName("f").AsExpr(), NewName("x").AsArg(), NewName("y").AsArg()).Node(),
+	} {
+		call, ok := AsNormalOrOptChainCall(n)
+		if !ok {
+			t.Fatalf("AsNormalOrOptChainCall(%s) failed", n.GetToken())
+		}
+		var args []string
+		for a := range call.Args() {
+			args = append(args, a.Node().GetString())
+		}
+		if len(args) != 2 || args[0] != "x" || args[1] != "y" {
+			t.Fatalf("Args() of a %s = %q, want [x y]", n.GetToken(), args)
+		}
+		first, _ := call.FirstArg()
+		if second, ok := first.Next(); !ok || second.Node().GetString() != "y" {
+			t.Fatalf("FirstArg().Next() of a %s is not the second argument", n.GetToken())
+		}
+	}
+	if call, _ := AsNormalOrOptChainCall(NewCall(NewName("f").AsExpr()).Node()); call.HasArgs() {
+		t.Fatal("HasArgs() of a call without arguments counts the callee")
+	}
+}
+
+func TestFunctionRemoveName(t *testing.T) {
+	newStore(t)
+	fn := NewFunction("f", NewParamList(), NewBlock().AsFunctionBody())
+	if name, ok := fn.Name(); !ok || name.Ident() != "f" {
+		t.Fatal("Name() is not the name given to NewFunction")
+	}
+	fn.RemoveName()
+	if _, ok := fn.Name(); ok {
+		t.Fatal("RemoveName() left the name")
+	}
+	if !fn.Node().GetFirstChild().IsName() {
+		t.Fatal("RemoveName() removed the NAME child")
+	}
+}
+
 func TestTryCatch(t *testing.T) {
 	newStore(t)
 	catch := NewCatchClause(t)

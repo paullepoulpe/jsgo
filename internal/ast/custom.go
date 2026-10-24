@@ -42,6 +42,11 @@ func (x Function) Name() (Name, bool) {
 	return n, n.Ident() != ""
 }
 
+// RemoveName makes x anonymous.
+//
+// (The NAME child stays, with an empty string.)
+func (x Function) RemoveName() { x.name().SetIdent("") }
+
 // IsArrow reports whether x is an arrow function.
 func (x Function) IsArrow() bool { return x.node.IsArrowFunction() }
 
