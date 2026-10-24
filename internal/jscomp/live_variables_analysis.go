@@ -287,9 +287,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 		callback:     f,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(scope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(scope)
 
 	if maxVars > 0 && len(f.finder.result.orderedVars) >= maxVars {
 		return nil

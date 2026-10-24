@@ -61,7 +61,6 @@ import (
 type CrossChunkCodeMotion struct {
 	// Allocated & cleaned up by process()
 	cccmLog diagnostic.LogFile
-	ccArena *crossChunkArena
 
 	compiler AbstractCompiler
 	graph    *JSChunkGraph
@@ -70,6 +69,10 @@ type CrossChunkCodeMotion struct {
 	// declarations that have to be moved into that chunk
 	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
 
+	symSlab   jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
+	dsgSlab   jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]
+	cycleSlab jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]
+
 	scratchImmovableChunks jutil.BitSet
 	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
 
@@ -77,96 +80,30 @@ type CrossChunkCodeMotion struct {
 }
 
 func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
-	if ca := c.ccArena; ca != nil {
-		if len(ca.symSlab) == cap(ca.symSlab) {
-			if ca.symChunkIdx > 0 {
-				ca.symChunks[ca.symChunkIdx-1] = ca.symSlab
-			}
-			if ca.symChunkIdx < len(ca.symChunks) {
-				ca.symSlab = ca.symChunks[ca.symChunkIdx][:0]
-				ca.symChunkIdx++
-			} else {
-				newCap := 64
-				if cap(ca.symSlab) >= 64 {
-					newCap = min(cap(ca.symSlab)*2, 192) // 192 * 168B = 31.5 KiB <= 32 KiB
-				}
-				ca.symSlab = make([]CrossChunkCodeMotion_GlobalSymbol, 0, newCap)
-				ca.symChunks = append(ca.symChunks, ca.symSlab)
-				ca.symChunkIdx++
-			}
-		}
-		idx := len(ca.symSlab)
-		ca.symSlab = ca.symSlab[:idx+1]
-		s := &ca.symSlab[idx]
-		s.outer = c
-		s.dsgs = s.dsgBuf[:0]
-		s.referencingSlice = s.referencingBuf[:0]
-		s.preorderNumber = -1
-		s.singleImmovableChunk = -1
-		s.var_ = var_
-		return s
-	}
-	return NewCrossChunkCodeMotion_GlobalSymbol(c, var_)
+	s := c.symSlab.New()
+	s.outer = c
+	s.dsgs = s.dsgBuf[:0]
+	s.referencingSlice = s.referencingBuf[:0]
+	s.preorderNumber = -1
+	s.singleImmovableChunk = -1
+	s.var_ = var_
+	return s
 }
 
 func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
-	if ca := c.ccArena; ca != nil {
-		if len(ca.dsgSlab) == cap(ca.dsgSlab) {
-			if ca.dsgChunkIdx > 0 {
-				ca.dsgChunks[ca.dsgChunkIdx-1] = ca.dsgSlab
-			}
-			if ca.dsgChunkIdx < len(ca.dsgChunks) {
-				ca.dsgSlab = ca.dsgChunks[ca.dsgChunkIdx][:0]
-				ca.dsgChunkIdx++
-			} else {
-				newCap := 64
-				if cap(ca.dsgSlab) >= 64 {
-					newCap = min(cap(ca.dsgSlab)*2, 128) // 128 * 232B = 29 KiB <= 32 KiB
-				}
-				ca.dsgSlab = make([]CrossChunkCodeMotion_DeclarationStatementGroup, 0, newCap)
-				ca.dsgChunks = append(ca.dsgChunks, ca.dsgSlab)
-				ca.dsgChunkIdx++
-			}
-		}
-		idx := len(ca.dsgSlab)
-		ca.dsgSlab = ca.dsgSlab[:idx+1]
-		g := &ca.dsgSlab[idx]
-		g.declaredGlobalSymbol = declaredGlobalSymbol
-		g.currentChunk = currentChunk
-		g.statements = g.stmtBuf[:0]
-		g.referencedSlice = g.referencedBuf[:0]
-		return g
-	}
-	return NewCrossChunkCodeMotion_DeclarationStatementGroup(declaredGlobalSymbol, currentChunk)
+	g := c.dsgSlab.New()
+	g.declaredGlobalSymbol = declaredGlobalSymbol
+	g.currentChunk = currentChunk
+	g.statements = g.stmtBuf[:0]
+	g.referencedSlice = g.referencedBuf[:0]
+	return g
 }
 
 func (c *CrossChunkCodeMotion) allocCycle() *CrossChunkCodeMotion_GlobalSymbolCycle {
-	if ca := c.ccArena; ca != nil {
-		if len(ca.cycleSlab) == cap(ca.cycleSlab) {
-			if ca.cycleChunkIdx > 0 {
-				ca.cycleChunks[ca.cycleChunkIdx-1] = ca.cycleSlab
-			}
-			if ca.cycleChunkIdx < len(ca.cycleChunks) {
-				ca.cycleSlab = ca.cycleChunks[ca.cycleChunkIdx][:0]
-				ca.cycleChunkIdx++
-			} else {
-				newCap := 64
-				if cap(ca.cycleSlab) >= 64 {
-					newCap = min(cap(ca.cycleSlab)*2, 512) // <= 32 KiB
-				}
-				ca.cycleSlab = make([]CrossChunkCodeMotion_GlobalSymbolCycle, 0, newCap)
-				ca.cycleChunks = append(ca.cycleChunks, ca.cycleSlab)
-				ca.cycleChunkIdx++
-			}
-		}
-		idx := len(ca.cycleSlab)
-		ca.cycleSlab = ca.cycleSlab[:idx+1]
-		y := &ca.cycleSlab[idx]
-		y.outer = c
-		y.symbolsSlice = y.symbolsBuf[:0]
-		return y
-	}
-	return NewCrossChunkCodeMotion_GlobalSymbolCycle(c)
+	y := c.cycleSlab.New()
+	y.outer = c
+	y.symbolsSlice = y.symbolsBuf[:0]
+	return y
 }
 
 // NewCrossChunkCodeMotion creates an instance.
@@ -192,7 +129,9 @@ func (c *CrossChunkCodeMotion) Process(externs *rhino.Node, root *rhino.Node) {
 	defer logFile.Close()
 	defer func() {
 		c.cccmLog = nil
-		c.ccArena = nil
+		c.symSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]{}
+		c.dsgSlab = jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]{}
+		c.cycleSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]{}
 	}()
 	c.cccmLog = logFile
 	c.cccmLog.LogString("doing cccm")
@@ -200,9 +139,7 @@ func (c *CrossChunkCodeMotion) Process(externs *rhino.Node, root *rhino.Node) {
 	if c.graph.GetChunkCount() > 1 {
 		referenceCollector :=
 			NewCrossChunkReferenceCollector(c.compiler, NewSyntacticScopeCreator(c.compiler))
-		referenceCollector.enableArenaPool()
-		defer referenceCollector.release()
-		c.ccArena = referenceCollector.ccArena
+		defer referenceCollector.resetVarHashes()
 		referenceCollector.ProcessRoot(root)
 		globalSymbols :=
 			NewCrossChunkCodeMotion_GlobalSymbolCollector(c).CollectGlobalSymbols(referenceCollector)
@@ -254,17 +191,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(refere
 		g.symbolStack = jutil.NewArrayDequeWithCapacity[*CrossChunkCodeMotion_GlobalSymbol](n)
 	}
 	if maxIdx := referenceCollector.maxVarIndex; maxIdx >= 0 && maxIdx < 1_000_000 {
-		need := maxIdx + 1
-		if ca := g.outer.ccArena; ca != nil {
-			if cap(ca.symbolsByVarIndex) >= need {
-				ca.symbolsByVarIndex = ca.symbolsByVarIndex[:need]
-			} else {
-				ca.symbolsByVarIndex = make([]*CrossChunkCodeMotion_GlobalSymbol, need)
-			}
-			g.symbolsByVarIndex = ca.symbolsByVarIndex
-		} else {
-			g.symbolsByVarIndex = make([]*CrossChunkCodeMotion_GlobalSymbol, need)
-		}
+		g.symbolsByVarIndex = make([]*CrossChunkCodeMotion_GlobalSymbol, maxIdx+1)
 	}
 	for _, statement := range referenceCollector.GetTopLevelStatements() {
 		if statement.IsDeclarationStatement() {
@@ -857,11 +784,7 @@ func NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(outer *CrossChunkCodeM
 		preorderCounter: 0,
 		inputSymbols:    dsgs,
 	}
-	if ca := outer.ccArena; ca != nil {
-		o.componentContents = ca.componentContents[:0]
-		o.componentRoots = ca.componentRoots[:0]
-		o.cycles = ca.cycles[:0]
-	} else if n := dsgs.Size(); n > 0 {
+	if n := dsgs.Size(); n > 0 {
 		o.cycles = make([]*CrossChunkCodeMotion_GlobalSymbolCycle, 0, n)
 	}
 	return o
@@ -872,11 +795,6 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) orderAndCombineSlice
 		if globalSymbol.preorderNumber < 0 {
 			o.ProcessGlobalSymbol(globalSymbol)
 		} // else already processed
-	}
-	if ca := o.outer.ccArena; ca != nil {
-		ca.componentContents = o.componentContents[:0]
-		ca.componentRoots = o.componentRoots[:0]
-		ca.cycles = o.cycles
 	}
 }
 

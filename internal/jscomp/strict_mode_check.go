@@ -154,9 +154,7 @@ func (c *StrictModeCheck) processParallel(externs *rhino.Node, root *rhino.Node)
 				callback:     workerPass1,
 				scopeCreator: sc,
 			}
-			t1 := acquireNodeTraversal(&b1)
-			traverseScriptUnderRoot(t1, scopeRoot, item.parent, item.script, lazyGlobal)
-			releaseNodeTraversal(t1)
+			b1.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, lazyGlobal)
 
 			if item.parent == root {
 				initRecordingCompiler(&pass2RC, c.compiler)
@@ -164,9 +162,7 @@ func (c *StrictModeCheck) processParallel(externs *rhino.Node, root *rhino.Node)
 					compiler: &pass2RC,
 					callback: workerPass2,
 				}
-				t2 := acquireNodeTraversal(&b2)
-				traverseScriptUnderRoot(t2, root, root, item.script, nil)
-				releaseNodeTraversal(t2)
+				b2.traverseScriptUnderRoot(root, root, item.script, nil)
 				pass2EventsByItem[idx] = pass2RC.takeEvents()
 			}
 		}

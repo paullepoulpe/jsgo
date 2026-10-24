@@ -162,9 +162,7 @@ func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctio
 
 func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb, scopeCreator: sc}
-	t := acquireNodeTraversal(&b)
-	t.Traverse(root)
-	releaseNodeTraversal(t)
+	b.Traverse(root)
 }
 
 // Java: InlineFunctions.process(Node, Node)
@@ -1689,9 +1687,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) boo
 				callback:     cb,
 				scopeCreator: sc,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
 			ifEventsByScript[idx] = cb.events
 		}
 		return runItem, cleanup

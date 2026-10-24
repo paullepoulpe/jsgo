@@ -123,8 +123,8 @@ type PureFunctionIdentifier struct {
 	unknownFunctionSummary      *PureFunctionIdentifier_AmbiguatedFunctionSummary
 	unknownFunctionSummarySlice []*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
-	summarySlab           []PureFunctionIdentifier_AmbiguatedFunctionSummary
-	propSlab              []PureFunctionIdentifier_SideEffectPropagation
+	summarySlab           jutil.Slab[PureFunctionIdentifier_AmbiguatedFunctionSummary]
+	propSlab              jutil.Slab[PureFunctionIdentifier_SideEffectPropagation]
 	scratchCallableLeaves []*rhino.Node
 
 	assumeGettersArePure bool
@@ -172,11 +172,7 @@ func NewPureFunctionIdentifier(
 }
 
 func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	if len(p.summarySlab) == 0 {
-		p.summarySlab = make([]PureFunctionIdentifier_AmbiguatedFunctionSummary, 256)
-	}
-	s := &p.summarySlab[0]
-	p.summarySlab = p.summarySlab[1:]
+	s := p.summarySlab.New()
 	s.name = name
 	n := p.reverseCallGraph.allocNode(s)
 	p.reverseCallGraph.nodes.PutNew(s, n)
@@ -228,11 +224,7 @@ func (p *PureFunctionIdentifier) allocPropagationForInvocation(
 	argumentsMatchParameters bool,
 	propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
-	if len(p.propSlab) == 0 {
-		p.propSlab = make([]PureFunctionIdentifier_SideEffectPropagation, 256)
-	}
-	prop := &p.propSlab[0]
-	p.propSlab = p.propSlab[1:]
+	prop := p.propSlab.New()
 	// `this` in an arrow function is the `this` of the enclosing function, which is not
 	// tracked.
 	prop.calleeThisEqualsCallerThis = PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction()
@@ -661,9 +653,6 @@ func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) 
 		return
 	}
 	p.reverseCallGraph.nodes.EnsureCapacity(totalNodes)
-	if len(p.summarySlab) < totalNodes {
-		p.summarySlab = make([]PureFunctionIdentifier_AmbiguatedFunctionSummary, totalNodes)
-	}
 }
 
 // PopulateDatastructuresForAnalysisTraversal fills all of the auxiliary

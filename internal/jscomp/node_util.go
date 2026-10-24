@@ -6657,9 +6657,7 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 		callback:     finder,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(scope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(scope)
 
 	jutil.CheckState(finder.result.allVarsInFn.IsEmpty() == (len(finder.result.orderedVars) == 0))
 	return &finder.result
