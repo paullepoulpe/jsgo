@@ -221,18 +221,28 @@ func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef *rhino.
 	return p.unknownFunctionSummary
 }
 
+// allocPropagationForInvocation is SideEffectPropagation.forInvocation,
+// allocated from a slab.
 func (p *PureFunctionIdentifier) allocPropagationForInvocation(
-	invocation *rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
+	invocation *rhino.Node,
+	callScope *Scope,
+	callerEntry *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry,
+	argumentsMatchParameters bool,
+	propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 	if len(p.propSlab) == 0 {
 		p.propSlab = make([]PureFunctionIdentifier_SideEffectPropagation, 256)
 	}
 	prop := &p.propSlab[0]
 	p.propSlab = p.propSlab[1:]
-	prop.allArgsUnescapedLocal = NodeUtil_AllArgsUnescapedLocal(invocation)
-	prop.calleeThisEqualsCallerThis = PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerIsArrowFunction
+	// `this` in an arrow function is the `this` of the enclosing function, which is not
+	// tracked.
+	prop.calleeThisEqualsCallerThis = PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction()
 	prop.propagateThrows = propagateThrows
 	prop.invocation = invocation
+	prop.callScope = callScope
+	prop.callerEntry = callerEntry
+	prop.argumentsMatchParameters = argumentsMatchParameters
 	return prop
 }
 
@@ -1058,16 +1068,19 @@ type PureFunctionIdentifier_FunctionBodyAnalyzer struct {
 	// Preloaded with an entry to represent the global scope.
 	//
 	// Go-only: language-adapter — the ArrayDeque is only used at its end
-	// (getLast/addLast/removeLast), so it is a slice.
-	functionScopeStack []PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry
+	// (getLast/addLast/removeLast), so it is a slice. Go-only: performance —
+	// the slots past the end keep the entries popped last, and enterScope
+	// reuses one unless a SideEffectPropagation holds it (heldByEdge).
+	functionScopeStack []*PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer()
 func NewPureFunctionIdentifier_FunctionBodyAnalyzer(outer *PureFunctionIdentifier) *PureFunctionIdentifier_FunctionBodyAnalyzer {
 	b := &PureFunctionIdentifier_FunctionBodyAnalyzer{
 		outer:              outer,
-		functionScopeStack: make([]PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry, 1, 8),
+		functionScopeStack: make([]*PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry, 1, 8),
 	}
+	b.functionScopeStack[0] = NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(nil, false)
 	return b
 }
 
@@ -1076,7 +1089,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) functionScopeStackGetLast(
 	if len(b.functionScopeStack) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
-	return &b.functionScopeStack[len(b.functionScopeStack)-1]
+	return b.functionScopeStack[len(b.functionScopeStack)-1]
 }
 
 // PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry is a single
@@ -1108,6 +1121,11 @@ type PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry struct {
 	// function stack.
 	isArtificiallyPure bool
 	catchDepth         int // The number of try-catch blocks around the current node.
+
+	// Go-only: performance — whether a SideEffectPropagation of an invocation
+	// in this function holds the entry (as its callerEntry), so that it may not
+	// be reused for another function.
+	heldByEdge bool
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.FunctionStackEntry(Node, boolean)
@@ -1280,7 +1298,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 			})
 
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT:
-		b.VisitCall(encloserSummary, node)
+		b.VisitCall(encloserSummary, traversal.GetScope(), node)
 
 	case rhino.Token_DESTRUCTURING_LHS:
 		if NodeUtil_IsAnyFor(node.GetParent()) {
@@ -1422,18 +1440,18 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 	n := len(b.functionScopeStack)
 	if n < cap(b.functionScopeStack) {
 		b.functionScopeStack = b.functionScopeStack[:n+1]
-		e := &b.functionScopeStack[n]
-		e.root = function
-		e.isArtificiallyPure = isArtificiallyPure
-		e.catchDepth = 0
-		e.skiplistedVars = e.skiplistedVars[:0]
-		e.skiplistedNameNodes = e.skiplistedNameNodes[:0]
-		e.taintedVars = e.taintedVars[:0]
+		if e := b.functionScopeStack[n]; e != nil && !e.heldByEdge {
+			e.root = function
+			e.isArtificiallyPure = isArtificiallyPure
+			e.catchDepth = 0
+			e.skiplistedVars = e.skiplistedVars[:0]
+			e.skiplistedNameNodes = e.skiplistedNameNodes[:0]
+			e.taintedVars = e.taintedVars[:0]
+		} else {
+			b.functionScopeStack[n] = NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(function, isArtificiallyPure)
+		}
 	} else {
-		b.functionScopeStack = append(b.functionScopeStack, PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry{
-			root:               function,
-			isArtificiallyPure: isArtificiallyPure,
-		})
+		b.functionScopeStack = append(b.functionScopeStack, NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(function, isArtificiallyPure))
 	}
 	if len(b.outer.summariesForAllNamesOfFunctionByNode[function]) == 0 {
 		// This function was not part of a definition which is why it was not created by
@@ -1447,7 +1465,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.exitScope(NodeTraversal)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal) {
 	idx := len(b.functionScopeStack) - 1
-	functionEntry := &b.functionScopeStack[idx]
+	functionEntry := b.functionScopeStack[idx]
 	if functionEntry.root == nil {
 		return
 	}
@@ -1491,7 +1509,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 				// argument passed to the function for the purposes of "setMutatesArguments"
 				!isFromDestructuring &&
 				!functionEntry.isSkiplistedVar(v) {
-				sideEffectInfo.SetMutatesArguments(v.GetNode())
+				sideEffectInfo.SetMutatesArgumentAt(PureFunctionIdentifier_GetParamIndex(v), v.GetNode())
 				continue
 			}
 
@@ -1616,8 +1634,8 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
 
 // VisitCall records information about a call site.
 //
-// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visitCall(AmbiguatedFunctionSummary, Node)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, invocation *rhino.Node) {
+// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visitCall(AmbiguatedFunctionSummary, Scope, Node)
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, scope *Scope, invocation *rhino.Node) {
 	// Handle special cases (Math, RegExp)
 	// TODO: This logic can probably be replaced with @nosideeffects annotations in externs.
 	if invocation.IsCall() && !b.outer.astAnalyzer.FunctionCallHasSideEffects(invocation) {
@@ -1636,12 +1654,31 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *Pure
 	}
 
 	enclosingFunction := b.functionScopeStackGetLast()
-	propatesThrows := enclosingFunction.catchDepth == 0
-	callerIsArrowFunction := enclosingFunction.root.IsArrowFunction()
+	propagatesThrows := enclosingFunction.catchDepth == 0
+	enclosingFunction.heldByEdge = true
 	for _, calleeInfo := range calleeSummaries {
-		edge := b.outer.allocPropagationForInvocation(invocation, callerIsArrowFunction, propatesThrows)
+		edge :=
+			b.outer.allocPropagationForInvocation(
+				invocation,
+				scope,
+				enclosingFunction,
+				b.ArgumentsMatchParameters(invocation),
+				propagatesThrows)
 		b.outer.reverseCallGraph.ConnectNodes(calleeInfo.graphNode, edge, callerInfo.graphNode)
 	}
+}
+
+// ArgumentsMatchParameters reports whether the i-th argument of invocation
+// is passed as the i-th parameter of the callee, in the absence of spread
+// arguments.
+//
+// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.argumentsMatchParameters(Node)
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ArgumentsMatchParameters(invocation *rhino.Node) bool {
+	return !invocation.IsTaggedTemplateLit() &&
+		!PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) &&
+		// For caching calls like `goog.reflect.cache(cacheObj, key, valueFn)`, the analyzed
+		// callee is `valueFn(key)`, whose 0th parameter is the 2nd argument (`key`).
+		b.outer.compiler.GetCodingConvention().DescribeCachingCall(invocation) == nil
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.addToCatchDepthIfTryBlock(Node, int)
@@ -1657,6 +1694,23 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) AddToCatchDepthIfTryBlock(
 	}
 
 	b.functionScopeStackGetLast().catchDepth += delta
+}
+
+// PureFunctionIdentifier_GetParamIndex returns the index of param in the
+// parameter list of its function.
+//
+// param must not be destructured (which includes rest parameters).
+//
+// Java: PureFunctionIdentifier.getParamIndex(Var)
+func PureFunctionIdentifier_GetParamIndex(param *Var) int {
+	var node *rhino.Node
+	if param.IsDefaultParam() {
+		node = param.GetParentNode()
+	} else {
+		node = param.GetNameNode()
+	}
+	jutil.CheckStateMsg1(node.GetParent().IsParamList(), "%s", node)
+	return node.GetParent().GetIndexOfChild(node)
 }
 
 // Java: PureFunctionIdentifier.isInvocationViaCallOrApply(Node)
@@ -1710,9 +1764,6 @@ type PureFunctionIdentifier_SideEffectPropagation struct {
 	// onto the "caller".
 	callerIsAlias bool
 
-	// If all the arguments passed to the callee are local to the caller.
-	allArgsUnescapedLocal bool
-
 	// If you call a function with apply or call, one of the arguments at the
 	// call site will be used as 'this' inside the implementation. If this is
 	// pass into apply like so: function.apply(this, ...) then 'this' in the
@@ -1727,23 +1778,37 @@ type PureFunctionIdentifier_SideEffectPropagation struct {
 
 	// The token used to invoke the callee by the caller.
 	invocation *rhino.Node
+
+	// The scope containing the invocation.
+	callScope *Scope
+
+	// The function containing the invocation.
+	callerEntry *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry
+
+	// Whether the i-th argument of the invocation is passed as the i-th parameter of the callee,
+	// in the absence of spread arguments.
+	argumentsMatchParameters bool
 }
 
-// Java: PureFunctionIdentifier.SideEffectPropagation(boolean, boolean, boolean, boolean, Node)
+// Java: PureFunctionIdentifier.SideEffectPropagation(boolean, boolean, boolean, Node, Scope, FunctionStackEntry, boolean)
 func NewPureFunctionIdentifier_SideEffectPropagation(
 	callerIsAlias bool,
-	allArgsUnescapedLocal bool,
 	calleeThisEqualsCallerThis bool,
 	propagateThrows bool,
-	invocation *rhino.Node) *PureFunctionIdentifier_SideEffectPropagation {
+	invocation *rhino.Node,
+	callScope *Scope,
+	callerEntry *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry,
+	argumentsMatchParameters bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(invocation == nil || NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	return &PureFunctionIdentifier_SideEffectPropagation{
 		callerIsAlias:              callerIsAlias,
-		allArgsUnescapedLocal:      allArgsUnescapedLocal,
 		calleeThisEqualsCallerThis: calleeThisEqualsCallerThis,
 		propagateThrows:            propagateThrows,
 		invocation:                 invocation,
+		callScope:                  callScope,
+		callerEntry:                callerEntry,
+		argumentsMatchParameters:   argumentsMatchParameters,
 	}
 }
 
@@ -1757,19 +1822,69 @@ func PureFunctionIdentifier_SideEffectPropagation_ForAlias() *PureFunctionIdenti
 	return pureFunctionIdentifier_forAliasSingleton
 }
 
-// Java: PureFunctionIdentifier.SideEffectPropagation.forInvocation(Node, boolean)
+// Java: PureFunctionIdentifier.SideEffectPropagation.forInvocation(Node, Scope, FunctionStackEntry, boolean, boolean)
 func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(
-	invocation *rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
+	invocation *rhino.Node,
+	callScope *Scope,
+	callerEntry *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry,
+	argumentsMatchParameters bool,
+	propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	return NewPureFunctionIdentifier_SideEffectPropagation(
 		false,
-		NodeUtil_AllArgsUnescapedLocal(invocation),
 		// `this` in an arrow function is the `this` of the enclosing function, which is not
 		// tracked.
-		PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerIsArrowFunction,
+		PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction(),
 		propagateThrows,
-		invocation)
+		invocation,
+		callScope,
+		callerEntry,
+		argumentsMatchParameters)
+}
+
+// holdsLocalValue reports whether expr, passed to the callee, holds a value
+// that is local to the caller.
+//
+// Must only be called once the caller has been fully traversed.
+//
+// Java: PureFunctionIdentifier.SideEffectPropagation.holdsLocalValue(Node)
+func (e *PureFunctionIdentifier_SideEffectPropagation) holdsLocalValue(expr *rhino.Node) bool {
+	return NodeUtil_EvaluatesToLocalValue(expr) ||
+		(expr.IsName() &&
+			e.callerEntry.IsLocalVar(e.callScope.GetVar(expr.GetString()), e.callScope))
+}
+
+// mutatedArgumentsAreLocal reports whether all the arguments that may be
+// mutated by the callee are local to the caller.
+//
+// Java: PureFunctionIdentifier.SideEffectPropagation.mutatedArgumentsAreLocal(long)
+func (e *PureFunctionIdentifier_SideEffectPropagation) mutatedArgumentsAreLocal(mutatedParamMask int64) bool {
+	if !e.argumentsMatchParameters {
+		return NodeUtil_AllArgsUnescapedLocal(e.invocation)
+	}
+	index := 0
+	for arg := e.invocation.GetSecondChild(); arg != nil; arg, index = arg.GetNext(), index+1 {
+		if arg.IsSpread() {
+			return false
+		}
+		if (index >= 64 /* Long.SIZE */ || (mutatedParamMask&(int64(1)<<index)) != 0) &&
+			!e.holdsLocalValue(arg) {
+			return false
+		}
+	}
+	return true
+}
+
+// receiverIsLocal reports whether the receiver of the invocation is local to
+// the caller, e.g. `o` in `o.m()`.
+//
+// Java: PureFunctionIdentifier.SideEffectPropagation.receiverIsLocal()
+func (e *PureFunctionIdentifier_SideEffectPropagation) receiverIsLocal() bool {
+	callee := e.invocation.GetFirstChild()
+	return !PureFunctionIdentifier_IsInvocationViaCallOrApply(e.invocation) &&
+		NodeUtil_IsNormalOrOptChainGetProp(callee) &&
+		e.holdsLocalValue(callee.GetFirstChild())
 }
 
 // Java: PureFunctionIdentifier.SideEffectPropagation.calleeAndCallerShareThis(Node)
@@ -1814,9 +1929,11 @@ func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invoc
 // Java: PureFunctionIdentifier.SideEffectPropagation.propagate(AmbiguatedFunctionSummary, AmbiguatedFunctionSummary)
 func (e *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *PureFunctionIdentifier_AmbiguatedFunctionSummary, caller *PureFunctionIdentifier_AmbiguatedFunctionSummary) bool {
 	initialCallerFlags := caller.bitmask
+	initialCallerParamMask := caller.mutatedParamMask
 
 	if e.callerIsAlias {
 		caller.SetMask(callee.bitmask)
+		caller.mutatedParamMask |= callee.mutatedParamMask
 	} else if callee.MutatesGlobalState() {
 		// If the callee modifies global state then so does that caller.
 		caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
@@ -1825,7 +1942,7 @@ func (e *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *PureFun
 			// If the callee throws an exception then so does the caller.
 			caller.SetThrows(e.invocation)
 		}
-		if callee.MutatesArguments() && !e.allArgsUnescapedLocal {
+		if callee.MutatesArguments() && !e.mutatedArgumentsAreLocal(callee.mutatedParamMask) {
 			// If the callee mutates its input arguments and the arguments escape the caller then it
 			// has unbounded side effects.
 			caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
@@ -1835,13 +1952,16 @@ func (e *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *PureFun
 				// NEWing a constructor provide a unescaped "this" making side-effects impossible.
 			} else if e.calleeThisEqualsCallerThis {
 				caller.SetMutatesThis(e.invocation)
+			} else if e.receiverIsLocal() {
+				// The callee mutates an object local to the caller, e.g. `const o = new Foo(); o.m();`.
 			} else {
 				caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
 			}
 		}
 	}
 
-	return caller.bitmask != initialCallerFlags
+	return caller.bitmask != initialCallerFlags ||
+		caller.mutatedParamMask != initialCallerParamMask
 }
 
 // PureFunctionIdentifier_AmbiguatedFunctionSummary is a summary for the set
@@ -1860,7 +1980,9 @@ type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
 	graphNode DiGraph_DiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
 	// The side effect flags for this set of functions.
 	// TODO(nickreid): Replace this with a `Node.SideEffectFlags`.
-	bitmask                      int
+	bitmask int
+	// The indices of the parameters (0..63) mutated by this function, if MUTATES_ARGUMENTS is set.
+	mutatedParamMask             int64
 	collectImpureDebuggingReason bool
 	// FUNCTION nodes with a name corresponding to this summary that are
 	// impure. Only ever initialized if `collectImpureDebuggingReason` is
@@ -1963,6 +2085,7 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesGlobalState() 
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesGlobalStateAndAllOtherFlags(Node)
 func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesGlobalStateAndAllOtherFlags(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
+	s.mutatedParamMask = ^int64(0)
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_GLOBAL_STATE)
 }
 
@@ -1980,6 +2103,25 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesArguments() bo
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesArguments(Node)
 func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArguments(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
+	s.mutatedParamMask = ^int64(0)
+	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
+}
+
+// SetMutatesArgumentAt marks the function as mutating the parameter at
+// paramIndex.
+//
+// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesArgumentAt(int, Node)
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArgumentAt(paramIndex int, debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+	jutil.CheckArgumentMsg1(paramIndex >= 0, "%s", paramIndex)
+	s.MaybeCollectImpureDebuggingReason(debuggingReason)
+	// A parameter that doesn't fit in the mask is approximated by all the parameters.
+	var paramBit int64
+	if paramIndex < 64 /* Long.SIZE */ {
+		paramBit = int64(1) << paramIndex
+	} else {
+		paramBit = ^int64(0)
+	}
+	s.mutatedParamMask |= paramBit
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
 }
 
