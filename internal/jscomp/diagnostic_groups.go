@@ -118,6 +118,7 @@ const DiagnosticGroups_DIAGNOSTIC_GROUP_NAMES = "accessControls, " +
 	"invalidCasts, " +
 	"lintVarDeclarations, " +
 	"misplacedTypeAnnotation, " +
+	"missingCallToSuper, " +
 	"missingOverride, " +
 	"missingPolyfill, " +
 	"missingProperties, " +
@@ -185,6 +186,8 @@ var (
 	DiagnosticGroups_DEFINE_WITHOUT_GOOG_DEFINE *DiagnosticGroup
 
 	DiagnosticGroups_TWEAKS *DiagnosticGroup
+
+	DiagnosticGroups_MISSING_CALL_TO_SUPER *DiagnosticGroup
 
 	DiagnosticGroups_MISSING_OVERRIDE *DiagnosticGroup
 
@@ -462,6 +465,10 @@ func diagnosticGroups_clinit() {
 		"tweakValidation",
 		ProcessTweaks_INVALID_TWEAK_DEFAULT_VALUE_WARNING,
 		ProcessTweaks_TWEAK_WRONG_GETTER_TYPE_WARNING,
+	)
+
+	DiagnosticGroups_MISSING_CALL_TO_SUPER = DiagnosticGroups_RegisterGroupOfTypes(
+		"missingCallToSuper", CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER,
 	)
 
 	DiagnosticGroups_MISSING_OVERRIDE = DiagnosticGroups_RegisterGroupOfTypes(
