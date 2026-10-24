@@ -119,7 +119,12 @@ unchanged. The default is left at 100; switching the CLI default to 50
 
 ## Next
 
-1. Shave the id-translation cost on the hot accessors (in progress).
+1. Shave the id-translation cost on the hot accessors. An investigation
+   started (CPU profiles against the pre-links build, a chunk-base cache in
+   the traversal loops, a PGO refresh) but was interrupted before anything
+   was verified; its uncommitted, unverified diff is kept as
+   `wip-ast-translation-cost.patch` (its last gate showed output DIFFs, so
+   treat it as notes, not a fix).
 2. GOGC default 50.
 3. Chunk-by-chunk release during the compaction copy (removes the 2× AST
    transient at `--gogc 10`).

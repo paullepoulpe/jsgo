@@ -1,0 +1,535 @@
+diff --git a/cmd/jsgo/default.pgo b/cmd/jsgo/default.pgo
+index ea55a656..9a15b987 100644
+Binary files a/cmd/jsgo/default.pgo and b/cmd/jsgo/default.pgo differ
+diff --git a/internal/jscomp/compiler_compact.go b/internal/jscomp/compiler_compact.go
+index fb3733e4..eaaa04a1 100644
+--- a/internal/jscomp/compiler_compact.go
++++ b/internal/jscomp/compiler_compact.go
+@@ -75,6 +75,9 @@ func (c *Compiler) maybeCompactAST(after string, externs, root **rhino.Node, ext
+ 		return
+ 	}
+ 	if after != "typesToColors" {
++		if a.count == 0 {
++			return // the first compaction is the forced one, after typesToColors
++		}
+ 		allocated := (rhino.NodeChunksAllocated() - a.chunksAtLast) * rhino.NodeChunkCapacity
+ 		if allocated < max(a.liveAtLast/4, astCompactMinNodes) {
+ 			return
+@@ -94,10 +97,35 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
+ 		runtime.GC()
+ 	}
+ 	k := rhino.NewCompactor()
+-	fwd := k.Forward
+ 
+-	// 1. Roots.
++	// Counting pass: the tree and every holder (so that fully copied old
++	// chunks can be reused during the copy; see rhino.Compactor).
++	k.CountTree(c.externAndJsRoot)
++	c.forwardASTHolders(k.Note, externs, root, extra)
++	k.EndCounting()
++
+ 	c.externAndJsRoot = k.CopyTree(c.externAndJsRoot)
++	c.forwardASTHolders(k.Forward, externs, root, extra)
++
++	// 8. Go-only caches that may hold nodes.
++	c.evictPassArenaCaches()
++
++	released := k.Finish(c.nodeTables)
++	a.count++
++	a.chunksAtLast = rhino.NodeChunksAllocated()
++	a.liveAtLast = k.Copied
++	if astCompactLog {
++		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %d chunks released, %v\n",
++			a.count, after, k, released, time.Since(t0).Round(time.Millisecond))
++	}
++}
++
++// forwardASTHolders applies fwd to every *rhino.Node the Compiler holds
++// outside the tree (the forwarding registry; see the file comment). It
++// runs twice per compaction: with Compactor.Note before the copy and with
++// Compactor.Forward after it.
++func (c *Compiler) forwardASTHolders(fwd func(*rhino.Node) *rhino.Node, externs, root **rhino.Node, extra func(fwd func(*rhino.Node) *rhino.Node)) {
++	// 1. Roots.
+ 	c.externsRoot = fwd(c.externsRoot)
+ 	c.jsRoot = fwd(c.jsRoot)
+ 	if externs != nil {
+@@ -222,17 +250,6 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
+ 		extra(fwd)
+ 	}
+ 
+-	// 8. Go-only caches that may hold nodes.
+-	c.evictPassArenaCaches()
+-
+-	released := k.Finish(c.nodeTables)
+-	a.count++
+-	a.chunksAtLast = rhino.NodeChunksAllocated()
+-	a.liveAtLast = k.Copied
+-	if astCompactLog {
+-		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %d chunks released, %v\n",
+-			a.count, after, k, released, time.Since(t0).Round(time.Millisecond))
+-	}
+ }
+ 
+ // forwardNodes forwards every node the namespace holds (roots, Name
+diff --git a/internal/rhino/node.go b/internal/rhino/node.go
+index ac31e3d6..c646606f 100644
+--- a/internal/rhino/node.go
++++ b/internal/rhino/node.go
+@@ -405,6 +405,9 @@ const (
+ 	// property that is normally stored inline (e.g. an int value other than
+ 	// 1 for a boolean property, or CHANGE_TIME of a non-Node kind).
+ 	kindFlagHasExtra uint8 = 1 << 5
++	// kindFlagNoted is set by a compaction on the old nodes it must find
++	// again after the copy (node_compact.go); never set on a live node.
++	kindFlagNoted uint8 = 1 << 6
+ 	// kindFlagHasExtBox: Node.aux is the handle of a *nodeExtBox (otherwise
+ 	// of the *JSDocInfo when propFlagHasJSDoc is set).
+ 	kindFlagHasExtBox uint8 = 1 << 7
+@@ -1058,6 +1061,9 @@ func AllocNode() *Node {
+ func (n *Node) Init(token Token) *Node {
+ 	n.token = token
+ 	n.linenoCharno = -1
++	if n.self == 0 {
++		n.self = nodeTemplateSelf // a by-value node (a template), never linked
++	}
+ 	return n
+ }
+ 
+diff --git a/internal/rhino/node_compact.go b/internal/rhino/node_compact.go
+index 76ac10e7..6475bd66 100644
+--- a/internal/rhino/node_compact.go
++++ b/internal/rhino/node_compact.go
+@@ -42,9 +42,13 @@ type Compactor struct {
+ 	old        map[*nodeGen]struct{}
+ 	docs       map[*JSDocInfo]struct{}
+ 	lastChunk  *nodeChunk
+-	Copied     int // nodes copied
+-	ExtraRoots int // detached subtrees copied for holders
+-	ExtraNodes int // nodes in those subtrees
++	root       *Node           // the tree CountTree walked
++	counts     []int32         // per old chunk: counted nodes not yet copied (nil: no recycling)
++	fwdMap     map[*Node]*Node // the copies of the noted old nodes
++	Copied     int             // nodes copied
++	ExtraRoots int             // detached subtrees copied for holders
++	ExtraNodes int             // nodes in those subtrees
++	Recycled   int             // old chunks reused for the copy
+ 	inExtra    bool
+ }
+ 
+@@ -71,6 +75,127 @@ func (k *Compactor) genOf(n *Node) *nodeGen {
+ 	return c.hdr.owner
+ }
+ 
++// Counting pass (optional, before CopyTree): CountTree walks the tree the
++// way copyTree will and counts the nodes per old chunk; Note does the same
++// for every holder the forwarding registry will later forward (a detached
++// subtree is counted and marked noted, a held tree node is just marked).
++// During the copy a chunk whose count reaches zero has no node left to
++// copy and is recycled as a chunk of the new generation, so the copy
++// reuses the old AST's memory instead of doubling it. The noted nodes'
++// copies are remembered in fwdMap, because their chunk may be recycled
++// before the registry asks Forward for them. Never in poison mode.
++
++// CountTree counts the tree rooted at root (see Compactor).
++func (k *Compactor) CountTree(root *Node) {
++	if root == nil || NodePoisonMode {
++		return
++	}
++	k.root = root
++	k.counts = make([]int32, nodeChunkNext.Load()+1)
++	k.fwdMap = make(map[*Node]*Node, 1<<14)
++	k.countTree(root, false)
++}
++
++// Note registers a holder's node for the counting pass (see Compactor).
++func (k *Compactor) Note(n *Node) *Node {
++	if n == nil || n.self == 0 || n.self == nodeTemplateSelf || k.counts == nil || n.kindFlags&kindFlagNoted != 0 {
++		return n
++	}
++	if g := k.genOf(n); g == k.gen || g == nodeInitialGen {
++		return n
++	}
++	r := n
++	for r.parent != 0 {
++		r = nodeAt(r.parent)
++	}
++	if r == k.root {
++		n.kindFlags |= kindFlagNoted
++		return n
++	}
++	if r.kindFlags&kindFlagNoted == 0 {
++		k.countTree(r, true)
++	}
++	return n
++}
++
++// EndCounting ends the counting pass (the copy starts afresh).
++func (k *Compactor) EndCounting() {
++	k.docs = make(map[*JSDocInfo]struct{}, 1024)
++}
++
++// countTree mirrors copyTree: every node copyTree will copy is counted
++// once, side trees included.
++func (k *Compactor) countTree(old *Node, note bool) {
++	k.counts[uint32(old.self)>>nodeChunkShift]++
++	if note {
++		old.kindFlags |= kindFlagNoted
++	}
++	if (old.propFlags & propFlagHasJSDoc) != 0 {
++		if info := old.GetJSDocInfo(); info != nil {
++			if _, done := k.docs[info]; !done {
++				k.docs[info] = struct{}{}
++				info.forwardTypeNodes(k.countDetached)
++			}
++		}
++	}
++	if (old.kindFlags & kindFlagHasExtBox) != 0 {
++		for x := old.coldPropListHead(); x != nil; x = x.next {
++			if x.isObject {
++				if v, ok := x.objectValue.(*Node); ok && v != nil {
++					k.countDetached(v)
++				}
++			}
++		}
++	}
++	for c := old.firstNode(); c != nil; c = c.nextNode() {
++		k.countTree(c, note)
++	}
++}
++
++// countDetached counts the detached subtree n belongs to (once).
++func (k *Compactor) countDetached(n *Node) *Node {
++	if n == nil || n.self == 0 || n.self == nodeTemplateSelf || n.kindFlags&kindFlagNoted != 0 {
++		return n
++	}
++	if g := k.genOf(n); g == k.gen || g == nodeInitialGen {
++		return n
++	}
++	r := n
++	for r.parent != 0 {
++		r = nodeAt(r.parent)
++	}
++	if r.kindFlags&kindFlagNoted == 0 {
++		k.countTree(r, true)
++	}
++	return n
++}
++
++// copied accounts a copied old node and recycles its chunk once every
++// counted node of the chunk has been copied.
++func (k *Compactor) copied(old *Node) {
++	i := uint32(old.self) >> nodeChunkShift
++	if int(i) >= len(k.counts) {
++		return
++	}
++	k.counts[i]--
++	if k.counts[i] != 0 {
++		return
++	}
++	c := nodeChunkSlot(i).Load()
++	if c == nil || c.hdr.owner == k.gen || c.hdr.owner == nodeInitialGen {
++		return
++	}
++	setNodeChunkSlot(i, nil)
++	c.hdr.index = 0
++	if k.lastChunk == c {
++		k.lastChunk = nil
++	}
++	k.gen.mu.Lock()
++	k.gen.spare = append(k.gen.spare, c)
++	k.gen.mu.Unlock()
++	k.Recycled++
++}
++
+ // copyNode copies n into the new generation (links cleared), forwards the
+ // side trees it owns, and marks n as forwarded.
+ func (k *Compactor) copyNode(old *Node) *Node {
+@@ -95,6 +220,10 @@ func (k *Compactor) copyNode(old *Node) *Node {
+ 	*nw = *old
+ 	nw.self = self
+ 	nw.next, nw.first, nw.parent, nw.previous = 0, 0, 0, 0
++	if old.kindFlags&kindFlagNoted != 0 {
++		nw.kindFlags &^= kindFlagNoted
++		k.fwdMap[old] = nw
++	}
+ 	k.Copied++
+ 	if (nw.propFlags & propFlagHasJSDoc) != 0 {
+ 		if info := nw.GetJSDocInfo(); info != nil {
+@@ -120,6 +249,9 @@ func (k *Compactor) copyNode(old *Node) *Node {
+ 	old.previous = nodeForwardMarker
+ 	old.first = 0
+ 	old.parent = 0
++	if k.counts != nil {
++		k.copied(old)
++	}
+ 	return nw
+ }
+ 
+@@ -179,7 +311,7 @@ func (k *Compactor) CopyTree(root *Node) *Node {
+ 	if root.previous == nodeForwardMarker {
+ 		return nodeAt(root.next)
+ 	}
+-	if root.self == 0 || k.genOf(root) == k.gen {
++	if root.self == 0 || root.self == nodeTemplateSelf || k.genOf(root) == k.gen {
+ 		return root
+ 	}
+ 	if root.parent != 0 {
+@@ -192,9 +324,14 @@ func (k *Compactor) CopyTree(root *Node) *Node {
+ // generation (or not in any chunk), its copy when it was copied, and
+ // otherwise copies the detached subtree n belongs to as an extra root.
+ func (k *Compactor) Forward(n *Node) *Node {
+-	if n == nil || n.self == 0 {
++	if n == nil || n.self == 0 || n.self == nodeTemplateSelf {
+ 		return n
+ 	}
++	if n.kindFlags&kindFlagNoted != 0 {
++		if nw, ok := k.fwdMap[n]; ok {
++			return nw
++		}
++	}
+ 	if n.previous == nodeForwardMarker {
+ 		return nodeAt(n.next)
+ 	}
+@@ -210,12 +347,21 @@ func (k *Compactor) Forward(n *Node) *Node {
+ 			panic("rhino.Compactor: an ancestor was forwarded but the node was not copied")
+ 		}
+ 	}
++	if k.counts != nil && n.kindFlags&kindFlagNoted == 0 {
++		// With recycling, every node the registry forwards must have been
++		// noted in the counting pass (its chunk may be reused as soon as
++		// its counted nodes are copied).
++		panic("rhino.Compactor: Forward of a node the counting pass did not see")
++	}
+ 	before := k.Copied
+ 	k.inExtra = true
+ 	k.copyTree(r)
+ 	k.inExtra = false
+ 	k.ExtraRoots++
+ 	k.ExtraNodes += k.Copied - before
++	if nw, ok := k.fwdMap[n]; ok {
++		return nw // n's chunk may already be recycled; the copy noted it
++	}
+ 	return nodeAt(n.next)
+ }
+ 
+@@ -246,6 +392,9 @@ func (k *Compactor) Finish(tables *NodeTables) int {
+ 		g.chunks = nil
+ 		g.mu.Unlock()
+ 		for _, c := range chunks {
++			if c.hdr.index == 0 {
++				continue // recycled into the new generation during the copy
++			}
+ 			setNodeChunkSlot(c.hdr.index, nil)
+ 			released++
+ 			if NodePoisonMode {
+@@ -264,13 +413,18 @@ func (k *Compactor) Finish(tables *NodeTables) int {
+ 	k.old = nil
+ 	k.docs = nil
+ 	k.lastChunk = nil
++	k.counts = nil
++	k.fwdMap = nil
+ 	return released
+ }
+ 
+ func poisonChunk(c *nodeChunk) {
+ 	for i := 1; i < nodeChunkNodes; i++ {
+ 		n := (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(i)*nodeSize))
+-		n.next, n.first, n.parent, n.previous, n.self = nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker
++		// self = 0 so that no link looks like a same-chunk link (Node.link)
++		// and idOf refuses to link the node; the links resolve to the
++		// reserved chunk and panic.
++		n.next, n.first, n.parent, n.previous, n.self = nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, 0
+ 		n.tc, n.aux = 0xFFFFFFFF, 0xFFFFFFFF
+ 		n.token = Token(0xFF)
+ 	}
+@@ -278,7 +432,7 @@ func poisonChunk(c *nodeChunk) {
+ 
+ // String describes the compaction (for logs).
+ func (k *Compactor) String() string {
+-	return fmt.Sprintf("copied %d nodes (%d extra roots, %d nodes)", k.Copied, k.ExtraRoots, k.ExtraNodes)
++	return fmt.Sprintf("copied %d nodes (%d extra roots, %d nodes), %d chunks recycled", k.Copied, k.ExtraRoots, k.ExtraNodes, k.Recycled)
+ }
+ 
+ // forwardTypeNodes forwards the roots of the type-expression trees and type
+diff --git a/internal/rhino/node_compactor_test.go b/internal/rhino/node_compactor_test.go
+index 603df45b..92438909 100644
+--- a/internal/rhino/node_compactor_test.go
++++ b/internal/rhino/node_compactor_test.go
+@@ -1,6 +1,7 @@
+ package rhino
+ 
+ import (
++	"fmt"
+ 	"strings"
+ 	"testing"
+ )
+@@ -65,7 +66,7 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
+ 	func() {
+ 		defer func() {
+ 			r := recover()
+-			if r == nil || !strings.Contains(r.(string), "stale node id") {
++			if r == nil || !strings.Contains(fmt.Sprint(r), "stale node id") {
+ 				t.Fatalf("expected a stale-node panic, got %v", r)
+ 			}
+ 		}()
+diff --git a/internal/rhino/node_store.go b/internal/rhino/node_store.go
+index 2f64c0aa..764a6c7c 100644
+--- a/internal/rhino/node_store.go
++++ b/internal/rhino/node_store.go
+@@ -1,8 +1,11 @@
+ package rhino
+ 
+ import (
++	"errors"
+ 	"fmt"
++	"os"
+ 	"runtime"
++	"runtime/debug"
+ 	"sync"
+ 	"sync/atomic"
+ 	"unsafe"
+@@ -44,6 +47,11 @@ import (
+ 
+ type nodeID uint32
+ 
++// nodeTemplateSelf is the self of a by-value Node (outside any chunk; Init
++// sets it): no id xors with it into the same-chunk range of link, and idOf
++// refuses to link such a node.
++const nodeTemplateSelf nodeID = 0xFFFFFFFF
++
+ const (
+ 	// A chunk holds nodeChunkNodes-1 nodes behind a one-node-wide header and
+ 	// is sized to stay under Go's 32 KiB small-object limit: a small object
+@@ -104,13 +112,71 @@ func nodeAt(id nodeID) *Node {
+ 	if id == 0 {
+ 		return nil
+ 	}
+-	c := nodeChunkSlot(uint32(id) >> nodeChunkShift).Load()
++	return nodeAtSlow(id)
++}
++
++// nodeAtSlow resolves a non-zero id through the chunk table. The slot is
++// read with a plain load: it is published once (setNodeChunkSlot, after the
++// chunk is initialized, through an atomic store) and only ever changes
++// back to zero when the chunk is released; a word-sized racy read observes
++// one of those two values, and the chunk's contents are reached through
++// the loaded address (an address dependency orders the reads).
++//
++//go:noinline
++func nodeAtSlow(id nodeID) *Node {
++	c := *(**nodeChunk)(unsafe.Pointer(&nodeChunkTable[uint32(id)>>nodeChunkShift]))
+ 	if c == nil {
+ 		staleNodeID(id)
+ 	}
+ 	return (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(id&nodeChunkMask)*nodeSize))
+ }
+ 
++// link resolves a link of n. Siblings, children and parents are mostly in
++// the same chunk as n (nodes are allocated in parse order and compaction
++// lays them out in pre-order), and then the target is reached from n
++// itself by pointer arithmetic, without touching the chunk table: ids in
++// one chunk differ only in their low nodeChunkShift bits.
++func (n *Node) link(id nodeID) *Node {
++	// Same chunk: ids differ only in the slot bits. Id 0 never passes (a
++	// chunk node's self has chunk bits; a by-value node's self is
++	// nodeTemplateSelf, see Init).
++	if id^n.self < nodeChunkSlots {
++		return (*Node)(unsafe.Add(unsafe.Pointer(n), uintptr(int32(id-n.self))*nodeSize))
++	}
++	return nodeAtOrNil(id)
++}
++
++// nodeAtOrNil resolves id through the chunk table (nil for 0; a stale id,
++// one whose chunk was released, panics). It is written without calls so
++// that link and the accessors stay within the inliner's budget: the slot is
++// read as a plain load (published once by an atomic store, cleared once on
++// release; the chunk is reached through the loaded address).
++func nodeAtOrNil(id nodeID) *Node {
++	if id == 0 {
++		return nil
++	}
++	c := *(**nodeChunk)(unsafe.Pointer(&nodeChunkTable[uint32(id)>>nodeChunkShift]))
++	if c == nil {
++		staleNodePanic(id)
++	}
++	return (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(id&nodeChunkMask)*nodeSize))
++}
++
++// staleNodePanic reports a stale id (JSGO_AST_STALE_STACK=1 also prints the
++// Go stack, since the compiler reports panics as Java exceptions without one).
++//
++//go:noinline
++func staleNodePanic(id nodeID) {
++	if os.Getenv("JSGO_AST_STALE_STACK") == "1" {
++		fmt.Fprintf(os.Stderr, "stale node id %#x\n", uint32(id))
++		debug.PrintStack()
++	}
++	panic(errStaleNodeID)
++}
++
++// errStaleNodeID is the panic value for an id whose chunk was released.
++var errStaleNodeID = errors.New("rhino.Node: stale node id (its chunk was released)")
++
+ //go:noinline
+ func staleNodeID(id nodeID) {
+ 	panic(fmt.Sprintf("rhino.Node: stale node id %#x (its chunk was released)", uint32(id)))
+@@ -122,7 +188,7 @@ func idOf(n *Node) nodeID {
+ 	if n == nil {
+ 		return 0
+ 	}
+-	if n.self == 0 {
++	if n.self == 0 || n.self == nodeTemplateSelf {
+ 		notInChunk(n)
+ 	}
+ 	return n.self
+@@ -142,6 +208,9 @@ type nodeGen struct {
+ 	// are kept alive with this one, since its nodes resolve ids into them.
+ 	peers    map[*nodeGen]struct{}
+ 	lastPeer atomic.Pointer[nodeGen]
++	// spare: chunks a compaction fully emptied, reused for new chunks (so
++	// the copy does not need a second AST's worth of memory).
++	spare []*nodeChunk
+ }
+ 
+ // ref returns the id of y for a link from n to y, and ties n's generation
+@@ -156,7 +225,7 @@ func (n *Node) ref(y *Node) nodeID {
+ 	if y == nil {
+ 		return 0
+ 	}
+-	if y.self == 0 {
++	if y.self == 0 || y.self == nodeTemplateSelf {
+ 		notInChunk(y)
+ 	}
+ 	if (n.self^y.self)>>nodeChunkShift != 0 {
+@@ -243,7 +312,15 @@ func (g *nodeGen) addChunk() *nodeChunk {
+ 	if k >= nodeChunkCount-1 { // the last index is reserved for nodeForwardMarker
+ 		panic("rhino.Node: node id space exhausted (2^32 nodes allocated in this process)")
+ 	}
+-	c := new(nodeChunk)
++	var c *nodeChunk
++	if n := len(g.spare); n > 0 {
++		c = g.spare[n-1]
++		g.spare[n-1] = nil
++		g.spare = g.spare[:n-1]
++		*c = nodeChunk{}
++	} else {
++		c = new(nodeChunk)
++	}
+ 	c.hdr.owner = g
+ 	c.hdr.index = k
+ 	c.hdr.n.Store(1) // slot 0 is the header
+@@ -301,10 +378,10 @@ func (g *nodeGen) refill(full *nodeChunk) {
+ 	g.addChunk()
+ }
+ 
+-func (n *Node) nextNode() *Node   { return nodeAt(n.next) }
+-func (n *Node) firstNode() *Node  { return nodeAt(n.first) }
+-func (n *Node) parentNode() *Node { return nodeAt(n.parent) }
+-func (n *Node) prevNode() *Node   { return nodeAt(n.previous) }
++func (n *Node) nextNode() *Node   { return n.link(n.next) }
++func (n *Node) firstNode() *Node  { return n.link(n.first) }
++func (n *Node) parentNode() *Node { return n.link(n.parent) }
++func (n *Node) prevNode() *Node   { return n.link(n.previous) }
+ 
+ // NodeChunksAllocated returns the number of chunks allocated so far in the
+ // process (each holds up to NodeChunkCapacity nodes); the difference between
