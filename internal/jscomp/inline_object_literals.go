@@ -510,12 +510,15 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 		if v == nil {
 			continue
 		}
-		referenceInfo := referenceMap.GetReferences(v)
-		if referenceInfo == nil {
+		if b.IsVarInlineForbidden(v) {
 			continue
 		}
 
-		if b.IsVarInlineForbidden(v) {
+		referenceInfo := referenceMap.GetReferences(v)
+		// ReferenceMap only creates collections for variables that have references.
+		// A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
+		// function declaration) without references will return null.
+		if referenceInfo == nil {
 			continue
 		}
 

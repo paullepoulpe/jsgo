@@ -1565,6 +1565,44 @@ func (c *PeepholeFoldConstantsTest) TestFoldGetElem2() {
 	c.Test("x = 'string'[6]", "x = void 0;")
 }
 
+// Java: PeepholeFoldConstantsTest.testFoldGetElem_nonCanonicalKeys()
+func (c *PeepholeFoldConstantsTest) TestFoldGetElem_nonCanonicalKeys() {
+	c.TestSame("var x = [1, 2]['+0'];")
+	c.TestSame("var x = 'abc'['00'];")
+	c.TestSame("var x = [1][false];")
+	c.TestSame("var x = [1, 2]['1.0'];")
+	c.TestSame("var x = [1, 2][' 0 '];")
+	c.TestSame("var x = [1, 2][''];")
+	c.TestSame("var x = [1, 2][null];")
+	c.TestSame("var x = [1, 2][true];")
+	c.Test("var x = [1, 2][!0];", "var x = [1, 2][true];")
+
+	c.Test("var x = [1, 2]['0'];", "var x = 1;")
+	c.Test("var x = [1, 2]['1'];", "var x = 2;")
+	c.Test("var x = 'abc'['0'];", "var x = 'a';")
+
+	// Leading zeros, signs, exponents, and radix prefixes are not canonical.
+	c.TestSame("var x = [1, 2]['01'];")
+	c.TestSame("var x = [1, 2]['-0'];")
+	c.TestSame("var x = [1, 2]['-1'];")
+	c.TestSame("var x = 'abc'['-1'];")
+	c.TestSame("var x = [1, 2]['1e0'];")
+	c.TestSame("var x = [1, 2]['0x1'];")
+	// '0.5' names a property; it is not an invalid index, so no warning.
+	c.TestSame("var x = [1, 2]['0.5'];")
+	// String([]) is '', which is not an index.
+	c.TestSame("var x = [1, 2][[]];")
+	// 2^31 - 1 is the largest index folded; larger valid indexes are left alone.
+	c.Test("var x = [1, 2]['2147483647'];", "var x = void 0;")
+	c.TestSame("var x = [1, 2]['2147483648'];")
+	c.TestSame("var x = [1, 2]['4294967294'];")
+	c.TestSame("var x = [1, 2]['4294967295'];")
+	// Number keys still fold; -0 converts to the key '0'.
+	c.Test("var x = [1, 2][-0];", "var x = 1;")
+	c.TestSame("var x = [1, 2]?.['01'];")
+	c.Test("var x = [1, 2]?.['1'];", "var x = 2;")
+}
+
 // Optional versions of the above `testFoldGetElem2` tests
 // Java: PeepholeFoldConstantsTest.testFoldOptChainGetElem2()
 func (c *PeepholeFoldConstantsTest) TestFoldOptChainGetElem2() {
@@ -2200,6 +2238,16 @@ func (c *PeepholeFoldConstantsTest) TestFoldObjectLiteralRef1() {
 	c.Test(
 		"var x = ({ set ['a'](v) {}, get ['a']() { return 1; } }).a;",
 		"var x = function() { return 1; }();")
+}
+
+// Java: PeepholeFoldConstantsTest.testSetterDefIgnoredInObjectLiteralPropertyFolding()
+func (c *PeepholeFoldConstantsTest) TestSetterDefIgnoredInObjectLiteralPropertyFolding() {
+	// Pre-fix: SETTER_DEF and computed setters do not clear previously tracked data properties,
+	// incorrectly folding the access to the superseded data property value.
+	c.Test("var x = ({ a: 1, set a(v) {} }).a;", "var x = 1;")
+	c.Test("var x = ({ a: 1, set ['a'](v) {} }).a;", "var x = 1;")
+	c.Test("var x = ({ a: 1, set b(v) {} }).a;", "var x = 1;")
+	c.Test("var x = ({ set a(v) {}, a: 2 }).a;", "var x = 2;")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldObjectLiteralRef2()

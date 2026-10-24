@@ -342,7 +342,6 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree *rhino.Node) *rhino.Node {
 //
 // Returns the replacement expression, or null if there were no side-effects
 // to preserve.
-//
 func (p *PeepholeRemoveDeadCode) acquireDeque() *peepholeRemoveDeadCode_nodeDeque {
 	idx := p.dequeDepth
 	p.dequeDepth++
@@ -515,7 +514,16 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree *rhino.Nod
 	case rhino.Token_FUNCTION:
 		// Functions that aren't being invoked are dead. If they were invoked we'd see the CALL
 		// before arriving here. We don't want to look at any children since they'll never execute.
-		return false
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if tree.IsStaticMember() && tree.HasChildren() {
+			p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
+		}
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		// Computed key initializers run once when the class is defined, even on non-static fields.
+		p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
+		if tree.IsStaticMember() && tree.HasTwoChildren() {
+			p.TrySimplifyUnusedResultInternal(tree.GetLastChild(), sideEffectRoots)
+		}
 	default:
 		// This is the meat of this function. It covers the general case of nodes which are unused
 		if p.NodeTypeMayHaveSideEffects(tree) {
@@ -531,6 +539,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree *rhino.Nod
 		}
 		return atFixedPoint
 	}
+	return false
 }
 
 // PeepholeRemoveDeadCode_AsDetachedExpression returns an expression

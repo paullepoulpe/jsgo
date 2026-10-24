@@ -416,6 +416,15 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n *rhino.Node) *rhino.Node {
 		complementOperator = rhino.Token_SHNE
 	case rhino.Token_SHNE:
 		complementOperator = rhino.Token_SHEQ
+	case rhino.Token_NOT:
+		// !!(a < b) -> a < b (when the inner expression already produces a boolean)
+		if NodeUtil_IsBooleanResult(notChild.GetFirstChild()) {
+			expr := notChild.RemoveFirstChild()
+			n.ReplaceWith(expr)
+			p.ReportChangeToEnclosingScope(parent)
+			return expr
+		}
+		return n
 	// GT, GE, LT, LE are not handled in this because !(x<NaN) != x>=NaN.
 	default:
 		return n
@@ -467,6 +476,44 @@ func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n *rhino.Node) *rhino
 // Java: PeepholeMinimizeConditions.tryMinimizeHook(Node)
 func (p *PeepholeMinimizeConditions) TryMinimizeHook(n *rhino.Node) *rhino.Node {
 	originalCond := n.GetFirstChild()
+	thenBranch := originalCond.GetNext()
+	elseBranch := thenBranch.GetNext()
+
+	// Fold boolean-literal HOOKs:
+	//   x ? true : false -> x   (if x is already a boolean result)
+	//   x ? true : false -> !!x (otherwise)
+	//   x ? false : true -> !x
+	// Note: identical branches (e.g. x ? true : true -> true or (x, true)) are handled
+	// generally for any equal subtrees (x ? a : a) in PeepholeRemoveDeadCode.tryFoldHook.
+	if NodeUtil_IsBooleanResult(thenBranch) && NodeUtil_IsBooleanResult(elseBranch) {
+		thenVal := p.GetSideEffectFreeBooleanValue(thenBranch)
+		elseVal := p.GetSideEffectFreeBooleanValue(elseBranch)
+		var replacement *rhino.Node
+		if thenVal == base.Tri_TRUE && elseVal == base.Tri_FALSE {
+			// x ? true : false -> x (if boolean) or !!x
+			cond := originalCond.Detach()
+			if NodeUtil_IsBooleanResult(cond) {
+				replacement = cond
+			} else {
+				replacement = rhino.IR_Not(rhino.IR_Not(cond).Srcref(n)).Srcref(n)
+			}
+		} else if thenVal == base.Tri_FALSE && elseVal == base.Tri_TRUE {
+			// x ? false : true -> !x
+			cond := originalCond.Detach()
+			replacement = rhino.IR_Not(cond).Srcref(n)
+		}
+		if replacement != nil {
+			// Replace `x ? true : false` or `x ? false : true` with `replacement` (`x`, `!!x`, or `!x`)
+			n.ReplaceWith(replacement)
+			p.ReportChangeToEnclosingScope(replacement)
+			p.MarkFunctionsDeleted(n)
+			if replacement.IsNot() {
+				return p.TryMinimizeNot(replacement)
+			}
+			return replacement
+		}
+	}
+
 	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalCond) {
 		return n
 	}
@@ -475,7 +522,6 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(n *rhino.Node) *rhino.Node 
 		minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
 	if mNode.IsNot() {
 		// Swap the HOOK
-		thenBranch := n.GetSecondChild()
 		p.ReplaceNode(originalCond, mNode.WithoutNot())
 		thenBranch.Detach()
 		n.AddChildToBack(thenBranch)

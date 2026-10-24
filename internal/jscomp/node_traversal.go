@@ -1270,6 +1270,14 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 	}
 }
 
+// NodeTraversal_TraverseAtScope traverses the given scope.
+//
+// Java: NodeTraversal.traverseAtScope(AbstractCompiler, Callback, AbstractScope<?, ?>)
+func NodeTraversal_TraverseAtScope(compiler AbstractCompiler, cb NodeTraversal_Callback, scope AbstractScope) {
+	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
+	b.TraverseAtScope(scope)
+}
+
 // NodeTraversal_TraverseScopeRoots traverses *just* the contents of provided
 // scope nodes (and optionally scopes nested within them)
 //

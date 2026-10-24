@@ -822,6 +822,106 @@ func (c *InlineObjectLiteralsTest) TestObjectSpread_readingFromOverwrittenProp()
 			"use(obj.prop);\n")
 }
 
+// Java: InlineObjectLiteralsTest.testUnreferencedVariableInScope_googModule()
+func (c *InlineObjectLiteralsTest) TestUnreferencedVariableInScope_googModule() {
+	c.Test(
+		`goog.module('my.mod');
+function local() {
+  var a = {x: 1};
+  f(a.x);
+}
+`,
+		`goog.module('my.mod');
+function local() {
+  var JSCompiler_object_inline_x_0 = 1;
+  f(JSCompiler_object_inline_x_0);
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testUnreferencedVariableInCatch()
+func (c *InlineObjectLiteralsTest) TestUnreferencedVariableInCatch() {
+	c.TestLocal(
+		`try {
+  var a = {x: 1};
+  f(a.x);
+} catch (e) {
+}
+`,
+		`try {
+  var JSCompiler_object_inline_x_0 = 1;
+  f(JSCompiler_object_inline_x_0);
+} catch (e) {
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testUnreferencedVariableInScope()
+func (c *InlineObjectLiteralsTest) TestUnreferencedVariableInScope() {
+	c.TestLocal(
+		`var a = {x: 1};
+var unused;
+f(a.x);
+`,
+		`var JSCompiler_object_inline_x_0 = 1;
+var unused;
+f(JSCompiler_object_inline_x_0);
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testUnreferencedVariableInDeadCode()
+func (c *InlineObjectLiteralsTest) TestUnreferencedVariableInDeadCode() {
+	c.TestLocal(
+		`var a = {x: 1};
+f(a.x);
+return;
+var dead = {y: 2};
+`,
+		`var JSCompiler_object_inline_x_0 = 1;
+f(JSCompiler_object_inline_x_0);
+return;
+var JSCompiler_object_inline_y_1 = 2;
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testIssue132728074()
+func (c *InlineObjectLiteralsTest) TestIssue132728074() {
+	c.TestSame(
+		`(() => {
+  for (;;) {
+    try {
+      break;
+    } catch (a) {
+      {
+        function a() {}
+      }
+    }
+  }
+});
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testIssue132728074_minimized()
+func (c *InlineObjectLiteralsTest) TestIssue132728074_minimized() {
+	c.TestSame(
+		`try {} catch (a) {
+  {
+    function a() {}
+  }
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testIssue546730364()
+func (c *InlineObjectLiteralsTest) TestIssue546730364() {
+	c.TestSame(
+		`var x;
+{
+  function x() {}
+}
+`)
+}
+
 const InlineObjectLiteralsTest_LOCAL_PREFIX = "function local(){"
 const InlineObjectLiteralsTest_LOCAL_POSTFIX = "}"
 
