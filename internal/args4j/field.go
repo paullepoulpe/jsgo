@@ -71,7 +71,8 @@ type List interface {
 
 // Map is the raw java.util.Map that MapOptionHandler fills: it puts String
 // keys and String values, nil being null. *jutil.JavaHashMap[string, *string]
-// (a Java HashMap<String, String>) is one.
+// (a Java HashMap<String, String>) and *jutil.LinkedHashMap[string, *string]
+// (a Java LinkedHashMap<String, String>) are.
 type Map interface {
 	Put(key string, value *string) *string
 }
@@ -210,5 +211,24 @@ func StringMapField(declaringClass, name string, p **jutil.JavaHashMap[string, *
 				return
 			}
 			*p = v.(*jutil.JavaHashMap[string, *string])
+		})
+}
+
+// LinkedStringMapField is a field of Java type Map<String, String> holding a
+// Java LinkedHashMap (or null).
+func LinkedStringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {
+	return NewField(declaringClass, name, Class_Map, Class_String, false,
+		func() any {
+			if *p == nil {
+				return nil
+			}
+			return *p
+		},
+		func(v any) {
+			if v == nil {
+				*p = nil
+				return
+			}
+			*p = v.(*jutil.LinkedHashMap[string, *string])
 		})
 }
