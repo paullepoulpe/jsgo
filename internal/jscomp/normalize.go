@@ -159,10 +159,9 @@ func (n *Normalize) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
-func (*Normalize_PropagateConstantPropertyOverVars) noShouldTraverse()              {}
 func (*Normalize_PropagateConstantPropertyOverVars) nodeTraversalNoShouldTraverse() {}
 func (*ValidityCheck_VerifyConstants) onlyNameLeaves()                              {}
-func (*ValidityCheck_VerifyConstants) noShouldTraverse()                            {}
+func (*ValidityCheck_VerifyConstants) nodeTraversalNoShouldTraverse()               {}
 
 // Normalize_PropagateConstantPropertyOverVars propagates constant
 // annotations and IS_CONSTANT_NAME property over the Var graph.
