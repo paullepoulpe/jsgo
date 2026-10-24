@@ -65,8 +65,6 @@ type AnalyzePrototypeProperties struct {
 
 	seededNodes []*AnalyzePrototypeProperties_NameInfo
 
-	scopeCreator *SyntacticScopeCreator
-
 	nameInfoSlab   jutil.Slab[AnalyzePrototypeProperties_NameInfo]
 	globalFuncSlab jutil.Slab[AnalyzePrototypeProperties_GlobalFunction]
 	assignPropSlab jutil.Slab[AnalyzePrototypeProperties_AssignmentPrototypeProperty]
@@ -151,13 +149,6 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 
-// Release drops the scope creator of this AnalyzePrototypeProperties.
-func (a *AnalyzePrototypeProperties) Release() {
-	if a != nil && a.scopeCreator != nil {
-		a.scopeCreator = nil
-	}
-}
-
 // Constants for symbol types, for easier readability.
 const AnalyzePrototypeProperties_PROPERTY = AnalyzePrototypeProperties_SymbolType_PROPERTY
 const AnalyzePrototypeProperties_VAR = AnalyzePrototypeProperties_SymbolType_VAR
@@ -222,13 +213,10 @@ func (a *AnalyzePrototypeProperties) Process(externRoot *rhino.Node, root *rhino
 		NodeTraversal_Traverse(a.compiler, externRoot, &AnalyzePrototypeProperties_ProcessExternProperties{outer: a})
 	}
 
-	if a.scopeCreator == nil {
-		a.scopeCreator = NewSyntacticScopeCreator(a.compiler)
-	}
 	var propProc AnalyzePrototypeProperties_ProcessProperties
 	propProc.outer = a
 	propProc.symbolStack = propProc.symbolStackBuf[:0]
-	NodeTraversal_Builder_().SetCompiler(a.compiler).SetScopeCreator(a.scopeCreator).SetCallback(&propProc).Traverse(root)
+	NodeTraversal_Builder_().SetCompiler(a.compiler).SetCallback(&propProc).Traverse(root)
 
 	a.propagateReferences()
 }

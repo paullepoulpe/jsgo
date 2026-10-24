@@ -265,7 +265,6 @@ func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
 	p.InitNamespace(externs, root)
 	if ownNamespace && p.namespace != nil {
 		defer func() {
-			p.namespace.Release()
 			p.namespace = nil
 		}()
 	}

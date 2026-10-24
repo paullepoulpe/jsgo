@@ -183,8 +183,7 @@ func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.N
 		p.propertyCollapseLevel)
 	defer func() {
 		p.decisionsLog = nil
-		if p.namespace != nil && p.optionalGlobalNamespaceTester == nil {
-			p.namespace.Release()
+		if p.optionalGlobalNamespaceTester == nil {
 			p.namespace = nil
 		}
 	}()
@@ -220,9 +219,6 @@ func (p *InlineAndCollapseProperties) PerformMinimalInliningAndModuleExportColla
 	// CollapseProperties needs this namespace.
 	// TODO(bradfordcsmith): Have `InlineAliases` update the namespace it already created
 	// and reuse that one instead.
-	if p.namespace != nil {
-		p.namespace.Release()
-	}
 	p.namespace = NewGlobalNamespaceWithLog(p.decisionsLog, p.compiler, root)
 	NewInlineAndCollapseProperties_CollapseProperties(p).Process(externs, root)
 }
@@ -282,9 +278,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs *r
 
 	// Building the `GlobalNamespace` dominates the cost of this pass, so it is built once and
 	// updated as changes are made so it can be reused for the next iteration.
-	if a.outer.namespace != nil {
-		a.outer.namespace.Release()
-	}
 	a.outer.namespace = NewGlobalNamespaceWithLog(a.outer.decisionsLog, a.outer.compiler, root)
 	for a.codeChanged {
 		a.codeChanged = false
@@ -2715,7 +2708,6 @@ func NewInlineAndCollapseProperties_InlineAliases(outer *InlineAndCollapseProper
 func (a *InlineAndCollapseProperties_InlineAliases) Process(externs *rhino.Node, root *rhino.Node) {
 	a.namespace = NewGlobalNamespaceWithRoots(a.outer.compiler, externs, root)
 	defer func() {
-		a.namespace.Release()
 		a.namespace = nil
 	}()
 	NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(a), externs, root)

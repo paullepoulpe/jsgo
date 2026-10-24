@@ -83,7 +83,6 @@ func (m *CrossChunkMethodMotion) Process(externRoot *rhino.Node, root *rhino.Nod
 	// If there are < 2 chunks, then we will never move anything,
 	// so we're done.
 	if m.chunkGraph.GetChunkCount() > 1 {
-		defer m.analyzer.Release()
 		m.analyzer.Process(externRoot, root)
 		m.MoveMethods(m.analyzer.GetAllNameInfo())
 	}
