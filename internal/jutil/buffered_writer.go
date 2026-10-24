@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"errors"
-	"sync"
 	"unicode/utf16"
 )
 
@@ -30,18 +29,11 @@ import (
 // bufferedWriterSize is the default buffer size of BufferedWriter, in chars.
 const bufferedWriterSize = 8192
 
-var bufferedWriterBufPool = sync.Pool{
-	New: func() any {
-		return new([bufferedWriterSize]uint16)
-	},
-}
-
 // BufferedWriter is java.io.BufferedWriter.
 type BufferedWriter struct {
-	out     Writer
-	buf     []uint16
-	bufSlab *[bufferedWriterSize]uint16
-	closed  bool
+	out    Writer
+	buf    []uint16
+	closed bool
 }
 
 // NewBufferedWriter is new BufferedWriter(out).
@@ -51,8 +43,7 @@ func NewBufferedWriter(out Writer) *BufferedWriter {
 		// this helpful NullPointerException message.
 		panic(NewHelpfulNullPointerException(`Cannot invoke "Object.getClass()" because "writer" is null`))
 	}
-	slab := bufferedWriterBufPool.Get().(*[bufferedWriterSize]uint16)
-	return &BufferedWriter{out: out, buf: slab[:0], bufSlab: slab}
+	return &BufferedWriter{out: out, buf: make([]uint16, 0, bufferedWriterSize)}
 }
 
 // checkNotClosed throws IOException "Stream closed" once Close has run.
@@ -171,10 +162,6 @@ func (w *BufferedWriter) Close() {
 	}()
 	w.closed = true
 	w.buf = nil
-	if w.bufSlab != nil {
-		bufferedWriterBufPool.Put(w.bufSlab)
-		w.bufSlab = nil
-	}
 	if flushFailure != nil {
 		// The failure to pass the chars on wins over one from closing (Java
 		// adds the latter as a suppressed exception).

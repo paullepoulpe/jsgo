@@ -865,9 +865,7 @@ func DataFlowAnalysis_ComputeEscaped(
 		callback:     &finder,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(jsScope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(jsScope)
 }
 
 // dataFlowAnalysis_escapedFinder is the anonymous AbstractPostOrderCallback

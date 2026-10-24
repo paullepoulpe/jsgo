@@ -213,9 +213,9 @@ type ColorPool_Builder struct {
 
 	colorBuilder     colors.Color_Builder
 	colorSlab        jutil.Slab[colors.Color]
-	stringSetSlab    []jutil.LinkedHashSet[string]
+	stringSetSlab    jutil.Slab[jutil.LinkedHashSet[string]]
 	stringSlotSlab   []jutil.LhmSlot[string, struct{}]
-	colorSetSlab     []jutil.ObjectLinkedHashSet[*colors.Color]
+	colorSetSlab     jutil.Slab[jutil.ObjectLinkedHashSet[*colors.Color]]
 	colorSlotSlab    []jutil.OlhmSlot[*colors.Color, struct{}]
 	allocColorSetFn  func(capHint int) *jutil.ObjectLinkedHashSet[*colors.Color]
 	singlePropSets   map[int32]*jutil.LinkedHashSet[string]
@@ -228,12 +228,7 @@ type ColorPool_Builder struct {
 }
 
 func (b *ColorPool_Builder) allocStringSet() *jutil.LinkedHashSet[string] {
-	if len(b.stringSetSlab) == 0 {
-		b.stringSetSlab = make([]jutil.LinkedHashSet[string], 512) // 24 KiB <= 32 KiB
-	}
-	s := &b.stringSetSlab[0]
-	b.stringSetSlab = b.stringSetSlab[1:]
-	return s
+	return b.stringSetSlab.New()
 }
 
 func (b *ColorPool_Builder) allocStringSlots(n int) []jutil.LhmSlot[string, struct{}] {
@@ -308,11 +303,7 @@ func (b *ColorPool_Builder) allocColorSlots(n int) []jutil.OlhmSlot[*colors.Colo
 }
 
 func (b *ColorPool_Builder) allocColorSetWithCap(capHint int) *jutil.ObjectLinkedHashSet[*colors.Color] {
-	if len(b.colorSetSlab) == 0 {
-		b.colorSetSlab = make([]jutil.ObjectLinkedHashSet[*colors.Color], 512) // 16 KiB <= 32 KiB
-	}
-	s := &b.colorSetSlab[0]
-	b.colorSetSlab = b.colorSetSlab[1:]
+	s := b.colorSetSlab.New()
 	if capHint < 1 {
 		capHint = 2
 	}

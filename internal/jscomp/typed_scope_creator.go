@@ -1850,7 +1850,6 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 
 	// Add the type for the "constructor" property.
 	classType := builder.BuildAndRegister()
-	builder.Release()
 	if classType.IsConstructor() {
 		// NOTE: This logic is similar to the goog.inherits handling in
 		// ClosureCodingConvention#applySubclassRelationship. If this logic is modified
@@ -2210,7 +2209,6 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 		InferThisTypeWithFallback(info, fallbackReceiverType).
 		InferParameterTypesWithParamsParent(parametersNode, info).
 		BuildAndRegister()
-	builder.Release()
 
 	// Do some additional validation for constructors and interfaces.
 	if fnType.HasInstanceType() && lvalueNode != nil {

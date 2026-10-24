@@ -65,7 +65,7 @@ type JSTypeReconserializer struct {
 	singleOwnPropFn     func(string)
 	multiOwnPropFn      func(string)
 
-	recordSlab   []JSTypeReconserializer_SeenTypeRecord
+	recordSlab   jutil.Slab[JSTypeReconserializer_SeenTypeRecord]
 	int32Slab    []int32
 	uuidByteSlab []byte
 
@@ -181,11 +181,7 @@ func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
 }
 
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
-	if len(s.recordSlab) == 0 {
-		s.recordSlab = make([]JSTypeReconserializer_SeenTypeRecord, 192) // 30 KiB <= 32 KiB
-	}
-	r := &s.recordSlab[0]
-	s.recordSlab = s.recordSlab[1:]
+	r := s.recordSlab.New()
 	r.colorId = colorId
 	r.pointer = pointer
 	r.jstypes = r.jstypeBuf[:0]

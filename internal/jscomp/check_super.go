@@ -129,9 +129,7 @@ func (c *CheckSuper) processParallel(root *rhino.Node) bool {
 				compiler: rc,
 				callback: workerPass,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
 			if len(workerPass.contextStack) != 0 {
 				jutil.CheckStateMsg1(false, "%s", "["+workerPass.contextStackString()+"]")
 			}

@@ -65,9 +65,7 @@ func (r *RemoveCastNodes) processParallel(externs *rhino.Node, root *rhino.Node)
 				compiler: rc,
 				callback: workerCb,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, scopeRoot, item.parent, item.script, nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, nil)
 		}
 		return runItem, nil
 	}, false)

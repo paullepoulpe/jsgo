@@ -447,9 +447,7 @@ func (p *PeepholeOptimizationsPass) processFullRootParallel(root *rhino.Node) bo
 				compiler: rc,
 				callback: workerCb,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
 		}
 		return runItem, cleanup
 	}, false)
@@ -523,9 +521,7 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 							callback:     scb,
 							scopeCreator: scopeCreator,
 						}
-						t := acquireNodeTraversal(&b)
-						t.TraverseScopeRoot(changedScopeNodes[origIdx])
-						releaseNodeTraversal(t)
+						b.TraverseScopeRoot(changedScopeNodes[origIdx])
 					}()
 					eventsByOrigIdx[origIdx] = rc.takeEvents()
 					if panicsByOrigIdx[origIdx] != nil {

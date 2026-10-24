@@ -860,6 +860,23 @@ func (b *NodeTraversal_Builder) TraverseWithScope(root *rhino.Node, s AbstractSc
 	releaseNodeTraversal(t)
 }
 
+func (b *NodeTraversal_Builder) TraverseScopeRoot(scopeNode *rhino.Node) {
+	t := acquireNodeTraversal(b)
+	t.TraverseScopeRoot(scopeNode)
+	releaseNodeTraversal(t)
+}
+
+func (b *NodeTraversal_Builder) traverseScriptUnderRoot(
+	scopeRoot *rhino.Node,
+	scriptParent *rhino.Node,
+	script *rhino.Node,
+	lazyGlobal *lazyGlobalScope,
+) {
+	t := acquireNodeTraversal(b)
+	traverseScriptUnderRoot(t, scopeRoot, scriptParent, script, lazyGlobal)
+	releaseNodeTraversal(t)
+}
+
 var nodeTraversalPool = sync.Pool{
 	New: func() any { return &NodeTraversal{} },
 }
@@ -1000,9 +1017,7 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 // Java: NodeTraversal.traverse(AbstractCompiler, Node, Callback)
 func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	t := acquireNodeTraversal(&b)
-	t.Traverse(root)
-	releaseNodeTraversal(t)
+	b.Traverse(root)
 }
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
@@ -1032,9 +1047,7 @@ func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
 func NodeTraversal_TraverseRoots(
 	compiler AbstractCompiler, cb NodeTraversal_Callback, externs *rhino.Node, root *rhino.Node) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	t := acquireNodeTraversal(&b)
-	t.TraverseRoots(externs, root)
-	releaseNodeTraversal(t)
+	b.TraverseRoots(externs, root)
 }
 
 func traverseScriptUnderRoot(
@@ -1256,9 +1269,7 @@ func NodeTraversal_TraverseScopeRoots(
 			callback:     scb,
 			scopeCreator: scopeCreator,
 		}
-		t := acquireNodeTraversal(&b)
-		t.TraverseScopeRoot(scopeNode)
-		releaseNodeTraversal(t)
+		b.TraverseScopeRoot(scopeNode)
 	}
 }
 

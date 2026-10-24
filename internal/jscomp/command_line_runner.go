@@ -886,16 +886,8 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(commandLineRunner_Flags_mixedJsSources)+len(f.arguments))
 	var excludes *jutil.LinkedHashSet[string]
-	var entrySlab []AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
-		if len(entrySlab) == 0 {
-			entrySlab = make([]AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 512) // 12 KiB <= 32 KiB
-		}
-		e := &entrySlab[0]
-		entrySlab = entrySlab[1:]
-		e.flag = AbstractCommandLineRunner_JsSourceType_JS
-		e.value = filename
-		return e
+		return NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename)
 	}
 	for _, source := range commandLineRunner_Flags_mixedJsSources {
 		val := source.GetValue()
@@ -1123,10 +1115,9 @@ func newCommandLineRunner_Flags_JsZipOptionHandler(
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter<T>
 type commandLineRunner_Flags_MultiFlagSetter[T abstractCommandLineRunner_flag] struct {
-	proxy     args4j.Setter
-	flag      T
-	entries   *[]*AbstractCommandLineRunner_FlagEntry[T]
-	entrySlab []AbstractCommandLineRunner_FlagEntry[T]
+	proxy   args4j.Setter
+	flag    T
+	entries *[]*AbstractCommandLineRunner_FlagEntry[T]
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter(Setter<? super String>, T, List<FlagEntry<T>>)
@@ -1145,17 +1136,6 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) GetType() *args4j.Class {
 	return s.proxy.GetType()
 }
 
-func (s *commandLineRunner_Flags_MultiFlagSetter[T]) allocEntry(val string) *AbstractCommandLineRunner_FlagEntry[T] {
-	if len(s.entrySlab) == 0 {
-		s.entrySlab = make([]AbstractCommandLineRunner_FlagEntry[T], 512) // 12 KiB <= 32 KiB
-	}
-	e := &s.entrySlab[0]
-	s.entrySlab = s.entrySlab[1:]
-	e.flag = s.flag
-	e.value = val
-	return e
-}
-
 // AddStringValue implements args4j.StringSetter without interface boxing.
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string) {
 	normalizedValue := value
@@ -1171,14 +1151,14 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string
 	} else {
 		s.proxy.AddValue(normalizedValue)
 	}
-	*s.entries = append(*s.entries, s.allocEntry(normalizedValue))
+	*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, normalizedValue))
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter.addValue(String)
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddValue(v any) {
 	if v == nil {
 		s.proxy.AddValue("")
-		*s.entries = append(*s.entries, s.allocEntry(""))
+		*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, ""))
 		return
 	}
 	value, _ := v.(string)

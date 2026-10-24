@@ -441,9 +441,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 		callback:     scb,
 		scopeCreator: &m.localScopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseScopeRoot(fnNode)
-	releaseNodeTraversal(t)
+	b.TraverseScopeRoot(fnNode)
 	clear(cb.renamerStack)
 	cb.renamerStack = nil
 	cb.rootRenamer = nil
