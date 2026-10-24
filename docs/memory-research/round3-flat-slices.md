@@ -201,12 +201,10 @@ tasks do not set it), medians of 5 interleaved runs, outputs identical.
 | bundle | 11.88 → 10.80 s (−9.1 %) | 13.65 → 11.14 s (−18.4 %) | 276 → 277 MB (0 %) |
 | typed-full | 29.72 → 25.34 s (−14.8 %) | 33.90 → 25.93 s (−23.5 %) | 550 → 460 MB (−16.3 %) |
 
-On this machine the branch is faster as well as smaller, unlike the macOS
-8-core measurement in round2-results.md (+2 to +36 % wall, before the
-inline fix): with 4 cores main's GC work (CPU minus wall: 4 s on
-typed-full, 0.6 s on the branch) competes with the mutator, and the
-`nodeAt` fix recovers ~6 %. The RSS gap is smaller than on macOS
-(typed-full −16 % here vs −49 % there); not investigated yet.
+Only these two builds on this machine are compared here; the macOS
+numbers in round2-results.md were taken on older code and a different
+machine and are not comparable. Main's GC work shows as CPU minus wall
+(about 4 s on typed-full, 0.6 s on the branch).
 
 Race check: a `-race` build with `--num_parallel_threads=4` on typed-app
 and bundle reports no race and matches main's serial output.
