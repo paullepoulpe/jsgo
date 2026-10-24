@@ -3,6 +3,7 @@ package rhino
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -142,6 +143,28 @@ type nodeGen struct {
 	// are kept alive with this one, since its nodes resolve ids into them.
 	peers    map[*nodeGen]struct{}
 	lastPeer atomic.Pointer[nodeGen]
+	// leases: the NodeTables leases this generation's nodes hold handles
+	// under (node_tables.go), kept alive with it so that a reachable node
+	// keeps its colors, JSDoc and cold data.
+	leases []*NodeTablesLease
+}
+
+// adoptLeases makes g hold every lease of from (compaction copies from's
+// nodes, and their handles, into g).
+func (g *nodeGen) adoptLeases(from *nodeGen) {
+	if from == g || len(from.leases) == 0 {
+		return
+	}
+	from.mu.Lock()
+	ls := append([]*NodeTablesLease(nil), from.leases...)
+	from.mu.Unlock()
+	g.mu.Lock()
+	for _, l := range ls {
+		if !slices.Contains(g.leases, l) {
+			g.leases = append(g.leases, l)
+		}
+	}
+	g.mu.Unlock()
 }
 
 // ref returns the id of y for a link from n to y, and ties n's generation
@@ -220,6 +243,18 @@ type NodeGeneration struct{ g *nodeGen }
 // are allocated in.
 func NewNodeGeneration() NodeGeneration {
 	g := newNodeGen()
+	nodeCurrentGen.Store(g)
+	return NodeGeneration{g}
+}
+
+// NewNodeGenerationFor is NewNodeGeneration for the nodes of the owner of
+// lease (a Compiler): while any of them is reachable, so is the lease, and
+// the NodeTables it stands for are not released.
+func NewNodeGenerationFor(lease *NodeTablesLease) NodeGeneration {
+	g := newNodeGen()
+	if lease != nil {
+		g.leases = []*NodeTablesLease{lease}
+	}
 	nodeCurrentGen.Store(g)
 	return NodeGeneration{g}
 }

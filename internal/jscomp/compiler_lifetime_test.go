@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"runtime"
 	"testing"
 	"time"
@@ -76,4 +77,53 @@ alert(new Point(3).x);
 		}
 	}
 	t.Fatal("the Compiler is still reachable (its node tables were never released)")
+}
+
+// Go-only: a caller may keep the AST after the last use of its Compiler (a
+// test harness that prints the tree after reading the diagnostics). The
+// nodes' JSDoc, colors and cold data live in the Compiler's node tables, so
+// those must stay until the nodes are unreachable too, not only the
+// Compiler: once the Compiler is collected, a kept node still has its JSDoc.
+func TestNodeTablesOutliveTheCompilerWhileNodesAreReachable(t *testing.T) {
+	collected := make(chan struct{}, 1)
+	var root *rhino.Node
+	func() {
+		c := NewCompiler()
+		c.Init([]*SourceFile{SourceFile_FromCode("externs.js", "")},
+			[]*SourceFile{SourceFile_FromCode("in.js", "/** @const */ var a = 1;\n/** @return {number} */ function f() { return a; }\n")},
+			NewCompilerOptions())
+		root = c.ParseInputs()
+		if c.GetErrorCount() > 0 {
+			t.Fatalf("parse errors: %v", c.GetErrors())
+		}
+		runtime.AddCleanup(c, func(ch chan struct{}) { ch <- struct{}{} }, collected)
+	}()
+	done := false
+	for i := 0; i < 50 && !done; i++ {
+		runtime.GC()
+		select {
+		case <-collected:
+			done = true
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if !done {
+		t.Fatal("the Compiler was not collected")
+	}
+	// Give the tables' cleanup, which would run right after the Compiler's
+	// in the broken lifetime, every chance to run.
+	for i := 0; i < 5; i++ {
+		runtime.GC()
+		time.Sleep(10 * time.Millisecond)
+	}
+	script := root.GetLastChild().GetFirstChild()
+	v := script.GetFirstChild()
+	fn := v.GetNext()
+	if v.GetJSDocInfo() == nil || !v.GetJSDocInfo().IsConstant() {
+		t.Errorf("var a lost its JSDoc after the Compiler was collected: %v", v.GetJSDocInfo())
+	}
+	if fn.GetJSDocInfo() == nil || !fn.GetJSDocInfo().HasReturnType() {
+		t.Errorf("function f lost its JSDoc after the Compiler was collected: %v", fn.GetJSDocInfo())
+	}
+	runtime.KeepAlive(root)
 }

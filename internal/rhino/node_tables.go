@@ -40,11 +40,13 @@ import (
 //     current when the setter runs (NodeTables.Install, called by the
 //     Compiler constructor; outside a compiler, a default NodeTables that is
 //     never released). The Compiler releases its NodeTables (and the type
-//     handles of the registries created while they were current) when it is
-//     garbage collected (runtime.AddCleanup) — nothing in the tables may
-//     reach the Compiler (its registry reports through a weak reference, an
-//     InputId is never a field of its CompilerInput), and the lifetime test
-//     in jscomp guards that.
+//     handles of the registries created while they were current) once
+//     neither it nor any node of its generations is reachable: the cleanup
+//     is on its NodeTablesLease, which the Compiler and those generations
+//     hold. Nothing in the tables may reach the lease or the Compiler (its
+//     registry reports through a weak reference, an InputId is never a
+//     field of its CompilerInput), and the lifetime tests in jscomp guard
+//     that.
 //     "Current" is the newest tables, so a node of an OLDER compiler that is
 //     still being worked on (a test harness keeps the compiler under test
 //     while it creates another one to parse the expected output) allocates
@@ -208,6 +210,21 @@ func auxSet(h uint32, v unsafe.Pointer) {
 		blk[h&handleSlotMask] = v
 	}
 }
+
+// NodeTablesLease stands for one NodeTables while anything may still read
+// a handle from it: the owner (a Compiler) holds it, and so does every node
+// generation made for the owner (NewNodeGenerationFor) or compacted from
+// one (Compactor). The owner releases the tables when the lease becomes
+// unreachable (runtime.AddCleanup on the lease), so a node that outlives its
+// Compiler (a caller that keeps the AST, or prints it after the last use of
+// the Compiler) keeps its colors, JSDoc and cold data, as in Java. Nothing
+// in the tables may reach the lease. The newest generation is reachable
+// from the allocator until the next one starts, so the newest owner's
+// tables live until then, like its nodes.
+type NodeTablesLease struct{ _ uint64 }
+
+// NewNodeTablesLease returns a new lease (see NodeTablesLease).
+func NewNodeTablesLease() *NodeTablesLease { return new(NodeTablesLease) }
 
 // NodeTables owns the color and aux handles of one compilation, plus the
 // node type handles of the registries created while it was current.
