@@ -163,6 +163,12 @@ type JSTypeRegistry struct {
 
 	reporter ErrorReporter
 
+	// nodeTypes hands out the handles Nodes use to refer to this registry's
+	// types (node_tables.go); released by ReleaseNodeTypeHandles. Its own
+	// allocation: the NodeTables that will release it must not keep the
+	// registry alive through an interior pointer.
+	nodeTypes *handleAlloc
+
 	// We use an Array instead of an immutable list because this lookup needs
 	// to be very fast. When it was an immutable list, we were spending 5% of
 	// CPU time on bounds checking inside get().
@@ -418,6 +424,10 @@ func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDe
 		droppedPropertiesOfUnions:      jutil.NewLinkedHashSet[string](),
 		eachRefTypeIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[ObjectType]),
 		leastSupertypeGen:              1,
+		nodeTypes:                      &handleAlloc{tab: &nodeTypeTable},
+	}
+	if t := currentNodeTables.Load(); t != nil {
+		t.adoptRegistry(r)
 	}
 	r.reporter = reporter
 	r.forwardDeclaredTypes = forwardDeclaredTypes

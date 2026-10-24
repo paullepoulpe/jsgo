@@ -59,13 +59,11 @@ type TypedScope struct {
 	AbstractScopeBase[*TypedScope, *TypedVar]
 
 	parent *TypedScope
-	module *Module
 
-	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
-	// elements from an empty set)
-	//
-	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
-	reservedNames []string
+	// Go-only: performance — the Java `module` and `reservedNames` fields,
+	// which only the scope builder reads; dropped by ValidateCompletelyBuilt
+	// (nil afterwards, and for scopes built without either).
+	build *typedScopeBuildState
 
 	// Go-only: performance — the Java LinkedHashMap<String, TypedVar> is vars,
 	// in declaration order (a var is keyed by its name), plus varIndex once
@@ -81,6 +79,25 @@ type TypedScope struct {
 
 	// Scope.java contains an arguments field.
 	// We haven't added it here because it's unused by the passes that need typed scopes.
+}
+
+// typedScopeBuildState is the part of a TypedScope that TypedScopeCreator
+// needs while it builds the scope.
+type typedScopeBuildState struct {
+	module *Module
+
+	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
+	// elements from an empty set)
+	//
+	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
+	reservedNames []string
+}
+
+func (s *TypedScope) reservedNames() []string {
+	if s.build == nil {
+		return nil
+	}
+	return s.build.reservedNames
 }
 
 // Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
@@ -130,10 +147,9 @@ func newTypedScopeOwnedReservedNames(
 	s.parent = parent
 	s.depth = parent.depth + 1
 	s.isBottom = false
-	if len(reservedNames) > 0 {
-		s.reservedNames = reservedNames
+	if len(reservedNames) > 0 || module != nil {
+		s.build = &typedScopeBuildState{module: module, reservedNames: reservedNames}
 	}
-	s.module = module
 	return s
 }
 
@@ -151,8 +167,6 @@ func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope 
 	s.parent = nil
 	s.depth = 0
 	s.isBottom = isBottom
-	s.reservedNames = nil
-	s.module = nil
 	return s
 }
 
@@ -166,8 +180,6 @@ func newGlobalTypedScopeWithCapacity(rootNode *rhino.Node, varCap int) *TypedSco
 	s.parent = nil
 	s.depth = 0
 	s.isBottom = false
-	s.reservedNames = nil
-	s.module = nil
 	return s
 }
 
@@ -191,17 +203,19 @@ func (s *TypedScope) Typed() *TypedScope {
 //
 // Java: TypedScope.validateCompletelyBuilt()
 func (s *TypedScope) ValidateCompletelyBuilt() {
-	if len(s.reservedNames) > 0 {
+	if reserved := s.reservedNames(); len(reserved) > 0 {
 		jutil.CheckStateMsg2(
 			false,
 			"Expected %s to have no reserved names, found: %s. This probably indicates a bug in"+
 				" TypedScopeCreator where it is failing to declare a variable.",
 			s,
-			"["+strings.Join(s.reservedNames, ", ")+"]")
+			"["+strings.Join(reserved, ", ")+"]")
 	}
 	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
 	// singleton)
-	s.reservedNames = nil
+	//
+	// Go-only: the module goes with it; only the scope builder reads it.
+	s.build = nil
 }
 
 // IsBottom reports whether this is the bottom of the lattice.
@@ -213,7 +227,10 @@ func (s *TypedScope) IsBottom() bool {
 
 // Java: TypedScope.getModule()
 func (s *TypedScope) GetModule() *Module {
-	return s.module
+	if s.build == nil {
+		return nil
+	}
+	return s.build.module
 }
 
 // Java: TypedScope.getParent()
@@ -285,15 +302,15 @@ func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) (*TypedVar, bool) {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
 	wasReserved := false
-	if len(s.reservedNames) > 0 {
+	if reserved := s.reservedNames(); len(reserved) > 0 {
 		// (reservedNames only contains simple, non-qualified names; so it's completely normal to
 		// declare qualified names that were not 'reserved')
-		for i, rn := range s.reservedNames {
+		for i, rn := range reserved {
 			if rn == name {
 				wasReserved = true
-				copy(s.reservedNames[i:], s.reservedNames[i+1:])
-				s.reservedNames[len(s.reservedNames)-1] = ""
-				s.reservedNames = s.reservedNames[:len(s.reservedNames)-1]
+				copy(reserved[i:], reserved[i+1:])
+				reserved[len(reserved)-1] = ""
+				s.build.reservedNames = reserved[:len(reserved)-1]
 				break
 			}
 		}
@@ -653,7 +670,7 @@ func (s *TypedScope) GetTypeThroughNamespace(moduleId string) rhino.JSType {
 
 // Java: TypedScope.getTopmostScopeOfEventualDeclaration(String)
 func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	if s.getOwnSlotV(name) != nil || slices.Contains(s.reservedNames, name) {
+	if s.getOwnSlotV(name) != nil || slices.Contains(s.reservedNames(), name) {
 		return s
 	} else if s.GetParent() == nil {
 		return nil

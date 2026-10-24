@@ -260,16 +260,33 @@ type JSTypeBase struct {
 	// registry (Java's JSType.registry field; see GetRegistry).
 	templateTypeMap *TemplateTypeMap
 
-	loosenTypecheckingDueToForwardReferencedSupertype bool
-	hashCodeInProgress                                bool
-	inTemplatedCheckVisit                             bool
-	// 0 = unset, 1 = false, 2 = true.
-	templateCheckResult uint8
+	// nodeHandle is the type's handle in the node type table once a Node
+	// referred to it (see node_tables.go); 0 before.
+	nodeHandle uint32
 
-	visited        bool
-	unknown        bool
-	resolvedToSelf bool
-	objFlags       uint8
+	// flags holds the rarely used booleans (jsTypeFlag*) and the 2-bit
+	// templateCheckResult (0 = unset, 1 = false, 2 = true).
+	flags    uint8
+	unknown  bool
+	objFlags uint8
+}
+
+const (
+	jsTypeFlagLoosenTypechecking uint8 = 1 << 0 // loosenTypecheckingDueToForwardReferencedSupertype
+	jsTypeFlagHashCodeInProgress uint8 = 1 << 1
+	jsTypeFlagInTemplatedCheck   uint8 = 1 << 2
+	jsTypeFlagVisited            uint8 = 1 << 3
+	jsTypeFlagResolvedToSelf     uint8 = 1 << 4
+	jsTypeTemplateCheckShift           = 5
+	jsTypeTemplateCheckMask      uint8 = 3 << jsTypeTemplateCheckShift
+)
+
+func (t *JSTypeBase) templateCheckResult() uint8 {
+	return (t.flags & jsTypeTemplateCheckMask) >> jsTypeTemplateCheckShift
+}
+
+func (t *JSTypeBase) setTemplateCheckResult(v uint8) {
+	t.flags = (t.flags &^ jsTypeTemplateCheckMask) | (v << jsTypeTemplateCheckShift)
 }
 
 const (
@@ -401,8 +418,8 @@ func jsTypeIsUnknown(t JSType, tb *JSTypeBase, kind uint8) bool {
 }
 
 func jsTypeHasAnyTemplateTypes(tb *JSTypeBase) bool {
-	if tb.templateCheckResult != 0 {
-		return tb.templateCheckResult == 2
+	if r := tb.templateCheckResult(); r != 0 {
+		return r == 2
 	}
 	return tb.HasAnyTemplateTypes()
 }
@@ -1043,25 +1060,25 @@ func (t *JSTypeBase) ToMaybeTemplateType() *TemplateType {
 // Java: JSType.hasAnyTemplateTypes()
 func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 	// If the result has been cached use that.
-	if t.templateCheckResult != 0 {
-		return t.templateCheckResult == 2
+	if r := t.templateCheckResult(); r != 0 {
+		return r == 2
 	}
 
-	if t.inTemplatedCheckVisit {
+	if t.flags&jsTypeFlagInTemplatedCheck != 0 {
 		// prevent infinite recursion, this is "not yet".
 		return false
 	}
 
-	t.inTemplatedCheckVisit = true
+	t.flags |= jsTypeFlagInTemplatedCheck
 	result := t.self().HasAnyTemplateTypesInternal()
-	t.inTemplatedCheckVisit = false
+	t.flags &^= jsTypeFlagInTemplatedCheck
 
 	// Cache the result if the type has been resolved.
 	if t.self().IsResolved() {
 		if result {
-			t.templateCheckResult = 2
+			t.setTemplateCheckResult(2)
 		} else {
-			t.templateCheckResult = 1
+			t.setTemplateCheckResult(1)
 		}
 	}
 	return result
@@ -1195,7 +1212,7 @@ func (t *JSTypeBase) IsNativeObjectType() bool {
 //
 // Java: JSType.loosenTypecheckingDueToForwardReferencedSupertype()
 func (t *JSTypeBase) LoosenTypecheckingDueToForwardReferencedSupertype() bool {
-	return t.loosenTypecheckingDueToForwardReferencedSupertype
+	return t.flags&jsTypeFlagLoosenTypechecking != 0
 }
 
 // Java: JSType.maybeLoosenTypecheckingDueToForwardReferencedSupertype(JSType)
@@ -1205,7 +1222,7 @@ func (t *JSTypeBase) MaybeLoosenTypecheckingDueToForwardReferencedSupertype(supe
 	// not be loosened.
 	if (supertype.IsNamedType() && !supertype.IsResolved()) ||
 		supertype.LoosenTypecheckingDueToForwardReferencedSupertype() {
-		t.loosenTypecheckingDueToForwardReferencedSupertype = true
+		t.flags |= jsTypeFlagLoosenTypechecking
 	}
 }
 
@@ -1291,13 +1308,13 @@ func JSType_AreSimilar(first JSType, second JSType) bool {
 //
 // Java: JSType.hashCode()
 func (t *JSTypeBase) HashCode() int32 {
-	if t.hashCodeInProgress {
+	if t.flags&jsTypeFlagHashCodeInProgress != 0 {
 		return -1 // Recursive base-case.
 	}
 
-	t.hashCodeInProgress = true
+	t.flags |= jsTypeFlagHashCodeInProgress
 	hashCode := t.self().RecursionUnsafeHashCode()
-	t.hashCodeInProgress = false
+	t.flags &^= jsTypeFlagHashCodeInProgress
 	return hashCode
 }
 
@@ -1673,8 +1690,8 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 		return thisType
 	}
 	registry := thisTb.GetRegistry()
-	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.resolvedToSelf && thatTb != nil {
-		if thatTb.resolvedToSelf {
+	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.flags&jsTypeFlagResolvedToSelf != 0 && thatTb != nil {
+		if thatTb.flags&jsTypeFlagResolvedToSelf != 0 {
 			if cached := registry.lookupLeastSupertype(thisTb, thatTb); cached != nil {
 				return cached
 			}
@@ -2130,7 +2147,7 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 			t.resolveResult = nil
 		}
 		if t.resolveResult == t {
-			t.resolvedToSelf = true
+			t.flags |= jsTypeFlagResolvedToSelf
 		}
 		jutil.CheckState(t.resolveResult != nil)
 	}
@@ -2144,7 +2161,7 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 func (t *JSTypeBase) EagerlyResolveToSelf() {
 	jutil.CheckStateMsg1(!t.self().IsResolved(), "%s", t.self())
 	t.resolveResult = t
-	t.resolvedToSelf = true
+	t.flags |= jsTypeFlagResolvedToSelf
 	t.GetRegistry().GetResolver().ResolveIfClosed(t.self(), t.self().GetTypeClass())
 }
 

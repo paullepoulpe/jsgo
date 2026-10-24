@@ -105,6 +105,9 @@ type Compiler struct {
 
 	scriptNodeByFilename *jutil.LinkedHashMap[string, *rhino.Node]
 
+	// Go-only: AST compaction state (compiler_compact.go).
+	astCompact astCompaction
+
 	inputPathByWebpackId *jutil.LinkedHashMap[string, string]
 
 	transpilationNamespace rhino.StaticScope
@@ -181,6 +184,11 @@ type Compiler struct {
 	// Go-only: the registry that ClearJSTypeRegistry dropped, for
 	// typeRegistryReleased.
 	clearedTypeRegistry weak.Pointer[rhino.JSTypeRegistry]
+
+	// Go-only: the node tables this compilation's Nodes refer to their
+	// colors, JSDoc and cold properties through (rhino/node_tables.go);
+	// released when the Compiler is collected.
+	nodeTables *rhino.NodeTables
 
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
@@ -393,7 +401,7 @@ func (c *Compiler) initFields() {
 	c.typeCheckingHasRun = false
 	c.asErrorHandler = &compiler_errorHandler{c: c}
 	c.asSourceFileMapping = &compiler_sourceFileMapping{c: c}
-	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
+	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(&compiler_weakErrorHandler{c: weak.Make(c)})
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
 	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
@@ -433,7 +441,16 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
+	// Go-only: the nodes of this compilation get their own generation
+	// (rhino/node_store.go); compaction later replaces it.
+	rhino.NewNodeGeneration()
 	c := &Compiler{}
+	c.nodeTables = rhino.NewNodeTables()
+	c.nodeTables.Install()
+	// The tables hold everything a Node refers to by handle; nothing in them
+	// may reach the Compiler (the registry reports through a weak reference),
+	// so the Compiler is collectable and this frees them.
+	runtime.AddCleanup(c, func(t *rhino.NodeTables) { t.Release() }, c.nodeTables)
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())
@@ -460,6 +477,21 @@ type compiler_errorHandler struct {
 // Report is Compiler.report(CheckLevel, JSError).
 func (h *compiler_errorHandler) Report(level *CheckLevel, error *JSError) {
 	h.c.ReportWithLevel(level, error)
+}
+
+// compiler_weakErrorHandler is compiler_errorHandler through a weak
+// reference: the JSTypeRegistry's reporter. Every JSType reaches its
+// registry, and the node type table reaches every JSType a Node referred
+// to, so a strong reference here would keep a Compiler alive (and its node
+// tables unreleased) for as long as any of its types is registered.
+type compiler_weakErrorHandler struct {
+	c weak.Pointer[Compiler]
+}
+
+func (h *compiler_weakErrorHandler) Report(level *CheckLevel, error *JSError) {
+	if c := h.c.Value(); c != nil {
+		c.ReportWithLevel(level, error)
+	}
 }
 
 // compiler_sourceFileMapping is the Compiler as a SourceFileMapping.
@@ -535,6 +567,7 @@ func (c *Compiler) initExperimentalOutputFeatureSetOptions(options *CompilerOpti
 // Java: Compiler.initOptions(CompilerOptions)
 func (c *Compiler) InitOptions(options *CompilerOptions) {
 	c.options = options
+	c.initASTCompaction()
 	c.allowableFeatures = options.GetLanguageIn().ToFeatureSet()
 	c.initExperimentalOutputFeatureSetOptions(options)
 	if c.errorManager == nil {
@@ -1686,7 +1719,15 @@ func (c *Compiler) BeforePass(passName string) {
 // Java: Compiler.afterPass(String)
 func (c *Compiler) AfterPass(passName string) {
 	c.maybePrintSourceAfterEachPass(passName)
+	if DebugAfterPassHook != nil {
+		DebugAfterPassHook(c, passName)
+	}
 }
+
+// DebugAfterPassHook, when set, is called after every pass with the pass
+// name. Go-only: lets cmd/jsgo write a heap profile after a named pass
+// (JSGO_HEAP_PROFILE_AFTER_PASS) for memory investigations.
+var DebugAfterPassHook func(c *Compiler, passName string)
 
 // GetLifeCycleStage returns the current life-cycle stage of the AST we're
 // working on.
@@ -2191,11 +2232,24 @@ func (c *Compiler) GetChunks() []*JSChunk {
 func (c *Compiler) ClearJSTypeRegistry() {
 	if c.typeRegistry != nil {
 		c.clearedTypeRegistry = weak.Make(c.typeRegistry)
+		// Drop the type column: every type a Node referred to is released
+		// here, whether or not the node is still reachable.
+		c.typeRegistry.ReleaseNodeTypeHandles()
 	}
 	c.typeRegistry = nil
 	c.typeValidator = nil
 	c.abstractInterpreter = nil
+	// Go-only: the cached analyzer holds the registry it was built with.
+	c.cachedAstAnalyzer = nil
+	if AfterTypesToColorsHook != nil {
+		AfterTypesToColorsHook()
+	}
 }
+
+// AfterTypesToColorsHook, when set, runs at the end of ClearJSTypeRegistry.
+//
+// Go-only: measurement aid (cmd/jsgo records the live heap there).
+var AfterTypesToColorsHook func()
 
 // typeRegistryReleased reports whether the registry that ClearJSTypeRegistry
 // dropped has been garbage collected. Every JSType points to its registry,
@@ -2210,6 +2264,10 @@ func (c *Compiler) typeRegistryReleased() bool {
 	runtime.GC()
 	return c.clearedTypeRegistry.Value() == nil
 }
+
+// TypeRegistryReleased is typeRegistryReleased for cmd/jsgo's debugging
+// hook (Go-only).
+func (c *Compiler) TypeRegistryReleased() bool { return c.typeRegistryReleased() }
 
 // Java: Compiler.isTypeRegistryCleared()
 func (c *Compiler) IsTypeRegistryCleared() bool {
@@ -4019,7 +4077,10 @@ func (c *Compiler) PerformTranspilationAndOptimizations(segmentOfCompilationToRu
 
 	c.phaseOptimizer = c.createPhaseOptimizer()
 	c.phaseOptimizer.Consume(optimizationPassesToRunInCurrentSegment)
+	c.astCompact.allowed = true
 	c.phaseOptimizer.Process(c.externsRoot, c.jsRoot)
+	c.maybeCompactAST("end of optimizations", nil, nil, nil)
+	c.astCompact.allowed = false
 	c.phaseOptimizer = nil
 }
 
@@ -4500,6 +4561,11 @@ func (c *Compiler) getSourceMappingValue(
 	consumer := sourceMap.GetSourceMap(c.errorManager)
 	if consumer == nil {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
+	}
+	if !c.options.GetSourceMapIncludeSourcesContent() {
+		// Go-only: performance — only addSourceMapSourceFiles reads the
+		// sources' contents, and only with that option.
+		consumer.DropSourcesContent()
 	}
 	result, identifierPtr, ok := consumer.GetMappingForLineValue(lineNumber, columnNumber+1)
 	if !ok {

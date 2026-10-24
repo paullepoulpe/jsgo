@@ -38,6 +38,7 @@ type inlineFunctionsRunState struct {
 	refsScratch  []FunctionInjector_Reference
 	paramScratch []string
 	movedArgs    map[*rhino.Node]struct{}
+	references   jutil.Slab[InlineFunctions_Reference] // one run's references die together
 }
 
 // InlineFunctions inlines functions that are divided into two types: "direct
@@ -147,7 +148,7 @@ func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 }
 
 func (f *InlineFunctions) allocReference(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
-	r := &InlineFunctions_Reference{}
+	r := f.ensureRunState().references.New()
 	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
 	return r
 }

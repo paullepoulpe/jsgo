@@ -322,13 +322,13 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 	// detecting cycle
 	self := o.selfObj()
-	o.visited = true
+	o.flags |= jsTypeFlagVisited
 	p := self.GetImplicitPrototype()
 	for p != nil {
-		if p.GetObjectTypeBase().visited {
+		if p.GetObjectTypeBase().flags&jsTypeFlagVisited != 0 {
 			return true
 		} else {
-			p.GetObjectTypeBase().visited = true
+			p.GetObjectTypeBase().flags |= jsTypeFlagVisited
 		}
 		p = p.GetImplicitPrototype()
 	}
@@ -336,7 +336,7 @@ func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 	// clean up
 	p = self
 	for {
-		p.GetObjectTypeBase().visited = false
+		p.GetObjectTypeBase().flags &^= jsTypeFlagVisited
 		p = p.GetImplicitPrototype()
 		if p == nil {
 			break

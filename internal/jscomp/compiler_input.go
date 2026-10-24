@@ -34,8 +34,12 @@ import (
 type CompilerInput struct {
 	// Info about where the file lives.
 	chunk      *JSChunk
-	id         *rhino.InputId
-	inlineId   rhino.InputId
+	// Go-only: the InputId is its own allocation, never a field of the
+	// CompilerInput: the SCRIPT node keeps it as a property, and an interior
+	// pointer would keep the CompilerInput (and through it the Compiler)
+	// alive from rhino's node tables for as long as the node's cold data
+	// is registered there (see rhino/node_tables.go).
+	id *rhino.InputId
 	sourceFile *SourceFile
 
 	// The lazily constructed AST.
@@ -103,8 +107,7 @@ func NewCompilerInputWithInputId(file *SourceFile, inputId *rhino.InputId) *Comp
 // Java: CompilerInput(SourceFile, String, boolean)
 func NewCompilerInputWithStringIdAndIsExtern(sourceFile *SourceFile, inputId string, isExtern bool) *CompilerInput {
 	c := &CompilerInput{}
-	c.inlineId.Init(inputId)
-	return initCompilerInputWithInputId(c, sourceFile, &c.inlineId, isExtern)
+	return initCompilerInputWithInputId(c, sourceFile, rhino.NewInputId(inputId), isExtern)
 }
 
 var (
@@ -137,8 +140,7 @@ func newCompilerInputFromSlab(slab *jutil.Slab[CompilerInput], file *SourceFile,
 	} else {
 		c = &CompilerInput{}
 	}
-	c.inlineId.Init(file.GetName())
-	return initCompilerInputWithInputId(c, file, &c.inlineId, isExtern)
+	return initCompilerInputWithInputId(c, file, rhino.NewInputId(file.GetName()), isExtern)
 }
 
 // Deprecated: the inputId is read from the SourceFile. Use

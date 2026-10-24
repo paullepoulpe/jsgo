@@ -4,9 +4,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -30,6 +32,26 @@ func main() {
 		writeStats := memStatsWriter(statsPath)
 		jutil.System_AtExit(writeStats)
 		defer writeStats()
+	}
+	if spec := os.Getenv("JSGO_HEAP_PROFILE_AFTER_PASS"); spec != "" {
+		// Go-only: "<passName>:<file>" writes a heap profile (after a forced
+		// GC) right after the named pass finishes.
+		if pass, file, ok := strings.Cut(spec, ":"); ok {
+			jscomp.DebugAfterPassHook = func(c *jscomp.Compiler, passName string) {
+				if passName != pass {
+					return
+				}
+				runtime.GC()
+				runtime.GC()
+				if f, err := os.Create(file); err == nil {
+					_ = pprof.WriteHeapProfile(f)
+					_ = f.Close()
+				}
+				if c.IsTypeRegistryCleared() {
+					fmt.Fprintf(os.Stderr, "[debug] after %s: type registry released: %v\n", passName, c.TypeRegistryReleased())
+				}
+			}
+		}
 	}
 	if memProf := os.Getenv("JSGO_MEM_PROFILE"); memProf != "" {
 		writeMem := func() {

@@ -89,6 +89,7 @@ func newNestedCompilerRunner(
 		inputs:         jutil.NewArrayList[*CompilerInput](),
 		baseChunk:      NewJSChunk("shadow_base"),
 	}
+	r.shadowCompiler.astCompact.nested = true // Go-only: see compiler_compact.go
 	r.original = original
 	r.shadowOptions = shadowOptions
 	r.mode = mode

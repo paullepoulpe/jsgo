@@ -57,6 +57,21 @@ type Color struct {
 	propertiesKeepOriginalName bool
 	constructor                bool
 	closureAssert              bool
+
+	// Go-only: the color's handle in rhino's node color table (owner id in
+	// the high 32 bits, handle in the low 32), set by rhino.Node.SetColor.
+	nodeHandle atomic.Uint64
+}
+
+// LoadNodeHandle returns the owner id and handle stored by StoreNodeHandle.
+func (c *Color) LoadNodeHandle() (ownerID uint32, handle uint32) {
+	v := c.nodeHandle.Load()
+	return uint32(v >> 32), uint32(v)
+}
+
+// StoreNodeHandle records the handle the node table of ownerID gave c.
+func (c *Color) StoreNodeHandle(ownerID uint32, handle uint32) {
+	c.nodeHandle.Store(uint64(ownerID)<<32 | uint64(handle))
 }
 
 // Java: Color.getId()

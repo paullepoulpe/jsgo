@@ -1,0 +1,328 @@
+package jscomp
+
+import (
+	"fmt"
+	"os"
+	"runtime"
+	"time"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// Go-only: AST compaction (rhino/node_compact.go).
+//
+// Nodes link with ids, so dead nodes are reclaimed only by copying the live
+// tree into a fresh generation. This file decides when (after typesToColors,
+// then whenever the nodes allocated since the last compaction exceed half of
+// the live nodes, checked at the end of every optimization-loop iteration
+// and after every top-level optimization pass, and at the end of the
+// optimization stage) and keeps the forwarding registry: the explicit list
+// of every *rhino.Node the Compiler holds outside the tree across a pass
+// boundary (docs/memory-research/node-holder-census.md, section 3.1).
+// Everything else that holds nodes is pass-local and dead between passes.
+//
+// Compaction never runs before typesToColors (the type graph holds hundreds
+// of thousands of nodes), nor when the typed scopes are kept
+// (PreservesDetailedSourceInfo), nor in a NestedCompilerRunner's shadow
+// compiler (its tree is spliced into, and held by, the outer compilation).
+//
+// JSGO_AST_COMPACT=0|1 overrides the default (on), JSGO_AST_COMPACT_LOG=1
+// logs each compaction to stderr, JSGO_AST_POISON=1 poisons the old nodes
+// (rhino.NodePoisonMode).
+
+type astCompaction struct {
+	enabled      bool
+	nested       bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
+	allowed      bool // inside the optimization stage
+	chunksAtLast int
+	liveAtLast   int
+	count        int
+}
+
+var (
+	astCompactEnv = os.Getenv("JSGO_AST_COMPACT")
+	astCompactLog = os.Getenv("JSGO_AST_COMPACT_LOG") == "1"
+)
+
+// astCompactMinNodes is the allocation volume below which a compaction is
+// never worth its walk.
+const astCompactMinNodes = 64 * 1024
+
+func (c *Compiler) initASTCompaction() {
+	on := true
+	switch astCompactEnv {
+	case "0":
+		on = false
+	case "1":
+		on = true
+	}
+	c.astCompact = astCompaction{
+		enabled: on && !c.astCompact.nested && !c.options.PreservesDetailedSourceInfo(),
+		nested:  c.astCompact.nested,
+	}
+}
+
+// maybeCompactAST compacts the AST after a pass when the policy says so.
+// externs and root are the caller's local root pointers (forwarded in
+// place); extra forwards holders the caller keeps in locals.
+func (c *Compiler) maybeCompactAST(after string, externs, root **rhino.Node, extra func(fwd func(*rhino.Node) *rhino.Node)) {
+	a := &c.astCompact
+	if !a.enabled || !a.allowed || c.externAndJsRoot == nil {
+		return
+	}
+	if !c.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() || c.typeRegistry != nil {
+		return
+	}
+	if after != "typesToColors" {
+		allocated := (rhino.NodeChunksAllocated() - a.chunksAtLast) * rhino.NodeChunkCapacity
+		if allocated < max(a.liveAtLast/4, astCompactMinNodes) {
+			return
+		}
+	}
+	c.compactAST(after, externs, root, extra)
+}
+
+// compactAST copies the live AST and forwards every registered holder.
+func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra func(fwd func(*rhino.Node) *rhino.Node)) {
+	a := &c.astCompact
+	t0 := time.Now()
+	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
+	if after == "typesToColors" {
+		// The type graph was just dropped; collect it first so that the copy
+		// reuses its pages instead of growing the heap by a second AST.
+		runtime.GC()
+	}
+	k := rhino.NewCompactor()
+	fwd := k.Forward
+
+	// 1. Roots.
+	c.externAndJsRoot = k.CopyTree(c.externAndJsRoot)
+	c.externsRoot = fwd(c.externsRoot)
+	c.jsRoot = fwd(c.jsRoot)
+	if externs != nil {
+		*externs = fwd(*externs)
+	}
+	if root != nil {
+		*root = fwd(*root)
+	}
+	for _, name := range c.scriptNodeByFilename.KeySlice() {
+		c.scriptNodeByFilename.Put(name, fwd(c.scriptNodeByFilename.Get(name)))
+	}
+	forwardInput := func(in *CompilerInput) {
+		if in == nil {
+			return
+		}
+		jutil.CheckState(in.typedScope == nil)
+		if in.ast != nil {
+			in.ast.root = fwd(in.ast.root)
+		}
+	}
+	c.inputsById.ForEach(func(_ *rhino.InputId, in *CompilerInput) { forwardInput(in) })
+	if c.chunkGraph != nil {
+		for _, in := range c.chunkGraph.GetAllInputs() {
+			forwardInput(in)
+		}
+	}
+	if c.externs != nil {
+		for _, in := range c.externs.Slice() {
+			forwardInput(in)
+		}
+	}
+	if c.phaseOptimizer != nil {
+		c.phaseOptimizer.jsRoot = fwd(c.phaseOptimizer.jsRoot)
+	}
+
+	// 2. Change tracking.
+	if c.changeTracker != nil && c.changeTracker.changeTimeline != nil {
+		c.changeTracker.changeTimeline.ForwardValues(fwd)
+	}
+
+	// 3. Modules.
+	if c.moduleMetadataMap != nil {
+		var md func(m *ModuleMetadataMap_ModuleMetadata)
+		md = func(m *ModuleMetadataMap_ModuleMetadata) {
+			m.rootNode = fwd(m.rootNode)
+			for _, nm := range m.nestedModules {
+				md(nm)
+			}
+		}
+		for m := range c.moduleMetadataMap.GetAllModuleMetadata().All() {
+			md(m)
+		}
+	}
+	if c.moduleMap != nil {
+		seen := make(map[*Module]struct{})
+		exp := func(e *Export) {
+			if e != nil {
+				e.exportNode = fwd(e.exportNode)
+				e.nameNode = fwd(e.nameNode)
+			}
+		}
+		bind := func(b *Binding) {
+			if b != nil {
+				b.sourceNode = fwd(b.sourceNode)
+				exp(b.originatingExport)
+			}
+		}
+		mod := func(m *Module) {
+			if m == nil {
+				return
+			}
+			if _, done := seen[m]; done {
+				return
+			}
+			seen[m] = struct{}{}
+			if m.namespace != nil {
+				for _, b := range m.namespace.All() {
+					bind(b)
+				}
+			}
+			if m.boundNames != nil {
+				for _, b := range m.boundNames.All() {
+					bind(b)
+				}
+			}
+			if m.localNameToLocalExport != nil {
+				for _, e := range m.localNameToLocalExport.All() {
+					exp(e)
+				}
+			}
+		}
+		for _, m := range c.moduleMap.GetModulesByPath().All() {
+			mod(m)
+		}
+		for _, m := range c.moduleMap.GetModulesByClosureNamespace().All() {
+			mod(m)
+		}
+	}
+
+	// 4. Diagnostics.
+	if c.errorManager != nil {
+		for _, e := range c.errorManager.GetErrors() {
+			e.node = fwd(e.node)
+		}
+		for _, e := range c.errorManager.GetWarnings() {
+			e.node = fwd(e.node)
+		}
+	}
+
+	// 5. Runtime library injection.
+	if c.runtimeJsLibManager != nil {
+		c.runtimeJsLibManager.lastInjectedLibrary = fwd(c.runtimeJsLibManager.lastInjectedLibrary)
+	}
+
+	// 6. Transpilation namespace.
+	if gn, ok := c.transpilationNamespace.(*GlobalNamespace); ok && gn != nil {
+		gn.forwardNodes(fwd)
+	}
+
+	// 7. Caller locals.
+	if extra != nil {
+		extra(fwd)
+	}
+
+	// 8. Go-only caches that may hold nodes.
+	c.evictPassArenaCaches()
+
+	released := k.Finish(c.nodeTables)
+	a.count++
+	a.chunksAtLast = rhino.NodeChunksAllocated()
+	a.liveAtLast = k.Copied
+	if astCompactLog {
+		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %d chunks released, %v\n",
+			a.count, after, k, released, time.Since(t0).Round(time.Millisecond))
+	}
+}
+
+// forwardNodes forwards every node the namespace holds (roots, Name
+// declarations and refs, the refs' scopes, and the two node-keyed caches).
+func (g *GlobalNamespace) forwardNodes(fwd func(*rhino.Node) *rhino.Node) {
+	g.root = fwd(g.root)
+	g.externsRoot = fwd(g.externsRoot)
+	g.globalRoot = fwd(g.globalRoot)
+	if g.spreadSiblingCache != nil {
+		m := make(map[*rhino.Node]bool, len(g.spreadSiblingCache))
+		for n, v := range g.spreadSiblingCache {
+			m[fwd(n)] = v
+		}
+		g.spreadSiblingCache = m
+	}
+	if g.defineCandidateScripts != nil {
+		m := make(map[*rhino.Node]struct{}, len(g.defineCandidateScripts))
+		for n := range g.defineCandidateScripts {
+			m[fwd(n)] = struct{}{}
+		}
+		g.defineCandidateScripts = m
+	}
+	scopes := make(map[*Scope]struct{})
+	var scope func(s *Scope)
+	scope = func(s *Scope) {
+		for ; s != nil; s = s.parent {
+			if _, done := scopes[s]; done {
+				return
+			}
+			scopes[s] = struct{}{}
+			s.rootNode = fwd(s.rootNode)
+			for _, v := range s.varList {
+				if v != nil {
+					v.nameNode = fwd(v.nameNode)
+				}
+			}
+		}
+	}
+	refs := make(map[*GlobalNamespace_Ref]struct{})
+	ref := func(r *GlobalNamespace_Ref) {
+		if r == nil {
+			return
+		}
+		if _, done := refs[r]; done {
+			return
+		}
+		refs[r] = struct{}{}
+		r.node = fwd(r.node)
+		scope(r.scope)
+	}
+	name := func(n *GlobalNamespace_Name) {
+		ref(n.declaration)
+		for _, r := range n.refsSlice {
+			ref(r)
+		}
+		if n.refsIndex != nil {
+			m := make(map[*rhino.Node]int, len(n.refsIndex))
+			for i, r := range n.refsSlice {
+				if r != nil && r.node != nil {
+					m[r.node] = i
+				}
+			}
+			n.refsIndex = m
+		}
+	}
+	if g.nameMap != nil {
+		for _, n := range g.nameMap.All() {
+			name(n)
+		}
+	}
+	if g.nameMapByModule != nil {
+		for n := range g.nameMapByModule.Values() {
+			name(n)
+		}
+	}
+	if g.globalNames != nil {
+		for _, n := range g.globalNames.Slice() {
+			name(n)
+		}
+	}
+}
+
+// ForwardValues replaces every value in the timeline through f (the index
+// map is rebuilt, as it hashes by value).
+func (tl *Timeline[T]) ForwardValues(f func(T) T) {
+	index := make(map[T]uint32, len(tl.eventsByValue))
+	for value, id := range tl.eventsByValue {
+		nv := f(value)
+		tl.event(id).value = nv
+		index[nv] = id
+	}
+	tl.eventsByValue = index
+}

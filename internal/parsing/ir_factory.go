@@ -4875,32 +4875,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
-	return new(rhino.Node).InitFromTemplate(type_, f.templateNode)
+	return rhino.AllocNode().InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
-	return new(rhino.Node).InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return rhino.AllocNode().InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
-	return new(rhino.Node).InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return rhino.AllocNode().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
-	return new(rhino.Node).InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return rhino.AllocNode().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) *rhino.Node {
-	return new(rhino.Node).InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
-	return new(rhino.Node).InitStringFromTemplate(type_, value, f.templateNode)
+	return rhino.AllocNode().InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -4917,17 +4917,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start parser.Sourc
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
-	return new(rhino.Node).InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
+	return rhino.AllocNode().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
-	return new(rhino.Node).InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
+	return rhino.AllocNode().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
-	return new(rhino.Node).InitBigIntFromTemplate(value, f.templateNode)
+	return rhino.AllocNode().InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)

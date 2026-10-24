@@ -169,6 +169,7 @@ type inferConstsCollector struct {
 	globalStates        []inferConstVarState
 	blockStack          []basicBlockEntry
 	blockStackPool      [][]basicBlockEntry
+	blocks              jutil.Slab[BasicBlock] // one pass's blocks die together
 	collectedHoistedMap map[*rhino.Node]struct{}
 	lastHoisted         *rhino.Node
 	hoistedBuf          [16]*rhino.Node
@@ -244,7 +245,7 @@ func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
 		parent = c.blockStack[i-1].block
 	}
 	for ; i <= idx; i++ {
-		parent = NewBasicBlock(parent, c.blockStack[i].root)
+		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
 		c.blockStack[i].block = parent
 	}
 	return parent

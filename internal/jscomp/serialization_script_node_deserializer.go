@@ -304,11 +304,11 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 
 func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode *rhino.Node) *rhino.Node {
 	id := r.owner_.stringPool.GetInternedStrings().GetID(int(stringValPtr))
-	return new(rhino.Node).InitFromTemplate(token, templateNode).SetStringID(id)
+	return rhino.AllocNode().InitFromTemplate(token, templateNode).SetStringID(id)
 }
 
 func (r *scriptNodeDeserializer_Runner) newNodeFromTemplate(token rhino.Token, templateNode *rhino.Node) *rhino.Node {
-	return new(rhino.Node).InitFromTemplate(token, templateNode)
+	return rhino.AllocNode().InitFromTemplate(token, templateNode)
 }
 
 func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
@@ -321,10 +321,10 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 ) *rhino.Node {
 	switch kind {
 	case NodeKind_SOURCE_FILE:
-		return (&rhino.Node{}).InitFromTemplate(rhino.Token_SCRIPT, templateNode)
+		return rhino.AllocNode().InitFromTemplate(rhino.Token_SCRIPT, templateNode)
 
 	case NodeKind_NUMBER_LITERAL:
-		return new(rhino.Node).InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
+		return rhino.AllocNode().InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
 	case NodeKind_STRING_LITERAL:
 		return r.stringNode(rhino.Token_STRINGLIT, stringValPtr, templateNode)
 	case NodeKind_IDENTIFIER:
@@ -341,7 +341,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 		return r.newNodeFromTemplate(rhino.Token_VOID, templateNode)
 	case NodeKind_BIGINT_LITERAL:
 		bigintString := r.owner_.stringPool.Get(int(stringValPtr))
-		return new(rhino.Node).InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
+		return rhino.AllocNode().InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
 	case NodeKind_REGEX_LITERAL:
 		return r.newNodeFromTemplate(rhino.Token_REGEXP, templateNode)
 	case NodeKind_ARRAY_LITERAL:
@@ -474,7 +474,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 	case NodeKind_TEMPLATELIT_SUB:
 		return r.newNodeFromTemplate(rhino.Token_TEMPLATELIT_SUB, templateNode)
 	case NodeKind_TEMPLATELIT_STRING:
-		return new(rhino.Node).InitTemplateLitStringFromStringPool(
+		return rhino.AllocNode().InitTemplateLitStringFromStringPool(
 			r.owner_.stringPool.GetInternedStrings(),
 			int(templateCookedPtr),
 			int(templateRawPtr),
