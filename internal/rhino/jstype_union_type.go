@@ -38,7 +38,6 @@ package rhino
 import (
 	"iter"
 	"slices"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -67,9 +66,8 @@ type UnionType struct {
 	// overhead of allocating iterators. All loops over this collection should
 	// be indexed.
 	inlineAlternates [3]JSType
-	altPtr           *JSType // nil when altLen <= 3 (uses inlineAlternates); &heapSlice[0] when altLen > 3
-
-	altLen uint8
+	heapAlternates   *[]JSType
+	inlineLen        uint8
 
 	// How many alternates were resolved the last time this union was
 	// (re)built?
@@ -86,18 +84,11 @@ type UnionType struct {
 	alternatesResolvedBeforeBuild bool
 }
 
-// UnionType is 96 B: the 32-B JSTypeBase, three inline alternates (48 B),
-// altPtr and the three small fields; keep it at that size class.
-var (
-	_ [96 - unsafe.Sizeof(UnionType{})]byte
-	_ [unsafe.Sizeof(UnionType{}) - 96]byte
-)
-
 func (t *UnionType) rawAlternates() []JSType {
-	if t.altPtr == nil {
-		return t.inlineAlternates[:t.altLen]
+	if t.heapAlternates != nil {
+		return *t.heapAlternates
 	}
-	return unsafe.Slice(t.altPtr, t.altLen)
+	return t.inlineAlternates[:t.inlineLen]
 }
 
 // Java: UnionType.TYPE_CLASS
@@ -203,51 +194,23 @@ func (t *UnionType) CountResolvedAlternates() int {
 // Java: UnionType.fillFromBuilder(Builder)
 func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
 	jutil.CheckState(!t.alternatesResolvedBeforeBuild)
-	if builder.finalAlternates != nil {
-		n := len(builder.finalAlternates)
-		jutil.CheckState(n != 0)
-		t.altLen = uint8(n)
-		if n <= len(t.inlineAlternates) {
-			t.inlineAlternates[0] = builder.finalAlternates[0]
-			if n >= 2 {
-				t.inlineAlternates[1] = builder.finalAlternates[1]
-				if n == 3 {
-					t.inlineAlternates[2] = builder.finalAlternates[2]
-				} else {
-					t.inlineAlternates[2] = nil
-				}
-			} else {
-				t.inlineAlternates[1] = nil
-				t.inlineAlternates[2] = nil
-			}
-			t.altPtr = nil
-		} else {
-			t.inlineAlternates = [3]JSType{}
-			t.altPtr = &builder.finalAlternates[0]
-		}
+	src := builder.finalAlternates
+	owned := src != nil
+	if !owned {
+		src = builder.inlineAlternates[:builder.inlineLen]
+	}
+	jutil.CheckState(len(src) != 0)
+	t.inlineAlternates = [3]JSType{}
+	if len(src) <= len(t.inlineAlternates) {
+		copy(t.inlineAlternates[:], src)
+		t.inlineLen = uint8(len(src))
+		t.heapAlternates = nil
 	} else {
-		n := builder.inlineLen
-		jutil.CheckState(n != 0)
-		t.altLen = uint8(n)
-		if n <= len(t.inlineAlternates) {
-			t.inlineAlternates[0] = builder.inlineAlternates[0]
-			if n >= 2 {
-				t.inlineAlternates[1] = builder.inlineAlternates[1]
-				if n == 3 {
-					t.inlineAlternates[2] = builder.inlineAlternates[2]
-				} else {
-					t.inlineAlternates[2] = nil
-				}
-			} else {
-				t.inlineAlternates[1] = nil
-				t.inlineAlternates[2] = nil
-			}
-			t.altPtr = nil
-		} else {
-			t.inlineAlternates = [3]JSType{}
-			s := slices.Clone(builder.inlineAlternates[:n])
-			t.altPtr = &s[0]
+		if !owned {
+			src = slices.Clone(src)
 		}
+		t.inlineLen = 0
+		t.heapAlternates = &src
 	}
 	t.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild
 }
@@ -1099,11 +1062,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 
 	altBase := jsTypeBase(alternate)
 	altKind := altBase.objFlags & objKindMask
-	if altKind == jsKindUnion {
-		b.AddAlternates((*UnionType)(unsafe.Pointer(altBase)).GetAlternates())
-		return b
-	}
-	if ((uint32(1)<<altKind)&jsKindProxyOrFallbackMask) != 0 && alternate.IsUnionType() {
+	if jsTypeIsUnion(alternate, altKind) {
 		b.AddAlternates(alternate.ToMaybeUnionType().GetAlternates())
 		return b
 	}
@@ -1142,7 +1101,7 @@ func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 
 	if altKind == objKindUnknown {
 		b.isNativeUnknownType = true
-		b.areAllUnknownsChecked = b.areAllUnknownsChecked && (*UnknownType)(unsafe.Pointer(altBase)).isChecked
+		b.areAllUnknownsChecked = b.areAllUnknownsChecked && alternate.(*UnknownType).isChecked
 	}
 
 	if b.isAllType || b.isNativeUnknownType {
@@ -1350,7 +1309,7 @@ func (b *UnionType_Builder) Build() JSType {
 
 	b.BuildInternal()
 	b.rebuildTarget.FillFromBuilder(b)
-	if b.rebuildTarget.altLen == 1 {
+	if b.rebuildTarget.heapAlternates == nil && b.rebuildTarget.inlineLen == 1 {
 		return b.rebuildTarget.inlineAlternates[0]
 	}
 	return b.rebuildTarget

@@ -650,11 +650,7 @@ func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) 
 	if totalNodes <= 8 {
 		return
 	}
-	newNodes := jutil.NewLinkedHashMapWithCapacity[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *LinkedDirectedGraph_LinkedDiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](totalNodes)
-	for k, v := range p.reverseCallGraph.nodes.All() {
-		newNodes.PutNew(k, v)
-	}
-	p.reverseCallGraph.nodes = *newNodes
+	p.reverseCallGraph.nodes.EnsureCapacity(totalNodes)
 	if len(p.summarySlab) < totalNodes {
 		p.summarySlab = make([]PureFunctionIdentifier_AmbiguatedFunctionSummary, totalNodes)
 	}

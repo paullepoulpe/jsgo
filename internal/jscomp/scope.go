@@ -565,3 +565,19 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 func (s *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *Var {
 	return newVarWithID(var_.nameID(), nil, s, -1, nil, nil)
 }
+
+func (s *Scope) ThisScope() *Scope                    { return s }
+func (s *Scope) Contains(other *Scope) bool           { return s.contains(s, other) }
+func (s *Scope) GetArgumentsVar() *Var                { return s.getArgumentsVar(s) }
+func (s *Scope) IsBleedingFunctionName(n string) bool { return s.isBleedingFunctionName(s, n) }
+func (s *Scope) GetAllAccessibleVariables() iter.Seq[*Var] {
+	return s.getAllAccessibleVariables(s)
+}
+func (s *Scope) GetClosestCfgRootScope() *Scope      { return s.getClosestCfgRootScope(s) }
+func (s *Scope) GetCommonParent(other *Scope) *Scope { return s.getCommonParent(s, other) }
+func (s *Scope) HasSameContainerScope(o *Scope) bool { return s.hasSameContainerScope(s, o) }
+func (s *Scope) GetScopeOfThis() *Scope              { return s.getScopeOfThis(s) }
+func (s *Scope) getSlotV(name string) *Var           { return s.GetVar(name) }
+func (s *Scope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
+	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(s, name)
+}

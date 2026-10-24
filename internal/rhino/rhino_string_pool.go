@@ -400,7 +400,7 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
 	pool       *jutil.ArrayList[string]
-	ids        []rhinoStringID
+	ids        []uint32
 	isInterned *RhinoStringPool_WriteOnlyBitset
 }
 
@@ -408,7 +408,7 @@ type RhinoStringPool_LazyInternedStringList struct {
 func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{
 		pool:       jutil.NewArrayListFrom(pool),
-		ids:        make([]rhinoStringID, len(pool)),
+		ids:        make([]uint32, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
 	}
 }
@@ -419,9 +419,8 @@ func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoString
 	if len(ids) == 0 {
 		_ = NewRhinoStringPool_WriteOnlyBitset(0)
 	}
-	idSlice := unsafe.Slice((*rhinoStringID)(unsafe.SliceData(ids)), len(ids))
 	return &RhinoStringPool_LazyInternedStringList{
-		ids: idSlice,
+		ids: ids,
 	}
 }
 
@@ -433,7 +432,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
 	}
 	if uint(offset) < uint(len(l.ids)) {
-		if id := atomic.LoadUint32((*uint32)(&l.ids[offset])); id != 0 {
+		if id := atomic.LoadUint32(&l.ids[offset]); id != 0 {
 			return rhinoStringID(id)
 		}
 	} else {
@@ -441,7 +440,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 	}
 	uninterned := l.pool.Get(offset)
 	id := rhinoStringPoolIntern(uninterned)
-	atomic.StoreUint32((*uint32)(&l.ids[offset]), uint32(id))
+	atomic.StoreUint32(&l.ids[offset], uint32(id))
 	l.isInterned.Set(offset)
 	return id
 }
@@ -449,7 +448,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 // GetID returns the interned rhinoStringID at offset, interning on first access.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
 	if l.pool == nil && uint(offset) < uint(len(l.ids)) {
-		return l.ids[offset]
+		return rhinoStringID(l.ids[offset])
 	}
 	return l.getIDSlow(offset)
 }
@@ -473,7 +472,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 	}
 	return func(yield func(string) bool) {
 		for _, id := range l.ids {
-			if !yield(rhinoStringFromID(id)) {
+			if !yield(rhinoStringFromID(rhinoStringID(id))) {
 				return
 			}
 		}
@@ -487,7 +486,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
 	}
 	out := make([]string, len(l.ids))
 	for i, id := range l.ids {
-		out[i] = rhinoStringFromID(id)
+		out[i] = rhinoStringFromID(rhinoStringID(id))
 	}
 	return out
 }

@@ -40,7 +40,6 @@ import (
 	"math/bits"
 	"strings"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -68,14 +67,10 @@ type JSDocInfo struct {
 	propertyKeysBitset int64
 
 	// This value will be `null` if there is no property, a literal value if
-	// there is only one, or an `Object[]` if there are multiple.
+	// there is only one, or an `[]any` (`Object[]`) if there are multiple.
 	//
 	// This is meant to elide eager allocation of single-valued or empty
 	// lists.
-	//
-	// Go-only: performance — the Object[] is a *any to the first element of
-	// an exact-size array (its length is the popcount of
-	// propertyKeysBitset), so no slice header is boxed.
 	propertyValues any
 }
 
@@ -2353,11 +2348,11 @@ func (i *JSDocInfo) GetPropertyValueByIndex(index int) any {
 	}
 
 	if (i.propertyKeysBitset & (i.propertyKeysBitset - 1)) != 0 {
-		n := bits.OnesCount64(uint64(i.propertyKeysBitset))
-		if index < 0 || index >= n {
-			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, n))
+		vals := i.propertyValues.([]any)
+		if index < 0 || index >= len(vals) {
+			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, len(vals)))
 		}
-		return unsafe.Slice(i.propertyValues.(*any), n)[index]
+		return vals[index]
 	}
 
 	if index != 0 {
@@ -2377,7 +2372,7 @@ func JSDocInfo_PackPropertyValues(values []any) any {
 	}
 	out := make([]any, len(values))
 	copy(out, values)
-	return &out[0]
+	return out
 }
 
 // JSDocInfo_Builder is a builder for JSDocInfo objects. This builder is
