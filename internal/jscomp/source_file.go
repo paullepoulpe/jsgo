@@ -207,6 +207,28 @@ func (f *SourceFile) GetNumBytes() int {
 	return f.numBytes
 }
 
+// estimatedNumBytes is the file's size when it is known or cheap to find
+// (a stat for a file on disk) without reading the file; 0 otherwise.
+//
+// Go-only: sizes the node store before parsing (Compiler.ParseInputs).
+func (f *SourceFile) estimatedNumBytes() int {
+	if p := f.code.Load(); p != nil {
+		return len(*p)
+	}
+	if f.numBytes >= 0 {
+		return f.numBytes
+	}
+	switch l := f.loader.(type) {
+	case *SourceFile_CodeLoader_Preloaded:
+		return len(l.preloadedCode)
+	case *SourceFile_CodeLoader_OnDisk:
+		if fi, err := os.Stat(l.relativePathStr); err == nil {
+			return int(fi.Size())
+		}
+	}
+	return 0
+}
+
 // Java: SourceFile.isLineTerminator(char)
 func SourceFile_IsLineTerminator(ch uint16) bool {
 	switch ch {

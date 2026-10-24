@@ -154,13 +154,13 @@ func TestNodeStoreIsolation(t *testing.T) {
 		}()
 		f()
 	}
-	expectPanic("stale node", "not in the current node store", func() { a.GetFirstChild() })
+	expectPanic("stale node", "nil pointer dereference", func() { a.GetFirstChild() })
 	tmpl := NewTemplateNode(Token_SCRIPT)
 	if !tmpl.Store().IsStatic() || CurrentNodeStore().IsStatic() {
 		t.Fatal("template is not in the static store")
 	}
 	expectPanic("linking a template", "must never be linked", func() { IR_Block().AddChildToBack(tmpl) })
-	expectPanic("nil node", "nil node", func() { NilNode.GetToken() })
+	expectPanic("nil node", "nil pointer dereference", func() { NilNode.GetToken() })
 	if !NilNode.IsNil() || IR_Empty().IsNil() || IR_Empty() == IR_Empty() {
 		t.Fatal("nil handle or handle equality is wrong")
 	}

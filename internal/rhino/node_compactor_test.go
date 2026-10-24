@@ -27,7 +27,7 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	// A detached node of its own.
 	held := IR_Name("h")
 
-	k := NewCompactor()
+	k := NewCompactor(root)
 	newRoot := k.CopyTree(root)
 	newFn := k.Forward(fn)
 	newInterior := k.Forward(heldInterior)

@@ -93,7 +93,7 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 		// reuses its pages instead of growing the heap by a second AST.
 		runtime.GC()
 	}
-	k := rhino.NewCompactor()
+	k := rhino.NewCompactor(c.externAndJsRoot)
 	fwd := k.Forward
 
 	// 1. Roots.

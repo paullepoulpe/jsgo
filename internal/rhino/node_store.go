@@ -2,6 +2,7 @@ package rhino
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 
@@ -13,9 +14,14 @@ import (
 //
 // A Node is a 32-bit id. The node's data (nodeData, 48 bytes, no Go
 // pointers: links are ids too) lives in a NodeStore, which belongs to one
-// compilation. Node methods find the record through the current store, so
-// passes and helpers hold and pass plain ids, and the garbage collector
-// never traces the AST.
+// compilation, so the garbage collector never traces the AST.
+//
+// Finding a node's record: ids are split into blocks of 16384, and the
+// process-wide block directory maps a block number to the block's records.
+// So n.rec() is two loads (the directory entry, then the record) with no
+// branch, small enough for every Node method to be inlined. Code that keeps
+// the current store's slice in a local (Nodes, node_slice.go) reads a field
+// with one load.
 //
 // Which store: the current one. Package-level nodes (sentinels created
 // during init) and long-lived templates live in the static store, whose ids
@@ -25,22 +31,25 @@ import (
 // with a second compiler). Tests give each test a fresh store. Only one
 // store is current at a time: one compilation runs at a time per process.
 //
-// Ids are never reused within a store, and a new store's ids start after
-// every id handed out before it. So an id from a store that is no longer
-// current (one compaction replaced, or a previous test's) is outside the
-// current store's range and panics instead of reading another node, and
-// the nil node (id 0) panics like a nil pointer.
+// The directory holds the blocks of the static store, of the current store
+// and, during compaction, of the store being copied; switching stores takes
+// the old one's blocks out, so the GC can free it. Ids are never reused: a
+// new store's ids start after every id range an earlier store covered. So an id from a
+// store that is no longer current (one compaction replaced, or a previous
+// test's) finds an empty directory entry and fails like a nil pointer
+// instead of reading another node, and so does the nil node (id 0: block 0
+// is never used).
 //
-// Layout: a store keeps its records in one flat slice, so that finding a
-// record is an index. The slice never moves while a pass runs (passes may
-// keep it in a local); nodes allocated past its end go to fixed-size
-// overflow segments, and Settle, called between passes, copies everything
-// into a larger slice.
+// Layout: a store keeps its records in one flat slice made of whole blocks.
+// The slice never moves while a pass runs; nodes allocated past its end go
+// to separate overflow blocks, and SettleCurrentNodeStore, called between
+// passes, copies them into a larger slice when there are many.
 //
 // Concurrency: allocation is safe from several goroutines (parallel
 // parsing and passes): ids come from an atomic counter and an overflow
-// segment is created once, under the store's mutex, before any of its ids
-// is used. Settle and switching stores happen between passes only.
+// block is created and published once, under the store's mutex, before any
+// of its ids is used. Settling and switching stores happen between passes
+// only.
 
 // Node is a handle to an AST node: its id. NilNode (0) is the nil node.
 type Node uint32
@@ -51,13 +60,16 @@ const NilNode Node = 0
 const (
 	staticBit = 1 << 31 // ids of the static store
 
-	overflowShift = 14 // 16384 records per overflow segment
-	overflowLen   = 1 << overflowShift
-	overflowMask  = overflowLen - 1
-	maxOverflow   = 1 << 13 // up to 2^27 nodes allocated between two Settles
+	blockShift = 14 // 16384 records (768 KiB) per block
+	blockLen   = 1 << blockShift
+	blockMask  = blockLen - 1
+	numBlocks  = 1 << (32 - blockShift)
 )
 
-type overflowSegment [overflowLen]nodeData
+type nodeBlock [blockLen]nodeData
+
+// nodeBlocks is the block directory: the records of block id>>blockShift.
+var nodeBlocks [numBlocks]atomic.Pointer[nodeBlock]
 
 // NodeStore holds the nodes of one compilation and the tables their
 // records refer to (node_tables.go).
@@ -65,15 +77,14 @@ type NodeStore struct {
 	id     uint32 // distinguishes stores (a Color remembers the store its handle is for)
 	static bool
 
-	base uint32        // the first id of this store
+	base uint32        // the first id of this store (a multiple of blockLen)
 	next atomic.Uint32 // the next id to hand out
 
-	recs       []nodeData // records of ids [base, base+len(recs))
-	overBase   uint32     // the first id that goes to the overflow segments: base+len(recs)
-	overflow   [maxOverflow]atomic.Pointer[overflowSegment]
-	overflowed atomic.Bool // some id went to an overflow segment since the last Settle
+	recs     []nodeData // records of ids [base, base+len(recs)); len is a multiple of blockLen
+	overBase uint32     // base+len(recs): ids from here on are in overflow blocks
+	overflow []*nodeBlock
 
-	mu sync.Mutex // guards overflow segment creation and the side tables' growth
+	mu sync.Mutex // guards overflow block creation and the side tables' growth
 
 	types  handleTable[*JSTypeBase]
 	colors handleTable[*colors.Color]
@@ -85,8 +96,8 @@ var (
 	dynamicIDs      atomic.Uint32 // the high-water mark of ids handed out by non-static stores
 	staticStore     = newNodeStore(true, staticBit, 0)
 
-	// The current store and a copy of its slice header and base, read by
-	// every record lookup; written between passes only.
+	// The current store and a copy of its slice header and base, for
+	// CurrentNodes; written between passes only.
 	current     *NodeStore
 	currentRecs []nodeData
 	currentBase uint32
@@ -97,13 +108,13 @@ var (
 )
 
 func init() {
-	dynamicIDs.Store(1) // id 0 is the nil node
+	dynamicIDs.Store(blockLen) // block 0 is never used: id 0 is the nil node
 }
 
 // NewNodeStore returns an empty store. It is not current until
 // SetCurrentNodeStore.
 func NewNodeStore() *NodeStore {
-	return newNodeStore(false, 0, 1024)
+	return newNodeStore(false, 0, blockLen)
 }
 
 // newNodeStore creates a store whose ids start at base (0: assigned when
@@ -116,17 +127,50 @@ func newNodeStore(static bool, base uint32, capacity int) *NodeStore {
 	if base != 0 {
 		s.start(base, capacity)
 	} else {
-		s.recs = make([]nodeData, 0, capacity) // kept until start
+		s.recs = make([]nodeData, 0, capacity) // its capacity is kept until start
 	}
 	return s
 }
 
-// start sets the store's first id.
+func roundUpToBlock(n uint32) uint32 {
+	return (n + blockMask) &^ blockMask
+}
+
+// start sets the store's first id and allocates its slice.
 func (s *NodeStore) start(base uint32, capacity int) {
-	s.base = base
-	s.next.Store(base)
-	s.recs = make([]nodeData, capacity)
-	s.overBase = base + uint32(capacity)
+	s.base = roundUpToBlock(base)
+	s.next.Store(s.base)
+	s.recs = make([]nodeData, roundUpToBlock(uint32(capacity)))
+	s.overBase = s.base + uint32(len(s.recs))
+}
+
+// register puts s's blocks in the directory.
+func (s *NodeStore) register() {
+	for k := 0; k*blockLen < len(s.recs); k++ {
+		nodeBlocks[s.base>>blockShift+uint32(k)].Store((*nodeBlock)(s.recs[k*blockLen : (k+1)*blockLen]))
+	}
+	for k, b := range s.overflow {
+		nodeBlocks[s.overBase>>blockShift+uint32(k)].Store(b)
+	}
+}
+
+// idEnd returns the end of the id range s covers: its slice and overflow
+// blocks, used or not. The next store's ids start after it.
+func (s *NodeStore) idEnd() uint32 {
+	return s.overBase + uint32(len(s.overflow))*blockLen
+}
+
+// unregister takes s's blocks out of the directory.
+func (s *NodeStore) unregister() {
+	if s.base == 0 {
+		return
+	}
+	for k := 0; k*blockLen < len(s.recs); k++ {
+		nodeBlocks[s.base>>blockShift+uint32(k)].CompareAndSwap((*nodeBlock)(s.recs[k*blockLen:(k+1)*blockLen]), nil)
+	}
+	for k, b := range s.overflow {
+		nodeBlocks[s.overBase>>blockShift+uint32(k)].CompareAndSwap(b, nil)
+	}
 }
 
 // CurrentNodeStore returns the store new nodes are allocated in (the
@@ -143,20 +187,26 @@ func CurrentNodeStore() *NodeStore {
 // returns the previous one. Call it between passes only.
 func SetCurrentNodeStore(s *NodeStore) *NodeStore {
 	prev := current
-	if prev != nil {
-		raiseDynamicIDs(prev.next.Load())
+	if prev == s {
+		return prev
 	}
-	if s != nil && s.base == 0 {
-		s.start(dynamicIDs.Load(), cap(s.recs))
+	if prev != nil {
+		raiseDynamicIDs(prev.idEnd())
+		if prev != compactSource {
+			prev.unregister()
+		}
+	}
+	if s != nil {
+		if s.base == 0 {
+			s.start(dynamicIDs.Load(), cap(s.recs))
+		}
+		s.register()
 	}
 	current = s
 	if s != nil {
 		currentRecs, currentBase = s.recs, s.base
 	} else {
 		currentRecs, currentBase = nil, 0
-	}
-	if prev == nil {
-		return nil
 	}
 	return prev
 }
@@ -202,34 +252,29 @@ func (s *NodeStore) NodeCount() int {
 // alloc returns a new, zeroed node of s.
 func (s *NodeStore) alloc() Node {
 	id := s.next.Add(1) - 1
-	if id-s.base >= uint32(len(s.recs)) {
-		s.overflowRec(id, true)
+	if id >= s.overBase {
+		s.ensureOverflow(id)
 	}
 	return Node(id)
 }
 
-// overflowRec returns the record of an id past the store's slice, creating
-// its segment if create is set.
-func (s *NodeStore) overflowRec(id uint32, create bool) *nodeData {
-	off := id - s.overBase
-	k := off >> overflowShift
-	if k >= maxOverflow {
-		panic(fmt.Sprintf("rhino.NodeStore: %d nodes allocated without a Settle", off))
+// ensureOverflow creates the overflow block of id if needed.
+func (s *NodeStore) ensureOverflow(id uint32) {
+	k := id >> blockShift
+	if nodeBlocks[k].Load() != nil {
+		return
 	}
-	seg := s.overflow[k].Load()
-	if seg == nil {
-		if !create {
-			panic(fmt.Sprintf("rhino.Node: id %d is not allocated", id))
-		}
-		s.mu.Lock()
-		if seg = s.overflow[k].Load(); seg == nil {
-			seg = new(overflowSegment)
-			s.overflow[k].Store(seg)
-			s.overflowed.Store(true)
-		}
-		s.mu.Unlock()
+	if (s.static && id < staticBit) || (!s.static && id >= staticBit) {
+		panic(fmt.Sprintf("rhino.NodeStore: node id space exhausted (%d)", id))
 	}
-	return &seg[off&overflowMask]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if nodeBlocks[k].Load() != nil {
+		return // another goroutine created it
+	}
+	b := new(nodeBlock)
+	s.overflow = append(s.overflow, b)
+	nodeBlocks[k].Store(b)
 }
 
 // contains reports whether id was handed out by s.
@@ -237,41 +282,37 @@ func (s *NodeStore) contains(id uint32) bool {
 	return s != nil && s.base != 0 && id-s.base < s.next.Load()-s.base
 }
 
-// rec returns the record of an id of s.
-func (s *NodeStore) rec(id uint32) *nodeData {
-	if i := id - s.base; i < uint32(len(s.recs)) {
-		return &s.recs[i]
-	}
-	return s.overflowRec(id, false)
-}
-
-// Settle moves the records in overflow segments into a larger slice, so
-// that every lookup is an index again. Call it between passes only: it
-// moves the slice.
-func (s *NodeStore) Settle() {
-	if !s.overflowed.Load() {
-		return
-	}
-	s.grow(0)
-}
-
-// SettleCurrentNodeStore settles the current store (none: nothing to do).
-// With onlyIfLarge it settles only when many nodes went to overflow
-// segments: parsing calls it between files, so that most lookups stay an
-// index without copying the slice after every file.
-func SettleCurrentNodeStore(onlyIfLarge bool) {
+// SettleCurrentNodeStore moves the current store's overflow nodes into a
+// larger slice when there are many of them: after a pass when they are
+// more than a sixteenth of the slice, between parsed files when they are
+// more than a quarter (betweenFiles). A few overflow nodes stay where they
+// are: copying the whole slice for them would cost more than they slow
+// down. Call it between passes only: it moves the slice.
+func SettleCurrentNodeStore(betweenFiles bool) {
 	s := current
-	if s == nil || !s.overflowed.Load() {
+	if s == nil || len(s.overflow) == 0 {
 		return
 	}
-	if onlyIfLarge && int(s.next.Load()-s.overBase) < max(len(s.recs)/4, overflowLen) {
+	limit := len(s.recs) / 16
+	if betweenFiles {
+		limit = len(s.recs) / 4
+	}
+	if len(s.overflow)*blockLen < max(limit, blockLen) {
 		return
 	}
 	s.grow(0)
 }
 
-// Reserve makes room for n more nodes in the slice (call it between passes,
-// before allocating many nodes, e.g. before parsing).
+// ReserveNodes makes room in the current store's slice for n more nodes
+// (call it between passes, before allocating many nodes: Compiler sizes the
+// store from the input files before parsing them).
+func ReserveNodes(n int) {
+	if current != nil {
+		current.Reserve(n)
+	}
+}
+
+// Reserve makes room for n more nodes in the slice (call it between passes).
 func (s *NodeStore) Reserve(n int) {
 	if s.base == 0 {
 		if cap(s.recs) < n {
@@ -280,29 +321,39 @@ func (s *NodeStore) Reserve(n int) {
 		return
 	}
 	used := int(s.next.Load() - s.base)
-	if used+n > len(s.recs) || s.overflowed.Load() {
+	if used+n > len(s.recs) || len(s.overflow) != 0 {
 		s.grow(n)
 	}
 }
 
+// NodeStoreLog (JSGO_NODE_STORE_LOG=1) logs every resize of a store's
+// slice to stderr, for tuning the size estimates.
+var NodeStoreLog = os.Getenv("JSGO_NODE_STORE_LOG") == "1"
+
+// grow copies the slice and the overflow blocks into a larger slice, with
+// room for extra more nodes or a quarter more, whichever is larger.
 func (s *NodeStore) grow(extra int) {
 	used := int(s.next.Load() - s.base)
-	size := max(used+used/4+1024, used+extra)
+	size := int(roundUpToBlock(uint32(max(used+used/4, used+extra))))
+	if NodeStoreLog {
+		fmt.Fprintf(os.Stderr, "[node-store %d] %d nodes, %d in overflow blocks: slice %d -> %d\n",
+			s.id, used, len(s.overflow)*blockLen, len(s.recs), size)
+	}
 	recs := make([]nodeData, size)
 	n := copy(recs, s.recs[:min(used, len(s.recs))])
-	for k := 0; n < used; k++ {
-		seg := s.overflow[k].Load()
-		n += copy(recs[n:used], seg[:])
+	for _, b := range s.overflow {
+		n += copy(recs[n:used], b[:])
 	}
-	for k := range s.overflow {
-		if s.overflow[k].Load() == nil {
-			break
-		}
-		s.overflow[k].Store(nil)
+	registered := s == current || s == compactSource || s.static
+	if registered {
+		s.unregister()
 	}
-	s.overflowed.Store(false)
 	s.recs = recs
+	s.overflow = nil
 	s.overBase = s.base + uint32(size)
+	if registered {
+		s.register()
+	}
 	if s == current {
 		currentRecs = recs
 	}
@@ -310,15 +361,7 @@ func (s *NodeStore) grow(extra int) {
 
 // rec returns n's record.
 func (n Node) rec() *nodeData {
-	if i := uint32(n) - currentBase; i < uint32(len(currentRecs)) {
-		return &currentRecs[i]
-	}
-	return n.recSlow()
-}
-
-//go:noinline
-func (n Node) recSlow() *nodeData {
-	return n.store().rec(uint32(n))
+	return &nodeBlocks[uint32(n)>>blockShift].Load()[uint32(n)&blockMask]
 }
 
 // store returns the store n lives in.
